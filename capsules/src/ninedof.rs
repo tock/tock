@@ -5,7 +5,7 @@
 //!
 //! You need a device that provides the `hil::sensors::NineDof` trait.
 //!
-//! ``rust
+//! ```rust
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
 //!     capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create()));

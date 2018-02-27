@@ -46,6 +46,7 @@ use kernel::hil::time::Frequency;
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:
+///
 ///  * RXBUFFER must be greater than or equal to TXBUFFER in length
 ///  * Both RXBUFFER and TXBUFFER must be longer  than the SD card's block size
 pub static mut TXBUFFER: [u8; 515] = [0; 515];

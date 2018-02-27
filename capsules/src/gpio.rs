@@ -151,6 +151,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// If the higher order bytes are not used, they must be set to `0`.
     ///
     /// Other data bytes:
+    ///
     ///   - `pin_config`: An internal resistor setting.
     ///                   Set to `0` for a pull-up resistor.
     ///                   Set to `1` for a pull-down resistor.

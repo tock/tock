@@ -27,6 +27,7 @@
 //!
 //! The `mac_device` device is now set up. Users of the MAC device can now
 //! configure the underlying radio, prepare and send frames:
+//!
 //! ```rust
 //! mac_device.set_pan(0xABCD);
 //! mac_device.set_address(0x1008);
@@ -51,6 +52,7 @@
 //!
 //! You should also be able to set up the userspace driver for receiving/sending
 //! 802.15.4 frames:
+//!
 //! ```rust
 //! let radio_capsule = static_init!(
 //!     capsules::ieee802154::RadioDriver<'static>,
@@ -89,8 +91,10 @@ pub struct Frame {
 }
 
 /// This contains just enough information about a frame to determine
+///
 /// 1. How to encode it once its payload has been finalized
 /// 2. The sizes of the mac header, payload and MIC tag length to be added
+///
 /// These offsets are relative to the PSDU or `buf[radio::PSDU_OFFSET..]` so
 /// that the mac frame length is `data_offset + data_len`
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -207,6 +211,7 @@ fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel
 
 /// The needed buffer size might be bigger than an MTU, because
 /// the CCM* authentication procedure
+///
 /// - adds an extra 16-byte block in front of the a and m data
 /// - prefixes the a data with a length encoding and pads the result
 /// - pads the m data to 16-byte blocks
@@ -240,10 +245,11 @@ pub trait DeviceProcedure {
 /// Conditionally-present state is also included as fields in the enum variants.
 /// We can view the transmission process as a state machine driven by the
 /// following events:
+///
 /// - calls to `Mac#transmit`
 /// - `send_done` callbacks from the underlying radio
 /// - `config_done` callbacks from the underlying radio (if, for example,
-/// configuration was in progress when a transmission was requested)
+///   configuration was in progress when a transmission was requested)
 #[derive(Eq, PartialEq, Debug)]
 enum TxState {
     /// There is no frame to be transmitted.

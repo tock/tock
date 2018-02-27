@@ -1,6 +1,6 @@
 //! Peripheral implementations for the SAM4L MCU.
 //!
-//! http://www.atmel.com/microsite/sam4l/default.aspx
+//! <http://www.atmel.com/microsite/sam4l/default.aspx>
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]

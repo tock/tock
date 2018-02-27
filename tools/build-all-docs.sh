@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # Parse a search-index.js file to get the known crates.
 function get_known_crates {
 	FILE=$1

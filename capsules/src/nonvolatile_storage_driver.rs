@@ -14,6 +14,7 @@
 //! interfaces between components. This capsule provides both a kernel and
 //! userspace interface.
 //!
+//! ```text
 //! +--------------------------------------------+     +--------------+
 //! |                                            |     |              |
 //! |                  kernel                    |     |  userspace   |
@@ -31,8 +32,10 @@
 //! |               Physical nonvolatile storage driver               |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
+//! ```
 //!
 //! Example instantiation:
+//!
 //! ```rust
 //! let nonvolatile_storage = static_init!(
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,

@@ -1,6 +1,6 @@
 //! Driver for the Silicon Labs SI7021 temperature/humidity sensor.
 //!
-//! https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx
+//! <https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx>
 //!
 //! > The Si7006/13/20/21/34 devices are Silicon Labs’ latest generation I2C
 //! > relative humidity and temperature sensors. All members of this device

@@ -38,7 +38,7 @@
 //!
 //! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
-//! ``rust
+//! ```rust
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,

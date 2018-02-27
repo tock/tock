@@ -1,6 +1,6 @@
 //! Driver for the ISL29035 digital light sensor.
 //!
-//! http://bit.ly/2rA00cH
+//! <http://bit.ly/2rA00cH>
 //!
 //! > The ISL29035 is an integrated ambient and infrared light-to-digital
 //! > converter with I2C (SMBus compatible) Interface. Its advanced self-

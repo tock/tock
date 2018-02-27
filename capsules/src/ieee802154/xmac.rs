@@ -2,7 +2,7 @@
 //! to manage an Atmel RF233 radio.
 //!
 //! Original X-MAC paper, on which this implementation is heavily based:
-//!     http://www.cs.cmu.edu/~andersoe/papers/xmac-sensys.pdf
+//!     <http://www.cs.cmu.edu/~andersoe/papers/xmac-sensys.pdf>
 //!
 //! Nodes using this layer place their radios to sleep for the vast majority of
 //! the time, thereby reducing power consumption. Transmitters wake and send a
