@@ -144,6 +144,7 @@ macro_rules! stream_from_option {
 /// ```
 ///
 /// Then, using an encoder can be done simply by:
+///
 /// ```
 /// match encoder(&mut buf) {
 ///     SResult::Done(off, out) => { /* celebrate */ }

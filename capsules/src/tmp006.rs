@@ -1,6 +1,6 @@
 //! Driver for the TI TMP006 infrared thermopile contactless temperature sensor.
 //!
-//! http://www.ti.com/product/TMP006
+//! <http://www.ti.com/product/TMP006>
 //!
 //! > The TMP006 and TMP006B are fully integrated MEMs thermopile sensors that
 //! > measure the temperature of an object without having to be in direct

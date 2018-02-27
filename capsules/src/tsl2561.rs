@@ -1,6 +1,6 @@
 //! Driver for the Taos TSL2561 light sensor.
 //!
-//! http://www.digikey.com/product-detail/en/ams-taos-usa-inc/TSL2561FN/TSL2561-FNCT-ND/3095298
+//! <http://www.digikey.com/product-detail/en/ams-taos-usa-inc/TSL2561FN/TSL2561-FNCT-ND/3095298>
 //!
 //! > The TSL2560 and TSL2561 are light-to-digital converters that transform
 //! > light intensity to a digital signal output capable of direct I2C

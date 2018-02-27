@@ -38,7 +38,7 @@
 //!
 //! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
-//! ``rust
+//! ```rust
 //! let temp = static_init!(
 //!        capsules::temperature::TemperatureSensor<'static>,
 //!        capsules::temperature::TemperatureSensor::new(si7021,

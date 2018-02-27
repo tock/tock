@@ -1,6 +1,6 @@
 //! Driver for the Microchip MCP23008 I2C GPIO extender.
 //!
-//! http://www.microchip.com/wwwproducts/en/MCP23008
+//! <http://www.microchip.com/wwwproducts/en/MCP23008>
 //!
 //! Paraphrased from the website:
 //!

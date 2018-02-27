@@ -1,6 +1,6 @@
 //! Driver for the Maxim MAX17205 fuel gauge.
 //!
-//! https://www.maximintegrated.com/en/products/power/battery-management/MAX17205.html
+//! <https://www.maximintegrated.com/en/products/power/battery-management/MAX17205.html>
 //!
 //! > The MAX1720x/MAX1721x are ultra-low power stand-alone fuel gauge ICs that
 //! > implement the Maxim ModelGauge™ m5 algorithm without requiring host
@@ -13,7 +13,6 @@
 //! -----
 //!
 //! ```rust
-//!
 //! // Two i2c addresses are necessary.
 //! // Registers 0x000-0x0FF are accessed by address 0x36.
 //! // Registers 0x100-0x1FF are accessed by address 0x0B.

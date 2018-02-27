@@ -1,6 +1,6 @@
 //! Driver for the FXOS8700CQ accelerometer.
 //!
-//! http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf
+//! <http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf>
 //!
 //! The driver provides x, y, and z acceleration data to a callback function.
 //! It implements the `hil::sensors::NineDof` trait.

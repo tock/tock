@@ -11,6 +11,7 @@
 //!
 //! MLE for network attaching comprises a four-step handshake that works
 //! as follows:
+//!
 //!     1. A child device multicasts a Parent Request MLE command.
 //!     2. Each potential parent device on the network unicasts a Parent
 //!        Response MLE command.
@@ -20,6 +21,7 @@
 //!     4. The selected parent unicasts a Child ID Response MLE command.
 //!
 //! A TLV is comprised of three parts:
+//!
 //!     1. Type   - A one-byte TLV type number.
 //!     2. Length - A one-byte number representing the length of the TLV
 //!                 value in bytes.
@@ -43,8 +45,7 @@
 //! buffer passed to the decode function.
 //!
 //!
-//! Author: Mateo Garcia
-//!         mateog@stanford.edu
+//! Author: Mateo Garcia <mateog@stanford.edu>
 
 // TODO: Move the MLE explanation above to the MLE module, when it is created.
 

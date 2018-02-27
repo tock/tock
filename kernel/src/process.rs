@@ -671,7 +671,7 @@ pub struct Process<'a> {
     /// MPU regions are saved as a pointer-size pair.
     ///
     /// size is encoded as X where
-    /// SIZE = 2^(X + 1) and X >= 4.
+    /// SIZE = 2<sup>(X + 1)</sup> and X >= 4.
     ///
     /// A null pointer represents an empty region.
     ///
