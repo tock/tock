@@ -134,7 +134,7 @@ doc: | target
 	@# https://stackoverflow.com/a/14608500/358675
 	$(Q)DEST=$$(mktemp -d)/rustdoc-$$RANDOM; \
 	    trap 'rm -rf $$DEST' EXIT; \
-	    printf '#!/bin/bash\nexec rustdoc $$@ --no-defaults --passes "collapse-docs" --passes "unindent-comments"\n' > $$DEST; \
+	    printf '#!/bin/bash\nexec rustdoc $$@ --document-private-items\n' > $$DEST; \
 	    chmod +x $$DEST; \
 	    RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) RUSTDOC=$$DEST $(XARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
