@@ -6,9 +6,8 @@ use core::cell::Cell;
 use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
-use kernel::common::VolatileCell;
 use kernel::ClockInterface;
-
+use kernel::common::VolatileCell;
 use scif;
 
 #[repr(C)]

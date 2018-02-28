@@ -37,7 +37,9 @@ pub trait ClockInterface {
 pub struct NoClockControl {}
 impl ClockInterface for NoClockControl {
     type PlatformClockType = NoClockControl;
-    fn is_enabled(&self) -> bool { true }
+    fn is_enabled(&self) -> bool {
+        true
+    }
     fn enable(&self) {}
     fn disable(&self) {}
 }

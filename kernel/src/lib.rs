@@ -34,7 +34,7 @@ pub use common::{MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager}
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};
-pub use platform::{Chip, mpu, Platform, systick};
+pub use platform::{mpu, systick, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use platform::systick::SysTick;
 pub use process::{Process, State};

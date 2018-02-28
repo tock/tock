@@ -97,7 +97,6 @@ pub enum Speed {
     FastPlus1M,
 }
 
-
 /// Wrapper for TWIM clock that ensures TWIS clock is off
 struct TWIMClock {
     master: pm::Clock,
@@ -106,7 +105,9 @@ struct TWIMClock {
 impl ClockInterface for TWIMClock {
     type PlatformClockType = pm::Clock;
 
-    fn is_enabled(&self) -> bool { self.master.is_enabled() }
+    fn is_enabled(&self) -> bool {
+        self.master.is_enabled()
+    }
 
     fn enable(&self) {
         self.slave.map(|slave_clock| {
@@ -149,7 +150,6 @@ impl ClockInterface for TWISClock {
     }
 }
 
-
 /// Abstraction of the I2C hardware
 pub struct I2CHw {
     master_mmio_address: *mut TWIMRegisters,
@@ -171,7 +171,6 @@ pub struct I2CHw {
     slave_write_buffer_len: Cell<u8>,
     slave_write_buffer_index: Cell<u8>,
 }
-
 
 /// Manage clocks for TWIM (I2C Master)
 ///
@@ -226,7 +225,8 @@ impl MMIOInterface<TWISClock> for I2CHw {
     type MMIORegisterType = TWISRegisters;
 
     fn get_hardware_address(&self) -> *mut TWISRegisters {
-        self.slave_mmio_address.expect("Access of non-existant slave")
+        self.slave_mmio_address
+            .expect("Access of non-existant slave")
     }
 }
 impl MMIOClockInterface<TWISClock> for I2CHw {
@@ -237,43 +237,46 @@ impl MMIOClockInterface<TWISClock> for I2CHw {
 
 type TWISRegisterManager<'a> = MMIOManager<'a, I2CHw, TWISClock>;
 
-
-
-const fn create_twims_clocks(master: pm::Clock, slave: Option<pm::Clock>) -> (TWIMClock, TWISClock) {
+const fn create_twims_clocks(
+    master: pm::Clock,
+    slave: Option<pm::Clock>,
+) -> (TWIMClock, TWISClock) {
     (TWIMClock { master, slave }, TWISClock { master, slave })
 }
-pub static mut I2C0: I2CHw = I2CHw::new(I2C_BASE_ADDRS[0],
-                                        Some(I2C_SLAVE_BASE_ADDRS[0]),
-                                        create_twims_clocks(
-                                            pm::Clock::PBA(pm::PBAClock::TWIM0),
-                                            Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
-                                            ),
-                                        DMAPeripheral::TWIM0_RX,
-                                        DMAPeripheral::TWIM0_TX);
-pub static mut I2C1: I2CHw = I2CHw::new(I2C_BASE_ADDRS[1],
-                                        Some(I2C_SLAVE_BASE_ADDRS[1]),
-                                        create_twims_clocks(
-                                            pm::Clock::PBA(pm::PBAClock::TWIM1),
-                                            Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
-                                            ),
-                                        DMAPeripheral::TWIM1_RX,
-                                        DMAPeripheral::TWIM1_TX);
-pub static mut I2C2: I2CHw = I2CHw::new(I2C_BASE_ADDRS[2],
-                                        None,
-                                        create_twims_clocks(
-                                            pm::Clock::PBA(pm::PBAClock::TWIM2),
-                                            None,
-                                            ),
-                                        DMAPeripheral::TWIM2_RX,
-                                        DMAPeripheral::TWIM2_TX);
-pub static mut I2C3: I2CHw = I2CHw::new(I2C_BASE_ADDRS[3],
-                                        None,
-                                        create_twims_clocks(
-                                            pm::Clock::PBA(pm::PBAClock::TWIM3),
-                                            None,
-                                            ),
-                                        DMAPeripheral::TWIM3_RX,
-                                        DMAPeripheral::TWIM3_TX);
+pub static mut I2C0: I2CHw = I2CHw::new(
+    I2C_BASE_ADDRS[0],
+    Some(I2C_SLAVE_BASE_ADDRS[0]),
+    create_twims_clocks(
+        pm::Clock::PBA(pm::PBAClock::TWIM0),
+        Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
+    ),
+    DMAPeripheral::TWIM0_RX,
+    DMAPeripheral::TWIM0_TX,
+);
+pub static mut I2C1: I2CHw = I2CHw::new(
+    I2C_BASE_ADDRS[1],
+    Some(I2C_SLAVE_BASE_ADDRS[1]),
+    create_twims_clocks(
+        pm::Clock::PBA(pm::PBAClock::TWIM1),
+        Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
+    ),
+    DMAPeripheral::TWIM1_RX,
+    DMAPeripheral::TWIM1_TX,
+);
+pub static mut I2C2: I2CHw = I2CHw::new(
+    I2C_BASE_ADDRS[2],
+    None,
+    create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM2), None),
+    DMAPeripheral::TWIM2_RX,
+    DMAPeripheral::TWIM2_TX,
+);
+pub static mut I2C3: I2CHw = I2CHw::new(
+    I2C_BASE_ADDRS[3],
+    None,
+    create_twims_clocks(pm::Clock::PBA(pm::PBAClock::TWIM3), None),
+    DMAPeripheral::TWIM3_RX,
+    DMAPeripheral::TWIM3_TX,
+);
 
 pub const START: usize = 1 << 13;
 pub const STOP: usize = 1 << 14;
@@ -353,7 +356,6 @@ impl I2CHw {
 
     pub fn handle_interrupt(&self) {
         use kernel::hil::i2c::Error;
-
 
         let old_status = {
             let regs_manager = &TWIMRegisterManager::new(&self);
@@ -455,10 +457,12 @@ impl I2CHw {
                     {
                         let regs_manager = &TWIMRegisterManager::new(&self);
                         // Enable transaction error interrupts
-                        regs_manager.registers.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
-                                   | (1 << 8)    // ANAK   - Address not ACKd
-                                   | (1 << 9)    // DNAK   - Data not ACKd
-                                   | (1 << 10)); // ARBLST - Arbitration lost
+                        regs_manager.registers.interrupt_enable.set(
+                            (1 << 3)    // CCOMP   - Command completed
+                                   | (1 << 8)   // ANAK   - Address not ACKd
+                                   | (1 << 9)   // DNAK   - Data not ACKd
+                                   | (1 << 10), // ARBLST - Arbitration lost
+                        );
                     }
                     self.dma.get().map(|dma| {
                         let buf = dma.abort_xfer().unwrap();
@@ -470,7 +474,14 @@ impl I2CHw {
         }
     }
 
-    fn setup_xfer(&self, regs_manager: &TWIMRegisterManager, chip: u8, flags: usize, read: bool, len: u8) {
+    fn setup_xfer(
+        &self,
+        regs_manager: &TWIMRegisterManager,
+        chip: u8,
+        flags: usize,
+        read: bool,
+        len: u8,
+    ) {
         // disable before configuring
         regs_manager.registers.control.set(0x1 << 1);
 
@@ -485,14 +496,22 @@ impl I2CHw {
         regs_manager.registers.next_command.set(0);
 
         // Enable transaction error interrupts
-        regs_manager.registers.interrupt_enable.set((1 << 3)     // CCOMP   - Command completed
+        regs_manager.registers.interrupt_enable.set(
+            (1 << 3)     // CCOMP   - Command completed
                                                     | (1 << 8)   // ANAK   - Address not ACKd
                                                     | (1 << 9)   // DNAK   - Data not ACKd
                                                     | (1 << 10), // ARBLST - Abitration lost
         );
     }
 
-    fn setup_nextfer(&self, regs_manager: &TWIMRegisterManager, chip: u8, flags: usize, read: bool, len: u8) {
+    fn setup_nextfer(
+        &self,
+        regs_manager: &TWIMRegisterManager,
+        chip: u8,
+        flags: usize,
+        read: bool,
+        len: u8,
+    ) {
         // disable before configuring
         regs_manager.registers.control.set(0x1 << 1);
 
@@ -589,8 +608,13 @@ impl I2CHw {
                     regs_manager.registers.status_clear.set(1 << 23);
 
                     // Setup interrupts that we now care about
-                    regs_manager.registers.interrupt_enable.set((1 << 3) | (1 << 23));
-                    regs_manager.registers.interrupt_enable
+                    regs_manager
+                        .registers
+                        .interrupt_enable
+                        .set((1 << 3) | (1 << 23));
+                    regs_manager
+                        .registers
+                        .interrupt_enable
                         .set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
 
                     if self.slave_read_buffer.is_some() {
@@ -599,8 +623,12 @@ impl I2CHw {
                         let len = self.slave_read_buffer_len.get();
 
                         if len >= 1 {
-                            self.slave_read_buffer
-                                .map(|buffer| { regs_manager.registers.transmit_holding.set(buffer[0] as u32); });
+                            self.slave_read_buffer.map(|buffer| {
+                                regs_manager
+                                    .registers
+                                    .transmit_holding
+                                    .set(buffer[0] as u32);
+                            });
                             self.slave_read_buffer_index.set(1);
                         } else {
                             // Send dummy byte
@@ -619,7 +647,10 @@ impl I2CHw {
                     // Slave is in receive mode, AKA we got a write.
 
                     // Get transmission complete and rxready interrupts.
-                    regs_manager.registers.interrupt_enable.set((1 << 3) | (1 << 0));
+                    regs_manager
+                        .registers
+                        .interrupt_enable
+                        .set((1 << 3) | (1 << 0));
 
                     // Set index to 0
                     self.slave_write_buffer_index.set(0);
@@ -666,7 +697,8 @@ impl I2CHw {
 
                         if len > idx {
                             self.slave_write_buffer.map(|buffer| {
-                                buffer[idx as usize] = regs_manager.registers.receive_holding.get() as u8;
+                                buffer[idx as usize] =
+                                    regs_manager.registers.receive_holding.get() as u8;
                             });
                             self.slave_write_buffer_index.set(idx + 1);
                         } else {
@@ -695,7 +727,10 @@ impl I2CHw {
 
                         if len > idx {
                             self.slave_read_buffer.map(|buffer| {
-                                regs_manager.registers.transmit_holding.set(buffer[idx as usize] as u32);
+                                regs_manager
+                                    .registers
+                                    .transmit_holding
+                                    .set(buffer[idx as usize] as u32);
                             });
                             self.slave_read_buffer_index.set(idx + 1);
                         } else {
@@ -727,7 +762,8 @@ impl I2CHw {
 
                             if len > idx {
                                 self.slave_write_buffer.map(|buffer| {
-                                    buffer[idx as usize] = regs_manager.registers.receive_holding.get() as u8;
+                                    buffer[idx as usize] =
+                                        regs_manager.registers.receive_holding.get() as u8;
                                 });
                                 self.slave_write_buffer_index.set(idx + 1);
                             } else {
@@ -795,8 +831,12 @@ impl I2CHw {
                     let len = self.slave_read_buffer_len.get();
 
                     if len >= 1 {
-                        self.slave_read_buffer
-                            .map(|buffer| { regs_manager.registers.transmit_holding.set(buffer[0] as u32); });
+                        self.slave_read_buffer.map(|buffer| {
+                            regs_manager
+                                .registers
+                                .transmit_holding
+                                .set(buffer[0] as u32);
+                        });
                         self.slave_read_buffer_index.set(1);
                     } else {
                         // Send dummy byte
@@ -857,7 +897,10 @@ impl hil::i2c::I2CMaster for I2CHw {
         self.set_bus_speed(regs_manager);
 
         // slew
-        regs_manager.registers.slew_rate.set((0x2 << 28) | (7 << 16) | (7 << 0));
+        regs_manager
+            .registers
+            .slew_rate
+            .set((0x2 << 28) | (7 << 16) | (7 << 0));
 
         // clear interrupts
         regs_manager.registers.status_clear.set(!0);
@@ -905,7 +948,10 @@ impl hil::i2c::I2CSlave for I2CHw {
             regs_manager.registers.interrupt_enable.set((1 << 16));
 
             // Also setup all of the error interrupts.
-            regs_manager.registers.interrupt_enable.set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
+            regs_manager
+                .registers
+                .interrupt_enable
+                .set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
         }
 
         self.slave_enabled.set(true);

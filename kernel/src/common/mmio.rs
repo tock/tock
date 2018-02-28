@@ -41,29 +41,30 @@
 //!
 //! Peripherals whose clock cannot be disabled should use `NoClockControl`.
 
-use ::ClockInterface;
-
+use ClockInterface;
 
 /// Hooks for peripherals to enable and disable clocks as appropriate.
-pub trait MMIOClockGuard<C> where
+pub trait MMIOClockGuard<C>
+where
     C: ClockInterface,
 {
     fn before_mmio_access(&self, &C);
     fn after_mmio_access(&self, &C);
 }
 
-
 /// A structure encapsulating a peripheral should implement this trait.
-pub trait MMIOInterface<C> where
+pub trait MMIOInterface<C>
+where
     C: ClockInterface,
 {
-    type MMIORegisterType : MMIOClockGuard<C>;
+    type MMIORegisterType: MMIOClockGuard<C>;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
 }
 
 /// A structure encapsulating a clocked peripheral should implement this trait.
-pub trait MMIOClockInterface<C> where
+pub trait MMIOClockInterface<C>
+where
     C: ClockInterface,
 {
     fn get_clock(&self) -> &C;
@@ -77,7 +78,8 @@ pub trait MMIOClockInterface<C> where
 /// let mmio = &MMIOManager::new(self);
 /// mmio.registers.control.set(0x1);
 /// ```
-pub struct MMIOManager<'a, H, C> where
+pub struct MMIOManager<'a, H, C>
+where
     H: 'a + MMIOInterface<C>,
     C: 'a + ClockInterface,
 {
@@ -85,18 +87,20 @@ pub struct MMIOManager<'a, H, C> where
     clock: &'a C,
 }
 
-impl<'a, H, C> MMIOManager<'a, H, C> where
+impl<'a, H, C> MMIOManager<'a, H, C>
+where
     H: 'a + MMIOInterface<C> + MMIOClockInterface<C>,
     C: 'a + ClockInterface,
 {
     pub fn new(periphal_hardware: &'a H) -> MMIOManager<'a, H, C> {
-        let registers = unsafe { &* periphal_hardware.get_hardware_address() };
+        let registers = unsafe { &*periphal_hardware.get_hardware_address() };
         let clock = periphal_hardware.get_clock();
         registers.before_mmio_access(clock);
         MMIOManager { registers, clock }
     }
 }
-impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
+impl<'a, H, C> Drop for MMIOManager<'a, H, C>
+where
     H: 'a + MMIOInterface<C>,
     C: 'a + ClockInterface,
 {

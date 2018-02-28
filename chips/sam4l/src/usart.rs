@@ -367,11 +367,9 @@ impl USART {
         } else if status & (1 << 7) != 0 {
             // PARE
             self.abort_rx(regs_manager, hil::uart::Error::ParityError);
-
         } else if status & (1 << 6) != 0 {
             // FRAME
             self.abort_rx(regs_manager, hil::uart::Error::FramingError);
-
         } else if status & (1 << 5) != 0 {
             // OVRE
             self.abort_rx(regs_manager, hil::uart::Error::OverrunError);
@@ -871,7 +869,7 @@ impl hil::spi::SpiMaster for USART {
         }
     }
 
-    fn get_clock(&self,) -> hil::spi::ClockPolarity {
+    fn get_clock(&self) -> hil::spi::ClockPolarity {
         let regs_manager = &USARTRegManager::new(&self);
         let mode = regs_manager.registers.mr.get();
 
