@@ -897,7 +897,7 @@ impl App {
                 BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_timer_event::<A>(scan_state, self, ble, appid)),
 
                 state => {
-                    debug!("Error! {:?}", state);
+                    debug!("Error! handle_timer_event {:?}", state);
 
                     state
                 }
@@ -926,7 +926,7 @@ impl App {
                     BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_rx_event::<A>(adv_state, self, ble, appid, &pdu)),
                     BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_rx_event::<A>(scan_state, self, ble, appid, &pdu)),
                     state => {
-                        debug!("Error! {:?}", state);
+                        debug!("Error! handle_rx_event {:?}", state);
 
                         state
                     }
@@ -946,7 +946,7 @@ impl App {
                 BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_tx_event::<A>(adv_state, self, ble, appid)),
                 BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_tx_event::<A>(scan_state, self, ble, appid)),
                 state => {
-                    debug!("Error! {:?}", state);
+                    debug!("Error! handle_tx_event {:?}", state);
 
                     state
                 }
@@ -1007,7 +1007,7 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                 }
             },
             state => {
-                debug!("Error! {:?}", state);
+                debug!("Error! Adv::handle_rx_event {:?}", state);
 
                 state
             }
@@ -1042,8 +1042,18 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
 
                 BLEAdvertisingState::Listening(channel)
             },
+            BLEAdvertisingState::Idle => {
+                ble.set_busy(BusyState::Busy(appid));
+                let channel = RadioChannel::AdvertisingChannel37;
+                ble.set_tx_power(app.tx_power);
+                app.send_advertisement(ble, channel, appid);
+
+                app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
+
+                BLEAdvertisingState::Advertising(channel)
+            }
             state => {
-                debug!("Error! {:?}", state);
+                debug!("Error! Adv::handle_tx_event {:?}", state);
 
                 state
             }
@@ -1180,7 +1190,7 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
                 }
             },
             state => {
-                debug!("Error! {:?}", state);
+                debug!("Error! Scanner::handle_timer_event {:?}", state);
 
                 state
             }
@@ -1415,7 +1425,7 @@ where
         appid: kernel::AppId,
     ) -> ReturnCode {
         match command_num {
-            // Start periodic advertisments
+            // Start periodic advertisements
             0 => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
