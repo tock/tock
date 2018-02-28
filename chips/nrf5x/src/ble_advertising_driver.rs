@@ -890,8 +890,7 @@ impl App {
             B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
             A: kernel::hil::time::Alarm + 'a,
     {
-
-        self.process_status.map(|ble_state| {
+        let new_state = self.process_status.map(|ble_state: BLEState| -> BLEState {
             match ble_state {
                 BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_timer_event::<A>(adv_state, self, ble, appid)),
                 BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_timer_event::<A>(scan_state, self, ble, appid)),
@@ -903,6 +902,8 @@ impl App {
                 }
             }
         });
+
+        self.process_status = new_state;
     }
 
     fn handle_rx_event<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, appid: kernel::AppId, buf: &'static mut [u8], len: u8)
@@ -921,7 +922,7 @@ impl App {
                         }*/
 
         if let Some(pdu) = pdu {
-            self.process_status.map(|ble_state| {
+            let new_state = self.process_status.map(|ble_state| {
                 match ble_state {
                     BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_rx_event::<A>(adv_state, self, ble, appid, &pdu)),
                     BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_rx_event::<A>(scan_state, self, ble, appid, &pdu)),
@@ -932,6 +933,7 @@ impl App {
                     }
                 }
             });
+            self.process_status = new_state;
         }
     }
 
@@ -941,7 +943,7 @@ impl App {
             A: kernel::hil::time::Alarm + 'a,
     {
 
-        self.process_status.map(|ble_state| {
+        let new_state = self.process_status.map(|ble_state| {
             match ble_state {
                 BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_tx_event::<A>(adv_state, self, ble, appid)),
                 BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_tx_event::<A>(scan_state, self, ble, appid)),
@@ -952,6 +954,7 @@ impl App {
                 }
             }
         });
+        self.process_status = new_state;
     }
 }
 
@@ -1105,11 +1108,14 @@ struct Scanner;
 
 impl BLEEventHandler<BLEScanningState> for Scanner {
     fn handle_rx_event<A>(state: BLEScanningState, app: &mut App, ble: &BLESender, appid: kernel::AppId, pdu: &BLEPduType) -> BLEScanningState where A: kernel::hil::time::Alarm {
+
         match state {
             BLEScanningState::Scanning(channel) => {
                 match *pdu {
                     BLEPduType::ConnectUndirected(adv_addr, _) => {
                         let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
+
+                        debug!("adv_addr: {:?}", adv_addr);
 
                         if adv_addr == tmp_adv_addr {
                             app.alarm_data.expiration = Expiration::Disabled;
@@ -1161,8 +1167,11 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
     }
 
     fn handle_timer_event<A>(state: BLEScanningState, app: &mut App, ble: &BLESender, appid: kernel::AppId) -> BLEScanningState where A: kernel::hil::time::Alarm {
+
         match state {
             BLEScanningState::Idle => {
+
+
                 ble.set_busy(BusyState::Busy(appid));
 
                 let channel = RadioChannel::AdvertisingChannel37;
@@ -1171,9 +1180,12 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
                 ble.receive_buffer(channel, appid);
                 app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
 
+                debug!("I'm idle, channel: {:?}", channel);
+
                 BLEScanningState::Scanning(channel)
             }
             BLEScanningState::Scanning(channel) => {
+                debug!("I'm scanning");
                 if let Some(channel) = channel.get_next_advertising_channel() {
 
                     ble.set_tx_power(app.tx_power);
@@ -1323,7 +1335,7 @@ where
     // recently performed an operation.
     fn fired(&self) {
         let now = self.alarm.now();
-        //debug!("Timer fired!");
+        debug!("Timer fired!");
 
         self.app.each(|app| {
             if let Expiration::Abs(exp) = app.alarm_data.expiration {
@@ -1343,6 +1355,7 @@ where
                     }
                     let appid = app.appid();
                     app.handle_timer_event(&self, appid);
+                    debug!("New state after timer: {:?}", app.process_status);
                 }
             }
         });
@@ -1383,6 +1396,8 @@ where
                     false
                 };
                 app.handle_rx_event(self, appid, buf, len);
+
+                debug!("New state after rx: {:?}", app.process_status);
             });
             self.reset_active_alarm();
         }
@@ -1404,6 +1419,7 @@ where
                 //debug!("==transmit_event! {:?}" , app.process_status);
 
                 app.handle_tx_event(&self, appid);
+                debug!("New state after tx: {:?}", app.process_status);
             });
             self.reset_active_alarm();
 
