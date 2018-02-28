@@ -238,7 +238,7 @@ impl<'a, R: radio::Radio + 'a, A: Alarm + 'a> XMac<'a, R, A> {
                 frame_type: FrameType::Multipurpose,
                 frame_pending: false,
                 ack_requested: true,
-                version: FrameVersion::V2015,
+                version: FrameVersion::V2006,
                 seq: Some(self.tx_preamble_seq_num.get()),
                 dst_pan: tx_header.dst_pan,
                 dst_addr: tx_header.dst_addr,
