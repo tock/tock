@@ -657,8 +657,8 @@ impl App {
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
 
-        //let random_address: [u8; 6] = [0xf0, 0x11, 0x11, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
-        let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        let random_address: [u8; 6] = [0xf0, 0x11, 0x11, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        //let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
         self.advertising_address = Some(DeviceAddress::new(&random_address));
 
         self.advertisement_buf
@@ -1180,12 +1180,10 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
                 ble.receive_buffer(channel, appid);
                 app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
 
-                debug!("I'm idle, channel: {:?}", channel);
 
                 BLEScanningState::Scanning(channel)
             }
             BLEScanningState::Scanning(channel) => {
-                debug!("I'm scanning");
                 if let Some(channel) = channel.get_next_advertising_channel() {
 
                     ble.set_tx_power(app.tx_power);
@@ -1335,7 +1333,7 @@ where
     // recently performed an operation.
     fn fired(&self) {
         let now = self.alarm.now();
-        debug!("Timer fired!");
+        //debug!("Timer fired!");
 
         self.app.each(|app| {
             if let Expiration::Abs(exp) = app.alarm_data.expiration {
@@ -1397,7 +1395,6 @@ where
                 };
                 app.handle_rx_event(self, appid, buf, len);
 
-                debug!("New state after rx: {:?}", app.process_status);
             });
             self.reset_active_alarm();
         }
@@ -1419,7 +1416,6 @@ where
                 //debug!("==transmit_event! {:?}" , app.process_status);
 
                 app.handle_tx_event(&self, appid);
-                debug!("New state after tx: {:?}", app.process_status);
             });
             self.reset_active_alarm();
 
