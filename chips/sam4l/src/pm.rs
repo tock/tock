@@ -421,7 +421,7 @@ macro_rules! get_clock {
 const DEEP_SLEEP_HSBMASK: u32 = 0x1e7;
 
 // No clocks allowed on PBA
-const DEEP_SLEEP_PBAMASK: u32 = 0x6000f0;
+const DEEP_SLEEP_PBAMASK: u32 = 0x6000a0;
 
 // FLASHCALW and HRAMC1 clocks allowed
 //
