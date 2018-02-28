@@ -38,6 +38,8 @@
 //! clock upon instantiation. The intention is to exploit
 //! [Ownership Based Resource Management](https://doc.rust-lang.org/beta/nomicon/obrm.html)
 //! to capture peripheral power state.
+//!
+//! Peripherals whose clock cannot be disabled should use `NoClockControl`.
 
 use ::ClockInterface;
 

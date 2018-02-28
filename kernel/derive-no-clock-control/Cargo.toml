@@ -1,0 +1,11 @@
+[package]
+name = "derive-no-clock-control"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "0.11.11"
+quote = "0.3.15"

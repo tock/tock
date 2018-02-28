@@ -6,3 +6,4 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
+derive-no-clock-control = { path = "../../kernel/derive-no-clock-control" }

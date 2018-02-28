@@ -14,6 +14,10 @@ extern crate cortexm4;
 #[macro_use(debug, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
+#[allow(unused_imports)]
+#[macro_use]
+extern crate derive_no_clock_control;
+
 #[macro_use]
 mod helpers;
 
