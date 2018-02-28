@@ -418,16 +418,16 @@ macro_rules! get_clock {
 //
 // This is identical to the reset value of the HSBMASK except it allows the
 // PicoCache RAM clock to be on as well.
-const DEEP_SLEEP_HSBMASK: u32 = 0x1e6;
+const DEEP_SLEEP_HSBMASK: u32 = 0x1e7;
 
 // No clocks allowed on PBA
-const DEEP_SLEEP_PBAMASK: u32 = 0x0;
+const DEEP_SLEEP_PBAMASK: u32 = 0x6000f0;
 
 // FLASHCALW and HRAMC1 clocks allowed
 //
 // This is identical to the reset value of the PBBMASK except it allows the
 // flash's HRAMC1 clock as well.
-const DEEP_SLEEP_PBBMASK: u32 = 0x3;
+const DEEP_SLEEP_PBBMASK: u32 = 0xb;
 
 /// Determines if the chip can safely go into deep sleep without preventing
 /// currently active peripherals from operating.
