@@ -797,11 +797,7 @@ impl App {
             })
     }
 
-    fn send_scan_request<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, adv_addr: DeviceAddress, channel: RadioChannel, appid: kernel::AppId) -> ReturnCode
-        where
-            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-            A: kernel::hil::time::Alarm + 'a,
-    {
+    fn send_scan_request(&mut self, ble: &BLESender, adv_addr: DeviceAddress, channel: RadioChannel, appid: kernel::AppId) -> ReturnCode {
 
         debug!("Sending ScanRequest to {:?}", adv_addr);
 
@@ -1131,6 +1127,7 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
                             debug!("ADV_IND from {:?}", adv_addr);
                             let lldata = LLData::new();
                             app.send_connect_request(ble, tmp_adv_addr, channel, lldata, appid);
+                            //app.send_scan_request(ble, tmp_adv_addr, channel, appid);
 
                             BLEScanningState::Requesting(channel)
                         } else {
