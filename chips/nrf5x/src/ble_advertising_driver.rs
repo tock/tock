@@ -332,9 +332,6 @@ impl LLData {
 
     fn write_to_buffer(&self, buffer: &mut [u8]) {
 
-
-        let buffer = buffer.as_mut();
-
         buffer[PACKET_ADDR_START + 12] = self.aa[3]; //aa
         buffer[PACKET_ADDR_START + 13] = self.aa[2]; //aa
         buffer[PACKET_ADDR_START + 14] = self.aa[1]; //aa
@@ -357,6 +354,7 @@ impl LLData {
         buffer[PACKET_ADDR_START + 31] = self.chm[3]; //chm
         buffer[PACKET_ADDR_START + 32] = self.chm[4]; //chm
         buffer[PACKET_ADDR_START + 33] = self.hop_and_sca; //hop, sca
+
     }
 
 
@@ -748,18 +746,6 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn send_buffer<'a, B, A>(&self, ble: &BLESender, slice: &'static mut [u8],  advertisement_type: BLEAdvertisementType, channel: RadioChannel, appid: kernel::AppId) -> ReturnCode
-        where
-            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-            A: kernel::hil::time::Alarm + 'a,
-    {
-        slice.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (advertisement_type as u8);
-
-        ble.transmit_buffer(slice, PACKET_LENGTH, channel, appid);
-
-        ReturnCode::SUCCESS
-    }
-
 
     fn send_advertisement(&self, ble: &BLESender, channel: RadioChannel, appid: kernel::AppId) -> ReturnCode {
         self.advertisement_buf
@@ -904,7 +890,7 @@ impl App {
         self.process_status = new_state;
     }
 
-    fn handle_rx_event<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, appid: kernel::AppId, buf: &'static mut [u8], len: u8)
+    fn handle_rx_event<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, appid: kernel::AppId, buf: &'static mut [u8])
         where
             B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
             A: kernel::hil::time::Alarm + 'a,
@@ -1285,7 +1271,7 @@ impl<'a, B, A> BLESender for BLE<'a, B, A>
     fn transmit_buffer(
         &self,
         buf: &'static mut [u8],
-        len: usize,
+        _len: usize,
         channel: RadioChannel,
         appid: kernel::AppId
     ) {
@@ -1396,7 +1382,7 @@ where
                 } else {
                     false
                 };
-                app.handle_rx_event(self, appid, buf, len);
+                app.handle_rx_event(self, appid, buf);
 
             });
             self.reset_active_alarm();
