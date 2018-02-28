@@ -1115,7 +1115,7 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
                     BLEPduType::ConnectUndirected(adv_addr, _) => {
                         let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
 
-                        debug!("adv_addr: {:?}", adv_addr);
+                        //debug!("adv_addr: {:?}", adv_addr);
 
                         if adv_addr == tmp_adv_addr {
                             app.alarm_data.expiration = Expiration::Disabled;
@@ -1353,7 +1353,6 @@ where
                     }
                     let appid = app.appid();
                     app.handle_timer_event(&self, appid);
-                    debug!("New state after timer: {:?}", app.process_status);
                 }
             }
         });
