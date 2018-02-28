@@ -1,4 +1,5 @@
 use core::fmt::{write, Arguments, Write};
+use kernel::debug;
 use kernel::hil::uart::{self, UART};
 use nrf52;
 use nrf5x;
@@ -72,6 +73,9 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
         "\tKernel version {}\r\n",
         env!("TOCK_KERNEL_VERSION")
     ));
+
+    // Flush debug buffer if needed
+    debug::flush(writer);
 
     // Print fault status once
     let procs = &mut process::PROCS;
