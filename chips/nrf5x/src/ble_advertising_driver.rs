@@ -657,9 +657,11 @@ impl App {
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
 
-        let random_address: [u8; 6] = [0xf0, 0x11, 0x11, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
-        //let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        // let random_address: [u8; 6] = [0xf0, 0x11, 0x11, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
         self.advertising_address = Some(DeviceAddress::new(&random_address));
+
+        debug!("random address!, {:?}", self.advertising_address);
 
         self.advertisement_buf
             .as_mut()
@@ -1009,6 +1011,11 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
 
                 }
             },
+            state @ BLEAdvertisingState::Idle => {
+
+                // ignore if rx during Idle
+                state
+            }
             state => {
                 debug!("Error! Adv::handle_rx_event {:?}", state);
 
@@ -1542,7 +1549,6 @@ where
                     if let Some(BLEState::Initialized) = app.process_status {
 
                         let status = app.generate_random_address(appid);
-                        debug!("random address!");
                         if status == ReturnCode::SUCCESS {
                             debug!("Initialize!");
                             app.configure_advertisement_pdu()
