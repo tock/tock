@@ -417,16 +417,16 @@ macro_rules! get_clock {
 //
 // This is identical to the reset value of the HSBMASK except it allows the
 // PicoCache RAM clock to be on as well.
-const DEEP_SLEEP_HSBMASK: u32 = 0x1e6;
+const DEEP_SLEEP_HSBMASK: u32 = 0x1e7;
 
-// No clocks allowed on PBA
-const DEEP_SLEEP_PBAMASK: u32 = 0x0;
+// Allow TWIS clocks to be active as they can wake the core from deep sleep.
+const DEEP_SLEEP_PBAMASK: u32 = 0x6000a0;
 
 // FLASHCALW and HRAMC1 clocks allowed
 //
 // This is identical to the reset value of the PBBMASK except it allows the
 // flash's HRAMC1 clock as well.
-const DEEP_SLEEP_PBBMASK: u32 = 0x3;
+const DEEP_SLEEP_PBBMASK: u32 = 0xb;
 
 /// Determines if the chip can safely go into deep sleep without preventing
 /// currently active peripherals from operating.
@@ -435,16 +435,22 @@ const DEEP_SLEEP_PBBMASK: u32 = 0x3;
 /// known masks that include no peripherals that can't operate in deep
 /// sleep (or that have no function during sleep). Specifically:
 ///
-///   * HSB may only have clocks for the flash (and PicoCache) and APBx bridges on.
+///   * HSB may only have clocks for the flash (and PicoCache), APBx bridges, and PDCA on.
 ///
-///   * PBA may not have _any_ clocks on.
+///   * PBA may only have I2C Slaves on as they can self-wake.
 ///
-///   * PBB may only have clocks for the flash and HRAMC1 (also flash related) on.
+///   * PBB may only have clocks for the flash, HRAMC1 (also flash related), and PDCA on.
 ///
 ///   * PBC and PBD may have any clocks on.
 ///
 /// This means it is the responsibility of each peripheral to disable it's clock
 /// mask whenever it is idle.
+///
+/// A special note here regarding the PDCA (Peripheral DMA Controller) clock.
+/// If the core deep sleeps while a DMA operation is active, it is transparently paused
+/// and resumed when the core wakes again. If a peripheral needs a DMA operation to complete
+/// before sleeping, the peripheral should inhibit sleep. The rationale here is to allow deep
+/// sleep for an I2C Slave peripheral configured to use DMA.
 ///
 /// We also special case GPIO (which is in PBCMASK), and just see if any interrupts are pending
 /// through the INTERRUPT_COUNT variable.
