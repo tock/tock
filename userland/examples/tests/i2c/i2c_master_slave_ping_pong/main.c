@@ -20,6 +20,18 @@ static void i2c_callback(int callback_type,
               __attribute__ ((unused)) int length,
               __attribute__ ((unused)) int arg2,
               __attribute__ ((unused)) void* userdata) {
+  // Watching for GPIO interrupts holds us in a higher power state, so stop
+  // doing that once we don't care about button presses any more (the first
+  // time having sent or received a message)
+  static bool any_message = false;
+  if (!any_message) {
+    int nbuttons = button_count();
+    int j;
+    for (j = 0; j < nbuttons; j++) {
+      button_disable_interrupt(j);
+    }
+  }
+
   if (callback_type == TOCK_I2C_CB_MASTER_WRITE) {
     printf("CB: Master write\n");
     i2c_master_slave_listen();
