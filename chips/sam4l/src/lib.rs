@@ -21,6 +21,7 @@ extern crate derive_no_clock_control;
 #[macro_use]
 mod helpers;
 
+pub mod test;
 pub mod chip;
 pub mod ast;
 pub mod bpm;
