@@ -11,11 +11,13 @@ use core::cmp;
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
-use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager, ReturnCode};
+use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager,
+             ReturnCode};
 use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
+use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
 use pm;
@@ -208,14 +210,15 @@ impl MMIOClockInterface<pm::Clock> for SpiHw {
     }
 }
 
-impl MMIOClockGuard<pm::Clock> for SpiRegisters {
-    fn before_mmio_access(&self, clock: &pm::Clock) {
+impl MMIOClockGuard<SpiHw, pm::Clock> for SpiHw {
+    fn before_mmio_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
         clock.enable();
     }
 
-    fn after_mmio_access(&self, clock: &pm::Clock) {
-        // TODO: Determine when SPI clock can be disabled
-        //clock.disable();
+    fn after_mmio_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
+        if !self.is_busy() {
+            clock.disable();
+        }
     }
 }
 

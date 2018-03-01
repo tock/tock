@@ -175,14 +175,14 @@ pub struct I2CHw {
 /// Manage clocks for TWIM (I2C Master)
 ///
 /// The TWIMClock guards conflicts with TWIS clock.
-impl MMIOClockGuard<TWIMClock> for TWIMRegisters {
-    fn before_mmio_access(&self, clock: &TWIMClock) {
+impl MMIOClockGuard<I2CHw, TWIMClock> for I2CHw {
+    fn before_mmio_access(&self, clock: &TWIMClock, _: &TWIMRegisters) {
         if clock.is_enabled() == false {
             clock.enable();
         }
     }
-    fn after_mmio_access(&self, clock: &TWIMClock) {
-        let mask = self.interrupt_mask.get();
+    fn after_mmio_access(&self, clock: &TWIMClock, registers: &TWIMRegisters) {
+        let mask = registers.interrupt_mask.get();
         if mask == 0 {
             clock.disable();
         }
@@ -192,14 +192,14 @@ impl MMIOClockGuard<TWIMClock> for TWIMRegisters {
 /// Manage clocks for TWIS (I2C Slave)
 ///
 /// The TWISClock guards conflicts with TWIM clock.
-impl MMIOClockGuard<TWISClock> for TWISRegisters {
-    fn before_mmio_access(&self, clock: &TWISClock) {
+impl MMIOClockGuard<I2CHw, TWISClock> for I2CHw {
+    fn before_mmio_access(&self, clock: &TWISClock, _: &TWISRegisters) {
         if clock.is_enabled() == false {
             clock.enable();
         }
     }
-    fn after_mmio_access(&self, clock: &TWISClock) {
-        let mask = self.interrupt_mask.get();
+    fn after_mmio_access(&self, clock: &TWISClock, registers: &TWISRegisters) {
+        let mask = registers.interrupt_mask.get();
         //if mask & 0x00000008 == 0 {
         if mask == 0 {
             clock.disable();

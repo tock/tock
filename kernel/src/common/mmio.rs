@@ -43,21 +43,12 @@
 
 use ClockInterface;
 
-/// Hooks for peripherals to enable and disable clocks as appropriate.
-pub trait MMIOClockGuard<C>
-where
-    C: ClockInterface,
-{
-    fn before_mmio_access(&self, &C);
-    fn after_mmio_access(&self, &C);
-}
-
 /// A structure encapsulating a peripheral should implement this trait.
 pub trait MMIOInterface<C>
 where
     C: ClockInterface,
 {
-    type MMIORegisterType: MMIOClockGuard<C>;
+    type MMIORegisterType;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
 }
@@ -70,6 +61,16 @@ where
     fn get_clock(&self) -> &C;
 }
 
+/// Hooks for peripherals to enable and disable clocks as appropriate.
+pub trait MMIOClockGuard<H, C>
+where
+    H: MMIOInterface<C>,
+    C: ClockInterface,
+{
+    fn before_mmio_access(&self, &C, &H::MMIORegisterType);
+    fn after_mmio_access(&self, &C, &H::MMIORegisterType);
+}
+
 /// Structures encapsulating periphal hardware (those implementing the
 /// MMIOInterface trait) should instantiate an instance of this method to
 /// accesss memory mapped registers.
@@ -80,31 +81,37 @@ where
 /// ```
 pub struct MMIOManager<'a, H, C>
 where
-    H: 'a + MMIOInterface<C>,
+    H: 'a + MMIOInterface<C> + MMIOClockGuard<H, C>,
     C: 'a + ClockInterface,
 {
     pub registers: &'a H::MMIORegisterType,
+    peripheral_hardware: &'a H,
     clock: &'a C,
 }
 
 impl<'a, H, C> MMIOManager<'a, H, C>
 where
-    H: 'a + MMIOInterface<C> + MMIOClockInterface<C>,
+    H: 'a + MMIOInterface<C> + MMIOClockInterface<C> + MMIOClockGuard<H, C>,
     C: 'a + ClockInterface,
 {
-    pub fn new(periphal_hardware: &'a H) -> MMIOManager<'a, H, C> {
-        let registers = unsafe { &*periphal_hardware.get_hardware_address() };
-        let clock = periphal_hardware.get_clock();
-        registers.before_mmio_access(clock);
-        MMIOManager { registers, clock }
+    pub fn new(peripheral_hardware: &'a H) -> MMIOManager<'a, H, C> {
+        let registers = unsafe { &*peripheral_hardware.get_hardware_address() };
+        let clock = peripheral_hardware.get_clock();
+        peripheral_hardware.before_mmio_access(clock, registers);
+        MMIOManager {
+            registers,
+            peripheral_hardware,
+            clock,
+        }
     }
 }
 impl<'a, H, C> Drop for MMIOManager<'a, H, C>
 where
-    H: 'a + MMIOInterface<C>,
+    H: 'a + MMIOInterface<C> + MMIOClockGuard<H, C>,
     C: 'a + ClockInterface,
 {
     fn drop(&mut self) {
-        self.registers.after_mmio_access(self.clock);
+        self.peripheral_hardware
+            .after_mmio_access(self.clock, self.registers);
     }
 }
