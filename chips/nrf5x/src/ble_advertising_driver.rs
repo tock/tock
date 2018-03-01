@@ -197,6 +197,7 @@
 
 use ble_advertising_hil;
 use ble_advertising_hil::RadioChannel;
+use ble_connection::ConnectionData;
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
@@ -288,13 +289,13 @@ macro_rules! set_hop_and_sca {
 pub struct LLData {
     pub aa: [u8; 4],
     pub crc_init: [u8; 3],
-    win_size: u8,
-    win_offset: u16,
-    interval: u16,
-    latency: u16,
-    timeout: u16,
-    chm: [u8; 5],
-    hop_and_sca: u8 // hops 5 bits, sca 3 bits
+    pub win_size: u8,
+    pub win_offset: u16,
+    pub interval: u16,
+    pub latency: u16,
+    pub timeout: u16,
+    pub chm: [u8; 5],
+    pub hop_and_sca: u8 // hops 5 bits, sca 3 bits
 }
 
 impl fmt::Debug for LLData {
@@ -554,6 +555,7 @@ enum BLEAdvertisingState {
     Advertising(RadioChannel),
     Listening(RadioChannel),
     Responding(RadioChannel),
+    Connection(RadioChannel, ConnectionData),
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -748,6 +750,7 @@ impl App {
 
 
     fn send_advertisement(&self, ble: &BLESender, channel: RadioChannel, appid: kernel::AppId) -> ReturnCode {
+        debug!("Send advertisement! {:?}", channel);
         self.advertisement_buf
             .as_ref()
             .map_or(ReturnCode::EINVAL, |slice| {
@@ -948,13 +951,34 @@ struct Advertiser;
 impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
     fn handle_rx_event<A>(state: BLEAdvertisingState, app: &mut App, ble: &BLESender, appid: kernel::AppId, pdu: &BLEPduType) -> BLEAdvertisingState where A: kernel::hil::time::Alarm {
         match state {
+            BLEAdvertisingState::Connection(channel, connection_data) => {
+                debug!("Yass!!! We got one! {:?}, {:?}", channel, connection_data);
+
+                state
+            }
             BLEAdvertisingState::Listening(channel) => {
                 match pdu {
                     &BLEPduType::ConnectRequest(init_addr, adv_addr, ref lldata) => {
 
+                        let mut new_state = state;
+
                         app.advertising_address.map(|address| {
                             if address == adv_addr {
                                 debug!("Connection request! {:?} {:?}", init_addr, lldata);
+
+                                app.alarm_data.expiration = Expiration::Disabled;
+
+                                let mut conn_data = ConnectionData::new(lldata);
+
+                                ble.set_access_address(lldata.aa);
+
+                                let next_channel = conn_data.next_channel();
+
+                                new_state = BLEAdvertisingState::Connection(next_channel, conn_data);
+
+
+                                ble.receive_buffer(next_channel, appid);
+
                             } else {
                                 ble.receive_buffer(channel, appid);
                                 debug!("Connection req not for me: {:?} {:?} {:?}", init_addr, adv_addr, lldata);
@@ -962,7 +986,8 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
 
                             address
                         });
-                        state
+
+                        new_state
 
                     },
                     &BLEPduType::ScanRequest(_scan_addr, adv_addr) => {
@@ -1300,6 +1325,9 @@ impl<'a, B, A> BLESender for BLE<'a, B, A>
     }
     fn alarm_now(&self) -> u32 {
         self.alarm.now()
+    }
+    fn set_access_address(&self, address: [u8; 4]) {
+        self.radio.set_access_address(address)
     }
 }
 

@@ -247,6 +247,21 @@ impl Radio {
         regs.base0.set(0x89bed600);
     }
 
+    pub fn ble_set_access_address(&self, address: [u8; 4]) {
+        let regs = unsafe { &*self.regs };
+        let prefix: u32 = address[0] as u32;
+        let base: u32 =
+            (address[1] as u32) << 24 |
+                (address[2] as u32) << 16 |
+                (address[3] as u32) << 8;
+
+        debug!("Prefix: {:0>8x} Base: {:0>8x}", prefix, base);
+
+        regs.prefix1.set(prefix);
+        regs.base1.set(base);
+        regs.rxaddresses.set(0b010);
+    }
+
     // Packet configuration
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1 Packet Format
     //
@@ -361,5 +376,9 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
                 kernel::ReturnCode::SUCCESS
             }
         }
+    }
+
+    fn set_access_address(&self, address: [u8; 4]) {
+        self.ble_set_access_address(address)
     }
 }

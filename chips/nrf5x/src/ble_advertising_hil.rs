@@ -60,6 +60,7 @@ pub trait BleAdvertisementDriver {
 }
 
 pub trait BleConfig {
+    fn set_access_address(&self, address: [u8; 4]);
     fn set_tx_power(&self, power: u8) -> ReturnCode;
 }
 
@@ -167,6 +168,52 @@ impl RadioChannel {
             RadioChannel::AdvertisingChannel37 => 37,
             RadioChannel::AdvertisingChannel38 => 38,
             RadioChannel::AdvertisingChannel39 => 39,
+        }
+    }
+
+    pub fn from_channel_index(index: u8) -> Option<RadioChannel> {
+        match index {
+            0 => Some(RadioChannel::DataChannel0),
+            1 => Some(RadioChannel::DataChannel1),
+            2 => Some(RadioChannel::DataChannel2),
+            3 => Some(RadioChannel::DataChannel3),
+            4 => Some(RadioChannel::DataChannel4),
+            5 => Some(RadioChannel::DataChannel5),
+            6 => Some(RadioChannel::DataChannel6),
+            7 => Some(RadioChannel::DataChannel7),
+            8 => Some(RadioChannel::DataChannel8),
+            9 => Some(RadioChannel::DataChannel9),
+            10 => Some(RadioChannel::DataChannel10),
+            11 => Some(RadioChannel::DataChannel11),
+            12 => Some(RadioChannel::DataChannel12),
+            13 => Some(RadioChannel::DataChannel13),
+            14 => Some(RadioChannel::DataChannel14),
+            15 => Some(RadioChannel::DataChannel15),
+            16 => Some(RadioChannel::DataChannel16),
+            17 => Some(RadioChannel::DataChannel17),
+            18 => Some(RadioChannel::DataChannel18),
+            19 => Some(RadioChannel::DataChannel19),
+            20 => Some(RadioChannel::DataChannel20),
+            21 => Some(RadioChannel::DataChannel21),
+            22 => Some(RadioChannel::DataChannel22),
+            23 => Some(RadioChannel::DataChannel23),
+            24 => Some(RadioChannel::DataChannel24),
+            25 => Some(RadioChannel::DataChannel25),
+            26 => Some(RadioChannel::DataChannel26),
+            27 => Some(RadioChannel::DataChannel27),
+            28 => Some(RadioChannel::DataChannel28),
+            29 => Some(RadioChannel::DataChannel29),
+            30 => Some(RadioChannel::DataChannel30),
+            31 => Some(RadioChannel::DataChannel31),
+            32 => Some(RadioChannel::DataChannel32),
+            33 => Some(RadioChannel::DataChannel33),
+            34 => Some(RadioChannel::DataChannel34),
+            35 => Some(RadioChannel::DataChannel35),
+            36 => Some(RadioChannel::DataChannel36),
+            37 => Some(RadioChannel::AdvertisingChannel37),
+            38 => Some(RadioChannel::AdvertisingChannel38),
+            39 => Some(RadioChannel::AdvertisingChannel39),
+            _ => None
         }
     }
 }

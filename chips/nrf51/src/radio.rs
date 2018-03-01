@@ -86,6 +86,18 @@ impl Radio {
         regs.rxen.set(1);
     }
 
+    pub fn ble_set_access_address(&self, address: [u8; 4]) {
+        let regs = unsafe { &*self.regs };
+        let prefix: u32 = address[0] as u32;
+        let base: u32 =
+            (address[1] as u32) << 24 |
+                (address[2] as u32) << 16 |
+                (address[3] as u32) << 8;
+        regs.prefix1.set(prefix);
+        regs.base1.set(base);
+        regs.rxaddresses.set(0b010);
+    }
+
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
         regs.crccnf.set(
@@ -318,5 +330,9 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
                 kernel::ReturnCode::SUCCESS
             }
         }
+    }
+
+    fn set_access_address(&self, address: [u8; 4]) {
+        self.ble_set_access_address(address)
     }
 }

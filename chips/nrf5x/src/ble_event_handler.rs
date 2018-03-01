@@ -20,6 +20,8 @@ pub trait BLESender {
     fn set_busy(&self, state: BusyState);
 
     fn alarm_now(&self) -> u32;
+
+    fn set_access_address(&self, address: [u8; 4]);
 }
 
 pub trait BLEEventHandler<S>
