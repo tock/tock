@@ -58,7 +58,7 @@ struct Hail {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<
         'static,
         sam4l::usart::USART,
@@ -312,7 +312,7 @@ pub unsafe fn reset_handler() {
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
         MuxSpiMaster::new(&sam4l::spi::SPI)
     );
 
@@ -323,13 +323,13 @@ pub unsafe fn reset_handler() {
     // Create a virtualized client for SPI system call interface
     // CS line is CS0
     let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
         VirtualSpiMasterDevice::new(mux_spi, 0)
     );
 
     // Create the SPI system call capsule, passing the client
     let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
         capsules::spi::Spi::new(syscall_spi_device)
     );
 

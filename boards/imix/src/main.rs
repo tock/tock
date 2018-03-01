@@ -58,7 +58,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 
 // Save some deep nesting
 type RF233Device =
-    capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>;
+    capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
@@ -70,7 +70,7 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
@@ -304,7 +304,7 @@ pub unsafe fn reset_handler() {
 
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
         MuxSpiMaster::new(&sam4l::spi::SPI)
     );
     sam4l::spi::SPI.set_client(mux_spi);
@@ -314,13 +314,13 @@ pub unsafe fn reset_handler() {
     // Create a virtualized client for SPI system call interface,
     // then the system call capsule
     let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
         VirtualSpiMasterDevice::new(mux_spi, 3)
     );
 
     // Create the SPI systemc call capsule, passing the client
     let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
         capsules::spi::Spi::new(syscall_spi_device)
     );
 
@@ -358,12 +358,12 @@ pub unsafe fn reset_handler() {
 
     // Create a second virtualized SPI client, for the RF233
     let rf233_spi = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
         VirtualSpiMasterDevice::new(mux_spi, 3)
     );
     // Create the RF233 driver, passing its pins and SPI client
-    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> = static_init!(
-        RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
+        RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
         RF233::new(
             rf233_spi,
             &sam4l::gpio::PA[09], // reset
