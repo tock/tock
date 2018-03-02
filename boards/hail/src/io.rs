@@ -1,6 +1,7 @@
 use core::fmt::*;
 use core::str;
-use kernel::{debug, process};
+use kernel::debug;
+use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 use sam4l;
 
@@ -36,52 +37,6 @@ impl Write for Writer {
 #[no_mangle]
 #[lang = "panic_fmt"]
 pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
-    // XXX Replace with something like kernel::begin_panic()
-    // XXX Maybe place that call at panic_fmt, as it's called first
-    // XXX Better to cancel the transaction rather than hope we wait long enough
-    // Let any outstanding uart DMA's finish
-    asm!("nop");
-    asm!("nop");
-    for _ in 0..200000 {
-        asm!("nop");
-    }
-    asm!("nop");
-    asm!("nop");
-
-    let writer = &mut WRITER;
-    let _ = writer.write_fmt(format_args!(
-        "\r\n\nKernel panic at {}:{}:\r\n\t\"",
-        file, line
-    ));
-    let _ = write(writer, args);
-    let _ = writer.write_str("\"\r\n");
-
-    // Print version of the kernel
-    let _ = writer.write_fmt(format_args!(
-        "\tKernel version {}\r\n",
-        env!("TOCK_KERNEL_VERSION")
-    ));
-
-    // Flush debug buffer if needed
-    debug::flush(writer);
-
-    // Print fault status once
-    let procs = &mut process::PROCS;
-    if procs.len() > 0 {
-        procs[0].as_mut().map(|process| {
-            process.fault_str(writer);
-        });
-    }
-
-    // print data about each process
-    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-    let procs = &mut process::PROCS;
-    for idx in 0..procs.len() {
-        procs[idx].as_mut().map(|process| {
-            process.statistics_str(writer);
-        });
-    }
-
     // turn off the non panic leds, just in case
     let ledg = &sam4l::gpio::PA[14];
     ledg.enable_output();
@@ -90,23 +45,9 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
     ledb.enable_output();
     ledb.set();
 
-    // blink the panic signal
-    let led = &sam4l::gpio::PA[13];
-    led.enable_output();
-    loop {
-        for _ in 0..1000000 {
-            led.clear();
-        }
-        for _ in 0..100000 {
-            led.set();
-        }
-        for _ in 0..1000000 {
-            led.clear();
-        }
-        for _ in 0..500000 {
-            led.set();
-        }
-    }
+    let led = &mut led::LedLow::new(&mut sam4l::gpio::PA[13]);
+    let writer = &mut WRITER;
+    debug::panic(led, writer, args, file, line)
 }
 
 #[macro_export]
