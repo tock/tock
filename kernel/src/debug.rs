@@ -34,10 +34,10 @@
 //! ```
 
 use callback::{AppId, Callback};
+use core::{slice, str};
 use core::cmp::min;
 use core::fmt::{write, Arguments, Result, Write};
 use core::ptr::{read_volatile, write_volatile};
-use core::str;
 use driver::Driver;
 use hil;
 use mem::AppSlice;
@@ -404,5 +404,32 @@ impl Default for Debug {
             "No registered kernel debug printer. Thrown printing {:?}",
             buf
         );
+    }
+}
+
+pub unsafe fn flush<W: Write>(writer: &mut W) {
+    let debug_head = read_volatile(&DEBUG_WRITER.output_head);
+    let mut debug_tail = read_volatile(&DEBUG_WRITER.output_tail);
+    let mut debug_buffer = DEBUG_WRITER.output_buffer;
+    if debug_head != debug_tail {
+        let _ = writer.write_str(
+            "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
+        );
+
+        if debug_tail > debug_head {
+            let start = debug_buffer.as_mut_ptr().offset(debug_tail as isize);
+            let len = debug_buffer.len();
+            let slice = slice::from_raw_parts(start, len);
+            let s = str::from_utf8_unchecked(slice);
+            let _ = writer.write_str(s);
+            debug_tail = 0;
+        }
+        if debug_tail != debug_head {
+            let start = debug_buffer.as_mut_ptr().offset(debug_tail as isize);
+            let len = debug_head - debug_tail;
+            let slice = slice::from_raw_parts(start, len);
+            let s = str::from_utf8_unchecked(slice);
+            let _ = writer.write_str(s);
+        }
     }
 }

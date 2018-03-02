@@ -1,4 +1,5 @@
 use core::fmt::{write, Arguments, Write};
+use kernel::debug;
 use kernel::hil::uart::{self, UART};
 use nrf51;
 use nrf5x;
@@ -75,6 +76,9 @@ pub unsafe extern "C" fn rust_begin_unwind(
         "\tKernel version {}\r\n",
         env!("TOCK_KERNEL_VERSION")
     ));
+
+    // Flush debug buffer if needed
+    debug::flush(writer);
 
     // Print fault status once
     let procs = &mut process::PROCS;

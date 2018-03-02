@@ -1,6 +1,6 @@
 use core::fmt::*;
+use kernel::{debug, process};
 use kernel::hil::uart::{self, UART};
-use kernel::process;
 use sam4l;
 
 pub struct Writer {
@@ -60,6 +60,9 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
         "\tKernel version {}\r\n",
         env!("TOCK_KERNEL_VERSION")
     ));
+
+    // Flush debug buffer if needed
+    debug::flush(writer);
 
     // Print fault status once
     let procs = &mut process::PROCS;
