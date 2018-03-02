@@ -38,6 +38,8 @@
 #![no_std]
 #![no_main]
 #![feature(lang_items, compiler_builtins_lib)]
+#![deny(missing_docs)]
+#![deny(warnings)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -54,6 +56,7 @@ use kernel::hil::uart::UART;
 use nrf5x::pinmux::Pinmux;
 use nrf5x::rtc::{Rtc, RTC};
 
+/// UART Writer
 #[macro_use]
 pub mod io;
 #[allow(dead_code)]
@@ -84,6 +87,7 @@ static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
+/// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
         'static,
@@ -118,6 +122,8 @@ impl kernel::Platform for Platform {
     }
 }
 
+/// Entry point after processor have been initialized
+/// that include copy Flash to RAM and zero out the BSS section
 #[no_mangle]
 pub unsafe fn reset_handler() {
     nrf51::init();

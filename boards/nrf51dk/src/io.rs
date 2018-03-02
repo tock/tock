@@ -5,11 +5,11 @@ use kernel::hil::uart::{self, UART};
 use nrf51;
 use nrf5x;
 
-pub struct Writer {
+struct Writer {
     initialized: bool,
 }
 
-pub static mut WRITER: Writer = Writer { initialized: false };
+static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {

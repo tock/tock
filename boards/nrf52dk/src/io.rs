@@ -5,15 +5,14 @@ use kernel::hil::uart::{self, UART};
 use nrf52;
 use nrf5x;
 
-pub struct Writer {
+struct Writer {
     initialized: bool,
 }
 
-pub static mut WRITER: Writer = Writer { initialized: false };
+static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        // The UART is not enabled yet
         let uart = unsafe { &mut nrf52::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
@@ -37,6 +36,7 @@ impl Write for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[lang = "panic_fmt"]
+/// Panic handler
 pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
     // The nRF52 DK LEDs (see back of board)
     const LED1_PIN: usize = 17;
