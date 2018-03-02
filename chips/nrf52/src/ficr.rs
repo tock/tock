@@ -11,7 +11,7 @@ use kernel::common::VolatileCell;
 
 /// Struct of the FICR registers
 ///
-/// Section 13.1 of http://infocenter.nordicsemi.com/pdf/nRF52832_PS_v1.0.pdf
+/// Section 13.1 of <http://infocenter.nordicsemi.com/pdf/nRF52832_PS_v1.0.pdf>
 #[repr(C)]
 struct FicrRegisters {
     _reserved0: [VolatileCell<u32>; 4], // (0x10 - 0x00) / 4 = 4
@@ -39,6 +39,7 @@ struct FicrRegisters {
     info_ram: VolatileCell<u32>,
     info_flash: VolatileCell<u32>,
 }
+
 const FICR_BASE_ADDRESS: usize = 0x10000000;
 
 /// Variant describes part variant, hardware version, and production configuration.

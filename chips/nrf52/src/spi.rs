@@ -6,25 +6,27 @@
 //! Although `kernel::hil::spi::SpiMaster` is implemented for `SPIM`,
 //! only the functions marked with `x` are fully defined:
 //!
-//! - [x] set_client
-//! - [x] init
-//! - [x] is_busy
-//! - [x] read_write_bytes
-//! - [ ] write_byte
-//! - [ ] read_byte
-//! - [ ] read_write_byte
-//! - [x] specify_chip_select
-//! - [x] set_rate
-//! - [x] get_rate
-//! - [x] set_clock
-//! - [x] get_clock
-//! - [x] set_phase
-//! - [x] get_phase
-//! - [ ] hold_low
-//! - [ ] release_low
+//! * [x] set_client
+//! * [x] init
+//! * [x] is_busy
+//! * [x] read_write_bytes
+//! * [] write_byte
+//! * [] read_byte
+//! * [] read_write_byte
+//! * [x] specify_chip_select
+//! * [x] set_rate
+//! * [x] get_rate
+//! * [x] set_clock
+//! * [x] get_clock
+//! * [x] set_phase
+//! * [x] get_phase
+//! * [] hold_low
+//! * [] release_low
 //!
-//! - Author: Jay Kickliter
-//! - Date: Sep 10, 2017
+//! Author
+//! -------------------
+//! * Author: Jay Kickliter
+//! * Date: Sep 10, 2017
 
 use core::cell::Cell;
 use core::cmp;
