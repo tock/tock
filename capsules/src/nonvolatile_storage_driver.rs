@@ -487,12 +487,17 @@ impl<'a> Driver for NonvolatileStorage<'a> {
     ///
     /// - `0`: Setup a read done callback.
     /// - `1`: Setup a write done callback.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         self.apps
-            .enter(callback.app_id(), |app, _| {
+            .enter(app_id, |app, _| {
                 match subscribe_num {
-                    0 => app.callback_read = Some(callback),
-                    1 => app.callback_write = Some(callback),
+                    0 => app.callback_read = callback,
+                    1 => app.callback_write = callback,
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS

@@ -74,10 +74,15 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
     /// ### `_subscribe_num`
     ///
     /// - `0`: Subscribe to alarm expiration
-    fn subscribe(&self, _subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        _subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         self.app_alarm
-            .enter(callback.app_id(), |td, _allocator| {
-                td.callback = Some(callback);
+            .enter(app_id, |td, _allocator| {
+                td.callback = callback;
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|err| err.into())

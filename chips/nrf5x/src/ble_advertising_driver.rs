@@ -1005,13 +1005,18 @@ where
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<kernel::Callback>,
+        app_id: kernel::AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning
             0 => self.app
-                .enter(callback.app_id(), |app, _| match app.process_status {
+                .enter(app_id, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        app.scan_callback = Some(callback);
+                        app.scan_callback = callback;
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EINVAL,

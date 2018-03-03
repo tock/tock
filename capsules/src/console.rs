@@ -187,11 +187,16 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     /// ### `subscribe_num`
     ///
     /// - `1`: Write buffer completed callback
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             1 /* putstr/write_done */ => {
-                self.apps.enter(callback.app_id(), |app, _| {
-                    app.write_callback = Some(callback);
+                self.apps.enter(app_id, |app, _| {
+                    app.write_callback = callback;
                     ReturnCode::SUCCESS
                 }).unwrap_or_else(|err| {
                     match err {

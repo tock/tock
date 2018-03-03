@@ -804,12 +804,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// subscribe_num - which subscribe call this is
     /// callback - callback object which can be scheduled to signal the
     ///            application
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {
                 // set callback
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

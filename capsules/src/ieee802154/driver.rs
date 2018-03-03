@@ -553,14 +553,19 @@ impl<'a> Driver for RadioDriver<'a> {
     ///
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
-            0 => self.do_with_app(callback.app_id(), |app| {
-                app.rx_callback = Some(callback);
+            0 => self.do_with_app(app_id, |app| {
+                app.rx_callback = callback;
                 ReturnCode::SUCCESS
             }),
-            1 => self.do_with_app(callback.app_id(), |app| {
-                app.tx_callback = Some(callback);
+            1 => self.do_with_app(app_id, |app| {
+                app.tx_callback = callback;
                 ReturnCode::SUCCESS
             }),
             _ => ReturnCode::ENOSUPPORT,

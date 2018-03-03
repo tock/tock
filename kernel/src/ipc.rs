@@ -83,7 +83,12 @@ impl IPC {
 impl Driver for IPC {
     /// subscribe enables processes using IPC to register callbacks that fire
     /// when notify() is called.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // subscribe(0)
             //
@@ -94,8 +99,8 @@ impl Driver for IPC {
             // The callback that is passed to subscribe is called when another
             // process notifies the server process.
             0 => self.data
-                .enter(callback.app_id(), |data, _| {
-                    data.callback = Some(callback);
+                .enter(app_id, |data, _| {
+                    data.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or(ReturnCode::EBUSY),
@@ -112,8 +117,8 @@ impl Driver for IPC {
                     ReturnCode::EINVAL /* Maximum of 8 IPC's exceeded */
                 } else {
                     self.data
-                        .enter(callback.app_id(), |data, _| {
-                            data.client_callbacks[svc_id - 1] = Some(callback);
+                        .enter(app_id, |data, _| {
+                            data.client_callbacks[svc_id - 1] = callback;
                             ReturnCode::SUCCESS
                         })
                         .unwrap_or(ReturnCode::EBUSY)

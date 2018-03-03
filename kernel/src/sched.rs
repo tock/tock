@@ -101,7 +101,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
 
                     let callback = ::Callback::new(appid, appdata, callback_ptr);
                     platform.with_driver(driver_num, |driver| match driver {
-                        Some(d) => d.subscribe(subdriver_num, callback),
+                        Some(d) => d.subscribe(subdriver_num, Some(callback), appid),
                         None => ReturnCode::ENODEVICE,
                     })
                 };

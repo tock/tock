@@ -215,12 +215,17 @@ impl<'a> gpio::Client for LPS25HB<'a> {
 }
 
 impl<'a> Driver for LPS25HB<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set a callback
             0 => {
                 // Set callback function
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
             // default

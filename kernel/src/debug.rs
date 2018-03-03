@@ -175,7 +175,12 @@ impl DebugWriter {
                         panic!("Debug print allow fail");
                     }
                     write_volatile(&mut DEBUG_WRITER.output_active_len, slice_len);
-                    if driver.subscribe(1, KERNEL_CONSOLE_CALLBACK) != ReturnCode::SUCCESS {
+                    if driver.subscribe(
+                        1,
+                        Some(KERNEL_CONSOLE_CALLBACK),
+                        AppId::kernel_new(APPID_IDX),
+                    ) != ReturnCode::SUCCESS
+                    {
                         panic!("Debug print subscribe fail");
                     }
                     if driver.command(1, slice_len, 0, AppId::kernel_new(APPID_IDX))

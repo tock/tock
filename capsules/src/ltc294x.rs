@@ -476,10 +476,15 @@ impl<'a> Driver for LTC294XDriver<'a> {
     ///   - `3`: `done()` was called.
     ///   - `4`: Read the voltage.
     ///   - `5`: Read the current.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

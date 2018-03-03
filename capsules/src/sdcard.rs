@@ -1511,11 +1511,16 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set callback
             0 => {
-                self.app.map(|app| app.callback = Some(callback));
+                self.app.map(|app| app.callback = callback);
                 ReturnCode::SUCCESS
             }
 

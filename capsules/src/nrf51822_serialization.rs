@@ -118,11 +118,16 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Set callback.
-    fn subscribe(&self, subscribe_type: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_type: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_type {
             // Add a callback
             0 => {
-                self.app.map(|app| app.callback = Some(callback));
+                self.app.map(|app| app.callback = callback);
 
                 // Start the receive now that we have a callback.
                 self.rx_buffer

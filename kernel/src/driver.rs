@@ -70,7 +70,12 @@ pub trait Driver {
     /// the magnitude of the return value of can signify extra information such
     /// as error type.
     #[allow(unused_variables)]
-    fn subscribe(&self, minor_num: usize, callback: ::Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        minor_num: usize,
+        callback: Option<::Callback>,
+        app_id: ::AppId,
+    ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 

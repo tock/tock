@@ -269,7 +269,12 @@ impl<'a> Client for TMP006<'a> {
 }
 
 impl<'a> Driver for TMP006<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // single temperature reading with callback
             0 => {
@@ -277,7 +282,7 @@ impl<'a> Driver for TMP006<'a> {
                 self.repeated_mode.set(false);
 
                 // set callback function
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
 
                 // enable sensor
                 //  turn up the sampling rate so we get the sample faster
@@ -292,7 +297,7 @@ impl<'a> Driver for TMP006<'a> {
                 self.repeated_mode.set(true);
 
                 // set callback function
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
 
                 // enable temperature sensor
                 self.enable_sensor(self.sampling_period.get());

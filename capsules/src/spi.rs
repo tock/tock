@@ -147,11 +147,16 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
                 self.app.map(|app| {
-                    app.callback = Some(callback);
+                    app.callback = callback;
                 });
                 ReturnCode::SUCCESS
             },
@@ -374,14 +379,19 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     ///                  driven low, meaning that the slave was selected by
     ///                  the Spi master. This occurs immediately before
     ///                  a data transfer.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
-                self.app.map(|app| app.callback = Some(callback));
+                self.app.map(|app| app.callback = callback);
                 ReturnCode::SUCCESS
             },
             1 /* chip selected */ => {
-                self.app.map(|app| app.selected_callback = Some(callback));
+                self.app.map(|app| app.selected_callback = callback);
                 ReturnCode::SUCCESS
             },
             _ => ReturnCode::ENOSUPPORT
