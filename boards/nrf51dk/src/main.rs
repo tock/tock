@@ -122,10 +122,10 @@ impl kernel::Platform for Platform {
     }
 }
 
-/// Entry point after processor have been initialized
-/// that include copy Flash to RAM and zero out the BSS section
+/// Entry point in the vector table called on hard reset.
 #[no_mangle]
 pub unsafe fn reset_handler() {
+    // Loads relocations and clears BSS
     nrf51::init();
 
     // LEDs
