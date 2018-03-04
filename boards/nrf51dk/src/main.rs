@@ -2,9 +2,16 @@
 //! kit (DK), a.k.a. the PCA10028. </br>
 //! This is an nRF51422 SoC (a Cortex M0 core with a BLE transceiver) with many
 //! exported pins, LEDs, and buttons. </br>
-//! Currently the kernel provides application alarms, and GPIO. </br>
-//! It will provide a console
-//! once the UART is fully implemented and debugged.
+//!
+//! Currently the kernel provides:
+//!
+//! * Timers
+//! * GPIO
+//! * UART
+//! * AES Encryption
+//! * Bluetooth Low Energy Advertisements
+//! * Temperature Sensor
+//! * True Random Number Generator
 //!
 //! ### Pin configuration
 //! * 0 -> LED1 (pin 21)
