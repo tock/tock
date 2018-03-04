@@ -33,6 +33,7 @@ impl Write for Writer {
     }
 }
 
+/// Panic handler
 #[cfg(not(test))]
 #[no_mangle]
 #[lang = "panic_fmt"]
