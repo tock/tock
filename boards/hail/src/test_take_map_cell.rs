@@ -40,5 +40,5 @@ unsafe fn test_map_cell<'a, A>(tc: &MapCell<A>) {
     ::core::ptr::write_volatile(dwt_ctl, ::core::ptr::read_volatile(dwt_ctl) | 1);
     tc.map(|_| ());
     let end = ::core::ptr::read_volatile(dwt_cycles);
-    println!("time: {}, size: {}", end, ::core::mem::size_of_val(tc));
+    debug!("time: {}, size: {}", end, ::core::mem::size_of_val(tc));
 }

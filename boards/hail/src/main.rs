@@ -6,6 +6,7 @@
 #![no_std]
 #![no_main]
 #![feature(asm, const_fn, lang_items, compiler_builtins_lib)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -22,6 +23,9 @@ use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
 
+/// Support routines for debugging I/O.
+///
+/// Note: Use of this module will trample any other USART0 configuration.
 #[macro_use]
 pub mod io;
 #[allow(dead_code)]

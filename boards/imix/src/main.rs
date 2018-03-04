@@ -1,6 +1,12 @@
+//! Board file for Imix development platform.
+//!
+//! - <https://github.com/helena-project/tock/tree/master/boards/imix>
+//! - <https://github.com/helena-project/imix>
+
 #![no_std]
 #![no_main]
 #![feature(asm, const_fn, lang_items, compiler_builtins_lib, const_cell_new)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -24,6 +30,9 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 
+/// Support routines for debugging I/O.
+///
+/// Note: Use of this module will trample any other USART3 configuration.
 #[macro_use]
 pub mod io;
 
@@ -203,6 +212,12 @@ unsafe fn set_pin_primary_functions() {
     PC[31].configure(None); //... D2          -- GPIO Pin
 }
 
+/// Reset Handler.
+///
+/// This symbol is loaded into vector table by the SAM4L chip crate.
+/// When the chip first powers on or later does a hard reset, after the core
+/// initializes all the hardware, the address of this function is loaded and
+/// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
