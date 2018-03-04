@@ -147,7 +147,7 @@ None.
 ### 1: Subscribe
 
 Subscribe assigns callback functions to be executed in response to various
-events.
+events. A null pointer to a callback disables a previously set callback.
 
 ```rust
 subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> ReturnCode as u32
@@ -214,6 +214,7 @@ additional meaning such as the number of devices present, as is the case in the
 ### 3: Allow
 
 Allow marks a region of memory as shared between the kernel and application.
+A null pointer revokes sharing a region.
 
 ```rust
 allow(driver: u32, allow_number: u32, pointer: usize, size: u32) -> ReturnCode as u32
