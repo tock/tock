@@ -64,7 +64,6 @@
 #![no_main]
 #![feature(lang_items, compiler_builtins_lib)]
 #![deny(missing_docs)]
-#![deny(warnings)]
 
 extern crate capsules;
 extern crate compiler_builtins;
