@@ -170,11 +170,16 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     /// ### `allow_num`
     ///
     /// - `1`: Writeable buffer for write buffer
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             1 => self.apps
                 .enter(appid, |app, _| {
-                    app.write_buffer = Some(slice);
+                    app.write_buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

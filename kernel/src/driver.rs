@@ -106,7 +106,12 @@ pub trait Driver {
     /// driver should not rely on the contents of the buffer to remain
     /// unchanged.
     #[allow(unused_variables)]
-    fn allow(&self, app: ::AppId, minor_num: usize, slice: ::AppSlice<::Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        app: ::AppId,
+        minor_num: usize,
+        slice: Option<::AppSlice<::Shared, u8>>,
+    ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 }

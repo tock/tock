@@ -964,13 +964,13 @@ where
         &self,
         appid: kernel::AppId,
         allow_num: usize,
-        slice: kernel::AppSlice<kernel::Shared, u8>,
+        slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
         match AllowType::from_usize(allow_num) {
             Some(AllowType::BLEGap(gap_type)) => self.app
                 .enter(appid, |app, _| {
                     if app.process_status != Some(BLEState::NotInitialized) {
-                        app.app_write = Some(slice);
+                        app.app_write = slice;
                         app.set_gap_data(gap_type)
                     } else {
                         ReturnCode::EINVAL
@@ -981,7 +981,7 @@ where
             Some(AllowType::PassiveScanning) => self.app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        app.app_read = Some(slice);
+                        app.app_read = slice;
                         app.process_status = Some(BLEState::Initialized);
                         ReturnCode::SUCCESS
                     }
@@ -992,7 +992,7 @@ where
             Some(AllowType::InitAdvertisementBuffer) => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::NotInitialized) = app.process_status {
-                        app.advertisement_buf = Some(slice);
+                        app.advertisement_buf = slice;
                         app.process_status = Some(BLEState::Initialized);
                         app.initialize_advertisement_buffer();
                         ReturnCode::SUCCESS

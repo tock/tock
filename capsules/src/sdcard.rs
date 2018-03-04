@@ -1493,17 +1493,22 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
 
 /// Connections to userspace syscalls
 impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass read buffer in from application
             0 => {
-                self.app.map(|app| app.read_buffer = Some(slice));
+                self.app.map(|app| app.read_buffer = slice);
                 ReturnCode::SUCCESS
             }
 
             // Pass write buffer in from application
             1 => {
-                self.app.map(|app| app.write_buffer = Some(slice));
+                self.app.map(|app| app.write_buffer = slice);
                 ReturnCode::SUCCESS
             }
 

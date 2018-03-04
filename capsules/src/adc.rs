@@ -772,13 +772,18 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// _appid - application identifier, unused
     /// allow_num - which allow call this is
     /// slice - representation of application memory to copy data into
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass buffer for samples to go into
             0 => {
                 // set first buffer
                 self.app.map(|state| {
-                    state.app_buf1 = Some(slice);
+                    state.app_buf1 = slice;
                 });
 
                 ReturnCode::SUCCESS
@@ -788,7 +793,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
             1 => {
                 // set second buffer
                 self.app.map(|state| {
-                    state.app_buf2 = Some(slice);
+                    state.app_buf2 = slice;
                 });
 
                 ReturnCode::SUCCESS

@@ -131,12 +131,17 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 }
 
 impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         // pass buffer in from application
         match allow_num {
             0 => self.apps
                 .enter(appid, |app, _| {
-                    app.buffer = Some(slice);
+                    app.buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

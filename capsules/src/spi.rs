@@ -127,19 +127,24 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 }
 
 impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass in a read buffer to receive bytes into.
             0 => {
                 self.app.map(|app| {
-                    app.app_read = Some(slice);
+                    app.app_read = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a write buffer to transmit bytes from.
             1 => {
                 self.app.map(|app| {
-                    app.app_write = Some(slice);
+                    app.app_write = slice;
                 });
                 ReturnCode::SUCCESS
             }
@@ -354,14 +359,19 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     ///
     /// - allow_num 1: Provides an app_write buffer to send transfers from.
     ///
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             0 => {
-                self.app.map(|app| app.app_read = Some(slice));
+                self.app.map(|app| app.app_read = slice);
                 ReturnCode::SUCCESS
             }
             1 => {
-                self.app.map(|app| app.app_write = Some(slice));
+                self.app.map(|app| app.app_write = slice);
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,

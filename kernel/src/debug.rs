@@ -171,7 +171,9 @@ impl DebugWriter {
                         AppId::kernel_new(APPID_IDX),
                     );
                     let slice_len = slice.len();
-                    if driver.allow(AppId::kernel_new(APPID_IDX), 1, slice) != ReturnCode::SUCCESS {
+                    if driver.allow(AppId::kernel_new(APPID_IDX), 1, Some(slice))
+                        != ReturnCode::SUCCESS
+                    {
                         panic!("Debug print allow fail");
                     }
                     write_volatile(&mut DEBUG_WRITER.output_active_len, slice_len);

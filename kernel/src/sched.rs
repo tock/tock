@@ -1,6 +1,7 @@
 //! Tock core scheduler.
 
 use core::nonzero::NonZero;
+use core::ptr;
 use memop;
 use platform::{Chip, Platform};
 use platform::mpu::MPU;
@@ -115,12 +116,16 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                     match driver {
                         Some(d) => {
                             let start_addr = process.r2() as *mut u8;
-                            let size = process.r3();
-                            if process.in_exposed_bounds(start_addr, size) {
-                                let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
-                                d.allow(appid, process.r1(), slice)
+                            if start_addr != ptr::null_mut() {
+                                let size = process.r3();
+                                if process.in_exposed_bounds(start_addr, size) {
+                                    let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
+                                    d.allow(appid, process.r1(), Some(slice))
+                                } else {
+                                    ReturnCode::EINVAL /* memory not allocated to process */
+                                }
                             } else {
-                                ReturnCode::EINVAL /* memory not allocated to process */
+                                d.allow(appid, process.r1(), None)
                             }
                         }
                         None => ReturnCode::ENODEVICE,

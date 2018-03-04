@@ -532,13 +532,18 @@ impl<'a> Driver for RadioDriver<'a> {
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
-                    0 => app.app_read = Some(slice),
-                    1 => app.app_write = Some(slice),
-                    2 => app.app_cfg = Some(slice),
+                    0 => app.app_read = slice,
+                    1 => app.app_write = slice,
+                    2 => app.app_cfg = slice,
                     _ => {}
                 }
                 ReturnCode::SUCCESS

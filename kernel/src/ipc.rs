@@ -172,27 +172,36 @@ impl Driver for IPC {
     /// application is explicitly sharing a slice with an IPC service (as
     /// specified by the target_id). allow() simply allows both processes to
     /// access the buffer, it does not signal the service.
-    fn allow(&self, appid: AppId, target_id: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        target_id: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         if target_id == 0 {
-            if slice.len() > 0 {
-                let procs = unsafe { &mut process::PROCS };
-                for (i, process) in procs.iter().enumerate() {
-                    match process {
-                        &Some(ref p) => {
-                            let s = p.package_name.as_bytes();
-                            // are slices equal?
-                            if s.len() == slice.len()
-                                && s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2)
-                            {
-                                return ReturnCode::SuccessWithValue {
-                                    value: (i as usize) + 1,
-                                };
+            match slice {
+                Some(slice_data) => {
+                    let procs = unsafe { &mut process::PROCS };
+                    for (i, process) in procs.iter().enumerate() {
+                        match process {
+                            &Some(ref p) => {
+                                let s = p.package_name.as_bytes();
+                                // are slices equal?
+                                if s.len() == slice_data.len()
+                                    && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)
+                                {
+                                    return ReturnCode::SuccessWithValue {
+                                        value: (i as usize) + 1,
+                                    };
+                                }
                             }
+                            &None => {}
                         }
-                        &None => {}
                     }
                 }
+                None => {}
             }
+
             return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
         }
         return self.data
@@ -200,7 +209,7 @@ impl Driver for IPC {
                 data.shared_memory
                     .get_mut(target_id - 1)
                     .map(|smem| {
-                        *smem = Some(slice);
+                        *smem = slice;
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
