@@ -12,13 +12,14 @@ $> echo UNIFLASH_CLI_BASE="<path to extracted uniflash CLI>" >> ~/.bash_profile
 $> source ~/.bash_profile
 ```
 
-Now you're able to use the Makefile targets `flash` and `flash-app` in order to load the program onto the launchxl
-board.
+Now you're able to use the Makefile targets `flash` in order to load the kernel onto the launchxl board.
 
 ```bash
 $> make flash       # make and flash the kernel
-$> make flash-blink # make and flash the blink app
 ```
+
+### Flashing apps
+You can flash apps by navigating to their directory, and by invoking `make flash` once again.
 
 ### Debugging
 You need to use openocd together with gdb in order to debug the launchxl board using JTAG. However, you'll need to build OpenOCD with extra applied patches until the next version has been released. 
