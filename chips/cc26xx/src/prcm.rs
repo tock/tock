@@ -1,14 +1,15 @@
 //! Power, Clock, and Reset Management (PRCM)
-//!     For details see p.411 in the cc2650 technical reference manual.
+//!
+//! For details see p.411 in the cc2650 technical reference manual.
 //!
 //! PRCM manages different power domains on the boards, specifically:
+//!
 //!     * RF Power domain
 //!     * Serial Power domain
 //!     * Peripheral Power domain
 //!
 //! It also manages the clocks attached to almost every peripheral, which needs to
 //! be enabled before usage.
-//!
 
 use kernel::common::VolatileCell;
 

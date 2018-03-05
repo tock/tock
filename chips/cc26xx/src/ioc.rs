@@ -1,9 +1,9 @@
 //! IO Configuration (IOC)
-//!     For details see p. 984 in the cc2650 technical reference manual.
+//!
+//! For details see p. 984 in the cc2650 technical reference manual.
 //!
 //! Required to setup and configure IO pins to different modes - all depending on
 //! usage (eg. UART, GPIO, etc). It is used internally.
-//!
 
 use kernel::common::VolatileCell;
 use kernel::hil;

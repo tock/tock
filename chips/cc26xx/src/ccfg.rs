@@ -1,5 +1,6 @@
 //! CCFG - Customer Configuration
-//!  For details see p. 710 in the cc2650 technical reference manual.
+//!
+//! For details see p. 710 in the cc2650 technical reference manual.
 //!
 //! Currently setup to use the default settings.
 

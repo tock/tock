@@ -1,3 +1,5 @@
+//! Configuration and interrupt handling.
+
 use cc26xx::gpio;
 use cc26xx::peripheral_interrupts::*;
 use cortexm4::{self, nvic};
