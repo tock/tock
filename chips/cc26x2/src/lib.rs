@@ -8,8 +8,6 @@ extern crate cortexm4;
 #[macro_use(debug)]
 extern crate kernel;
 
-extern crate bitfield;
-
 pub mod chip;
 pub mod crt1;
 
