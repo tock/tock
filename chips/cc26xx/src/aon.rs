@@ -1,4 +1,9 @@
-//! Always On module
+//! Always On Module (AON) management
+//!     AON is a set of peripherals which is _always on_ (eg. the RTC, MCU, etc).
+//!
+//!     The current configuration disables all wake-up selectors, since the
+//!     MCU never go to sleep and is always active.
+//!
 
 use kernel::common::VolatileCell;
 

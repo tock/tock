@@ -1,3 +1,9 @@
+//! General Purpose Input Output (GPIO)
+//!     For details see p.987 in the cc2650 technical reference manual.
+//!
+//! Configures the GPIO pins, and interfaces with the HIL for gpio.
+//!
+
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use ioc;
