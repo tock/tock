@@ -63,6 +63,7 @@
 #![no_std]
 #![no_main]
 #![feature(lang_items, compiler_builtins_lib)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -88,6 +89,7 @@ const BUTTON3_PIN: usize = 15;
 const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 21;
 
+/// UART Writer
 #[macro_use]
 pub mod io;
 
@@ -106,6 +108,7 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
+/// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
         'static,
@@ -145,9 +148,10 @@ impl kernel::Platform for Platform {
     }
 }
 
-// this is called once crt0.s is loaded
+/// Entry point in the vector table called on hard reset.
 #[no_mangle]
 pub unsafe fn reset_handler() {
+    // Loads relocations and clears BSS
     nrf52::init();
 
     // make non-volatile memory writable and activate the reset button (pin 21)
