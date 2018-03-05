@@ -15,7 +15,7 @@ is a field in a packed struct:
 ```rust
 use common::regs::{ReadOnly, ReadWrite, WriteOnly};
 
-#[repr(C, packed)]
+#[repr(C)]
 struct Registers {
     // Control register: read-write
     // The 'Control' parameter constrains this register to only use fields from
@@ -254,7 +254,7 @@ description of the naming convention for each:
 ```rust
 use common::regs::ReadWrite;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct Registers {
     // The register name in the struct should be a lowercase version of the
     // register abbreviation, as written in the datasheet:
