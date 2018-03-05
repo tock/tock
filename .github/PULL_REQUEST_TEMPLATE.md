@@ -15,9 +15,9 @@ This pull request still needs...
 
 ### Documentation Updated
 
-- [ ] Kernel: The relevant files in `/docs` have been updated or no updates are required.
-- [ ] Userland: The application README has been added, updated, or no updates are required.
+- [ ] Kernel: Updated the relevant files in `/docs`, or no updates are required.
+- [ ] Userland: Added/updated the application README, if needed.
 
 ### Formatting
 
-- [ ] `make formatall` has been run.
+- [ ] `make formatall`
