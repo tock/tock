@@ -39,14 +39,14 @@ impl Write for Writer {
 #[lang = "panic_fmt"]
 pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
     // turn off the non panic leds, just in case
-    let ledg = &sam4l::gpio::PA[14];
-    ledg.enable_output();
-    ledg.set();
-    let ledb = &sam4l::gpio::PA[15];
-    ledb.enable_output();
-    ledb.set();
+    let led_green = &sam4l::gpio::PA[14];
+    led_green.enable_output();
+    led_green.set();
+    let led_blue = &sam4l::gpio::PA[15];
+    led_blue.enable_output();
+    led_blue.set();
 
-    let led = &mut led::LedLow::new(&mut sam4l::gpio::PA[13]);
+    let led_red = &mut led::LedLow::new(&mut sam4l::gpio::PA[13]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(led_red, writer, args, file, line)
 }
