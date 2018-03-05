@@ -20,4 +20,4 @@ This pull request still needs...
 
 ### Formatting
 
-- [ ] `make formatall`
+- [ ] Ran `make formatall`.
