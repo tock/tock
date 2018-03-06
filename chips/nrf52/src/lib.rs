@@ -4,7 +4,7 @@
 #![crate_type = "rlib"]
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, register_bitfields, register_bitmasks)]
 extern crate kernel;
 extern crate nrf5x;
 
@@ -13,6 +13,7 @@ extern crate bitfield;
 
 mod peripheral_registers;
 
+pub mod clock;
 pub mod chip;
 pub mod crt1;
 pub mod ficr;
