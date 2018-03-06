@@ -1,6 +1,6 @@
 //! Implementation of SPI for NRF52 using EasyDMA.
 //!
-//! This file only implments support for the three SPI master (`SPIM`)
+//! This file only implements support for the three SPI master (`SPIM`)
 //! peripherals, and not SPI slave (`SPIS`).
 //!
 //! Although `kernel::hil::spi::SpiMaster` is implemented for `SPIM`,
@@ -25,6 +25,7 @@
 //!
 //! Author
 //! -------------------
+//!
 //! * Author: Jay Kickliter
 //! * Date: Sep 10, 2017
 
