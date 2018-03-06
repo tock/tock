@@ -8,7 +8,6 @@ $(call check_defined, UNIFLASH_CLI_BASE)
 TOCK_ARCH = cortex-m4
 BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
 
-DSLITE=$(UNIFLASH_CLI_BASE)/ccs_base/DebugServer/bin/DSLite
 PROG_BASE=0x47000
 
 # Relative working directory, get the directory of *this*
@@ -18,7 +17,8 @@ RWD=$(TOCK_USERLAND_BASE_DIR)/../boards/launchxl
 # Upload programs to launchxl
 .PHONY: flash
 flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
-	@$(DSLITE) flash -c $(RWD)/jtag/cc2652r1f.ccxml -e -f $<,$(PROG_BASE)
+	$(call check_defined, UNIFLASH_CLI_BASE, See launchxl README for details)
+	@$(UNIFLASH_CLI_BASE)/ccs_base/DebugServer/bin/DSLite flash -c $(RWD)/jtag/cc2652r1f.ccxml -e -f $<,$(PROG_BASE)
 
 .PHONY: program
 program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
