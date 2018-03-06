@@ -7,6 +7,7 @@
 extern crate kernel;
 
 pub mod aon;
+pub mod rtc;
 pub mod gpio;
 pub mod ioc;
 pub mod prcm;
