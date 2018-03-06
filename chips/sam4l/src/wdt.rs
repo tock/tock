@@ -1,21 +1,90 @@
 //! Implementation of the SAM4L hardware watchdog timer.
 
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
 use pm::{self, Clock, PBDClock};
 
 #[repr(C)]
 pub struct WdtRegisters {
-    cr: VolatileCell<u32>,
-    clr: VolatileCell<u32>,
-    sr: VolatileCell<u32>,
-    ier: VolatileCell<u32>,
-    idr: VolatileCell<u32>,
-    imr: VolatileCell<u32>,
-    isr: VolatileCell<u32>,
-    icr: VolatileCell<u32>,
+    cr: ReadWrite<u32, Control::Register>,
+    clr: WriteOnly<u32, Clear::Register>,
+    sr: ReadOnly<u32, Status::Register>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    isr: ReadOnly<u32, Interrupt::Register>,
+    icr: WriteOnly<u32, Interrupt::Register>,
 }
+
+register_bitfields![u32,
+    Control [
+        /// Write access key
+        KEY OFFSET(24) NUMBITS(8) [],
+        /// Time Ban Prescale Select
+        TBAN OFFSET(18) NUMBITS(5) [],
+        /// Clock Source Select
+        CSSEL OFFSET(17) NUMBITS(1) [
+            RCSYS = 0,
+            OSC32K = 1
+        ],
+        /// Clock Enable
+        CEN OFFSET(16) NUMBITS(1) [
+            ClockDisable = 0,
+            ClockEnable = 1
+        ],
+        /// Time Out Prescale Select
+        PSEL OFFSET(8) NUMBITS(5) [],
+        /// Flash Calibration Done
+        FCD OFFSET(7) NUMBITS(1) [
+            RedoCalibration = 0,
+            DoNotRedoCalibration = 1
+        ],
+        /// Interrupt Mode
+        IM OFFSET(4) NUMBITS(1) [
+            InterruptModeDisabled = 0,
+            InterruptModeEnabled = 1
+        ],
+        /// WDT Control Register Store Final Value
+        SFV OFFSET(3) NUMBITS(1) [
+            NotLocked = 0,
+            Locked = 1
+        ],
+        /// WDT Mode
+        MODE OFFSET(2) NUMBITS(1) [
+            Basic = 0,
+            Window = 1
+        ],
+        /// WDT Disable After Reset
+        DAR OFFSET(1) NUMBITS(1) [
+            EnableAfterReset = 0,
+            DisableAfterReset = 1
+        ],
+        /// WDT Enable
+        EN OFFSET(0) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ]
+    ],
+
+    Clear [
+        /// Write access key
+        KEY OFFSET(24) NUMBITS(8) [],
+        /// Watchdog Clear
+        WDTCLR OFFSET(0) NUMBITS(1) []
+    ],
+
+    Status [
+        /// WDT Counter Cleared
+        CLEARED 1,
+        /// Within Window
+        WINDOW 0
+    ],
+
+    Interrupt [
+        WINT 2
+    ]
+];
 
 // Page 59 of SAM4L data sheet
 const BASE_ADDRESS: *mut WdtRegisters = 0x400F0C00 as *mut WdtRegisters;
@@ -73,26 +142,24 @@ impl Wdt {
             _ => 31,
         };
 
-        let control = (1 << 16) |     // Clock enable
-                      (scaler << 8) | // Set PSEL to based on period
-                      (1 << 7)  |     // Flash calibration done (set to default)
-                      (1 << 1)  |     // Disable after reset
-                      (1 << 0); //...... Enable
+        let control1 = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
+            + Control::FCD::DoNotRedoCalibration
+            + Control::DAR::DisableAfterReset + Control::EN::Enable;
+        let control2 = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
+            + Control::FCD::DoNotRedoCalibration
+            + Control::DAR::DisableAfterReset + Control::EN::Enable;
 
         // Need to write twice for it to work
-        regs.cr.set((0x55 << 24) | control);
-        regs.cr.set((0xAA << 24) | control);
+        regs.cr.write(Control::KEY.val(0x55) + control1);
+        regs.cr.write(Control::KEY.val(0xAA) + control2);
     }
 
     fn stop(&self) {
         let regs: &WdtRegisters = unsafe { &*self.registers };
 
-        // Set enable bit (bit 0) to 0 to disable
-        let control = regs.cr.get() & !0x01;
-
         // Need to write twice for it to work
-        regs.cr.set((0x55 << 24) | control);
-        regs.cr.set((0xAA << 24) | control);
+        regs.cr.modify(Control::KEY.val(0x55) + Control::EN::CLEAR);
+        regs.cr.modify(Control::KEY.val(0xAA) + Control::EN::CLEAR);
 
         unsafe {
             pm::disable_clock(Clock::PBD(PBDClock::WDT));
@@ -105,8 +172,8 @@ impl Wdt {
         let regs: &WdtRegisters = unsafe { &*self.registers };
 
         // Need to write the WDTCLR bit twice for it to work
-        regs.clr.set((0x55 << 24) | (1 << 0));
-        regs.clr.set((0xAA << 24) | (1 << 0));
+        regs.clr.write(Clear::KEY.val(0x55) + Clear::WDTCLR::SET);
+        regs.clr.write(Clear::KEY.val(0xAA) + Clear::WDTCLR::SET);
     }
 }
 
