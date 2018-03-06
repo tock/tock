@@ -1,16 +1,17 @@
 //! Clock peripheral driver, nRF52
 //!
-//! Forked off Phil Levis Clock Driver for nRF51
+//! Based on Phil Levis clock driver for nRF51
+//!
+//! HFCLK - High Frequency Clock
+//!     * 64 MHz internal oscillator (HFINT)
+//!     * 64 MHz crystal oscillator, using 32 MHz external crystal (HFXO)
+//!     * The HFXO must be running to use the RADIO, NFC module or the calibration mechanism
+//!       associated with the 32.768 kHz RC oscillator.
 //!
 //! LFCLK - Low Frequency Clock Source:
 //!     * 32.768 kHz RC oscillator (LFRC)
 //!     * 32.768 kHz crystal oscillator (LFXO)
 //!     * 32.768 kHz synthesized from HFCLK (LFSYNT)
-//!
-//! HFCLK - High Frequency Clock
-//!     * 64 MHz internal oscillator (HFINT)
-//!     * 64 MHz crystal oscillator (HFXO)
-//!     * HFXO must be running the run the RADIO, NFC and calibration
 //!
 
 use core::cell::Cell;
@@ -50,18 +51,16 @@ struct ClockRegisters {
 
 register_bitfields! [u32,
     Control [
-        DISABLE 0,
-        ENABLE 1
+        ENABLE OFFSET(0) NUMBITS(1)
     ],
     Status [
-        NOTREADY 0,
-        READY 1
+        READY OFFSET(0) NUMBITS(1)
     ],
     Interrupt [
-        HFCLKSTARTED 1,
-        LFCLKSTARTED 2,
-        DONE 8,
-        CTTO 16
+        HFCLKSTARTED OFFSET(0) NUMBITS(1),
+        LFCLKSTARTED OFFSET(1) NUMBITS(1),
+        DONE OFFSET(3) NUMBITS(1),
+        CTTO OFFSET(4) NUMBITS(1)
     ],
     HfClkStat [
         SRC OFFSET(0) NUMBITS(1) [
@@ -82,7 +81,7 @@ register_bitfields! [u32,
             RUNNING = 1
         ]
     ],
-    LfClkSrcCopy [ 
+    LfClkSrcCopy [
         SRC OFFSET(0) NUMBITS(2) [
             RC = 0,
             XTAL = 1,
@@ -155,6 +154,7 @@ pub trait ClockClient {
 pub static mut CLOCK: Clock = Clock::new();
 
 impl Clock {
+    /// Constructor
     pub const fn new() -> Clock {
         Clock {
             registers: CLOCK_BASE as *const ClockRegisters,
@@ -162,66 +162,87 @@ impl Clock {
         }
     }
 
+    /// Client for callbacks
     pub fn set_client(&self, client: &'static ClockClient) {
         self.client.set(Some(client));
     }
 
-    // pub fn interrupt_enable(&self, interrupt: InterruptField) {
-    //     let regs = unsafe { &*self.registers };
-    //     regs.intenset.write(Interrupt::val(interrupt as u32);
-    // }
-    //
-    // pub fn interrupt_disable(&self, interrupt: InterruptField) {
-    //     let regs = &*self.registers;
-    //     //regs.intenclr.set(interrupt as u32);
-    // }
+    /// Enable interrupt (not used yet)
+    pub fn interrupt_enable(&self, interrupt: InterruptField) {
+        let regs = unsafe { &*self.registers };
+        // this is a little too verbose
+        match interrupt {
+            InterruptField::CTTO => regs.intenset.write(Interrupt::CTTO::SET),
+            InterruptField::DONE => regs.intenset.write(Interrupt::DONE::SET),
+            InterruptField::HFCLKSTARTED => regs.intenset.write(Interrupt::HFCLKSTARTED::SET),
+            InterruptField::LFCLKSTARTED => regs.intenset.write(Interrupt::LFCLKSTARTED::SET),
+        }
+    }
 
+    /// Disable interrupt (not used yet)
+    pub fn interrupt_disable(&self, interrupt: InterruptField) {
+        let regs = unsafe { &*self.registers };
+        // this is a little too verbose
+        match interrupt {
+            InterruptField::CTTO => regs.intenset.write(Interrupt::CTTO::SET),
+            InterruptField::DONE => regs.intenset.write(Interrupt::DONE::SET),
+            InterruptField::HFCLKSTARTED => regs.intenset.write(Interrupt::HFCLKSTARTED::SET),
+            InterruptField::LFCLKSTARTED => regs.intenset.write(Interrupt::LFCLKSTARTED::SET),
+        }
+    }
+
+    /// Start the high frequency clock
     pub fn high_start(&self) {
         let regs = unsafe { &*self.registers };
         regs.tasks_hfclkstart.write(Control::ENABLE::SET);
     }
 
+    /// Stop the high frequency clock
     pub fn high_stop(&self) {
         let regs = unsafe { &*self.registers };
         regs.tasks_hfclkstop.write(Control::ENABLE::SET);
     }
 
+    /// Check if the high frequency clock has started
     pub fn high_started(&self) -> bool {
         let regs = unsafe { &*self.registers };
         regs.events_hfclkstarted.matches(Status::READY.val(1))
     }
 
+    /// Read clock source from the high frequency clock
     pub fn high_source(&self) -> HighClockSource {
         let regs = unsafe { &*self.registers };
         match regs.hfclkstat.read(HfClkStat::SRC) {
-            0b0 => HighClockSource::RC,
+            0 => HighClockSource::RC,
             _ => HighClockSource::XTAL,
         }
     }
 
+    /// Check if the high frequency clock is running
     pub fn high_running(&self) -> bool {
         let regs = unsafe { &*self.registers };
         regs.hfclkstat.matches(HfClkStat::STATE::RUNNING)
     }
 
-    // for debugging
-    #[no_mangle]
-    #[inline(never)]
+    /// Start the low frequency clock
     pub fn low_start(&self) {
         let regs = unsafe { &*self.registers };
         regs.tasks_lfclkstart.write(Control::ENABLE::SET);
     }
 
+    /// Stop the low frequency clock
     pub fn low_stop(&self) {
         let regs = unsafe { &*self.registers };
         regs.tasks_lfclkstop.write(Control::ENABLE::SET);
     }
 
+    /// Check if the low frequency clock has started
     pub fn low_started(&self) -> bool {
         let regs = unsafe { &*self.registers };
         regs.events_lfclkstarted.matches(Status::READY::SET)
     }
 
+    /// Read clock source from the low frequency clock
     pub fn low_source(&self) -> LowClockSource {
         let regs = unsafe { &*self.registers };
         match regs.lfclkstat.read(LfClkStat::SRC) {
@@ -231,16 +252,19 @@ impl Clock {
         }
     }
 
+    /// Check if the low frequency clock is running
     pub fn low_running(&self) -> bool {
         let regs = unsafe { &*self.registers };
         regs.lfclkstat.matches(LfClkStat::STATE::RUNNING)
     }
 
+    /// Set low frequency clock source
     pub fn low_set_source(&self, clock_source: LowClockSource) {
         let regs = unsafe { &*self.registers };
         regs.lfclksrc.write(LfClkSrc::SRC.val(clock_source as u32));
     }
 
+    /// Set high frequency clock source
     pub fn high_set_source(&self, clock_source: HighClockSource) {
         let regs = unsafe { &*self.registers };
         regs.hfclkstat

@@ -10,6 +10,7 @@ extern crate nrf5x;
 
 mod peripheral_registers;
 
+pub mod clock;
 pub mod chip;
 pub mod crt1;
 pub mod uart;
