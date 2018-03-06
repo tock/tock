@@ -3,7 +3,6 @@
 $(call check_defined, TOCK_USERLAND_BASE_DIR)
 $(call check_defined, BUILDDIR)
 $(call check_defined, PACKAGE_NAME)
-$(call check_defined, UNIFLASH_CLI_BASE)
 
 TOCK_ARCH = cortex-m4
 BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)

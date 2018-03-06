@@ -7,7 +7,6 @@ PLATFORM=launchxl
 
 include ../Makefile.common
 
-
 flash: target/$(TARGET)/release/launchxl
 	$(call check_defined, UNIFLASH_CLI_BASE, See launchxl README for details)
 	@echo "Flashing target/$(TARGET)/release/launchxl"
