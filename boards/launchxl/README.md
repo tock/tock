@@ -12,13 +12,13 @@ Download and use [uniflash](http://processors.wiki.ti.com/index.php/Category:CCS
 Once the standalone CLI has been extracted, set an environment variable named `UNIFLASH_CLI_BASE` in your shell profile:
 
 ```bash
-$> echo UNIFLASH_CLI_BASE="<path to extracted uniflash CLI>" >> ~/.bash_profile
+$> echo export UNIFLASH_CLI_BASE="<path to extracted uniflash CLI>" >> ~/.bash_profile
 $> source ~/.bash_profile
 ```
 
 
 ### Flashing
-You are able to use the Makefile targets `flash` in order to load the kernel onto the launchxl board.
+You are able to use the Makefile target `flash` to load the kernel onto the launchxl board.
 
 ```bash
 $> make flash       # make and flash the kernel
