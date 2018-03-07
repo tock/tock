@@ -60,8 +60,8 @@ pub trait BleAdvertisementDriver {
 }
 
 pub trait BleConfig {
-    fn set_access_address(&self, address: [u8; 4]);
     fn set_tx_power(&self, power: u8) -> ReturnCode;
+    fn set_access_address(&self, address: [u8; 4]);
 }
 
 pub trait RxClient {
