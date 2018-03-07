@@ -75,13 +75,15 @@ impl Radio {
     fn tx(&self) {
         let regs = unsafe { &*self.regs };
         regs.event_ready.set(0);
-        regs.task_txen.set(1);
+        regs.shorts.set(nrf5x::constants::RADIO_SHORTS_DISABLED_TXEN);
+        regs.task_disable.set(1);
     }
 
     fn rx(&self) {
         let regs = unsafe { &*self.regs };
         regs.event_ready.set(0);
-        regs.task_rxen.set(1);
+        regs.shorts.set(nrf5x::constants::RADIO_SHORTS_DISABLED_RXEN);
+        regs.task_disable.set(1);
     }
 
     fn set_rx_address(&self) {
@@ -97,12 +99,14 @@ impl Radio {
     fn radio_on(&self) {
         let regs = unsafe { &*self.regs };
         // reset and enable power
+        regs.shorts.set(0);
         regs.power.set(0);
         regs.power.set(1);
     }
 
     fn radio_off(&self) {
         let regs = unsafe { &*self.regs };
+        regs.shorts.set(0);
         regs.power.set(0);
     }
 
@@ -140,7 +144,9 @@ impl Radio {
         if regs.event_end.get() == 1 {
             regs.event_end.set(0);
 
-            debug!("\n...Radio {:?}", regs.state.get());
+            let radio_state = regs.state.get();
+
+            debug!("\n...Radio end {:?}", radio_state);
 
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
@@ -149,12 +155,12 @@ impl Radio {
             };
 
 
-            match regs.state.get() {
+            match radio_state {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    //self.radio_off();
+                    // self.radio_off();
                     self.tx_client
                         .get()
                         .map(|client| client.transmit_event(result));
@@ -163,7 +169,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    //self.radio_off();
+                    // self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
                             client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
@@ -234,9 +240,6 @@ impl Radio {
 
             self.set_dma_ptr();
             self.init.set(true);
-
-            let regs = unsafe { &*self.regs };
-            regs.shorts.set(nrf5x::constants::RADIO_SHORTS_READY_START);
         } else {
 
             self.ble_set_channel_freq(channel);
