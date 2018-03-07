@@ -142,16 +142,13 @@ impl Wdt {
             _ => 31,
         };
 
-        let control1 = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
-            + Control::FCD::DoNotRedoCalibration
-            + Control::DAR::DisableAfterReset + Control::EN::Enable;
-        let control2 = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
+        let control = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
             + Control::FCD::DoNotRedoCalibration
             + Control::DAR::DisableAfterReset + Control::EN::Enable;
 
         // Need to write twice for it to work
-        regs.cr.write(Control::KEY.val(0x55) + control1);
-        regs.cr.write(Control::KEY.val(0xAA) + control2);
+        regs.cr.write(Control::KEY.val(0x55) + control);
+        regs.cr.write(Control::KEY.val(0xAA) + control);
     }
 
     fn stop(&self) {
