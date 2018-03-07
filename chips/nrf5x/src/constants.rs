@@ -57,6 +57,9 @@ pub const RADIO_STATE_TXIDLE: u32 = 10;
 pub const RADIO_STATE_TX: u32 = 11;
 pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
+//Shortcuts
+pub const RADIO_SHORTS_READY_START: u32 = 1;
+
 // BUFFER SIZE
 pub const RADIO_PAYLOAD_LENGTH: usize = 255;
 

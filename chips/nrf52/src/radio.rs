@@ -56,6 +56,7 @@ pub struct Radio {
     tx_power: Cell<TxPower>,
     rx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
     tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
+    init: Cell<bool>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -67,6 +68,7 @@ impl Radio {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
+            init: Cell::new(false),
         }
     }
 
@@ -138,18 +140,21 @@ impl Radio {
         if regs.event_end.get() == 1 {
             regs.event_end.set(0);
 
+            debug!("\n...Radio {:?}", regs.state.get());
+
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
             } else {
                 ReturnCode::FAIL
             };
 
+
             match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    self.radio_off();
+                    //self.radio_off();
                     self.tx_client
                         .get()
                         .map(|client| client.transmit_event(result));
@@ -158,7 +163,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    self.radio_off();
+                    //self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
                             client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
@@ -208,24 +213,38 @@ impl Radio {
     }
 
     fn ble_initialize(&self, channel: RadioChannel) {
-        self.radio_on();
 
-        self.ble_set_tx_power();
+        if !self.init.get() {
+            self.radio_on();
 
-        self.ble_set_channel_rate();
+            self.ble_set_tx_power();
 
-        self.ble_set_channel_freq(channel);
-        self.ble_set_data_whitening(channel);
+            self.ble_set_channel_rate();
 
-        self.set_tx_address();
-        self.set_rx_address();
+            self.ble_set_channel_freq(channel);
+            self.ble_set_data_whitening(channel);
 
-        self.ble_set_packet_config();
-        self.ble_set_advertising_access_address();
+            self.set_tx_address();
+            self.set_rx_address();
 
-        self.ble_set_crc_config();
+            self.ble_set_packet_config();
+            self.ble_set_advertising_access_address();
 
-        self.set_dma_ptr();
+            self.ble_set_crc_config();
+
+            self.set_dma_ptr();
+            self.init.set(true);
+
+            let regs = unsafe { &*self.regs };
+            regs.shorts.set(nrf5x::constants::RADIO_SHORTS_READY_START);
+        } else {
+
+            self.ble_set_channel_freq(channel);
+            self.ble_set_data_whitening(channel);
+
+
+        }
+
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation

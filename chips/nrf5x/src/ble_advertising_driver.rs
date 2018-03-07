@@ -607,9 +607,10 @@ pub struct App {
     /// It should be read using the `random_number` method, which updates it as
     /// well.
     random_nonce: u32,
-    timing_array: [u32; NBR_PACKETS],
+    timing_array: [(u32, TimestampType); NBR_PACKETS],
     array_ptr: usize,
-    log_array: [[u8; PACKET_LENGTH]; NBR_PACKETS],
+    //log_array: [[u8; PACKET_LENGTH]; NBR_PACKETS],
+    log_array: [u8; NBR_PACKETS],
 }
 
 impl Default for App {
@@ -625,14 +626,25 @@ impl Default for App {
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
-            scan_timeout_ms: 70,
+            scan_timeout_ms: 100,
             // Just use any non-zero starting value by default
             random_nonce: 0xdeadbeef,
-            timing_array: [0; NBR_PACKETS],
+            timing_array: [(0, TimestampType::BeforeIdle); NBR_PACKETS],
             array_ptr: 0,
-            log_array: [[0; PACKET_LENGTH]; NBR_PACKETS],
+            //log_array: [[0; PACKET_LENGTH]; NBR_PACKETS],
+            log_array: [0; NBR_PACKETS]
         }
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum TimestampType {
+    BeforeAdv(RadioChannel),
+    AfterAdv(RadioChannel),
+    BeforeList(RadioChannel),
+    AfterList(RadioChannel),
+    BeforeIdle,
+    ScanRequest(RadioChannel),
 }
 
 impl App {
@@ -759,6 +771,9 @@ impl App {
 
 
     fn send_advertisement(&self, ble: &BLESender, channel: RadioChannel, appid: kernel::AppId) -> ReturnCode {
+
+        //debug!("\nSending on channel {:?}", channel);
+
         self.advertisement_buf
             .as_ref()
             .map_or(ReturnCode::EINVAL, |slice| {
@@ -901,34 +916,61 @@ impl App {
         self.process_status = new_state;
     }
 
-    fn collect_log(&mut self, buf: &[u8], timestamp: u32) {
+    /*fn collect_log(&mut self, buf: u8, timestamp: u32) {
+
+        //debug!("{}", pdu);
 
         if self.array_ptr < NBR_PACKETS {
 
             self.timing_array[self.array_ptr] = timestamp;
 
+            *//*
             for i in 0..PACKET_LENGTH {
                 self.log_array[self.array_ptr][i] = buf[i];
             }
+            *//*
+            self.log_array[self.array_ptr] = buf;
 
             self.array_ptr += 1;
         } else {
-            //debug!("\n Received packets:, len {:?}", self.log_array.len());
-
 
             for i in 0..self.log_array.len() {
-                debug!("{:?}  ", self.timing_array[i]);
-                debug!("{:?}\n", &self.log_array[i][0..32]);
-                /*for j in 0..self.log_array[i].len() {
-                    debug!("{:0>2x} ", self.log_array[i][j]);
-                }*/
+                debug!("\n{:?} {:?}", self.timing_array[i], self.log_array[i]);
+            }
+            *//*let mut conn_req = true;
 
+            for i in 0..self.log_array.len() {
+
+                let pdu = self.log_array[i];
+
+                if (pdu != 0) && (pdu != 2) {
+                    debug!("\n{:?} {}: ", self.timing_array[i], pdu);
+
+                    for k in self.log_array[i].iter() {
+                        debug!("{:0>2x} ", k);
+                    }
+                    conn_req = false;
+                }
+            }
+
+            if conn_req {
+                debug!("\n.");
+            }*//*
+            self.array_ptr = 0;
+        }
+    }*/
+
+    fn collect_timestamp(&mut self, time: u32, timestamp_type: TimestampType) {
+        if self.array_ptr < self.timing_array.len() {
+            self.timing_array[self.array_ptr] = (time, timestamp_type);
+            self.array_ptr += 1;
+        } else {
+            debug!("\n\nTiming values:");
+            for i in 0..self.timing_array.len() as u8 {
+                debug!("\n{:?}", self.timing_array[i as usize]);
             }
             self.array_ptr = 0;
         }
-
-
-
     }
 
     fn handle_rx_event<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, appid: kernel::AppId, buf: &'static mut [u8])
@@ -1003,14 +1045,17 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                 state
             }
             BLEAdvertisingState::Listening(channel) => {
+
                 match pdu {
                     &BLEPduType::ConnectRequest(init_addr, adv_addr, ref lldata) => {
+
+                        debug!("\nConnection request! {:?} {:?}", init_addr, adv_addr);
 
                         let mut new_state = state;
 
                         app.advertising_address.map(|address| {
                             if address == adv_addr {
-                                panic!("Connection req");
+                                //panic!("Connection req");
                                 debug!("Connection request! {:?} {:?}", init_addr, lldata);
 
                                 app.alarm_data.expiration = Expiration::Disabled;
@@ -1027,7 +1072,7 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                                 ble.receive_buffer(next_channel, appid);
 
                             } else {
-                                ble.receive_buffer(RadioChannel::AdvertisingChannel37, appid);
+                                ble.receive_buffer(channel, appid);
                                 //debug!("Connection req not for me: {:?} {:?} {:?}", init_addr, adv_addr, lldata);
                             }
 
@@ -1037,19 +1082,26 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                         new_state
 
                     },
-                    &BLEPduType::ScanRequest(_scan_addr, adv_addr) => {
+                    &BLEPduType::ScanRequest(scan_addr, adv_addr) => {
+
+                        debug!("\n{:?} {:?}", scan_addr, adv_addr);
+
                         let mut new_state = state;
 
                         app.advertising_address.map(|address| {
+
                             ble.set_tx_power(app.tx_power);
 
                             if address == adv_addr {
                                 app.alarm_data.expiration = Expiration::Disabled;
                                 new_state = BLEAdvertisingState::Responding(channel);
 
-                                app.send_scan_response(ble, RadioChannel::AdvertisingChannel37, appid);
+                                debug!("Got a ScanReq");
+
+                                app.send_scan_response(ble, channel, appid);
+
                             } else {
-                                ble.receive_buffer(RadioChannel::AdvertisingChannel37, appid);
+                                ble.receive_buffer(channel, appid);
                             }
                             address
                         });
@@ -1058,7 +1110,7 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                     },
                     // Received other packet, try receive again!
                     _ => {
-                        ble.receive_buffer(RadioChannel::AdvertisingChannel37, appid);
+                        ble.receive_buffer(channel, appid);
 
                         state
                     }
@@ -1076,16 +1128,28 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                 state
             }
         }
-        */
     }
 
     fn handle_tx_event<A>(state: BLEAdvertisingState, app: &mut App, ble: &BLESender, appid: kernel::AppId) -> BLEAdvertisingState where A: kernel::hil::time::Alarm {
+
+        debug!("\ntx");
+
         match state {
 
+            BLEAdvertisingState::Advertising(channel) => {
+
+                ble.set_tx_power(app.tx_power);
+                ble.receive_buffer(channel, appid);
+
+                //app.collect_timestamp(ble, TimestampType::AfterList(channel));
+
+                BLEAdvertisingState::Listening(channel)
+
+            },
             BLEAdvertisingState::Responding(channel) => {
                 if let Some(channel) = channel.get_next_advertising_channel() {
                     ble.set_tx_power(app.tx_power);
-                    app.send_advertisement(ble, RadioChannel::AdvertisingChannel37, appid);
+                    app.send_advertisement(ble, channel, appid);
 
                     // TODO - check correct timeout
                     app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
@@ -1098,43 +1162,18 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
 
                     BLEAdvertisingState::Idle
                 }
-            }
-
-
-            BLEAdvertisingState::Advertising(channel) => {
-
-                //debug!("handle_tx_event, Adevertising on channel {:?}", channel);
-                /*
-                let mut tmp_ptr_value = app.array_ptr;
-
-                if  tmp_ptr_value < app.timing_array.len() {
-                    app.timing_array[app.array_ptr] = ble.alarm_now();
-                    tmp_ptr_value = tmp_ptr_value + 1;
-                } else {
-                    debug!("Timing values:\n");
-                    for i in 0..app.timing_array.len() as u8 {
-                        debug!("i: {}", app.timing_array[i as usize]);
-                    }
-                }
-                app.array_ptr = tmp_ptr_value;
-                */
-
-                ble.set_tx_power(app.tx_power);
-                ble.receive_buffer(RadioChannel::AdvertisingChannel37, appid);
-
-                BLEAdvertisingState::Listening(channel)
-
             },
             BLEAdvertisingState::Idle => {
-                debug!("I'm Idle in handle_tx_event, this is unproffessional");
-                ble.set_busy(BusyState::Busy(appid));
+                debug!("I'm Idle in handle_tx_event, this is unprofessional");
+                /*ble.set_busy(BusyState::Busy(appid));
                 let channel = RadioChannel::AdvertisingChannel37;
                 ble.set_tx_power(app.tx_power);
-                app.send_advertisement(ble, channel, appid);
+                app.send_advertisement(ble, RadioChannel::AdvertisingChannel37, appid);
 
                 app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
 
-                BLEAdvertisingState::Advertising(channel)
+                BLEAdvertisingState::Advertising(RadioChannel::AdvertisingChannel37)*/
+                state
             }
             state => {
                 debug!("Error! Adv::handle_tx_event {:?}", state);
@@ -1145,36 +1184,38 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
     }
 
     fn handle_timer_event<A>(state: BLEAdvertisingState, app: &mut App, ble: &BLESender, appid: kernel::AppId) -> BLEAdvertisingState where A: kernel::hil::time::Alarm {
-            match state {
+
+        debug!("\ntimer");
+
+        match state {
 
                 BLEAdvertisingState::Listening(channel) => {
 
-                    //debug!("handle_timer_event, moving from channel {:?}", channel);
-                    /*
-                    let mut tmp_ptr_value = app.array_ptr;
-
-                    if  tmp_ptr_value < app.timing_array.len() {
-                        app.timing_array[app.array_ptr] = ble.alarm_now();
-                        tmp_ptr_value = tmp_ptr_value + 1;
-                    } else {
-                        debug!("Timing values:\n");
-                        for i in 0..app.timing_array.len() as u8 {
-                            debug!("i: {}", app.timing_array[i as usize]);
-                        }
-                    }
-
-                    app.array_ptr = tmp_ptr_value;
-                    */
-
                     if let Some(channel) = channel.get_next_advertising_channel() {
+
                         ble.set_tx_power(app.tx_power);
-                        //app.send_advertisement(ble, RadioChannel::AdvertisingChannel37, appid);
                         app.send_advertisement(ble, channel, appid);
 
-                        app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
+                        app.collect_timestamp(ble.alarm_now(), TimestampType::AfterAdv(channel));
 
+                        app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
                         BLEAdvertisingState::Advertising(channel)
+
+
+                        /*//Remove the below after debugging
+                        ble.set_tx_power(app.tx_power);
+                        ble.receive_buffer(channel, appid);
+
+                        //app.collect_timestamp(ble, TimestampType::AfterList(channel));
+
+                        BLEAdvertisingState::Listening(channel)*/
+
+
                     } else {
+
+                        app.collect_timestamp(ble.alarm_now(), TimestampType::BeforeIdle);
+
+
                         ble.set_busy(BusyState::Free);
                         app.set_next_alarm::<A::Frequency>(ble.alarm_now());
 
@@ -1186,31 +1227,17 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                 BLEAdvertisingState::Idle => {
 
                     //debug!("handle_tx_event, Idle -> 37");
-                    /*
-                    let mut tmp_ptr_value = app.array_ptr;
-
-                    if  tmp_ptr_value < app.timing_array.len() {
-                        app.timing_array[app.array_ptr] = ble.alarm_now();
-                        tmp_ptr_value = tmp_ptr_value + 1;
-                    } else {
-                        debug!("Timing values:\n");
-                        for i in 0..app.timing_array.len() as u8 {
-                            debug!("i: {}", app.timing_array[i as usize]);
-                        }
-                    }
-
-                    app.array_ptr = tmp_ptr_value;
-                    */
-
-
                     ble.set_busy(BusyState::Busy(appid));
                     let channel = RadioChannel::AdvertisingChannel37;
+
+
                     ble.set_tx_power(app.tx_power);
-                    app.send_advertisement(ble, channel, appid);
+                    app.send_advertisement(ble, RadioChannel::AdvertisingChannel37, appid);
+
+                    app.collect_timestamp(ble.alarm_now(), TimestampType::BeforeAdv(channel));
 
                     app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-
-                    BLEAdvertisingState::Advertising(channel)
+                    BLEAdvertisingState::Advertising(RadioChannel::AdvertisingChannel37)
                 },
                 _ => {
                     debug!(
@@ -1408,10 +1435,9 @@ impl<'a, B, A> BLESender for BLE<'a, B, A>
         channel: RadioChannel,
         appid: kernel::AppId
     ) {
+        self.sending_app.set(Some(appid));
         let result = self.radio.transmit_advertisement(buf, PACKET_LENGTH, channel);
         self.kernel_tx.replace(result);
-        self.sending_app.set(Some(appid));
-
     }
     fn transmit_buffer_edit(&self, len: usize, channel: RadioChannel, appid: kernel::AppId, edit_buffer: &Fn(&mut [u8]) -> ()) {
         self.kernel_tx.take().map(|buffer| {
@@ -1421,8 +1447,8 @@ impl<'a, B, A> BLESender for BLE<'a, B, A>
     }
 
     fn receive_buffer(&self, channel: RadioChannel, appid: kernel::AppId) {
-        self.radio.receive_advertisement(channel);
         self.receiving_app.set(Some(appid));
+        self.radio.receive_advertisement(channel);
     }
     fn set_tx_power(&self, power: u8) -> ReturnCode {
         self.radio.set_tx_power(power)
@@ -1540,7 +1566,18 @@ where
 
                 //debug!("==transmit_event! {:?}" , app.process_status);
 
+                match app.process_status {
+                    Some(BLEState::Advertising(BLEAdvertisingState::Advertising(channel))) | Some(BLEState::Advertising(BLEAdvertisingState::Listening(channel))) |
+                        Some(BLEState::Advertising(BLEAdvertisingState::Responding(channel))) => {
+                    //Some(BLEState::Advertising(BLEAdvertisingState::Advertising(channel))) => {
+                        app.collect_timestamp(self.alarm.now(), TimestampType::BeforeList(channel));
+                    },
+
+                    Some(_) | None => {}
+                }
+
                 app.handle_tx_event(&self, appid);
+
             });
             self.reset_active_alarm();
 
