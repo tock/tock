@@ -56,7 +56,15 @@ pub struct Radio {
     tx_power: Cell<TxPower>,
     rx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
     tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
-    init: Cell<bool>,
+    state: Cell<RadioState>,
+}
+
+#[derive(PartialEq, Copy, Clone)]
+enum RadioState {
+    TX,
+    RX,
+    Initialized,
+    Uninitialized
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -68,22 +76,43 @@ impl Radio {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
-            init: Cell::new(false),
+            state: Cell::new(RadioState::Uninitialized),
         }
     }
 
     fn tx(&self) {
         let regs = unsafe { &*self.regs };
-        regs.event_ready.set(0);
-        regs.shorts.set(nrf5x::constants::RADIO_SHORTS_DISABLED_TXEN);
-        regs.task_disable.set(1);
+
+        regs.shorts.set(
+            nrf5x::constants::RADIO_SHORTS_DISABLED_TXEN
+                | nrf5x::constants::RADIO_SHORTS_READY_START
+                | nrf5x::constants::RADIO_SHORTS_END_DISABLE
+        );
+
+        if self.state.get() != RadioState::TX {
+            regs.event_ready.set(0);
+            regs.task_disable.set(1);
+            self.state.set(RadioState::TX);
+        } else {
+            regs.task_start.set(1);
+        }
     }
 
     fn rx(&self) {
         let regs = unsafe { &*self.regs };
-        regs.event_ready.set(0);
-        regs.shorts.set(nrf5x::constants::RADIO_SHORTS_DISABLED_RXEN);
-        regs.task_disable.set(1);
+        regs.shorts.set(
+            nrf5x::constants::RADIO_SHORTS_DISABLED_RXEN
+                | nrf5x::constants::RADIO_SHORTS_READY_START
+                | nrf5x::constants::RADIO_SHORTS_END_DISABLE
+        );
+
+        if self.state.get() != RadioState::RX {
+            regs.event_ready.set(0);
+            regs.task_disable.set(1);
+            self.state.set(RadioState::RX);
+        } else {
+            regs.task_start.set(1);
+        }
     }
 
     fn set_rx_address(&self) {
@@ -99,7 +128,7 @@ impl Radio {
     fn radio_on(&self) {
         let regs = unsafe { &*self.regs };
         // reset and enable power
-        regs.shorts.set(0);
+        // regs.shorts.set(0);
         regs.power.set(0);
         regs.power.set(1);
     }
@@ -113,6 +142,11 @@ impl Radio {
     fn set_tx_power(&self) {
         let regs = unsafe { &*self.regs };
         regs.txpower.set(self.tx_power.get() as u32);
+    }
+
+    fn set_tifs(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.tifs.set(150 as u32);
     }
 
     fn set_dma_ptr(&self) {
@@ -144,10 +178,6 @@ impl Radio {
         if regs.event_end.get() == 1 {
             regs.event_end.set(0);
 
-            let radio_state = regs.state.get();
-
-            debug!("\n...Radio end {:?}", radio_state);
-
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
             } else {
@@ -155,7 +185,7 @@ impl Radio {
             };
 
 
-            match radio_state {
+            match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
@@ -186,9 +216,7 @@ impl Radio {
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenset.set(
-            nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS
-                | nrf5x::constants::RADIO_INTENSET_PAYLOAD
-                | nrf5x::constants::RADIO_INTENSET_END,
+            nrf5x::constants::RADIO_INTENSET_END,
         );
     }
 
@@ -220,10 +248,11 @@ impl Radio {
 
     fn ble_initialize(&self, channel: RadioChannel) {
 
-        if !self.init.get() {
+        if self.state.get() == RadioState::Uninitialized {
             self.radio_on();
 
             self.ble_set_tx_power();
+            self.set_tifs();
 
             self.ble_set_channel_rate();
 
@@ -239,13 +268,10 @@ impl Radio {
             self.ble_set_crc_config();
 
             self.set_dma_ptr();
-            self.init.set(true);
+            self.state.set(RadioState::Initialized);
         } else {
-
             self.ble_set_channel_freq(channel);
             self.ble_set_data_whitening(channel);
-
-
         }
 
     }
