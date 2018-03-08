@@ -239,6 +239,13 @@ impl<R: RegisterLongName> FieldValue<u32, R> {
     }
 }
 
+impl<T: IntLike, R: RegisterLongName> FieldValue<T, R> {
+    // Modify fields in a register value
+    pub fn modify(self, val: T) -> T {
+        (val & !self.mask) | self.value
+    }
+}
+
 // Combine two fields with the addition operator
 impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
     type Output = Self;
