@@ -32,51 +32,65 @@
 
 use core::cell::Cell;
 use kernel;
+use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
+use kernel::hil::symmetric_encryption;
 use peripheral_registers;
 
-// array that the aes chip will mutate during encryption
-// Byte 0-15   - The key
+// DMA buffer that the aes chip will mutate during encryption
+// Byte 0-15   - Key
 // Byte 16-32  - Payload
 // Byte 33-47  - Ciphertext
 static mut ECB_DATA: [u8; 48] = [0; 48];
-// data to replace TakeCell initial counter in the capsule
-static mut INIT_CTR: [u8; 16] = [0; 16];
+
+#[allow(dead_code)]
+const KEY_START: usize = 0;
+#[allow(dead_code)]
+const KEY_END: usize = 15;
+#[allow(dead_code)]
+const PLAINTEXT_START: usize = 16;
+#[allow(dead_code)]
+const PLAINTEXT_END: usize = 32;
+#[allow(dead_code)]
+const CIPHERTEXT_START: usize = 33;
+#[allow(dead_code)]
+const CIPHERTEXT_END: usize = 47;
+#[allow(dead_code)]
+const MAX_LENGTH: usize = 128;
 
 const NRF_INTR_ENDECB: u32 = 0;
 const NRF_INTR_ERRORECB: u32 = 1;
 
-pub struct AesECB {
+pub struct AesECB<'a> {
     regs: *const peripheral_registers::AESECB_REGS,
-    client: Cell<Option<&'static kernel::hil::symmetric_encryption::Client>>,
-    ctr: Cell<[u8; 16]>,
+    client: Cell<Option<&'a kernel::hil::symmetric_encryption::Client<'a>>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
-    input: TakeCell<'static, [u8]>,
+    input: TakeCell<'a, [u8]>,
+    output: TakeCell<'a, [u8]>,
     /// Keystream to be XOR'ed with the input.
-    keystream: Cell<[u8; 128]>,
-    remaining: Cell<usize>,
-    len: Cell<usize>,
-    offset: Cell<usize>,
+    keystream: Cell<[u8; MAX_LENGTH]>,
+    current_idx: Cell<usize>,
+    start_idx: Cell<usize>,
+    end_idx: Cell<usize>,
 }
 
 pub static mut AESECB: AesECB = AesECB::new();
 
-impl AesECB {
-    const fn new() -> AesECB {
+impl<'a> AesECB<'a> {
+    const fn new() -> AesECB<'a> {
         AesECB {
             regs: peripheral_registers::AESECB_BASE as *const peripheral_registers::AESECB_REGS,
             client: Cell::new(None),
-            ctr: Cell::new([0; 16]),
             input: TakeCell::empty(),
-            keystream: Cell::new([0; 128]),
-            remaining: Cell::new(0),
-            len: Cell::new(0),
-            offset: Cell::new(0),
+            output: TakeCell::empty(),
+            keystream: Cell::new([0; MAX_LENGTH]),
+            current_idx: Cell::new(0),
+            start_idx: Cell::new(0),
+            end_idx: Cell::new(0),
         }
     }
 
-    // This Function is called once Tock is booted
-    pub fn ecb_init(&self) {
+    fn init_dma(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
             regs.ecbdataptr.set((&ECB_DATA as *const u8) as u32);
@@ -86,24 +100,18 @@ impl AesECB {
     // FIXME: should this be performed in constant time i.e. skip the break part
     // and always loop 16 times?
     fn update_ctr(&self) {
-        let mut ctr = self.ctr.get();
-        for i in (0..16).rev() {
-            ctr[i] += 1;
-            if ctr[i] != 0 {
-                break;
+        for i in (PLAINTEXT_START..PLAINTEXT_END).rev() {
+            unsafe {
+                ECB_DATA[i] += 1;
+                if ECB_DATA[i] != 0 {
+                    break;
+                }
             }
         }
-        self.ctr.set(ctr);
     }
 
     fn crypt(&self) {
         let regs = unsafe { &*self.regs };
-        let ctr = self.ctr.get();
-        for i in 0..16 {
-            unsafe {
-                ECB_DATA[i + 16] = ctr[i];
-            }
-        }
 
         regs.event_endecb.set(0);
         regs.task_startecb.set(1);
@@ -118,40 +126,59 @@ impl AesECB {
         self.disable_interrupts();
 
         if regs.event_endecb.get() == 1 {
-            let rem = self.remaining.get();
-            let offset = self.offset.get();
-            let take = if rem >= 16 { 16 } else { rem };
+            let current_idx = self.current_idx.get();
+            let end_idx = self.end_idx.get();
+
+            // get number of bytes to be used in the keystream/block
+            let take = match end_idx.checked_sub(current_idx) {
+                Some(v) if v > symmetric_encryption::AES128_BLOCK_SIZE => {
+                    symmetric_encryption::AES128_BLOCK_SIZE
+                }
+                Some(v) => v,
+                None => 0,
+            };
+
             let mut ks = self.keystream.get();
 
             // Append keystream to the KEYSTREAM array
             if take > 0 {
-                for i in offset..offset + take {
-                    ks[i] = unsafe { ECB_DATA[i - offset + 32] }
+                for i in current_idx..current_idx + take {
+                    ks[i] = unsafe { ECB_DATA[i - current_idx + PLAINTEXT_END] }
                 }
-                self.offset.set(offset + take);
-                self.remaining.set(rem - take);
+                self.current_idx.set(current_idx + take);
                 self.update_ctr();
             }
 
             // More bytes to encrypt!!!
-            if self.remaining.get() > 0 {
+            if self.current_idx.get() < self.end_idx.get() {
                 self.crypt();
             }
-            // Entire keystream generated now XOR with the data
-            else if self.input.is_some() {
-                self.input.take().map(|buf| {
-                    for (i, c) in buf.as_mut()[0..self.len.get()].iter_mut().enumerate() {
-                        *c = ks[i] ^ *c;
-                    }
-                    // ugly work-around to replace buffers in the capsule;
-                    self.client.get().map(move |client| unsafe {
-                        client.crypt_done(buf, &mut INIT_CTR, self.len.get())
+            // Entire keystream generated we are done!
+            // XOR keystream the input
+            else if self.input.is_some() && self.output.is_some() {
+                self.input.take().map(|slice| {
+                    self.output.take().map(|buf| {
+                        let start = self.start_idx.get();
+                        let end = self.end_idx.get();
+                        let len = end - start;
+
+                        for ((i, out), inp) in buf.as_mut()[start..end]
+                            .iter_mut()
+                            .enumerate()
+                            .zip(slice.as_ref()[0..len].iter())
+                        {
+                            *out = ks[i] ^ *inp;
+                        }
+
+                        self.client
+                            .get()
+                            .map(move |client| client.crypt_done(Some(slice), buf));
                     });
                 });
             }
+
             self.keystream.set(ks);
         }
-        // FIXME: else ERROR encrypt error do nothing
     }
 
     fn enable_interrupts(&self) {
@@ -164,41 +191,90 @@ impl AesECB {
         let regs = unsafe { &*self.regs };
         regs.intenclr.set(NRF_INTR_ENDECB | NRF_INTR_ERRORECB);
     }
-
-    pub fn set_initial_ctr(&self, iv: &'static mut [u8]) {
-        // read bytes as big-endian
-        let mut ctr: [u8; 16] = [0; 16];
-        for (i, c) in iv.as_ref()[0..16].iter().enumerate() {
-            ctr[i] = *c;
-        }
-        self.ctr.set(ctr);
-    }
 }
 
-impl kernel::hil::symmetric_encryption::SymmetricEncryption for AesECB {
-    fn set_client(&self, client: &'static kernel::hil::symmetric_encryption::Client) {
+impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
+    fn enable(&self) {
+        self.init_dma();
+    }
+
+    fn disable(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.task_stopecb.set(1);
+        self.disable_interrupts();
+    }
+
+    fn set_client(&'a self, client: &'a symmetric_encryption::Client<'a>) {
         self.client.set(Some(client));
     }
 
-    fn init(&self) {}
-
-    // capsule ensures that the key is 16 bytes
-    // precondition: key_len = 16 || 24 || 32
-    fn set_key(&self, key: &'static mut [u8], len: usize) -> &'static mut [u8] {
-        for (i, c) in key.as_ref()[0..len].iter().enumerate() {
-            unsafe {
-                ECB_DATA[i] = *c;
+    fn set_key(&self, key: &[u8]) -> ReturnCode {
+        if key.len() != symmetric_encryption::AES128_KEY_SIZE {
+            ReturnCode::EINVAL
+        } else {
+            for (i, c) in key.iter().enumerate() {
+                unsafe {
+                    ECB_DATA[i] = *c;
+                }
             }
+            ReturnCode::SUCCESS
         }
-        key
     }
 
-    fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: usize) {
-        self.remaining.set(len);
-        self.len.set(len);
-        self.offset.set(0);
-        self.input.replace(data);
-        self.set_initial_ctr(iv);
-        self.crypt();
+    fn set_iv(&self, iv: &[u8]) -> ReturnCode {
+        if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
+            ReturnCode::EINVAL
+        } else {
+            for (i, c) in iv.iter().enumerate() {
+                unsafe {
+                    ECB_DATA[i + PLAINTEXT_START] = *c;
+                }
+            }
+            ReturnCode::SUCCESS
+        }
+    }
+
+    // not needed by NRF5x
+    fn start_message(&self) {
+        ()
+    }
+
+    // start_index and stop_index not used!!!
+    // assuming that
+    fn crypt(
+        &'a self,
+        source: Option<&'a mut [u8]>,
+        dest: &'a mut [u8],
+        start_index: usize,
+        stop_index: usize,
+    ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
+        match source {
+            None => Some((ReturnCode::EINVAL, source, dest)),
+            Some(src) => {
+                if stop_index - start_index <= MAX_LENGTH {
+                    // replace buffers
+                    self.input.replace(src);
+                    self.output.replace(dest);
+
+                    // configure buffer offsets
+                    self.current_idx.set(0);
+                    self.start_idx.set(start_index);
+                    self.end_idx.set(stop_index);
+
+                    // start crypt
+                    self.crypt();
+                    None
+                } else {
+                    Some((ReturnCode::ESIZE, Some(src), dest))
+                }
+            }
+        }
+    }
+}
+
+impl<'a> kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
+    // not needed by NRF5x (the configuration is the same for encryption and decryption)
+    fn set_mode_aes128ctr(&self, _encrypting: bool) {
+        ()
     }
 }

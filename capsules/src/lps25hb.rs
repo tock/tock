@@ -1,6 +1,6 @@
 //! Driver for the ST LPS25HB pressure sensor.
 //!
-//! http://www.st.com/en/mems-and-sensors/lps25hb.html
+//! <http://www.st.com/en/mems-and-sensors/lps25hb.html>
 //!
 //! Usage
 //! -----

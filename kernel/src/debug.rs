@@ -34,14 +34,122 @@
 //! ```
 
 use callback::{AppId, Callback};
+use core::{slice, str};
 use core::cmp::min;
 use core::fmt::{write, Arguments, Result, Write};
 use core::ptr::{read_volatile, write_volatile};
-use core::str;
 use driver::Driver;
 use hil;
 use mem::AppSlice;
+use process;
 use returncode::ReturnCode;
+
+///////////////////////////////////////////////////////////////////
+// panic! support routines
+
+/// Tock default panic routine.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+pub unsafe fn panic<L: hil::led::Led, W: Write>(
+    led: &mut L,
+    writer: &mut W,
+    args: Arguments,
+    file: &'static str,
+    line: u32,
+) -> ! {
+    panic_begin();
+    panic_banner(writer, args, file, line);
+    // Flush debug buffer if needed
+    flush(writer);
+    panic_process_info(writer);
+    panic_blink_forever(led)
+}
+
+/// Generic panic entry.
+///
+/// This opaque method should always be called at the beginning of a board's
+/// panic method to allow hooks for any core kernel cleanups that may be
+/// appropriate.
+pub unsafe fn panic_begin() {
+    // Let any outstanding uart DMA's finish
+    asm!("nop");
+    asm!("nop");
+    for _ in 0..200000 {
+        asm!("nop");
+    }
+    asm!("nop");
+    asm!("nop");
+}
+
+/// Lightweight prints about the current panic and kernel version.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+pub unsafe fn panic_banner<W: Write>(
+    writer: &mut W,
+    args: Arguments,
+    file: &'static str,
+    line: u32,
+) {
+    let _ = writer.write_fmt(format_args!(
+        "\r\n\nKernel panic at {}:{}:\r\n\t\"",
+        file, line
+    ));
+    let _ = write(writer, args);
+    let _ = writer.write_str("\"\r\n");
+
+    // Print version of the kernel
+    let _ = writer.write_fmt(format_args!(
+        "\tKernel version {}\r\n",
+        env!("TOCK_KERNEL_VERSION")
+    ));
+}
+
+/// More detailed prints about all processes.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
+    // Print fault status once
+    let procs = &mut process::PROCS;
+    if procs.len() > 0 {
+        procs[0].as_mut().map(|process| {
+            process.fault_str(writer);
+        });
+    }
+
+    // print data about each process
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+    let procs = &mut process::PROCS;
+    for idx in 0..procs.len() {
+        procs[idx].as_mut().map(|process| {
+            process.statistics_str(writer);
+        });
+    }
+}
+
+/// Blinks a recognizable pattern forever.
+///
+/// If a multi-color LED is used for the panic pattern, it is
+/// advised to turn off other LEDs before calling this method.
+pub fn panic_blink_forever<L: hil::led::Led>(led: &mut L) -> ! {
+    led.init();
+    loop {
+        for _ in 0..1000000 {
+            led.on();
+        }
+        for _ in 0..100000 {
+            led.off();
+        }
+        for _ in 0..1000000 {
+            led.on();
+        }
+        for _ in 0..500000 {
+            led.off();
+        }
+    }
+}
+
+// panic! support routines
+///////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////
 // debug_gpio! support
@@ -404,5 +512,32 @@ impl Default for Debug {
             "No registered kernel debug printer. Thrown printing {:?}",
             buf
         );
+    }
+}
+
+pub unsafe fn flush<W: Write>(writer: &mut W) {
+    let debug_head = read_volatile(&DEBUG_WRITER.output_head);
+    let mut debug_tail = read_volatile(&DEBUG_WRITER.output_tail);
+    let mut debug_buffer = DEBUG_WRITER.output_buffer;
+    if debug_head != debug_tail {
+        let _ = writer.write_str(
+            "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
+        );
+
+        if debug_tail > debug_head {
+            let start = debug_buffer.as_mut_ptr().offset(debug_tail as isize);
+            let len = debug_buffer.len();
+            let slice = slice::from_raw_parts(start, len);
+            let s = str::from_utf8_unchecked(slice);
+            let _ = writer.write_str(s);
+            debug_tail = 0;
+        }
+        if debug_tail != debug_head {
+            let start = debug_buffer.as_mut_ptr().offset(debug_tail as isize);
+            let len = debug_head - debug_tail;
+            let slice = slice::from_raw_parts(start, len);
+            let s = str::from_utf8_unchecked(slice);
+            let _ = writer.write_str(s);
+        }
     }
 }

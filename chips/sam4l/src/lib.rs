@@ -1,6 +1,6 @@
 //! Peripheral implementations for the SAM4L MCU.
 //!
-//! http://www.atmel.com/microsite/sam4l/default.aspx
+//! <http://www.atmel.com/microsite/sam4l/default.aspx>
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
@@ -11,7 +11,7 @@
 
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 #[macro_use]

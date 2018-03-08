@@ -37,16 +37,19 @@ pub trait PowerClient {
 /// constant in this generic trait for now.
 ///
 /// Furthermore, the minimum MHR size assumes that
+///
 /// - The source PAN ID is omitted
 /// - There is no auxiliary security header
 /// - There are no IEs
 ///
+/// ```text
 /// +---------+-----+-----+-------------+-----+
 /// | SPI com | PHR | MHR | MAC payload | MFR |
 /// +---------+-----+-----+-------------+-----+
 /// \______ Static buffer rx/txed to SPI _____/
 ///                 \__ PSDU / frame length __/
 /// \___ 2 bytes ___/
+/// ```
 
 pub const MIN_MHR_SIZE: usize = 9;
 pub const MFR_SIZE: usize = 2;

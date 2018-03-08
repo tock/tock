@@ -407,7 +407,7 @@ virtual_mac.rs but I believe that some changes will be needed so that
 file is current with our other link layer files.
 
 ```rust
-pub trait Mac<'a> {
+pub trait MacDevice<'a> {
     /// Sets the transmission client of this MAC device
     fn set_transmit_client(&self, client: &'a TxClient);
     /// Sets the receive client of this MAC device
@@ -419,10 +419,6 @@ pub trait Mac<'a> {
     fn get_address_long(&self) -> [u8; 8];
     /// The 16-bit PAN ID of the MAC device
     fn get_pan(&self) -> u16;
-    /// The 802.15.4 channel ID of the MAC device
-    fn get_channel(&self) -> u8;
-    /// The transmission power of the MAC device, in dBm
-    fn get_tx_power(&self) -> i8;
 
     /// Set the short 16-bit address of the MAC device
     fn set_address(&self, addr: u16);
@@ -430,12 +426,6 @@ pub trait Mac<'a> {
     fn set_address_long(&self, addr: [u8; 8]);
     /// Set the 16-bit PAN ID of the MAC device
     fn set_pan(&self, id: u16);
-    /// Set the 802.15.4 channel of the MAC device. `channel` should be a valid
-    /// channel `11 <= channel <= 26`, otherwise EINVAL will be returned
-    fn set_channel(&self, chan: u8) -> ReturnCode;
-    /// Set the transmission power of the MAC device, in dBm. `power` should
-    /// satisfy `-17 <= power <= 4`, otherwise EINVAL will be returned
-    fn set_tx_power(&self, power: i8) -> ReturnCode;
 
     /// This method must be called after one or more calls to `set_*`. If
     /// `set_*` is called without calling `config_commit`, there is no guarantee
@@ -461,14 +451,15 @@ pub trait Mac<'a> {
     ///
     /// Returns either a Frame that is ready to have payload appended to it, or
     /// the mutable buffer if the frame cannot be prepared for any reason
-    fn prepare_data_frame(&self,
-                          buf: &'static mut [u8],
-                          dst_pan: PanID,
-                          dst_addr: MacAddress,
-                          src_pan: PanID,
-                          src_addr: MacAddress,
-                          security_needed: Option<(SecurityLevel, KeyId)>)
-                          -> Result<Frame, &'static mut [u8]>;
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        dst_pan: PanID,
+        dst_addr: MacAddress,
+        src_pan: PanID,
+        src_addr: MacAddress,
+        security_needed: Option<(SecurityLevel, KeyId)>,
+    ) -> Result<Frame, &'static mut [u8]>;
 
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
@@ -488,8 +479,30 @@ pub trait TxClient {
     /// returned to the client here.
     /// - `acked`: Whether the transmission was acknowledged.
     /// - `result`: This is `ReturnCode::SUCCESS` if the frame was transmitted,
-    /// otherwise an error occurred in the transmission pipeline.
+    /// otherwise an error occured in the transmission pipeline.
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode);
+}
+
+/// Trait to be implemented by users of the IEEE 802.15.4 device that wish to
+/// receive frames. The callback is triggered whenever a valid frame is
+/// received, verified and unsecured (via the IEEE 802.15.4 security procedure)
+/// successfully.
+pub trait RxClient {
+    /// When a frame is received, this callback is triggered. The client only
+    /// receives an immutable borrow of the buffer. Only completely valid,
+    /// unsecured frames that have passed the incoming security procedure are
+    /// exposed to the client.
+    ///
+    /// - `buf`: The entire buffer containing the frame, including extra bytes
+    /// in front used for the physical layer.
+    /// - `header`: A fully-parsed representation of the MAC header, with the
+    /// caveat that the auxiliary security header is still included if the frame
+    /// was previously secured.
+    /// - `data_offset`: Offset of the data payload relative to
+    /// `buf`, so that the payload of the frame is contained in
+    /// `buf[data_offset..data_offset + data_len]`.
+    /// - `data_len`: Length of the data payload
+    fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
 }
 
 // The below code is modified from virtual_mac.rs and provides insight into

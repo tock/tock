@@ -1,6 +1,6 @@
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
-//! ``rust
+//! ```rust
 //! let ninedof = static_init!(
 //!     capsules::sensors::AmbientLight<'static>,
 //!     capsules::sensors::AmbientLight::new(isl29035,

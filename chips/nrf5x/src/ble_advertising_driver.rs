@@ -1711,8 +1711,7 @@ where
                 .enter(appid, |app, _| {
                     if app.process_status != Some(BLEState::NotInitialized) {
                         app.app_write = Some(slice);
-                        app.set_gap_data(gap_type);
-                        ReturnCode::SUCCESS
+                        app.set_gap_data(gap_type)
                     } else {
                         ReturnCode::EINVAL
                     }

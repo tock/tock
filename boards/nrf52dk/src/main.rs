@@ -63,6 +63,7 @@
 #![no_std]
 #![no_main]
 #![feature(lang_items, compiler_builtins_lib)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -88,11 +89,14 @@ const BUTTON3_PIN: usize = 15;
 const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 21;
 
+/// UART Writer
 #[macro_use]
 pub mod io;
 
-// State for loading and holding applications.
+#[allow(dead_code)]
+mod aes_test;
 
+// State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
@@ -104,8 +108,8 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
+/// Supported drivers by the platform
 pub struct Platform {
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
         'static,
         nrf52::radio::Radio,
@@ -117,6 +121,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
@@ -135,17 +140,18 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
 }
 
-// this is called once crt0.s is loaded
+/// Entry point in the vector table called on hard reset.
 #[no_mangle]
 pub unsafe fn reset_handler() {
+    // Loads relocations and clears BSS
     nrf52::init();
 
     // make non-volatile memory writable and activate the reset button (pin 21)
@@ -331,19 +337,6 @@ pub unsafe fn reset_handler() {
     );
     nrf5x::trng::TRNG.set_client(rng);
 
-    let aes = static_init!(
-        capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-        capsules::symmetric_encryption::Crypto::new(
-            &mut nrf5x::aes::AESECB,
-            kernel::Grant::create(),
-            &mut capsules::symmetric_encryption::KEY,
-            &mut capsules::symmetric_encryption::BUF,
-            &mut capsules::symmetric_encryption::IV
-        )
-    );
-    nrf5x::aes::AESECB.ecb_init();
-    kernel::hil::symmetric_encryption::SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
-
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf5x::clock::CLOCK.low_stop();
@@ -356,7 +349,7 @@ pub unsafe fn reset_handler() {
     while !nrf5x::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        aes: aes,
+        // aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,
@@ -365,6 +358,7 @@ pub unsafe fn reset_handler() {
         rng: rng,
         temp: temp,
         alarm: alarm,
+        ipc: kernel::ipc::IPC::new(),
     };
 
     let mut chip = nrf52::chip::NRF52::new();
@@ -380,10 +374,6 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::main(
-        &platform,
-        &mut chip,
-        &mut PROCESSES,
-        &kernel::ipc::IPC::new(),
-    );
+
+    kernel::main(&platform, &mut chip, &mut PROCESSES, &platform.ipc);
 }

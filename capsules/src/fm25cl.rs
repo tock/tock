@@ -1,6 +1,6 @@
 //! Driver for the FM25CL FRAM chip.
 //!
-//! http://www.cypress.com/part/fm25cl64b-dg
+//! <http://www.cypress.com/part/fm25cl64b-dg>
 //!
 //! From the FM25CL website:
 //!
@@ -29,6 +29,7 @@
 //! ```
 //!
 //! This capsule provides two interfaces:
+//!
 //! - `hil::nonvolatile_storage::NonvolatileStorage`
 //! - `FM25CLCustom`
 //!

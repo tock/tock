@@ -27,10 +27,21 @@
  *    The `_sapps` symbol marks the beginning of application memory in flash.
  */
 
+
+/*
+ * CCFG - Customer Configuration
+ *
+ * Chip specific to TI family chips. It is a configuration area
+ * needed to validate the image - otherwise it is not possible to boot.
+ */
+CCFG_ORIGIN = DEFINED(CCFG_ORIGIN) ? CCFG_ORIGIN : 0;
+CCFG_LENGTH = DEFINED(CCFG_LENGTH) ? CCFG_LENGTH : 0;
+
 MEMORY
 {
   rom (rx)  : ORIGIN =  ROM_ORIGIN, LENGTH =  ROM_LENGTH
   prog (rx) : ORIGIN = PROG_ORIGIN, LENGTH = PROG_LENGTH
+  ccfg (rx) : ORIGIN = CCFG_ORIGIN, LENGTH = CCFG_LENGTH
   ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
 }
 
@@ -155,7 +166,13 @@ SECTIONS
     _textend = .;   /* alias for _etext expected by some MS toolchains */
 
 
-
+    /* Customer configuration is most often located
+     * at the end of the rom. It is conditional, and won't
+     * be written if not specified in the board specific linker
+     * file. */
+    .ccfg : {
+        KEEP(*(.ccfg))
+    } > ccfg
 
 
     /* STATIC ELEMENTS FOR TOCK APPLICATIONS */

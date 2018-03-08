@@ -327,7 +327,14 @@ int ieee802154_send(unsigned short addr,
   err = command(RADIO_DRIVER, COMMAND_SEND, (unsigned int) addr, 0);
   if (err < 0) return err;
   yield_for(&tx_done);
-  return tx_result;
+  if (tx_result != TOCK_SUCCESS) {
+    return tx_result;
+  } else if (tx_acked == 0) {
+    return TOCK_ENOACK;
+  } else {
+    return TOCK_SUCCESS;
+  }
+
 }
 
 // Internal callback for receive

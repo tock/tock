@@ -1,11 +1,12 @@
 //! Board file for Hail development platform.
 //!
-//! - https://github.com/helena-project/tock/tree/master/boards/hail
-//! - https://github.com/lab11/hail
+//! - <https://github.com/helena-project/tock/tree/master/boards/hail>
+//! - <https://github.com/lab11/hail>
 
 #![no_std]
 #![no_main]
 #![feature(asm, const_fn, lang_items, compiler_builtins_lib)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -22,6 +23,9 @@ use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
 
+/// Support routines for debugging I/O.
+///
+/// Note: Use of this module will trample any other USART0 configuration.
 #[macro_use]
 pub mod io;
 #[allow(dead_code)]
@@ -70,7 +74,6 @@ struct Hail {
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -97,7 +100,6 @@ impl Platform for Hail {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
 
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
 
             capsules::dac::DRIVER_NUM => f(Some(self.dac)),
 
@@ -441,19 +443,6 @@ pub unsafe fn reset_handler() {
         capsules::dac::Dac::new(&mut sam4l::dac::DAC)
     );
 
-    // AES
-    let aes = static_init!(
-        capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
-        capsules::symmetric_encryption::Crypto::new(
-            &mut sam4l::aes::AES,
-            kernel::Grant::create(),
-            &mut capsules::symmetric_encryption::KEY,
-            &mut capsules::symmetric_encryption::BUF,
-            &mut capsules::symmetric_encryption::IV
-        )
-    );
-    hil::symmetric_encryption::SymmetricEncryption::set_client(&sam4l::aes::AES, aes);
-
     let hail = Hail {
         console: console,
         gpio: gpio,
@@ -471,7 +460,6 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
         crc: crc,
         dac: dac,
-        aes: aes,
     };
 
     // Need to reset the nRF on boot

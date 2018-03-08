@@ -37,5 +37,3 @@ script:
   - pushd userland/examples; ./format_all.sh || exit; popd
   - tools/toc.sh
 
-after_success:
-  - test $TRAVIS_BRANCH = "master" && test $TRAVIS_PULL_REQUEST = "false" && ./.travis-deploy-netlify

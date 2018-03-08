@@ -3,7 +3,7 @@
 //! This chip allows for multiple I2C devices with the same addresses to
 //! sit on the same I2C bus.
 //!
-//! http://www.ti.com/product/PCA9544A
+//! <http://www.ti.com/product/PCA9544A>
 //!
 //! > The PCA9544A is a quad bidirectional translating switch controlled via the
 //! > I2C bus. The SCL/SDA upstream pair fans out to four downstream pairs, or

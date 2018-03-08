@@ -2,9 +2,16 @@
 //! kit (DK), a.k.a. the PCA10028. </br>
 //! This is an nRF51422 SoC (a Cortex M0 core with a BLE transceiver) with many
 //! exported pins, LEDs, and buttons. </br>
-//! Currently the kernel provides application alarms, and GPIO. </br>
-//! It will provide a console
-//! once the UART is fully implemented and debugged.
+//!
+//! Currently the kernel provides:
+//!
+//! * Timers
+//! * GPIO
+//! * UART
+//! * AES Encryption
+//! * Bluetooth Low Energy Advertisements
+//! * Temperature Sensor
+//! * True Random Number Generator
 //!
 //! ### Pin configuration
 //! * 0 -> LED1 (pin 21)
@@ -38,6 +45,7 @@
 #![no_std]
 #![no_main]
 #![feature(lang_items, compiler_builtins_lib)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -50,13 +58,15 @@ extern crate nrf5x;
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
-use kernel::hil::symmetric_encryption::SymmetricEncryption;
 use kernel::hil::uart::UART;
 use nrf5x::pinmux::Pinmux;
 use nrf5x::rtc::{Rtc, RTC};
 
+/// UART Writer
 #[macro_use]
 pub mod io;
+#[allow(dead_code)]
+mod aes_test;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -83,8 +93,8 @@ static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
+/// Supported drivers by the platform
 pub struct Platform {
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
         'static,
         nrf51::radio::Radio,
@@ -111,7 +121,6 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
@@ -119,8 +128,10 @@ impl kernel::Platform for Platform {
     }
 }
 
+/// Entry point in the vector table called on hard reset.
 #[no_mangle]
 pub unsafe fn reset_handler() {
+    // Loads relocations and clears BSS
     nrf51::init();
 
     // LEDs
@@ -279,20 +290,6 @@ pub unsafe fn reset_handler() {
     );
     nrf5x::trng::TRNG.set_client(rng);
 
-    let aes = static_init!(
-        capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-        capsules::symmetric_encryption::Crypto::new(
-            &mut nrf5x::aes::AESECB,
-            kernel::Grant::create(),
-            &mut capsules::symmetric_encryption::KEY,
-            &mut capsules::symmetric_encryption::BUF,
-            &mut capsules::symmetric_encryption::IV
-        ),
-        288 / 8
-    );
-    nrf5x::aes::AESECB.ecb_init();
-    SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
-
     let ble_radio = static_init!(
         nrf5x::ble_advertising_driver::BLE<
             'static,
@@ -329,7 +326,7 @@ pub unsafe fn reset_handler() {
     while !nrf5x::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        aes: aes,
+        // aes: aes,
         ble_radio: ble_radio,
         button: button,
         console: console,
@@ -357,6 +354,7 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
+
     kernel::main(
         &platform,
         &mut chip,

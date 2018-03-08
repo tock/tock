@@ -30,11 +30,13 @@ static mut BPM: *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;
 /// of different power scaling modes
 pub enum PowerScaling {
     /// Mode 0: Default out of reset
+    ///
     ///   - Maximum system clock frequency is 32MHz
     ///   - Normal flash speed
     PS0,
 
     /// Mode 1: Reduced voltage
+    ///
     ///   - Maximum system clock frequency is 12MHz
     ///   - Normal flash speed
     ///   - These peripherals are not available in Mode 1:
@@ -45,6 +47,7 @@ pub enum PowerScaling {
     PS1,
 
     /// Mode 2:
+    ///
     ///   - Maximum system clock frequency is 48MHz
     ///   - High speed flash
     PS2,

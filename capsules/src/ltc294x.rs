@@ -1,8 +1,8 @@
 //! Driver for the LTC294X line of coulomb counters.
 //!
-//! - http://www.linear.com/product/LTC2941
-//! - http://www.linear.com/product/LTC2942
-//! - http://www.linear.com/product/LTC2943
+//! - <http://www.linear.com/product/LTC2941>
+//! - <http://www.linear.com/product/LTC2942>
+//! - <http://www.linear.com/product/LTC2943>
 //!
 //! > The LTC2941 measures battery charge state in battery-supplied handheld PC
 //! > and portable product applications. Its operating range is perfectly suited

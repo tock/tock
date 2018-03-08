@@ -311,8 +311,8 @@ fn nhc_to_ip6_nh(nhc: u8) -> Result<u8, ()> {
 /// `Ok((consumed, written))`, where `consumed` is the number of header
 /// bytes consumed from the IPv6 datagram `written` is the number of
 /// compressed header bytes written into `buf`. Payload bytes and
-/// non-compressed next headers are not written, so the remaining `buf.len()
-/// - consumed` bytes must still be copied over to `buf`.
+/// non-compressed next headers are not written, so the remaining
+/// `buf.len() - consumed` bytes must still be copied over to `buf`.
 pub fn compress(
     ctx_store: &ContextStore,
     ip6_datagram: &[u8],

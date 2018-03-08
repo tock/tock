@@ -1,6 +1,12 @@
+//! Board file for Imix development platform.
+//!
+//! - <https://github.com/helena-project/tock/tree/master/boards/imix>
+//! - <https://github.com/helena-project/imix>
+
 #![no_std]
 #![no_main]
 #![feature(asm, const_fn, lang_items, compiler_builtins_lib, const_cell_new)]
+#![deny(missing_docs)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -10,7 +16,8 @@ extern crate kernel;
 extern crate sam4l;
 
 use capsules::alarm::AlarmDriver;
-use capsules::ieee802154::mac::Mac;
+use capsules::ieee802154::device::MacDevice;
+use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::rf233::RF233;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
@@ -20,7 +27,12 @@ use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::symmetric_encryption;
+use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 
+/// Support routines for debugging I/O.
+///
+/// Note: Use of this module will trample any other USART3 configuration.
 #[macro_use]
 pub mod io;
 
@@ -31,6 +43,12 @@ mod i2c_dummy;
 mod spi_dummy;
 #[allow(dead_code)]
 mod lowpan_frag_dummy;
+
+#[allow(dead_code)]
+mod aes_test;
+
+#[allow(dead_code)]
+mod aes_ccm_test;
 
 #[allow(dead_code)]
 mod power;
@@ -89,10 +107,16 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
+
 // The RF233 system call interface ("radio") requires one buffer, which it
 // copies application transmissions into or copies out to application buffers
 // for reception.
 static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+
+// This buffer is used as an intermediate buffer for AES CCM encryption
+// An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
+const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
+static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -188,6 +212,12 @@ unsafe fn set_pin_primary_functions() {
     PC[31].configure(None); //... D2          -- GPIO Pin
 }
 
+/// Reset Handler.
+///
+/// This symbol is loaded into vector table by the SAM4L chip crate.
+/// When the chip first powers on or later does a hard reset, after the core
+/// initializes all the hardware, the address of this function is loaded and
+/// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
@@ -475,20 +505,38 @@ pub unsafe fn reset_handler() {
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
-    let rf233_mac = static_init!(
-        capsules::ieee802154::mac::MacDevice<'static, RF233Device>,
-        capsules::ieee802154::mac::MacDevice::new(rf233)
+    let aes_ccm = static_init!(
+        capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+        capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
     );
-    rf233.set_transmit_client(rf233_mac);
-    rf233.set_receive_client(rf233_mac, &mut RF233_RX_BUF);
-    rf233.set_config_client(rf233_mac);
+    sam4l::aes::AES.set_client(aes_ccm);
+    sam4l::aes::AES.enable();
+
+    // Keeps the radio on permanently; pass-through layer
+    let awake_mac: &AwakeMac<RF233Device> =
+        static_init!(AwakeMac<'static, RF233Device>, AwakeMac::new(rf233));
+    rf233.set_transmit_client(awake_mac);
+    rf233.set_receive_client(awake_mac, &mut RF233_RX_BUF);
+
+    let mac_device = static_init!(
+        capsules::ieee802154::framer::Framer<
+            'static,
+            AwakeMac<'static, RF233Device>,
+            capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+        >,
+        capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
+    );
+    aes_ccm.set_client(mac_device);
+    awake_mac.set_transmit_client(mac_device);
+    awake_mac.set_receive_client(mac_device);
+    awake_mac.set_config_client(mac_device);
 
     let mux_mac = static_init!(
         capsules::ieee802154::virtual_mac::MuxMac<'static>,
-        capsules::ieee802154::virtual_mac::MuxMac::new(rf233_mac)
+        capsules::ieee802154::virtual_mac::MuxMac::new(mac_device)
     );
-    rf233_mac.set_transmit_client(mux_mac);
-    rf233_mac.set_receive_client(mux_mac);
+    mac_device.set_transmit_client(mux_mac);
+    mac_device.set_receive_client(mux_mac);
 
     let radio_mac = static_init!(
         capsules::ieee802154::virtual_mac::MacUser<'static>,
@@ -501,8 +549,8 @@ pub unsafe fn reset_handler() {
         capsules::ieee802154::RadioDriver::new(radio_mac, kernel::Grant::create(), &mut RADIO_BUF)
     );
 
-    rf233_mac.set_key_procedure(radio_driver);
-    rf233_mac.set_device_procedure(radio_driver);
+    mac_device.set_key_procedure(radio_driver);
+    mac_device.set_device_procedure(radio_driver);
     radio_mac.set_transmit_client(radio_driver);
     radio_mac.set_receive_client(radio_driver);
     radio_mac.set_pan(0xABCD);
@@ -573,5 +621,6 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
+
     kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
 }

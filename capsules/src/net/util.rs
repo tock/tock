@@ -1,7 +1,8 @@
-/// Utility functions used in the 6LoWPAN implementation
+//! Utility functions used in the 6LoWPAN implementation
 
 /// Verifies that a prefix given in the form of a byte array slice is valid with
 /// respect to its length in bits (prefix_len):
+///
 /// - The byte array slice must contain enough bytes to cover the prefix length
 /// (no implicit zero-padding)
 /// - The rest of the prefix array slice is zero-padded
