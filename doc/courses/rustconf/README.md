@@ -32,16 +32,16 @@ time:
 4. Python 3 and pip
 
 5. A local clone of the Tock repository
-     
+
         $ git clone https://github.com/helena-project/tock.git
 
 6. [rustup](http://rustup.rs/).
-     
+
         $ curl https://sh.rustup.rs -sSf | sh
         $ rustup install nightly-2017-06-20
 
 7. [Xargo](https://github.com/japaric/xargo)
-     
+
         $ cargo install xargo
 
 8. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
@@ -50,8 +50,8 @@ time:
     > but make sure you install the newlib port as well. For instance, on Debian or
     > Ubuntu, install both gcc-arm-none-eabi and libnewlib-arm-none-eabi.
 
-9. [tockloader](https://github.com/helena-project/tockloader)
-     
+9. [tockloader](https://github.com/tock/tockloader)
+
         $ pip3 install -U --user tockloader
 
     > Note: On MacOS, you may need to add `tockloader` to your path. If you
