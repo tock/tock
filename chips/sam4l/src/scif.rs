@@ -8,7 +8,7 @@
 //! - Date: Aug 2, 2015
 
 use bscif;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly, FieldValue};
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 
 pub enum Register {
     IER = 0x00,
@@ -201,12 +201,18 @@ pub enum Clock {
 
 pub fn unlock(register: Register) {
     unsafe {
-        (*SCIF).unlock.write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(register as u32));
+        (*SCIF)
+            .unlock
+            .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(register as u32));
     }
 }
 
 pub fn oscillator_enable(internal: bool) {
-    let mode = if internal { Oscillator::MODE::Crystal } else { Oscillator::MODE::External };
+    let mode = if internal {
+        Oscillator::MODE::Crystal
+    } else {
+        Oscillator::MODE::External
+    };
     unlock(Register::OSCCTRL0);
     unsafe {
         (*SCIF).oscctrl0.write(Oscillator::OSCEN::SET + mode);
@@ -221,15 +227,16 @@ pub fn oscillator_disable() {
 }
 
 pub unsafe fn setup_dfll_rc32k_48mhz() {
-
     unsafe fn wait_dfll0_ready() {
         while (*SCIF).pclksr.matches(Interrupt::DFLL0RDY::CLEAR) {}
     }
 
     // Check to see if the DFLL is already setup or is not locked
-    if (*SCIF).dfll0conf.matches(Dfll::MODE::OpenLoop + Dfll::EN::CLEAR) ||
-       (*SCIF).pclksr.matches(Interrupt::DFLL0LOCKF::CLEAR) {
-
+    if (*SCIF)
+        .dfll0conf
+        .matches(Dfll::MODE::OpenLoop + Dfll::EN::CLEAR)
+        || (*SCIF).pclksr.matches(Interrupt::DFLL0LOCKF::CLEAR)
+    {
         // Enable the GENCLK_SRC_RC32K
         bscif::enable_rc32k();
 
@@ -245,18 +252,17 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
         // Read the current DFLL settings
         let scif_dfll0conf = (*SCIF).dfll0conf.get();
         // Compute some new configuration field values
-        let new_config_fields = Dfll::EN::SET +
-                                Dfll::MODE::ClosedLoop +
-                                Dfll::RANGE.val(2);
+        let new_config_fields = Dfll::EN::SET + Dfll::MODE::ClosedLoop + Dfll::RANGE.val(2);
         // Apply the new field values to the current config value,
         // for use further below ...
         let scif_dfll0conf_new = new_config_fields.modify(scif_dfll0conf);
 
         // Enable the generic clock with RC32K and no divider
-        (*SCIF).gcctrl0.write(GenericClockControl::CEN::SET +
-                              GenericClockControl::OCSEL.val(ClockSource::RC32K as u32) +
-                              GenericClockControl::DIVEN::CLEAR +
-                              GenericClockControl::DIV.val(0));
+        (*SCIF).gcctrl0.write(
+            GenericClockControl::CEN::SET
+                + GenericClockControl::OCSEL.val(ClockSource::RC32K as u32)
+                + GenericClockControl::DIVEN::CLEAR + GenericClockControl::DIV.val(0),
+        );
 
         // Setup DFLL. Must wait after every operation for the ready bit to go high.
         //
@@ -267,7 +273,9 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
 
         // Set step values
         unlock(Register::DFLL0STEP);
-        (*SCIF).dfll0step.write(DfllStep::FSTEP.val(4) + DfllStep::CSTEP.val(4));
+        (*SCIF)
+            .dfll0step
+            .write(DfllStep::FSTEP.val(4) + DfllStep::CSTEP.val(4));
         wait_dfll0_ready();
 
         // Set multiply value
@@ -295,10 +303,10 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
 pub unsafe fn setup_osc_16mhz_fast_startup() {
     // Enable the OSC0 with ~557us startup time
     unlock(Register::OSCCTRL0);
-    (*SCIF).oscctrl0.write(Oscillator::OSCEN::SET +
-                           Oscillator::STARTUP::Cycles64 +
-                           Oscillator::GAIN::G4 +
-                           Oscillator::MODE::Crystal);
+    (*SCIF).oscctrl0.write(
+        Oscillator::OSCEN::SET + Oscillator::STARTUP::Cycles64 + Oscillator::GAIN::G4
+            + Oscillator::MODE::Crystal,
+    );
 
     // Wait for oscillator to be ready
     while (*SCIF).pclksr.matches(Interrupt::OSC0RDY::CLEAR) {}
@@ -307,10 +315,10 @@ pub unsafe fn setup_osc_16mhz_fast_startup() {
 pub unsafe fn setup_osc_16mhz_slow_startup() {
     // Enable the OSC0 with ~8.9ms startup time
     unlock(Register::OSCCTRL0);
-    (*SCIF).oscctrl0.write(Oscillator::OSCEN::SET +
-                           Oscillator::STARTUP::Cycles1024 +
-                           Oscillator::GAIN::G4 +
-                           Oscillator::MODE::Crystal);
+    (*SCIF).oscctrl0.write(
+        Oscillator::OSCEN::SET + Oscillator::STARTUP::Cycles1024 + Oscillator::GAIN::G4
+            + Oscillator::MODE::Crystal,
+    );
 
     // Wait for oscillator to be ready
     while (*SCIF).pclksr.matches(Interrupt::OSC0RDY::CLEAR) {}
@@ -318,12 +326,11 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
 
 pub unsafe fn setup_pll_osc_48mhz() {
     unlock(Register::PLL0);
-    (*SCIF).pll0.write(PllControl::PLLCOUNT::Max +
-                       PllControl::PLLMUL.val(5) +
-                       PllControl::PLLDIV.val(1) +
-                       PllControl::PLLOPT::DivideBy2 +
-                       PllControl::PLLOSC::OSC0 +
-                       PllControl::PLLEN::SET);
+    (*SCIF).pll0.write(
+        PllControl::PLLCOUNT::Max + PllControl::PLLMUL.val(5) + PllControl::PLLDIV.val(1)
+            + PllControl::PLLOPT::DivideBy2 + PllControl::PLLOSC::OSC0
+            + PllControl::PLLEN::SET,
+    );
 
     // Wait for the PLL to become locked
     while (*SCIF).pclksr.matches(Interrupt::PLL0LOCK::CLEAR) {}
@@ -334,20 +341,26 @@ pub fn generic_clock_disable(clock: GenericClock) {
 }
 
 pub fn generic_clock_enable(clock: GenericClock, source: ClockSource) {
-    generic_clock_control_write(clock, GenericClockControl::OCSEL.val(source as u32) +
-                                       GenericClockControl::CEN::SET);
+    generic_clock_control_write(
+        clock,
+        GenericClockControl::OCSEL.val(source as u32) + GenericClockControl::CEN::SET,
+    );
 }
 
 // Note that most clocks can only support 8 bits of divider:
 // interface does not currently check this. -pal
 pub fn generic_clock_enable_divided(clock: GenericClock, source: ClockSource, divider: u16) {
-    generic_clock_control_write(clock, GenericClockControl::OCSEL.val(source as u32) +
-                                       GenericClockControl::DIVEN::SET +
-                                       GenericClockControl::DIV.val(divider as u32) +
-                                       GenericClockControl::CEN::SET);
+    generic_clock_control_write(
+        clock,
+        GenericClockControl::OCSEL.val(source as u32) + GenericClockControl::DIVEN::SET
+            + GenericClockControl::DIV.val(divider as u32) + GenericClockControl::CEN::SET,
+    );
 }
 
-fn generic_clock_control_write(clock: GenericClock, val: FieldValue<u32, GenericClockControl::Register>) {
+fn generic_clock_control_write(
+    clock: GenericClock,
+    val: FieldValue<u32, GenericClockControl::Register>,
+) {
     unsafe {
         match clock {
             GenericClock::GCLK0 => (*SCIF).gcctrl0.write(val),
