@@ -29,10 +29,10 @@ pub struct RtcRegisters {
     sync: VolatileCell<u32>,
 }
 
-const RTC_BASE: *mut RtcRegisters = 0x4009_2000 as *mut RtcRegisters;
+const RTC_BASE: *const RtcRegisters = 0x4009_2000 as *const RtcRegisters;
 
 pub struct Rtc {
-    regs: *mut RtcRegisters,
+    regs: *const RtcRegisters,
     callback: Cell<Option<&'static time::Client>>,
 }
 
