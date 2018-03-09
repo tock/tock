@@ -181,7 +181,7 @@ such as easy to manage serial connections, and the ability to list, add,
 replace, and remove applications over JTAG (or USB if a bootloader is
 installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version >= 0.8)
+1. [tockloader](https://github.com/tock/tockloader) (version >= 0.8)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:

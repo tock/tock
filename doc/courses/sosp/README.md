@@ -73,7 +73,7 @@ If you choose to install manually, you will need the following software:
    OS-specific installation instructions can be found
    [here](https://github.com/helena-project/tock/blob/master/doc/Getting_Started.md#arm-none-eabi-toolchain)
 
-1. [tockloader](https://github.com/helena-project/tockloader)
+1. [tockloader](https://github.com/tock/tockloader)
 
         $ pip3 install -U --user tockloader
 

@@ -496,7 +496,7 @@ these methods are subject to change based on whatever is easiest for users of
 the platform.
 
 In order to support multiple concurrent applications, the easiest option is to
-use `tockloader` ([git repo](https://github.com/helena-project/tockloader)) to
+use `tockloader` ([git repo](https://github.com/tock/tockloader)) to
 manage multiple applications on a platform. Importantly, while applications
 currently share the same upload process as the kernel, they are planned to
 support additional methods in the future. Application loading through wireless
