@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use ioc;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::hil;
 
 const NUM_PINS: usize = 32;
@@ -16,17 +16,17 @@ const GPIO_BASE: *const GpioRegisters = 0x4002_2000 as *const GpioRegisters;
 #[repr(C)]
 pub struct GpioRegisters {
     _reserved0: [u8; 0x90],
-    pub dout_set: VolatileCell<u32>,
+    pub dout_set: WriteOnly<u32>,
     _reserved1: [u8; 0xC],
-    pub dout_clr: VolatileCell<u32>,
+    pub dout_clr: WriteOnly<u32>,
     _reserved2: [u8; 0xC],
-    pub dout_tgl: VolatileCell<u32>,
+    pub dout_tgl: WriteOnly<u32>,
     _reserved3: [u8; 0xC],
-    pub din: VolatileCell<u32>,
+    pub din: ReadWrite<u32>,
     _reserved4: [u8; 0xC],
-    pub doe: VolatileCell<u32>,
+    pub doe: ReadWrite<u32>,
     _reserved5: [u8; 0xC],
-    pub evflags: VolatileCell<u32>,
+    pub evflags: ReadWrite<u32>,
 }
 
 pub struct GPIOPin {
