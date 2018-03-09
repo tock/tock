@@ -23,13 +23,15 @@ little-endian.
 
 The TBF header contains a base header, followed by a sequence of
 type-length-value encoded elements. All fields in both the base header and TLV
-elements are little-endian. The base header 16 bytes, and has 5 fields:
+elements are little-endian. The base header is 16 bytes, and has 5 fields:
 
 ```
- 0         2             4            8       12         16
-+---------+-------------+------------+-------+----------+
-| Version | Header Size | Total Size | Flags | Checksum |
-+---------+-------------+------------+-------+----------+
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Version     | Header Size | Total Size                |
++-------------+-------------+---------------------------+
+| Flags                     | Checksum                  |
++---------------------------+---------------------------+
 ```
 
   * `Version` a 16-bit unsigned integer specifying the TBF header version.
@@ -59,10 +61,10 @@ will be padded with up to 3 bytes. Each element begins with a 16-bit type and
 16-bit length followed by the element data:
 
 ```
- 0      2        4
-+------+--------+-----...---+
-| Type | Length | Data      |
-+------+--------+-----...---+
+0             2             4
++-------------+-------------+-----...---+
+| Type        | Length      | Data      |
++-------------+-------------+-----...---+
 ```
 
   * `Type` is a 16-bit unsigned integer specifying the element type.
@@ -81,12 +83,12 @@ standardized.
 The `Main` element has three 32-bit fields:
 
 ```
- 0      2        4             8                12             16
-+------+--------+---------------------------------------------+
-| Type | Length |                  Data                       |
-|======+========+=============+================+==============|
-|  1   |   12   | init_offset | protected_size | min_ram_size |
-+------+--------+-------------+----------------+--------------+
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (1)    | Length (12) | init_offset               |
++-------------+-------------+---------------------------+
+| protected_size            | min_ram_size              |
++---------------------------+---------------------------+
 ```
 
   * `init_offset` is the offset in bytes from the beginning of binary payload
@@ -104,14 +106,13 @@ If the Main TLV header is not present, these values all default to `0`.
 `Writeable flash regions` indicate portions of the binary that the process
 intends to mutate in flash.
 
-
 ```
- 0      2        4        8      12
-+------+--------+---------------+
-| Type | Length |     Data      |
-|======+========+========+======+
-|  1   |    8   | offset | size |
-+------+--------+--------+------+
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (2)    | Length (8)  | offset                    |
++-------------+-------------+-------------+-------------+
+| size                      |
++---------------------------+
 ```
 
   * `offset` the offset from the beginning of the binary of the writeable
@@ -125,15 +126,13 @@ The `Package name` specifies a unique name for the binary. Its only field is
 an UTF-8 encoded package name.
 
 ```
- 0      2           4
-+------+-----------+-----------...--+
-| Type |   Length  | Data           |
-|======+===========+===========...==|
-|  3   | len(name) | package name   |
-+------+-----------+-----------...--+
+0             2             4
++-------------+-------------+----------...-+
+| Type (3)    |   Length    | package_name |
++-------------+-------------+----------...-+
 ```
 
-  * `package name` is an UTF-8 encoded package name
+  * `package_name` is an UTF-8 encoded package name
 
 ## Code
 
