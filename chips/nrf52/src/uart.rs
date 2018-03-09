@@ -24,20 +24,20 @@ struct UartTeRegisters {
     _reserved1: [u32; 7],                             // 0x010-0x02c
     pub task_flush_rx: WriteOnly<u32, Task::Register>, // 0x02c
     _reserved2: [u32; 52],                            // 0x030-0x100
-    pub event_cts: ReadOnly<u32, Event::Register>,    // 0x100-0x104
-    pub event_ncts: ReadOnly<u32, Event::Register>,   // 0x104-0x108
+    pub event_cts: ReadWrite<u32, Event::Register>,    // 0x100-0x104
+    pub event_ncts: ReadWrite<u32, Event::Register>,   // 0x104-0x108
     _reserved3: [u32; 2],                             // 0x108-0x110
-    pub event_endrx: ReadOnly<u32, Event::Register>,  // 0x110-0x114
+    pub event_endrx: ReadWrite<u32, Event::Register>,  // 0x110-0x114
     _reserved4: [u32; 3],                             // 0x114-0x120
-    pub event_endtx: ReadOnly<u32, Event::Register>,  // 0x120-0x124
-    pub event_error: ReadOnly<u32, Event::Register>,  // 0x124-0x128
+    pub event_endtx: ReadWrite<u32, Event::Register>,  // 0x120-0x124
+    pub event_error: ReadWrite<u32, Event::Register>,  // 0x124-0x128
     _reserved6: [u32; 7],                             // 0x128-0x144
-    pub event_rxto: ReadOnly<u32, Event::Register>,   // 0x144-0x148
+    pub event_rxto: ReadWrite<u32, Event::Register>,   // 0x144-0x148
     _reserved7: [u32; 1],                             // 0x148-0x14C
-    pub event_rxstarted: ReadOnly<u32, Event::Register>, // 0x14C-0x150
-    pub event_txstarted: ReadOnly<u32, Event::Register>, // 0x150-0x154
+    pub event_rxstarted: ReadWrite<u32, Event::Register>, // 0x14C-0x150
+    pub event_txstarted: ReadWrite<u32, Event::Register>, // 0x150-0x154
     _reserved8: [u32; 1],                             // 0x154-0x158
-    pub event_txstopped: ReadOnly<u32, Event::Register>, // 0x158-0x15c
+    pub event_txstopped: ReadWrite<u32, Event::Register>, // 0x158-0x15c
     _reserved9: [u32; 41],                            // 0x15c-0x200
     pub shorts: ReadWrite<u32, Shorts::Register>,     // 0x200-0x204
     _reserved10: [u32; 64],                           // 0x204-0x304
@@ -46,7 +46,7 @@ struct UartTeRegisters {
     _reserved11: [u32; 93],                           // 0x30C-0x480
     pub errorsrc: ReadWrite<u32, ErrorSrc::Register>, // 0x480-0x484
     _reserved12: [u32; 31],                           // 0x484-0x500
-    pub enable: ReadWrite<u32, Enable::Register>,     // 0x500-0x504
+    pub enable: ReadWrite<u32, Uart::Register>,     // 0x500-0x504
     _reserved13: [u32; 1],                            // 0x504-0x508
     pub pselrts: ReadWrite<u32, Psel::Register>,      // 0x508-0x50c
     pub pseltxd: ReadWrite<u32, Psel::Register>,      // 0x50c-0x510
@@ -108,10 +108,10 @@ register_bitfields! [u32,
     ],
     
     /// Enable UART
-    Enable [
+    Uart [
         ENABLE OFFSET(0) NUMBITS(4) [
-           ENABLED = 8,
-           DISABLED = 0
+            ON = 8,
+            OFF = 0
         ]
     ],
     
@@ -208,9 +208,16 @@ impl UARTE {
         }
     }
 
-    fn enable(&self) {
+    // enable uart peripheral, this may need to disabled for low power applications
+    fn enable_uart(&self) {
         let regs = unsafe { &*self.regs };
-        regs.enable.write(Enable::ENABLE::ENABLED);
+        regs.enable.write(Uart::ENABLE::ON);
+    }
+    
+    #[allow(dead_code)]
+    fn disable_uart(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.enable.write(Uart::ENABLE::OFF);
     }
 
     #[allow(dead_code)]
@@ -243,8 +250,8 @@ impl UARTE {
 
         let regs = unsafe { &*self.regs };
 
-        if regs.event_endtx.matches(Event::READY::SET) {
-            regs.task_stoptx.write(Task::ENABLE::SET);
+        if self.tx_ready() {
+            regs.event_endtx.write(Event::READY::CLEAR);
             let tx_bytes = regs.txd_amount.get() as usize;
             let rem = self.remaining_bytes.get();
 
@@ -271,7 +278,7 @@ impl UARTE {
             // could not transmit the entire buffer
             else {
                 self.set_dma_pointer_to_buffer();
-                regs.task_starttx.set(1);
+                regs.task_starttx.write(Task::ENABLE::SET);
                 self.enable_tx_interrupts();
             }
         }
@@ -285,7 +292,7 @@ impl UARTE {
         regs.task_stoptx.write(Task::ENABLE::SET);
         BUF[0] = byte;
         self.set_dma_pointer_to_buffer();
-        regs.txd_maxcnt.set(1);
+        regs.txd_maxcnt.write(Counter::COUNTER.val(1));
         regs.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
@@ -316,7 +323,7 @@ impl kernel::hil::uart::UART for UARTE {
     }
 
     fn init(&self, params: kernel::hil::uart::UARTParams) {
-        self.enable();
+        self.enable_uart();
         self.set_baud_rate(params.baud_rate);
     }
 
@@ -337,7 +344,7 @@ impl kernel::hil::uart::UART for UARTE {
         self.set_dma_pointer_to_buffer();
         // configure length of the buffer to transmit
 
-        regs.txd_maxcnt.set(tx_len as u32);
+        regs.txd_maxcnt.write(Counter::COUNTER.val(tx_len as u32));
         regs.task_stoptx.write(Task::ENABLE::SET);
         regs.task_starttx.write(Task::ENABLE::SET);
 
