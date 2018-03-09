@@ -1,6 +1,15 @@
 //! NRF52 UARTE
 //! Universal asynchronous receiver/transmitter with EasyDMA
 //!
+//! The UARTE doesn't share registers with another
+//! peripheral so no need to worry about that
+//!
+//! However, note that the event registers need to reset after
+//! an event occurs otherwise it behaves very strange
+//!
+//! Author
+//! -------------------
+//!
 //! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Date: July 8, 2017
 
@@ -9,14 +18,10 @@ use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use nrf5x::pinmux;
 
-// this could potentially be replaced to point directly to
-// the WRITE_BUFFER in capsules::console::WRITE_BUFFER
 const UARTE_BASE: u32 = 0x40002000;
-const BUF_SIZE: usize = 64;
-static mut BUF: [u8; BUF_SIZE] = [0; BUF_SIZE];
 
 #[repr(C)]
-struct UartTeRegisters {
+struct UarteRegisters {
     pub task_startrx: WriteOnly<u32, Task::Register>, // 0x000
     pub task_stoprx: WriteOnly<u32, Task::Register>,  // 0x004
     pub task_starttx: WriteOnly<u32, Task::Register>, // 0x008
@@ -24,15 +29,15 @@ struct UartTeRegisters {
     _reserved1: [u32; 7],                             // 0x010-0x02c
     pub task_flush_rx: WriteOnly<u32, Task::Register>, // 0x02c
     _reserved2: [u32; 52],                            // 0x030-0x100
-    pub event_cts: ReadWrite<u32, Event::Register>,    // 0x100-0x104
-    pub event_ncts: ReadWrite<u32, Event::Register>,   // 0x104-0x108
+    pub event_cts: ReadWrite<u32, Event::Register>,   // 0x100-0x104
+    pub event_ncts: ReadWrite<u32, Event::Register>,  // 0x104-0x108
     _reserved3: [u32; 2],                             // 0x108-0x110
-    pub event_endrx: ReadWrite<u32, Event::Register>,  // 0x110-0x114
+    pub event_endrx: ReadWrite<u32, Event::Register>, // 0x110-0x114
     _reserved4: [u32; 3],                             // 0x114-0x120
-    pub event_endtx: ReadWrite<u32, Event::Register>,  // 0x120-0x124
-    pub event_error: ReadWrite<u32, Event::Register>,  // 0x124-0x128
+    pub event_endtx: ReadWrite<u32, Event::Register>, // 0x120-0x124
+    pub event_error: ReadWrite<u32, Event::Register>, // 0x124-0x128
     _reserved6: [u32; 7],                             // 0x128-0x144
-    pub event_rxto: ReadWrite<u32, Event::Register>,   // 0x144-0x148
+    pub event_rxto: ReadWrite<u32, Event::Register>,  // 0x144-0x148
     _reserved7: [u32; 1],                             // 0x148-0x14C
     pub event_rxstarted: ReadWrite<u32, Event::Register>, // 0x14C-0x150
     pub event_txstarted: ReadWrite<u32, Event::Register>, // 0x150-0x154
@@ -46,7 +51,7 @@ struct UartTeRegisters {
     _reserved11: [u32; 93],                           // 0x30C-0x480
     pub errorsrc: ReadWrite<u32, ErrorSrc::Register>, // 0x480-0x484
     _reserved12: [u32; 31],                           // 0x484-0x500
-    pub enable: ReadWrite<u32, Uart::Register>,     // 0x500-0x504
+    pub enable: ReadWrite<u32, Uart::Register>,       // 0x500-0x504
     _reserved13: [u32; 1],                            // 0x504-0x508
     pub pselrts: ReadWrite<u32, Psel::Register>,      // 0x508-0x50c
     pub pseltxd: ReadWrite<u32, Psel::Register>,      // 0x50c-0x510
@@ -145,8 +150,8 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct UARTE {
-    regs: *const UartTeRegisters,
+pub struct Uarte {
+    regs: *const UarteRegisters,
     client: Cell<Option<&'static kernel::hil::uart::Client>>,
     buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
     remaining_bytes: Cell<usize>,
@@ -158,12 +163,12 @@ pub struct UARTParams {
     pub baud_rate: u32,
 }
 
-pub static mut UART0: UARTE = UARTE::new();
+pub static mut UARTE0: Uarte = Uarte::new();
 
-impl UARTE {
-    pub const fn new() -> UARTE {
-        UARTE {
-            regs: UARTE_BASE as *const UartTeRegisters,
+impl Uarte {
+    pub const fn new() -> Uarte {
+        Uarte {
+            regs: UARTE_BASE as *const UarteRegisters,
             client: Cell::new(None),
             buffer: kernel::common::take_cell::TakeCell::empty(),
             remaining_bytes: Cell::new(0),
@@ -213,7 +218,7 @@ impl UARTE {
         let regs = unsafe { &*self.regs };
         regs.enable.write(Uart::ENABLE::ON);
     }
-    
+
     #[allow(dead_code)]
     fn disable_uart(&self) {
         let regs = unsafe { &*self.regs };
@@ -243,7 +248,6 @@ impl UARTE {
     }
 
     #[inline(never)]
-    // only TX supported here
     pub fn handle_interrupt(&mut self) {
         // disable interrupts
         self.disable_tx_interrupts();
@@ -284,20 +288,22 @@ impl UARTE {
         }
     }
 
+    /// Transmit one byte at the time and the client is resposible for polling
+    /// This is used by the panic handler
     pub unsafe fn send_byte(&self, byte: u8) {
         let regs = &*self.regs;
 
         self.remaining_bytes.set(1);
         self.offset.set(0);
-        regs.task_stoptx.write(Task::ENABLE::SET);
-        BUF[0] = byte;
-        self.set_dma_pointer_to_buffer();
+        regs.event_endtx.write(Event::READY::CLEAR);
+        regs.txd_ptr.set((&byte as *const u8) as u32);
         regs.txd_maxcnt.write(Counter::COUNTER.val(1));
         regs.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
     }
 
+    /// Check if the UART tranmission is done
     pub fn tx_ready(&self) -> bool {
         let regs = unsafe { &*self.regs };
         regs.event_endtx.matches(Event::READY::SET)
@@ -305,19 +311,14 @@ impl UARTE {
 
     fn set_dma_pointer_to_buffer(&self) {
         let regs = unsafe { &*self.regs };
-        unsafe { regs.txd_ptr.set(BUF[self.offset.get()..].as_ptr() as u32) }
-    }
-
-    fn copy_data_to_uart_buffer(&self, tx_len: usize) {
         self.buffer.map(|buffer| {
-            for i in 0..tx_len {
-                unsafe { BUF[i] = buffer[i] }
-            }
+            regs.txd_ptr
+                .set(buffer[self.offset.get()..].as_ptr() as u32);
         });
     }
 }
 
-impl kernel::hil::uart::UART for UARTE {
+impl kernel::hil::uart::UART for Uarte {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
         self.client.set(Some(client));
     }
@@ -337,12 +338,7 @@ impl kernel::hil::uart::UART for UARTE {
         self.remaining_bytes.set(tx_len);
         self.offset.set(0);
         self.buffer.replace(tx_data);
-
-        // configure dma to point to the the buffer 'BUF'
-        self.copy_data_to_uart_buffer(tx_len);
-
         self.set_dma_pointer_to_buffer();
-        // configure length of the buffer to transmit
 
         regs.txd_maxcnt.write(Counter::COUNTER.val(tx_len as u32));
         regs.task_stoptx.write(Task::ENABLE::SET);
