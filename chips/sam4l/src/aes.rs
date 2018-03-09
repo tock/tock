@@ -1,7 +1,10 @@
-//! Implementation of the AESA peripheral on the SAM4L
-//! Authors: Daniel Giffin  <daniel@beech-grove.net>
-//!          Hubert Teo <hubert.teo.hk@gmail.com>
-//!          Brad Campbell <bradjc5@gmail.com>
+//! Implementation of the AESA peripheral on the SAM4L.
+//!
+//! Authors:
+//!
+//! - Daniel Giffin  <daniel@beech-grove.net>
+//! - Hubert Teo <hubert.teo.hk@gmail.com>
+//! - Brad Campbell <bradjc5@gmail.com>
 //!
 //! Converted to new register abstraction by Philip Levis <pal@cs.stanford.edu>
 
