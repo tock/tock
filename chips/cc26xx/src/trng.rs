@@ -1,49 +1,72 @@
+//! TRNG - Random Number Generator for the cc26xx family
+//!
+//! Generates a random number using hardware entropy.
+//!
+
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::rng;
 
 use prcm;
 
 #[repr(C)]
 struct RngRegisters {
-    out0: VolatileCell<u32>,
-    out1: VolatileCell<u32>,
+    out0: ReadOnly<u32>,
+    out1: ReadOnly<u32>,
 
-    irq_flag_stat: VolatileCell<u32>,
-    _irq_flag_mask: VolatileCell<u32>,
-    irq_flag_clr: VolatileCell<u32>,
+    irq_flag_stat: ReadOnly<u32, IrqStatus::Register>,
+    _irq_flag_mask: ReadOnly<u32>,
+    irq_flag_clr: WriteOnly<u32, IrqFlagClear::Register>,
 
-    ctl: VolatileCell<u32>,
-    cfg0: VolatileCell<u32>,
+    ctl: ReadWrite<u32, Control::Register>,
+    cfg0: ReadWrite<u32, Config::Register>,
 
-    alarm_ctl: VolatileCell<u32>,
+    alarm_ctl: ReadWrite<u32, AlarmControl::Register>,
 
-    _fro_en: VolatileCell<u32>,
-    _fro_detune: VolatileCell<u32>,
+    _fro_en: ReadOnly<u32>,
+    _fro_detune: ReadOnly<u32>,
 
-    _alarm_mask: VolatileCell<u32>,
-    _alarm_stop: VolatileCell<u32>,
+    _alarm_mask: ReadOnly<u32>,
+    _alarm_stop: ReadOnly<u32>,
 
-    _lfsr0: VolatileCell<u32>,
-    _lfsr1: VolatileCell<u32>,
-    _lfsr2: VolatileCell<u32>,
+    _lfsr0: ReadOnly<u32>,
+    _lfsr1: ReadOnly<u32>,
+    _lfsr2: ReadOnly<u32>,
 
     _r0: [u8; 0x1FB4],
 
-    sw_reset: VolatileCell<u32>,
+    sw_reset: ReadWrite<u32, SoftwareReset::Register>,
 }
+
+register_bitfields![
+    u32,
+    IrqStatus [
+        READY OFFSET(0) NUMBITS(1) []
+    ],
+    IrqFlagClear [
+        READY OFFSET(0) NUMBITS(1) []
+    ],
+    Control [
+        STARTUP_CYCLES  OFFSET(16) NUMBITS(16)  [],
+        TRNG_EN         OFFSET(10) NUMBITS(1)   []
+    ],
+    Config [
+        MAX_REFILL_CYCLES   OFFSET(16) NUMBITS(16) [],
+        SMPL_DIV            OFFSET(8)  NUMBITS(4)  [],
+        MIN_REFILL_CYCLES   OFFSET(0)  NUMBITS(8)  []
+    ],
+    AlarmControl [
+        // Alarm threshold for repeating pattern detectors
+        ALARM_THR   OFFSET(0)   NUMBITS(8) []
+    ],
+    SoftwareReset [
+        RESET OFFSET(0) NUMBITS(1) []
+    ]
+];
 
 const BASE_ADDRESS: *mut RngRegisters = 0x4002_8000 as *mut RngRegisters;
 
 pub static mut TRNG: Trng = Trng::new();
-
-const TRNG_CTL_EN: u32 = (1 << 10);
-
-const TRNG_CFG_MAX_REFILL_CYCLES: u32 = 0xFFFF0000;
-const TRNG_CFG_MIN_REFILL_CYCLES: u32 = 0x000000FF;
-const TRNG_CFG_SIMPL_DIV: u32 = 0x00000F00;
-
-const TRNG_STATUS_NUMBER_READY: u32 = 0x01;
 
 pub struct Trng {
     regs: *mut RngRegisters,
@@ -74,11 +97,11 @@ impl Trng {
         regs.ctl.set(0);
 
         // Issue a SW reset
-        regs.sw_reset.set(1);
-        while regs.sw_reset.get() != 0 { }
+        regs.sw_reset.write(SoftwareReset::RESET::SET);
+        while !regs.sw_reset.is_set(SoftwareReset::RESET) { }
 
         // Set the startup samples
-        regs.ctl.set(regs.ctl.get() | (1 << 16));
+        regs.ctl.modify(Control::STARTUP_CYCLES.val(1));
 
         // Configure the minimum and maximum number of samples per generated number
         // and the number of clock cycles per sample.
@@ -86,27 +109,27 @@ impl Trng {
         let max_samples_per_cycle = 0x100;
         let min_samples_per_cycle = 0;
         let cycles_per_sample = 0;
-        regs.cfg0.set(
-            ((max_samples_per_cycle >> 8) << 16) & TRNG_CFG_MAX_REFILL_CYCLES
-            | (cycles_per_sample << 8) & TRNG_CFG_SIMPL_DIV
-            | (min_samples_per_cycle >> 6) & TRNG_CFG_MIN_REFILL_CYCLES
+        regs.cfg0.write(
+            Config::MAX_REFILL_CYCLES.val(max_samples_per_cycle >> 8)
+            + Config::SMPL_DIV.val(cycles_per_sample)
+            + Config::MIN_REFILL_CYCLES.val(min_samples_per_cycle >> 6)
         );
 
         // Reset the alarm control
-        regs.alarm_ctl.set(0xFF);
+        regs.alarm_ctl.write(AlarmControl::ALARM_THR.val(0xFF));
 
         // Enable the TRNG
-        regs.ctl.set(regs.ctl.get() | TRNG_CTL_EN);
+        regs.ctl.modify(Control::TRNG_EN::SET);
     }
 
     pub fn read_number(&self) -> u64 {
         let regs = unsafe { &*self.regs };
 
         // Wait for a number to be ready
-        while (regs.irq_flag_stat.get() & TRNG_STATUS_NUMBER_READY) == 0 { };
+        while ! regs.irq_flag_stat.is_set(IrqStatus::READY) { };
 
         // Initiate generation of a new number
-        regs.irq_flag_clr.set(0x1);
+        regs.irq_flag_clr.write(IrqFlagClear::READY::SET);
 
         ((regs.out0.get() as u64) << 32) | (regs.out1.get() as u64)
     }
@@ -121,7 +144,7 @@ impl Iterator for Trng {
 
     fn next(&mut self) -> Option<u32> {
         let regs = unsafe { &*self.regs };
-        if (regs.ctl.get() & TRNG_CTL_EN) != 0 {
+        if regs.ctl.is_set(Control::TRNG_EN) {
             Some((self.read_number() & 0xFFFFFFFF) as u32)
         } else {
             None
