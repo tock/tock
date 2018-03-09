@@ -145,4 +145,13 @@ impl Clock {
 
         prcm_commit();
     }
+
+    pub fn enable_trng() {
+        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        regs.sec_dma_clk_run.set(regs.sec_dma_clk_run.get() | 0x2);
+        regs.sec_dma_clk_sleep.set(regs.sec_dma_clk_sleep.get() | 0x2);
+        regs.sec_dma_clk_deep_sleep.set(regs.sec_dma_clk_deep_sleep.get() | 0x2);
+
+        prcm_commit();
+    }
 }
