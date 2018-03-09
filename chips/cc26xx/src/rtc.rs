@@ -1,33 +1,60 @@
 //! RTC driver, sensortag family
 
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 
 #[repr(C)]
 pub struct RtcRegisters {
-    ctl: VolatileCell<u32>,
+    ctl: ReadWrite<u32, Control::Register>,
 
     // Event flags
-    evflags: VolatileCell<u32>,
+    evflags: ReadWrite<u32, EvFlags::Register>,
 
     // Integer part
-    sec: VolatileCell<u32>,
+    sec: ReadWrite<u32>,
     // Fractional part (1/32kHz parts of a second)
-    subsec: VolatileCell<u32>,
+    subsec: ReadOnly<u32>,
 
-    _subsec_inc: VolatileCell<u32>,
-    channel_ctl: VolatileCell<u32>,
-    _channel0_cmp: VolatileCell<u32>,
-    channel1_cmp: VolatileCell<u32>,
-    _channel2_cmp: VolatileCell<u32>,
-    _channel2_cmp_inc: VolatileCell<u32>,
-    _channel1_capture: VolatileCell<u32>,
+    _subsec_inc: ReadOnly<u32>,
+    channel_ctl: ReadWrite<u32, ChannelControl::Register>,
+    _channel0_cmp: ReadOnly<u32>,
+    channel1_cmp: ReadWrite<u32>,
+    _channel2_cmp: ReadOnly<u32>,
+    _channel2_cmp_inc: ReadOnly<u32>,
+    _channel1_capture: ReadOnly<u32>,
 
     // A read request to the sync register will not return
     // until all outstanding writes have properly propagated to the RTC domain
-    sync: VolatileCell<u32>,
+    sync: ReadOnly<u32>,
 }
+
+register_bitfields![
+    u32,
+    Control [
+        COMB_EV_MASK OFFSET(16) NUMBITS(3) [
+            NoEvent = 0b00,
+            Channel0 = 0b01,
+            Channel1 = 0b10,
+            Channel2 = 0b11
+        ],
+        RESET       OFFSET(7) NUMBITS(1) [],
+        RTC_UPD_EN  OFFSET(1) NUMBITS(1) [],
+        ENABLE      OFFSET(0) NUMBITS(1) []
+    ],
+    EvFlags [
+        CH2 OFFSET(16) NUMBITS(1) [],
+        CH1 OFFSET(8)  NUMBITS(1) [],
+        CH0 OFFSET(0)  NUMBITS(1) []
+    ],
+    ChannelControl [
+        CH2_CONT_EN OFFSET(18)  NUMBITS(1) [],
+        CH2_EN      OFFSET(16)  NUMBITS(1) [],
+        CH1_CAPT_EN OFFSET(9)   NUMBITS(1) [],
+        CH1_EN      OFFSET(8)   NUMBITS(1) [],
+        CH0_EN      OFFSET(0)   NUMBITS(1) []
+    ]
+];
 
 const RTC_BASE: *const RtcRegisters = 0x4009_2000 as *const RtcRegisters;
 
@@ -37,13 +64,6 @@ pub struct Rtc {
 }
 
 pub static mut RTC: Rtc = Rtc::new();
-
-// const RTC_CTL_RESET: u32 = (1 << 7);
-const RTC_CTL_CHANNEL1: u32 = (1 << 17);
-const RTC_CTL_ENABLE: u32 = 0x01;
-
-const RTC_EVENT_CHANNEL1: u32 = (1 << 8);
-const RTC_CHANNEL1_ENABLE: u32 = (1 << 8);
 
 impl Rtc {
     const fn new() -> Rtc {
@@ -55,14 +75,15 @@ impl Rtc {
 
     pub fn start(&self) {
         let regs: &RtcRegisters = unsafe { &*self.regs };
-        regs.ctl.set(regs.ctl.get() | RTC_CTL_ENABLE);
+        regs.ctl.write(Control::ENABLE::SET);
 
         regs.sync.get();
     }
 
     pub fn stop(&self) {
         let regs: &RtcRegisters = unsafe { &*self.regs };
-        regs.ctl.set(regs.ctl.get() & !RTC_CTL_ENABLE);
+        regs.ctl.write(Control::ENABLE::CLEAR);
+
         regs.sync.get();
     }
 
@@ -87,17 +108,17 @@ impl Rtc {
 
     pub fn is_running(&self) -> bool {
         let regs: &RtcRegisters = unsafe { &*self.regs };
-        (regs.ctl.get() & RTC_CTL_CHANNEL1) != 0
+        regs.channel_ctl.read(ChannelControl::CH1_EN) != 0
     }
 
     pub fn handle_interrupt(&self) {
         let regs: &RtcRegisters = unsafe { &*self.regs };
 
-        // Clear the event flag
-        regs.evflags.set(regs.evflags.get() | RTC_EVENT_CHANNEL1);
-        regs.ctl.set(regs.ctl.get() & !RTC_CTL_CHANNEL1);
-        regs.channel_ctl
-            .set(regs.channel_ctl.get() & !RTC_CHANNEL1_ENABLE);
+        // Event flag is cleared when you set it
+        regs.evflags.write(EvFlags::CH1::SET);
+        regs.ctl.modify(Control::COMB_EV_MASK::NoEvent);
+        regs.channel_ctl.modify(ChannelControl::CH1_EN::CLEAR);
+
         regs.sync.get();
 
         self.callback.get().map(|cb| cb.fired());
@@ -114,9 +135,9 @@ impl Time for Rtc {
     fn disable(&self) {
         let regs: &RtcRegisters = unsafe { &*self.regs };
 
-        regs.ctl.set(regs.ctl.get() & !RTC_CTL_CHANNEL1);
-        regs.channel_ctl
-            .set(regs.channel_ctl.get() & !RTC_CHANNEL1_ENABLE);
+        regs.ctl.modify(Control::COMB_EV_MASK::NoEvent);
+        regs.channel_ctl.modify(ChannelControl::CH1_EN::CLEAR);
+
         regs.sync.get();
     }
 
@@ -133,10 +154,9 @@ impl Alarm for Rtc {
     fn set_alarm(&self, tics: u32) {
         let regs: &RtcRegisters = unsafe { &*self.regs };
 
-        regs.ctl.set(regs.ctl.get() | RTC_CTL_CHANNEL1);
+        regs.ctl.modify(Control::COMB_EV_MASK::Channel1);
         regs.channel1_cmp.set(tics);
-        regs.channel_ctl
-            .set(regs.channel_ctl.get() | RTC_CHANNEL1_ENABLE);
+        regs.channel_ctl.modify(ChannelControl::CH1_EN::SET);
 
         regs.sync.get();
     }
