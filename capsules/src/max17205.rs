@@ -414,10 +414,15 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup a callback for when all events complete or data is ready.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

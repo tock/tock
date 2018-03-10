@@ -103,8 +103,4 @@ impl Callback {
             )
         }
     }
-
-    pub fn app_id(&self) -> AppId {
-        self.app_id
-    }
 }

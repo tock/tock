@@ -216,34 +216,39 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
 }
 
 impl<'a> Driver for I2CMasterSlaveDriver<'a> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
             // I2C device.
             0 => {
                 self.app.map(|app| {
-                    app.master_tx_buffer = Some(slice);
+                    app.master_tx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for doing a read from another I2C device.
             1 => {
                 self.app.map(|app| {
-                    app.master_rx_buffer = Some(slice);
+                    app.master_rx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a read issued by another I2C master.
             2 => {
                 self.app.map(|app| {
-                    app.slave_tx_buffer = Some(slice);
+                    app.slave_tx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a write issued by another I2C master.
             3 => {
                 self.app.map(|app| {
-                    app.slave_rx_buffer = Some(slice);
+                    app.slave_rx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
@@ -251,11 +256,16 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.app.map(|app| {
-                    app.callback = Some(callback);
+                    app.callback = callback;
                 });
                 ReturnCode::SUCCESS
             }

@@ -170,11 +170,16 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     /// ### `allow_num`
     ///
     /// - `1`: Writeable buffer for write buffer
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             1 => self.apps
                 .enter(appid, |app, _| {
-                    app.write_buffer = Some(slice);
+                    app.write_buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -187,11 +192,16 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     /// ### `subscribe_num`
     ///
     /// - `1`: Write buffer completed callback
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             1 /* putstr/write_done */ => {
-                self.apps.enter(callback.app_id(), |app, _| {
-                    app.write_callback = Some(callback);
+                self.apps.enter(app_id, |app, _| {
+                    app.write_callback = callback;
                     ReturnCode::SUCCESS
                 }).unwrap_or_else(|err| {
                     match err {

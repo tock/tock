@@ -171,11 +171,16 @@ impl<'a> Driver for AppFlash<'a> {
     /// ### `allow_num`
     ///
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             0 => self.apps
                 .enter(appid, |app, _| {
-                    app.buffer = Some(slice);
+                    app.buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -188,11 +193,16 @@ impl<'a> Driver for AppFlash<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Set a write_done callback.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => self.apps
-                .enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

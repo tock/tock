@@ -279,11 +279,18 @@ impl DebugWriter {
                         AppId::kernel_new(APPID_IDX),
                     );
                     let slice_len = slice.len();
-                    if driver.allow(AppId::kernel_new(APPID_IDX), 1, slice) != ReturnCode::SUCCESS {
+                    if driver.allow(AppId::kernel_new(APPID_IDX), 1, Some(slice))
+                        != ReturnCode::SUCCESS
+                    {
                         panic!("Debug print allow fail");
                     }
                     write_volatile(&mut DEBUG_WRITER.output_active_len, slice_len);
-                    if driver.subscribe(1, KERNEL_CONSOLE_CALLBACK) != ReturnCode::SUCCESS {
+                    if driver.subscribe(
+                        1,
+                        Some(KERNEL_CONSOLE_CALLBACK),
+                        AppId::kernel_new(APPID_IDX),
+                    ) != ReturnCode::SUCCESS
+                    {
                         panic!("Debug print subscribe fail");
                     }
                     if driver.command(1, slice_len, 0, AppId::kernel_new(APPID_IDX))

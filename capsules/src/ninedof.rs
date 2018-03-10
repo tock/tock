@@ -142,11 +142,16 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
 }
 
 impl<'a> Driver for NineDof<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => self.apps
-                .enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

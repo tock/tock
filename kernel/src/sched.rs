@@ -1,6 +1,7 @@
 //! Tock core scheduler.
 
 use core::nonzero::NonZero;
+use core::ptr;
 use memop;
 use platform::{Chip, Platform};
 use platform::mpu::MPU;
@@ -94,17 +95,13 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                 let callback_ptr_raw = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let res = if callback_ptr_raw as usize == 0 {
-                    ReturnCode::EINVAL
-                } else {
-                    let callback_ptr = NonZero::new_unchecked(callback_ptr_raw);
+                let callback_ptr = NonZero::new(callback_ptr_raw);
+                let callback = callback_ptr.map(|ptr| ::Callback::new(appid, appdata, ptr));
 
-                    let callback = ::Callback::new(appid, appdata, callback_ptr);
-                    platform.with_driver(driver_num, |driver| match driver {
-                        Some(d) => d.subscribe(subdriver_num, callback),
-                        None => ReturnCode::ENODEVICE,
-                    })
-                };
+                let res = platform.with_driver(driver_num, |driver| match driver {
+                    Some(d) => d.subscribe(subdriver_num, callback, appid),
+                    None => ReturnCode::ENODEVICE,
+                });
                 process.set_return_code(res);
             }
             Some(Syscall::COMMAND) => {
@@ -119,12 +116,16 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                     match driver {
                         Some(d) => {
                             let start_addr = process.r2() as *mut u8;
-                            let size = process.r3();
-                            if process.in_exposed_bounds(start_addr, size) {
-                                let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
-                                d.allow(appid, process.r1(), slice)
+                            if start_addr != ptr::null_mut() {
+                                let size = process.r3();
+                                if process.in_exposed_bounds(start_addr, size) {
+                                    let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
+                                    d.allow(appid, process.r1(), Some(slice))
+                                } else {
+                                    ReturnCode::EINVAL /* memory not allocated to process */
+                                }
                             } else {
-                                ReturnCode::EINVAL /* memory not allocated to process */
+                                d.allow(appid, process.r1(), None)
                             }
                         }
                         None => ReturnCode::ENODEVICE,

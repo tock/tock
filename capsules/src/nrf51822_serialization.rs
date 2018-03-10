@@ -89,12 +89,17 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// - `0`: Provide a RX buffer.
     /// - `1`: Provide a TX buffer.
-    fn allow(&self, _appid: AppId, allow_type: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_type: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_type {
             // Provide an RX buffer.
             0 => {
                 self.app.map(|app| {
-                    app.rx_buffer = Some(slice);
+                    app.rx_buffer = slice;
                     app.rx_recv_so_far = 0;
                     app.rx_recv_total = 0;
                 });
@@ -103,7 +108,7 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
 
             // Provide a TX buffer.
             1 => {
-                self.app.map(|app| app.tx_buffer = Some(slice));
+                self.app.map(|app| app.tx_buffer = slice);
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -118,11 +123,16 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Set callback.
-    fn subscribe(&self, subscribe_type: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_type: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_type {
             // Add a callback
             0 => {
-                self.app.map(|app| app.callback = Some(callback));
+                self.app.map(|app| app.callback = callback);
 
                 // Start the receive now that we have a callback.
                 self.rx_buffer

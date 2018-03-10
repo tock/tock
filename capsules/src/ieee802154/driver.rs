@@ -532,13 +532,18 @@ impl<'a> Driver for RadioDriver<'a> {
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
-                    0 => app.app_read = Some(slice),
-                    1 => app.app_write = Some(slice),
-                    2 => app.app_cfg = Some(slice),
+                    0 => app.app_read = slice,
+                    1 => app.app_write = slice,
+                    2 => app.app_cfg = slice,
                     _ => {}
                 }
                 ReturnCode::SUCCESS
@@ -553,14 +558,19 @@ impl<'a> Driver for RadioDriver<'a> {
     ///
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
-            0 => self.do_with_app(callback.app_id(), |app| {
-                app.rx_callback = Some(callback);
+            0 => self.do_with_app(app_id, |app| {
+                app.rx_callback = callback;
                 ReturnCode::SUCCESS
             }),
-            1 => self.do_with_app(callback.app_id(), |app| {
-                app.tx_callback = Some(callback);
+            1 => self.do_with_app(app_id, |app| {
+                app.tx_callback = callback;
                 ReturnCode::SUCCESS
             }),
             _ => ReturnCode::ENOSUPPORT,
