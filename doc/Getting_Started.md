@@ -17,7 +17,7 @@ MacOS:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 $ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
-$ pip3 install tockloader --user
+$ pip3 install tockloader
 ```
 
 Ubuntu:
