@@ -1,17 +1,12 @@
-//! NRF52 UARTE
-//! Universal asynchronous receiver/transmitter with EasyDMA
+//! Universal asynchronous receiver/transmitter with EasyDMA (UARTE)
 //!
-//! The UARTE doesn't share registers with another
-//! peripheral so no need to worry about that
-//!
-//! However, note that the event registers need to reset after
-//! an event occurs otherwise it behaves very strange
+//! The driver provides only tranmission functionlity
 //!
 //! Author
 //! -------------------
 //!
 //! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! * Date: July 8, 2017
+//! * Date: March 10 2018
 
 use core::cell::Cell;
 use kernel;
@@ -19,6 +14,7 @@ use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use nrf5x::pinmux;
 
 const UARTE_BASE: u32 = 0x40002000;
+static mut BYTE: u8 = 0;
 
 #[repr(C)]
 struct UarteRegisters {
@@ -150,6 +146,9 @@ register_bitfields! [u32,
     ]
 ];
 
+/// UARTE
+// It should never be instanced outside this module but because a static mutable reference to it
+// is exported outside this module it must be `pub`
 pub struct Uarte {
     regs: *const UarteRegisters,
     client: Cell<Option<&'static kernel::hil::uart::Client>>,
@@ -163,9 +162,12 @@ pub struct UARTParams {
     pub baud_rate: u32,
 }
 
+/// UARTE0 handle
+// This should only be accessed by the reset_handler on startup
 pub static mut UARTE0: Uarte = Uarte::new();
 
 impl Uarte {
+    /// Constructor
     pub const fn new() -> Uarte {
         Uarte {
             regs: UARTE_BASE as *const UarteRegisters,
@@ -176,16 +178,17 @@ impl Uarte {
         }
     }
 
+    /// Configure which pins the UART should use for txd, rxd, cts and rts
     pub fn configure(
         &self,
-        tx: pinmux::Pinmux,
-        rx: pinmux::Pinmux,
+        txd: pinmux::Pinmux,
+        rxd: pinmux::Pinmux,
         cts: pinmux::Pinmux,
         rts: pinmux::Pinmux,
     ) {
         let regs = unsafe { &*self.regs };
-        regs.pseltxd.write(Psel::PIN.val(tx.into()));
-        regs.pselrxd.write(Psel::PIN.val(rx.into()));
+        regs.pseltxd.write(Psel::PIN.val(txd.into()));
+        regs.pselrxd.write(Psel::PIN.val(rxd.into()));
         regs.pselcts.write(Psel::PIN.val(cts.into()));
         regs.pselrts.write(Psel::PIN.val(rts.into()));
     }
@@ -213,7 +216,7 @@ impl Uarte {
         }
     }
 
-    // enable uart peripheral, this may need to disabled for low power applications
+    // Enable UART peripheral, this need to disabled for low power applications
     fn enable_uart(&self) {
         let regs = unsafe { &*self.regs };
         regs.enable.write(Uart::ENABLE::ON);
@@ -247,6 +250,7 @@ impl Uarte {
         regs.intenclr.write(Interrupt::ENDTX::SET);
     }
 
+    /// UART interrupt handler that only listens to `tx_end` events
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         // disable interrupts
@@ -259,9 +263,9 @@ impl Uarte {
             let tx_bytes = regs.txd_amount.get() as usize;
             let rem = self.remaining_bytes.get();
 
-            // More bytes transmitted than requested
-            // Should not happen
-            // FIXME: Propogate error to the UART capsule?!
+            // More bytes transmitted than requested `return silently`
+            // Cause probably a hardware fault
+            // FIXME: Progate error to the capsule
             if tx_bytes > rem {
                 debug!("error more bytes than requested\r\n");
                 return;
@@ -278,8 +282,7 @@ impl Uarte {
                     });
                 });
             }
-            // This has been tested however this will only occur if the UART for some reason
-            // could not transmit the entire buffer
+            // Not all bytes have been transmitted then update offset and continue transmitting
             else {
                 self.set_dma_pointer_to_buffer();
                 regs.task_starttx.write(Task::ENABLE::SET);
@@ -294,13 +297,12 @@ impl Uarte {
         let regs = &*self.regs;
 
         self.remaining_bytes.set(1);
-        self.offset.set(0);
         regs.event_endtx.write(Event::READY::CLEAR);
-        regs.txd_ptr.set((&byte as *const u8) as u32);
+        // precaution: copy value into variable with static lifetime
+        BYTE = byte;
+        regs.txd_ptr.set((&BYTE as *const u8) as u32);
         regs.txd_maxcnt.write(Counter::COUNTER.val(1));
         regs.task_starttx.write(Task::ENABLE::SET);
-
-        self.enable_tx_interrupts();
     }
 
     /// Check if the UART tranmission is done
