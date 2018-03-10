@@ -163,9 +163,6 @@ mod spi_consts {
     }
 }
 
-const SPI_BASE: StaticRef<SpiRegisters> =
-    unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
-
 /// Values for selected peripherals
 #[derive(Copy, Clone)]
 pub enum Peripheral {
@@ -183,7 +180,6 @@ pub enum SpiRole {
 
 /// Abstraction of the SPI Hardware
 pub struct SpiHw {
-    mmio_address: StaticRef<SpiRegisters>,
     client: Cell<Option<&'static SpiMasterClient>>,
     dma_read: Cell<Option<&'static DMAChannel>>,
     dma_write: Cell<Option<&'static DMAChannel>>,
@@ -197,11 +193,14 @@ pub struct SpiHw {
     role: Cell<SpiRole>,
 }
 
+const SPI_BASE: StaticRef<SpiRegisters> =
+    unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
+
 impl MMIOInterface<pm::Clock> for SpiHw {
     type MMIORegisterType = SpiRegisters;
 
     fn get_registers(&self) -> &SpiRegisters {
-        &*self.mmio_address
+        &*SPI_BASE
     }
 }
 
@@ -231,7 +230,6 @@ impl SpiHw {
     /// Creates a new SPI object, with peripheral 0 selected
     const fn new() -> SpiHw {
         SpiHw {
-            mmio_address: SPI_BASE,
             client: Cell::new(None),
             dma_read: Cell::new(None),
             dma_write: Cell::new(None),
