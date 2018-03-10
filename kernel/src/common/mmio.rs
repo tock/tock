@@ -17,7 +17,7 @@
 //!
 //! /// The Tock object that holds all information for this peripheral.
 //! pub struct PeripheralHardware {
-//!     mmio_address: *mut PeripheralRegisters,
+//!     mmio_address: StaticRef<PeripheralRegisters>,
 //!     clock: &ChipSpecificPeripheralClock,
 //! }
 //! ```
@@ -43,8 +43,8 @@
 //! impl MMIOInterface<pm::Clock> for PeripheralHardware {
 //!     type MMIORegisterType = PeripheralRegisters;
 //!
-//!     fn get_hardware_address(&self) -> *mut PeripheralRegisters {
-//!         self.mmio_address
+//!     fn get_registers(&self) -> &PeripheralRegisters {
+//!         &*self.mmio_address
 //!     }
 //! }
 //! ```
@@ -52,7 +52,7 @@
 //! Note, this example kept the `mmio_address` in the `PeripheralHardware`
 //! structure, which is useful when there are multiple copies of the same
 //! peripheral (e.g. multiple UARTs). For single-instance peripherals, it's
-//! fine to simply return the address directly from `get_hardware_address`.
+//! fine to simply return the address directly from `get_registers`.
 //!
 //! Peripheral Clocks
 //! -----------------
@@ -98,7 +98,7 @@ where
 {
     type MMIORegisterType;
 
-    fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
+    fn get_registers(&self) -> &Self::MMIORegisterType;
 }
 
 /// A structure encapsulating a clocked peripheral should implement this trait.
@@ -143,7 +143,7 @@ where
     C: 'a + ClockInterface,
 {
     pub fn new(peripheral_hardware: &'a H) -> MMIOManager<'a, H, C> {
-        let registers = unsafe { &*peripheral_hardware.get_hardware_address() };
+        let registers = peripheral_hardware.get_registers();
         let clock = peripheral_hardware.get_clock();
         peripheral_hardware.before_mmio_access(clock, registers);
         MMIOManager {
@@ -153,6 +153,7 @@ where
         }
     }
 }
+
 impl<'a, H, C> Drop for MMIOManager<'a, H, C>
 where
     H: 'a + MMIOInterface<C> + MMIOClockGuard<H, C>,

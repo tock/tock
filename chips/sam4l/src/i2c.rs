@@ -11,7 +11,8 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager};
+use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager,
+             StaticRef};
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
@@ -65,18 +66,22 @@ struct TWISRegisters {
 }
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
-const I2C_BASE_ADDRS: [*mut TWIMRegisters; 4] = [
-    0x40018000 as *mut TWIMRegisters,
-    0x4001C000 as *mut TWIMRegisters,
-    0x40078000 as *mut TWIMRegisters,
-    0x4007C000 as *mut TWIMRegisters,
-];
+const I2C_BASE_ADDRS: [StaticRef<TWIMRegisters>; 4] = unsafe {
+    [
+        StaticRef::new(0x40018000 as *const TWIMRegisters),
+        StaticRef::new(0x4001C000 as *const TWIMRegisters),
+        StaticRef::new(0x40078000 as *const TWIMRegisters),
+        StaticRef::new(0x4007C000 as *const TWIMRegisters),
+    ]
+};
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
-const I2C_SLAVE_BASE_ADDRS: [*mut TWISRegisters; 2] = [
-    0x40018400 as *mut TWISRegisters,
-    0x4001C400 as *mut TWISRegisters,
-];
+const I2C_SLAVE_BASE_ADDRS: [StaticRef<TWISRegisters>; 2] = unsafe {
+    [
+        StaticRef::new(0x40018400 as *const TWISRegisters),
+        StaticRef::new(0x4001C400 as *const TWISRegisters),
+    ]
+};
 
 // There are four TWIM (two wire master interface) peripherals on the SAM4L.
 // These likely won't all be used for I2C, but we let the platform decide
@@ -152,8 +157,8 @@ impl ClockInterface for TWISClock {
 
 /// Abstraction of the I2C hardware
 pub struct I2CHw {
-    master_mmio_address: *mut TWIMRegisters,
-    slave_mmio_address: Option<*mut TWISRegisters>,
+    master_mmio_address: StaticRef<TWIMRegisters>,
+    slave_mmio_address: Option<StaticRef<TWISRegisters>>,
     master_clock: TWIMClock,
     slave_clock: TWISClock,
     dma: Cell<Option<&'static DMAChannel>>,
@@ -211,8 +216,8 @@ impl MMIOClockGuard<I2CHw, TWISClock> for I2CHw {
 impl MMIOInterface<TWIMClock> for I2CHw {
     type MMIORegisterType = TWIMRegisters;
 
-    fn get_hardware_address(&self) -> *mut TWIMRegisters {
-        self.master_mmio_address
+    fn get_registers(&self) -> &TWIMRegisters {
+        &*self.master_mmio_address
     }
 }
 impl MMIOClockInterface<TWIMClock> for I2CHw {
@@ -225,8 +230,9 @@ type TWIMRegisterManager<'a> = MMIOManager<'a, I2CHw, TWIMClock>;
 impl MMIOInterface<TWISClock> for I2CHw {
     type MMIORegisterType = TWISRegisters;
 
-    fn get_hardware_address(&self) -> *mut TWISRegisters {
-        self.slave_mmio_address
+    fn get_registers<'a>(&'a self) -> &'a TWISRegisters {
+        &*self.slave_mmio_address
+            .as_ref()
             .expect("Access of non-existant slave")
     }
 }
@@ -287,14 +293,14 @@ pub const ACKLAST: usize = 1 << 25;
 // This gets called from the device tree.
 impl I2CHw {
     const fn new(
-        base_addr: *mut TWIMRegisters,
-        slave_base_addr: Option<*mut TWISRegisters>,
+        base_addr: StaticRef<TWIMRegisters>,
+        slave_base_addr: Option<StaticRef<TWISRegisters>>,
         clocks: (TWIMClock, TWISClock),
         dma_rx: DMAPeripheral,
         dma_tx: DMAPeripheral,
     ) -> I2CHw {
         I2CHw {
-            master_mmio_address: base_addr as *mut TWIMRegisters,
+            master_mmio_address: base_addr,
             slave_mmio_address: slave_base_addr,
             master_clock: clocks.0,
             slave_clock: clocks.1,

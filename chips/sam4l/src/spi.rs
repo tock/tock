@@ -12,7 +12,7 @@ use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager,
-             ReturnCode};
+             ReturnCode, StaticRef};
 use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
@@ -163,7 +163,8 @@ mod spi_consts {
     }
 }
 
-const SPI_BASE: u32 = 0x40008000;
+const SPI_BASE: StaticRef<SpiRegisters> =
+    unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
 
 /// Values for selected peripherals
 #[derive(Copy, Clone)]
@@ -182,7 +183,7 @@ pub enum SpiRole {
 
 /// Abstraction of the SPI Hardware
 pub struct SpiHw {
-    mmio_address: *mut SpiRegisters,
+    mmio_address: StaticRef<SpiRegisters>,
     client: Cell<Option<&'static SpiMasterClient>>,
     dma_read: Cell<Option<&'static DMAChannel>>,
     dma_write: Cell<Option<&'static DMAChannel>>,
@@ -199,8 +200,8 @@ pub struct SpiHw {
 impl MMIOInterface<pm::Clock> for SpiHw {
     type MMIORegisterType = SpiRegisters;
 
-    fn get_hardware_address(&self) -> *mut SpiRegisters {
-        self.mmio_address
+    fn get_registers(&self) -> &SpiRegisters {
+        &*self.mmio_address
     }
 }
 
@@ -230,7 +231,7 @@ impl SpiHw {
     /// Creates a new SPI object, with peripheral 0 selected
     const fn new() -> SpiHw {
         SpiHw {
-            mmio_address: SPI_BASE as *mut SpiRegisters,
+            mmio_address: SPI_BASE,
             client: Cell::new(None),
             dma_read: Cell::new(None),
             dma_write: Cell::new(None),
