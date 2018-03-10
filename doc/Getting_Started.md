@@ -25,6 +25,7 @@ Ubuntu:
 $ curl https://sh.rustup.rs -sSf | sh
 $ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
 $ pip3 install tockloader --user
+$ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
 ```
 
 Then build the kernel by running `make` in the `boards/<platform>` directory.
