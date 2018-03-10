@@ -4,7 +4,7 @@
 pub mod macros;
 
 use core::marker::PhantomData;
-use core::ops::{Add, BitAnd, BitOr, Not, Shl, Shr};
+use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
 
 pub trait IntLike
     : BitAnd<Output = Self>
@@ -248,5 +248,16 @@ impl<T: IntLike, R: RegisterLongName> Add for FieldValue<T, R> {
             value: self.value | rhs.value,
             associated_register: PhantomData,
         }
+    }
+}
+
+// Combine two fields with the += operator
+impl<T: IntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
+    fn add_assign(&mut self, rhs: FieldValue<T, R>) {
+        *self = FieldValue {
+            mask: self.mask | rhs.mask,
+            value: self.value | rhs.value,
+            associated_register: PhantomData,
+        };
     }
 }
