@@ -3,10 +3,11 @@
 #![crate_name = "cc26xx"]
 #![crate_type = "rlib"]
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use]
 extern crate kernel;
 
 pub mod aon;
+pub mod rtc;
 pub mod gpio;
 pub mod ioc;
 pub mod prcm;
