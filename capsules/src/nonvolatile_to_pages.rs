@@ -84,7 +84,8 @@ impl<'a, F: hil::flash::Flash + 'a> NonvolatileToPages<'a, F> {
 }
 
 impl<'a, F: hil::flash::Flash + 'a> hil::nonvolatile_storage::NonvolatileStorage
-    for NonvolatileToPages<'a, F> {
+    for NonvolatileToPages<'a, F>
+{
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(Some(client));
     }
