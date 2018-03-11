@@ -5,18 +5,37 @@
 //! Required to setup and configure IO pins to different modes - all depending on
 //! usage (eg. UART, GPIO, etc). It is used internally.
 
-use kernel::common::VolatileCell;
+use kernel::common::regs::ReadWrite;
 use kernel::hil;
-
-pub const IOC_PULL_CTL: u8 = 13;
-pub const IOC_IE: u8 = 29;
-pub const IOC_EDGE_DET: u8 = 16;
-pub const IOC_EDGE_IRQ_EN: u8 = 18;
 
 #[repr(C)]
 pub struct IocRegisters {
-    iocfg: [VolatileCell<u32>; 32],
+    iocfg: [ReadWrite<u32, IoConfiguration::Register>; 32],
 }
+
+register_bitfields![
+    u32,
+    IoConfiguration [
+        IE          OFFSET(29) NUMBITS(1) [], // Input Enable
+        IO_MODE     OFFSET(24) NUMBITS(3) [],
+        EDGE_IRQ_EN OFFSET(18) NUMBITS(1) [], // Interrupt enable
+        EDGE_DET    OFFSET(16) NUMBITS(2) [
+            None            = 0b00,
+            NegativeEdge    = 0b01,
+            PositiveEdge    = 0b10,
+            EitherEdge      = 0b11
+        ],
+        PULL_CTL    OFFSET(13) NUMBITS(2) [
+            PullDown = 0b01,
+            PullUp   = 0b10,
+            PullNone = 0b11
+        ],
+        PORT_ID     OFFSET(0) NUMBITS(6) [
+            GPIO = 0x00
+            // Add more as needed from datasheet p.1028
+        ]
+    ]
+];
 
 const IOC_BASE: *mut IocRegisters = 0x4008_1000 as *mut IocRegisters;
 
@@ -35,34 +54,34 @@ impl IocfgPin {
 
         // In order to configure the pin for GPIO we need to clear
         // the lower 6 bits.
-        pin_ioc.set(pin_ioc.get() & !0x3F);
+        pin_ioc.write(IoConfiguration::PORT_ID::GPIO);
     }
 
     pub fn set_input_mode(&self, mode: hil::gpio::InputMode) {
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];
 
-        let conf = match mode {
-            hil::gpio::InputMode::PullDown => 1,
-            hil::gpio::InputMode::PullUp => 2,
-            hil::gpio::InputMode::PullNone => 3,
+        let field = match mode {
+            hil::gpio::InputMode::PullDown => IoConfiguration::PULL_CTL::PullDown,
+            hil::gpio::InputMode::PullUp => IoConfiguration::PULL_CTL::PullUp,
+            hil::gpio::InputMode::PullNone => IoConfiguration::PULL_CTL::PullNone,
         };
 
-        pin_ioc.set(pin_ioc.get() & !(0b11 << IOC_PULL_CTL) | (conf << IOC_PULL_CTL));
+        pin_ioc.modify(field);
     }
 
     pub fn enable_output(&self) {
         // Enable by disabling input
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];
-        pin_ioc.set(pin_ioc.get() & !(1 << IOC_IE));
+        pin_ioc.modify(IoConfiguration::IE::CLEAR);
     }
 
     pub fn enable_input(&self) {
         // Set IE (Input Enable) bit
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];
-        pin_ioc.set(pin_ioc.get() | 1 << IOC_IE);
+        pin_ioc.modify(IoConfiguration::IE::SET);
     }
 
     pub fn enable_interrupt(&self, mode: hil::gpio::InterruptMode) {
@@ -70,18 +89,18 @@ impl IocfgPin {
         let pin_ioc = &regs.iocfg[self.pin];
 
         let ioc_edge_mode = match mode {
-            hil::gpio::InterruptMode::FallingEdge => 1 << IOC_EDGE_DET,
-            hil::gpio::InterruptMode::RisingEdge => 2 << IOC_EDGE_DET,
-            hil::gpio::InterruptMode::EitherEdge => 3 << IOC_EDGE_DET,
+            hil::gpio::InterruptMode::FallingEdge => IoConfiguration::EDGE_DET::NegativeEdge,
+            hil::gpio::InterruptMode::RisingEdge => IoConfiguration::EDGE_DET::PositiveEdge,
+            hil::gpio::InterruptMode::EitherEdge => IoConfiguration::EDGE_DET::EitherEdge,
         };
 
-        pin_ioc.set(pin_ioc.get() & !(0b11 << IOC_EDGE_DET) | ioc_edge_mode | 1 << IOC_EDGE_IRQ_EN);
+        pin_ioc.modify(ioc_edge_mode + IoConfiguration::EDGE_IRQ_EN::SET);
     }
 
     pub fn disable_interrupt(&self) {
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];
-        pin_ioc.set(pin_ioc.get() & !(1 << IOC_EDGE_IRQ_EN));
+        pin_ioc.modify(IoConfiguration::EDGE_IRQ_EN::CLEAR);
     }
 }
 
