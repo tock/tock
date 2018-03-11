@@ -11,7 +11,7 @@
 //! It also manages the clocks attached to almost every peripheral, which needs to
 //! be enabled before usage.
 
-use kernel::common::regs::{ReadOnly, WriteOnly, ReadWrite};
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 
 #[repr(C)]
 struct PrcmRegisters {
