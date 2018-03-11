@@ -6,7 +6,6 @@
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::rng;
-
 use prcm;
 
 #[repr(C)]
@@ -86,7 +85,7 @@ impl Trng {
         if !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {
             prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
-            while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) { }
+            while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
         }
 
         // Setup the clock
@@ -98,7 +97,7 @@ impl Trng {
 
         // Issue a SW reset
         regs.sw_reset.write(SoftwareReset::RESET::SET);
-        while !regs.sw_reset.is_set(SoftwareReset::RESET) { }
+        while !regs.sw_reset.is_set(SoftwareReset::RESET) {}
 
         // Set the startup samples
         regs.ctl.modify(Control::STARTUP_CYCLES.val(1));
@@ -111,8 +110,8 @@ impl Trng {
         let cycles_per_sample = 0;
         regs.cfg0.write(
             Config::MAX_REFILL_CYCLES.val(max_samples_per_cycle >> 8)
-            + Config::SMPL_DIV.val(cycles_per_sample)
-            + Config::MIN_REFILL_CYCLES.val(min_samples_per_cycle >> 6)
+                + Config::SMPL_DIV.val(cycles_per_sample)
+                + Config::MIN_REFILL_CYCLES.val(min_samples_per_cycle >> 6),
         );
 
         // Reset the alarm control
@@ -126,7 +125,7 @@ impl Trng {
         let regs = unsafe { &*self.regs };
 
         // Wait for a number to be ready
-        while ! regs.irq_flag_stat.is_set(IrqStatus::READY) { };
+        while !regs.irq_flag_stat.is_set(IrqStatus::READY) {}
 
         // Initiate generation of a new number
         regs.irq_flag_clr.write(IrqFlagClear::READY::SET);
