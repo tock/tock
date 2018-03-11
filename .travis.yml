@@ -2,7 +2,7 @@ sudo: false
 language: rust
 
 env:
-  - RUSTUP_TOOLCHAIN=nightly-2018-01-05
+  - RUSTUP_TOOLCHAIN=nightly-2018-03-07
 
 cache:
   cargo: true
@@ -17,7 +17,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2018-01-05
+  - nightly-2018-03-07
 
 before_install:
   - ./.travis-install-gcc

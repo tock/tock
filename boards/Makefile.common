@@ -5,7 +5,7 @@ MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-export RUSTUP_TOOLCHAIN ?= nightly-2018-01-05
+export RUSTUP_TOOLCHAIN ?= nightly-2018-03-07
 
 TOOLCHAIN ?= arm-none-eabi
 
@@ -69,7 +69,7 @@ endif
 
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.24.0-nightly (8e7a609e6 2018-01-04)
+RUSTC_VERSION_STRING := rustc 1.26.0-nightly (2789b067d 2018-03-06)
 ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
   DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
   ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))

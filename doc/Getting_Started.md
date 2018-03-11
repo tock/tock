@@ -52,7 +52,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2018-01-05
+$ rustup install nightly-2018-03-07
 ```
 
 #### Xargo
