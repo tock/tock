@@ -104,6 +104,12 @@ else ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(XARGO_VERSION) \<
   XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
 endif
 
+# Xargo 3.11 is broken an expects a `bin` folder to exist that doesn't. Work around
+# this by creating the bin folder ourselves if it doesn't exist.
+RUST_SYSROOT := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --print sysroot)
+RUST_HOST := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc -vV | grep host | cut -b 7-)
+$(shell mkdir -p $(RUST_SYSROOT)/lib/rustlib/$(RUST_HOST)/bin)
+
 # Dump configuration for verbose builds
 ifneq ($(V),)
   $(info )
