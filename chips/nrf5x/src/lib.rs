@@ -10,7 +10,6 @@ mod peripheral_registers;
 pub mod aes;
 pub mod ble_advertising_driver;
 pub mod ble_advertising_hil;
-pub mod clock;
 pub mod gpio;
 pub mod peripheral_interrupts;
 pub mod pinmux;

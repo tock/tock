@@ -339,14 +339,15 @@ pub unsafe fn reset_handler() {
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf5x::clock::CLOCK.low_stop();
-    nrf5x::clock::CLOCK.high_stop();
+    nrf52::clock::CLOCK.low_stop();
+    nrf52::clock::CLOCK.high_stop();
 
-    nrf5x::clock::CLOCK.low_set_source(nrf5x::clock::LowClockSource::XTAL);
-    nrf5x::clock::CLOCK.low_start();
-    nrf5x::clock::CLOCK.high_start();
-    while !nrf5x::clock::CLOCK.low_started() {}
-    while !nrf5x::clock::CLOCK.high_started() {}
+    nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
+    nrf52::clock::CLOCK.low_start();
+    nrf52::clock::CLOCK.high_set_source(nrf52::clock::HighClockSource::XTAL);
+    nrf52::clock::CLOCK.high_start();
+    while !nrf52::clock::CLOCK.low_started() {}
+    while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
         // aes: aes,
