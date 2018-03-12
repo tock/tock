@@ -74,7 +74,6 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[I2C](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI](src/spi.rs)**: SPI master and slave.
-- **[Symmetric Encryption](src/aes_ccm.rs)**: AES encryption.
 
 
 ### Helpful Userspace Capsules
@@ -119,3 +118,4 @@ Other capsules that implement reusable logic.
 
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
+- **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.
