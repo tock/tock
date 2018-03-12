@@ -1,9 +1,9 @@
 # Tock OS Course Part 1: Getting your environment set up
 
 > While we're getting set up and started, please make sure you have
-> completed all of the [tutorial pre-requisites](./#preparation).
+> completed all of the [tutorial pre-requisites](README.md#preparation).
 > If you prefer, you can download a
-> [virtual machine image](./#virtual-machine) with all the pre-requisites
+> [virtual machine image](README.md#virtual-machine) with all the pre-requisites
 > already installed.
 
 - [Intro](README.md)

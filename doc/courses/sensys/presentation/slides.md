@@ -111,7 +111,7 @@ Turn to the person next to you:
      cannot replace itself.
 
   2. Use `tockloader`:
-  
+
      * `tockloader install app.tab`
 
      * `tockloader flash --address 0x10000 hail-kernel.bin`
@@ -303,11 +303,11 @@ Turn to the person next to you:
 
   3. Get an application running on Hail
 
-  4. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
+  4. [Print "Hello World" every second](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
 
-  5. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/sensors.c)
+  5. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/exercises/app/solutions/sensors.c)
 
-  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
+  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
 
 
  - Head to <http://j2x.us/tock2> to get started!

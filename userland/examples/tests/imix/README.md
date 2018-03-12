@@ -52,5 +52,5 @@ If you make a serial connection to the board, you will see something like this:
   * The acceleration value is the Euclidean sum of all acceleration vectors.
     This means if you simply rotate the imix you won't see much change, however
     shaking the imix should result in some increased values. Check out
-    [the accelerometer driver](../../../libtock/FXOS8700CQ.h) for more
+    [the accelerometer driver](../../../libtock/ninedof.h) for more
     fine-grained access to the accelerometer.
