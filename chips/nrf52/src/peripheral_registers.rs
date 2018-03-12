@@ -151,7 +151,6 @@ pub struct RADIO {
 }
 
 
-pub const PPI_SIZE: usize = 0x1000;
 pub const PPI_BASE: usize = 0x4001F000;
 #[repr(C)]
 pub struct PPI {

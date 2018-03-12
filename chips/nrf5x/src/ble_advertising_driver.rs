@@ -197,16 +197,16 @@
 
 
 use ble_advertising_hil;
-use ble_advertising_hil::RadioChannel;
+use ble_advertising_hil::{ReadAction, RadioChannel, DisablePHY};
 use ble_connection::ConnectionData;
+use ble_event_handler::BLEEventHandler;
+use ble_event_handler::BLESender;
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use kernel;
-use kernel::hil::time::{Time, Frequency};
+use kernel::hil::time::{Frequency, Time};
 use kernel::returncode::ReturnCode;
-use ble_event_handler::BLEEventHandler;
-use ble_event_handler::BLESender;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
@@ -544,11 +544,18 @@ const PACKET_LENGTH: usize = 39;
 const NBR_PACKETS: usize = 20;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-enum BLEState {
+enum AppBLEState {
     NotInitialized,
     Initialized,
     Scanning(BLEScanningState),
     Advertising(BLEAdvertisingState),
+}
+
+enum BLEState {
+    Scanning,
+    Advertising,
+    Initiating,
+    Connection
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -595,7 +602,7 @@ pub struct App {
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
     idx: usize,
-    process_status: Option<BLEState>,
+    process_status: Option<AppBLEState>,
     advertisement_interval_ms: u32,
     scan_timeout_ms: u32,
     alarm_data: AlarmData,
@@ -622,7 +629,7 @@ impl Default for App {
             app_read: None,
             scan_callback: None,
             idx: PACKET_PAYLOAD_START,
-            process_status: Some(BLEState::NotInitialized),
+            process_status: Some(AppBLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
             scan_timeout_ms: 100,
@@ -691,7 +698,7 @@ impl App {
 
     fn reset_payload(&mut self) -> ReturnCode {
         match self.process_status {
-            Some(BLEState::Advertising(_)) | Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
+            Some(AppBLEState::Advertising(_)) | Some(AppBLEState::Scanning(_)) => ReturnCode::EBUSY,
             _ => {
                 let res = self.advertisement_buf
                     .as_mut()
@@ -875,9 +882,7 @@ impl App {
         self.alarm_data.t0 = now;
         let nonce = self.random_nonce() % 10;
 
-        let period_ms = Alarm::usecs_to_ticks(1000 * (self.advertisement_interval_ms + nonce));
-
-        // let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
+        let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
 
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
@@ -896,10 +901,10 @@ impl App {
             B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
             A: kernel::hil::time::Alarm + 'a,
     {
-        let new_state = self.process_status.map(|ble_state: BLEState| -> BLEState {
+        let new_state = self.process_status.map(|ble_state: AppBLEState| -> AppBLEState {
             match ble_state {
-                BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_timer_event::<A>(adv_state, self, ble, appid)),
-                BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_timer_event::<A>(scan_state, self, ble, appid)),
+                AppBLEState::Advertising(adv_state) => AppBLEState::Advertising(Advertiser::handle_timer_event::<A>(adv_state, self, ble, appid)),
+                AppBLEState::Scanning(scan_state) => AppBLEState::Scanning(Scanner::handle_timer_event::<A>(scan_state, self, ble, appid)),
 
                 state => {
                     debug!("Error! handle_timer_event {:?}", state);
@@ -1007,8 +1012,8 @@ impl App {
         if let Some(pdu) = pdu {
             let new_state = self.process_status.map(|ble_state| {
                 match ble_state {
-                    BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_rx_event::<A>(adv_state, self, ble, appid, &pdu)),
-                    BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_rx_event::<A>(scan_state, self, ble, appid, &pdu)),
+                    AppBLEState::Advertising(adv_state) => AppBLEState::Advertising(Advertiser::handle_rx_event::<A>(adv_state, self, ble, appid, &pdu)),
+                    AppBLEState::Scanning(scan_state) => AppBLEState::Scanning(Scanner::handle_rx_event::<A>(scan_state, self, ble, appid, &pdu)),
                     state => {
                         debug!("Error! handle_rx_event {:?}", state);
 
@@ -1028,8 +1033,8 @@ impl App {
 
         let new_state = self.process_status.map(|ble_state| {
             match ble_state {
-                BLEState::Advertising(adv_state) => BLEState::Advertising(Advertiser::handle_tx_event::<A>(adv_state, self, ble, appid)),
-                BLEState::Scanning(scan_state) => BLEState::Scanning(Scanner::handle_tx_event::<A>(scan_state, self, ble, appid)),
+                AppBLEState::Advertising(adv_state) => AppBLEState::Advertising(Advertiser::handle_tx_event::<A>(adv_state, self, ble, appid)),
+                AppBLEState::Scanning(scan_state) => AppBLEState::Scanning(Scanner::handle_tx_event::<A>(scan_state, self, ble, appid)),
                 state => {
                     debug!("Error! handle_tx_event {:?}", state);
 
@@ -1350,6 +1355,7 @@ where
     radio: &'a B,
     busy: Cell<BusyState>,
     app: kernel::Grant<App>,
+    ble_state: BLEState,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: Cell<Option<kernel::AppId>>,
@@ -1371,6 +1377,7 @@ where
             radio: radio,
             busy: Cell::new(BusyState::Free),
             app: container,
+            ble_state: BLEState::Advertising,
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
             sending_app: Cell::new(None),
@@ -1496,43 +1503,61 @@ where
     }
 }
 
+const SCAN_REQ_LEN: u8 = 12;
+const SCAN_IND_MAX_LEN: u8 = 37;
+const DEVICE_ADDRESS_LEN: u8 = 6;
+const CONNECT_REQ_LEN: u8 = 34;
+
 // Callback from the radio once a RX event occur
 impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
+    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> DisablePHY {
 
-        if let Some(appid) = self.receiving_app.get() {
-            let _ = self.app.enter(appid, move |app, _| {
-                // Validate the received data, because ordinary BLE packets can be bigger than 39
-                // bytes we need check for that!
-                // Moreover, we use the packet header to find size but the radio reads maximum
-                // 39 bytes.
-                // Therefore, we ignore payloads with a header size bigger than 39 because the
-                // channels 37, 38 and 39 should only be used for advertisements!
-                // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
-                // only be sent on the other 37 RadioChannel channels.
+        let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
 
-                let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some()
-                    && result == ReturnCode::SUCCESS
-                {
-                    let dest = app.app_read.as_mut().unwrap();
-                    let d = &mut dest.as_mut();
-                    // write to buffer in userland
-                    for (i, c) in buf[0..len as usize].iter().enumerate() {
-                        d[i] = *c;
-                    }
-                    true
-                } else {
-                    false
-                };
-                // app.collect_string_log("rx event", self.alarm_now());
-                app.handle_rx_event(self, appid, buf);
+        let len: u8 = buf[1];
 
-            });
-            self.reset_active_alarm();
+        let mut valid_pkt = false;
+
+        if result == ReturnCode::SUCCESS {
+            valid_pkt = match pdu_type {
+                Some(advertisement_type) => match advertisement_type {
+                    BLEAdvertisementType::ScanRequest
+                    | BLEAdvertisementType::ConnectDirected => len == SCAN_REQ_LEN,
+
+                    BLEAdvertisementType::ScanResponse
+                    | BLEAdvertisementType::ConnectUndirected
+                    | BLEAdvertisementType::ScanUndirected
+                    | BLEAdvertisementType::NonConnectUndirected => len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN,
+
+                    BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN
+                },
+                None => false
+            };
+        }
+
+        // TODO call advertising/scanner/connection/initiating driver
+
+        if valid_pkt {
+            DisablePHY::NoDisable
+        } else {
+            DisablePHY::DisableAfterRX
+        }
+    }
+    fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction {
+        debug!("Do I want this? PDU Type: {}\n", buf[0] & 0x0f);
+
+        let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
+
+        match self.ble_state {
+            BLEState::Advertising => ReadAction::ReadFrameAndStayRX,
+            BLEState::Connection => ReadAction::SkipFrame,
+            BLEState::Scanning => ReadAction::ReadFrameAndStayRX,
+            BLEState::Initiating => ReadAction::SkipFrame,
+            _ => ReadAction::SkipFrame
         }
     }
 }
@@ -1576,10 +1601,10 @@ where
     ) -> ReturnCode {
         match command_num {
             // Start periodic advertisements
-            0 => self.app
+            5 => self.app
                 .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        app.process_status = Some(BLEState::Advertising(BLEAdvertisingState::Idle));
+                    if let Some(AppBLEState::Initialized) = app.process_status {
+                        app.process_status = Some(AppBLEState::Advertising(BLEAdvertisingState::Idle));
                         app.random_nonce = self.alarm.now();
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         self.reset_active_alarm();
@@ -1593,8 +1618,8 @@ where
             // Stop periodic advertisements or passive scanning
             1 => self.app
                 .enter(appid, |app, _| match app.process_status {
-                    Some(BLEState::Advertising(BLEAdvertisingState::Idle)) | Some(BLEState::Scanning(BLEScanningState::Idle)) => {
-                        app.process_status = Some(BLEState::Initialized);
+                    Some(AppBLEState::Advertising(BLEAdvertisingState::Idle)) | Some(AppBLEState::Scanning(BLEScanningState::Idle)) => {
+                        app.process_status = Some(AppBLEState::Initialized);
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EBUSY,
@@ -1611,8 +1636,8 @@ where
             2 => {
                 self.app
                     .enter(appid, |app, _| {
-                        if app.process_status != Some(BLEState::Scanning(BLEScanningState::Idle))
-                            && app.process_status != Some(BLEState::Advertising(BLEAdvertisingState::Idle))
+                        if app.process_status != Some(AppBLEState::Scanning(BLEScanningState::Idle))
+                            && app.process_status != Some(AppBLEState::Advertising(BLEAdvertisingState::Idle))
                         {
                             match data as u8 {
                                 e @ 0...10 | e @ 0xec...0xff => {
@@ -1639,10 +1664,10 @@ where
             // FIXME: add check that data is a multiple of 0.625
             3 => self.app
                 .enter(appid, |app, _| match app.process_status {
-                    Some(BLEState::Scanning(state)) if state != BLEScanningState::Idle =>
+                    Some(AppBLEState::Scanning(state)) if state != BLEScanningState::Idle =>
                         ReturnCode::EBUSY,
 
-                    Some(BLEState::Advertising(state)) if state != BLEAdvertisingState::Idle =>
+                    Some(AppBLEState::Advertising(state)) if state != BLEAdvertisingState::Idle =>
                         ReturnCode::EBUSY,
                     _ => {
                         //app.advertisement_interval_ms = cmp::max(20, cmp::min(10240, data as u32));
@@ -1660,10 +1685,10 @@ where
                 .unwrap_or_else(|err| err.into()),
 
             // Passive scanning mode
-            5 => self.app
+            0 => self.app
                 .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        app.process_status = Some(BLEState::Scanning(BLEScanningState::Idle));
+                    if let Some(AppBLEState::Initialized) = app.process_status {
+                        app.process_status = Some(AppBLEState::Scanning(BLEScanningState::Idle));
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         self.reset_active_alarm();
                         ReturnCode::SUCCESS
@@ -1679,7 +1704,7 @@ where
             // Request advertisement address
             6 => self.app
                 .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
+                    if let Some(AppBLEState::Initialized) = app.process_status {
 
                         let status = app.generate_random_address(appid);
                         if status == ReturnCode::SUCCESS {
@@ -1708,7 +1733,7 @@ where
         match AllowType::from_usize(allow_num) {
             Some(AllowType::BLEGap(gap_type)) => self.app
                 .enter(appid, |app, _| {
-                    if app.process_status != Some(BLEState::NotInitialized) {
+                    if app.process_status != Some(AppBLEState::NotInitialized) {
                         app.app_write = Some(slice);
                         app.set_gap_data(gap_type)
                     } else {
@@ -1719,9 +1744,9 @@ where
 
             Some(AllowType::PassiveScanning) => self.app
                 .enter(appid, |app, _| match app.process_status {
-                    Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
+                    Some(AppBLEState::NotInitialized) | Some(AppBLEState::Initialized) => {
                         app.app_read = Some(slice);
-                        app.process_status = Some(BLEState::Initialized);
+                        app.process_status = Some(AppBLEState::Initialized);
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EINVAL,
@@ -1730,10 +1755,10 @@ where
 
             Some(AllowType::InitAdvertisementBuffer) => self.app
                 .enter(appid, |app, _| {
-                    if let Some(BLEState::NotInitialized) = app.process_status {
+                    if let Some(AppBLEState::NotInitialized) = app.process_status {
                         app.advertisement_buf = Some(slice);
 
-                        app.process_status = Some(BLEState::Initialized);
+                        app.process_status = Some(AppBLEState::Initialized);
                         app.initialize_advertisement_buffer();
                         //app.initialize_scan_response_buffer();
                         ReturnCode::SUCCESS
@@ -1751,7 +1776,7 @@ where
             // Callback for scanning
             0 => self.app
                 .enter(callback.app_id(), |app, _| match app.process_status {
-                    Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
+                    Some(AppBLEState::NotInitialized) | Some(AppBLEState::Initialized) => {
                         app.scan_callback = Some(callback);
                         ReturnCode::SUCCESS
                     }

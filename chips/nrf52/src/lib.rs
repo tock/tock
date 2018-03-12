@@ -22,5 +22,6 @@ pub mod uart;
 pub mod uicr;
 pub mod spi;
 pub mod i2c;
+pub mod ppi;
 
 pub use crt1::init;

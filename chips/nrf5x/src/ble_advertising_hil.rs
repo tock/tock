@@ -66,8 +66,21 @@ pub trait BleConfig {
     fn set_access_address(&self, address: [u8; 4]);
 }
 
+pub enum ReadAction {
+    SkipFrame,
+    ReadFrameAndStayRX,
+    ReadFrameAndMoveToTX
+}
+
+pub enum DisablePHY {
+    DisableAfterRX,
+    NoDisable,
+    AlreadyDisabled
+}
+
 pub trait RxClient {
-    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction;
+    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> DisablePHY;
 }
 
 pub trait TxClient {
