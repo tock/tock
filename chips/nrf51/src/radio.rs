@@ -167,7 +167,7 @@ impl Radio {
     fn set_dma_ptr(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.packetptr.set((&PAYLOAD as *const u8) as u32);
+            regs.packetptr.set(PAYLOAD.as_ptr() as u32);
         }
     }
 
