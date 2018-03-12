@@ -203,7 +203,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use kernel;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Time, Frequency};
 use kernel::returncode::ReturnCode;
 use ble_event_handler::BLEEventHandler;
 use ble_event_handler::BLESender;
@@ -541,7 +541,7 @@ const PACKET_ADDR_END: usize = 7;
 const PACKET_PAYLOAD_START: usize = 8;
 const PACKET_LENGTH: usize = 39;
 
-const NBR_PACKETS: usize = 5;
+const NBR_PACKETS: usize = 20;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 enum BLEState {
@@ -875,7 +875,9 @@ impl App {
         self.alarm_data.t0 = now;
         let nonce = self.random_nonce() % 10;
 
-        let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
+        let period_ms = Alarm::usecs_to_ticks(1000 * (self.advertisement_interval_ms + nonce));
+
+        // let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
 
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
@@ -964,8 +966,6 @@ impl App {
     }
 
     fn print_log(&mut self, adv_address: &DeviceAddress) {
-        debug!("Print {}", self.array_ptr);
-
         for i in 0..self.array_ptr {
             match self.timing_array[i] {
                 Timestamp::BufferIndex(time, index) => {
@@ -1057,14 +1057,14 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                 match pdu {
                     &BLEPduType::ConnectRequest(init_addr, adv_addr, ref lldata) => {
 
-                        debug!("\nConnection request! {:?} {:?}", init_addr, adv_addr);
-
                         let mut new_state = state;
 
                         app.advertising_address.map(|address| {
                             if address == adv_addr {
-                                //panic!("Connection req");
-                                debug!("Connection request! {:?} {:?}", init_addr, lldata);
+
+                                debug!("\nConnection request! {:?} {:?}", init_addr, adv_addr);
+
+                                app.collect_string_log("connection request for me!", ble.alarm_now());
 
                                 app.alarm_data.expiration = Expiration::Disabled;
 
@@ -1092,19 +1092,17 @@ impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
                     },
                     &BLEPduType::ScanRequest(scan_addr, adv_addr) => {
 
-                        // debug!("\n{:?} {:?}", scan_addr, adv_addr);
-
                         let mut new_state = state;
 
                         app.advertising_address.map(|address| {
-
                             ble.set_tx_power(app.tx_power);
 
                             if address == adv_addr {
+                                app.collect_string_log("scan request for me!", ble.alarm_now());
                                 app.alarm_data.expiration = Expiration::Disabled;
                                 new_state = BLEAdvertisingState::Responding(channel);
 
-                                debug!("Got a ScanReq");
+                                // debug!("Got a ScanReq");
 
                                 app.send_scan_response(ble, channel, appid);
 
@@ -1247,6 +1245,7 @@ impl BLEEventHandler<BLEScanningState> for Scanner {
             BLEScanningState::Scanning(channel) => {
                 match *pdu {
                     BLEPduType::ConnectUndirected(adv_addr, _) => {
+
 
                         let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
                         //debug!("adv_addr: {:?}", adv_addr);

@@ -86,7 +86,6 @@ impl Radio {
         regs.shorts.set(
             nrf5x::constants::RADIO_SHORTS_DISABLED_TXEN
                 | nrf5x::constants::RADIO_SHORTS_READY_START
-                | nrf5x::constants::RADIO_SHORTS_END_DISABLE
         );
 
         if self.state.get() != RadioState::TX {
@@ -103,7 +102,6 @@ impl Radio {
         regs.shorts.set(
             nrf5x::constants::RADIO_SHORTS_DISABLED_RXEN
                 | nrf5x::constants::RADIO_SHORTS_READY_START
-                | nrf5x::constants::RADIO_SHORTS_END_DISABLE
         );
 
         if self.state.get() != RadioState::RX {
@@ -128,7 +126,6 @@ impl Radio {
     fn radio_on(&self) {
         let regs = unsafe { &*self.regs };
         // reset and enable power
-        // regs.shorts.set(0);
         regs.power.set(0);
         regs.power.set(1);
     }
@@ -160,12 +157,6 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
         self.disable_all_interrupts();
-
-        if regs.event_ready.get() == 1 {
-            regs.event_ready.set(0);
-            regs.event_end.set(0);
-            regs.task_start.set(1);
-        }
 
         if regs.event_address.get() == 1 {
             regs.event_address.set(0);
@@ -217,7 +208,7 @@ impl Radio {
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenset.set(
-            nrf5x::constants::RADIO_INTENSET_END,
+                nrf5x::constants::RADIO_INTENSET_END
         );
     }
 
@@ -304,7 +295,7 @@ impl Radio {
                 (address[2] as u32) << 16 |
                 (address[3] as u32) << 8;
 
-        debug!("Prefix: {:0>8x} Base: {:0>8x}", prefix, base);
+        // debug!("Prefix: {:0>8x} Base: {:0>8x}", prefix, base);
 
         regs.prefix1.set(prefix);
         regs.base1.set(base);
