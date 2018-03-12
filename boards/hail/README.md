@@ -126,9 +126,9 @@ There are a few more advanced sample applications that are worth checking out:
 
   * [accel-leds](../../userland/examples/accel-leds) changes LED color based on
     the board's orientation
-  * [ble-env-sense](../../userland/examples/ble-env-sense) shows how to
+  * [ble-env-sense](../../userland/examples/services/ble-env-sense) shows how to
     integrate with the onboard Bluetooth to act as an environmental sensor
-  * [find_north](../../userland/examples/find-north) acts as a simple compass,
+  * [find_north](../../userland/examples/find_north) acts as a simple compass,
     turning the LED on when the board is pointed north (the magnetometer tends
     to get confused in large buildings, best tried outdoors)
 

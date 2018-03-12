@@ -173,7 +173,7 @@ requires four flags:
 ### Tock Binary Format
 
 In order to be loaded correctly, applications must follow the [Tock Binary
-Format](../TockBinaryFormat.md). This means the use of a linker script following
+Format](TockBinaryFormat.md). This means the use of a linker script following
 specific rules and a header for the binary so that Tock can load the application
 correctly.
 

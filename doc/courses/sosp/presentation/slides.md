@@ -12,9 +12,9 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md>  
+<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md>
 
-> aka  
+> aka
 
 <tt><https://goo.gl/s17fy8></tt>
 
@@ -284,11 +284,11 @@ int ipc_notify_client(int pid);
 
   1. Get an application running on Hail
 
-  2. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
+  2. [Print "Hello World" every second](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
 
-  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
+  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
 
-  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
+  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
 
 
  - Head to \texttt{<http://bit.ly/2hgpl8n>} to get started!
