@@ -1,3 +1,11 @@
+//! Core Tock Kernel
+//!
+//! The kernel crate implements the core features of Tock as well as shared
+//! code that many chips, capsules, and boards use. It also holds the Hardware
+//! Interface Layer (HIL) definitions.
+//!
+//! Most `unsafe` code is in this kernel crate.
+
 #![feature(asm, core_intrinsics, unique, nonzero)]
 #![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
 #![no_std]

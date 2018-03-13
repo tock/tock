@@ -1,3 +1,6 @@
+//! Macros for cleanly defining peripheral registers.
+
+/// Helper macro for defining register fields.
 #[macro_export]
 macro_rules! register_bitmasks {
     {
@@ -97,6 +100,7 @@ macro_rules! register_bitmasks {
     };
 }
 
+/// Define register types and fields.
 #[macro_export]
 macro_rules! register_bitfields {
     {
