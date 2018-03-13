@@ -4,22 +4,22 @@ use self::Pin::*;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
 
 #[repr(C)]
 struct Register {
-    val: VolatileCell<u32>,
-    set: VolatileCell<u32>,
-    clear: VolatileCell<u32>,
-    toggle: VolatileCell<u32>,
+    val: ReadWrite<u32>,
+    set: WriteOnly<u32>,
+    clear: WriteOnly<u32>,
+    toggle: WriteOnly<u32>,
 }
 
 #[repr(C)]
 struct RegisterRC {
-    val: VolatileCell<u32>,
+    val: ReadOnly<u32>,
     reserved0: u32,
-    clear: VolatileCell<u32>,
+    clear: WriteOnly<u32>,
     reserved1: u32,
 }
 
@@ -31,7 +31,7 @@ struct Registers {
     pmr2: Register,
     oder: Register,
     ovr: Register,
-    pvr: VolatileCell<u32>,
+    pvr: ReadOnly<u32>,
     _reserved0: [u32; 3],
     puer: Register,
     pder: Register,
