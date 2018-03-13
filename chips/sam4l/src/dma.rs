@@ -3,6 +3,7 @@
 use core::{cmp, intrinsics};
 use core::cell::Cell;
 use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use pm;
 
@@ -10,21 +11,77 @@ use pm;
 #[repr(C)]
 #[allow(dead_code)]
 struct DMARegisters {
-    memory_address: VolatileCell<u32>, // 0x00
-    peripheral_select: VolatileCell<DMAPeripheral>,
-    _peripheral_select_padding: [u8; 3],
-    transfer_counter: VolatileCell<u32>, // 0x08
-    memory_address_reload: VolatileCell<u32>,
-    transfer_counter_reload: VolatileCell<u32>,
-    control: VolatileCell<u32>,
-    mode: VolatileCell<u32>,
-    status: VolatileCell<u32>,
-    interrupt_enable: VolatileCell<u32>,
-    interrupt_disable: VolatileCell<u32>,
-    interrupt_mask: VolatileCell<u32>,
-    interrupt_status: VolatileCell<u32>,
-    _unused: [usize; 4],
+    mar: ReadWrite<u32, MemoryAddress::Register>,
+    psr: VolatileCell<DMAPeripheral>,
+    _psr_padding: [u8; 3],
+    tcr: ReadWrite<u32, TransferCounter::Register>,
+    marr: ReadWrite<u32, MemoryAddressReload::Register>,
+    tcrr: ReadWrite<u32, TransferCounter::Register>,
+    cr: WriteOnly<u32, Control::Register>,
+    mr: ReadWrite<u32, Mode::Register>,
+    sr: ReadOnly<u32, Status::Register>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    isr: ReadOnly<u32, Interrupt::Register>,
 }
+
+register_bitfields![u32,
+    MemoryAddress [
+        MADDR OFFSET(0) NUMBITS(32) []
+    ],
+
+    MemoryAddressReload [
+        MARV OFFSET(0) NUMBITS(32) []
+    ],
+
+    TransferCounter [
+        /// Transfer Counter Value
+        TCV OFFSET(0) NUMBITS(16) []
+    ],
+
+    Control [
+        /// Transfer Error Clear
+        ECLR 8,
+        /// Transfer Disable
+        TDIS 1,
+        /// Transfer Enable
+        TEN 0
+    ],
+
+    Mode [
+        /// Ring Buffer
+        RING OFFSET(3) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ],
+        /// Event Trigger
+        ETRIG OFFSET(2) NUMBITS(1) [
+            StartOnRequest = 0,
+            StartOnEvent = 1
+        ],
+        /// Size of Transfer
+        SIZE OFFSET(0) NUMBITS(2) [
+            Byte = 0,
+            Halfword = 1,
+            Word = 2
+        ]
+    ],
+
+    Status [
+        /// Transfer Enabled
+        TEN 0
+    ],
+
+    Interrupt [
+        /// Transfer Error
+        TERR 2,
+        /// Transfer Complete
+        TRC 1,
+        /// Reload Counter Zero
+        RCZ 0
+    ]
+];
 
 /// The PDCA's base addresses in memory (Section 7.1 of manual).
 const DMA_BASE_ADDR: usize = 0x400A2000;
@@ -176,7 +233,10 @@ impl DMAChannel {
                 }
             }
             let registers: &DMARegisters = unsafe { &*self.registers };
-            registers.interrupt_disable.set(!0);
+            // Disable all interrupts
+            registers
+                .idr
+                .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
 
             self.enabled.set(true);
         }
@@ -192,15 +252,17 @@ impl DMAChannel {
                 }
             }
             let registers: &DMARegisters = unsafe { &*self.registers };
-            registers.control.set(0x2);
+            registers.cr.write(Control::TDIS::SET);
             self.enabled.set(false);
         }
     }
 
     pub fn handle_interrupt(&mut self) {
         let registers: &DMARegisters = unsafe { &*self.registers };
-        registers.interrupt_disable.set(!0);
-        let channel = registers.peripheral_select.get();
+        registers
+            .idr
+            .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
+        let channel = registers.psr.get();
 
         self.client.get().as_mut().map(|client| {
             client.xfer_done(channel);
@@ -209,7 +271,7 @@ impl DMAChannel {
 
     pub fn start_xfer(&self) {
         let registers: &DMARegisters = unsafe { &*self.registers };
-        registers.control.set(0x1);
+        registers.cr.write(Control::TEN::SET);
     }
 
     pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
@@ -223,15 +285,15 @@ impl DMAChannel {
                 DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
             };
         len = cmp::min(len, maxlen);
-        registers.mode.set(self.width.get() as u32);
+        registers.mr.write(Mode::SIZE.val(self.width.get() as u32));
 
-        registers.peripheral_select.set(pid);
+        registers.psr.set(pid);
         registers
-            .memory_address_reload
-            .set(&buf[0] as *const u8 as u32);
-        registers.transfer_counter_reload.set(len as u32);
+            .marr
+            .write(MemoryAddressReload::MARV.val(&buf[0] as *const u8 as u32));
+        registers.tcrr.write(TransferCounter::TCV.val(len as u32));
 
-        registers.interrupt_enable.set(1 << 1);
+        registers.ier.write(Interrupt::TRC::SET);
 
         // Store the buffer reference in the TakeCell so it can be returned to
         // the caller in `handle_interrupt`
@@ -247,16 +309,18 @@ impl DMAChannel {
     /// transaction.
     pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
         let registers: &DMARegisters = unsafe { &*self.registers };
-        registers.interrupt_disable.set(!0);
+        registers
+            .idr
+            .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
 
         // Reset counter
-        registers.transfer_counter.set(0);
+        registers.tcr.write(TransferCounter::TCV.val(0));
 
         self.buffer.take()
     }
 
     pub fn transfer_counter(&self) -> usize {
         let registers: &DMARegisters = unsafe { &*self.registers };
-        registers.transfer_counter.get() as usize
+        registers.tcr.read(TransferCounter::TCV) as usize
     }
 }
