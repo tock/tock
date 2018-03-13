@@ -8,8 +8,6 @@ extern crate cortexm0;
 extern crate kernel;
 extern crate nrf5x;
 
-mod peripheral_registers;
-
 pub mod clock;
 pub mod chip;
 pub mod crt1;
