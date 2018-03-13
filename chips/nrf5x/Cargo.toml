@@ -5,6 +5,7 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 [dependencies]
 kernel = { path = "../../kernel" }
+capsules = { path = "../../capsules" }
 
 [features]
 default = []

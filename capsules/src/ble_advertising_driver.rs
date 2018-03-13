@@ -195,11 +195,11 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017
 
-use ble_advertising_hil;
-use ble_advertising_hil::RadioChannel;
 use core::cell::Cell;
 use core::cmp;
 use kernel;
+use kernel::hil::ble_advertising;
+use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 
@@ -536,7 +536,7 @@ impl App {
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
-        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+        B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
         A: kernel::hil::time::Alarm + 'a,
     {
         self.advertisement_buf
@@ -587,7 +587,7 @@ impl App {
 
 pub struct BLE<'a, B, A>
 where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
     radio: &'a B,
@@ -601,7 +601,7 @@ where
 
 impl<'a, B, A> BLE<'a, B, A>
 where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
     pub fn new(
@@ -653,7 +653,7 @@ where
 // Timer alarm
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
 where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
     // When an alarm is fired, we find which apps have expired timers. Expired
@@ -718,9 +718,9 @@ where
 }
 
 // Callback from the radio once a RX event occur
-impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
+impl<'a, B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
@@ -787,9 +787,9 @@ where
 }
 
 // Callback from the radio once a TX event occur
-impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
+impl<'a, B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
@@ -831,7 +831,7 @@ where
 // System Call implementation
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
     fn command(

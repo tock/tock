@@ -47,7 +47,7 @@
 //!
 //! ```
 
-use kernel::ReturnCode;
+use returncode::ReturnCode;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(
