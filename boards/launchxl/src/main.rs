@@ -175,7 +175,6 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm1.set_client(alarm);
 
-    cc26xx::trng::TRNG.enable();
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
         capsules::rng::SimpleRng::new(&cc26xx::trng::TRNG, kernel::Grant::create())

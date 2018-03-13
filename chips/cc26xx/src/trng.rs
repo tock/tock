@@ -124,6 +124,10 @@ impl Trng {
     pub fn read_number_blocking(&self) -> u64 {
         let regs = unsafe { &*self.regs };
 
+        if !regs.ctl.is_set(Control::TRNG_EN) {
+            self.enable();
+        }
+
         // Wait for a number to be ready
         while !regs.irq_flag_stat.is_set(IrqStatus::READY) {}
 
