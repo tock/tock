@@ -121,7 +121,7 @@ impl Trng {
         regs.ctl.modify(Control::TRNG_EN::SET);
     }
 
-    pub fn read_number(&self) -> u64 {
+    pub fn read_number_blocking(&self) -> u64 {
         let regs = unsafe { &*self.regs };
 
         // Wait for a number to be ready
@@ -144,7 +144,7 @@ impl Iterator for Trng {
     fn next(&mut self) -> Option<u32> {
         let regs = unsafe { &*self.regs };
         if regs.ctl.is_set(Control::TRNG_EN) {
-            Some((self.read_number() & 0xFFFFFFFF) as u32)
+            Some((self.read_number_blocking() & 0xFFFFFFFF) as u32)
         } else {
             None
         }
