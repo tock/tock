@@ -63,12 +63,12 @@ register_bitfields![
     ]
 ];
 
-const BASE_ADDRESS: *mut RngRegisters = 0x4002_8000 as *mut RngRegisters;
+const BASE_ADDRESS: *const RngRegisters = 0x4002_8000 as *const RngRegisters;
 
 pub static mut TRNG: Trng = Trng::new();
 
 pub struct Trng {
-    regs: *mut RngRegisters,
+    regs: *const RngRegisters,
     client: Cell<Option<&'static rng::Client>>,
 }
 
