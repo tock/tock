@@ -38,7 +38,7 @@ mod syscall;
 mod platform;
 
 pub use callback::{AppId, Callback};
-pub use common::{MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager, StaticRef};
+pub use common::StaticRef;
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};

@@ -11,8 +11,8 @@ use core::cmp;
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
-use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager,
-             ReturnCode, StaticRef};
+use kernel::{ClockInterface, ReturnCode, StaticRef};
+use kernel::common::peripherals::{AutomaticPeripheralManagement, PeripheralManager};
 use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
@@ -196,33 +196,29 @@ pub struct SpiHw {
 const SPI_BASE: StaticRef<SpiRegisters> =
     unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
 
-impl MMIOInterface<pm::Clock> for SpiHw {
-    type MMIORegisterType = SpiRegisters;
+impl AutomaticPeripheralManagement<pm::Clock> for SpiHw {
+    type RegisterType = SpiRegisters;
 
     fn get_registers(&self) -> &SpiRegisters {
         &*SPI_BASE
     }
-}
 
-impl MMIOClockInterface<pm::Clock> for SpiHw {
     fn get_clock(&self) -> &pm::Clock {
         &pm::Clock::PBA(pm::PBAClock::SPI)
     }
-}
 
-impl MMIOClockGuard<SpiHw, pm::Clock> for SpiHw {
-    fn before_mmio_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
+    fn before_peripheral_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
         clock.enable();
     }
 
-    fn after_mmio_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
+    fn after_peripheral_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
         if !self.is_busy() {
             clock.disable();
         }
     }
 }
 
-type SpiRegisterManager<'a> = MMIOManager<'a, SpiHw, pm::Clock>;
+type SpiRegisterManager<'a> = PeripheralManager<'a, SpiHw, pm::Clock>;
 
 pub static mut SPI: SpiHw = SpiHw::new();
 
@@ -241,12 +237,12 @@ impl SpiHw {
         }
     }
 
-    fn init_as_role(&self, regs_manager: &SpiRegisterManager, role: SpiRole) {
+    fn init_as_role(&self, spi: &SpiRegisterManager, role: SpiRole) {
         self.role.set(role);
 
         if self.role.get() == SpiRole::SpiMaster {
             // Only need to set LASTXFER if we are master
-            regs_manager.registers.cr.write(Control::LASTXFER::SET);
+            spi.registers.cr.write(Control::LASTXFER::SET);
         }
 
         // Sets bits per transfer to 8
@@ -260,28 +256,28 @@ impl SpiHw {
         };
 
         // Disable mode fault detection (open drain outputs not supported)
-        regs_manager.registers.mr.modify(mode + Mode::MODFDIS::SET);
+        spi.registers.mr.modify(mode + Mode::MODFDIS::SET);
     }
 
     pub fn enable(&self) {
-        let regs_manager = &SpiRegisterManager::new(&self);
+        let spi = &SpiRegisterManager::new(&self);
 
-        regs_manager.registers.cr.write(Control::SPIEN::SET);
+        spi.registers.cr.write(Control::SPIEN::SET);
 
         if self.role.get() == SpiRole::SpiSlave {
-            regs_manager.registers.ier.write(InterruptFlags::NSSR::SET); // Enable NSSR
+            spi.registers.ier.write(InterruptFlags::NSSR::SET); // Enable NSSR
         }
     }
 
     pub fn disable(&self) {
-        let regs_manager = &SpiRegisterManager::new(&self);
+        let spi = &SpiRegisterManager::new(&self);
 
         self.dma_read.get().map(|read| read.disable());
         self.dma_write.get().map(|write| write.disable());
-        regs_manager.registers.cr.write(Control::SPIDIS::SET);
+        spi.registers.cr.write(Control::SPIDIS::SET);
 
         if self.role.get() == SpiRole::SpiSlave {
-            regs_manager.registers.idr.write(InterruptFlags::NSSR::SET);; // Disable NSSR
+            spi.registers.idr.write(InterruptFlags::NSSR::SET);; // Disable NSSR
         }
     }
 
@@ -364,27 +360,27 @@ impl SpiHw {
     pub fn set_active_peripheral(&self, peripheral: Peripheral) {
         // Slave cannot set active peripheral
         if self.role.get() == SpiRole::SpiMaster {
-            let regs_manager = &SpiRegisterManager::new(&self);
+            let spi = &SpiRegisterManager::new(&self);
             let mr = match peripheral {
                 Peripheral::Peripheral0 => Mode::PCS::PCS0,
                 Peripheral::Peripheral1 => Mode::PCS::PCS1,
                 Peripheral::Peripheral2 => Mode::PCS::PCS2,
                 Peripheral::Peripheral3 => Mode::PCS::PCS3,
             };
-            regs_manager.registers.mr.modify(mr);
+            spi.registers.mr.modify(mr);
         }
     }
 
     /// Returns the currently active peripheral
     fn get_active_peripheral(&self) -> Peripheral {
         if self.role.get() == SpiRole::SpiMaster {
-            let regs_manager = &SpiRegisterManager::new(&self);
+            let spi = &SpiRegisterManager::new(&self);
 
-            if regs_manager.registers.mr.matches(Mode::PCS::PCS3) {
+            if spi.registers.mr.matches(Mode::PCS::PCS3) {
                 Peripheral::Peripheral3
-            } else if regs_manager.registers.mr.matches(Mode::PCS::PCS2) {
+            } else if spi.registers.mr.matches(Mode::PCS::PCS2) {
                 Peripheral::Peripheral2
-            } else if regs_manager.registers.mr.matches(Mode::PCS::PCS1) {
+            } else if spi.registers.mr.matches(Mode::PCS::PCS1) {
                 Peripheral::Peripheral1
             } else {
                 // default
@@ -399,13 +395,13 @@ impl SpiHw {
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3,
     /// whichever corresponds to the active peripheral
     fn get_active_csr(&self) -> &regs::ReadWrite<u32, ChipSelectParams::Register> {
-        let regs_manager = &SpiRegisterManager::new(&self);
+        let spi = &SpiRegisterManager::new(&self);
 
         match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => &regs_manager.registers.csr[0],
-            Peripheral::Peripheral1 => &regs_manager.registers.csr[1],
-            Peripheral::Peripheral2 => &regs_manager.registers.csr[2],
-            Peripheral::Peripheral3 => &regs_manager.registers.csr[3],
+            Peripheral::Peripheral0 => &spi.registers.csr[0],
+            Peripheral::Peripheral1 => &spi.registers.csr[1],
+            Peripheral::Peripheral2 => &spi.registers.csr[2],
+            Peripheral::Peripheral3 => &spi.registers.csr[3],
         }
     }
 
@@ -416,10 +412,10 @@ impl SpiHw {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs_manager = &SpiRegisterManager::new(&self);
+        let spi = &SpiRegisterManager::new(&self);
 
         self.slave_client.get().map(|client| {
-            if regs_manager.registers.sr.is_set(Status::NSSR) {
+            if spi.registers.sr.is_set(Status::NSSR) {
                 // NSSR
                 client.chip_selected()
             }
@@ -495,8 +491,8 @@ impl spi::SpiMaster for SpiHw {
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
     fn init(&self) {
-        let regs_manager = &SpiRegisterManager::new(&self);
-        self.init_as_role(regs_manager, SpiRole::SpiMaster);
+        let spi = &SpiRegisterManager::new(&self);
+        self.init_as_role(spi, SpiRole::SpiMaster);
     }
 
     fn is_busy(&self) -> bool {
@@ -506,13 +502,13 @@ impl spi::SpiMaster for SpiHw {
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
-        let regs_manager = &SpiRegisterManager::new(&self);
+        let spi = &SpiRegisterManager::new(&self);
 
         let tdr = (out_byte as u32) & spi_consts::tdr::TD;
         // Wait for data to leave TDR and enter serializer, so TDR is free
         // for this next byte
-        while !regs_manager.registers.sr.is_set(Status::TDRE) {}
-        regs_manager.registers.tdr.set(tdr);
+        while !spi.registers.sr.is_set(Status::TDRE) {}
+        spi.registers.tdr.set(tdr);
     }
 
     /// Write 0 to the SPI and return the read; if an
@@ -524,13 +520,13 @@ impl spi::SpiMaster for SpiHw {
     /// Write a byte to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn read_write_byte(&self, val: u8) -> u8 {
-        let regs_manager = &SpiRegisterManager::new(&self);
+        let spi = &SpiRegisterManager::new(&self);
 
         self.write_byte(val);
         // Wait for receive data register full
-        while !regs_manager.registers.sr.is_set(Status::RDRF) {}
+        while !spi.registers.sr.is_set(Status::RDRF) {}
         // Return read value
-        regs_manager.registers.rdr.get() as u8
+        spi.registers.rdr.get() as u8
     }
 
     /// Asynchronous buffer read/write of SPI.
@@ -615,15 +611,15 @@ impl spi::SpiSlave for SpiHw {
     }
 
     fn init(&self) {
-        let regs_manager = &SpiRegisterManager::new(&self);
-        self.init_as_role(regs_manager, SpiRole::SpiSlave);
+        let spi = &SpiRegisterManager::new(&self);
+        self.init_as_role(spi, SpiRole::SpiSlave);
     }
 
     /// This sets the value in the TDR register, to be sent as soon as the
     /// chip select pin is low.
     fn set_write_byte(&self, write_byte: u8) {
-        let regs_manager = &SpiRegisterManager::new(&self);
-        regs_manager.registers.tdr.set(write_byte as u32);
+        let spi = &SpiRegisterManager::new(&self);
+        spi.registers.tdr.set(write_byte as u32);
     }
 
     fn read_write_bytes(
