@@ -40,7 +40,6 @@ dependencies = [
 name = "nrf5x"
 version = "0.1.0"
 dependencies = [
- "capsules 0.1.0",
  "kernel 0.1.0",
 ]
 

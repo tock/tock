@@ -52,7 +52,8 @@ Support for wireless radios.
 - **[nRF51822 Serialization](src/nrf51822_serialization.rs)**: Kernel support
   for using the nRF51 serialization library.
 - **[RF233](src/rf233.rs)**: Driver for RF233 radio.
-
+- **[BLE Advertising](src/ble_advertising_driver.rs)**: Driver for sending BLE
+  advertisements.
 
 ### Libraries
 
