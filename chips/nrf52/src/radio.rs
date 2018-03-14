@@ -43,11 +43,7 @@ use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use nrf5x;
 use nrf5x::constants::TxPower;
 
-// NRF52 Specific Radio Constants
-const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
-const NRF52_RADIO_PCNFO_S1INCL_POS: u32 = 20;
-const NRF52_RADIO_PCNF0_PLEN_POS: u32 = 24;
-const NRF52_RADIO_PCNF0_PLEN_8BITS: u32 = 0;
+const RADIO_BASE: usize = 0x40001000;
 
 #[repr(C)]
 pub struct RadioRegisters {
@@ -433,8 +429,8 @@ register_bitfields! [u32,
         ],
         /// Length of preamble on air. Decision point: TASKS_START task
         PLEN OFFSET(24) NUMBITS(1) [
-            EIGHTBIT = 0,
-            SIXTEENBIT = 1
+            EIGHT = 0,
+            SIXTEEN = 1
         ]
     ],
     /// Packet configuration register 1
@@ -610,7 +606,7 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
-    regs: *const peripheral_registers::RADIO,
+    regs: *const RadioRegisters,
     tx_power: Cell<TxPower>,
     rx_client: Cell<Option<&'static ble_advertising::RxClient>>,
     tx_client: Cell<Option<&'static ble_advertising::TxClient>>,
@@ -621,7 +617,7 @@ pub static mut RADIO: Radio = Radio::new();
 impl Radio {
     pub const fn new() -> Radio {
         Radio {
-            regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO,
+            regs: RADIO_BASE as *const RadioRegisters,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
@@ -630,36 +626,36 @@ impl Radio {
 
     fn tx(&self) {
         let regs = unsafe { &*self.regs };
-        regs.event_ready.set(0);
-        regs.task_txen.set(1);
+        regs.event_ready.write(Event::READY::CLEAR);
+        regs.task_txen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
         let regs = unsafe { &*self.regs };
-        regs.event_ready.set(0);
-        regs.task_rxen.set(1);
+        regs.event_ready.write(Event::READY::CLEAR);
+        regs.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn set_rx_address(&self) {
         let regs = unsafe { &*self.regs };
-        regs.rxaddresses.set(0x01);
+        regs.rxaddresses.write(ReceiveAddresses::ADDR0.val(1));
     }
 
     fn set_tx_address(&self) {
         let regs = unsafe { &*self.regs };
-        regs.txaddress.set(0x00);
+        regs.txaddress.write(TransmitAddress::ADDRESS.val(0));
     }
 
     fn radio_on(&self) {
         let regs = unsafe { &*self.regs };
         // reset and enable power
-        regs.power.set(0);
-        regs.power.set(1);
+        regs.power.write(Task::ENABLE::CLEAR);
+        regs.power.write(Task::ENABLE::SET);
     }
 
     fn radio_off(&self) {
         let regs = unsafe { &*self.regs };
-        regs.power.set(0);
+        regs.power.write(Task::ENABLE::CLEAR);
     }
 
     fn set_tx_power(&self) {
@@ -670,7 +666,7 @@ impl Radio {
     fn set_dma_ptr(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.packetptr.set((&PAYLOAD as *const u8) as u32);
+            regs.packetptr.set(PAYLOAD.as_ptr() as u32);
         }
     }
 
@@ -679,24 +675,24 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         self.disable_all_interrupts();
 
-        if regs.event_ready.get() == 1 {
-            regs.event_ready.set(0);
-            regs.event_end.set(0);
-            regs.task_start.set(1);
+        if regs.event_ready.matches(Event::READY::SET) {
+            regs.event_ready.write(Event::READY::CLEAR);
+            regs.event_end.write(Event::READY::CLEAR);
+            regs.task_start.write(Task::ENABLE::SET);
         }
 
-        if regs.event_address.get() == 1 {
-            regs.event_address.set(0);
+        if regs.event_address.matches(Event::READY::SET) {
+            regs.event_address.write(Event::READY::CLEAR);
         }
-        if regs.event_payload.get() == 1 {
-            regs.event_payload.set(0);
+        if regs.event_payload.matches(Event::READY::SET) {
+            regs.event_payload.write(Event::READY::CLEAR);
         }
 
         // tx or rx finished!
-        if regs.event_end.get() == 1 {
-            regs.event_end.set(0);
+        if regs.event_end.matches(Event::READY::SET) {
+            regs.event_end.write(Event::READY::CLEAR);
 
-            let result = if regs.crcstatus.get() == 1 {
+            let result = if regs.crcstatus.matches(Event::READY::SET) {
                 ReturnCode::SUCCESS
             } else {
                 ReturnCode::FAIL
@@ -733,10 +729,9 @@ impl Radio {
 
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.set(
-            nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS
-                | nrf5x::constants::RADIO_INTENSET_PAYLOAD
-                | nrf5x::constants::RADIO_INTENSET_END,
+        regs.intenset.write(
+            Interrupt::READY::SET + Interrupt::ADDRESS::SET + Interrupt::PAYLOAD::SET
+                + Interrupt::END::SET,
         );
     }
 
@@ -790,10 +785,8 @@ impl Radio {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
     fn ble_set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
-        regs.crccnf.set(
-            nrf5x::constants::RADIO_CRCCNF_SKIPADDR << nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS
-                | nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES,
-        );
+        regs.crccnf
+            .write(CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE);
         regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
@@ -820,26 +813,18 @@ impl Radio {
 
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
-        regs.pcnf0.set(
-            (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE << nrf5x::constants::RADIO_PCNF0_LFLEN_POS)
-                | (nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE
-                    << nrf5x::constants::RADIO_PCNF0_S0LEN_POS)
-                | (nrf5x::constants::RADIO_PCNF0_S1_ZERO << nrf5x::constants::RADIO_PCNF0_S1LEN_POS)
-                | (NRF52_RADIO_PCNF0_S1INCL_MSK << NRF52_RADIO_PCNFO_S1INCL_POS)
-                | (NRF52_RADIO_PCNF0_PLEN_8BITS << NRF52_RADIO_PCNF0_PLEN_POS),
+        regs.pcnf0.write(
+            PacketConfiguration0::LFLEN.val(8) + PacketConfiguration0::S0LEN.val(1)
+                + PacketConfiguration0::S1LEN::CLEAR
+                + PacketConfiguration0::S1INCL::CLEAR
+                + PacketConfiguration0::PLEN::EIGHT,
         );
 
-        regs.pcnf1.set(
-            (nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED
-                << nrf5x::constants::RADIO_PCNF1_WHITEEN_POS)
-                | (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE
-                    << nrf5x::constants::RADIO_PCNF1_ENDIAN_POS)
-                | (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES
-                    << nrf5x::constants::RADIO_PCNF1_BALEN_POS)
-                | (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND
-                    << nrf5x::constants::RADIO_PCNF1_STATLEN_POS)
-                | (nrf5x::constants::RADIO_PCNF1_MAXLEN_255BYTES
-                    << nrf5x::constants::RADIO_PCNF1_MAXLEN_POS),
+        regs.pcnf1.write(
+            PacketConfiguration1::WHITEEN::ENABLED + PacketConfiguration1::ENDIAN::LITTLE
+                + PacketConfiguration1::BALEN.val(3)
+                + PacketConfiguration1::STATLEN::CLEAR
+                + PacketConfiguration1::MAXLEN.val(255),
         );
     }
 
@@ -847,7 +832,7 @@ impl Radio {
     // Bit Rate = 1 Mb/s ±1 ppm
     fn ble_set_channel_rate(&self) {
         let regs = unsafe { &*self.regs };
-        regs.mode.set(nrf5x::constants::RadioMode::Ble1Mbit as u32);
+        regs.mode.write(Mode::MODE::BLE_1MBIT);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.2 Data Whitening
@@ -863,7 +848,8 @@ impl Radio {
     // Advertising:     37, 38, 39
     fn ble_set_channel_freq(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
-        regs.frequency.set(channel as u32);
+        regs.frequency
+            .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3 TRANSMITTER CHARACTERISTICS
