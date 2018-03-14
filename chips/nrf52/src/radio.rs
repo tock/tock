@@ -38,7 +38,7 @@ use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::{RadioChannel, ReadAction, DisablePHY};
+use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, DisablePHY};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 use ppi;
@@ -67,6 +67,7 @@ pub struct Radio {
     tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
+    transition: Cell<PhyTransition>
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -87,7 +88,8 @@ impl Radio {
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
             state: Cell::new(RadioState::Uninitialized),
-            channel: Cell::new(None)
+            channel: Cell::new(None),
+            transition: Cell::new(PhyTransition::None)
         }
     }
 
@@ -374,10 +376,18 @@ impl Radio {
 
 
         // TODO check transition TX_RX?
+        if PhyTransition::MoveToRX == self.transition.get() {
+            self.setup_rx();
 
-        self.schedule_rx_after_t_ifs();
+            // TODO wfr_enable
+            self.schedule_rx_after_t_ifs();
+        } else {
 
-
+            // TODO timer->task_stop
+            // TODO clear CHEN 4, 5, 20, 31
+            // TODO disable
+            assert_eq!(self.transition.get(), PhyTransition::None)
+        }
     }
 
 

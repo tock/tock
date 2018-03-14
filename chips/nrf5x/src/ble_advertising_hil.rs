@@ -66,6 +66,13 @@ pub trait BleConfig {
     fn set_access_address(&self, address: [u8; 4]);
 }
 
+#[derive(Eq, PartialEq)]
+pub enum PhyTransition {
+    None,
+    MoveToTX,
+    MoveToRX
+}
+
 pub enum ReadAction {
     SkipFrame,
     ReadFrameAndStayRX,
