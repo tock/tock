@@ -48,7 +48,7 @@ Tock's use of Rust, the build system, and applications.
 
 ### Keep Up To Date
 
-Check out the [blog](http://www.tockos.org/blog/) where the **Talking Tock**
+Check out the [blog](https://www.tockos.org/blog/) where the **Talking Tock**
 post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 
