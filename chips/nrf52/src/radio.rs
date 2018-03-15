@@ -38,7 +38,7 @@ use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, DisablePHY};
+use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, DisablePHY, Pdu_writer};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 use ppi;
@@ -53,6 +53,13 @@ const NRF52_RADIO_PCNF0_PLEN_8BITS: u32 = 0;
 #[allow(unused)]
 const NRF52_RADIO_MODECNF0_RU_DEFAULT: u32 = 0;
 const NRF52_RADIO_MODECNF0_RU_FAST: u32 = 1;
+
+const NRF52_FAST_RAMPUP_TIME_TX: u32 = 40;
+const NRF52_TX_DELAY: u32 = 3;
+const NRF52_TX_END_DELAY: u32 = 3;
+const NRF52_RX_END_DELAY: u32 = 7;
+const BLE_T_IFS: u32 = 150;
+
 
 static mut TX_PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
@@ -80,6 +87,7 @@ enum RadioState {
 
 pub static mut RADIO: Radio = Radio::new();
 
+
 impl Radio {
     pub const fn new() -> Radio {
         Radio {
@@ -93,25 +101,13 @@ impl Radio {
         }
     }
 
-    pub fn tx<F>(&self, set_pdu_payload: F) -> bool
-        where F: Fn (&mut [u8], &mut u8) -> u8 {
+    pub fn tx(&self) -> bool{
 
         let regs = unsafe { &*self.regs };
-
-        let mut hdr_byte : u8 = 0;
 
         self.wait_until_disabled();
 
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH23 | nrf5x::constants::PPI_CHEN_CH25);
-
-
-        let pdu_len = unsafe { set_pdu_payload(&mut TX_PAYLOAD[3..], &mut hdr_byte) };
-
-        unsafe {
-            TX_PAYLOAD[0] = hdr_byte;
-            TX_PAYLOAD[1] = pdu_len;
-            TX_PAYLOAD[2] = 0; // TODO? I DUNNO
-        }
 
         self.set_dma_ptr_tx();
 
@@ -177,6 +173,10 @@ impl Radio {
 
         self.set_dma_ptr_rx();
 
+        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH20 | nrf5x::constants::PPI_CHEN_CH23);
+
+        self.state.set(RadioState::RX);
+
         regs.bcc.set(8); // count one byte
 
         regs.event_address.set(0);
@@ -184,7 +184,6 @@ impl Radio {
         regs.bcmatch.set(0);
         regs.event_rssiend.set(0);
         regs.crcok.set(0);
-
 
         regs.shorts.set(
             nrf5x::constants::RADIO_SHORTS_END_DISABLE
@@ -242,15 +241,24 @@ impl Radio {
         }
     }
 
+    fn set_tx_start_time(&self, usec: u32) {
+
+        let start_time = usec - NRF52_FAST_RAMPUP_TIME_TX - NRF52_TX_DELAY;
+
+        unsafe {
+            nrf5x::timer::TIMER0.clear();
+            nrf5x::timer::TIMER0.set_cc0(start_time);
+            nrf5x::timer::TIMER0.set_events_compare(0, 0);
+        }
+
+        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
+
+    }
+
     fn schedule_tx_after_t_ifs(&self) {
         let end_time = self.get_packet_end_time_value();
 
-        let t_ifs = 150;
-        let fast_ru_usecs = 40;
-        let rx_end_delay = 7;
-        let tx_delay = 3;
-
-        let time = end_time + t_ifs - rx_end_delay - fast_ru_usecs - tx_delay;
+        let time = end_time + BLE_T_IFS - NRF52_RX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - NRF52_TX_DELAY;
 
         unsafe {
             nrf5x::timer::TIMER0.set_cc0(time);
@@ -263,13 +271,9 @@ impl Radio {
 
     fn schedule_rx_after_t_ifs(&self) {
         let end_time = self.get_packet_end_time_value();
-
-        let t_ifs = 150;
-        let fast_ru_usecs = 40;
-        let tx_end_delay = 3;
         let earlier_listen = 2;
 
-        let time = end_time + t_ifs - tx_end_delay - fast_ru_usecs - earlier_listen;
+        let time = end_time + BLE_T_IFS - NRF52_TX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - earlier_listen;
 
         unsafe {
             nrf5x::timer::TIMER0.set_cc0(time);
@@ -281,6 +285,9 @@ impl Radio {
     }
 
     fn handle_address_event(&self) -> bool {
+
+        debug!("\nGot an address end");
+
         let regs = unsafe { &*self.regs };
         regs.event_address.set(0);
 
@@ -363,6 +370,8 @@ impl Radio {
 
         regs.event_disabled.set(0);
 
+        debug!("\ntx_end");
+
 
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
         regs.event_end.set(0);
@@ -372,17 +381,17 @@ impl Radio {
         // TODO set wfr_time (= NRF_RADIO->SHORTS)
 
 
-        // TODO call transmit_end callback
-
 
         // TODO check transition TX_RX?
         if PhyTransition::MoveToRX == self.transition.get() {
             self.setup_rx();
 
+            debug!("Move to RX\n");
+
             // TODO wfr_enable
             self.schedule_rx_after_t_ifs();
         } else {
-
+            self.tx_client.get().take().map(|client| client.transmit_event(ReturnCode::SUCCESS));
             // TODO timer->task_stop
             // TODO clear CHEN 4, 5, 20, 31
             // TODO disable
@@ -469,7 +478,7 @@ impl Radio {
         unsafe { ppi::PPI.disable(pins); }
     }
 
-    pub fn ble_initialize(&self, channel: RadioChannel) {
+    pub fn ble_initialize(&self) {
         if self.state.get() == RadioState::Uninitialized {
             self.radio_on();
 
@@ -478,14 +487,11 @@ impl Radio {
 
             self.ble_set_channel_rate();
 
-            self.ble_set_channel(channel);
-            self.ble_set_data_whitening(channel);
 
             self.set_tx_address();
             self.set_rx_address();
 
             self.ble_set_packet_config();
-            self.ble_set_advertising_access_address();
 
             self.ble_set_crc_config();
 
@@ -493,9 +499,6 @@ impl Radio {
 
             self.enable_ppi(nrf5x::constants::PPI_CHEN_CH26 | nrf5x::constants::PPI_CHEN_CH27);
             unsafe { nrf5x::timer::TIMER0.start(); }
-        } else {
-            self.ble_set_channel(channel);
-            self.ble_set_data_whitening(channel);
         }
 
     }
@@ -507,32 +510,24 @@ impl Radio {
             nrf5x::constants::RADIO_CRCCNF_SKIPADDR << nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS
                 | nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES,
         );
-        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
+        self.ble_set_crcinit(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
+    }
+
+    fn ble_set_crcinit(&self, crcinit: u32) {
+        let regs = unsafe { &*self.regs };
+        regs.crcinit.set(crcinit);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1.2 Access Address
     // Set access address to 0x8E89BED6
-    fn ble_set_advertising_access_address(&self) {
+    pub fn ble_set_access_address(&self, aa: u32) {
         let regs = unsafe { &*self.regs };
-        regs.prefix0.set(0x0000008e);
-        regs.base0.set(0x89bed600);
+
+        regs.prefix0.set(( regs.prefix0.get() & 0xffffff00) | (aa >> 24));
+        regs.base0.set(aa << 8);
     }
 
-    pub fn ble_set_access_address(&self, address: [u8; 4]) {
-        let regs = unsafe { &*self.regs };
-        let prefix: u32 = address[0] as u32;
-        let base: u32 =
-            (address[1] as u32) << 24 |
-                (address[2] as u32) << 16 |
-                (address[3] as u32) << 8;
-
-        // debug!("Prefix: {:0>8x} Base: {:0>8x}", prefix, base);
-
-        regs.prefix1.set(prefix);
-        regs.base1.set(base);
-        regs.rxaddresses.set(0b010);
-    }
 
     // Packet configuration
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1 Packet Format
@@ -595,6 +590,7 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         self.channel.set(Some(channel));
         regs.frequency.set(channel as u32);
+        self.ble_set_data_whitening(channel);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3 TRANSMITTER CHARACTERISTICS
@@ -613,25 +609,19 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         &self,
         buf: &'static mut [u8],
         len: usize,
-        channel: RadioChannel,
     ) -> &'static mut [u8] {
-        self.ble_initialize(channel);
-        self.tx(|buffer, header| {
 
-            for (i, c) in buf.as_ref()[3..len].iter().enumerate() {
-                buffer[i] = *c;
-            }
-            *header = 2;
+        debug!("Transmit in radio");
+        self.ble_initialize();
+        let res = self.replace_radio_buffer(buf, len);
+        self.set_tx_start_time(300);    //TODO - not sure about why tx is delayed by this time
+        self.tx();
 
-            len as u8
-        });
-        self.enable_interrupts();
-
-        buf
+        res
     }
 
     fn receive_advertisement(&self, channel: RadioChannel) {
-        self.ble_initialize(channel);
+        self.ble_initialize();
         self.rx();
         self.enable_interrupts();
     }
@@ -661,7 +651,18 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
         }
     }
 
-    fn set_access_address(&self, address: [u8; 4]) {
-        self.ble_set_access_address(address)
+    fn set_channel(&self, channel: RadioChannel, address: u32, crcinit: u32) {
+
+        self.ble_set_channel(channel);
+        self.ble_set_access_address(address);
+        self.ble_set_crcinit(crcinit);
+    }
+
+    fn set_transition_state(&self, state: PhyTransition) {
+        self.transition.set(state);
+    }
+
+    fn set_access_address(&self, aa: u32) {
+        self.ble_set_access_address(aa)
     }
 }

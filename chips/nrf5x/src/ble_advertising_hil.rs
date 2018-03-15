@@ -49,12 +49,13 @@
 
 use kernel::ReturnCode;
 
+pub type Pdu_writer<'c> = Fn(&'c mut [u8], &'c mut u8) -> u8;
+
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(
         &self,
         buf: &'static mut [u8],
         len: usize,
-        channel: RadioChannel,
     ) -> &'static mut [u8];
     fn receive_advertisement(&self, channel: RadioChannel);
     fn set_receive_client(&self, client: &'static RxClient);
@@ -63,26 +64,29 @@ pub trait BleAdvertisementDriver {
 
 pub trait BleConfig {
     fn set_tx_power(&self, power: u8) -> ReturnCode;
-    fn set_access_address(&self, address: [u8; 4]);
+    fn set_channel(&self, channel: RadioChannel, address: u32, crcinit: u32);
+    fn set_transition_state(&self, state: PhyTransition);
+    fn set_access_address(&self, aa: u32);
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum PhyTransition {
     None,
     MoveToTX,
-    MoveToRX
+    MoveToRX,
 }
 
 pub enum ReadAction {
     SkipFrame,
     ReadFrameAndStayRX,
-    ReadFrameAndMoveToTX
+    ReadFrameAndMoveToTX,
 }
+
 
 pub enum DisablePHY {
     DisableAfterRX,
     NoDisable,
-    AlreadyDisabled
+    AlreadyDisabled,
 }
 
 pub trait RxClient {
@@ -146,7 +150,6 @@ impl RadioChannel {
             RadioChannel::AdvertisingChannel38 => Some(RadioChannel::AdvertisingChannel39),
             _ => None
         }
-
     }
     pub fn get_channel_index(&self) -> u32 {
         match *self {

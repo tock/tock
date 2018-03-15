@@ -3,15 +3,15 @@ use kernel;
 use kernel::returncode::ReturnCode;
 use ble_advertising_hil::RadioChannel;
 use ble_advertising_driver::BusyState;
+use ble_advertising_hil::Pdu_writer;
 
 
 pub trait BLESender {
     fn transmit_buffer(&self,
                        buf: &'static mut [u8],
-                       len: usize,
-                       channel: RadioChannel, appid: kernel::AppId);
+                       len: usize, appid: kernel::AppId);
 
-    fn transmit_buffer_edit(&self, len: usize, channel: RadioChannel, appid: kernel::AppId, edit_buffer: &Fn(&mut [u8]) -> ());
+    fn transmit_buffer_edit(&self, len: usize, appid: kernel::AppId, edit_buffer: &Fn(&mut [u8]) -> ());
 
     fn receive_buffer(&self, channel: RadioChannel, appid: kernel::AppId);
 
@@ -21,7 +21,7 @@ pub trait BLESender {
 
     fn alarm_now(&self) -> u32;
 
-    fn set_access_address(&self, address: [u8; 4]);
+    fn set_access_address(&self, address: u32);
 }
 
 pub trait BLEEventHandler<S>
