@@ -1439,7 +1439,7 @@ impl<'a, B, A> BLESender for BLE<'a, B, A>
 
     fn receive_buffer(&self, channel: RadioChannel, appid: kernel::AppId) {
         self.receiving_app.set(Some(appid));
-        self.radio.receive_advertisement(channel);
+        self.radio.receive_advertisement();
     }
     fn set_tx_power(&self, power: u8) -> ReturnCode {
         self.radio.set_tx_power(power)
@@ -1582,7 +1582,13 @@ where
         let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
 
         match self.ble_state {
-            BLEState::Advertising => ReadAction::ReadFrameAndStayRX,
+            BLEState::Advertising => {
+                match pdu_type {
+                    Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrameAndMoveToTX,
+                    Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrameAndStayRX,
+                    _ => ReadAction::SkipFrame
+                }
+            },
             BLEState::Connection => ReadAction::SkipFrame,
             BLEState::Scanning => ReadAction::ReadFrameAndStayRX,
             BLEState::Initiating => ReadAction::SkipFrame,

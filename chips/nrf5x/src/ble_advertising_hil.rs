@@ -55,7 +55,7 @@ pub trait BleAdvertisementDriver {
         buf: &'static mut [u8],
         len: usize,
     ) -> &'static mut [u8];
-    fn receive_advertisement(&self, channel: RadioChannel);
+    fn receive_advertisement(&self);
     fn set_receive_client(&self, client: &'static RxClient);
     fn set_transmit_client(&self, client: &'static TxClient);
 }

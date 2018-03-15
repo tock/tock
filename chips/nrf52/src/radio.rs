@@ -111,6 +111,8 @@ impl Radio {
 
         self.set_dma_ptr_tx();
 
+        self.state.set(RadioState::TX);
+
         regs.event_ready.set(0);
         regs.event_end.set(0);
         regs.event_disabled.set(0);
@@ -620,7 +622,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         res
     }
 
-    fn receive_advertisement(&self, channel: RadioChannel) {
+    fn receive_advertisement(&self) {
         self.ble_initialize();
         self.rx();
         self.enable_interrupts();
