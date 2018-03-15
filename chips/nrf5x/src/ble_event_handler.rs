@@ -3,7 +3,6 @@ use kernel;
 use kernel::returncode::ReturnCode;
 use ble_advertising_hil::RadioChannel;
 use ble_advertising_driver::BusyState;
-use ble_advertising_hil::Pdu_writer;
 
 
 pub trait BLESender {

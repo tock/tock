@@ -49,8 +49,6 @@
 
 use kernel::ReturnCode;
 
-pub type Pdu_writer<'c> = Fn(&'c mut [u8], &'c mut u8) -> u8;
-
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(
         &self,

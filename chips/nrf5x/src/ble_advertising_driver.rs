@@ -197,7 +197,7 @@
 
 
 use ble_advertising_hil;
-use ble_advertising_hil::{ReadAction, RadioChannel, DisablePHY, Pdu_writer};
+use ble_advertising_hil::{ReadAction, RadioChannel, DisablePHY};
 use ble_connection::ConnectionData;
 use ble_event_handler::BLEEventHandler;
 use ble_event_handler::BLESender;

@@ -38,7 +38,7 @@ use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, DisablePHY, Pdu_writer};
+use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, DisablePHY};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 use ppi;
