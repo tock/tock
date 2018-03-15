@@ -1423,14 +1423,11 @@ impl<'a, B, A> BLESender for BLE<'a, B, A>
         _len: usize,
         appid: kernel::AppId
     ) {
-
-        debug!("transmit_buffer()");
         self.sending_app.set(Some(appid));
         let result = self.radio.transmit_advertisement(buf, PACKET_LENGTH);
         self.kernel_tx.replace(result);
     }
     fn transmit_buffer_edit(&self, len: usize, appid: kernel::AppId, edit_buffer: &Fn(&mut [u8]) -> ()) {
-        debug!("transmit_buffer_edit");
         self.kernel_tx.take().map(|buffer| {
             edit_buffer(buffer);
             buffer
@@ -1614,19 +1611,34 @@ where
 
                 app.handle_tx_event(&self, appid);*/
 
+            });
+            self.reset_active_alarm();
+
+        }
+    }
+}
+
+impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
+{
+    fn advertisement_done(&self) {
+        if let Some(appid) = self.sending_app.get() {
+            let _ = self.app.enter(appid, |app, _| {
+
                 if let Some(channel) = app.channel {
-                    let channel = if let Some(next_channel) = channel.get_next_advertising_channel() {
-                        next_channel
+                    if let Some(next_channel) = channel.get_next_advertising_channel() {
+                        app.channel = Some(channel);
+                        self.radio.set_channel(channel, ACCESS_ADDRESS_ADV, CRCINIT);
+                        app.set_next_adv_scan_timeout::<A::Frequency>(self.alarm.now());
                     } else {
+                        let next_channel = RadioChannel::AdvertisingChannel37;
 
-                        //TODO - set new alarm
-
-                        app.set_next_alarm::<A::Frequency>(self.alarm_now());
-                        RadioChannel::AdvertisingChannel37
-                    };
-
-                    app.channel = Some(channel);
-                    self.radio.set_channel(channel, ACCESS_ADDRESS_ADV, CRCINIT);
+                        app.channel = Some(next_channel);
+                        self.radio.set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                    }
                 } else {
                     panic!("App has no channel");
                 }
@@ -1634,6 +1646,16 @@ where
             });
             self.reset_active_alarm();
 
+        }
+    }
+
+    fn timer_expired(&self) {
+        if let Some(appid) = self.sending_app.get() {
+            let _ = self.app.enter(appid, |app, _| {
+                app.send_advertisement(self, app.appid());
+            });
+
+            self.reset_active_alarm();
         }
     }
 }

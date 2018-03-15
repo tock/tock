@@ -56,8 +56,10 @@ pub trait BleAdvertisementDriver {
         len: usize,
     ) -> &'static mut [u8];
     fn receive_advertisement(&self);
+
     fn set_receive_client(&self, client: &'static RxClient);
     fn set_transmit_client(&self, client: &'static TxClient);
+    fn set_advertisement_client(&self, client: &'static AdvertisementClient);
 }
 
 pub trait BleConfig {
@@ -94,6 +96,11 @@ pub trait RxClient {
 
 pub trait TxClient {
     fn transmit_event(&self, result: ReturnCode);
+}
+
+pub trait AdvertisementClient {
+    fn advertisement_done(&self);
+    fn timer_expired(&self);
 }
 
 // Bluetooth Core Specification:Vol. 6. Part B, section 1.4.1 Advertising and Data Channel Indices

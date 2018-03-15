@@ -320,6 +320,10 @@ pub unsafe fn reset_handler() {
         &nrf52::radio::RADIO,
         ble_radio,
     );
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_advertisement_client(
+        &nrf52::radio::RADIO,
+        ble_radio,
+    );
     ble_radio_virtual_alarm.set_client(ble_radio);
 
     let temp = static_init!(
