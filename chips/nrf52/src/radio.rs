@@ -104,10 +104,7 @@ impl Radio {
         let regs = unsafe { &*self.regs };
 
         self.wait_until_disabled();
-        debug!("wait until disabled done!\n");
-
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH23 | nrf5x::constants::PPI_CHEN_CH25);
-
         self.set_dma_ptr_tx();
 
         self.state.set(RadioState::TX);
@@ -301,8 +298,6 @@ impl Radio {
     }
 
     fn handle_address_event(&self) -> bool {
-        debug!("\nGot an address end");
-
         let regs = unsafe { &*self.regs };
         regs.event_address.set(0);
 
@@ -395,8 +390,6 @@ impl Radio {
         if PhyTransition::MoveToRX == self.transition.get() {
             self.setup_rx();
 
-            debug!("Move to RX\n");
-
             // TODO wfr_enable
             self.schedule_rx_after_t_ifs();
         } else {
@@ -417,8 +410,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
 
         let mut enabled_interrupts = regs.intenclr.get();
-
-        debug!("interrupt {:b}\n", enabled_interrupts);
 
         if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_ADDRESS) > 0
             && regs.event_address.get() == 1
@@ -505,7 +496,6 @@ impl Radio {
 
     pub fn ble_initialize(&self) {
         if self.state.get() == RadioState::Uninitialized {
-            debug!("initialize again?\n");
             self.radio_on();
 
             self.ble_set_tx_power();
@@ -632,13 +622,10 @@ impl Radio {
 
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
-        debug!("Transmit in radio");
         self.ble_initialize();
         let res = self.replace_radio_buffer(buf, len);
         self.set_tx_start_time(300); //TODO - not sure about why tx is delayed by this time
-        let tx_res = self.tx();
-
-        debug!("tx = {}\n", tx_res);
+        self.tx();
 
         res
     }

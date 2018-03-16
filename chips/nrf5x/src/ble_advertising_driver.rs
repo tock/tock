@@ -543,7 +543,7 @@ impl<'a> BLEPduType<'a> {
 //
 #[allow(unused)]
 #[repr(u8)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BLEAdvertisementType {
     ConnectUndirected = 0x00,
     ConnectDirected = 0x01,
@@ -1024,6 +1024,32 @@ impl App {
         let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
 
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
+    }
+
+    fn handle_request(&self, pdu: BLEPduType) -> DisablePHY {
+        match pdu {
+            BLEPduType::ScanRequest(init_addr, adv_addr) => {
+                if Some(adv_addr) == self.advertising_address {
+                    debug!("Scan request for me! YAY\n");
+                    // Scan for us and went to TX already
+                    DisablePHY::NoDisable
+                } else {
+                    // Request is not for us
+                    DisablePHY::DisableAfterRX
+                }
+            }
+            BLEPduType::ConnectRequest(init_addr, adv_addr, _) => {
+                if Some(adv_addr) == self.advertising_address {
+                    debug!("Connection request for me! YAY\n");
+                }
+
+                // TODO parse LLData and switch to data channel
+                // Connection request for me, disable to switch to data channel
+                // or, disable to switch to TX on next adv channel
+                DisablePHY::DisableAfterRX
+            }
+            _ => panic!("WHAT? This is professional\n"),
+        }
     }
 
     fn set_next_adv_scan_timeout<F: Frequency>(&mut self, now: u32) {
@@ -1567,7 +1593,7 @@ where
     // recently performed an operation.
     fn fired(&self) {
         let now = self.alarm.now();
-        debug!("Timer fired!");
+        // debug!("Timer fired!");
 
         self.app.each(|app| {
             if let Expiration::Abs(exp) = app.alarm_data.expiration {
@@ -1629,49 +1655,58 @@ where
     A: kernel::hil::time::Alarm + 'a,
 {
     fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> DisablePHY {
-        let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
+        let mut disable_action = DisablePHY::NoDisable;
 
-        let len: u8 = buf[1];
+        if let Some(appid) = self.sending_app.get() {
+            let _ = self.app.enter(appid, |app, _| {
+                let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
 
-        let mut valid_pkt = false;
+                let len: u8 = buf[1];
 
-        if result == ReturnCode::SUCCESS {
-            valid_pkt = match pdu_type {
-                Some(advertisement_type) => match advertisement_type {
-                    BLEAdvertisementType::ScanRequest | BLEAdvertisementType::ConnectDirected => {
-                        len == SCAN_REQ_LEN
-                    }
+                let mut valid_pkt = false;
 
-                    BLEAdvertisementType::ScanResponse
-                    | BLEAdvertisementType::ConnectUndirected
-                    | BLEAdvertisementType::ScanUndirected
-                    | BLEAdvertisementType::NonConnectUndirected => {
-                        len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN
-                    }
+                if result == ReturnCode::SUCCESS {
+                    valid_pkt = match pdu_type {
+                        Some(advertisement_type) => match advertisement_type {
+                            BLEAdvertisementType::ScanRequest
+                            | BLEAdvertisementType::ConnectDirected => len == SCAN_REQ_LEN,
 
-                    BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN,
-                },
-                None => false,
-            };
+                            BLEAdvertisementType::ScanResponse
+                            | BLEAdvertisementType::ConnectUndirected
+                            | BLEAdvertisementType::ScanUndirected
+                            | BLEAdvertisementType::NonConnectUndirected => {
+                                len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN
+                            }
+
+                            BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN,
+                        },
+                        None => false,
+                    };
+                }
+
+                // TODO call advertising/scanner/connection/initiating driver
+
+                disable_action = if valid_pkt {
+                    let pdu_type = pdu_type.unwrap();
+                    let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
+                    app.handle_request(pdu)
+                } else {
+                    DisablePHY::DisableAfterRX
+                }
+            });
         }
 
-        // TODO call advertising/scanner/connection/initiating driver
-
-        if valid_pkt {
-            DisablePHY::NoDisable
-        } else {
-            DisablePHY::DisableAfterRX
-        }
+        disable_action
     }
     fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction {
-        unsafe {
-            LOG.collect_string_log("got an rx!", self.alarm_now());
-        }
-        unsafe {
-            LOG.print_log();
-        }
+        // unsafe {
+        //     LOG.collect_string_log("got an rx!", self.alarm_now());
+        // }
+        // unsafe {
+        //     LOG.print_log();
+        // }
 
-        debug!("Do I want this? PDU Type: {}\n", buf[0] & 0x0f);
+        // debug!("Do I want this? PDU Type: {}\n", buf[0] & 0x0f);
 
         let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
 
