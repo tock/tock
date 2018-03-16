@@ -1720,8 +1720,9 @@ where
             let _ = self.app.enter(appid, |app, _| {
                 if let Some(channel) = app.channel {
                     if let Some(next_channel) = channel.get_next_advertising_channel() {
-                        app.channel = Some(channel);
-                        self.radio.set_channel(channel, ACCESS_ADDRESS_ADV, CRCINIT);
+                        app.channel = Some(next_channel);
+                        self.radio
+                            .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
                         app.set_next_adv_scan_timeout::<A::Frequency>(self.alarm.now());
                     } else {
                         let next_channel = RadioChannel::AdvertisingChannel37;
