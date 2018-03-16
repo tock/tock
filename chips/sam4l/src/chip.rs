@@ -1,5 +1,6 @@
 //! Interrupt mapping and DMA channel setup.
 
+use acifc;
 use adc;
 use aes;
 use ast;
@@ -133,6 +134,7 @@ impl Chip for Sam4l {
                         HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
                         ADCIFE => adc::ADC0.handle_interrupt(),
                         DACC => dac::DAC.handle_interrupt(),
+                        ACIFC => acifc::ACIFC.handle_interrupt(),
 
                         TRNG => trng::TRNG.handle_interrupt(),
                         AESA => aes::AES.handle_interrupt(),
