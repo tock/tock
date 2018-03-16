@@ -1028,9 +1028,9 @@ impl App {
 
     fn handle_request(&self, pdu: BLEPduType) -> DisablePHY {
         match pdu {
-            BLEPduType::ScanRequest(init_addr, adv_addr) => {
+            BLEPduType::ScanRequest(_scan_addr, adv_addr) => {
                 if Some(adv_addr) == self.advertising_address {
-                    debug!("Scan request for me! YAY\n");
+                    debug!("Scan request for me! YAY {:?}\n", adv_addr);
                     // Scan for us and went to TX already
                     DisablePHY::NoDisable
                 } else {
@@ -1038,9 +1038,9 @@ impl App {
                     DisablePHY::DisableAfterRX
                 }
             }
-            BLEPduType::ConnectRequest(init_addr, adv_addr, _) => {
+            BLEPduType::ConnectRequest(_init_addr, adv_addr, _) => {
                 if Some(adv_addr) == self.advertising_address {
-                    debug!("Connection request for me! YAY\n");
+                    debug!("Connection request for me! YAY {:?}\n", adv_addr);
                 }
 
                 // TODO parse LLData and switch to data channel
