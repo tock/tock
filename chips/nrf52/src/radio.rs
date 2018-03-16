@@ -523,9 +523,9 @@ impl Radio {
             self.state.set(RadioState::Initialized);
 
             self.enable_ppi(nrf5x::constants::PPI_CHEN_CH26 | nrf5x::constants::PPI_CHEN_CH27);
-            unsafe {
-                nrf5x::timer::TIMER0.start();
-            }
+        }
+        unsafe {
+            nrf5x::timer::TIMER0.start();
         }
     }
 
