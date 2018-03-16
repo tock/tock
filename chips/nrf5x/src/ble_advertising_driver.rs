@@ -198,7 +198,6 @@
 use ble_advertising_hil;
 use ble_advertising_hil::{DisablePHY, RadioChannel, ReadAction};
 use ble_connection::ConnectionData;
-use ble_event_handler::BLEEventHandler;
 use ble_event_handler::BLESender;
 use core::cell::Cell;
 use core::cmp;
@@ -702,6 +701,12 @@ static mut LOG: Log = Log {
     log_array: [[0; PACKET_LENGTH]; NBR_PACKETS],
 };
 
+#[derive(PartialEq)]
+enum BleLinkLayerState {
+    RespondingToScanRequest,
+    WaitingForConnection,
+}
+
 pub struct App {
     advertising_address: Option<DeviceAddress>,
     advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
@@ -714,6 +719,7 @@ pub struct App {
     scan_timeout_ms: u32,
     alarm_data: AlarmData,
     tx_power: u8,
+    state: Option<BleLinkLayerState>,
     channel: Option<RadioChannel>,
     /// The state of an app-specific pseudo random number.
     ///
@@ -735,6 +741,7 @@ impl Default for App {
             idx: PACKET_PAYLOAD_START,
             process_status: Some(AppBLEState::NotInitialized),
             tx_power: 0,
+            state: None,
             channel: None,
             advertisement_interval_ms: 200,
             scan_timeout_ms: 100,
@@ -891,37 +898,40 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn send_advertisement(&self, ble: &BLESender, appid: kernel::AppId) -> ReturnCode {
-        //debug!("\nSending on channel {:?}", channel);
+    fn prepare_advertisement(
+        &mut self,
+        ble: &BLESender,
+        advertisement_type: BLEAdvertisementType,
+    ) -> ReturnCode {
+        self.state = None;
 
         self.advertisement_buf
             .as_ref()
             .map_or(ReturnCode::EINVAL, |slice| {
-                ble.transmit_buffer_edit(PACKET_LENGTH, appid, &|data: &mut [u8]| {
+                ble.replace_buffer(&|data: &mut [u8]| {
                     for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
                         .iter_mut()
                         .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
                     {
                         *out = *inp;
                     }
-                    data.as_mut()[PACKET_HDR_PDU] =
-                        (0x04 << 4) | (BLEAdvertisementType::ConnectUndirected as u8);
+                    data.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (advertisement_type as u8);
                 });
-
                 ReturnCode::SUCCESS
             })
     }
 
-    fn send_scan_response(
-        &self,
-        ble: &BLESender,
-        channel: RadioChannel,
-        appid: kernel::AppId,
-    ) -> ReturnCode {
+    fn prepare_scan_response<'a, B, A>(&mut self, ble: &BLE<'a, B, A>) -> ReturnCode
+    where
+        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+        A: kernel::hil::time::Alarm + 'a,
+    {
+        self.state = Some(BleLinkLayerState::RespondingToScanRequest);
+
         self.advertisement_buf
             .as_ref()
-            .map_or(ReturnCode::EINVAL, |slice| {
-                ble.transmit_buffer_edit(PACKET_LENGTH, appid, &|data: &mut [u8]| {
+            .map(|slice| {
+                ble.replace_buffer(&|data: &mut [u8]| {
                     for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
                         .iter_mut()
                         .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
@@ -930,37 +940,6 @@ impl App {
                     }
                     data.as_mut()[PACKET_HDR_PDU] =
                         (0x04 << 4) | (BLEAdvertisementType::ScanResponse as u8);
-                });
-
-                ReturnCode::SUCCESS
-            })
-    }
-
-    fn send_scan_request(
-        &mut self,
-        ble: &BLESender,
-        adv_addr: DeviceAddress,
-        channel: RadioChannel,
-        appid: kernel::AppId,
-    ) -> ReturnCode {
-        // debug!("Sending ScanRequest to {:?}", adv_addr);
-
-        self.advertisement_buf
-            .as_ref()
-            .map(|slice| {
-                ble.transmit_buffer_edit(PACKET_LENGTH, appid, &|data: &mut [u8]| {
-                    for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
-                        .iter_mut()
-                        .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
-                    {
-                        *out = *inp;
-                    }
-                    data.as_mut()[PACKET_HDR_LEN] = 12;
-                    for i in 0..6 {
-                        data.as_mut()[PACKET_ADDR_START + 6 + i] = adv_addr.0[i];
-                    }
-                    data.as_mut()[PACKET_HDR_PDU] =
-                        (0x04 << 4) | (BLEAdvertisementType::ScanRequest as u8);
                 });
 
                 ReturnCode::SUCCESS
@@ -1026,11 +1005,16 @@ impl App {
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
 
-    fn handle_request(&self, pdu: BLEPduType) -> DisablePHY {
+    fn handle_request<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, pdu: BLEPduType) -> DisablePHY
+    where
+        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+        A: kernel::hil::time::Alarm + 'a,
+    {
         match pdu {
             BLEPduType::ScanRequest(_scan_addr, adv_addr) => {
                 if Some(adv_addr) == self.advertising_address {
                     debug!("Scan request for me! YAY {:?}\n", adv_addr);
+                    self.prepare_scan_response(ble);
                     // Scan for us and went to TX already
                     DisablePHY::NoDisable
                 } else {
@@ -1041,6 +1025,7 @@ impl App {
             BLEPduType::ConnectRequest(_init_addr, adv_addr, _) => {
                 if Some(adv_addr) == self.advertising_address {
                     debug!("Connection request for me! YAY {:?}\n", adv_addr);
+                    self.state = Some(BleLinkLayerState::WaitingForConnection);
                 }
 
                 // TODO parse LLData and switch to data channel
@@ -1058,407 +1043,6 @@ impl App {
         let period_ms = self.scan_timeout_ms * F::frequency() / 1000;
 
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
-    }
-
-    fn handle_timer_event<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, appid: kernel::AppId)
-    where
-        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-        A: kernel::hil::time::Alarm + 'a,
-    {
-    }
-
-    fn handle_rx_event<'a, B, A>(
-        &mut self,
-        ble: &BLE<'a, B, A>,
-        appid: kernel::AppId,
-        buf: &'static mut [u8],
-    ) where
-        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-        A: kernel::hil::time::Alarm + 'a,
-    {
-        let parsed_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
-        let pdu = parsed_type.and_then(|adv_type| BLEPduType::from_buffer(adv_type, buf));
-
-        let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x11, 0x11, 0x00, 0x00, 0xf0]);
-
-        /*if let Some(ref pdu) = pdu {
-            self.collect_buffer_log(&buf, ble.alarm_now());
-        }*/
-
-        /*                if notify_userland {
-                            app.scan_callback.map(|mut cb| {
-                                cb.schedule(usize::from(result), len as usize, 0);
-                            });
-                        }*/
-
-        if let Some(pdu) = pdu {
-            let new_state = self.process_status.map(|ble_state| match ble_state {
-                AppBLEState::Advertising(adv_state) => AppBLEState::Advertising(
-                    Advertiser::handle_rx_event::<A>(adv_state, self, ble, appid, &pdu),
-                ),
-                AppBLEState::Scanning(scan_state) => AppBLEState::Scanning(
-                    Scanner::handle_rx_event::<A>(scan_state, self, ble, appid, &pdu),
-                ),
-                state => {
-                    debug!("Error! handle_rx_event {:?}", state);
-
-                    state
-                }
-            });
-            self.process_status = new_state;
-        }
-    }
-
-    fn handle_tx_event<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, appid: kernel::AppId)
-    where
-        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-        A: kernel::hil::time::Alarm + 'a,
-    {
-        let new_state = self.process_status.map(|ble_state| match ble_state {
-            AppBLEState::Advertising(adv_state) => AppBLEState::Advertising(
-                Advertiser::handle_tx_event::<A>(adv_state, self, ble, appid),
-            ),
-            AppBLEState::Scanning(scan_state) => {
-                AppBLEState::Scanning(Scanner::handle_tx_event::<A>(scan_state, self, ble, appid))
-            }
-            state => {
-                debug!("Error! handle_tx_event {:?}", state);
-
-                state
-            }
-        });
-        self.process_status = new_state;
-    }
-}
-
-#[derive(PartialEq)]
-struct Advertiser;
-
-impl BLEEventHandler<BLEAdvertisingState> for Advertiser {
-    fn handle_rx_event<A>(
-        state: BLEAdvertisingState,
-        app: &mut App,
-        ble: &BLESender,
-        appid: kernel::AppId,
-        pdu: &BLEPduType,
-    ) -> BLEAdvertisingState
-    where
-        A: kernel::hil::time::Alarm,
-    {
-        match state {
-            BLEAdvertisingState::Connection(channel, connection_data) => {
-                debug!("Yass!!! We got one! {:?}, {:?}", channel, connection_data);
-
-                state
-            }
-            BLEAdvertisingState::Listening(channel) => {
-                match pdu {
-                    &BLEPduType::ConnectRequest(init_addr, adv_addr, ref lldata) => {
-                        let mut new_state = state;
-
-                        app.advertising_address.map(|address| {
-                            if address == adv_addr {
-                                debug!("\nConnection request! {:?} {:?}", init_addr, adv_addr);
-
-                                unsafe {
-                                    LOG.collect_string_log(
-                                        "connection request for me!",
-                                        ble.alarm_now(),
-                                    );
-                                }
-
-                                app.alarm_data.expiration = Expiration::Disabled;
-
-                                let mut conn_data = ConnectionData::new(lldata);
-
-                                //TODO - ble.set_access_address(lldata.aa);
-
-                                let next_channel = conn_data.next_channel();
-
-                                new_state =
-                                    BLEAdvertisingState::Connection(next_channel, conn_data);
-
-                                ble.receive_buffer(next_channel, appid);
-                            } else {
-                                ble.receive_buffer(channel, appid);
-                                //debug!("Connection req not for me: {:?} {:?} {:?}", init_addr, adv_addr, lldata);
-                            }
-
-                            address
-                        });
-
-                        new_state
-                    }
-                    &BLEPduType::ScanRequest(scan_addr, adv_addr) => {
-                        let mut new_state = state;
-
-                        app.advertising_address.map(|address| {
-                            ble.set_tx_power(app.tx_power);
-
-                            if address == adv_addr {
-                                unsafe {
-                                    LOG.collect_string_log("scan request for me!", ble.alarm_now());
-                                }
-                                app.alarm_data.expiration = Expiration::Disabled;
-                                new_state = BLEAdvertisingState::Responding(channel);
-
-                                // debug!("Got a ScanReq");
-
-                                app.send_scan_response(ble, channel, appid);
-                            } else {
-                                ble.receive_buffer(channel, appid);
-                            }
-                            address
-                        });
-
-                        new_state
-                    }
-                    // Received other packet, try receive again!
-                    _ => {
-                        ble.receive_buffer(channel, appid);
-
-                        state
-                    }
-                }
-            }
-            state @ BLEAdvertisingState::Idle => {
-                // ignore if rx during Idle
-                state
-            }
-            state => {
-                debug!("Error! Adv::handle_rx_event {:?}", state);
-
-                state
-            }
-        }
-    }
-
-    fn handle_tx_event<A>(
-        state: BLEAdvertisingState,
-        app: &mut App,
-        ble: &BLESender,
-        appid: kernel::AppId,
-    ) -> BLEAdvertisingState
-    where
-        A: kernel::hil::time::Alarm,
-    {
-        match state {
-            BLEAdvertisingState::Advertising(channel) => {
-                ble.set_tx_power(app.tx_power);
-                ble.receive_buffer(channel, appid);
-                // app.collect_string_log("send_response", ble.alarm_now());
-
-                BLEAdvertisingState::Listening(channel)
-            }
-            BLEAdvertisingState::Responding(channel) => {
-                if let Some(channel) = channel.get_next_advertising_channel() {
-                    ble.set_tx_power(app.tx_power);
-                    app.send_advertisement(ble, appid);
-
-                    // TODO - check correct timeout
-                    app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-
-                    BLEAdvertisingState::Advertising(channel)
-                } else {
-                    ble.set_busy(BusyState::Free);
-
-                    app.set_next_alarm::<A::Frequency>(ble.alarm_now());
-
-                    BLEAdvertisingState::Idle
-                }
-            }
-            BLEAdvertisingState::Idle => {
-                debug!("I'm Idle in handle_tx_event, this is unprofessional");
-                /*ble.set_busy(BusyState::Busy(appid));
-                let channel = RadioChannel::AdvertisingChannel37;
-                ble.set_tx_power(app.tx_power);
-                app.send_advertisement(ble, RadioChannel::AdvertisingChannel37, appid);
-
-                app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-
-                BLEAdvertisingState::Advertising(RadioChannel::AdvertisingChannel37)*/
-                state
-            }
-            state => {
-                debug!("Error! Adv::handle_tx_event {:?}", state);
-
-                state
-            }
-        }
-    }
-
-    fn handle_timer_event<A>(
-        state: BLEAdvertisingState,
-        app: &mut App,
-        ble: &BLESender,
-        appid: kernel::AppId,
-    ) -> BLEAdvertisingState
-    where
-        A: kernel::hil::time::Alarm,
-    {
-        match state {
-            BLEAdvertisingState::Listening(channel) => {
-                if let Some(channel) = channel.get_next_advertising_channel() {
-                    ble.set_tx_power(app.tx_power);
-                    app.send_advertisement(ble, appid);
-                    unsafe {
-                        LOG.collect_string_log("send_advertisement", ble.alarm_now());
-                    }
-
-                    app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-                    BLEAdvertisingState::Advertising(channel)
-                } else {
-                    ble.set_busy(BusyState::Free);
-                    app.set_next_alarm::<A::Frequency>(ble.alarm_now());
-
-                    BLEAdvertisingState::Idle
-                }
-            }
-
-            BLEAdvertisingState::Idle => {
-                //debug!("handle_tx_event, Idle -> 37");
-                ble.set_busy(BusyState::Busy(appid));
-                let channel = RadioChannel::AdvertisingChannel37;
-
-                ble.set_tx_power(app.tx_power);
-                app.send_advertisement(ble, appid);
-
-                app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-                BLEAdvertisingState::Advertising(RadioChannel::AdvertisingChannel37)
-            }
-            _ => {
-                debug!(
-                    "Timer app: {:?} \t invalid state {:?}",
-                    appid, app.process_status
-                );
-
-                state
-            }
-        }
-    }
-}
-
-#[derive(PartialEq)]
-struct Scanner;
-
-impl BLEEventHandler<BLEScanningState> for Scanner {
-    fn handle_rx_event<A>(
-        state: BLEScanningState,
-        app: &mut App,
-        ble: &BLESender,
-        appid: kernel::AppId,
-        pdu: &BLEPduType,
-    ) -> BLEScanningState
-    where
-        A: kernel::hil::time::Alarm,
-    {
-        match state {
-            BLEScanningState::Scanning(channel) => {
-                match *pdu {
-                    BLEPduType::ConnectUndirected(adv_addr, _) => {
-                        let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
-                        //debug!("adv_addr: {:?}", adv_addr);
-
-                        if adv_addr == tmp_adv_addr {
-                            app.alarm_data.expiration = Expiration::Disabled;
-                            ble.set_tx_power(app.tx_power);
-
-                            // debug!("ADV_IND from {:?}", adv_addr);
-                            let lldata = LLData::new();
-                            app.send_connect_request(ble, tmp_adv_addr, channel, lldata, appid);
-                            //app.send_scan_request(ble, tmp_adv_addr, channel, appid);
-
-                            BLEScanningState::Requesting(channel)
-                        } else {
-                            ble.receive_buffer(channel, appid);
-
-                            state
-                        }
-                    }
-                    BLEPduType::ScanResponse(adv_addr, _) => {
-                        let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
-                        if adv_addr == tmp_adv_addr {
-                            ble.set_tx_power(app.tx_power);
-                            ble.receive_buffer(channel, appid);
-                        }
-
-                        state
-                    }
-                    _ => {
-                        ble.receive_buffer(channel, appid);
-
-                        state
-                    }
-                }
-            }
-            _ => state,
-        }
-    }
-
-    fn handle_tx_event<A>(
-        state: BLEScanningState,
-        app: &mut App,
-        ble: &BLESender,
-        appid: kernel::AppId,
-    ) -> BLEScanningState
-    where
-        A: kernel::hil::time::Alarm,
-    {
-        match state {
-            BLEScanningState::Requesting(channel) => {
-                ble.set_tx_power(app.tx_power);
-                ble.receive_buffer(channel, appid);
-
-                app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-
-                BLEScanningState::Scanning(channel)
-            }
-            _ => state,
-        }
-    }
-
-    fn handle_timer_event<A>(
-        state: BLEScanningState,
-        app: &mut App,
-        ble: &BLESender,
-        appid: kernel::AppId,
-    ) -> BLEScanningState
-    where
-        A: kernel::hil::time::Alarm,
-    {
-        match state {
-            BLEScanningState::Idle => {
-                ble.set_busy(BusyState::Busy(appid));
-
-                let channel = RadioChannel::AdvertisingChannel37;
-
-                ble.set_tx_power(app.tx_power);
-                ble.receive_buffer(channel, appid);
-                app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-
-                BLEScanningState::Scanning(channel)
-            }
-            BLEScanningState::Scanning(channel) => {
-                if let Some(channel) = channel.get_next_advertising_channel() {
-                    ble.set_tx_power(app.tx_power);
-                    ble.receive_buffer(channel, appid);
-
-                    app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-
-                    BLEScanningState::Scanning(channel)
-                } else {
-                    app.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm_now());
-                    ble.set_busy(BusyState::Free);
-
-                    BLEScanningState::Idle
-                }
-            }
-            state => {
-                debug!("Error! Scanner::handle_timer_event {:?}", state);
-
-                state
-            }
-        }
     }
 }
 
@@ -1534,24 +1118,31 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn transmit_buffer(&self, buf: &'static mut [u8], _len: usize, appid: kernel::AppId) {
+    fn transmit_buffer(&self, appid: kernel::AppId) {
         self.sending_app.set(Some(appid));
-        let result = self.radio.transmit_advertisement(buf, PACKET_LENGTH);
-        self.kernel_tx.replace(result);
+        self.kernel_tx.take().map(|buf| {
+            let res = self.radio.transmit_advertisement(buf, PACKET_LENGTH);
+            self.kernel_tx.replace(res);
+        });
     }
+
     fn transmit_buffer_edit(
         &self,
         len: usize,
         appid: kernel::AppId,
         edit_buffer: &Fn(&mut [u8]) -> (),
     ) {
-        self.kernel_tx
-            .take()
-            .map(|buffer| {
-                edit_buffer(buffer);
-                buffer
-            })
-            .map(|slice| self.transmit_buffer(slice, len, appid));
+        self.kernel_tx.map(|buffer| {
+            edit_buffer(buffer);
+        });
+
+        self.transmit_buffer(appid);
+    }
+
+    fn replace_buffer(&self, edit_buffer: &Fn(&mut [u8]) -> ()) {
+        self.kernel_tx.map(|buffer| {
+            edit_buffer(buffer);
+        });
     }
 
     fn receive_buffer(&self, channel: RadioChannel, appid: kernel::AppId) {
@@ -1600,13 +1191,15 @@ where
                 let expired =
                     now.wrapping_sub(app.alarm_data.t0) >= exp.wrapping_sub(app.alarm_data.t0);
                 if expired {
+                    let appid = app.appid();
+
                     if let BusyState::Busy(busy_app_id) = self.busy.get() {
-                        if busy_app_id != app.appid() {
+                        if busy_app_id != appid {
                             // The radio is currently busy, so we won't be able to start the
                             // operation at the appropriate time. Instead, reschedule the
                             // operation for later. This is _kind_ of simulating actual
                             // on-air interference
-                            debug!("BLE: operationg delayed for app {:?}", app.appid());
+                            debug!("BLE: operationg delayed for app {:?}", appid);
                             app.set_next_alarm::<A::Frequency>(self.alarm.now());
                             return;
                         }
@@ -1616,8 +1209,8 @@ where
                         LOG.collect_string_log("fire!", self.alarm_now());
                     }
 
-                    self.receiving_app.set(Some(app.appid()));
-                    self.sending_app.set(Some(app.appid()));
+                    self.receiving_app.set(Some(appid));
+                    self.sending_app.set(Some(appid));
 
                     if let Some(channel) = app.channel {
                         self.radio.set_channel(channel, ACCESS_ADDRESS_ADV, CRCINIT);
@@ -1627,12 +1220,8 @@ where
 
                     //TODO - for now, let the advertiser always set MoveToRX, change later
                     self.radio.set_transition_state(PhyTransition::MoveToRX);
-
-                    /*let pdu_writer= |buffer: &mut [u8], header: &mut u8| -> u8 {
-                        self.make_adv_pdu(buffer, header)
-                    };*/
-
-                    app.send_advertisement(self, app.appid());
+                    app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
+                    self.transmit_buffer(appid);
                 }
             }
         });
@@ -1687,9 +1276,9 @@ where
                 // TODO call advertising/scanner/connection/initiating driver
 
                 disable_action = if valid_pkt {
-                    let pdu_type = pdu_type.unwrap();
+                    let pdu_type = pdu_type.expect("PDU type should be valid");
                     let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
-                    app.handle_request(pdu)
+                    app.handle_request(&self, pdu)
                 } else {
                     DisablePHY::DisableAfterRX
                 }
@@ -1753,6 +1342,10 @@ where
     fn advertisement_done(&self) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
+                if app.state == Some(BleLinkLayerState::RespondingToScanRequest) {
+                    app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
+                }
+
                 if let Some(channel) = app.channel {
                     if let Some(next_channel) = channel.get_next_advertising_channel() {
                         app.channel = Some(next_channel);
@@ -1778,7 +1371,8 @@ where
     fn timer_expired(&self) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
-                app.send_advertisement(self, app.appid());
+                app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
+                self.transmit_buffer(appid);
             });
 
             self.reset_active_alarm();

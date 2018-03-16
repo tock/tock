@@ -623,11 +623,15 @@ impl Radio {
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         self.ble_initialize();
-        let res = self.replace_radio_buffer(buf, len);
+        let res = self.set_advertisement_data(buf, len);
         self.set_tx_start_time(300); //TODO - not sure about why tx is delayed by this time
         self.tx();
 
         res
+    }
+
+    fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+        self.replace_radio_buffer(buf, len) // TODO replace signature to accomondate for a more flexible format of packets
     }
 
     fn receive_advertisement(&self) {

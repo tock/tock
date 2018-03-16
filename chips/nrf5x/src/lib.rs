@@ -5,14 +5,13 @@
 #[macro_use(debug)]
 extern crate kernel;
 
-
 mod peripheral_registers;
 
 pub mod aes;
 pub mod ble_advertising_driver;
-pub mod ble_event_handler;
-pub mod ble_connection;
 pub mod ble_advertising_hil;
+pub mod ble_connection;
+pub mod ble_event_handler;
 pub mod clock;
 pub mod gpio;
 pub mod peripheral_interrupts;

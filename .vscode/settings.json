@@ -1,4 +1,5 @@
 {
-    "editor.formatOnSave": true,
-    "rust-client.channel": "nightly-2018-01-05",
+  "editor.formatOnSave": true,
+  "rust-client.channel": "nightly-2018-01-05",
+  "editor.tabSize": 4
 }

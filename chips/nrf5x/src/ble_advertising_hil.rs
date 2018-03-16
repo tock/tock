@@ -50,11 +50,8 @@
 use kernel::ReturnCode;
 
 pub trait BleAdvertisementDriver {
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-    ) -> &'static mut [u8];
+    fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
+    fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
     fn receive_advertisement(&self);
 
     fn set_receive_client(&self, client: &'static RxClient);
@@ -81,7 +78,6 @@ pub enum ReadAction {
     ReadFrameAndStayRX,
     ReadFrameAndMoveToTX,
 }
-
 
 pub enum DisablePHY {
     DisableAfterRX,
@@ -153,7 +149,7 @@ impl RadioChannel {
         match *self {
             RadioChannel::AdvertisingChannel37 => Some(RadioChannel::AdvertisingChannel38),
             RadioChannel::AdvertisingChannel38 => Some(RadioChannel::AdvertisingChannel39),
-            _ => None
+            _ => None,
         }
     }
     pub fn get_channel_index(&self) -> u32 {
@@ -243,7 +239,7 @@ impl RadioChannel {
             37 => Some(RadioChannel::AdvertisingChannel37),
             38 => Some(RadioChannel::AdvertisingChannel38),
             39 => Some(RadioChannel::AdvertisingChannel39),
-            _ => None
+            _ => None,
         }
     }
 }
