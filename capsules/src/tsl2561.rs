@@ -19,7 +19,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 
-// Syscall driver number.
+/// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x70000;
 
 // Buffer to use for I2C messages
