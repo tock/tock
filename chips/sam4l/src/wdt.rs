@@ -20,7 +20,10 @@ pub struct WdtRegisters {
 register_bitfields![u32,
     Control [
         /// Write access key
-        KEY OFFSET(24) NUMBITS(8) [],
+        KEY OFFSET(24) NUMBITS(8) [
+            KEY1 = 0x55,
+            KEY2 = 0xAA
+        ],
         /// Time Ban Prescale Select
         TBAN OFFSET(18) NUMBITS(5) [],
         /// Clock Source Select
@@ -69,7 +72,10 @@ register_bitfields![u32,
 
     Clear [
         /// Write access key
-        KEY OFFSET(24) NUMBITS(8) [],
+        KEY OFFSET(24) NUMBITS(8) [
+            KEY1 = 0x55,
+            KEY2 = 0xAA
+        ],
         /// Watchdog Clear
         WDTCLR OFFSET(0) NUMBITS(1) []
     ],
@@ -147,16 +153,16 @@ impl Wdt {
             + Control::DAR::DisableAfterReset + Control::EN::Enable;
 
         // Need to write twice for it to work
-        regs.cr.write(Control::KEY.val(0x55) + control);
-        regs.cr.write(Control::KEY.val(0xAA) + control);
+        regs.cr.write(Control::KEY::KEY1 + control);
+        regs.cr.write(Control::KEY::KEY2 + control);
     }
 
     fn stop(&self) {
         let regs: &WdtRegisters = unsafe { &*self.registers };
 
         // Need to write twice for it to work
-        regs.cr.modify(Control::KEY.val(0x55) + Control::EN::CLEAR);
-        regs.cr.modify(Control::KEY.val(0xAA) + Control::EN::CLEAR);
+        regs.cr.modify(Control::KEY::KEY1 + Control::EN::CLEAR);
+        regs.cr.modify(Control::KEY::KEY2 + Control::EN::CLEAR);
 
         unsafe {
             pm::disable_clock(Clock::PBD(PBDClock::WDT));
@@ -169,8 +175,8 @@ impl Wdt {
         let regs: &WdtRegisters = unsafe { &*self.registers };
 
         // Need to write the WDTCLR bit twice for it to work
-        regs.clr.write(Clear::KEY.val(0x55) + Clear::WDTCLR::SET);
-        regs.clr.write(Clear::KEY.val(0xAA) + Clear::WDTCLR::SET);
+        regs.clr.write(Clear::KEY::KEY1 + Clear::WDTCLR::SET);
+        regs.clr.write(Clear::KEY::KEY2 + Clear::WDTCLR::SET);
     }
 }
 
