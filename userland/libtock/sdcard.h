@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_SDCARD 15
+#define DRIVER_NUM_SDCARD 0x50002
 
 // set a callback function for SD card commands
 // Callback is called upon command completion or when an error occurs. See
