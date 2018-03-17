@@ -458,8 +458,6 @@ pub fn deep_sleep_ready() -> bool {
 }
 
 impl ClockInterface for Clock {
-    type PlatformClockType = Clock;
-
     fn is_enabled(&self) -> bool {
         unsafe {
             match self {

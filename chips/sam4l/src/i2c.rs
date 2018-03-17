@@ -108,8 +108,6 @@ struct TWIMClock {
     slave: Option<pm::Clock>,
 }
 impl ClockInterface for TWIMClock {
-    type PlatformClockType = pm::Clock;
-
     fn is_enabled(&self) -> bool {
         self.master.is_enabled()
     }
@@ -134,8 +132,6 @@ struct TWISClock {
     slave: Option<pm::Clock>,
 }
 impl ClockInterface for TWISClock {
-    type PlatformClockType = pm::Clock;
-
     fn is_enabled(&self) -> bool {
         let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
         slave_clock.is_enabled()

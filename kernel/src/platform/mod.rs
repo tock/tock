@@ -26,8 +26,6 @@ pub trait Chip {
 
 /// Generic operations that clock-like things are expected to support.
 pub trait ClockInterface {
-    type PlatformClockType;
-
     fn is_enabled(&self) -> bool;
     fn enable(&self);
     fn disable(&self);
@@ -36,7 +34,6 @@ pub trait ClockInterface {
 /// Helper struct for interfaces that expect clocks, but have no clock control
 pub struct NoClockControl {}
 impl ClockInterface for NoClockControl {
-    type PlatformClockType = NoClockControl;
     fn is_enabled(&self) -> bool {
         true
     }
