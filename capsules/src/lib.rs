@@ -10,6 +10,7 @@ pub mod test;
 
 pub mod alarm;
 pub mod ambient_light;
+pub mod ble_advertising_driver;
 pub mod button;
 pub mod console;
 pub mod fm25cl;

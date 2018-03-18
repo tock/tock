@@ -110,7 +110,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
@@ -140,7 +140,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -300,23 +300,23 @@ pub unsafe fn reset_handler() {
     kernel::debug::assign_console_driver(Some(console), kc);
 
     let ble_radio = static_init!(
-        nrf5x::ble_advertising_driver::BLE<
+        capsules::ble_advertising_driver::BLE<
             'static,
             nrf52::radio::Radio,
             VirtualMuxAlarm<'static, Rtc>,
         >,
-        nrf5x::ble_advertising_driver::BLE::new(
+        capsules::ble_advertising_driver::BLE::new(
             &mut nrf52::radio::RADIO,
             kernel::Grant::create(),
-            &mut nrf5x::ble_advertising_driver::BUF,
+            &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
     );
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_receive_client(
+    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
         &nrf52::radio::RADIO,
         ble_radio,
     );
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_transmit_client(
+    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
         &nrf52::radio::RADIO,
         ble_radio,
     );
