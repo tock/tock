@@ -85,6 +85,10 @@
 //!     }
 //! }
 //! ```
+//!
+//! Some peripherals may not require any clock control. Such peripherals can
+//! derive `NoPeripheralManagement`. See the derive-no-peripheral-control crate
+//! in the kernel folder for details.
 
 use ClockInterface;
 
