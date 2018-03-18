@@ -399,7 +399,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES128CCM<'a>
-    for AES128CCM<'a, A> {
+    for AES128CCM<'a, A>
+{
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
         self.crypt_client.set(Some(client));
     }
@@ -476,7 +477,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
-    for AES128CCM<'a, A> {
+    for AES128CCM<'a, A>
+{
     fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {

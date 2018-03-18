@@ -292,7 +292,8 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLCustom for FM25CL<'a, S> {
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::nonvolatile_storage::NonvolatileStorage
-    for FM25CL<'a, S> {
+    for FM25CL<'a, S>
+{
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(Some(client));
     }

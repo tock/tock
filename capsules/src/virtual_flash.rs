@@ -147,7 +147,8 @@ impl<'a, F: hil::flash::Flash + 'a> FlashUser<'a, F> {
 }
 
 impl<'a, F: hil::flash::Flash + 'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
-    for FlashUser<'a, F> {
+    for FlashUser<'a, F>
+{
     fn set_client(&'a self, client: &'a C) {
         self.mux.users.push_head(self);
         self.client.set(Some(client));
