@@ -8,8 +8,7 @@ use core::ops::Deref;
 /// given a raw address and acts similarly to `extern` definitions, except
 /// `StaticRef` is subject to module and crate bounderies, while `extern`
 /// definitions can be imported anywhere.
-///
-/// TODO(alevy): move into `common` crate or replace with other mechanism.
+#[derive(Debug)]
 pub struct StaticRef<T> {
     ptr: *const T,
 }
@@ -25,6 +24,14 @@ impl<T> StaticRef<T> {
         StaticRef { ptr: ptr }
     }
 }
+
+impl<T> Clone for StaticRef<T> {
+    fn clone(&self) -> Self {
+        StaticRef { ptr: self.ptr }
+    }
+}
+
+impl<T> Copy for StaticRef<T> {}
 
 impl<T> Deref for StaticRef<T> {
     type Target = T;
