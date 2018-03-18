@@ -13,7 +13,7 @@ use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use kernel::{ClockInterface, StaticRef};
 use kernel::common::VolatileCell;
-use kernel::common::peripherals::{AutomaticPeripheralManagement, PeripheralManager};
+use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use pm;
@@ -177,7 +177,7 @@ pub struct I2CHw {
     slave_write_buffer_index: Cell<u8>,
 }
 
-impl AutomaticPeripheralManagement<TWIMClock> for I2CHw {
+impl PeripheralManagement<TWIMClock> for I2CHw {
     type RegisterType = TWIMRegisters;
 
     fn get_registers(&self) -> &TWIMRegisters {
@@ -203,7 +203,7 @@ impl AutomaticPeripheralManagement<TWIMClock> for I2CHw {
 }
 type TWIMRegisterManager<'a> = PeripheralManager<'a, I2CHw, TWIMClock>;
 
-impl AutomaticPeripheralManagement<TWISClock> for I2CHw {
+impl PeripheralManagement<TWISClock> for I2CHw {
     type RegisterType = TWISRegisters;
 
     fn get_registers<'a>(&'a self) -> &'a TWISRegisters {

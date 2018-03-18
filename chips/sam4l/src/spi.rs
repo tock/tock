@@ -12,7 +12,7 @@ use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use kernel::{ClockInterface, ReturnCode, StaticRef};
-use kernel::common::peripherals::{AutomaticPeripheralManagement, PeripheralManager};
+use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
@@ -196,7 +196,7 @@ pub struct SpiHw {
 const SPI_BASE: StaticRef<SpiRegisters> =
     unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
 
-impl AutomaticPeripheralManagement<pm::Clock> for SpiHw {
+impl PeripheralManagement<pm::Clock> for SpiHw {
     type RegisterType = SpiRegisters;
 
     fn get_registers(&self) -> &SpiRegisters {
