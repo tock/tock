@@ -17,7 +17,7 @@ fi
 # other use of rustfmt on the machine
 RUSTFMT_VERSION=0.3.5
 
-if [[ $(rustc --version) != "rustc 1.24.0-nightly (8e7a609e6 2018-01-04)" ]]; then
+if [[ $(rustc --version) != "rustc 1.26.0-nightly (2789b067d 2018-03-06)" ]]; then
 	rustup install $RUSTUP_TOOLCHAIN || (echo "Failed to install rustc. Please read doc/Getting_Started.md"; exit 1)
 fi
 
