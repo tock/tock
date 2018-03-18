@@ -142,8 +142,8 @@ SECTIONS {
     PROVIDE_HIDDEN (__exidx_end = .);
 
     /* App state section. Used for persistent app data. */
-    /*.app_state :
+    .app_state :
     {
         KEEP (*(.app_state))
-    } > FLASH =0xFF*/
+    } > FLASH =0xFF
 }
