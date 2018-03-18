@@ -70,12 +70,6 @@ SECTIONS {
     } > FLASH =0xFF
 
 
-    /* App state section. Used for persistent app data. */
-    .app_state :
-    {
-        KEEP (*(.app_state))
-    } > FLASH =0xFF
-
     /* Global Offset Table */
     .got :
     {
@@ -147,4 +141,9 @@ SECTIONS {
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
 
+    /* App state section. Used for persistent app data. */
+    /*.app_state :
+    {
+        KEEP (*(.app_state))
+    } > FLASH =0xFF*/
 }

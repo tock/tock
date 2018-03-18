@@ -253,7 +253,7 @@ fn do_work(
 
     // To start we just restrict the app from writing all of the space before
     // its actual code and whatnot.
-    let protected_size = 0;
+    let mut protected_size = 0;
 
     // First up is the app writeable app_state section. If this is not used or
     // non-existent, it will just be zero and won't matter. But we put it first
@@ -269,6 +269,8 @@ fn do_work(
     let bss_size = bss.shdr.size as u32;
     let minimum_ram_size =
         stack_len + app_heap_len + kernel_heap_len + got_size + data_size + bss_size;
+    // Account for the size of the writeable flash region
+    protected_size += appstate_size;
 
     // Flags default to app is enabled.
     let flags = 0x00000001;

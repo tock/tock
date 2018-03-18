@@ -375,7 +375,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
             TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32),
+                hd.main.map_or(0, |m| m.init_fn_offset + m.protected_size) + (hd.base.header_size as u32),
             _ => 0,
         }
     }
