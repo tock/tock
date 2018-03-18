@@ -23,3 +23,26 @@ pub trait Chip {
     fn systick(&self) -> &Self::SysTick;
     fn prepare_for_sleep(&self) {}
 }
+
+/// Generic operations that clock-like things are expected to support.
+pub trait ClockInterface {
+    type PlatformClockType;
+
+    fn is_enabled(&self) -> bool;
+    fn enable(&self);
+    fn disable(&self);
+}
+
+/// Helper struct for interfaces that expect clocks, but have no clock control
+pub struct NoClockControl {}
+impl ClockInterface for NoClockControl {
+    type PlatformClockType = NoClockControl;
+    fn is_enabled(&self) -> bool {
+        true
+    }
+    fn enable(&self) {}
+    fn disable(&self) {}
+}
+
+/// Instance of NoClockControl for things that need references to `ClockInterface` objects
+pub static mut NO_CLOCK_CONTROL: NoClockControl = NoClockControl {};

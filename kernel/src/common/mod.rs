@@ -8,11 +8,13 @@ pub mod volatile_cell;
 pub mod static_ref;
 pub mod list;
 pub mod math;
+pub mod mmio;
 
 #[macro_use]
 pub mod regs;
 
 pub use self::list::{List, ListLink, ListNode};
+pub use self::mmio::{MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager};
 pub use self::queue::Queue;
 pub use self::ring_buffer::RingBuffer;
 pub use self::volatile_cell::VolatileCell;
