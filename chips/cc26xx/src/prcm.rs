@@ -145,4 +145,16 @@ impl Clock {
 
         prcm_commit();
     }
+
+    pub fn enable_trng() {
+        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        regs.sec_dma_clk_run
+            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
+        regs.sec_dma_clk_sleep
+            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
+        regs.sec_dma_clk_deep_sleep
+            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
+
+        prcm_commit();
+    }
 }
