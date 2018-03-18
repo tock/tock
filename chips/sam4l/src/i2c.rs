@@ -913,7 +913,7 @@ impl hil::i2c::I2CSlave for I2CHw {
             // We want to interrupt only on slave address match so we can
             // wait for a message from a master and then decide what to do
             // based on read/write.
-            twis.registers.interrupt_enable.set((1 << 16));
+            twis.registers.interrupt_enable.set(1 << 16);
 
             // Also setup all of the error interrupts.
             twis.registers
