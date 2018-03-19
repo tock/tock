@@ -162,6 +162,7 @@ impl Alarm for Rtc {
     }
 
     fn get_alarm(&self) -> u32 {
-        self.read_counter()
+        let regs: &RtcRegisters = unsafe { &*self.regs };
+        regs.channel1_cmp.get()
     }
 }
