@@ -7,7 +7,7 @@ use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
 use kernel::ClockInterface;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use scif;
 
 /// §10.7 PM::UserInterface from SAM4L Datasheet.
@@ -716,24 +716,6 @@ macro_rules! get_clock {
     });
 }
 
-// Clock masks that allow us to go into deep sleep without disabling any active
-// peripherals.
-
-// FLASHCALW clocks and APBx clocks are allowed
-//
-// This is identical to the reset value of the HSBMASK except it allows the
-// PicoCache RAM clock to be on as well.
-const DEEP_SLEEP_HSBMASK: u32 = 0x1e7;
-
-// Allow TWIS clocks to be active as they can wake the core from deep sleep.
-const DEEP_SLEEP_PBAMASK: u32 = 0x6000a0;
-
-// FLASHCALW and HRAMC1 clocks allowed
-//
-// This is identical to the reset value of the PBBMASK except it allows the
-// flash's HRAMC1 clock as well.
-const DEEP_SLEEP_PBBMASK: u32 = 0xb;
-
 /// Determines if the chip can safely go into deep sleep without preventing
 /// currently active peripherals from operating.
 ///
@@ -761,11 +743,33 @@ const DEEP_SLEEP_PBBMASK: u32 = 0xb;
 /// We also special case GPIO (which is in PBCMASK), and just see if any interrupts are pending
 /// through the INTERRUPT_COUNT variable.
 pub fn deep_sleep_ready() -> bool {
+    // HSB clocks that can be enabled and the core is permitted to enter deep sleep.
+    let deep_sleep_hsbmask: FieldValue<u32, ClockMaskHsb::Register> =
+        /* added by us */ ClockMaskHsb::PDCA::SET +
+        /*     default */ ClockMaskHsb::FLASHCALW::SET +
+        /* added by us */ ClockMaskHsb::FLASHCALW_PICOCACHE::SET +
+        /*     default */ ClockMaskHsb::APBA_BRIDGE::SET +
+        /*     default */ ClockMaskHsb::APBB_BRIDGE::SET +
+        /*     default */ ClockMaskHsb::APBC_BRIDGE::SET +
+        /*     default */ ClockMaskHsb::APBD_BRIDGE::SET;
+
+    // PBA clocks that can be enabled and the core is permitted to enter deep sleep.
+    let deep_sleep_pbamask: FieldValue<u32, ClockMaskPba::Register> =
+        /* added by us */ ClockMaskPba::TWIS0::SET +
+        /* added by us */ ClockMaskPba::TWIS1::SET;
+
+    // PBB clocks that can be enabled and the core is permitted to enter deep sleep.
+    let deep_sleep_pbbmask: FieldValue<u32, ClockMaskPbb::Register> =
+        /*     default */ ClockMaskPbb::FLASHCALW::SET +
+        /* added by us */ ClockMaskPbb::HRAMC1::SET +
+        /* added by us */ ClockMaskPbb::PDCA::SET;
+
     unsafe {
-        (*PM_REGS).hsbmask.get() & !(DEEP_SLEEP_HSBMASK) == 0
-            && (*PM_REGS).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0
-            && (*PM_REGS).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0
-            && gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
+        let hsb = (*PM_REGS).hsbmask.matches(deep_sleep_hsbmask);
+        let pba = (*PM_REGS).pbamask.matches(deep_sleep_pbamask);
+        let pbb = (*PM_REGS).pbbmask.matches(deep_sleep_pbbmask);
+        let gpio = gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0;
+        hsb && pba && pbb && gpio
     }
 }
 
