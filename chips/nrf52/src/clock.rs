@@ -206,7 +206,7 @@ impl Clock {
     /// Check if the high frequency clock has started
     pub fn high_started(&self) -> bool {
         let regs = unsafe { &*self.registers };
-        regs.events_hfclkstarted.matches(Status::READY.val(1))
+        regs.events_hfclkstarted.matches_all(Status::READY.val(1))
     }
 
     /// Read clock source from the high frequency clock
@@ -221,7 +221,7 @@ impl Clock {
     /// Check if the high frequency clock is running
     pub fn high_running(&self) -> bool {
         let regs = unsafe { &*self.registers };
-        regs.hfclkstat.matches(HfClkStat::STATE::RUNNING)
+        regs.hfclkstat.matches_all(HfClkStat::STATE::RUNNING)
     }
 
     /// Start the low frequency clock
@@ -239,7 +239,7 @@ impl Clock {
     /// Check if the low frequency clock has started
     pub fn low_started(&self) -> bool {
         let regs = unsafe { &*self.registers };
-        regs.events_lfclkstarted.matches(Status::READY::SET)
+        regs.events_lfclkstarted.matches_all(Status::READY::SET)
     }
 
     /// Read clock source from the low frequency clock
@@ -255,7 +255,7 @@ impl Clock {
     /// Check if the low frequency clock is running
     pub fn low_running(&self) -> bool {
         let regs = unsafe { &*self.registers };
-        regs.lfclkstat.matches(LfClkStat::STATE::RUNNING)
+        regs.lfclkstat.matches_all(LfClkStat::STATE::RUNNING)
     }
 
     /// Set low frequency clock source

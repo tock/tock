@@ -133,7 +133,12 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     }
 
     #[inline]
-    pub fn matches(&self, field: FieldValue<T, R>) -> bool {
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
     }
 }
@@ -163,7 +168,12 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     }
 
     #[inline]
-    pub fn matches(&self, field: FieldValue<T, R>) -> bool {
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
     }
 }

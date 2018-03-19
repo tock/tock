@@ -765,9 +765,10 @@ pub fn deep_sleep_ready() -> bool {
         /* added by us */ ClockMaskPbb::PDCA::SET;
 
     unsafe {
-        let hsb = (*PM_REGS).hsbmask.matches(deep_sleep_hsbmask);
-        let pba = (*PM_REGS).pbamask.matches(deep_sleep_pbamask);
-        let pbb = (*PM_REGS).pbbmask.matches(deep_sleep_pbbmask);
+        // FIXME: This match is wrong
+        let hsb = (*PM_REGS).hsbmask.matches_all(deep_sleep_hsbmask);
+        let pba = (*PM_REGS).pbamask.matches_all(deep_sleep_pbamask);
+        let pbb = (*PM_REGS).pbbmask.matches_all(deep_sleep_pbbmask);
         let gpio = gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0;
         hsb && pba && pbb && gpio
     }

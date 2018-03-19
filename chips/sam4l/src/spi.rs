@@ -333,7 +333,7 @@ impl SpiHw {
 
     fn get_clock(&self) -> ClockPolarity {
         let csr = self.get_active_csr();
-        if csr.matches(ChipSelectParams::CPOL::InactiveLow) {
+        if csr.matches_all(ChipSelectParams::CPOL::InactiveLow) {
             ClockPolarity::IdleLow
         } else {
             ClockPolarity::IdleHigh
@@ -350,7 +350,7 @@ impl SpiHw {
 
     fn get_phase(&self) -> ClockPhase {
         let csr = self.get_active_csr();
-        if csr.matches(ChipSelectParams::NCPHA::CaptureTrailing) {
+        if csr.matches_all(ChipSelectParams::NCPHA::CaptureTrailing) {
             ClockPhase::SampleTrailing
         } else {
             ClockPhase::SampleLeading
@@ -376,11 +376,11 @@ impl SpiHw {
         if self.role.get() == SpiRole::SpiMaster {
             let spi = &SpiRegisterManager::new(&self);
 
-            if spi.registers.mr.matches(Mode::PCS::PCS3) {
+            if spi.registers.mr.matches_all(Mode::PCS::PCS3) {
                 Peripheral::Peripheral3
-            } else if spi.registers.mr.matches(Mode::PCS::PCS2) {
+            } else if spi.registers.mr.matches_all(Mode::PCS::PCS2) {
                 Peripheral::Peripheral2
-            } else if spi.registers.mr.matches(Mode::PCS::PCS1) {
+            } else if spi.registers.mr.matches_all(Mode::PCS::PCS1) {
                 Peripheral::Peripheral1
             } else {
                 // default

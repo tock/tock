@@ -577,7 +577,7 @@ impl Adc {
             // wait until buffers are enabled
             timeout = 100000;
             while !regs.sr
-                .matches(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
+                .matches_all(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
             {
                 timeout -= 1;
                 if timeout == 0 {
