@@ -7,50 +7,356 @@ use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
 use kernel::ClockInterface;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use scif;
 
+/// §10.7 PM::UserInterface from SAM4L Datasheet.
 #[repr(C)]
 struct PmRegisters {
-    mcctrl: VolatileCell<u32>,
-    cpusel: VolatileCell<u32>,
-    _reserved1: VolatileCell<u32>,
-    pbasel: VolatileCell<u32>,
-    pbbsel: VolatileCell<u32>,
-    pbcsel: VolatileCell<u32>,
-    pbdsel: VolatileCell<u32>,
-    _reserved2: VolatileCell<u32>,
-    cpumask: VolatileCell<u32>, // 0x020
-    hsbmask: VolatileCell<u32>,
-    pbamask: VolatileCell<u32>,
-    pbbmask: VolatileCell<u32>,
-    pbcmask: VolatileCell<u32>,
-    pbdmask: VolatileCell<u32>,
-    _reserved3: [VolatileCell<u32>; 2],
-    pbadivmask: VolatileCell<u32>, // 0x040
-    _reserved4: [VolatileCell<u32>; 4],
-    cfdctrl: VolatileCell<u32>,
-    unlock: VolatileCell<u32>,
-    _reserved5: [VolatileCell<u32>; 25], // 0x60
-    ier: VolatileCell<u32>,              // 0xC0
-    idr: VolatileCell<u32>,
-    imr: VolatileCell<u32>,
-    isr: VolatileCell<u32>,
-    icr: VolatileCell<u32>,
-    sr: VolatileCell<u32>,
-    _reserved6: [VolatileCell<u32>; 34], // 0x100
-    ppcr: VolatileCell<u32>,             // 0x160
-    _reserved7: [VolatileCell<u32>; 7],
-    rcause: VolatileCell<u32>, // 0x180
-    wcause: VolatileCell<u32>,
-    awen: VolatileCell<u32>,
-    protctrl: VolatileCell<u32>,
-    _reserved8: VolatileCell<u32>,
-    fastsleep: VolatileCell<u32>,
-    _reserved9: [VolatileCell<u32>; 152],
-    config: VolatileCell<u32>, // 0x200
-    version: VolatileCell<u32>,
+    mcctrl: ReadWrite<u32, MainClockControl::Register>,
+    cpusel: ReadWrite<u32, CpuClockSelect::Register>,
+    _reserved1: u32,
+    pbasel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
+    pbbsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
+    pbcsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
+    pbdsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
+    _reserved2: u32,
+    cpumask: ReadWrite<u32, ClockMaskCpu::Register>, // 0x020
+    hsbmask: ReadWrite<u32, ClockMaskHsb::Register>,
+    pbamask: ReadWrite<u32, ClockMaskPba::Register>,
+    pbbmask: ReadWrite<u32, ClockMaskPbb::Register>,
+    pbcmask: ReadWrite<u32, ClockMaskPbc::Register>,
+    pbdmask: ReadWrite<u32, ClockMaskPbd::Register>,
+    _reserved3: [u32; 2],
+    pbadivmask: ReadWrite<u32, DividedClockMask::Register>, // 0x040
+    _reserved4: [u32; 4],
+    cfdctrl: ReadWrite<u32, ClockFailureDetectorControl::Register>,
+    unlock: WriteOnly<u32, PmUnlock::Register>,
+    _reserved5: [u32; 25],                            // 0x60
+    ier: WriteOnly<u32, InterruptOrStatus::Register>, // 0xC0
+    idr: WriteOnly<u32, InterruptOrStatus::Register>,
+    imr: ReadOnly<u32, InterruptOrStatus::Register>,
+    isr: ReadOnly<u32, InterruptOrStatus::Register>,
+    icr: WriteOnly<u32, InterruptOrStatus::Register>,
+    sr: ReadOnly<u32, InterruptOrStatus::Register>,
+    _reserved6: [u32; 34],                                  // 0x100
+    ppcr: ReadWrite<u32, PeripheralPowerControl::Register>, // 0x160
+    _reserved7: [u32; 7],
+    rcause: ReadOnly<u32, ResetCause::Register>, // 0x180
+    wcause: ReadOnly<u32, WakeCause::Register>,
+    awen: ReadWrite<u32, AsynchronousWakeUpEnable::Register>,
+    _protctrl: u32, // This register is named, but undocumented in the datasheet
+    _reserved8: u32,
+    fastsleep: ReadWrite<u32, FastSleep::Register>,
+    _reserved9: [u32; 152],
+    config: ReadOnly<u32, Configuration::Register>, // 0x200
+    version: ReadOnly<u32, Version::Register>,
 }
+
+register_bitfields![u32,
+    MainClockControl [
+        /// Main Clock Selection:
+        ///
+        /// 0: RCSYS
+        /// 1: OSC0
+        /// 2: PLL
+        /// 3: DFLL
+        /// 4: RC80M (requires dividing down before use!)
+        /// 5: RCFAST
+        /// 6: RC1M
+        /// 7: Reserved
+        MCSEL OFFSET(0) NUMBITS(3) []
+    ],
+
+    /// Note: Writing this register clears SR.CKRDY. Must not write again until SR.CKRDY high.
+    CpuClockSelect [
+        /// CPU Division: Set to 1 to divide main clock by 2^(CPUSEL+1).
+        CPUDIV OFFSET(7) NUMBITS(1) [],
+
+        /// Exponent for CPU clock divider. Must be 0 if CPUDIV is 0.
+        CPUSEL OFFSET(0) NUMBITS(3) []
+    ],
+
+    /// Note: Writing this register clears SR.CKRDY. Must not write again until SR.CKRDY high.
+    PeripheralBusXClockSelect [
+        /// APBx Divisor: Set to 1 to divide APBx clock by 2^(PBSEL+1).
+        PBDIV OFFSET(7) NUMBITS(1) [],
+
+        /// Exponent for APBx clock divider. Must be 0 if PBDIV is 0.
+        PBSEL OFFSET(0) NUMBITS(3) []
+    ],
+
+    /// If bit n is cleared, the clock for module n is stopped. If bit n is set
+    /// the clock for module n is enabled according to the current / power mode.
+    ///
+    /// Reset Default: 0x1, OCD enabled.
+    ClockMaskCpu [
+        OCD 0
+    ],
+
+    /// If bit n is cleared, the clock for module n is stopped. If bit n is set
+    /// the clock for module n is enabled according to the current / power mode.
+    ///
+    /// Reset Default: 0x1e2, FLASHCALW, APB[A-D] bridge enabled.
+    ClockMaskHsb [
+        PDCA 0,
+        FLASHCALW 1,
+        FLASHCALW_PICOCACHE 2,
+        USBC 3,
+        CRCCU 4,
+        APBA_BRIDGE 5,
+        APBB_BRIDGE 6,
+        APBC_BRIDGE 7,
+        APBD_BRIDGE 8,
+        AESA 9
+    ],
+
+    /// If bit n is cleared, the clock for module n is stopped. If bit n is set
+    /// the clock for module n is enabled according to the current / power mode.
+    ///
+    /// Reset Default: 0x0, all disabled.
+    ClockMaskPba [
+        IISC 0,
+        SPI 1,
+        TC0 2,
+        TC1 3,
+        TWIM0 4,
+        TWIS0 5,
+        TWIM1 6,
+        TWIS1 7,
+        USART0 8,
+        USART1 9,
+        USART2 10,
+        USART3 11,
+        ADCIFE 12,
+        DACC 13,
+        ACIFC 14,
+        GLOC 15,
+        ABDACB 16,
+        TRNG 17,
+        PARC 18,
+        CATB 19,
+        TWIM2 21,
+        TWIM3 22,
+        LCDCA 23
+    ],
+
+    /// If bit n is cleared, the clock for module n is stopped. If bit n is set
+    /// the clock for module n is enabled according to the current / power mode.
+    ///
+    /// Reset Default: 0x1, FLASHCALW enabled.
+    ClockMaskPbb [
+        FLASHCALW 0,
+        HRAMC1 1,
+        HMATRIX 2,
+        PDCA 3,
+        CRCCU 4,
+        USBC 5,
+        PEVC 6
+    ],
+
+    /// If bit n is cleared, the clock for module n is stopped. If bit n is set
+    /// the clock for module n is enabled according to the current / power mode.
+    ///
+    /// Reset Default: 0x1f, PM, CHIPID, SCIF, FREQM, and GPIO enabled.
+    ClockMaskPbc [
+        PM 0,
+        CHIPID 1,
+        SCIF 2,
+        FREQM 3,
+        GPIO 4
+    ],
+
+    /// If bit n is cleared, the clock for module n is stopped. If bit n is set
+    /// the clock for module n is enabled according to the current / power mode.
+    ///
+    /// Reset Default: 0x3f, BPM, BSCIF, AST, WDT, EIC, PICOUART enabled.
+    ClockMaskPbd [
+        BPM 0,
+        BSCIF 1,
+        AST 2,
+        WDT 3,
+        EIC 4,
+        PICOUART 5
+    ],
+
+    /// If bit n is written to zero, the clock divided by 2^(n+1) is stopped.
+    /// If bit n is written to one, the clock divided by 2^(n+1) is enabled
+    /// according to the current power mode.
+    ///
+    /// Reset Default: 0x7f, all enabled.
+    DividedClockMask [
+        MASK OFFSET(0) NUMBITS(7) [
+            /// TC0 and TC1
+            TIMER_CLOCK2 = 1 << 0,
+
+            /// TC0 and TC1, and USART0-3
+            TIMER_CLOCK3 = 1 << 2,
+
+            /// TC0 and TC1
+            TIMER_CLOCK4 = 1 << 4,
+
+            /// TC0 and TC1
+            TIMER_CLOCK5 = 1 << 6
+        ]
+    ],
+
+    ClockFailureDetectorControl [
+        /// Store final value. If set to 1, register becomes read-only.
+        SFV 31,
+
+        /// Clock failure detector enable
+        CFDEN 0
+    ],
+
+    PmUnlock [
+        /// Write 0xAA to enable unlock
+        KEY OFFSET(24) NUMBITS(8) [],
+
+        /// Register address to unlock. Next APB access must write register specified here.
+        ADDR OFFSET(0) NUMBITS(10) []
+    ],
+
+    InterruptOrStatus [
+        /// Access Error: (1) Write to a protect register without an unlock
+        AE 31,
+
+        /// Wakeup Event Occurred: (1) Check WCAUSE register for wakeup source
+        WAKE 8,
+
+        /// Clock Ready: Synchronous clocks (0) written but not settled, (1) are ready
+        CKRDY 5,
+
+        /// Clock Failure Detected: (0) running correctly, (1) failure detected, reverting to RCSYS
+        CFD 0
+    ],
+
+    /// Reset Value: 0x1fe
+    PeripheralPowerControl [
+        /// On powerup, (0) flash waits for BOD18 to be ready, (1) does not wait
+        FWBOD18 10,
+
+        /// When waking up, (0) flash waits for bandgap to be ready, (1) does not wait
+        FWBGREF 9,
+
+        /// VREG Request Clock Mask, (0) disabled, (1) enabled
+        VREGRCMASK 8,
+
+        /// ADCIFE Request Clock Mask, (0) disabled, (1) enabled
+        ADCIFERCMASK 7,
+
+        /// PEVC Request Clock Mask, (0) disabled, (1) enabled
+        PEVCRCMASK 6,
+
+        /// TWIS1 Request Clock Mask, (0) disabled, (1) enabled
+        TWIS1RCMASK 5,
+
+        /// TWIS0 Request Clock Mask, (0) disabled, (1) enabled
+        TWIS0RCMASK 4,
+
+        /// AST Request Clock Mask, (0) disabled, (1) enabled
+        ASTRCMASK 3,
+
+        /// ACIFC Request Clock Mask, (0) disabled, (1) enabled
+        ACIFCRCMASK 2,
+
+        /// CAT Request Clock Mask, (0) disabled, (1) enabled
+        CATBRCMASK 1,
+
+        /// Reset Pullup, pullup on external reset pin is (0) disabled, (1) enabled
+        RSTPUN 0
+    ],
+
+    ResetCause [
+        /// Brown-out 3.3V reset (supply voltage too low)
+        BOD33 13,
+
+        /// Power-on reset (I/O voltage too low)
+        POR33 10,
+
+        /// OCD Reset (the SYSRESETREQ bit in AIRCR of the CPU was written to 1)
+        OCDRST 8,
+
+        /// Backup reset
+        BKUP 6,
+
+        /// Watchdog reset
+        WDT 3,
+
+        /// External reset pin (RESET_N was pulled low)
+        EXT 2,
+
+        /// Brown-out reset (core voltage below brown-out threshold)
+        BOD 1,
+
+        /// Power-on reset (core voltage below power-on threshold)
+        POR 0
+    ],
+
+    WakeCause [
+        AST 17,
+        EIC 16,
+        LCDCA 7,
+        PICOUART 6,
+        BOD33_IRQ 5,
+        BOD18_IRQ 4,
+        PSOK 3,
+        USBC 2,
+        TWIS1 1,
+        TWIS0 0
+    ],
+
+    /// For each bit, if set, the wakeup is enabled
+    AsynchronousWakeUpEnable [
+        LCDCA 7,
+        PICOUART 6,
+        BOD33_IRQ 5,
+        BOD18_IRQ 4,
+        PSOK 3,
+        USBC 2,
+        TWIS1 1,
+        TWIS0 0
+    ],
+
+    /// Each bit in this register corresponds to a clock source set as the main
+    /// clock just before entering power save mode and just after wake-up to
+    /// make the wakeup time faster.
+    ///
+    /// 0: The corresponding clock source is not set as the main clock after wake-up.
+    /// 1: The corresponding clock source is set as the main clock after wake-up.
+    FastSleep [
+        DFLL 24,
+        RC1M 18,
+        RCFAST 17,
+        RC80 16,
+        PLL 8,
+        OSC 0
+    ],
+
+    Configuration [
+        /// HSB PEVC clock implemented
+        HSBPEVC 7,
+
+        /// APBD implemented
+        PBD 3,
+
+        /// APBC implemented
+        PBC 2,
+
+        /// APBB implemented
+        PBB 1,
+
+        /// APBA implemented
+        PBA 0
+    ],
+
+    Version [
+        /// Reserved. No functionality associated.
+        VARIANT OFFSET(16) NUMBITS(4) [],
+
+        VERSION OFFSET(0) NUMBITS(12) []
+    ]
+];
 
 pub enum MainClock {
     RCSYS,
@@ -410,24 +716,6 @@ macro_rules! get_clock {
     });
 }
 
-// Clock masks that allow us to go into deep sleep without disabling any active
-// peripherals.
-
-// FLASHCALW clocks and APBx clocks are allowed
-//
-// This is identical to the reset value of the HSBMASK except it allows the
-// PicoCache RAM clock to be on as well.
-const DEEP_SLEEP_HSBMASK: u32 = 0x1e6;
-
-// No clocks allowed on PBA
-const DEEP_SLEEP_PBAMASK: u32 = 0x0;
-
-// FLASHCALW and HRAMC1 clocks allowed
-//
-// This is identical to the reset value of the PBBMASK except it allows the
-// flash's HRAMC1 clock as well.
-const DEEP_SLEEP_PBBMASK: u32 = 0x3;
-
 /// Determines if the chip can safely go into deep sleep without preventing
 /// currently active peripherals from operating.
 ///
@@ -435,25 +723,53 @@ const DEEP_SLEEP_PBBMASK: u32 = 0x3;
 /// known masks that include no peripherals that can't operate in deep
 /// sleep (or that have no function during sleep). Specifically:
 ///
-///   * HSB may only have clocks for the flash (and PicoCache) and APBx bridges on.
+///   * HSB may only have clocks for the flash (and PicoCache), APBx bridges, and PDCA on.
 ///
-///   * PBA may not have _any_ clocks on.
+///   * PBA may only have I2C Slaves on as they can self-wake.
 ///
-///   * PBB may only have clocks for the flash and HRAMC1 (also flash related) on.
+///   * PBB may only have clocks for the flash, HRAMC1 (also flash related), and PDCA on.
 ///
 ///   * PBC and PBD may have any clocks on.
 ///
 /// This means it is the responsibility of each peripheral to disable it's clock
 /// mask whenever it is idle.
 ///
+/// A special note here regarding the PDCA (Peripheral DMA Controller) clock.
+/// If the core deep sleeps while a DMA operation is active, it is transparently paused
+/// and resumed when the core wakes again. If a peripheral needs a DMA operation to complete
+/// before sleeping, the peripheral should inhibit sleep. The rationale here is to allow deep
+/// sleep for an I2C Slave peripheral configured to use DMA.
+///
 /// We also special case GPIO (which is in PBCMASK), and just see if any interrupts are pending
 /// through the INTERRUPT_COUNT variable.
 pub fn deep_sleep_ready() -> bool {
+    // HSB clocks that can be enabled and the core is permitted to enter deep sleep.
+    let deep_sleep_hsbmask: FieldValue<u32, ClockMaskHsb::Register> =
+        /* added by us */ ClockMaskHsb::PDCA::SET +
+        /*     default */ ClockMaskHsb::FLASHCALW::SET +
+        /* added by us */ ClockMaskHsb::FLASHCALW_PICOCACHE::SET +
+        /*     default */ ClockMaskHsb::APBA_BRIDGE::SET +
+        /*     default */ ClockMaskHsb::APBB_BRIDGE::SET +
+        /*     default */ ClockMaskHsb::APBC_BRIDGE::SET +
+        /*     default */ ClockMaskHsb::APBD_BRIDGE::SET;
+
+    // PBA clocks that can be enabled and the core is permitted to enter deep sleep.
+    let deep_sleep_pbamask: FieldValue<u32, ClockMaskPba::Register> =
+        /* added by us */ ClockMaskPba::TWIS0::SET +
+        /* added by us */ ClockMaskPba::TWIS1::SET;
+
+    // PBB clocks that can be enabled and the core is permitted to enter deep sleep.
+    let deep_sleep_pbbmask: FieldValue<u32, ClockMaskPbb::Register> =
+        /*     default */ ClockMaskPbb::FLASHCALW::SET +
+        /* added by us */ ClockMaskPbb::HRAMC1::SET +
+        /* added by us */ ClockMaskPbb::PDCA::SET;
+
     unsafe {
-        (*PM_REGS).hsbmask.get() & !(DEEP_SLEEP_HSBMASK) == 0
-            && (*PM_REGS).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0
-            && (*PM_REGS).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0
-            && gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
+        let hsb = (*PM_REGS).hsbmask.matches(deep_sleep_hsbmask);
+        let pba = (*PM_REGS).pbamask.matches(deep_sleep_pbamask);
+        let pbb = (*PM_REGS).pbbmask.matches(deep_sleep_pbbmask);
+        let gpio = gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0;
+        hsb && pba && pbb && gpio
     }
 }
 

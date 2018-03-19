@@ -66,6 +66,8 @@ bool driver_exists(uint32_t driver);
 #define TOCK_REVOKE_ALLOW           0
 
 const char* tock_strerror(int tock_errno);
+void tock_expect(int expected, int actual, const char* file, unsigned line);
+#define TOCK_EXPECT(_e, _a) tock_expect((_e), (_a), __FILE__, __LINE__)
 
 #ifdef __cplusplus
 }
