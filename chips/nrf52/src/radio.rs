@@ -37,9 +37,9 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use nrf5x;
 use nrf5x::constants::TxPower;
 
@@ -486,22 +486,8 @@ register_bitfields! [u32,
     ],
     /// Receive addresses register
     ReceiveAddresses [
-        /// Enable or disable reception on logical address 0
-        ADDR0 OFFSET(0) NUMBITS(1),
-        /// Enable or disable reception on logical address 1
-        ADDR1 OFFSET(1) NUMBITS(1),
-        /// Enable or disable reception on logical address 2
-        ADDR2 OFFSET(2) NUMBITS(1),
-        /// Enable or disable reception on logical address 3
-        ADDR3 OFFSET(3) NUMBITS(1),
-        /// Enable or disable reception on logical address 4
-        ADDR4 OFFSET(4) NUMBITS(1),
-        /// Enable or disable reception on logical address 5
-        ADDR5 OFFSET(5) NUMBITS(1),
-        /// Enable or disable reception on logical address 6
-        ADDR6 OFFSET(6) NUMBITS(1),
-        /// Enable or disable reception on logical address 7
-        ADDR7 OFFSET(7) NUMBITS(1)
+        /// Enable or disable reception on logical address 0-7
+        ADDRESS OFFSET(0) NUMBITS(8)
     ],
     /// CRC configuration register
     CrcConfiguration [
@@ -638,7 +624,7 @@ impl Radio {
 
     fn set_rx_address(&self) {
         let regs = unsafe { &*self.regs };
-        regs.rxaddresses.write(ReceiveAddresses::ADDR0.val(1));
+        regs.rxaddresses.write(ReceiveAddresses::ADDRESS.val(1));
     }
 
     fn set_tx_address(&self) {
