@@ -148,4 +148,5 @@ SECTIONS {
       *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
+
 }
