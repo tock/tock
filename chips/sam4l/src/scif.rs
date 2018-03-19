@@ -228,14 +228,14 @@ pub fn oscillator_disable() {
 
 pub unsafe fn setup_dfll_rc32k_48mhz() {
     unsafe fn wait_dfll0_ready() {
-        while (*SCIF).pclksr.matches(Interrupt::DFLL0RDY::CLEAR) {}
+        while (*SCIF).pclksr.matches_all(Interrupt::DFLL0RDY::CLEAR) {}
     }
 
     // Check to see if the DFLL is already setup or is not locked
     if (*SCIF)
         .dfll0conf
-        .matches(Dfll::MODE::OpenLoop + Dfll::EN::CLEAR)
-        || (*SCIF).pclksr.matches(Interrupt::DFLL0LOCKF::CLEAR)
+        .matches_all(Dfll::MODE::OpenLoop + Dfll::EN::CLEAR)
+        || (*SCIF).pclksr.matches_all(Interrupt::DFLL0LOCKF::CLEAR)
     {
         // Enable the GENCLK_SRC_RC32K
         bscif::enable_rc32k();
@@ -296,7 +296,7 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
         (*SCIF).dfll0conf.set(scif_dfll0conf_new);
 
         // Now wait for the DFLL to become locked
-        while (*SCIF).pclksr.matches(Interrupt::DFLL0LOCKF::CLEAR) {}
+        while (*SCIF).pclksr.matches_all(Interrupt::DFLL0LOCKF::CLEAR) {}
     }
 }
 
@@ -309,7 +309,7 @@ pub unsafe fn setup_osc_16mhz_fast_startup() {
     );
 
     // Wait for oscillator to be ready
-    while (*SCIF).pclksr.matches(Interrupt::OSC0RDY::CLEAR) {}
+    while (*SCIF).pclksr.matches_all(Interrupt::OSC0RDY::CLEAR) {}
 }
 
 pub unsafe fn setup_osc_16mhz_slow_startup() {
@@ -321,7 +321,7 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
     );
 
     // Wait for oscillator to be ready
-    while (*SCIF).pclksr.matches(Interrupt::OSC0RDY::CLEAR) {}
+    while (*SCIF).pclksr.matches_all(Interrupt::OSC0RDY::CLEAR) {}
 }
 
 pub unsafe fn setup_pll_osc_48mhz() {
@@ -333,7 +333,7 @@ pub unsafe fn setup_pll_osc_48mhz() {
     );
 
     // Wait for the PLL to become locked
-    while (*SCIF).pclksr.matches(Interrupt::PLL0LOCK::CLEAR) {}
+    while (*SCIF).pclksr.matches_all(Interrupt::PLL0LOCK::CLEAR) {}
 }
 
 pub fn generic_clock_disable(clock: GenericClock) {

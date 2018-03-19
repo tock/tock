@@ -108,26 +108,28 @@ There are three types provided by the register interface: `ReadOnly`,
 
 ```rust
 ReadOnly<T: IntLike, R: RegisterLongName = ()>
-.get() -> T                                 // Get the raw register value
-.read(field: Field<T, R>) -> T              // Read the value of the given field
-.is_set(field: Field<T, R>) -> bool         // Check if one or more bits in a field are set
-.matches(value: FieldValue<T, R>) -> bool   // Check if one or more fields match a value
+.get() -> T                                    // Get the raw register value
+.read(field: Field<T, R>) -> T                 // Read the value of the given field
+.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
+.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 
 WriteOnly<T: IntLike, R: RegisterLongName = ()>
-.set(value: T)                              // Set the raw register value
-.write(value: FieldValue<T, R>)             // Write the value of one or more fields,
-                                            //  overwriting other fields to zero
+.set(value: T)                                 // Set the raw register value
+.write(value: FieldValue<T, R>)                // Write the value of one or more fields,
+                                               //  overwriting other fields to zero
 
 ReadWrite<T: IntLike, R: RegisterLongName = ()>
-.get() -> T                                 // Get the raw register value
-.set(value: T)                              // Set the raw register value
-.read(field: Field<T, R>) -> T              // Read the value of the given field
-.write(value: FieldValue<T, R>)             // Write the value of one or more fields,
-                                            //  overwriting other fields to zero
-.modify(value: FieldValue<T, R>)            // Write the value of one or more fields,
-                                            //  leaving other fields unchanged
-.is_set(field: Field<T, R>) -> bool         // Check if one or more bits in a field are set
-.matches(value: FieldValue<T, R>) -> bool   // Check if one or more fields match a value
+.get() -> T                                    // Get the raw register value
+.set(value: T)                                 // Set the raw register value
+.read(field: Field<T, R>) -> T                 // Read the value of the given field
+.write(value: FieldValue<T, R>)                // Write the value of one or more fields,
+                                               //  overwriting other fields to zero
+.modify(value: FieldValue<T, R>)               // Write the value of one or more fields,
+                                               //  leaving other fields unchanged
+.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
+.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
 ```
 
 The first type parameter (the `IntLike` type) is `u8`, `u16`, or `u32`.
@@ -201,16 +203,19 @@ let txcomplete: bool = regs.s.is_set(Status::TXCOMPLETE);
 // MATCHING
 // -----------------------------------------------------------------------------
 
-// You can also query a specific register state easily with `matches`:
+// You can also query a specific register state easily with `matches_[any|all]`:
 
 // Doesn't care about the state of any field except TXCOMPLETE and MODE:
-let ready: bool = regs.s.matches(Status::TXCOMPLETE:SET +
-                                 Status::MODE::FullDuplex);
+let ready: bool = regs.s.matches_all(Status::TXCOMPLETE:SET +
+                                     Status::MODE::FullDuplex);
 
 // This is very useful for awaiting for a specific condition:
-while !regs.s.matches(Status::TXCOMPLETE::SET +
-                      Status::RXCOMPLETE::SET +
-                      Status::TXINTERRUPT::CLEAR) {}
+while !regs.s.matches_all(Status::TXCOMPLETE::SET +
+                          Status::RXCOMPLETE::SET +
+                          Status::TXINTERRUPT::CLEAR) {}
+
+// Or for checking whether any interrupts are enabled:
+let any_ints = regs.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT);
 ```
 
 Note that `modify` performs exactly one volatile load and one volatile store,
