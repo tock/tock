@@ -20,6 +20,14 @@ MEMORY {
 }
 
 SECTIONS {
+    /* App state section. Used for persistent app data.
+     * Goes before the Text section in Flash.
+     */
+    .app_state :
+    {
+        KEEP (*(.app_state))
+    } > FLASH =0xFF
+
     /* Text section, Code! */
     .text :
     {
@@ -140,10 +148,4 @@ SECTIONS {
       *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
-
-    /* App state section. Used for persistent app data. */
-    .app_state :
-    {
-        KEEP (*(.app_state))
-    } > FLASH =0xFF
 }
