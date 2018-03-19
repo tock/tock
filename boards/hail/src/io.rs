@@ -14,6 +14,7 @@ static mut WRITER: Writer = Writer { initialized: false };
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
         let uart = unsafe { &mut sam4l::usart::USART0 };
+        let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
             uart.init(uart::UARTParams {
@@ -22,12 +23,12 @@ impl Write for Writer {
                 parity: uart::Parity::None,
                 hw_flow_control: false,
             });
-            uart.enable_tx();
+            uart.enable_tx(regs_manager);
         }
         // XXX: I'd like to get this working the "right" way, but I'm not sure how
         for c in s.bytes() {
-            uart.send_byte(c);
-            while !uart.tx_ready() {}
+            uart.send_byte(regs_manager, c);
+            while !uart.tx_ready(regs_manager) {}
         }
         Ok(())
     }
