@@ -97,7 +97,7 @@ impl Trng {
 
         // Issue a SW reset
         regs.sw_reset.write(SoftwareReset::RESET::SET);
-        while !regs.sw_reset.is_set(SoftwareReset::RESET) {}
+        while regs.sw_reset.is_set(SoftwareReset::RESET) {}
 
         // Set the startup samples
         regs.ctl.modify(Control::STARTUP_CYCLES.val(1));
