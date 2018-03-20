@@ -96,10 +96,8 @@ impl UART {
         };
 
         unsafe {
-            /*
-             * Make sure the TX pin is output/high before assigning it to UART control
-             * to avoid falling edge glitches
-             */
+            // Make sure the TX pin is output/high before assigning it to UART control
+            // to avoid falling edge glitches
             gpio::PORT[tx_pin as usize].make_output();
             gpio::PORT[tx_pin as usize].set();
 
