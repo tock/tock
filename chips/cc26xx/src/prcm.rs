@@ -157,4 +157,13 @@ impl Clock {
 
         prcm_commit();
     }
+
+    pub fn enable_uart_run() {
+        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        regs.uart_clk_gate_run.modify(ClockGate::CLK_EN::SET);
+        regs.uart_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
+        regs.uart_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
+
+        prcm_commit();
+    }
 }
