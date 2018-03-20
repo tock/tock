@@ -30,23 +30,6 @@ impl Write for Writer {
     }
 }
 
-#[macro_export]
-macro_rules! print {
-        ($($arg:tt)*) => (
-            {
-                use core::fmt::write;
-                let writer = &mut $crate::io::WRITER;
-                let _ = write(writer, format_args!($($arg)*));
-            }
-        );
-}
-
-#[macro_export]
-macro_rules! println {
-        ($fmt:expr) => (print!(concat!($fmt, "\r\n")));
-            ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\r\n"), $($arg)*));
-}
-
 #[cfg(not(test))]
 #[lang = "panic_fmt"]
 #[no_mangle]
