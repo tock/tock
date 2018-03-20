@@ -14,6 +14,7 @@ extern crate kernel;
 
 use cc26xx::aon;
 use cc26xx::prcm;
+use cc26xx::uart::UART;
 
 #[macro_use]
 pub mod io;
@@ -23,8 +24,10 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-//
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
+
+// Initialize UART module with pin numbers for this particular board
+pub static mut UART0: UART = UART::new(3, 2);
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -119,17 +122,16 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
-    cc26xx::uart::UART0.set_pins(3, 2);
     let console = static_init!(
         capsules::console::Console<cc26xx::uart::UART>,
         capsules::console::Console::new(
-            &cc26xx::uart::UART0,
+            &UART0,
             115200,
             &mut capsules::console::WRITE_BUF,
             kernel::Grant::create()
         )
     );
-    kernel::hil::uart::UART::set_client(&cc26xx::uart::UART0, console);
+    kernel::hil::uart::UART::set_client(&UART0, console);
     console.initialize();
 
     // Attach the kernel debug interface to this console

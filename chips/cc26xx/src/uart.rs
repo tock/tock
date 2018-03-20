@@ -68,15 +68,13 @@ pub struct UART {
     rx_pin: Cell<Option<u8>>,
 }
 
-pub static mut UART0: UART = UART::new();
-
 impl UART {
-    pub const fn new() -> UART {
+    pub const fn new(tx_pin: u8, rx_pin: u8) -> UART {
         UART {
             regs: UART_BASE as *mut Registers,
             client: Cell::new(None),
-            tx_pin: Cell::new(None),
-            rx_pin: Cell::new(None),
+            tx_pin: Cell::new(Some(tx_pin)),
+            rx_pin: Cell::new(Some(rx_pin)),
         }
     }
 
