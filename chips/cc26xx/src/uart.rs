@@ -1,13 +1,12 @@
 //! UART driver, cc26xx family
+use core::cell::Cell;
+use gpio;
+use ioc;
+use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::gpio::Pin;
 use kernel::hil::uart;
-use core::cell::Cell;
-use kernel;
-
 use prcm;
-use gpio;
-use ioc;
 
 pub const UART_BASE: usize = 0x4000_1000;
 pub const MCU_CLOCK: u32 = 48_000_000;
@@ -88,19 +87,19 @@ impl UART {
     pub fn configure(&self, params: kernel::hil::uart::UARTParams) {
         let tx_pin = match self.tx_pin.get() {
             Some(pin) => pin,
-            None => panic!("Tx pin not configured for UART")
+            None => panic!("Tx pin not configured for UART"),
         };
 
         let rx_pin = match self.rx_pin.get() {
             Some(pin) => pin,
-            None => panic!("Rx pin not configured for UART")
+            None => panic!("Rx pin not configured for UART"),
         };
 
         unsafe {
             /*
-            * Make sure the TX pin is output/high before assigning it to UART control
-            * to avoid falling edge glitches
-            */
+             * Make sure the TX pin is output/high before assigning it to UART control
+             * to avoid falling edge glitches
+             */
             gpio::PORT[tx_pin as usize].make_output();
             gpio::PORT[tx_pin as usize].set();
 
@@ -121,15 +120,13 @@ impl UART {
         self.fifo_enable();
 
         // Enable UART, RX and TX
-        regs.ctl.write(Control::UART_ENABLE::SET
-            + Control::RX_ENABLE::SET
-            + Control::TX_ENABLE::SET
-        );
+        regs.ctl
+            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
     }
 
     fn power_and_clock(&self) {
         prcm::Power::enable_domain(prcm::PowerDomain::Serial);
-        while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) { };
+        while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
         prcm::Clock::enable_uart_run();
     }
 
@@ -155,9 +152,9 @@ impl UART {
     pub fn disable(&self) {
         self.fifo_disable();
         let regs = unsafe { &*self.regs };
-        regs.ctl.modify(Control::UART_ENABLE::CLEAR
-            + Control::TX_ENABLE::CLEAR
-            + Control::RX_ENABLE::CLEAR);
+        regs.ctl.modify(
+            Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR + Control::RX_ENABLE::CLEAR,
+        );
     }
 
     pub fn disable_interrupts(&self) {
@@ -203,7 +200,9 @@ impl kernel::hil::uart::UART for UART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        if tx_len == 0 { return; }
+        if tx_len == 0 {
+            return;
+        }
 
         for i in 0..tx_len {
             self.send_byte(tx_data[i]);
