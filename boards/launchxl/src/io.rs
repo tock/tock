@@ -3,7 +3,6 @@ use core::fmt::{Arguments, Write};
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
-use UART0;
 
 pub struct Writer {
     initialized: bool,
@@ -13,7 +12,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut UART0 };
+        let uart = unsafe { &mut cc26xx::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
             uart.init(uart::UARTParams {

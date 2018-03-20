@@ -31,6 +31,8 @@ struct Registers {
     dmactl: ReadWrite<u32>,
 }
 
+pub static mut UART0: UART = UART::new();
+
 register_bitfields![
     u32,
     Control [
@@ -69,12 +71,12 @@ pub struct UART {
 }
 
 impl UART {
-    pub const fn new(tx_pin: u8, rx_pin: u8) -> UART {
+    pub const fn new() -> UART {
         UART {
             regs: UART_BASE as *mut Registers,
             client: Cell::new(None),
-            tx_pin: Cell::new(Some(tx_pin)),
-            rx_pin: Cell::new(Some(rx_pin)),
+            tx_pin: Cell::new(None),
+            rx_pin: Cell::new(None),
         }
     }
 
@@ -163,6 +165,15 @@ impl UART {
         let regs = unsafe { &*self.regs };
         regs.imsc.modify(Interrupts::ALL_INTERRUPTS::CLEAR);
         // Clear all UART interrupts
+        regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
+    }
+
+    pub fn handle_interrupt(&self) {
+        let regs = unsafe { &*self.regs };
+        // Get status bits
+        #[allow(unused)]
+        let flags: u32 = regs.fr.get();
+        // Clear interrupts
         regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
     }
 
