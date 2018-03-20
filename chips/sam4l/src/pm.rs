@@ -763,10 +763,9 @@ pub fn deep_sleep_ready() -> bool {
         /* added by us */ ClockMaskPbb::HRAMC1::SET +
         /* added by us */ ClockMaskPbb::PDCA::SET;
 
-    // FIXME: This match is wrong
-    let hsb = PM_REGS.hsbmask.matches_all(deep_sleep_hsbmask);
-    let pba = PM_REGS.pbamask.matches_all(deep_sleep_pbamask);
-    let pbb = PM_REGS.pbbmask.matches_all(deep_sleep_pbbmask);
+    let hsb = PM_REGS.hsbmask.get() & !deep_sleep_hsbmask.mask() == 0;
+    let pba = PM_REGS.pbamask.get() & !deep_sleep_pbamask.mask() == 0;
+    let pbb = PM_REGS.pbbmask.get() & !deep_sleep_pbbmask.mask() == 0;
     let gpio = gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0;
     hsb && pba && pbb && gpio
 }
