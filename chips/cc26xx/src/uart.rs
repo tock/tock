@@ -15,9 +15,9 @@ pub const MCU_CLOCK: u32 = 48_000_000;
 struct Registers {
     dr: ReadWrite<u32>,
     rsr_ecr: ReadWrite<u32>,
-    _reserved0: [u8; 0x10],
+    _reserved0: [u32; 0x4],
     fr: ReadOnly<u32, Flags::Register>,
-    _reserved1: [u8; 0x8],
+    _reserved1: [u32; 0x2],
     ibrd: ReadWrite<u32, IntDivisor::Register>,
     fbrd: ReadWrite<u32, FracDivisor::Register>,
     lcrh: ReadWrite<u32, LineControl::Register>,
