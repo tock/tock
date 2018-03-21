@@ -6,7 +6,7 @@ use core::cell::Cell;
 use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
-use kernel::ClockInterface;
+use kernel::{ClockInterface, StaticRef};
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use scif;
 
@@ -517,15 +517,14 @@ pub enum SystemClockSource {
     },
 }
 
-const PM_BASE: usize = 0x400E0000;
-
 const HSB_MASK_OFFSET: u32 = 0x24;
 const PBA_MASK_OFFSET: u32 = 0x28;
 const PBB_MASK_OFFSET: u32 = 0x2C;
 const PBC_MASK_OFFSET: u32 = 0x30;
 const PBD_MASK_OFFSET: u32 = 0x34;
 
-static mut PM_REGS: *mut PmRegisters = PM_BASE as *mut PmRegisters;
+const PM_BASE: usize = 0x400E0000;
+const PM_REGS: StaticRef<PmRegisters> = unsafe { StaticRef::new(PM_BASE as *const PmRegisters) };
 
 /// Contains state for the power management peripheral. This includes the
 /// configurations for various system clocks and the final frequency that the
@@ -588,13 +587,13 @@ impl PowerManager {
     }
 }
 
-unsafe fn unlock(register_offset: u32) {
-    (*PM_REGS).unlock.set(0xAA000000 | register_offset);
+fn unlock(register_offset: u32) {
+    PM_REGS.unlock.set(0xAA000000 | register_offset);
 }
 
-unsafe fn select_main_clock(clock: MainClock) {
+fn select_main_clock(clock: MainClock) {
     unlock(0);
-    (*PM_REGS).mcctrl.set(clock as u32);
+    PM_REGS.mcctrl.set(clock as u32);
 }
 
 /// Configure the system clock to use the DFLL with the RC32K as the source.
@@ -696,14 +695,14 @@ pub fn get_system_frequency() -> u32 {
 macro_rules! mask_clock {
     ($module:ident: $field:ident | $mask:expr) => ({
         unlock(concat_idents!($module, _MASK_OFFSET));
-        let val = (*PM_REGS).$field.get() | ($mask);
-        (*PM_REGS).$field.set(val);
+        let val = PM_REGS.$field.get() | ($mask);
+        PM_REGS.$field.set(val);
     });
 
     ($module:ident: $field:ident & $mask:expr) => ({
         unlock(concat_idents!($module, _MASK_OFFSET));
-        let val = (*PM_REGS).$field.get() & ($mask);
-        (*PM_REGS).$field.set(val);
+        let val = PM_REGS.$field.get() & ($mask);
+        PM_REGS.$field.set(val);
     });
 }
 
@@ -712,7 +711,7 @@ macro_rules! mask_clock {
 macro_rules! get_clock {
     ($module:ident: $field:ident & $mask:expr) => ({
         unlock(concat_idents!($module, _MASK_OFFSET));
-        ((*PM_REGS).$field.get() & ($mask)) != 0
+        (PM_REGS.$field.get() & ($mask)) != 0
     });
 }
 
@@ -764,55 +763,47 @@ pub fn deep_sleep_ready() -> bool {
         /* added by us */ ClockMaskPbb::HRAMC1::SET +
         /* added by us */ ClockMaskPbb::PDCA::SET;
 
-    unsafe {
-        // FIXME: This match is wrong
-        let hsb = (*PM_REGS).hsbmask.matches_all(deep_sleep_hsbmask);
-        let pba = (*PM_REGS).pbamask.matches_all(deep_sleep_pbamask);
-        let pbb = (*PM_REGS).pbbmask.matches_all(deep_sleep_pbbmask);
-        let gpio = gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0;
-        hsb && pba && pbb && gpio
-    }
+    // FIXME: This match is wrong
+    let hsb = PM_REGS.hsbmask.matches_all(deep_sleep_hsbmask);
+    let pba = PM_REGS.pbamask.matches_all(deep_sleep_pbamask);
+    let pbb = PM_REGS.pbbmask.matches_all(deep_sleep_pbbmask);
+    let gpio = gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0;
+    hsb && pba && pbb && gpio
 }
 
 impl ClockInterface for Clock {
     fn is_enabled(&self) -> bool {
-        unsafe {
-            match self {
-                &Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
-                &Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),
-                &Clock::PBB(v) => get_clock!(PBB: pbbmask & (1 << (v as u32))),
-                &Clock::PBC(v) => get_clock!(PBC: pbcmask & (1 << (v as u32))),
-                &Clock::PBD(v) => get_clock!(PBD: pbdmask & (1 << (v as u32))),
-            }
+        match self {
+            &Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
+            &Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),
+            &Clock::PBB(v) => get_clock!(PBB: pbbmask & (1 << (v as u32))),
+            &Clock::PBC(v) => get_clock!(PBC: pbcmask & (1 << (v as u32))),
+            &Clock::PBD(v) => get_clock!(PBD: pbdmask & (1 << (v as u32))),
         }
     }
 
     fn enable(&self) {
-        unsafe {
-            match self {
-                &Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
-                &Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
-                &Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
-                &Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
-                &Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
-            }
+        match self {
+            &Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
+            &Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
+            &Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
+            &Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
+            &Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
         }
     }
 
     fn disable(&self) {
-        unsafe {
-            match self {
-                &Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
-                &Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
-                &Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
-                &Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
-                &Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
-            }
+        match self {
+            &Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
+            &Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
+            &Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
+            &Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
+            &Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
         }
     }
 }
 
-pub unsafe fn enable_clock(clock: Clock) {
+pub fn enable_clock(clock: Clock) {
     match clock {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
@@ -822,7 +813,7 @@ pub unsafe fn enable_clock(clock: Clock) {
     }
 }
 
-pub unsafe fn disable_clock(clock: Clock) {
+pub fn disable_clock(clock: Clock) {
     match clock {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
         Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
@@ -832,7 +823,7 @@ pub unsafe fn disable_clock(clock: Clock) {
     }
 }
 
-pub unsafe fn is_clock_enabled(clock: Clock) -> bool {
+pub fn is_clock_enabled(clock: Clock) -> bool {
     match clock {
         Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
         Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),

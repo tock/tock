@@ -286,10 +286,8 @@ pub struct USARTRegManager<'a> {
 
 impl<'a> USARTRegManager<'a> {
     fn real_new(usart: &USART, is_panic: bool) -> USARTRegManager {
-        unsafe {
-            if pm::is_clock_enabled(usart.clock) == false {
-                pm::enable_clock(usart.clock);
-            }
+        if pm::is_clock_enabled(usart.clock) == false {
+            pm::enable_clock(usart.clock);
         }
         let regs: &UsartRegisters = unsafe { &*usart.registers };
         USARTRegManager {
@@ -327,9 +325,7 @@ impl<'a> Drop for USARTRegManager<'a> {
         // directly and we can't safely reason about what the custom panic
         // USART driver is doing / expects.
         if !(rx_active || tx_active || ints_active || self.is_panic) {
-            unsafe {
-                pm::disable_clock(self.clock);
-            }
+            pm::disable_clock(self.clock);
         }
     }
 }

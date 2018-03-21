@@ -178,9 +178,7 @@ impl<'a> Controller for Ast<'a> {
     fn configure(&self, client: &'a time::Client) {
         self.callback.set(Some(client));
 
-        unsafe {
-            pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
-        }
+        pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
         self.select_clock(Clock::ClockOsc32);
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();

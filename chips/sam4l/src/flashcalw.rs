@@ -481,10 +481,8 @@ impl FLASHCALW {
     /// Enable HCACHE
     pub fn enable_cache(&self) {
         // enable appropriate clocks
-        unsafe {
-            pm::enable_clock(pm::Clock::HSB(pm::HSBClock::FLASHCALWP));
-            pm::enable_clock(pm::Clock::PBB(pm::PBBClock::HRAMC1));
-        }
+        pm::enable_clock(pm::Clock::HSB(pm::HSBClock::FLASHCALWP));
+        pm::enable_clock(pm::Clock::PBB(pm::PBBClock::HRAMC1));
 
         // enable and wait for it to be ready
         self.enable_picocache(true);
@@ -707,17 +705,13 @@ impl FLASHCALW {
 
     pub fn is_ready(&self) -> bool {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
-        unsafe {
-            pm::enable_clock(self.pb_clock);
-        }
+        pm::enable_clock(self.pb_clock);
         regs.fsr.is_set(FlashStatus::FRDY)
     }
 
     fn is_error(&self) -> bool {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
-        unsafe {
-            pm::enable_clock(self.pb_clock);
-        }
+        pm::enable_clock(self.pb_clock);
         regs.fsr.is_set(FlashStatus::LOCKE) | regs.fsr.is_set(FlashStatus::PROGE)
     }
 
@@ -729,9 +723,7 @@ impl FLASHCALW {
 
     pub fn issue_command(&self, command: FlashCMD, page_number: i32) {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
-        unsafe {
-            pm::enable_clock(self.pb_clock);
-        }
+        pm::enable_clock(self.pb_clock);
         // For most commands we wait for the interrupt, for some certain
         // fast/rarely used commands or commands that don't generate interrupts
         // it is better to wait (or at least that is how this driver was
@@ -869,11 +861,9 @@ impl FLASHCALW {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
 
         // Enable all clocks (if they aren't on already...).
-        unsafe {
-            pm::enable_clock(self.ahb_clock);
-            pm::enable_clock(self.hramc1_clock);
-            pm::enable_clock(self.pb_clock);
-        }
+        pm::enable_clock(self.ahb_clock);
+        pm::enable_clock(self.hramc1_clock);
+        pm::enable_clock(self.pb_clock);
 
         // Configure all other interrupts explicitly. Note the issue_command
         // function turns this on when need be.
@@ -901,9 +891,7 @@ impl FLASHCALW {
 
     pub fn get_number_pages(&self) -> u32 {
         // Check clock and enable just in case.
-        unsafe {
-            pm::enable_clock(self.pb_clock);
-        }
+        pm::enable_clock(self.pb_clock);
         self.get_page_count()
     }
 
@@ -915,9 +903,7 @@ impl FLASHCALW {
         buffer: &'static mut Sam4lPage,
     ) -> ReturnCode {
         // Enable clock in case it's off.
-        unsafe {
-            pm::enable_clock(self.ahb_clock);
-        }
+        pm::enable_clock(self.ahb_clock);
 
         // Check that address makes sense and buffer has room.
         if address > (self.get_flash_size() as usize)
@@ -951,9 +937,7 @@ impl FLASHCALW {
 
     pub fn write_page(&self, page_num: i32, data: &'static mut Sam4lPage) -> ReturnCode {
         // Enable clock in case it's off.
-        unsafe {
-            pm::enable_clock(self.ahb_clock);
-        }
+        pm::enable_clock(self.ahb_clock);
 
         // If we're not ready don't take the command.
         if self.current_state.get() != FlashState::Ready {
@@ -971,9 +955,7 @@ impl FLASHCALW {
 
     pub fn erase_page(&self, page_num: i32) -> ReturnCode {
         // Enable AHB clock (in case it was off).
-        unsafe {
-            pm::enable_clock(self.ahb_clock);
-        }
+        pm::enable_clock(self.ahb_clock);
         if self.current_state.get() != FlashState::Ready {
             return ReturnCode::EBUSY;
         }

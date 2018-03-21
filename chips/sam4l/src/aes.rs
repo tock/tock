@@ -171,22 +171,18 @@ impl<'a> Aes<'a> {
     }
 
     fn enable_clock(&self) {
-        unsafe {
-            pm::enable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
-            scif::generic_clock_enable_divided(
-                scif::GenericClock::GCLK4,
-                scif::ClockSource::CLK_CPU,
-                1,
-            );
-            scif::generic_clock_enable(scif::GenericClock::GCLK4, scif::ClockSource::CLK_CPU);
-        }
+        pm::enable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
+        scif::generic_clock_enable_divided(
+            scif::GenericClock::GCLK4,
+            scif::ClockSource::CLK_CPU,
+            1,
+        );
+        scif::generic_clock_enable(scif::GenericClock::GCLK4, scif::ClockSource::CLK_CPU);
     }
 
     fn disable_clock(&self) {
-        unsafe {
-            scif::generic_clock_disable(scif::GenericClock::GCLK4);
-            pm::disable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
-        }
+        scif::generic_clock_disable(scif::GenericClock::GCLK4);
+        pm::disable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
     }
 
     fn enable_interrupts(&self) {
