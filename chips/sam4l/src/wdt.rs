@@ -115,9 +115,7 @@ impl Wdt {
 
         self.enabled.set(true);
 
-        unsafe {
-            pm::enable_clock(Clock::PBD(PBDClock::WDT));
-        }
+        pm::enable_clock(Clock::PBD(PBDClock::WDT));
 
         // Choose the best period setting based on what was passed to `start()`
         let scaler = match period {
@@ -164,9 +162,7 @@ impl Wdt {
         regs.cr.modify(Control::KEY::KEY1 + Control::EN::CLEAR);
         regs.cr.modify(Control::KEY::KEY2 + Control::EN::CLEAR);
 
-        unsafe {
-            pm::disable_clock(Clock::PBD(PBDClock::WDT));
-        }
+        pm::disable_clock(Clock::PBD(PBDClock::WDT));
 
         self.enabled.set(false);
     }

@@ -140,9 +140,7 @@ impl hil::dac::DacChannel for Dac {
             self.enabled.set(true);
 
             // Start the APB clock (CLK_DACC)
-            unsafe {
-                pm::enable_clock(Clock::PBA(PBAClock::DACC));
-            }
+            pm::enable_clock(Clock::PBA(PBAClock::DACC));
 
             // Reset DACC
             regs.cr.write(Control::SWRST::SET);

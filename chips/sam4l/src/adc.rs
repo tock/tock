@@ -482,57 +482,53 @@ impl Adc {
             // First, enable the clocks
             // Both the ADCIFE clock and GCLK10 are needed
             let mut clock_divisor;
-            unsafe {
-                // turn on ADCIFE bus clock. Already set to the same frequency
-                // as the CPU clock
-                pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
-                // the maximum sampling frequency with the RC clocks is 1/32th of their clock
-                // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
-                // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
-                if frequency <= 113600 / 32 {
-                    // RC oscillator
-                    self.cpu_clock.set(false);
-                    let max_freq: u32;
-                    if frequency <= 32000 / 32 {
-                        // frequency of the RC32K is 32KHz.
-                        scif::generic_clock_enable(
-                            scif::GenericClock::GCLK10,
-                            scif::ClockSource::RC32K,
-                        );
-                        max_freq = 32000 / 32;
-                    } else {
-                        // frequency of the RCSYS is 115KHz.
-                        scif::generic_clock_enable(
-                            scif::GenericClock::GCLK10,
-                            scif::ClockSource::RCSYS,
-                        );
-                        max_freq = 113600 / 32;
-                    }
-                    let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
-                    clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
-                    clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                    self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
-                } else {
-                    // CPU clock
-                    self.cpu_clock.set(true);
+
+            // turn on ADCIFE bus clock. Already set to the same frequency
+            // as the CPU clock
+            pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
+            // the maximum sampling frequency with the RC clocks is 1/32th of their clock
+            // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
+            // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
+            if frequency <= 113600 / 32 {
+                // RC oscillator
+                self.cpu_clock.set(false);
+                let max_freq: u32;
+                if frequency <= 32000 / 32 {
+                    // frequency of the RC32K is 32KHz.
                     scif::generic_clock_enable(
                         scif::GenericClock::GCLK10,
-                        scif::ClockSource::CLK_CPU,
+                        scif::ClockSource::RC32K,
                     );
-                    // determine clock divider
-                    // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
-                    // so we need to find the PRESCAL value that will make this
-                    // happen.
-                    // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
-                    // and we solve for N
-                    // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
-                    let cpu_frequency = pm::get_system_frequency();
-                    let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
-                    clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
-                    clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                    self.adc_clk_freq
-                        .set(cpu_frequency / (1 << (clock_divisor + 2)));
+                    max_freq = 32000 / 32;
+                } else {
+                    // frequency of the RCSYS is 115KHz.
+                    scif::generic_clock_enable(
+                        scif::GenericClock::GCLK10,
+                        scif::ClockSource::RCSYS,
+                    );
+                    max_freq = 113600 / 32;
                 }
+                let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
+                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
+                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
+            } else {
+                // CPU clock
+                self.cpu_clock.set(true);
+                scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::CLK_CPU);
+                // determine clock divider
+                // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
+                // so we need to find the PRESCAL value that will make this
+                // happen.
+                // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
+                // and we solve for N
+                // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
+                let cpu_frequency = pm::get_system_frequency();
+                let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
+                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
+                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                self.adc_clk_freq
+                    .set(cpu_frequency / (1 << (clock_divisor + 2)));
             }
 
             // configure the ADC
