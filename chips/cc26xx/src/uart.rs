@@ -72,7 +72,7 @@ pub struct UART {
 impl UART {
     const fn new() -> UART {
         UART {
-            regs: UART_BASE as *mut Registers,
+            regs: UART_BASE as *const Registers,
             client: Cell::new(None),
             tx_pin: Cell::new(None),
             rx_pin: Cell::new(None),
