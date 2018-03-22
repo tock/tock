@@ -116,7 +116,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
+    console: &'static capsules::console::Console<'static, nrf52::uart::Uarte>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
@@ -277,22 +277,22 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
 
-    nrf52::uart::UART0.configure(
+    nrf52::uart::UARTE0.configure(
         nrf5x::pinmux::Pinmux::new(6), // tx
         nrf5x::pinmux::Pinmux::new(8), // rx
         nrf5x::pinmux::Pinmux::new(7), // cts
         nrf5x::pinmux::Pinmux::new(5),
     ); // rts
     let console = static_init!(
-        capsules::console::Console<nrf52::uart::UARTE>,
+        capsules::console::Console<nrf52::uart::Uarte>,
         capsules::console::Console::new(
-            &nrf52::uart::UART0,
+            &nrf52::uart::UARTE0,
             115200,
             &mut capsules::console::WRITE_BUF,
             kernel::Grant::create()
         )
     );
-    kernel::hil::uart::UART::set_client(&nrf52::uart::UART0, console);
+    kernel::hil::uart::UART::set_client(&nrf52::uart::UARTE0, console);
     console.initialize();
 
     // Attach the kernel debug interface to this console

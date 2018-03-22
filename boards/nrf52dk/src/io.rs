@@ -13,7 +13,7 @@ static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut nrf52::uart::UART0 };
+        let uart = unsafe { &mut nrf52::uart::UARTE0 };
         if !self.initialized {
             self.initialized = true;
             uart.init(uart::UARTParams {

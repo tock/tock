@@ -48,7 +48,7 @@ impl kernel::Chip for NRF52 {
                     TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
                     TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
                     TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
-                    UART0 => uart::UART0.handle_interrupt(),
+                    UART0 => uart::UARTE0.handle_interrupt(),
                     SPI0_TWI0 => {
                         // SPI0 and TWI0 share interrupts.
                         // Dispatch the correct handler.
