@@ -105,6 +105,7 @@ impl IocfgPin {
         pin_ioc.modify(IoConfiguration::EDGE_IRQ_EN::CLEAR);
     }
 
+    /// Configures pin for UART receive (RX).
     pub fn enable_uart_rx(&self) {
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];
@@ -114,6 +115,7 @@ impl IocfgPin {
         self.enable_input();
     }
 
+    /// Configures pin for UART transmit (TX).
     pub fn enable_uart_tx(&self) {
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];

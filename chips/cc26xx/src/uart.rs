@@ -79,6 +79,10 @@ impl UART {
         }
     }
 
+    /// Sets pin number for transmit and receive line.
+    ///
+    /// This function needs to be run before the UART module is initialized.
+    /// Initializing the module without setting the pins will make the kernel panic.
     pub fn set_pins(&self, tx_pin: u8, rx_pin: u8) {
         self.tx_pin.set(Some(tx_pin));
         self.rx_pin.set(Some(rx_pin));
@@ -125,7 +129,7 @@ impl UART {
     fn power_and_clock(&self) {
         prcm::Power::enable_domain(prcm::PowerDomain::Serial);
         while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
-        prcm::Clock::enable_uart_run();
+        prcm::Clock::enable_uart();
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -163,6 +167,7 @@ impl UART {
         regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
     }
 
+    /// Clears all interrupts related to UART.
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
         // Get status bits
@@ -172,6 +177,7 @@ impl UART {
         regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
     }
 
+    /// Transmits a single byte if the hardware is ready.
     pub fn send_byte(&self, c: u8) {
         // Wait for space in FIFO
         while !self.tx_ready() {}
@@ -180,6 +186,7 @@ impl UART {
         regs.dr.set(c as u32);
     }
 
+    /// Checks if there is space in the transmit fifo queue.
     pub fn tx_ready(&self) -> bool {
         let regs = unsafe { &*self.regs };
         !regs.fr.is_set(Flags::TX_FIFO_FULL)
