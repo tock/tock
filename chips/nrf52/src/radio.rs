@@ -661,24 +661,24 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         self.disable_all_interrupts();
 
-        if regs.event_ready.matches(Event::READY::SET) {
+        if regs.event_ready.is_set(Event::READY) {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
             regs.task_start.write(Task::ENABLE::SET);
         }
 
-        if regs.event_address.matches(Event::READY::SET) {
+        if regs.event_address.is_set(Event::READY) {
             regs.event_address.write(Event::READY::CLEAR);
         }
-        if regs.event_payload.matches(Event::READY::SET) {
+        if regs.event_payload.is_set(Event::READY) {
             regs.event_payload.write(Event::READY::CLEAR);
         }
 
         // tx or rx finished!
-        if regs.event_end.matches(Event::READY::SET) {
+        if regs.event_end.is_set(Event::READY) {
             regs.event_end.write(Event::READY::CLEAR);
 
-            let result = if regs.crcstatus.matches(Event::READY::SET) {
+            let result = if regs.crcstatus.is_set(Event::READY) {
                 ReturnCode::SUCCESS
             } else {
                 ReturnCode::FAIL

@@ -308,7 +308,7 @@ impl Uarte {
     /// Check if the UART tranmission is done
     pub fn tx_ready(&self) -> bool {
         let regs = unsafe { &*self.regs };
-        regs.event_endtx.matches(Event::READY::SET)
+        regs.event_endtx.is_set(Event::READY)
     }
 
     fn set_dma_pointer_to_buffer(&self) {
