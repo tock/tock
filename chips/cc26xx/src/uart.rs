@@ -8,8 +8,8 @@ use kernel::hil::gpio::Pin;
 use kernel::hil::uart;
 use prcm;
 
-pub const UART_BASE: usize = 0x4000_1000;
-pub const MCU_CLOCK: u32 = 48_000_000;
+const UART_BASE: usize = 0x4000_1000;
+const MCU_CLOCK: u32 = 48_000_000;
 
 #[repr(C)]
 struct Registers {
@@ -70,7 +70,7 @@ pub struct UART {
 }
 
 impl UART {
-    pub const fn new() -> UART {
+    const fn new() -> UART {
         UART {
             regs: UART_BASE as *mut Registers,
             client: Cell::new(None),
@@ -84,7 +84,7 @@ impl UART {
         self.rx_pin.set(Some(rx_pin));
     }
 
-    pub fn configure(&self, params: kernel::hil::uart::UARTParams) {
+    fn configure(&self, params: kernel::hil::uart::UARTParams) {
         let tx_pin = match self.tx_pin.get() {
             Some(pin) => pin,
             None => panic!("Tx pin not configured for UART"),
@@ -147,7 +147,7 @@ impl UART {
         regs.lcrh.modify(LineControl::FIFO_ENABLE::CLEAR);
     }
 
-    pub fn disable(&self) {
+    fn disable(&self) {
         self.fifo_disable();
         let regs = unsafe { &*self.regs };
         regs.ctl.modify(
@@ -155,7 +155,7 @@ impl UART {
         );
     }
 
-    pub fn disable_interrupts(&self) {
+    fn disable_interrupts(&self) {
         // Disable all UART interrupts
         let regs = unsafe { &*self.regs };
         regs.imsc.modify(Interrupts::ALL_INTERRUPTS::CLEAR);
