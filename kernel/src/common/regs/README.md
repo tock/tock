@@ -113,11 +113,14 @@ ReadOnly<T: IntLike, R: RegisterLongName = ()>
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
 .matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
 WriteOnly<T: IntLike, R: RegisterLongName = ()>
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
+.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
+
 
 ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .get() -> T                                    // Get the raw register value
@@ -130,6 +133,8 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
 .matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
+
 ```
 
 The first type parameter (the `IntLike` type) is `u8`, `u16`, or `u32`.
@@ -216,6 +221,20 @@ while !regs.s.matches_all(Status::TXCOMPLETE::SET +
 
 // Or for checking whether any interrupts are enabled:
 let any_ints = regs.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT);
+
+// -----------------------------------------------------------------------------
+// LOCAL COPY
+// -----------------------------------------------------------------------------
+
+// More complex code may want to read a register value once and then keep it in
+// a local variable before using the normal register interface functions on the
+// local copy.
+
+// Create a copy of the register value as a local variable.
+let local = regs.cr.extract();
+
+// Now all the functions for a ReadOnly register work.
+let txcomplete: bool = local.is_set(Status::TXCOMPLETE);
 ```
 
 Note that `modify` performs exactly one volatile load and one volatile store,
