@@ -96,7 +96,7 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins)
     );
 
-    // BUTTONs
+    // BUTTONS
     let button_pins = static_init!(
         [(&'static cc26xx::gpio::GPIOPin, capsules::button::GpioMode); 2],
         [
@@ -118,6 +118,7 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
+    // UART
     cc26xx::uart::UART0.set_pins(3, 2);
     let console = static_init!(
         capsules::console::Console<cc26xx::uart::UART>,
