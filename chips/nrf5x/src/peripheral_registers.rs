@@ -54,21 +54,6 @@ pub struct TIMER {
     pub cc: [VolatileCell<u32>; 4],      // 0x540
 }
 
-pub const AESECB_BASE: usize = 0x4000E000;
-#[repr(C)]
-pub struct AESECB_REGS {
-    pub task_startecb: VolatileCell<u32>,  // 0x000 - 0x004
-    pub task_stopecb: VolatileCell<u32>,   // 0x004 - 0x008
-    pub _reserved1: [u32; 62],             // 0x008 - 0x100
-    pub event_endecb: VolatileCell<u32>,   // 0x100 - 0x104
-    pub event_errorecb: VolatileCell<u32>, // 0x104 - 0x108
-    pub _reserved2: [u32; 127],            // 0x108 - 0x304
-    pub intenset: VolatileCell<u32>,       // 0x304 - 0x308
-    pub intenclr: VolatileCell<u32>,       // 0x308 - 0x30c
-    pub _reserved3: [u32; 126],            // 0x30c - 0x504
-    pub ecbdataptr: VolatileCell<u32>,     // 0x504 - 0x508
-}
-
 pub const GPIO_BASE: usize = 0x50000000;
 #[repr(C)]
 pub struct GPIO {

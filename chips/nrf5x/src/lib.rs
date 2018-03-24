@@ -2,7 +2,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 mod peripheral_registers;
