@@ -119,8 +119,6 @@ impl Temperature {
     }
 
     /// Temperature interrupt handler
-    #[no_mangle]
-    #[inline(never)]
     pub fn handle_interrupt(&self) {
         // disable interrupts
         self.disable_interrupts();
