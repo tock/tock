@@ -84,21 +84,6 @@ pub struct GPIO {
     pub pin_cnf: [VolatileCell<u32>; 32],
 }
 
-pub const TEMP_BASE: usize = 0x4000C000;
-#[repr(C)]
-pub struct TEMP_REGS {
-    pub task_start: VolatileCell<u32>,    // 0x000 - 0x004
-    pub task_stop: VolatileCell<u32>,     // 0x004 - 0x008
-    pub _reserved1: [u32; 62],            // 0x008 - 0x100
-    pub event_datardy: VolatileCell<u32>, // 0x100 - 0x104
-    pub _reserved2: [u32; 127],           // 0x104 - 0x300
-    pub inten: VolatileCell<u32>,         // 0x300 - 0x304
-    pub intenset: VolatileCell<u32>,      // 0x304 - 0x308
-    pub intenclr: VolatileCell<u32>,      // 0x308 - 0x30c
-    pub _reserved3: [u32; 127],           // 0x30c - 0x508
-    pub temp: VolatileCell<u32>,          // 0x508 - 0x50c
-}
-
 pub const RNG_BASE: usize = 0x4000D000;
 #[repr(C)]
 pub struct RNG_REGS {
