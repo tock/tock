@@ -170,9 +170,6 @@ impl UART {
     /// Clears all interrupts related to UART.
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
-        // Get status bits
-        #[allow(unused)]
-        let flags: u32 = regs.fr.get();
         // Clear interrupts
         regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
     }
