@@ -2,7 +2,7 @@
 
 use core::cell::Cell;
 use kernel::StaticRef;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
 use pm::{self, Clock, PBDClock};
 
@@ -104,6 +104,21 @@ pub struct Wdt {
 
 pub static mut WDT: Wdt = Wdt::new();
 
+#[derive(Copy, Clone)]
+pub enum WdtClockSource {
+    ClockRCSys = 0,
+    ClockOsc32 = 1,
+}
+
+impl From<WdtClockSource> for FieldValue<u32, Control::Register> {
+    fn from(clock: WdtClockSource) -> Self {
+        match clock {
+            WdtClockSource::ClockRCSys => Control::CSSEL::RCSYS,
+            WdtClockSource::ClockOsc32 => Control::CSSEL::OSC32K,
+        }
+    }
+}
+
 impl Wdt {
     const fn new() -> Wdt {
         Wdt {
@@ -111,10 +126,33 @@ impl Wdt {
         }
     }
 
+    fn select_clock(&self, clock: WdtClockSource) {
+        if !(WDT_REGS.cr.matches_all(From::from(clock))) {
+            let clock_enabled = WDT_REGS.cr.is_set(Control::CEN);
+
+            if clock_enabled {
+                // Disable WDT clock before modifying source
+                WDT_REGS.cr.modify(Control::KEY::KEY1 + Control::CEN::CLEAR);
+                WDT_REGS.cr.modify(Control::KEY::KEY2 + Control::CEN::CLEAR);
+            }
+
+            // Select Clock
+            WDT_REGS.cr.modify(Control::KEY::KEY1 + From::from(clock));
+            WDT_REGS.cr.modify(Control::KEY::KEY2 + From::from(clock));
+
+            if clock_enabled {
+                // Re-enable WDT clock after modifying source
+                WDT_REGS.cr.modify(Control::KEY::KEY1 + Control::CEN::SET);
+                WDT_REGS.cr.modify(Control::KEY::KEY2 + Control::CEN::SET);
+            }
+        }
+    }
+
     fn start(&self, period: usize) {
         self.enabled.set(true);
 
         pm::enable_clock(Clock::PBD(PBDClock::WDT));
+        self.select_clock(WdtClockSource::ClockOsc32);
 
         // Choose the best period setting based on what was passed to `start()`
         let scaler = match period {
@@ -150,8 +188,8 @@ impl Wdt {
             + Control::DAR::DisableAfterReset + Control::EN::Enable;
 
         // Need to write twice for it to work
-        WDT_REGS.cr.write(Control::KEY::KEY1 + control);
-        WDT_REGS.cr.write(Control::KEY::KEY2 + control);
+        WDT_REGS.cr.modify(Control::KEY::KEY1 + control);
+        WDT_REGS.cr.modify(Control::KEY::KEY2 + control);
     }
 
     fn stop(&self) {
