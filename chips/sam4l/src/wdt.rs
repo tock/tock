@@ -1,6 +1,7 @@
 //! Implementation of the SAM4L hardware watchdog timer.
 
 use core::cell::Cell;
+use kernel::StaticRef;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
 use pm::{self, Clock, PBDClock};
@@ -93,26 +94,24 @@ register_bitfields![u32,
 ];
 
 // Page 59 of SAM4L data sheet
-const BASE_ADDRESS: *mut WdtRegisters = 0x400F0C00 as *mut WdtRegisters;
+const WDT_BASE: *mut WdtRegisters = 0x400F0C00 as *mut WdtRegisters;
+const WDT_REGS: StaticRef<WdtRegisters> =
+    unsafe { StaticRef::new(WDT_BASE as *const WdtRegisters) };
 
 pub struct Wdt {
-    registers: *mut WdtRegisters,
     enabled: Cell<bool>,
 }
 
-pub static mut WDT: Wdt = Wdt::new(BASE_ADDRESS);
+pub static mut WDT: Wdt = Wdt::new();
 
 impl Wdt {
-    const fn new(base_address: *mut WdtRegisters) -> Wdt {
+    const fn new() -> Wdt {
         Wdt {
-            registers: base_address,
             enabled: Cell::new(false),
         }
     }
 
     fn start(&self, period: usize) {
-        let regs: &WdtRegisters = unsafe { &*self.registers };
-
         self.enabled.set(true);
 
         pm::enable_clock(Clock::PBD(PBDClock::WDT));
@@ -151,16 +150,14 @@ impl Wdt {
             + Control::DAR::DisableAfterReset + Control::EN::Enable;
 
         // Need to write twice for it to work
-        regs.cr.write(Control::KEY::KEY1 + control);
-        regs.cr.write(Control::KEY::KEY2 + control);
+        WDT_REGS.cr.write(Control::KEY::KEY1 + control);
+        WDT_REGS.cr.write(Control::KEY::KEY2 + control);
     }
 
     fn stop(&self) {
-        let regs: &WdtRegisters = unsafe { &*self.registers };
-
         // Need to write twice for it to work
-        regs.cr.modify(Control::KEY::KEY1 + Control::EN::CLEAR);
-        regs.cr.modify(Control::KEY::KEY2 + Control::EN::CLEAR);
+        WDT_REGS.cr.modify(Control::KEY::KEY1 + Control::EN::CLEAR);
+        WDT_REGS.cr.modify(Control::KEY::KEY2 + Control::EN::CLEAR);
 
         pm::disable_clock(Clock::PBD(PBDClock::WDT));
 
@@ -168,11 +165,9 @@ impl Wdt {
     }
 
     fn tickle(&self) {
-        let regs: &WdtRegisters = unsafe { &*self.registers };
-
         // Need to write the WDTCLR bit twice for it to work
-        regs.clr.write(Clear::KEY::KEY1 + Clear::WDTCLR::SET);
-        regs.clr.write(Clear::KEY::KEY2 + Clear::WDTCLR::SET);
+        WDT_REGS.clr.write(Clear::KEY::KEY1 + Clear::WDTCLR::SET);
+        WDT_REGS.clr.write(Clear::KEY::KEY2 + Clear::WDTCLR::SET);
     }
 }
 
