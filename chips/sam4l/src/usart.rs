@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::sync::atomic::{AtomicBool, Ordering};
 use dma;
 use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
@@ -283,7 +284,7 @@ pub struct USARTRegManager<'a> {
     tx_dma: Option<&'static dma::DMAChannel>,
 }
 
-static mut IS_PANICING: bool = false;
+static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
 impl<'a> USARTRegManager<'a> {
     fn real_new(usart: &USART) -> USARTRegManager {
@@ -304,7 +305,7 @@ impl<'a> USARTRegManager<'a> {
     }
 
     pub fn panic_new(usart: &USART) -> USARTRegManager {
-        unsafe { IS_PANICING = true };
+        IS_PANICING.store(true, Ordering::Relaxed);
         USARTRegManager::real_new(usart)
     }
 }
@@ -325,7 +326,7 @@ impl<'a> Drop for USARTRegManager<'a> {
         // USART driver code in this file, rather it writes the registers
         // directly and we can't safely reason about what the custom panic
         // USART driver is doing / expects.
-        let is_panic = unsafe { IS_PANICING };
+        let is_panic = IS_PANICING.load(Ordering::Relaxed);
         if !(rx_active || tx_active || ints_active || is_panic) {
             pm::disable_clock(self.clock);
         }
