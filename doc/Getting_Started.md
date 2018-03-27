@@ -37,7 +37,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `rustc 1.24.0-nightly (8e7a609e6 2018-01-04)`. We recommend
+We are using `rustc 1.26.0-nightly (2789b067d 2018-03-06)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
