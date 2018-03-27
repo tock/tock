@@ -37,23 +37,17 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `rustc 1.24.0-nightly (8e7a609e6 2018-01-04)`. We recommend
+We are using `rustc 1.26.0-nightly (2789b067d 2018-03-06)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
 ```bash
-$ curl https://sh.rustup.rs -sSf | sh
+$ curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly-2018-03-07
 ```
 
 This will install `rustup` in your home directory, so you will need to
 source `~/.profile` or open a new shell to add the `.cargo/bin` directory
 to your `$PATH`.
-
-Then install the correct nightly version of Rust:
-
-```bash
-$ rustup install nightly-2018-03-07
-```
 
 #### Xargo
 
