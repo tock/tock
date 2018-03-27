@@ -281,11 +281,12 @@ pub struct USARTRegManager<'a> {
     clock: pm::Clock,
     rx_dma: Option<&'static dma::DMAChannel>,
     tx_dma: Option<&'static dma::DMAChannel>,
-    is_panic: bool,
 }
 
+static mut IS_PANICING: bool = false;
+
 impl<'a> USARTRegManager<'a> {
-    fn real_new(usart: &USART, is_panic: bool) -> USARTRegManager {
+    fn real_new(usart: &USART) -> USARTRegManager {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
         }
@@ -295,16 +296,16 @@ impl<'a> USARTRegManager<'a> {
             clock: usart.clock,
             rx_dma: usart.rx_dma.get(),
             tx_dma: usart.tx_dma.get(),
-            is_panic: is_panic,
         }
     }
 
     fn new(usart: &USART) -> USARTRegManager {
-        USARTRegManager::real_new(usart, false)
+        USARTRegManager::real_new(usart)
     }
 
     pub fn panic_new(usart: &USART) -> USARTRegManager {
-        USARTRegManager::real_new(usart, true)
+        unsafe { IS_PANICING = true };
+        USARTRegManager::real_new(usart)
     }
 }
 
@@ -324,7 +325,8 @@ impl<'a> Drop for USARTRegManager<'a> {
         // USART driver code in this file, rather it writes the registers
         // directly and we can't safely reason about what the custom panic
         // USART driver is doing / expects.
-        if !(rx_active || tx_active || ints_active || self.is_panic) {
+        let is_panic = unsafe { IS_PANICING };
+        if !(rx_active || tx_active || ints_active || is_panic) {
             pm::disable_clock(self.clock);
         }
     }
