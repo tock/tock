@@ -2,8 +2,10 @@
 
 use core::cell::Cell;
 use kernel::StaticRef;
+use kernel::common::math::log_base_two_u64;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
+use kernel::support;
 use pm::{self, Clock, PBDClock};
 
 #[repr(C)]
@@ -126,24 +128,44 @@ impl Wdt {
         }
     }
 
+    /// WDT Errata: §45.1.3
+    ///
+    /// When writing any of the PSEL, TBAN, EN, or MODE fields, must insert a
+    /// delay for synchronization to complete.
+    ///
+    /// Also handle the KEY for the caller since we're special casing this.
+    fn write_cr(&self, control: FieldValue<u32, Control::Register>) {
+        WDT_REGS.cr.modify(Control::KEY::KEY1 + control);
+        WDT_REGS.cr.modify(Control::KEY::KEY2 + control);
+
+        // When writing to the affected fields, the user must ensure a wait
+        // corresponding to 2 clock cycles of both the WDT peripheral bus clock
+        // and the selected WDT clock source.
+        //
+        // TODO: Actual math based on chosen clock, ASF does:
+        //       delay = div_ceil(sysclk_hz(), OSC_[chosen]_NOMINAL_HZ)
+        for _ in 0..10000 {
+            support::nop();
+        }
+    }
+
     fn select_clock(&self, clock: WdtClockSource) {
         if !(WDT_REGS.cr.matches_all(From::from(clock))) {
             let clock_enabled = WDT_REGS.cr.is_set(Control::CEN);
 
             if clock_enabled {
                 // Disable WDT clock before modifying source
-                WDT_REGS.cr.modify(Control::KEY::KEY1 + Control::CEN::CLEAR);
-                WDT_REGS.cr.modify(Control::KEY::KEY2 + Control::CEN::CLEAR);
+                self.write_cr(Control::CEN::CLEAR);
+                while WDT_REGS.cr.is_set(Control::CEN) {}
             }
 
             // Select Clock
-            WDT_REGS.cr.modify(Control::KEY::KEY1 + From::from(clock));
-            WDT_REGS.cr.modify(Control::KEY::KEY2 + From::from(clock));
+            self.write_cr(From::from(clock));
 
             if clock_enabled {
                 // Re-enable WDT clock after modifying source
-                WDT_REGS.cr.modify(Control::KEY::KEY1 + Control::CEN::SET);
-                WDT_REGS.cr.modify(Control::KEY::KEY2 + Control::CEN::SET);
+                self.write_cr(Control::CEN::SET);
+                while !WDT_REGS.cr.is_set(Control::CEN) {}
             }
         }
     }
@@ -152,50 +174,37 @@ impl Wdt {
         self.enabled.set(true);
 
         pm::enable_clock(Clock::PBD(PBDClock::WDT));
+
+        // Note: Must use this clock to allow deep sleep. If you leave the
+        // default RCSYS, then the watchdog simply will not fire if you enter
+        // deep sleep (despite §20.4.1's protestations to the contrary).
+        // This is lower power anyway, so take the win.
         self.select_clock(WdtClockSource::ClockOsc32);
 
         // Choose the best period setting based on what was passed to `start()`
-        let scaler = match period {
-            0...2 => 7,
-            3...6 => 8,
-            7...12 => 9,
-            13...24 => 10,
-            25...48 => 11,
-            49...96 => 12,
-            97...192 => 13,
-            193...384 => 14,
-            385...768 => 15,
-            769...1536 => 16,
-            1537...3072 => 17,
-            3073...6144 => 18,
-            6145...12288 => 19,
-            12289...24576 => 20,
-            24577...49152 => 21,
-            49153...98304 => 22,
-            98305...196608 => 23,
-            196609...393216 => 24,
-            393217...786432 => 25,
-            786433...1572864 => 26,
-            1572865...3145728 => 27,
-            3145729...6291456 => 28,
-            6291457...12582912 => 29,
-            12582913...25165824 => 30,
-            _ => 31,
+        //
+        // §20.5.1.3 Configuring the WDT
+        //
+        // T_timeout = T_psel = 2^(PSEL + 1) / f_wdt_clk
+        //
+        // Period is in ms so use freq in khz for easy integer math
+        let f_clk_khz: u64 = if WDT_REGS.cr.matches_all(Control::CSSEL::RCSYS) {
+            115
+        } else {
+            // OSC32K
+            32
         };
+        let mult: u64 = f_clk_khz * (period as u64);
+        let scaler = log_base_two_u64(mult); // prefer rounding for longer WD (thus no -1)
 
         let control = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
             + Control::FCD::DoNotRedoCalibration
             + Control::DAR::DisableAfterReset + Control::EN::Enable;
-
-        // Need to write twice for it to work
-        WDT_REGS.cr.modify(Control::KEY::KEY1 + control);
-        WDT_REGS.cr.modify(Control::KEY::KEY2 + control);
+        self.write_cr(control);
     }
 
     fn stop(&self) {
-        // Need to write twice for it to work
-        WDT_REGS.cr.modify(Control::KEY::KEY1 + Control::EN::CLEAR);
-        WDT_REGS.cr.modify(Control::KEY::KEY2 + Control::EN::CLEAR);
+        self.write_cr(Control::EN::CLEAR);
 
         pm::disable_clock(Clock::PBD(PBDClock::WDT));
 
