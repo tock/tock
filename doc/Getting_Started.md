@@ -42,12 +42,18 @@ installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
 ```bash
-$ curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly-2018-03-07
+$ curl https://sh.rustup.rs -sSf | sh
 ```
 
 This will install `rustup` in your home directory, so you will need to
 source `~/.profile` or open a new shell to add the `.cargo/bin` directory
 to your `$PATH`.
+
+Then install the correct nightly version of Rust:
+
+```bash
+$ rustup install nightly-2018-03-07
+```
 
 #### Xargo
 
