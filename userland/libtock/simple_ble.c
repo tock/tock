@@ -13,6 +13,8 @@
 #define ADV_SIZE 39
 
 static unsigned char advertisement_buf[ADV_SIZE];
+static unsigned char gap_buf[MAX_SIZE];
+static uint8_t gap_idx = 0;
 
 /*******************************************************************************
  *   INTERNAL BLE HELPER FUNCTION Prototypes
@@ -21,7 +23,6 @@ static unsigned char advertisement_buf[ADV_SIZE];
  ******************************************************************************/
 
 // internal helper function to configure flags in the advertisement
-//
 // flags     - a byte of flags to use in the advertisement
 static int s_ble_configure_flags(uint8_t flags) {
   return allow(BLE_DRIVER_NUMBER, GAP_FLAGS, &flags, 1);
@@ -34,7 +35,15 @@ static int s_ble_configure_flags(uint8_t flags) {
 // len    - length of data buffer
 static int s_ble_configure_gap_data(GapAdvertisementData_t header,
                                     uint8_t *data, uint8_t data_len) {
-  return allow(BLE_DRIVER_NUMBER, header, (void *)data, data_len);
+  uint8_t new_length = 1 + data_len;
+  if (new_length >= MAX_SIZE) {
+    return TOCK_FAIL;
+  } else {
+    gap_buf[gap_idx] = header;
+    memcpy(&gap_buf[gap_idx + 1], data, data_len);
+    gap_idx += new_length;
+    return TOCK_SUCCESS;
+  }
 }
 
 // internal helper to request the kernel to generate a random advertisement
@@ -80,7 +89,12 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
 }
 
 int ble_start_advertising(void) {
+  int err = allow(BLE_DRIVER_NUMBER, BLE_CFG_GAP_BUF_ALLOW, (void *)gap_buf, gap_idx);
+  if (err < TOCK_SUCCESS)
+    return err;
+
   return command(BLE_DRIVER_NUMBER, BLE_ADV_START_CMD, 0, 0);
+
 }
 
 int ble_stop_advertising(void) {

@@ -26,8 +26,9 @@ extern "C" {
 #define BLE_SCAN_CMD 5
 #define BLE_REQ_ADV_ADDR 6
 #define BLE_SCAN_SUB 0
-#define BLE_CFG_SCAN_BUF_ALLOW 0x31
-#define BLE_CFG_ADV_BUF_ALLOW 0x32
+#define BLE_CFG_GAP_BUF_ALLOW 0
+#define BLE_CFG_SCAN_BUF_ALLOW 1
+#define BLE_CFG_ADV_BUF_ALLOW 2
 
 typedef enum {
   GAP_FLAGS = 0x01, /* Flags, see enum below */
