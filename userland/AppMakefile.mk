@@ -296,6 +296,10 @@ $(BUILDDIR)/format/%.uncrustify: %.cxx | _format_check_unstaged
 	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
 
 
+# Rules to help validate build configuration
+fmt format::
+	$(Q)$(TOCK_USERLAND_BASE_DIR)/tools/check_override.sh
+
 
 #########################################################################################
 # Include dependency rules for picking up header changes (by convention at bottom of makefile)
