@@ -20,43 +20,9 @@
 //! * Passive Scanner
 //! * Advertisement
 //!
-//!
-//! The following allow numbers are supported:
-//!
-//! * 1: «Flags»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.3
-//! * 2: «Incomplete List of 16-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 4: «Incomplete List of 32-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 5: «Complete List of 32-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 6: «Incomplete List of 128-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 7: «Complete List of 128-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 8: «Shortened Local Name»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.2
-//! * 9: «Complete Local Name»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.2
-//! * 10`: «Tx Power Level»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.5
-//! * 16: «Device ID» Device ID Profile v1.3 or later
-//! * 18`: «Slave Connection Interval Range»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.8 and 18.8
-//! * 20: «List of 16-bit Service Solicitation UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.9 and 18.9
-//! * 21: «List of 128-bit Service Solicitation UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.9 and 18.9
-//! * 22: «Service Data»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.10 and 18.10
-//! * 25: «Appearance»
-//! Bluetooth Core Specification:Core Specification Supplement, Part A, section 1.12
-//! * 26: «Advertising Interval»
-//! Bluetooth Core Specification:Core Specification Supplement, Part A, section 1.15
-//! * 49: Passive Scanning
-//! * 50: Advertising
-//! * 255: «Manufacturer Specific Data» Bluetooth Core Specification:Vol. 3, Part C, section 8.1.4
+//! * 0: GAP Data
+//! * 1: Passive Scanning
+//! * 2: Advertising
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
@@ -208,69 +174,6 @@ pub const DRIVER_NUM: usize = 0x03_00_00;
 
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 
-#[allow(unused)]
-struct BLEGap(BLEGapType);
-
-enum AllowType {
-    BLEGap(BLEGapType),
-    PassiveScanning,
-    InitAdvertisementBuffer,
-}
-
-impl AllowType {
-    fn from_usize(n: usize) -> Option<AllowType> {
-        match n {
-            0x01 => Some(AllowType::BLEGap(BLEGapType::Flags)),
-            0x02 => Some(AllowType::BLEGap(BLEGapType::IncompleteList16BitServiceIDs)),
-            0x03 => Some(AllowType::BLEGap(BLEGapType::CompleteList16BitServiceIDs)),
-            0x04 => Some(AllowType::BLEGap(BLEGapType::IncompleteList32BitServiceIDs)),
-            0x05 => Some(AllowType::BLEGap(BLEGapType::CompleteList32BitServiceIDs)),
-            0x06 => Some(AllowType::BLEGap(
-                BLEGapType::IncompleteList128BitServiceIDs,
-            )),
-            0x07 => Some(AllowType::BLEGap(BLEGapType::CompleteList128BitServiceIDs)),
-            0x08 => Some(AllowType::BLEGap(BLEGapType::ShortedLocalName)),
-            0x09 => Some(AllowType::BLEGap(BLEGapType::CompleteLocalName)),
-            0x0A => Some(AllowType::BLEGap(BLEGapType::TxPowerLevel)),
-            0x10 => Some(AllowType::BLEGap(BLEGapType::DeviceId)),
-            0x12 => Some(AllowType::BLEGap(BLEGapType::SlaveConnectionIntervalRange)),
-            0x14 => Some(AllowType::BLEGap(BLEGapType::List16BitSolicitationIDs)),
-            0x15 => Some(AllowType::BLEGap(BLEGapType::List128BitSolicitationIDs)),
-            0x16 => Some(AllowType::BLEGap(BLEGapType::ServiceData)),
-            0x19 => Some(AllowType::BLEGap(BLEGapType::Appearance)),
-            0x1A => Some(AllowType::BLEGap(BLEGapType::AdvertisingInterval)),
-            0x31 => Some(AllowType::PassiveScanning),
-            0x32 => Some(AllowType::InitAdvertisementBuffer),
-            0xFF => Some(AllowType::BLEGap(BLEGapType::ManufacturerSpecificData)),
-            _ => None,
-        }
-    }
-}
-
-// Gap Types only the ones that are defined in libtock are defined here
-#[derive(Debug, PartialEq, Copy, Clone)]
-#[repr(usize)]
-enum BLEGapType {
-    Flags = 0x01,
-    IncompleteList16BitServiceIDs = 0x02,
-    CompleteList16BitServiceIDs = 0x03,
-    IncompleteList32BitServiceIDs = 0x04,
-    CompleteList32BitServiceIDs = 0x05,
-    IncompleteList128BitServiceIDs = 0x06,
-    CompleteList128BitServiceIDs = 0x07,
-    ShortedLocalName = 0x08,
-    CompleteLocalName = 0x09,
-    TxPowerLevel = 0x0A,
-    DeviceId = 0x10,
-    SlaveConnectionIntervalRange = 0x12,
-    List16BitSolicitationIDs = 0x14,
-    List128BitSolicitationIDs = 0x15,
-    ServiceData = 0x16,
-    Appearance = 0x19,
-    AdvertisingInterval = 0x1A,
-    ManufacturerSpecificData = 0xFF,
-}
-
 // ConnectUndirected (ADV_IND): connectable undirected advertising event
 // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.1
 //
@@ -384,7 +287,6 @@ pub struct App {
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
-    idx: usize,
     process_status: Option<BLEState>,
     advertisement_interval_ms: u32,
     alarm_data: AlarmData,
@@ -405,7 +307,6 @@ impl Default for App {
             app_write: None,
             app_read: None,
             scan_callback: None,
-            idx: PACKET_PAYLOAD_START,
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
@@ -464,19 +365,19 @@ impl App {
         match self.process_status {
             Some(BLEState::Advertising(_)) | Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
             _ => {
-                let res = self.advertisement_buf
+                self.advertisement_buf
                     .as_mut()
                     .map(|data| {
                         for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH].iter_mut() {
                             *byte = 0x00;
                         }
+
+                        // Reset header length
+                        data.as_mut()[PACKET_HDR_LEN] = 6;
+
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|| ReturnCode::EINVAL);
-                if res == ReturnCode::SUCCESS {
-                    self.idx = PACKET_PAYLOAD_START;
-                }
-                res
+                    .unwrap_or(ReturnCode::EINVAL)
             }
         }
     }
@@ -489,49 +390,37 @@ impl App {
                 slice.as_mut()[PACKET_HDR_PDU] = BLEAdvertisementType::NonConnectUndirected as u8;
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|| ReturnCode::ESIZE)
+            .unwrap_or(ReturnCode::ESIZE)
     }
 
-    fn set_gap_data(&mut self, gap_type: BLEGapType) -> ReturnCode {
+    fn set_gap_data(&mut self) -> ReturnCode {
         self.app_write
             .take()
             .as_ref()
             .map(|slice| {
-                let idx = self.idx;
-                let end = idx + slice.len() + 2;
-
-                if end <= PACKET_LENGTH {
-                    let result = self.advertisement_buf
+                if slice.len() <= PACKET_LENGTH {
+                    self.advertisement_buf
                         .as_mut()
                         .map(|data| {
-                            // set header and length
-                            data.as_mut()[idx] = (slice.len() + 1) as u8;
-                            data.as_mut()[idx + 1] = gap_type as u8;
-
-                            // update total packet size
-                            data.as_mut()[PACKET_HDR_LEN] = (end - 2) as u8;
-
-                            // set data
-                            for (dst, src) in data.as_mut()[idx + 2..end]
+                            for (dst, src) in data.as_mut()[PACKET_PAYLOAD_START..]
                                 .iter_mut()
                                 .zip(slice.as_ref()[0..slice.len()].iter())
                             {
                                 *dst = *src;
                             }
+
+                            // FIXME: move to its own function/method?!
+                            // Update header length
+                            data.as_mut()[PACKET_HDR_LEN] += slice.len() as u8;
+
                             ReturnCode::SUCCESS
                         })
-                        .unwrap_or_else(|| ReturnCode::EINVAL);
-
-                    // If the operation was successful => update idx
-                    if result == ReturnCode::SUCCESS {
-                        self.idx = end;
-                    }
-                    result
+                        .unwrap_or(ReturnCode::EINVAL)
                 } else {
                     ReturnCode::ESIZE
                 }
             })
-            .unwrap_or_else(|| ReturnCode::EINVAL)
+            .unwrap_or(ReturnCode::EINVAL)
     }
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
@@ -556,9 +445,9 @@ impl App {
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|| ReturnCode::EINVAL)
+                    .unwrap_or(ReturnCode::EINVAL)
             })
-            .unwrap_or_else(|| ReturnCode::EINVAL)
+            .unwrap_or(ReturnCode::EINVAL)
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -966,19 +855,21 @@ where
         allow_num: usize,
         slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
-        match AllowType::from_usize(allow_num) {
-            Some(AllowType::BLEGap(gap_type)) => self.app
+        match allow_num {
+            // Configure GAP Data
+            0 => self.app
                 .enter(appid, |app, _| {
                     if app.process_status != Some(BLEState::NotInitialized) {
                         app.app_write = slice;
-                        app.set_gap_data(gap_type)
+                        app.set_gap_data()
                     } else {
                         ReturnCode::EINVAL
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            Some(AllowType::PassiveScanning) => self.app
+            // Passive Scanning
+            1 => self.app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
                         app.app_read = slice;
@@ -989,7 +880,8 @@ where
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            Some(AllowType::InitAdvertisementBuffer) => self.app
+            // Initialize Advertisement Buffer
+            2 => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::NotInitialized) = app.process_status {
                         app.advertisement_buf = slice;
