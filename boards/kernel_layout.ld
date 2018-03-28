@@ -189,6 +189,25 @@ SECTIONS
 
 
 
+    .stack (NOLOAD) :
+    {
+        /* Kernel stack.
+         *
+         * Tock places the kernel stack at the bottom of SRAM so that the
+         * kernel will trigger memory fault if it exceeds its stack depth,
+         * rather than silently overwriting valuable data.
+         */
+        . = ALIGN(8);
+         _sstack = .;
+
+        . = . + __stack_size__;
+
+        . = ALIGN(8);
+        _estack = .;
+    } > ram
+
+
+
     /* Kernel data that must be relocated. This is program data that is
      * exepected to live in SRAM, but is initialized with a value. This data is
      * physically placed into flash and is copied into SRAM by Tock. The
@@ -213,21 +232,6 @@ SECTIONS
 
     .sram (NOLOAD) :
     {
-        /* Kernel stack.
-         *
-         * To keep all kernel memory contiguous (eases MPU protection of kernel
-         * data), Tock next places its own stack into SRAM.
-         */
-        . = ALIGN(8);
-         _sstack = .;
-
-        . = . + __stack_size__;
-
-        . = ALIGN(8);
-        _estack = .;
-
-
-
         /* Kernel BSS section. Memory that is expected to be initialized to
          * zero.
          *
