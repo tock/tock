@@ -9,12 +9,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_SIZE 31
+#define ADV_DATA_MAX_SIZE 31
 #define ADV_SIZE 39
 
+// Entire Advertisement Buffer
 static unsigned char advertisement_buf[ADV_SIZE];
-static unsigned char gap_buf[MAX_SIZE];
-static uint8_t gap_idx = 0;
+// AdvData buffer - to be used by `ADV_IND`, `ADV_NONCONN_IND` and `ADV_SCAN_IND`
+static unsigned char adv_data[ADV_DATA_MAX_SIZE];
+// Index in the AdvData buffer
+static uint8_t adv_data_idx = 0;
 
 /*******************************************************************************
  *   INTERNAL BLE HELPER FUNCTION Prototypes
@@ -37,13 +40,13 @@ static int s_ble_configure_gap_data(GapAdvertisementData_t header,
                                     uint8_t *data, uint8_t data_len) {
   // make room for gap data header: length and gap_type
   uint8_t new_length = 2 + data_len;
-  if (new_length >= MAX_SIZE) {
+  if (new_length >= ADV_DATA_MAX_SIZE) {
     return TOCK_FAIL;
   } else {
-    gap_buf[gap_idx]     = data_len + 1;
-    gap_buf[gap_idx + 1] = header;
-    memcpy(&gap_buf[gap_idx + 2], data, data_len);
-    gap_idx += new_length;
+    adv_data[adv_data_idx]     = data_len + 1;
+    adv_data[adv_data_idx + 1] = header;
+    memcpy(&adv_data[adv_data_idx + 2], data, data_len);
+    adv_data_idx += new_length;
     return TOCK_SUCCESS;
   }
 }
@@ -91,7 +94,7 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
 }
 
 int ble_start_advertising(void) {
-  int err = allow(BLE_DRIVER_NUMBER, BLE_CFG_GAP_BUF_ALLOW, (void *)gap_buf, gap_idx);
+  int err = allow(BLE_DRIVER_NUMBER, BLE_CFG_GAP_BUF_ALLOW, (void *)adv_data, adv_data_idx);
   if (err < TOCK_SUCCESS)
     return err;
 
@@ -107,34 +110,35 @@ int ble_reset_advertisement(void) {
   return command(BLE_DRIVER_NUMBER, BLE_ADV_CLEAR_DATA_CMD, 1, 0);
 }
 
-int ble_advertise_name(uint8_t *device_name, uint8_t size_b) {
+int ble_advertise_name(uint8_t *device_name, uint8_t len) {
   if (device_name == NULL) {
     return TOCK_FAIL;
   } else {
     return s_ble_configure_gap_data(GAP_COMPLETE_LOCAL_NAME, device_name,
-                                    size_b);
+                                    len);
   }
 }
 
-int ble_advertise_uuid16(uint16_t *uuid16, uint8_t size_b) {
+int ble_advertise_uuid16(uint16_t *uuid16, uint8_t len) {
   if (uuid16 == NULL) {
     return TOCK_FAIL;
   } else {
     return s_ble_configure_gap_data(GAP_COMPLETE_LIST_16BIT_SERVICE_IDS,
-                                    (uint8_t *)uuid16, size_b);
+                                    (uint8_t *)uuid16, len);
   }
 }
 
-int ble_advertise_service_data(uint16_t uuid16, uint8_t *data, uint8_t size_b) {
+int ble_advertise_service_data(uint16_t uuid16, uint8_t *data, uint8_t data_len) {
+  uint8_t pdu_size = data_len + 2;
+
   // potential buffer overflow in libtock generate error
-  if (size_b + 2 > MAX_SIZE || data == NULL) {
+  if (pdu_size >= ADV_DATA_MAX_SIZE || data == NULL) {
     return TOCK_FAIL;
   } else {
-    uint8_t s_gap[MAX_SIZE];
-    memset(s_gap, 0, MAX_SIZE);
-    memcpy(s_gap, &uuid16, 2);
-    memcpy(s_gap + 2, data, size_b);
-    return s_ble_configure_gap_data(GAP_SERVICE_DATA, s_gap, size_b + 2);
+    uint8_t pdu[ADV_DATA_MAX_SIZE];
+    memcpy(pdu, &uuid16, 2);
+    memcpy(pdu + 2, data, data_len);
+    return s_ble_configure_gap_data(GAP_SERVICE_DATA, pdu, pdu_size);
   }
 }
 
