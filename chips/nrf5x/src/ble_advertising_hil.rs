@@ -87,7 +87,7 @@ pub enum DisablePHY {
 
 pub trait RxClient {
     fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction;
-    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> DisablePHY;
+    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> PhyTransition;
 }
 
 pub trait TxClient {
@@ -95,7 +95,7 @@ pub trait TxClient {
 }
 
 pub trait AdvertisementClient {
-    fn advertisement_done(&self);
+    fn advertisement_done(&self) -> bool;
     fn timer_expired(&self);
 }
 

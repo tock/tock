@@ -100,11 +100,10 @@ impl Radio {
         }
     }
 
-    pub fn tx(&self) -> bool {
+    pub fn tx(&self) {
         let regs = unsafe { &*self.regs };
 
         self.wait_until_disabled();
-        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH23 | nrf5x::constants::PPI_CHEN_CH25);
         self.set_dma_ptr_tx();
 
         self.state.set(RadioState::TX);
@@ -119,15 +118,12 @@ impl Radio {
 
         self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
 
-        let state = regs.state.get();
-
-        if state != nrf5x::constants::RADIO_STATE_TX {
-            true
+        if self.get_packet_end_time_value() == 0 {
+            regs.task_txen.set(1);
         } else {
-            panic!("STATE is not TX\n");
-            self.disable_radio();
-            false
+            self.schedule_tx_after_t_ifs();
         }
+
     }
 
     fn wait_until_disabled(&self) {
@@ -157,8 +153,6 @@ impl Radio {
 
         self.setup_rx();
 
-        self.state.set(RadioState::RX);
-
         // TODO: if not already going to rx!
         regs.task_rxen.set(1);
     }
@@ -168,7 +162,8 @@ impl Radio {
 
         self.set_dma_ptr_rx();
 
-        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH20 | nrf5x::constants::PPI_CHEN_CH23);
+        // CH20: TIMER0.EVENTS_COMPARE[0] -> RADIO.TASKS_TXEN
+        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH20);
 
         self.state.set(RadioState::RX);
 
@@ -317,6 +312,7 @@ impl Radio {
 
             if state == nrf5x::constants::RADIO_STATE_DISABLE {
                 self.disable_all_interrupts();
+                self.disable_all_interrupts();
                 regs.shorts.set(0);
                 return false;
             }
@@ -326,16 +322,28 @@ impl Radio {
             let result = unsafe { client.receive_start(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2) };
 
             match result {
-                ReadAction::ReadFrameAndStayRX | ReadAction::ReadFrameAndMoveToTX => {
+                ReadAction::ReadFrameAndStayRX => {
                     // TODO set phy_rx_started = 1
+                    self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
+                }
+                ReadAction::ReadFrameAndMoveToTX => {
+                    // TODO set phy_rx_started = 1
+                    self.transition.set(PhyTransition::MoveToTX);
                     self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
                 }
                 ReadAction::SkipFrame => {
                     self.disable_radio();
-                    self.advertisement_client
+                    self.wait_until_disabled();
+
+                    let should_tx = self.advertisement_client
                         .get()
-                        .take()
-                        .map(|client| client.advertisement_done());
+                        .map_or(false, |client| client.advertisement_done());
+
+                    if should_tx {
+                        self.ble_initialize();
+                        self.tx();
+                    }
+
                 }
             }
         } else {
@@ -359,17 +367,27 @@ impl Radio {
 
         // TODO create PDU struct with crc info
 
-        self.schedule_tx_after_t_ifs();
-
         if let Some(client) = self.rx_client.get() {
             let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok) };
 
             match result {
-                DisablePHY::DisableAfterRX => {
-                    self.disable_radio();
+                PhyTransition::MoveToTX => {
+                    self.tx();
                 }
-                _ => {
-                    // Do nothing!
+                PhyTransition::MoveToRX => {
+                    self.setup_rx();
+                    self.schedule_rx_after_t_ifs();
+                }
+                PhyTransition::None => {
+                    self.disable_radio();
+                    self.wait_until_disabled();
+                    let should_tx = self.advertisement_client
+                        .get()
+                        .map_or(false, |client| client.advertisement_done());
+                    if should_tx {
+                        self.ble_initialize();
+                        self.tx();
+                    }
                 }
             }
         } else {
@@ -384,19 +402,24 @@ impl Radio {
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
         regs.event_end.set(0);
 
-        // TODO set wfr_time (= NRF_RADIO->SHORTS)
-
-        // TODO check transition TX_RX?
         if PhyTransition::MoveToRX == self.transition.get() {
+
+            // TODO set wfr_time (= NRF_RADIO->SHORTS)
             self.setup_rx();
 
             // TODO wfr_enable
             self.schedule_rx_after_t_ifs();
-        } else {
-            self.advertisement_client
+        } else if PhyTransition::MoveToTX == self.transition.get() {
+            self.wait_until_disabled();
+
+            let should_tx = self.advertisement_client
                 .get()
-                .take()
-                .map(|client| client.advertisement_done());
+                .map_or(false, |client| client.advertisement_done());
+            if should_tx {
+                self.ble_initialize();
+                self.tx();
+            }
+        } else {
 
             // TODO timer->task_stop
             // TODO clear CHEN 4, 5, 20, 31
@@ -411,6 +434,7 @@ impl Radio {
 
         let mut enabled_interrupts = regs.intenclr.get();
 
+
         if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_ADDRESS) > 0
             && regs.event_address.get() == 1
         {
@@ -424,10 +448,8 @@ impl Radio {
         {
             if self.state.get() == RadioState::RX {
                 regs.event_disabled.set(0);
-                debug!("Timer expired in advertisement client!\n");
                 self.advertisement_client
                     .get()
-                    .take()
                     .map(|client| client.timer_expired());
             } else if self.state.get() == RadioState::Uninitialized {
                 panic!("Oh no!\n");
@@ -604,6 +626,9 @@ impl Radio {
     // Advertising:     37, 38, 39
     fn ble_set_channel(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
+
+        assert_eq!(nrf5x::constants::RADIO_STATE_DISABLE, regs.state.get());
+
         self.channel.set(Some(channel));
         regs.frequency.set(channel as u32);
         self.ble_set_data_whitening(channel);
@@ -624,7 +649,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         self.ble_initialize();
         let res = self.set_advertisement_data(buf, len);
-        self.set_tx_start_time(300); //TODO - not sure about why tx is delayed by this time
         self.tx();
 
         res

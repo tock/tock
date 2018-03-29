@@ -787,15 +787,15 @@ impl App {
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
-        let random_address: [u8; 6] = [
+        /*let random_address: [u8; 6] = [
             0xf0,
             0x11,
             0x11,
             ((appid.idx() << 16) as u8 & 0xff),
             ((appid.idx() << 24) as u8 & 0xff),
             0xf0,
-        ];
-        //let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        ];*/
+        let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
         self.advertising_address = Some(DeviceAddress::new(&random_address));
 
         debug!("random address!, {:?}", self.advertising_address);
@@ -1005,7 +1005,7 @@ impl App {
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
 
-    fn handle_request<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, pdu: BLEPduType) -> DisablePHY
+    fn handle_request<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, pdu: BLEPduType) -> PhyTransition
     where
         B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
         A: kernel::hil::time::Alarm + 'a,
@@ -1016,22 +1016,23 @@ impl App {
                     debug!("Scan request for me! YAY {:?}\n", adv_addr);
                     self.prepare_scan_response(ble);
                     // Scan for us and went to TX already
-                    DisablePHY::NoDisable
+                    PhyTransition::MoveToTX
                 } else {
                     // Request is not for us
-                    DisablePHY::DisableAfterRX
+                    PhyTransition::None
                 }
             }
             BLEPduType::ConnectRequest(_init_addr, adv_addr, _) => {
                 if Some(adv_addr) == self.advertising_address {
                     debug!("Connection request for me! YAY {:?}\n", adv_addr);
                     self.state = Some(BleLinkLayerState::WaitingForConnection);
+                    PhyTransition::MoveToRX
+                } else {
+                    // TODO parse LLData and switch to data channel
+                    // Connection request for me, disable to switch to data channel
+                    // or, disable to switch to TX on next adv channel
+                    PhyTransition::None
                 }
-
-                // TODO parse LLData and switch to data channel
-                // Connection request for me, disable to switch to data channel
-                // or, disable to switch to TX on next adv channel
-                DisablePHY::DisableAfterRX
             }
             _ => panic!("WHAT? This is professional\n"),
         }
@@ -1140,8 +1141,10 @@ where
     }
 
     fn replace_buffer(&self, edit_buffer: &Fn(&mut [u8]) -> ()) {
-        self.kernel_tx.map(|buffer| {
+        self.kernel_tx.take().map(|buffer| {
             edit_buffer(buffer);
+            let res = self.radio.set_advertisement_data(buffer, PACKET_LENGTH);
+            self.kernel_tx.replace(res);
         });
     }
 
@@ -1184,7 +1187,7 @@ where
     // recently performed an operation.
     fn fired(&self) {
         let now = self.alarm.now();
-        // debug!("Timer fired!");
+        //debug!("Timer fired!");
 
         self.app.each(|app| {
             if let Expiration::Abs(exp) = app.alarm_data.expiration {
@@ -1243,8 +1246,8 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> DisablePHY {
-        let mut disable_action = DisablePHY::NoDisable;
+    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> PhyTransition {
+        let mut transition = PhyTransition::None;
 
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
@@ -1275,17 +1278,17 @@ where
 
                 // TODO call advertising/scanner/connection/initiating driver
 
-                disable_action = if valid_pkt {
+                transition = if valid_pkt {
                     let pdu_type = pdu_type.expect("PDU type should be valid");
                     let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
                     app.handle_request(&self, pdu)
                 } else {
-                    DisablePHY::DisableAfterRX
+                    PhyTransition::None
                 }
             });
         }
 
-        disable_action
+        transition
     }
     fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction {
         // unsafe {
@@ -1339,7 +1342,8 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn advertisement_done(&self) {
+    fn advertisement_done(&self) -> bool {
+        let mut res = false;
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 if app.state == Some(BleLinkLayerState::RespondingToScanRequest) {
@@ -1351,13 +1355,14 @@ where
                         app.channel = Some(next_channel);
                         self.radio
                             .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
-                        app.set_next_adv_scan_timeout::<A::Frequency>(self.alarm.now());
+                        res = true;
                     } else {
                         let next_channel = RadioChannel::AdvertisingChannel37;
 
                         app.channel = Some(next_channel);
                         self.radio
                             .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
+
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
                     }
                 } else {
@@ -1366,6 +1371,8 @@ where
             });
             self.reset_active_alarm();
         }
+
+        res
     }
 
     fn timer_expired(&self) {
