@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <console.h>
+#include <crt0.h>
 
 #define GROW_BY 0x100
 
@@ -27,7 +28,7 @@ static void grow_stack(void) {
   register uint32_t* sp asm ("sp");
 
   uint32_t buffer[GROW_BY];
-  printf("stack: %p - buffer: %p - STACK_SIZE: 0x%x - at_least: 0x%4lx\n",
+  printf("stack: %p - buffer: %p - STACK_SIZE: 0x%lx - at_least: 0x%4lx\n",
          sp, buffer, STACK_SIZE, size_is_at_least);
 
   write_ptr(buffer);
