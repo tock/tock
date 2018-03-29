@@ -40,8 +40,8 @@ static int s_ble_configure_gap_data(GapAdvertisementData_t header,
   if (new_length >= MAX_SIZE) {
     return TOCK_FAIL;
   } else {
-    gap_buf[gap_idx] = data_len + 1;
-    gap_buf[gap_idx+1] = header;
+    gap_buf[gap_idx]     = data_len + 1;
+    gap_buf[gap_idx + 1] = header;
     memcpy(&gap_buf[gap_idx + 2], data, data_len);
     gap_idx += new_length;
     return TOCK_SUCCESS;
