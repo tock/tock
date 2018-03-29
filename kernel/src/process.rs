@@ -924,7 +924,7 @@ impl<'a> Process<'a> {
             }
 
             // Otherwise, actually load the app.
-            let min_app_ram_size = tbf_header.get_minimum_app_ram_size();
+            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
             let package_name = tbf_header.get_package_name(app_flash_address);
             let init_fn = app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
             let needs_pic_fixup = tbf_header.needs_pic_fixup();
@@ -933,11 +933,32 @@ impl<'a> Process<'a> {
             if let Some(load_result) =
                 load(tbf_header, remaining_app_memory) {
 
+                // First determine how much space we need in the application's
+                // memory space just for kernel and grant state. We need to make
+                // sure we allocate enough memory just for that.
+
+                // Make room for grant pointers.
+                let grant_ptr_size = mem::size_of::<*const usize>();
+                let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+                let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+
+                // Allocate memory for callback ring buffer.
+                let callback_size = mem::size_of::<Task>();
+                let callback_len = 10;
+                let callbacks_offset = callback_len * callback_size;
+
+                // Need to make sure that the amount of memory we allocate for
+                // this process at least covers this state.
+                if min_app_ram_size < (grant_ptrs_offset + callbacks_offset) as u32 {
+                    min_app_ram_size = (grant_ptrs_offset + callbacks_offset) as u32;
+                }
+
                 // TODO round app_ram_size up to a closer MPU unit.
                 // This is a very conservative approach that rounds up to power of
                 // two. We should be able to make this closer to what we actually need.
                 let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
 
+                // Check that we can actually give this app this much memory.
                 if app_ram_size > remaining_app_memory_size {
                     panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
                            package_name,
@@ -951,24 +972,20 @@ impl<'a> Process<'a> {
                 let mut kernel_memory_break = app_memory.as_mut_ptr()
                     .offset(app_memory.len() as isize);
 
-                // Make room for grant pointers.
-                let pointer_size = mem::size_of::<*const usize>();
-                let num_ctrs = read_volatile(&grant::CONTAINER_COUNTER);
-                let grant_ptrs_size = num_ctrs * pointer_size;
-                kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_size as isize));
+                // Now that we know we have the space we can setup the grant
+                // pointers.
+                kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
                 // Set all pointers to null.
                 let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize,
-                                                     num_ctrs);
+                                                     grant_ptrs_num);
                 for opt in opts.iter_mut() {
                     *opt = ptr::null()
                 }
 
-                // Allocate memory for callback ring buffer.
-                let callback_size = mem::size_of::<Task>();
-                let callback_len = 10;
-                let callback_offset = callback_len * callback_size;
-                kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
+                // Now that we know we have the space we can setup the memory
+                // for the callbacks.
+                kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
 
                 // Set up ring buffer.
                 let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
