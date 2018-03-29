@@ -856,7 +856,6 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
         len: usize,
         channel: RadioChannel,
     ) -> &'static mut [u8] {
-        debug!("buf: {:?}", &buf[0..32]);
         let res = self.replace_radio_buffer(buf, len);
         self.ble_initialize(channel);
         self.tx();

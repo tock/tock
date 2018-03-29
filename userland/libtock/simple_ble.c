@@ -35,12 +35,14 @@ static int s_ble_configure_flags(uint8_t flags) {
 // len    - length of data buffer
 static int s_ble_configure_gap_data(GapAdvertisementData_t header,
                                     uint8_t *data, uint8_t data_len) {
-  uint8_t new_length = 1 + data_len;
+  // make room for gap data header: length and gap_type
+  uint8_t new_length = 2 + data_len;
   if (new_length >= MAX_SIZE) {
     return TOCK_FAIL;
   } else {
-    gap_buf[gap_idx] = header;
-    memcpy(&gap_buf[gap_idx + 1], data, data_len);
+    gap_buf[gap_idx] = data_len + 1;
+    gap_buf[gap_idx+1] = header;
+    memcpy(&gap_buf[gap_idx + 2], data, data_len);
     gap_idx += new_length;
     return TOCK_SUCCESS;
   }

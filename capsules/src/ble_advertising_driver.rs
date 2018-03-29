@@ -13,7 +13,6 @@
 //! ### Allow system call
 //! The allow systems calls are used for buffers from allocated by userland
 //!
-//!
 //! There are three different buffers:
 //!
 //! * Bluetooth Low Energy Gap Types
@@ -32,6 +31,7 @@
 //! * EINVAL: Invalid address of the buffer or other error
 //! * EBUSY: The driver is currently busy with other tasks
 //! * ENOSUPPORT: The operation is not supported
+//! * ERROR: Operation `map` on Option failed
 //!
 //! ### Subscribe system call
 //!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
@@ -250,6 +250,7 @@ const PACKET_ADDR_START: usize = 2;
 const PACKET_ADDR_END: usize = 7;
 const PACKET_PAYLOAD_START: usize = 8;
 const PACKET_LENGTH: usize = 39;
+const EMPTY_PACKET_LEN: u8 = 6;
 
 #[derive(PartialEq, Debug)]
 enum BLEState {
@@ -326,7 +327,7 @@ impl App {
                 }
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|| ReturnCode::EINVAL)
+            .unwrap_or(ReturnCode::FAIL)
     }
 
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
@@ -358,7 +359,7 @@ impl App {
                 data.as_mut()[PACKET_ADDR_END] = 0xf0;
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|| ReturnCode::ESIZE)
+            .unwrap_or(ReturnCode::FAIL)
     }
 
     fn reset_payload(&mut self) -> ReturnCode {
@@ -373,7 +374,7 @@ impl App {
                         }
 
                         // Reset header length
-                        data.as_mut()[PACKET_HDR_LEN] = 6;
+                        data.as_mut()[PACKET_HDR_LEN] = EMPTY_PACKET_LEN;
 
                         ReturnCode::SUCCESS
                     })
@@ -390,7 +391,7 @@ impl App {
                 slice.as_mut()[PACKET_HDR_PDU] = BLEAdvertisementType::NonConnectUndirected as u8;
                 ReturnCode::SUCCESS
             })
-            .unwrap_or(ReturnCode::ESIZE)
+            .unwrap_or(ReturnCode::FAIL)
     }
 
     fn set_gap_data(&mut self) -> ReturnCode {
@@ -415,12 +416,14 @@ impl App {
 
                             ReturnCode::SUCCESS
                         })
-                        .unwrap_or(ReturnCode::EINVAL)
+                        // FIXME: better returncode to indicate that option is None
+                        .unwrap_or(ReturnCode::FAIL)
                 } else {
                     ReturnCode::ESIZE
                 }
             })
-            .unwrap_or(ReturnCode::EINVAL)
+            // FIXME: better returncode to indicate that option is None
+            .unwrap_or(ReturnCode::FAIL)
     }
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
@@ -445,9 +448,9 @@ impl App {
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or(ReturnCode::EINVAL)
+                    .unwrap_or(ReturnCode::FAIL)
             })
-            .unwrap_or(ReturnCode::EINVAL)
+            .unwrap_or(ReturnCode::FAIL)
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
