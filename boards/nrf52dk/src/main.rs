@@ -156,7 +156,7 @@ pub unsafe fn reset_handler() {
 
     // make non-volatile memory writable and activate the reset button (pin 21)
     let nvmc = nrf52::nvmc::NVMC::new();
-    let uicr = nrf52::uicr::UICR::new();
+    let uicr = nrf52::uicr::Uicr::new();
     nvmc.configure_writeable();
     while !nvmc.is_ready() {}
     uicr.set_psel0_reset_pin(BUTTON_RST_PIN);
