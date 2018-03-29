@@ -199,7 +199,7 @@ pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 //           +-----------+      +--------------+
 //
 //
-// ScanUndirected (ADV_NONCONN_IND): scannable undirected advertising event
+// ScanUndirected (ADV_SCAN_IND): scannable undirected advertising event
 // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.4
 //
 //   PDU     +-----------+      +--------------+
