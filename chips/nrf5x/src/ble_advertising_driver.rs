@@ -1024,7 +1024,7 @@ impl App {
             BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
                 if Some(adv_addr) == self.advertising_address {
                     debug!("Connection request for me! YAY {:?}\n", adv_addr);
-                    self.state = Some(BleLinkLayerState::WaitingForConnection(ConnectionData::new(lldata)));
+                    self.state = Some(BleLinkLayerState::WaitingForConnection(ConnectionData::new(&lldata)));
 
                     PhyTransition::MoveToRX
                 } else {
