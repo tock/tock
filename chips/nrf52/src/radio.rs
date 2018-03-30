@@ -104,8 +104,16 @@ impl Radio {
         let regs = unsafe { &*self.regs };
 
         self.wait_until_disabled();
-        self.set_dma_ptr_tx();
 
+        self.setup_tx();
+
+        regs.task_txen.set(1);
+    }
+
+    fn setup_tx(&self) {
+        let regs = unsafe { &*self.regs };
+
+        self.set_dma_ptr_tx();
         self.state.set(RadioState::TX);
 
         regs.event_ready.set(0);
@@ -117,13 +125,6 @@ impl Radio {
         );
 
         self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
-
-        if self.get_packet_end_time_value() == 0 {
-            regs.task_txen.set(1);
-        } else {
-            self.schedule_tx_after_t_ifs();
-        }
-
     }
 
     fn wait_until_disabled(&self) {
@@ -230,18 +231,6 @@ impl Radio {
         }
     }
 
-    fn set_tx_start_time(&self, usec: u32) {
-        let start_time = usec - NRF52_FAST_RAMPUP_TIME_TX - NRF52_TX_DELAY;
-
-        unsafe {
-            nrf5x::timer::TIMER0.clear();
-            nrf5x::timer::TIMER0.set_cc0(start_time);
-            nrf5x::timer::TIMER0.set_events_compare(0, 0);
-        }
-
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
-    }
-
     fn schedule_tx_after_t_ifs(&self) {
         let end_time = self.get_packet_end_time_value();
 
@@ -252,6 +241,9 @@ impl Radio {
             nrf5x::timer::TIMER0.set_cc0(time);
             nrf5x::timer::TIMER0.set_events_compare(0, 0);
         }
+
+        // let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
+        // debug!("{} , {}\n", current_time, time);
 
         // CH20: CC[0] => TXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
@@ -275,10 +267,6 @@ impl Radio {
 
     fn disable_radio(&self) {
         let regs = unsafe { &*self.regs };
-
-        unsafe {
-            nrf5x::timer::TIMER0.stop();
-        }
 
         self.disable_all_interrupts();
 
@@ -312,7 +300,6 @@ impl Radio {
 
             if state == nrf5x::constants::RADIO_STATE_DISABLE {
                 self.disable_all_interrupts();
-                self.disable_all_interrupts();
                 regs.shorts.set(0);
                 return false;
             }
@@ -340,7 +327,6 @@ impl Radio {
                         .map_or(false, |client| client.advertisement_done());
 
                     if should_tx {
-                        self.ble_initialize();
                         self.tx();
                     }
 
@@ -358,6 +344,8 @@ impl Radio {
         regs.event_end.set(0);
 
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_END);
+
+        // CH21: TIMER0.EVENTS_COMPARE[0] -> RADIO.RXEN
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH21);
         let crc_ok = if regs.crcok.get() == 1 {
             ReturnCode::SUCCESS
@@ -372,7 +360,9 @@ impl Radio {
 
             match result {
                 PhyTransition::MoveToTX => {
-                    self.tx();
+                    // debug!("responding to scan request\n");
+                    self.setup_tx();
+                    self.schedule_tx_after_t_ifs();
                 }
                 PhyTransition::MoveToRX => {
                     self.setup_rx();
@@ -385,7 +375,6 @@ impl Radio {
                         .get()
                         .map_or(false, |client| client.advertisement_done());
                     if should_tx {
-                        self.ble_initialize();
                         self.tx();
                     }
                 }
@@ -416,7 +405,6 @@ impl Radio {
                 .get()
                 .map_or(false, |client| client.advertisement_done());
             if should_tx {
-                self.ble_initialize();
                 self.tx();
             }
         } else {
@@ -431,6 +419,8 @@ impl Radio {
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
+
+        // let current_time = unsafe {nrf5x::timer::TIMER0.capture(4) };
 
         let mut enabled_interrupts = regs.intenclr.get();
 
@@ -534,9 +524,13 @@ impl Radio {
 
             self.state.set(RadioState::Initialized);
 
+            // CH26: RADIO.EVENTS_ADDRESS -> TIMER0.TASKS_CAPTURE[1]
+            // CH27: RADIO.EVENTS_END -> TIMER0.TASKS_CAPTURE[2]
             self.enable_ppi(nrf5x::constants::PPI_CHEN_CH26 | nrf5x::constants::PPI_CHEN_CH27);
         }
         unsafe {
+            nrf5x::timer::TIMER0.set_prescaler(4);
+            nrf5x::timer::TIMER0.set_bitmode(3);
             nrf5x::timer::TIMER0.start();
         }
     }

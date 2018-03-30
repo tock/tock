@@ -98,6 +98,8 @@ impl Timer {
         self.timer().task_clear.set(1);
     }
 
+    pub fn set_bitmode(&self, bitmode: u32) { self.timer().bitmode.set(bitmode); }
+
     /// Capture the current timer value into the CC register
     /// specified by which, and return the value.
     pub fn capture(&self, which: u8) -> u32 {

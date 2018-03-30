@@ -704,7 +704,7 @@ static mut LOG: Log = Log {
 #[derive(PartialEq)]
 enum BleLinkLayerState {
     RespondingToScanRequest,
-    WaitingForConnection,
+    WaitingForConnection(ConnectionData),
 }
 
 pub struct App {
@@ -818,7 +818,7 @@ impl App {
             }
         });
 
-        *header = (0x04 << 4) | (BLEAdvertisementType::ScanUndirected as u8);
+        *header = (0x04 << 4) | (BLEAdvertisementType::ConnectUndirected as u8);
 
         self.idx as u8
     }
@@ -850,7 +850,7 @@ impl App {
             .as_mut()
             .map(|slice| {
                 slice.as_mut()[PACKET_HDR_PDU] =
-                    (0x04 << 4) | (BLEAdvertisementType::ScanUndirected as u8); //<-- vill sätta Tx om vi advertisar med random address
+                    (0x04 << 4) | (BLEAdvertisementType::ConnectUndirected as u8);
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|| ReturnCode::ESIZE)
@@ -1021,10 +1021,11 @@ impl App {
                     PhyTransition::None
                 }
             }
-            BLEPduType::ConnectRequest(_init_addr, adv_addr, _) => {
+            BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
                 if Some(adv_addr) == self.advertising_address {
                     debug!("Connection request for me! YAY {:?}\n", adv_addr);
-                    self.state = Some(BleLinkLayerState::WaitingForConnection);
+                    self.state = Some(BleLinkLayerState::WaitingForConnection(ConnectionData::new(lldata)));
+
                     PhyTransition::MoveToRX
                 } else {
                     // TODO parse LLData and switch to data channel
@@ -1222,7 +1223,7 @@ where
 
                     //TODO - for now, let the advertiser always set MoveToRX, change later
                     self.radio.set_transition_state(PhyTransition::MoveToRX);
-                    app.prepare_advertisement(self, BLEAdvertisementType::ScanUndirected);
+                    app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                     self.transmit_buffer(appid);
                 }
             }
@@ -1346,7 +1347,7 @@ where
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 if app.state == Some(BleLinkLayerState::RespondingToScanRequest) {
-                    app.prepare_advertisement(self, BLEAdvertisementType::ScanUndirected);
+                    app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                 }
 
                 if let Some(channel) = app.channel {
@@ -1377,7 +1378,7 @@ where
     fn timer_expired(&self) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
-                app.prepare_advertisement(self, BLEAdvertisementType::ScanUndirected);
+                app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                 self.transmit_buffer(appid);
             });
 
