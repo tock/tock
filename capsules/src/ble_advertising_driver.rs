@@ -394,7 +394,8 @@ impl App {
             .unwrap_or(ReturnCode::FAIL)
     }
 
-    fn set_gap_data(&mut self) -> ReturnCode {
+    // Replace AdvData for `ConnectUndirected`, `NonConnectUndirected` and `ScanUndirected`
+    fn replace_adv_data(&mut self) -> ReturnCode {
         self.app_write
             .take()
             .as_ref()
@@ -412,7 +413,7 @@ impl App {
 
                             // FIXME: move to its own function/method?!
                             // Update header length
-                            data.as_mut()[PACKET_HDR_LEN] += slice.len() as u8;
+                            data.as_mut()[PACKET_HDR_LEN] = slice.len() as u8;
 
                             ReturnCode::SUCCESS
                         })
@@ -859,12 +860,12 @@ where
         slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            // Configure GAP Data
+            // Configure complete AdvData buffer
             0 => self.app
                 .enter(appid, |app, _| {
                     if app.process_status != Some(BLEState::NotInitialized) {
                         app.app_write = slice;
-                        app.set_gap_data()
+                        app.replace_adv_data()
                     } else {
                         ReturnCode::EINVAL
                     }
