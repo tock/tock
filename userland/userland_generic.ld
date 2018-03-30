@@ -74,6 +74,7 @@ SECTIONS {
     .app_state :
     {
         KEEP (*(.app_state))
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > FLASH =0xFF
 
     /* Global Offset Table */
@@ -82,6 +83,7 @@ SECTIONS {
         _got = .;
         *(.got*)
         *(.got.plt*)
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM AT > FLASH
 
     /* Data section, static initialized variables
@@ -92,6 +94,7 @@ SECTIONS {
     {
         _data = .;
         KEEP(*(.data*))
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM AT > FLASH
 
     /* BSS section, static uninitialized variables */
@@ -100,6 +103,7 @@ SECTIONS {
         _bss = .;
         KEEP(*(.bss*))
         *(COMMON)
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM
 
     /*
@@ -109,16 +113,19 @@ SECTIONS {
     .stack :
     {
         . += STACK_SIZE;
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM
 
     .app_heap :
     {
         . += APP_HEAP_SIZE;
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM
 
     .kernel_heap :
     {
         . += KERNEL_HEAP_SIZE;
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM
 
     _sram_end = .;
