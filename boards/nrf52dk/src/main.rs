@@ -155,7 +155,7 @@ pub unsafe fn reset_handler() {
     nrf52::init();
 
     // make non-volatile memory writable and activate the reset button (pin 21)
-    let nvmc = nrf52::nvmc::NVMC::new();
+    let nvmc = nrf52::nvmc::Nvmc::new();
     let uicr = nrf52::uicr::Uicr::new();
     nvmc.configure_writeable();
     while !nvmc.is_ready() {}
