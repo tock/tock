@@ -372,6 +372,7 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf52::chip::NRF52::new();
 
     debug!("Initialization complete. Entering main loop\r");
+    debug!("{}", &nrf52::ficr::FICR_INSTANCE);
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
