@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, nvic, systick_handler, SVC_Handler};
+use cortexm4::{generic_isr, nvic, svc_handler, systick_handler};
 
 extern "C" {
     // Symbols defined in the linker file
@@ -38,7 +38,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 50] = [
     unhandled_interrupt, // Reserved
     unhandled_interrupt, // Reserved
     unhandled_interrupt, // Reserved
-    SVC_Handler, // SVC
+    svc_handler, // SVC
     unhandled_interrupt, // Debug monitor,
     unhandled_interrupt, // Reserved
     unhandled_interrupt, // PendSV

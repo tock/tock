@@ -38,7 +38,7 @@ pub mod dac;
 pub mod aes;
 pub mod usbc;
 
-use cortexm4::{generic_isr, systick_handler, SVC_Handler};
+use cortexm4::{generic_isr, svc_handler, systick_handler};
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -85,7 +85,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     /* UsageFault*/     unhandled_interrupt,
     unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
     unhandled_interrupt,
-    /* SVC */           SVC_Handler,
+    /* SVC */           svc_handler,
     /* DebugMon */      unhandled_interrupt,
     unhandled_interrupt,
     /* PendSV */        unhandled_interrupt,
