@@ -2,14 +2,16 @@
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
-#[warn(missing_docs)]
+
 #[allow(unused_imports)]
 extern crate cortexm4;
 extern crate nrf5x;
 
 #[macro_use]
 extern crate bitfield;
-#[macro_use(debug, register_bitfields, register_bitmasks)]
+
+#[allow(unused)]
+#[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 mod peripheral_registers;
