@@ -2,7 +2,6 @@
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
-#![warn(missing_docs)]
 
 #[allow(unused_imports)]
 extern crate cortexm4;

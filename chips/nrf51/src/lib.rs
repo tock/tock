@@ -2,7 +2,6 @@
 #![no_std]
 #![crate_name = "nrf51"]
 #![crate_type = "rlib"]
-#![warn(missing_docs)]
 
 extern crate cortexm0;
 extern crate nrf5x;
