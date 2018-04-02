@@ -50,7 +50,7 @@
 extern crate capsules;
 extern crate compiler_builtins;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
 extern crate nrf51;
 extern crate nrf5x;
@@ -212,6 +212,13 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[12]  //
         ],
         4 * 11
+    );
+
+    // Configure kernel debug gpios as early as possible
+    kernel::debug::assign_gpios(
+        Some(&nrf5x::gpio::PORT[LED1_PIN]),
+        Some(&nrf5x::gpio::PORT[LED2_PIN]),
+        Some(&nrf5x::gpio::PORT[LED3_PIN]),
     );
 
     let gpio = static_init!(
