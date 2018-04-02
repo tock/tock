@@ -206,6 +206,8 @@ use kernel;
 use kernel::hil::time::{Frequency, Time};
 use kernel::returncode::ReturnCode;
 use ble_advertising_hil::PhyTransition;
+use gpio;
+use kernel::hil::gpio::Pin;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
@@ -286,8 +288,8 @@ macro_rules! set_hop_and_sca {
 }
 
 pub struct LLData {
-    aa: [u8; 4],
-    crc_init: [u8; 3],
+    pub aa: [u8; 4],
+    pub crc_init: [u8; 3],
     pub win_size: u8,
     pub win_offset: u16,
     pub interval: u16,
@@ -586,6 +588,7 @@ enum AppBLEState {
     Advertising(BLEAdvertisingState),
 }
 
+#[derive(Clone, Copy)]
 enum BLEState {
     Scanning,
     Advertising,
@@ -701,7 +704,7 @@ static mut LOG: Log = Log {
     log_array: [[0; PACKET_LENGTH]; NBR_PACKETS],
 };
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum BleLinkLayerState {
     RespondingToScanRequest,
     WaitingForConnection(ConnectionData),
@@ -981,6 +984,22 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
+    fn prepare_empty_conn_pdu(&mut self, ble: &BLESender) -> ReturnCode {
+        // debug!("Sending ConnectRequest to {:?} on channel {:?}", adv_addr, channel);
+
+        self.advertisement_buf
+            .as_ref()
+            .map(|slice| {
+                ble.replace_buffer( &|data: &mut [u8]| {
+                    data.as_mut()[PACKET_HDR_LEN] = 0;
+                    data.as_mut()[PACKET_HDR_PDU] = (0x01 << 4);
+                });
+
+                ReturnCode::SUCCESS
+            })
+            .unwrap_or_else(|| ReturnCode::EINVAL)
+    }
+
     // Returns a new pseudo-random number and updates the randomness state.
     //
     // Uses the [Xorshift](https://en.wikipedia.org/wiki/Xorshift) algorithm to
@@ -1023,21 +1042,31 @@ impl App {
             }
             BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
                 if Some(adv_addr) == self.advertising_address {
-                    debug!("Connection request for me! YAY {:?}\n", adv_addr);
-                    let mut conndata = ConnectionData::new(&lldata));
+                    let mut conndata = ConnectionData::new(&lldata);
+
                     let channel = conndata.next_channel();
-                    self.state = Some(BleLinkLayerState::WaitingForConnection(conndata);
+                    self.state = Some(BleLinkLayerState::WaitingForConnection(conndata));
                     self.channel = Some(channel);
+
+                    self.prepare_empty_conn_pdu(ble);
+
+                    unsafe {
+                        gpio::PORT[17].clear();
+                    }
 
                     PhyTransition::MoveToRX
                 } else {
+                    debug!("Why here?");
                     // TODO parse LLData and switch to data channel
                     // Connection request for me, disable to switch to data channel
                     // or, disable to switch to TX on next adv channel
                     PhyTransition::None
                 }
             }
-            _ => panic!("WHAT? This is professional\n"),
+            _ => {
+                debug!("pdu: {:?}", pdu);
+                panic!("WHAT? This is professional\n")
+            },
         }
     }
 
@@ -1058,7 +1087,7 @@ where
     radio: &'a B,
     busy: Cell<BusyState>,
     app: kernel::Grant<App>,
-    ble_state: BLEState,
+    ble_state: Cell<BLEState>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: Cell<Option<kernel::AppId>>,
@@ -1080,7 +1109,7 @@ where
             radio: radio,
             busy: Cell::new(BusyState::Free),
             app: container,
-            ble_state: BLEState::Advertising,
+            ble_state: Cell::new(BLEState::Advertising),
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
             sending_app: Cell::new(None),
@@ -1189,6 +1218,7 @@ where
     // TODO: perhaps break ties more fairly by prioritizing apps that have least
     // recently performed an operation.
     fn fired(&self) {
+
         let now = self.alarm.now();
         //debug!("Timer fired!");
 
@@ -1285,7 +1315,17 @@ where
                     let pdu_type = pdu_type.expect("PDU type should be valid");
                     let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
                     let res = app.handle_request(&self, pdu);
-                    self.radio.set_channel()
+
+                    let channel = app.channel;
+                    let state = app.state;
+
+                    if let (Some(channel), Some(BleLinkLayerState::WaitingForConnection(conn_data))) = (channel, state) {
+
+                        self.radio.set_channel(channel, conn_data.aa, conn_data.crcinit);
+                        self.ble_state.set(BLEState::Connection);
+                    }
+
+                    res
                 } else {
                     PhyTransition::None
                 }
@@ -1306,13 +1346,17 @@ where
 
         let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
 
-        match self.ble_state {
-            BLEState::Advertising => match pdu_type {
-                Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrameAndMoveToTX,
-                Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrameAndStayRX,
-                _ => ReadAction::SkipFrame,
+        match self.ble_state.get() {
+            BLEState::Advertising => {
+                match pdu_type {
+                    Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrameAndMoveToTX,
+                    Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrameAndStayRX,
+                    _ => ReadAction::SkipFrame,
+                }
             },
-            BLEState::Connection => ReadAction::SkipFrame,
+            BLEState::Connection => {
+                ReadAction::ReadFrameAndMoveToTX
+            },
             BLEState::Scanning => ReadAction::ReadFrameAndStayRX,
             BLEState::Initiating => ReadAction::SkipFrame,
             _ => ReadAction::SkipFrame,

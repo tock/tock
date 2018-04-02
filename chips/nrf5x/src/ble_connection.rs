@@ -26,6 +26,8 @@ pub struct ConnectionData {
 	conn_event_counter: u16,
 	hop_increment: u8,
 	number_used_channels: u8,
+	pub aa: u32,
+	pub crcinit: u32,
 }
 
 impl PartialEq for ConnectionData {
@@ -36,11 +38,13 @@ impl PartialEq for ConnectionData {
 
 impl fmt::Debug for ConnectionData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ConnectionData {{ last_unmapped_channel: {}, conn_event_counter: {}, hop_increment: {}, number_used_channels: {} }}",
+        write!(f, "ConnectionData {{ last_unmapped_channel: {}, conn_event_counter: {}, hop_increment: {}, number_used_channels: {}, aa: {}, crcinit {} }}",
             self.last_unmapped_channel,
             self.conn_event_counter,
             self.hop_increment,
-            self.number_used_channels
+            self.number_used_channels,
+			self.aa,
+			self.crcinit
         )
     }
 }
@@ -56,7 +60,9 @@ impl ConnectionData {
 	    	channels,
 	    	number_used_channels,
 			hop_increment: lldata.hop_and_sca & 0b11111,
-            conn_event_counter: 0
+            conn_event_counter: 0,
+			aa: (lldata.aa[0] as u32) << 24 | (lldata.aa[1] as u32) << 16 | (lldata.aa[2] as u32) << 8 | (lldata.aa[3] as u32),
+			crcinit: (lldata.crc_init[0] as u32) << 16 | (lldata.crc_init[1] as u32) << 8 | (lldata.crc_init[2] as u32),
 	    }
 	}
 

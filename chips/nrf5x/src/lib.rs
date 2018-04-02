@@ -2,7 +2,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, debug_gpio)]
 extern crate kernel;
 
 mod peripheral_registers;
