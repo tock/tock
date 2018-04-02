@@ -1024,7 +1024,10 @@ impl App {
             BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
                 if Some(adv_addr) == self.advertising_address {
                     debug!("Connection request for me! YAY {:?}\n", adv_addr);
-                    self.state = Some(BleLinkLayerState::WaitingForConnection(ConnectionData::new(&lldata)));
+                    let mut conndata = ConnectionData::new(&lldata));
+                    let channel = conndata.next_channel();
+                    self.state = Some(BleLinkLayerState::WaitingForConnection(conndata);
+                    self.channel = Some(channel);
 
                     PhyTransition::MoveToRX
                 } else {
@@ -1281,7 +1284,8 @@ where
                 transition = if valid_pkt {
                     let pdu_type = pdu_type.expect("PDU type should be valid");
                     let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
-                    app.handle_request(&self, pdu)
+                    let res = app.handle_request(&self, pdu);
+                    self.radio.set_channel()
                 } else {
                     PhyTransition::None
                 }
