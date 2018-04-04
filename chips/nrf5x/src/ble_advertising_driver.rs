@@ -208,6 +208,7 @@ use kernel::returncode::ReturnCode;
 use ble_advertising_hil::PhyTransition;
 use gpio;
 use kernel::hil::gpio::Pin;
+use ble_advertising_hil::TxImmediate;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
@@ -602,7 +603,7 @@ enum BLEAdvertisingState {
     Advertising(RadioChannel),
     Listening(RadioChannel),
     Responding(RadioChannel),
-    Connection(RadioChannel, ConnectionData),
+    Connection(RadioChannel),
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -704,7 +705,7 @@ static mut LOG: Log = Log {
     log_array: [[0; PACKET_LENGTH]; NBR_PACKETS],
 };
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(PartialEq)]
 enum BleLinkLayerState {
     RespondingToScanRequest,
     WaitingForConnection(ConnectionData),
@@ -992,7 +993,7 @@ impl App {
             .map(|slice| {
                 ble.replace_buffer( &|data: &mut [u8]| {
                     data.as_mut()[PACKET_HDR_LEN] = 0;
-                    data.as_mut()[PACKET_HDR_PDU] = (0x01 << 4);
+                    data.as_mut()[PACKET_HDR_PDU] = (0x01);
                 });
 
                 ReturnCode::SUCCESS
@@ -1042,19 +1043,22 @@ impl App {
             }
             BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
                 if Some(adv_addr) == self.advertising_address {
-                    let mut conndata = ConnectionData::new(&lldata);
-
-                    let channel = conndata.next_channel();
-                    self.state = Some(BleLinkLayerState::WaitingForConnection(conndata));
-                    self.channel = Some(channel);
-
-                    self.prepare_empty_conn_pdu(ble);
 
                     unsafe {
                         gpio::PORT[17].clear();
                     }
 
+                    let mut conndata = ConnectionData::new(&lldata);
+
+                    let channel = conndata.next_channel();
+                    self.state = Some(BleLinkLayerState::WaitingForConnection(conndata));
+                    //let channel = RadioChannel::AdvertisingChannel37;
+                    self.channel = Some(channel);
+
+                    self.prepare_empty_conn_pdu(ble);
+
                     PhyTransition::MoveToRX
+                    //PhyTransition::MoveToTX
                 } else {
                     debug!("Why here?");
                     // TODO parse LLData and switch to data channel
@@ -1068,6 +1072,15 @@ impl App {
                 panic!("WHAT? This is professional\n")
             },
         }
+    }
+
+    fn handle_connection<'a, B, A>(&mut self, ble: &BLE<'a, B, A>) -> PhyTransition
+        where
+            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+            A: kernel::hil::time::Alarm + 'a,
+    {
+        self.prepare_empty_conn_pdu(ble);
+        PhyTransition::MoveToTX
     }
 
     fn set_next_adv_scan_timeout<F: Frequency>(&mut self, now: u32) {
@@ -1291,35 +1304,49 @@ where
                 let mut valid_pkt = false;
 
                 if result == ReturnCode::SUCCESS {
-                    valid_pkt = match pdu_type {
-                        Some(advertisement_type) => match advertisement_type {
-                            BLEAdvertisementType::ScanRequest
-                            | BLEAdvertisementType::ConnectDirected => len == SCAN_REQ_LEN,
+                    match self.ble_state.get() {
+                        BLEState::Advertising => {
+                            valid_pkt = match pdu_type {
+                                Some(advertisement_type) => match advertisement_type {
+                                    BLEAdvertisementType::ScanRequest
+                                    | BLEAdvertisementType::ConnectDirected => len == SCAN_REQ_LEN,
 
-                            BLEAdvertisementType::ScanResponse
-                            | BLEAdvertisementType::ConnectUndirected
-                            | BLEAdvertisementType::ScanUndirected
-                            | BLEAdvertisementType::NonConnectUndirected => {
-                                len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN
-                            }
+                                    BLEAdvertisementType::ScanResponse
+                                    | BLEAdvertisementType::ConnectUndirected
+                                    | BLEAdvertisementType::ScanUndirected
+                                    | BLEAdvertisementType::NonConnectUndirected => {
+                                        len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN
+                                    }
 
-                            BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN,
+                                    BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN,
+                                },
+                                None => false,
+                            };
                         },
-                        None => false,
-                    };
+                        BLEState::Connection => {
+                            valid_pkt = true;
+                        }
+                        _ => {}
+
+                    }
                 }
 
                 // TODO call advertising/scanner/connection/initiating driver
 
                 transition = if valid_pkt {
-                    let pdu_type = pdu_type.expect("PDU type should be valid");
-                    let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
-                    let res = app.handle_request(&self, pdu);
+                    let res = match self.ble_state.get() {
+                        BLEState::Advertising => {
+                            let pdu_type = pdu_type.expect("PDU type should be valid");
+                            let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
+                            app.handle_request(&self, pdu)
+                        }
+                        BLEState::Connection => {
+                            app.handle_connection(&self)
+                        }
+                        _ => PhyTransition::None
+                    };
 
-                    let channel = app.channel;
-                    let state = app.state;
-
-                    if let (Some(channel), Some(BleLinkLayerState::WaitingForConnection(conn_data))) = (channel, state) {
+                    if let (&Some(channel), &Some(BleLinkLayerState::WaitingForConnection(ref conn_data))) = (&app.channel, &app.state) {
 
                         self.radio.set_channel(channel, conn_data.aa, conn_data.crcinit);
                         self.ble_state.set(BLEState::Connection);
@@ -1355,6 +1382,9 @@ where
                 }
             },
             BLEState::Connection => {
+                unsafe {
+                    gpio::PORT[20].clear();
+                }
                 ReadAction::ReadFrameAndMoveToTX
             },
             BLEState::Scanning => ReadAction::ReadFrameAndStayRX,
@@ -1390,37 +1420,55 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn advertisement_done(&self) -> bool {
-        let mut res = false;
+    fn advertisement_done(&self) -> TxImmediate {
+        let mut tx_response = TxImmediate::GoToSleep;
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
-                if app.state == Some(BleLinkLayerState::RespondingToScanRequest) {
-                    app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
-                }
 
-                if let Some(channel) = app.channel {
-                    if let Some(next_channel) = channel.get_next_advertising_channel() {
-                        app.channel = Some(next_channel);
-                        self.radio
-                            .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
-                        res = true;
-                    } else {
-                        let next_channel = RadioChannel::AdvertisingChannel37;
+                match self.ble_state.get() {
+                    BLEState::Advertising => {
+                        if app.state == Some(BleLinkLayerState::RespondingToScanRequest) {
+                            app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
+                        }
 
-                        app.channel = Some(next_channel);
-                        self.radio
-                            .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
+                        if let Some(channel) = app.channel {
+                            if let Some(next_channel) = channel.get_next_advertising_channel() {
+                                app.channel = Some(next_channel);
+                                self.radio
+                                    .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
+                                tx_response = TxImmediate::TX;
+                            } else {
+                                let next_channel = RadioChannel::AdvertisingChannel37;
 
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                                app.channel = Some(next_channel);
+                                self.radio
+                                    .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
+
+                                app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                            }
+                        } else {
+                            panic!("App has no channel");
+                        }
+                    },
+                    BLEState::Connection => {
+                        let mut appchannel: Option<RadioChannel> = None;
+                        if let Some(BleLinkLayerState::WaitingForConnection(ref mut conn_data)) = app.state {
+                            let channel = conn_data.next_channel();
+                            appchannel = Some(channel);
+                            self.radio.set_channel(channel, conn_data.aa, conn_data.crcinit);
+                            tx_response = TxImmediate::RespondAfterTifs;
+                        }
+                        assert!(appchannel.is_some(), "App channel is None!!!");
+                        app.channel = appchannel;
                     }
-                } else {
-                    panic!("App has no channel");
+                    _ => {}
                 }
+
             });
             self.reset_active_alarm();
         }
 
-        res
+        tx_response
     }
 
     fn timer_expired(&self) {

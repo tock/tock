@@ -44,6 +44,7 @@ use peripheral_registers;
 use ppi;
 use nrf5x::gpio;
 use kernel::hil::gpio::Pin;
+use nrf5x::ble_advertising_hil::TxImmediate;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -236,6 +237,50 @@ impl Radio {
         }
     }
 
+    fn schedule_tx_after_usec(&self) {
+        let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
+        let end_time = self.get_packet_end_time_value();
+
+        let time =
+            1000 + BLE_T_IFS - NRF52_RX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - NRF52_TX_DELAY;
+
+        unsafe {
+            nrf5x::timer::TIMER0.clear();
+            nrf5x::timer::TIMER0.set_cc0(time);
+            nrf5x::timer::TIMER0.set_events_compare(0, 0);
+        }
+
+        debug!("end_time: {} now_time {}\n", end_time, current_time);
+
+        // let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
+        // debug!("{} , {}\n", current_time, time);
+
+        // CH20: CC[0] => TXEN
+        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
+    }
+
+    fn schedule_rx_after_usec(&self) {
+        let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
+
+        let end_time = self.get_packet_end_time_value();
+        let earlier_listen = 2;
+
+        let time =
+            500 + BLE_T_IFS - NRF52_TX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - earlier_listen;
+
+        unsafe {
+            nrf5x::timer::TIMER0.set_cc0(time);
+            nrf5x::timer::TIMER0.set_events_compare(0, 0);
+        }
+
+        let now_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
+
+        debug!("end_time: {} now_time {}\n", end_time, current_time);
+
+        // CH21: CC[0] => RXEN
+        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
+    }
+
     fn schedule_tx_after_t_ifs(&self) {
         let end_time = self.get_packet_end_time_value();
 
@@ -331,9 +376,9 @@ impl Radio {
 
                     let should_tx = self.advertisement_client
                         .get()
-                        .map_or(false, |client| client.advertisement_done());
+                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
 
-                    if should_tx {
+                    if should_tx == TxImmediate::TX {
                         self.tx();
                     }
 
@@ -351,6 +396,7 @@ impl Radio {
         if self.debug_bit.get() {
             unsafe {
                 gpio::PORT[18].clear();
+                //debug!("rx_end after connection! :O\n")
             }
         }
 
@@ -383,19 +429,21 @@ impl Radio {
 
                     self.debug_bit.set(true);
                     self.disable_radio();
-                    self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_READY);
+                    self.wait_until_disabled();
                     self.setup_rx();
-                    //self.rx();
-                    self.schedule_rx_after_t_ifs();
+                    self.rx();
                 }
                 PhyTransition::None => {
                     self.disable_radio();
                     self.wait_until_disabled();
                     let should_tx = self.advertisement_client
                         .get()
-                        .map_or(false, |client| client.advertisement_done());
-                    if should_tx {
-                        self.tx();
+                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
+
+                    match should_tx {
+                        TxImmediate::TX => self.tx(),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_t_ifs(),
+                        TxImmediate::GoToSleep => {},
                     }
                 }
             }
@@ -406,6 +454,7 @@ impl Radio {
 
     fn handle_tx_end_event(&self) {
         let regs = unsafe { &*self.regs };
+
 
         regs.event_disabled.set(0);
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
@@ -423,8 +472,8 @@ impl Radio {
 
             let should_tx = self.advertisement_client
                 .get()
-                .map_or(false, |client| client.advertisement_done());
-            if should_tx {
+                .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
+            if should_tx == TxImmediate::TX {
                 self.tx();
             }
         } else {

@@ -19,7 +19,7 @@ const NUMBER_DATA_CHANNELS: usize = NUMBER_CHANNELS - 3;
 
 type ChannelMap = [u8; NUMBER_CHANNELS];
 
-#[derive(Copy, Clone)]
+// #[derive(Copy, Clone)]
 pub struct ConnectionData {
 	last_unmapped_channel: u8,
 	channels: ChannelMap,

@@ -79,6 +79,13 @@ pub enum ReadAction {
     ReadFrameAndMoveToTX,
 }
 
+#[derive(PartialEq)]
+pub enum TxImmediate {
+    GoToSleep,
+    RespondAfterTifs,
+    TX
+}
+
 pub enum DisablePHY {
     DisableAfterRX,
     NoDisable,
@@ -95,7 +102,7 @@ pub trait TxClient {
 }
 
 pub trait AdvertisementClient {
-    fn advertisement_done(&self) -> bool;
+    fn advertisement_done(&self) -> TxImmediate;
     fn timer_expired(&self);
 }
 
