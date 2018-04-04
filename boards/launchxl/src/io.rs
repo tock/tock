@@ -2,13 +2,30 @@ use cc26xx;
 use core::fmt::{Arguments, Write};
 use kernel::debug;
 use kernel::hil::led;
+use kernel::hil::uart::{self, UART};
 
-struct Writer {}
+struct Writer {
+    initialized: bool,
+}
 
-static mut WRITER: Writer = Writer {};
+static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
-    fn write_str(&mut self, _s: &str) -> ::core::fmt::Result {
+    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+        let uart = unsafe { &mut cc26xx::uart::UART0 };
+        if !self.initialized {
+            self.initialized = true;
+            uart.init(uart::UARTParams {
+                baud_rate: 115200,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+            });
+        }
+        for c in s.bytes() {
+            uart.send_byte(c);
+            while !uart.tx_ready() {}
+        }
         Ok(())
     }
 }

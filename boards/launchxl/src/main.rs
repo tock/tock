@@ -23,7 +23,6 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-//
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
 #[link_section = ".app_memory"]
@@ -33,6 +32,7 @@ static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc26xx::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc26xx::gpio::GPIOPin>,
+    console: &'static capsules::console::Console<'static, cc26xx::uart::UART>,
     button: &'static capsules::button::Button<'static, cc26xx::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -47,6 +47,7 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
@@ -95,7 +96,7 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins)
     );
 
-    // BUTTONs
+    // BUTTONS
     let button_pins = static_init!(
         [(&'static cc26xx::gpio::GPIOPin, capsules::button::GpioMode); 2],
         [
@@ -116,6 +117,24 @@ pub unsafe fn reset_handler() {
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
     }
+
+    // UART
+    cc26xx::uart::UART0.set_pins(3, 2);
+    let console = static_init!(
+        capsules::console::Console<cc26xx::uart::UART>,
+        capsules::console::Console::new(
+            &cc26xx::uart::UART0,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            kernel::Grant::create()
+        )
+    );
+    kernel::hil::uart::UART::set_client(&cc26xx::uart::UART0, console);
+    console.initialize();
+
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(capsules::console::App, capsules::console::App::default());
+    kernel::debug::assign_console_driver(Some(console), kc);
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
@@ -182,6 +201,7 @@ pub unsafe fn reset_handler() {
     cc26xx::trng::TRNG.set_client(rng);
 
     let launchxl = Platform {
+        console,
         gpio,
         led,
         button,
