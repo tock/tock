@@ -310,6 +310,8 @@ static void __next (void) {
         _state      = _next_state;
         _next_state = OORT_STATE_NONE;
         __next();
+      } else {
+        _state      = OORT_STATE_NONE;
       }
 
       break;
