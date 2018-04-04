@@ -6,12 +6,12 @@
 
 #include <ble_conn_params.h>
 #include <ble_db_discovery.h>
+#include <ble_stack_handler_types.h>
 #include <nordic_common.h>
 #include <nrf.h>
 #include <nrf_error.h>
 #include <nrf_sdm.h>
 #include <softdevice_handler.h>
-#include <ble_stack_handler_types.h>
 
 #include <simple_ble.h>
 
@@ -86,7 +86,7 @@ void ble_address_set (void) {
 
 
 
-uint16_t _conn_handle          = BLE_CONN_HANDLE_INVALID;
+uint16_t _conn_handle = BLE_CONN_HANDLE_INVALID;
 uint16_t _char_handle_sensor   = 0;
 uint16_t _char_handle_systemid = 0;
 uint16_t _char_handle_clock    = 0;
@@ -311,7 +311,7 @@ static void __next (void) {
         _next_state = OORT_STATE_NONE;
         __next();
       } else {
-        _state      = OORT_STATE_NONE;
+        _state = OORT_STATE_NONE;
       }
 
       break;
@@ -493,8 +493,8 @@ static void __on_ble_evt (ble_evt_t* p_ble_evt) {
       _char_handle_systemid = 0;
       _char_handle_clock    = 0;
       _char_handle_sensor   = 0;
-      _setup = false;
-      _state = OORT_STATE_NONE;
+      _setup      = false;
+      _state      = OORT_STATE_NONE;
       _next_state = OORT_STATE_NONE;
 
       printf("Disconnected! Attempting to reconnect\n");
