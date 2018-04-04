@@ -372,10 +372,10 @@ static int convert_oort_to_p1milliunits (const uint8_t* oort) {
   uint16_t hex_value = (((uint16_t) oort[1]) << 8) | ((uint16_t) oort[2]);
 
   // Now iterate through the 4 bit chunks to convert the number to decimal.
-  int multiplier = 1;
-  int out_value  = 0;
-  int shifter    = 0;
-  for (int i = 0; i < 4; i++) {
+  unsigned multiplier = 1;
+  unsigned out_value  = 0;
+  unsigned shifter    = 0;
+  for (unsigned i = 0; i < 4; i++) {
     out_value += (((hex_value >> (i * 4)) & 0xF) * multiplier);
 
     // Leverage the fact that we are already doing powers of 10 to generate
@@ -448,11 +448,11 @@ static void __on_ble_evt (ble_evt_t* p_ble_evt) {
       int pf   = convert_oort_to_p1milliunits(hvx->data + 10);
       int freq = convert_oort_to_p1milliunits(hvx->data + 13);
       printf("relay:        %4s\n", (relay_status) ? "on" : "off");
-      printf("voltage:      %4i.%i V\n", voltage / 10000, voltage % 10000);
-      printf("current:      %4i.%i A\n", current / 10000, current % 10000);
-      printf("watts:        %4i.%i W\n", watts / 10000, watts % 10000);
-      printf("power factor: %4i.%i\n", pf / 10000, pf % 10000);
-      printf("frequency:    %4i.%i Hz\n\n", freq / 10000, freq % 10000);
+      printf("voltage:      %4i.%04i V\n", voltage / 10000, voltage % 10000);
+      printf("current:      %4i.%04i A\n", current / 10000, current % 10000);
+      printf("watts:        %4i.%04i W\n", watts / 10000, watts % 10000);
+      printf("power factor: %4i.%04i\n", pf / 10000, pf % 10000);
+      printf("frequency:    %4i.%04i Hz\n\n", freq / 10000, freq % 10000);
 
       __next();
       break;
