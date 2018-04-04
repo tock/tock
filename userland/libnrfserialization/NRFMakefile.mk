@@ -17,6 +17,7 @@ APPLICATION_SRCS += app_mw_nrf_soc.c
 APPLICATION_SRCS += ble_enable.c
 APPLICATION_SRCS += ble_event.c
 APPLICATION_SRCS += ble_evt_tx_complete.c
+APPLICATION_SRCS += ble_db_discovery.c
 APPLICATION_SRCS += ble_evt_user_mem_release.c
 APPLICATION_SRCS += ble_evt_user_mem_request.c
 APPLICATION_SRCS += ble_gap_address_get.c
