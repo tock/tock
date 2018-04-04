@@ -447,7 +447,7 @@ static void __on_ble_evt (ble_evt_t* p_ble_evt) {
       int watts         = convert_oort_to_p1milliunits(hvx->data + 7);
       int pf   = convert_oort_to_p1milliunits(hvx->data + 10);
       int freq = convert_oort_to_p1milliunits(hvx->data + 13);
-      printf("relay:        %s\n", (relay_status) ? "on" : "off");
+      printf("relay:        %4s\n", (relay_status) ? "on" : "off");
       printf("voltage:      %4i.%i V\n", voltage / 10000, voltage % 10000);
       printf("current:      %4i.%i A\n", current / 10000, current % 10000);
       printf("watts:        %4i.%i W\n", watts / 10000, watts % 10000);
