@@ -497,7 +497,8 @@ static void __on_ble_evt (ble_evt_t* p_ble_evt) {
       _state      = OORT_STATE_NONE;
       _next_state = OORT_STATE_NONE;
 
-      printf("Disconnected! Attempting to reconnect\n");
+      printf("Disconnected! Attempting to reconnect in 2s\n");
+      delay_ms(2000);
       setup_oort();
       break;
     }
