@@ -24,6 +24,12 @@
 #include <tock.h>
 
 
+/*******************************************************************************
+ * Function Prototypes
+ ******************************************************************************/
+void setup_oort (void);
+void toggle_relay (void);
+
 
 /*******************************************************************************
  * Global State
@@ -487,7 +493,10 @@ static void __on_ble_evt (ble_evt_t* p_ble_evt) {
       _char_handle_sensor   = 0;
       _setup = false;
       _state = OORT_STATE_NONE;
-      printf("disconnect\n");
+      _next_state = OORT_STATE_NONE;
+
+      printf("Disconnected! Attempting to reconnect\n");
+      setup_oort();
       break;
     }
 
@@ -501,9 +510,7 @@ static void __on_ble_evt (ble_evt_t* p_ble_evt) {
 }
 
 void db_disc_handler (ble_db_discovery_evt_t* p_evt) {
-  if (p_evt->evt_type != BLE_DB_DISCOVERY_COMPLETE) {
-    printf("not complete %i\n", p_evt->evt_type);
-  } else {
+  if (p_evt->evt_type == BLE_DB_DISCOVERY_COMPLETE) {
     // We have discovered a service. Loop through the characteristics until
     // we found the ones we care about.
 
@@ -526,6 +533,14 @@ void db_disc_handler (ble_db_discovery_evt_t* p_evt) {
       __next();
     }
 
+  } else if (p_evt->evt_type == BLE_DB_DISCOVERY_ERROR) {
+    printf("BLE_DB_DISCOVERY_ERROR\n");
+  } else if (p_evt->evt_type == BLE_DB_DISCOVERY_SRV_NOT_FOUND) {
+    printf("BLE_DB_DISCOVERY_SRV_NOT_FOUND\n");
+  } else if (p_evt->evt_type == BLE_DB_DISCOVERY_AVAILABLE) {
+    printf("BLE_DB_DISCOVERY_AVAILABLE\n");
+  } else {
+    printf("UNKNOWN BLE_DB_DISCVOERY Event: %d\n", p_evt->evt_type);
   }
 }
 
@@ -544,9 +559,6 @@ static void __ble_evt_dispatch (ble_evt_t* p_ble_evt) {
 /*******************************************************************************
  * MAIN
  ******************************************************************************/
-
-void setup_oort (void);
-void toggle_relay (void);
 
 void setup_oort (void) {
   _state = OORT_STATE_SETUP;
