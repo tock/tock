@@ -179,11 +179,12 @@ impl<'a> Controller for Ast<'a> {
         self.callback.set(Some(client));
 
         pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
+        self.disable();
+        self.disable_alarm_irq();
         self.select_clock(Clock::ClockOsc32);
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();
         self.clear_alarm();
-        self.enable();
     }
 }
 
@@ -372,6 +373,7 @@ impl<'a> Alarm for Ast<'a> {
         }
         self.clear_alarm();
         self.enable_alarm_irq();
+        self.enable();
     }
 
     fn get_alarm(&self) -> u32 {
