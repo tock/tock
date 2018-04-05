@@ -53,18 +53,3 @@ pub struct TIMER {
     _reserved6: [VolatileCell<u32>; 11], // 0x514
     pub cc: [VolatileCell<u32>; 4],      // 0x540
 }
-
-pub const GPIO_BASE: usize = 0x50000000;
-#[repr(C)]
-pub struct GPIO {
-    _reserved1: [u32; 321],
-    pub out: VolatileCell<u32>,
-    pub outset: VolatileCell<u32>,
-    pub outclr: VolatileCell<u32>,
-    pub in_: VolatileCell<u32>,
-    pub dir: VolatileCell<u32>,
-    pub dirset: VolatileCell<u32>,
-    pub dirclr: VolatileCell<u32>,
-    _reserved2: [u32; 120],
-    pub pin_cnf: [VolatileCell<u32>; 32],
-}
