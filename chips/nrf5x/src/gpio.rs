@@ -341,8 +341,6 @@ impl hil::gpio::PinCtl for GPIOPin {
 }
 
 impl hil::gpio::Pin for GPIOPin {
-    #[no_mangle]
-    #[inline(never)]
     fn make_output(&self) {
         unsafe { (&*self.gpio_register).dirset.set(1 << self.pin) };
     }
@@ -407,8 +405,8 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     /// Allocate a GPIOTE channel
-    /// Return the allocated if successful
-    /// else Error
+    /// Returns the allocated channel if successful
+    /// Or else an Error
     fn allocate_channel(&self) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
@@ -419,7 +417,8 @@ impl GPIOPin {
         Err(())
     }
 
-    /// Return which channel is allocated to a pin, or Error
+    /// Return which channel is allocated to a pin,
+    /// Or else return an error
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
