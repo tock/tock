@@ -139,27 +139,29 @@ impl<'a, Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
 
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the fired() callback.
-        self.virtual_alarms.iter()
-            .filter(|cur| cur.armed.get() &&
-                        past_from_base(cur.when.get(), now, prev))
+        self.virtual_alarms
+            .iter()
+            .filter(|cur| cur.armed.get() && past_from_base(cur.when.get(), now, prev))
             .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
                 cur.fired();
-        });
+            });
 
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.  This needs to happen after firing all expired
         // alarms since those may have reset new alarms.
-        let (next, _) = self.virtual_alarms.iter().filter(|cur| cur.armed.get()).
-                    fold((None, u32::max_value()), |(next, min_distance), cur| {
-            let distance = cur.when.get().wrapping_sub(now);
-            if distance < min_distance {
-                (Some(cur), distance)
-            } else {
-                (next, min_distance)
-            }
-        });
+        let (next, _) = self.virtual_alarms
+            .iter()
+            .filter(|cur| cur.armed.get())
+            .fold((None, u32::max_value()), |(next, min_distance), cur| {
+                let distance = cur.when.get().wrapping_sub(now);
+                if distance < min_distance {
+                    (Some(cur), distance)
+                } else {
+                    (next, min_distance)
+                }
+            });
 
         self.prev.set(now);
         // If there is an alarm to fire, set the underlying alarm to it

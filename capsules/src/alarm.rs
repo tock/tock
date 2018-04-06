@@ -161,12 +161,10 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
                 }
                 return_code
             })
-            .unwrap_or_else(|err| {
-                match err {
-                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                    Error::NoSuchApp => ReturnCode::EINVAL,
-                }
+            .unwrap_or_else(|err| match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
             })
     }
 }
