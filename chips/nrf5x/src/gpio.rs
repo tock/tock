@@ -109,12 +109,14 @@ struct GpioRegisters {
 register_bitfields! [u32,
     /// Write GPIO port
     Out [
-        /// 0 - Low
-        /// 1 - High
+        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// 0 - Low, Pin driver is low
+        /// 1 - High, Pin driver is high
         PIN OFFSET(0) NUMBITS(32)
     ],
     /// Set individual bits in GPIO port
     OutSet [
+        /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
         /// Writing a '1' sets the pin high
@@ -123,6 +125,7 @@ register_bitfields! [u32,
     ],
     /// Clear individual bits in GPIO port
     OutClr [
+        /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
         /// Writing a '1' sets the pin low
@@ -131,6 +134,7 @@ register_bitfields! [u32,
     ],
     /// Read GPIO port 
     In [
+        /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
         PIN OFFSET(0) NUMBITS(32) 
@@ -143,6 +147,7 @@ register_bitfields! [u32,
     ],
     /// Configure direction of individual GPIO pins as output
     DirSet [
+        /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - Pin set as input
         /// 1 - Pin set as output
         /// Write: writing a '1' sets pin to output
@@ -151,6 +156,7 @@ register_bitfields! [u32,
     ],
     /// Configure direction of individual GPIO pins as input
     DirClr [
+        /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - Pin set as input
         /// 1 - Pin set as output
         /// Write: writing a '1' sets pin to input
@@ -160,6 +166,7 @@ register_bitfields! [u32,
     /// Latch register indicating what GPIO pins that have met the criteria set in the
     /// PIN_CNF[n].SENSE registers
     Latch [
+        /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - NotLatched
         /// 1 - Latched
         PIN OFFSET(0) NUMBITS(32)
@@ -174,6 +181,7 @@ register_bitfields! [u32,
         ]
     ],
     /// Configuration of GPIO pins
+    /// Pin[n], each bit correspond to a pin 0 to 31
     PinConfig [
         /// Pin direction. Same physical register as DIR register
         DIR OFFSET(0) NUMBITS(1) [
@@ -284,7 +292,7 @@ register_bitfields! [u32,
         ],
         /// GPIO number associated with SET[n], CLR[n] and OUT[n] tasks
         /// and IN[n] event
-        PSEL OFFSET(8) NUMBITS(4) [],
+        PSEL OFFSET(8) NUMBITS(5) [],
         /// When In task mode: Operation to be performed on output
         /// when OUT[n] task is triggered. When In event mode: Operation
         /// on input that shall trigger IN[n] event
@@ -306,9 +314,9 @@ register_bitfields! [u32,
         /// channel is configured. When in event mode: No effect
         OUTINIT OFFSET(20) NUMBITS(1) [
             /// Task mode: Initial value of pin before task triggering is low
-            Low = 1,
+            Low = 0,
             /// Task mode: Initial value of pin before task triggering is high
-            High = 0
+            High = 1
         ]
     ]
 ];
@@ -416,7 +424,7 @@ impl GPIOPin {
     fn allocate_channel(&self) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
-            if ch.matches_any(Config::MODE::Event) {
+            if ch.matches_all(Config::MODE::Disabled) {
                 return Ok(i);
             }
         }
