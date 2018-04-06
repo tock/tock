@@ -27,7 +27,7 @@ struct GpioteRegisters {
     ///
     /// Address: 0x000 - 0x010 (nRF51)
     /// Address: 0x000 - 0x020 (nRF52)
-    task_out: [ReadWrite<u32, TaskOut::Register>; NUM_GPIOTE],
+    task_out: [ReadWrite<u32, TasksOut::Register>; NUM_GPIOTE],
     /// Reserved
     // task_set and task_clear are not used on nRF52
     _reserved0: [u8; 0x100 - (0x0 + NUM_GPIOTE * 4)],
@@ -35,12 +35,12 @@ struct GpioteRegisters {
     ///
     /// Address: 0x100 - 0x110 (nRF51)
     /// Address: 0x100 - 0x120 (nRF52)
-    event_in: [ReadWrite<u32, EventIn::Register>; NUM_GPIOTE],
+    event_in: [ReadWrite<u32, EventsIn::Register>; NUM_GPIOTE],
     /// Reserved
     _reserved1: [u8; 0x17C - (0x100 + NUM_GPIOTE * 4)],
     /// Event generated from multiple input GPIO pins
     /// Address: 0x17C - 0x180
-    event_port: ReadWrite<u32, EventPort::Register>,
+    event_port: ReadWrite<u32, EventsPort::Register>,
     /// Reserved
     // inten on nRF51 is ignored because intenset and intenclr provides the same functionality
     _reserved2: [u8; 0x184],
@@ -227,18 +227,27 @@ register_bitfields! [u32,
 register_bitfields! [u32,
     /// Task for writing to pin specified in CONFIG[n].PSEL. 
     /// Action on pin is configured in CONFIG[n].POLARITY
-    TaskOut [
-        PIN OFFSET(0) NUMBITS(32)
+    TasksOut [
+        TASK OFFSET(0) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ]
     ],
 
     /// Event generated from pin specified in CONFIG[n].PSEL
-    EventIn [
-        PIN OFFSET(0) NUMBITS(32)
+    EventsIn [
+        EVENT OFFSET(0) NUMBITS(1) [
+            NotReady = 0,
+            Ready = 1
+        ]
     ],
     
     /// Event generated from multiple input pins
-    EventPort [
-        PINS OFFSET(0) NUMBITS(1)
+    EventsPort [
+        PINS OFFSET(0) NUMBITS(1) [
+            NotReady = 0,
+            Ready = 1
+        ]
     ],
 
     /// Enable interrupt
@@ -282,7 +291,7 @@ register_bitfields! [u32,
         POLARITY OFFSET(16) NUMBITS(2) [
             /// Task mode: No effect on pin from OUT[n] task. Event mode: no
             /// IN[n] event generated on pin activity
-            None = 0,
+            Disabled = 0,
             /// Task mode: Set pin from OUT[n] task. Event mode: Generate
             /// IN[n] event when rising edge on pin
             LoToHi = 1,
@@ -330,13 +339,13 @@ impl GPIOPin {
 
 impl hil::gpio::PinCtl for GPIOPin {
     fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-        let conf = match mode {
-            hil::gpio::InputMode::PullUp => 3,
-            hil::gpio::InputMode::PullDown => 1,
-            hil::gpio::InputMode::PullNone => 0,
+        let pin_config = match mode {
+            hil::gpio::InputMode::PullUp => PinConfig::PULL::Pullup,
+            hil::gpio::InputMode::PullDown => PinConfig::PULL::Pulldown,
+            hil::gpio::InputMode::PullNone => PinConfig::PULL::Disabled,
         };
         let gpio_regs = unsafe { &*self.gpio_register };
-        gpio_regs.pin_cnf[self.pin as usize].write(PinConfig::PULL.val(conf));
+        gpio_regs.pin_cnf[self.pin as usize].write(pin_config);
     }
 }
 
@@ -375,19 +384,16 @@ impl hil::gpio::Pin for GPIOPin {
     }
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
-        self.client_data.set(client_data);
-        let mut mode_bits: u32 = 1; // Event
-        mode_bits |= match mode {
-            hil::gpio::InterruptMode::EitherEdge => 3 << 16,
-            hil::gpio::InterruptMode::RisingEdge => 1 << 16,
-            hil::gpio::InterruptMode::FallingEdge => 2 << 16,
-        };
-        let pin = (self.pin & 0b11111) as u32;
-        mode_bits |= pin << 8;
-
         if let Ok(channel) = self.allocate_channel() {
+            self.client_data.set(client_data);
+            let polarity = match mode {
+                hil::gpio::InterruptMode::EitherEdge => Config::POLARITY::Toggle,
+                hil::gpio::InterruptMode::RisingEdge => Config::POLARITY::LoToHi,
+                hil::gpio::InterruptMode::FallingEdge => Config::POLARITY::HiToLo,
+            };
             let regs = unsafe { &*self.gpiote_register };
-            regs.config[channel as usize].set(mode_bits);
+            regs.config[channel]
+                .write(Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity);
             regs.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
@@ -406,7 +412,7 @@ impl hil::gpio::Pin for GPIOPin {
 impl GPIOPin {
     /// Allocate a GPIOTE channel
     /// Returns the allocated channel if successful
-    /// Or else an Error
+    /// Else return an error
     fn allocate_channel(&self) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
@@ -418,7 +424,7 @@ impl GPIOPin {
     }
 
     /// Return which channel is allocated to a pin,
-    /// Or else return an error
+    /// Else return an error
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
@@ -458,11 +464,12 @@ impl Port {
     /// GPIOTE interrupt: check each GPIOTE channel, if any has
     /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
+        // do this just to get a pointer the memory map
         let regs = unsafe { &*self.pins[0].gpiote_register };
         for (i, ev) in regs.event_in.iter().enumerate() {
-            if ev.get() != 0 {
-                ev.set(0);
-                // get gpio number
+            if ev.matches_any(EventsIn::EVENT::Ready) {
+                ev.write(EventsIn::EVENT::NotReady);
+                // Get pin number for the event and trigger an interrupt
                 let pin = regs.config[i].read(Config::PSEL) as usize;
                 self.pins[pin].handle_interrupt();
             }
