@@ -411,7 +411,8 @@ impl hil::gpio::Pin for GPIOPin {
     fn disable_interrupt(&self) {
         if let Ok(channel) = self.find_channel(self.pin) {
             let regs = unsafe { &*self.gpiote_register };
-            regs.config[channel as usize].set(0);
+            regs.config[channel]
+                .write(Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR);
             regs.intenclr.set(1 << channel);
         }
     }
@@ -419,8 +420,7 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     /// Allocate a GPIOTE channel
-    /// Returns the allocated channel if successful
-    /// Else return an error
+    /// If the channel couldn't be allocated return error instead
     fn allocate_channel(&self) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
@@ -432,18 +432,18 @@ impl GPIOPin {
     }
 
     /// Return which channel is allocated to a pin,
-    /// Else return an error
+    /// If the channel is not found return an error instead
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = unsafe { &*self.gpiote_register };
         for (i, ch) in regs.config.iter().enumerate() {
-            if ch.read(Config::PSEL) == pin as u32 {
+            if ch.matches_all(Config::PSEL.val(pin as u32)) {
                 return Ok(i);
             }
         }
         return Err(());
     }
 
-    pub fn handle_interrupt(&self) {
+    fn handle_interrupt(&self) {
         self.client.get().map(|client| {
             client.fired(self.client_data.get());
         });
@@ -473,11 +473,13 @@ impl Port {
     /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
         // do this just to get a pointer the memory map
+        // doesn't matter which pin is used because it is the same
         let regs = unsafe { &*self.pins[0].gpiote_register };
+
         for (i, ev) in regs.event_in.iter().enumerate() {
             if ev.matches_any(EventsIn::EVENT::Ready) {
                 ev.write(EventsIn::EVENT::NotReady);
-                // Get pin number for the event and trigger an interrupt
+                // Get pin number for the event and `trigger` an interrupt manually on that pin
                 let pin = regs.config[i].read(Config::PSEL) as usize;
                 self.pins[pin].handle_interrupt();
             }
