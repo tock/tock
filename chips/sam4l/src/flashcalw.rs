@@ -902,6 +902,10 @@ impl FLASHCALW {
         size: usize,
         buffer: &'static mut Sam4lPage,
     ) -> ReturnCode {
+        if self.current_state.get() == FlashState::Unconfigured {
+            return ReturnCode::FAIL;
+        }
+
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
@@ -939,9 +943,11 @@ impl FLASHCALW {
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
-        // If we're not ready don't take the command.
-        if self.current_state.get() != FlashState::Ready {
-            return ReturnCode::EBUSY;
+        match self.current_state.get() {
+            FlashState::Unconfigured => return ReturnCode::FAIL,
+            FlashState::Ready => {}
+            // If we're not ready don't take the command
+            _ => return ReturnCode::EBUSY,
         }
 
         // Save the buffer for the future write.
