@@ -92,6 +92,7 @@ struct Imix {
         'static,
         sam4l::usart::USART,
     >,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -139,6 +140,7 @@ impl kernel::Platform for Imix {
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -572,6 +574,32 @@ pub unsafe fn reset_handler() {
         capsules::usb_user::UsbSyscallDriver::new(usb_client, kernel::Grant::create())
     );
 
+    sam4l::flashcalw::FLASH_CONTROLLER.configure();
+    pub static mut FLASH_PAGEBUFFER: sam4l::flashcalw::Sam4lPage =
+        sam4l::flashcalw::Sam4lPage::new();
+    let nv_to_page = static_init!(
+        capsules::nonvolatile_to_pages::NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
+        capsules::nonvolatile_to_pages::NonvolatileToPages::new(
+            &mut sam4l::flashcalw::FLASH_CONTROLLER,
+            &mut FLASH_PAGEBUFFER
+        )
+    );
+    hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
+
+    let nonvolatile_storage = static_init!(
+        capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+        capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
+            nv_to_page,
+            kernel::Grant::create(),
+            0x60000, // Start address for userspace accessible region
+            0x20000, // Length of userspace accessible region
+            0,       // Start address of kernel accessible region
+            0,       // Length of kernel accessible region
+            &mut capsules::nonvolatile_storage_driver::BUFFER
+        )
+    );
+    hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
+
     let imix = Imix {
         console: console,
         alarm: alarm,
@@ -589,6 +617,7 @@ pub unsafe fn reset_handler() {
         radio_driver: radio_driver,
         usb_driver: usb_driver,
         nrf51822: nrf_serialization,
+        nonvolatile_storage: nonvolatile_storage,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
