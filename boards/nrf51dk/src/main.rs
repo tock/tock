@@ -44,11 +44,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib)]
+#![feature(lang_items)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;

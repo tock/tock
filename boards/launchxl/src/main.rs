@@ -1,9 +1,8 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib, asm)]
+#![feature(lang_items, asm)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 
 extern crate cc26x2;
 extern crate cc26xx;

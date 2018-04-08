@@ -5,8 +5,6 @@ MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-export RUSTUP_TOOLCHAIN ?= nightly-2018-03-07
-
 TOOLCHAIN ?= arm-none-eabi
 
 XARGO ?= xargo
@@ -67,21 +65,8 @@ else
   endif
 endif
 
-
-# Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.26.0-nightly (2789b067d 2018-03-06)
-ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
-  DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
-  ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
-    $(warning You do not have the correct version of `rustc` configured, and `rustup` is not installed.)
-    $(warning Expected `rustc` version "$(RUSTC_VERSION_STRING)" but got "$(shell rustc --version)")
-    $(warning You may experience unexpected compilation warnings or errors)
-    $(warning To fix, install `rustup` from https://rustup.rs/, then run: `rustup install $(RUSTUP_TOOLCHAIN)`)
-  endif
-endif
-
-ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component list | grep rust-src),rust-src (installed))
-  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component add rust-src)
+ifneq ($(shell rustup component list | grep rust-src),rust-src (installed))
+  $(shell rustup component add rust-src)
 endif
 
 # Check that xargo is installed and up-to-date
@@ -92,22 +77,22 @@ ifneq ($(XARGO_NAME), xargo)
   $(warning Required tool `xargo` not installed.)
   $(warning Running `cargo install xargo` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
-  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install xargo)
+  $(shell cargo install xargo)
   XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
 else ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(XARGO_VERSION) \< $(MINIMUM_XARGO_VERSION)), true)
   $(warning Required tool `xargo` is out-of-date.)
   $(warning Running `cargo install cargo-update` and `cargo install-update xargo` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
-  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install cargo-update)
-  XARGO_UPDATE_RESULT := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install-update xargo))
+  $(shell cargo install cargo-update)
+  XARGO_UPDATE_RESULT := $(shell cargo install-update xargo))
   $(info $(XARGO_UPDATE_RESULT))
   XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
 endif
 
 # Xargo 3.11 is broken an expects a `bin` folder to exist that doesn't. Work around
 # this by creating the bin folder ourselves if it doesn't exist.
-RUST_SYSROOT := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --print sysroot)
-RUST_HOST := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc -vV | grep host | cut -b 7-)
+RUST_SYSROOT := $(shell rustc --print sysroot)
+RUST_HOST := $(shell rustc -vV | grep host | cut -b 7-)
 $(shell mkdir -p $(RUST_SYSROOT)/lib/rustlib/$(RUST_HOST)/bin)
 
 # Dump configuration for verbose builds
@@ -120,7 +105,6 @@ ifneq ($(V),)
   $(info MAKEFLAGS=$(MAKEFLAGS))
   $(info OBJCOPY=$(OBJCOPY))
   $(info PLATFORM=$(PLATFORM))
-  $(info RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN))
   $(info XARGO_VERSION=$(XARGO_VERSION))
   $(info TARGET=$(TARGET))
   $(info TOCK_KERNEL_VERSION=$(TOCK_KERNEL_VERSION))

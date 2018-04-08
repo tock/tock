@@ -5,11 +5,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items, compiler_builtins_lib)]
+#![feature(asm, const_fn, lang_items)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;

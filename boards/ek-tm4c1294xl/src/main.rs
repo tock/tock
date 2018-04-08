@@ -2,9 +2,8 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items, compiler_builtins_lib)]
+#![feature(asm, const_fn, lang_items)]
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, static_init)]
 extern crate kernel;
