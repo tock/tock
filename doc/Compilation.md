@@ -259,7 +259,7 @@ Flags:
 
 - `E`: Enabled/disabled bit. When set to `1` the application will be started
 on boot. When `0` the kernel will not start the application. Defaults to `1`
-when set by `elf2tbf`.
+when set by `elf2tab`.
 - 'S': Sticky bit. When set to `1`, Tockloader will not remove the app without
 a `--force` flag. This allows for "system" apps that can be added for debugging
 purposes and are not removed during normal testing/application development.
@@ -268,7 +268,7 @@ be persistent even when other apps are being developed.
 
 In practice, this is automatically handled for applications. As part of the
 compilation process, a tool called
-[Elf to Tock Binary Format](https://github.com/tock/tock/tree/master/userland/tools/elf2tbf)
+[Elf to TAB](https://github.com/tock/tock/tree/master/userland/tools/elf2tab)
 does the conversion from ELF to Tock's expected binary format, ensuring that
 sections are placed in the expected order, adding a section that lists
 necessary load-time relocations, and creating the TBF header.

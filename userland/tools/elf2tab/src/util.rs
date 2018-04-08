@@ -1,7 +1,7 @@
-use std::io;
 use std::cmp;
-use std::slice;
+use std::io;
 use std::mem;
+use std::slice;
 
 /// Takes a value and rounds it up to be aligned % 4
 #[macro_export]

@@ -180,7 +180,7 @@ $ make
 ```
 
 This will build the app and generate a binary in Tock Binary Format
-(using the `elf2tbf` utility):
+(using the `elf2tab` utility):
 `userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
 
 ## Loading the kernel and applications onto a board
