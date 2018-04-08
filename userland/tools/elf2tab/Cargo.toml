@@ -8,5 +8,5 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 getopts = "0.2"
 chrono = "0.4.2"
 tar = "0.4.14"
-elf = { git = "https://github.com/cole14/rust-elf" }
+elf = "0.0.6"
 

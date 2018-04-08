@@ -48,13 +48,21 @@ fn main() {
     let verbose = matches.opt_present("v");
 
     // Get the memory requirements from the app.
-    let stack_len = matches.opt_str("stack").unwrap().parse::<u32>().unwrap();
-    let app_heap_len = matches.opt_str("app-heap").unwrap().parse::<u32>().unwrap();
+    let stack_len = matches
+        .opt_str("stack")
+        .unwrap()
+        .parse::<u32>()
+        .expect("Stack size must be an integer.");
+    let app_heap_len = matches
+        .opt_str("app-heap")
+        .unwrap()
+        .parse::<u32>()
+        .expect("App heap size must be an integer.");
     let kernel_heap_len = matches
         .opt_str("kernel-heap")
         .unwrap()
         .parse::<u32>()
-        .unwrap();
+        .expect("Kernel heap size must be an integer.");
 
     // Check that we have at least one input file elf to process.
     if matches.free.is_empty() {
@@ -75,7 +83,8 @@ build-date = {}",
     ).unwrap();
 
     // Start creating a tar archive which will be the .tab file.
-    let tab_name = fs::File::create(path::Path::new(&output.unwrap())).unwrap();
+    let tab_name = fs::File::create(path::Path::new(&output.unwrap()))
+        .expect("Could not create the output file.");
     let mut tab = tar::Builder::new(tab_name);
 
     // Add the metadata file without creating a real file on the filesystem.
@@ -92,7 +101,7 @@ build-date = {}",
         let elf_path = path::Path::new(&input_elf);
         let bin_path = path::Path::new(&input_elf).with_extension("bin");
 
-        let elffile = elf::File::open_path(&elf_path).unwrap();
+        let elffile = elf::File::open_path(&elf_path).expect("Could not open the .elf file.");
         // Get output file as both read/write for creating the binary and
         // adding it to the TAB tar file.
         let mut outfile: fs::File = fs::OpenOptions::new()
@@ -175,11 +184,11 @@ fn elf_to_tbf(
     let appstate = get_section(input, ".app_state");
 
     // Calculate how much RAM this app should ask the kernel for.
-    let got_size = got.shdr.size as u32;
-    let data_size = data.shdr.size as u32;
-    let bss_size = bss.shdr.size as u32;
-    let minimum_ram_size =
-        stack_len + app_heap_len + kernel_heap_len + got_size + data_size + bss_size;
+    let got_size = align4!(got.shdr.size) as u32;
+    let data_size = align4!(data.shdr.size) as u32;
+    let bss_size = align4!(bss.shdr.size) as u32;
+    let minimum_ram_size = align8!(stack_len) + align4!(app_heap_len) + align4!(kernel_heap_len)
+        + got_size + data_size + bss_size;
 
     // Keep track of an index of where we are in creating the app binary.
     let mut binary_index = 0;
@@ -199,8 +208,7 @@ fn elf_to_tbf(
     binary_index += text.data.len() + post_text_pad;
 
     // Next up is the app writeable app_state section. If this is not used or
-    // non-existent, it will just be zero and won't matter. But we put it early
-    // so that changes to the app won't move it.
+    // non-existent, it will just be zero and won't matter.
     let appstate_offset = binary_index;
     let appstate_size = appstate.shdr.size as usize;
     // Make sure we pad back to a multiple of 4.
@@ -252,19 +260,19 @@ fn elf_to_tbf(
     }
 
     // Write the header and actual app to a binary file.
-    try!(output.write_all(tbfheader.generate().unwrap().get_ref()));
+    output.write_all(tbfheader.generate().unwrap().get_ref())?;
 
-    try!(output.write_all(text.data.as_ref()));
-    try!(util::do_pad(output, post_text_pad as usize));
+    output.write_all(text.data.as_ref())?;
+    util::do_pad(output, post_text_pad as usize)?;
 
-    try!(output.write_all(appstate.data.as_ref()));
-    try!(util::do_pad(output, post_appstate_pad as usize));
+    output.write_all(appstate.data.as_ref())?;
+    util::do_pad(output, post_appstate_pad as usize)?;
 
-    try!(output.write_all(got.data.as_ref()));
-    try!(util::do_pad(output, post_got_pad as usize));
+    output.write_all(got.data.as_ref())?;
+    util::do_pad(output, post_got_pad as usize)?;
 
-    try!(output.write_all(data.data.as_ref()));
-    try!(util::do_pad(output, post_data_pad as usize));
+    output.write_all(data.data.as_ref())?;
+    util::do_pad(output, post_data_pad as usize)?;
 
     let rel_data_len: [u8; 4] = [
         (rel_data.len() & 0xff) as u8,
@@ -272,12 +280,12 @@ fn elf_to_tbf(
         (rel_data.len() >> 16 & 0xff) as u8,
         (rel_data.len() >> 24 & 0xff) as u8,
     ];
-    try!(output.write_all(&rel_data_len));
-    try!(output.write_all(rel_data.as_ref()));
-    try!(util::do_pad(output, post_reldata_pad as usize));
+    output.write_all(&rel_data_len)?;
+    output.write_all(rel_data.as_ref())?;
+    util::do_pad(output, post_reldata_pad as usize)?;
 
     // Pad to get a power of 2 sized flash app.
-    try!(util::do_pad(output, post_content_pad as usize));
+    util::do_pad(output, post_content_pad as usize)?;
 
     Ok(())
 }

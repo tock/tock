@@ -9,6 +9,12 @@ macro_rules! align4 {
     ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
 }
 
+/// Takes a value and rounds it up to be aligned % 8
+#[macro_export]
+macro_rules! align8 {
+    ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
+}
+
 /// How much needs to be added to get a value aligned % 4
 #[macro_export]
 macro_rules! align4needed {
@@ -20,7 +26,7 @@ pub fn do_pad(output: &mut io::Write, length: usize) -> io::Result<()> {
     let zero_buf = [0u8; 512];
     while pad > 0 {
         let amount_to_write = cmp::min(zero_buf.len(), pad);
-        pad -= try!(output.write(&zero_buf[..amount_to_write]));
+        pad -= output.write(&zero_buf[..amount_to_write])?;
     }
     Ok(())
 }

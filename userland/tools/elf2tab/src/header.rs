@@ -229,24 +229,24 @@ impl TbfHeader {
         let mut header_buf = io::Cursor::new(Vec::new());
 
         // Write all bytes to an in-memory file for the header.
-        try!(header_buf.write_all(unsafe { util::as_byte_slice(&self.hdr_base) }));
-        try!(header_buf.write_all(unsafe { util::as_byte_slice(&self.hdr_main) }));
+        header_buf.write_all(unsafe { util::as_byte_slice(&self.hdr_base) })?;
+        header_buf.write_all(unsafe { util::as_byte_slice(&self.hdr_main) })?;
         if self.package_name.len() > 0 {
-            try!(header_buf.write_all(unsafe { util::as_byte_slice(&self.hdr_pkg_name_tlv) }));
-            try!(header_buf.write_all(self.package_name.as_ref()));
-            try!(util::do_pad(&mut header_buf, self.package_name_pad));
+            header_buf.write_all(unsafe { util::as_byte_slice(&self.hdr_pkg_name_tlv) })?;
+            header_buf.write_all(self.package_name.as_ref())?;
+            util::do_pad(&mut header_buf, self.package_name_pad)?;
         }
 
         // Only put these in the header if the app_state section is nonzero.
         match self.hdr_wfr {
             Some(wfr) => {
-                try!(header_buf.write_all(unsafe { util::as_byte_slice(&wfr) }));
+                header_buf.write_all(unsafe { util::as_byte_slice(&wfr) })?;
             }
             None => {}
         }
 
         let current_length = header_buf.get_ref().len();
-        try!(util::do_pad(&mut header_buf, align4needed!(current_length)));
+        util::do_pad(&mut header_buf, align4needed!(current_length))?;
 
         self.inject_checksum(header_buf)
     }
@@ -258,37 +258,32 @@ impl TbfHeader {
         mut header_buf: io::Cursor<vec::Vec<u8>>,
     ) -> io::Result<(io::Cursor<vec::Vec<u8>>)> {
         // Start from the beginning and iterate through the buffer as words.
-        try!(header_buf.seek(SeekFrom::Start(0)));
+        header_buf.seek(SeekFrom::Start(0))?;
         let mut wordbuf = [0u8; 4];
         let mut checksum: u32 = 0;
         loop {
-            let ret = header_buf.read(&mut wordbuf);
-            match ret {
-                Ok(count) => {
-                    // Combine the bytes back into a word, handling if we don't
-                    // get a full word.
-                    let mut word = 0;
-                    for i in 0..count {
-                        word |= (wordbuf[i] as u32) << (8 * i);
-                    }
-                    checksum ^= word;
-                    if count != 4 {
-                        break;
-                    }
-                }
-                Err(_) => println!("Error calculating checksum."),
+            let count = header_buf.read(&mut wordbuf)?;
+            // Combine the bytes back into a word, handling if we don't
+            // get a full word.
+            let mut word = 0;
+            for i in 0..count {
+                word |= (wordbuf[i] as u32) << (8 * i);
+            }
+            checksum ^= word;
+            if count != 4 {
+                break;
             }
         }
 
         // Now we need to insert the checksum into the correct position in the
         // header.
-        try!(header_buf.seek(io::SeekFrom::Start(12)));
+        header_buf.seek(io::SeekFrom::Start(12))?;
         wordbuf[0] = ((checksum >> 0) & 0xFF) as u8;
         wordbuf[1] = ((checksum >> 8) & 0xFF) as u8;
         wordbuf[2] = ((checksum >> 16) & 0xFF) as u8;
         wordbuf[3] = ((checksum >> 24) & 0xFF) as u8;
-        try!(header_buf.write(&wordbuf));
-        try!(header_buf.seek(io::SeekFrom::Start(0)));
+        header_buf.write(&wordbuf)?;
+        header_buf.seek(io::SeekFrom::Start(0))?;
 
         Ok(header_buf)
     }
