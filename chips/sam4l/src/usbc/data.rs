@@ -3,7 +3,6 @@
 use core::fmt;
 use core::ptr;
 use kernel::common::VolatileCell;
-use usbc::common::register::*;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Mode {
@@ -37,29 +36,10 @@ pub enum DeviceState {
     CtrlInDelay,
 }
 
-// value for USBCON.UIMOD
-impl ToWord for Mode {
-    fn to_word(self) -> u32 {
-        match self {
-            Mode::Host => 0,
-            Mode::Device { .. } => 1,
-        }
-    }
-}
-
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Speed {
     Full,
     Low,
-}
-
-impl ToWord for Speed {
-    fn to_word(self) -> u32 {
-        match self {
-            Speed::Full => 0,
-            Speed::Low => 1,
-        }
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -268,17 +248,15 @@ impl EndpointIndex {
     pub fn new(index: u32) -> EndpointIndex {
         EndpointIndex(index & 0xf)
     }
+
+    pub fn to_word(self) -> u32 {
+        self.0
+    }
 }
 
 impl From<EndpointIndex> for usize {
     fn from(ei: EndpointIndex) -> usize {
         ei.0 as usize
-    }
-}
-
-impl ToWord for EndpointIndex {
-    fn to_word(self) -> u32 {
-        self.0
     }
 }
 

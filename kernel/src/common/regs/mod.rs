@@ -92,6 +92,12 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     associated_register: PhantomData<R>,
 }
 
+/// Cached values of registers.
+pub struct CachedRegister<T: IntLike, R: RegisterLongName> {
+    value: T,
+    associated_register: PhantomData<R>,
+}
+
 #[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     pub const fn new(value: T) -> Self {
@@ -141,6 +147,11 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
     }
+
+    #[inline]
+    pub fn cache(&self) -> CachedRegister<T, R> {
+        CachedRegister::new(self.get())
+    }
 }
 
 #[allow(dead_code)]
@@ -176,6 +187,11 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
     }
+
+    #[inline]
+    pub fn cache(&self) -> CachedRegister<T, R> {
+        CachedRegister::new(self.get())
+    }
 }
 
 #[allow(dead_code)]
@@ -195,6 +211,40 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     #[inline]
     pub fn write(&self, field: FieldValue<T, R>) {
         self.set(field.value);
+    }
+}
+
+impl<T: IntLike, R: RegisterLongName> CachedRegister<T, R> {
+    pub fn new(value: T) -> Self {
+        CachedRegister {
+            value: value,
+            associated_register: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn get(&self) -> T {
+        self.value
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<T, R>) -> T {
+        (self.get() & (field.mask << field.shift)) >> field.shift
+    }
+
+    #[inline]
+    pub fn is_set(&self, field: Field<T, R>) -> bool {
+        self.read(field) != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask == field.value
     }
 }
 
