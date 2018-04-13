@@ -4,12 +4,28 @@ use core::fmt;
 use core::ptr;
 use kernel::common::VolatileCell;
 
+pub const N_ENDPOINTS: usize = 8;
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum State {
+    // Controller disabled
+    Reset,
+
+    // Controller enabled, detached from bus
+    // (We may go to this state when the Host
+    // controller suspends the bus.)
+    Idle(Mode),
+
+    // Controller enabled, attached to bus
+    Active(Mode),
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Mode {
     Host,
     Device {
         speed: Speed,
-        config: Option<EndpointConfig>,
+        config: DeviceConfig,
         state: DeviceState,
     },
 }
@@ -18,35 +34,44 @@ impl Mode {
     pub fn device_at_speed(speed: Speed) -> Mode {
         Mode::Device {
             speed: speed,
-            config: None,
-            state: DeviceState::Init,
+            config: Default::default(),
+            state: Default::default(),
         }
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+pub struct DeviceConfig {
+    pub endpoint_configs: [Option<EndpointConfig>; N_ENDPOINTS],
+}
+
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+pub struct DeviceState {
+    pub endpoint_states: [EndpointState; N_ENDPOINTS],
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum DeviceState {
+pub enum EndpointState {
+    Disabled,
     Init,
     CtrlReadIn,
     CtrlReadStatus,
     CtrlWriteOut,
     CtrlWriteStatus,
     CtrlWriteStatusWait,
-
     CtrlInDelay,
+}
+
+impl Default for EndpointState {
+    fn default() -> Self {
+        EndpointState::Disabled
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Speed {
     Full,
     Low,
-}
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum State {
-    Reset,
-    Idle(Mode),
-    Active(Mode),
 }
 
 pub type Endpoint = [Bank; 2];
@@ -203,7 +228,7 @@ impl EndpointConfig {
     ) -> EndpointConfig {
         EndpointConfig(
             ((banks as u32) << 2) | ((size as u32) << 4) | ((dir as u32) << 8)
-                | ((typ as u32) << 11) | (redir.to_word() << 16),
+                | ((typ as u32) << 11) | (redir.to_u32() << 16),
         )
     }
 }
@@ -242,15 +267,15 @@ pub enum EndpointType {
     Interrupt,
 }
 
-pub struct EndpointIndex(u32);
+pub struct EndpointIndex(u8);
 
 impl EndpointIndex {
-    pub fn new(index: u32) -> EndpointIndex {
-        EndpointIndex(index & 0xf)
+    pub fn new(index: usize) -> EndpointIndex {
+        EndpointIndex(index as u8 & 0xf)
     }
 
-    pub fn to_word(self) -> u32 {
-        self.0
+    pub fn to_u32(self) -> u32 {
+        self.0 as u32
     }
 }
 

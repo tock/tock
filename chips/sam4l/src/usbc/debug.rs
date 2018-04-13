@@ -8,7 +8,7 @@ pub const UDINT_WAKEUP: u32 = 1 << 4;
 pub const UDINT_EORSM: u32 = 1 << 5;
 pub const UDINT_UPRSM: u32 = 1 << 6;
 
-pub struct UdintFlags(u32);
+pub struct UdintFlags(pub u32);
 
 impl fmt::Debug for UdintFlags {
     #[allow(unused_must_use)]
@@ -58,7 +58,7 @@ pub const RAMACERR: u32 = 1 << 11;
 pub const CTRLDIR: u32 = 1 << 17;
 pub const STALLRQ: u32 = 1 << 19;
 
-pub struct UestaFlags(u32);
+pub struct UestaFlags(pub u32);
 
 impl fmt::Debug for UestaFlags {
     #[allow(unused_must_use)]

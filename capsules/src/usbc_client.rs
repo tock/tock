@@ -4,7 +4,6 @@
 
 use core::cell::Cell;
 use core::cmp::min;
-use core::default::Default;
 use kernel::common::VolatileCell;
 use kernel::hil;
 use kernel::hil::usb::*;
@@ -25,10 +24,12 @@ static STRINGS: &'static [&'static str] = &[
 
 const DESCRIPTOR_BUFLEN: usize = 30;
 
+const N_ENDPOINTS: usize = 1;
+
 pub struct Client<'a, C: 'a> {
     controller: &'a C,
-    state: Cell<State>,
-    ep0_storage: [VolatileCell<u8>; 8],
+    state: [Cell<State>; N_ENDPOINTS],
+    buffers: [[VolatileCell<u8>; 8]; N_ENDPOINTS],
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 }
 
@@ -47,19 +48,20 @@ enum State {
     SetAddress,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        State::Init
+    }
+}
+
 impl<'a, C: UsbController> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
         Client {
             controller: controller,
-            state: Cell::new(State::Init),
-            ep0_storage: [VolatileCell::new(0); 8],
+            state: Default::default(),
+            buffers: Default::default(),
             descriptor_storage: Default::default(),
         }
-    }
-
-    #[inline]
-    fn ep0_buf(&self) -> &[VolatileCell<u8>] {
-        &self.ep0_storage
     }
 
     #[inline]
@@ -70,13 +72,10 @@ impl<'a, C: UsbController> Client<'a, C> {
 
 impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     fn enable(&self) {
-        self.controller.endpoint_set_buffer(0, self.ep0_buf());
-        self.controller.enable_device(false);
+        // Set up the default control endpoint
+        self.controller.endpoint_set_buffer(0, &self.buffers[0]);
+        self.controller.enable_as_device(DeviceSpeed::Full); // must be Full for Bulk transfers
         self.controller.endpoint_ctrl_out_enable(0);
-
-        // XXX
-        // static es: C::EndpointState = Default::default();
-        // self.controller.endpoint_configure(&es, 0);
     }
 
     fn attach(&self) {
@@ -89,8 +88,8 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     }
 
     /// Handle a Control Setup transaction
-    fn ctrl_setup(&self) -> CtrlSetupResult {
-        SetupData::get(self.ep0_buf()).map_or(CtrlSetupResult::ErrNoParse, |setup_data| {
+    fn ctrl_setup(&self, endpoint: usize) -> CtrlSetupResult {
+        SetupData::get(&self.buffers[endpoint]).map_or(CtrlSetupResult::ErrNoParse, |setup_data| {
             setup_data.get_standard_request().map_or_else(
                 || {
                     // XX: CtrlSetupResult::ErrNonstandardRequest
@@ -100,16 +99,16 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
 
                     match setup_data.request_type.transfer_direction() {
                         TransferDirection::HostToDevice => {
-                            self.state.set(State::CtrlOut);
+                            self.state[endpoint].set(State::CtrlOut);
                             CtrlSetupResult::Ok
                         }
                         TransferDirection::DeviceToHost => {
-                            // Arrange to some crap back
+                            // Arrange to send some crap back
                             let buf = self.descriptor_buf();
                             buf[0].set(0xa);
                             buf[1].set(0xb);
                             buf[2].set(0xc);
-                            self.state.set(State::CtrlIn(0, 3));
+                            self.state[endpoint].set(State::CtrlIn(0, 3));
                             CtrlSetupResult::Ok
                         }
                     }
@@ -136,7 +135,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                         };
                                         let len = d.write_to(buf);
                                         let end = min(len, requested_length as usize);
-                                        self.state.set(State::CtrlIn(0, end));
+                                        self.state[endpoint].set(State::CtrlIn(0, end));
                                         CtrlSetupResult::Ok
                                     }
                                     _ => CtrlSetupResult::ErrInvalidDeviceIndex,
@@ -169,7 +168,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                                 request_start + (requested_length as usize),
                                                 buf.len(),
                                             );
-                                            self.state
+                                            self.state[endpoint]
                                                 .set(State::CtrlIn(request_start, request_end));
                                             CtrlSetupResult::Ok
                                         }
@@ -198,7 +197,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                         }
                                         _ => None,
                                     } {
-                                        self.state.set(State::CtrlIn(0, buf.len()));
+                                        self.state[endpoint].set(State::CtrlIn(0, buf.len()));
                                         CtrlSetupResult::Ok
                                     } else {
                                         CtrlSetupResult::ErrInvalidStringIndex
@@ -218,7 +217,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
 
                             // ... and when this request gets to the Status stage
                             // we will actually enable the address.
-                            self.state.set(State::SetAddress);
+                            self.state[endpoint].set(State::SetAddress);
                             CtrlSetupResult::Ok
                         }
                         StandardDeviceRequest::SetConfiguration { .. } => {
@@ -233,25 +232,25 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     }
 
     /// Handle a Control In transaction
-    fn ctrl_in(&self) -> CtrlInResult {
-        match self.state.get() {
+    fn ctrl_in(&self, endpoint: usize) -> CtrlInResult {
+        match self.state[endpoint].get() {
             State::CtrlIn(start, end) => {
                 let len = end.saturating_sub(start);
                 if len > 0 {
                     let packet_bytes = min(8, len);
                     let packet = &self.descriptor_storage[start..start + packet_bytes];
-                    let ep0_buf = self.ep0_buf();
+                    let buf = &self.buffers[endpoint];
 
                     // Copy a packet into the endpoint buffer
                     for (i, b) in packet.iter().enumerate() {
-                        ep0_buf[i].set(b.get());
+                        buf[i].set(b.get());
                     }
 
                     let start = start + packet_bytes;
                     let len = end.saturating_sub(start);
                     let transfer_complete = len == 0;
 
-                    self.state.set(State::CtrlIn(start, end));
+                    self.state[endpoint].set(State::CtrlIn(start, end));
 
                     CtrlInResult::Packet(packet_bytes, transfer_complete)
                 } else {
@@ -263,11 +262,11 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     }
 
     /// Handle a Control Out transaction
-    fn ctrl_out(&self, packet_bytes: u32) -> CtrlOutResult {
-        match self.state.get() {
+    fn ctrl_out(&self, endpoint: usize, packet_bytes: u32) -> CtrlOutResult {
+        match self.state[endpoint].get() {
             State::CtrlOut => {
                 debug!("Received {} vendor control bytes", packet_bytes);
-                // &self.ep0_buf()[0 .. packet_bytes as usize]
+                // &self.buffer[endpoint][0 .. packet_bytes as usize]
                 CtrlOutResult::Ok
             }
             _ => {
@@ -277,21 +276,21 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
         }
     }
 
-    fn ctrl_status(&self) {
+    fn ctrl_status(&self, _endpoint: usize) {
         // Entered Status stage
     }
 
     /// Handle the completion of a Control transfer
-    fn ctrl_status_complete(&self) {
+    fn ctrl_status_complete(&self, endpoint: usize) {
         // Control Read: IN request acknowledged
         // Control Write: status sent
 
-        match self.state.get() {
+        match self.state[endpoint].get() {
             State::SetAddress => {
                 self.controller.enable_address();
             }
             _ => {}
         };
-        self.state.set(State::Init);
+        self.state[endpoint].set(State::Init);
     }
 }

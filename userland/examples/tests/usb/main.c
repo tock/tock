@@ -9,15 +9,15 @@ int main(void) {
   int r;
 
   if (!usb_exists()) {
-    printf("USB driver is not present\n");
+    printf("USB test: driver is not present\n");
     exit(1);
   }
 
   r = usb_enable_and_attach();
 
   if (r == TOCK_SUCCESS) {
-    printf("Enabled and attached\n");
+    printf("USB test: Enabled and attached\n");
   } else {
-    printf("Attach failed with status %d\n", r);
+    printf("USB test: Attach failed with status %d\n", r);
   }
 }
