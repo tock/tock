@@ -1623,8 +1623,8 @@ unsafe fn load(tbf_header: TbfHeader,
         // own.
         let load_result = LoadResult {
             // Set the initial stack and process memory size to 64 bytes.
-            initial_stack_pointer: mem_base.offset(64),
-            initial_sbrk_pointer: mem_base.offset(64),
+            initial_stack_pointer: mem_base.offset(128),
+            initial_sbrk_pointer: mem_base.offset(128),
             header: tbf_header,
         };
 
