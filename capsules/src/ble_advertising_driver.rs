@@ -232,7 +232,6 @@ pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 //           +-----------+      +--------------+     +--------------+
 //
 #[allow(unused)]
-#[repr(u8)]
 enum BLEAdvertisementType {
     ConnectUndirected = 0x00,
     ConnectDirected = 0x01,
@@ -243,13 +242,15 @@ enum BLEAdvertisementType {
     ScanUndirected = 0x06,
 }
 
-const PACKET_START: usize = 0;
 const PACKET_HDR_PDU: usize = 0;
 const PACKET_HDR_LEN: usize = 1;
 const PACKET_ADDR_START: usize = 2;
 const PACKET_ADDR_END: usize = 7;
 const PACKET_PAYLOAD_START: usize = 8;
 const PACKET_LENGTH: usize = 39;
+
+const MIN_PAYLOAD_LEN: u8 = 3;
+const MAX_PAYLOAD_LEN: u8 = 31;
 const EMPTY_PACKET_LEN: u8 = 6;
 
 #[derive(PartialEq, Debug)]
@@ -318,18 +319,6 @@ impl Default for App {
 }
 
 impl App {
-    fn initialize_advertisement_buffer(&mut self) -> ReturnCode {
-        self.advertisement_buf
-            .as_mut()
-            .map(|buf| {
-                for i in buf.as_mut()[PACKET_START..PACKET_LENGTH].iter_mut() {
-                    *i = 0x00;
-                }
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or(ReturnCode::FAIL)
-    }
-
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
     //
     // A static address is a 48-bit randomly generated address and shall meet the following
@@ -369,7 +358,7 @@ impl App {
                 self.advertisement_buf
                     .as_mut()
                     .map(|data| {
-                        for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH].iter_mut() {
+                        for byte in data.as_mut()[PACKET_PAYLOAD_START..].iter_mut() {
                             *byte = 0x00;
                         }
 
@@ -400,20 +389,21 @@ impl App {
             .take()
             .as_ref()
             .map(|slice| {
-                if slice.len() <= PACKET_LENGTH {
+                let payload_length = slice.len() as u8;
+                if payload_length >= MIN_PAYLOAD_LEN && payload_length <= MAX_PAYLOAD_LEN {
                     self.advertisement_buf
                         .as_mut()
                         .map(|data| {
                             for (dst, src) in data.as_mut()[PACKET_PAYLOAD_START..]
                                 .iter_mut()
-                                .zip(slice.as_ref()[0..slice.len()].iter())
+                                .zip(slice.as_ref().iter())
                             {
                                 *dst = *src;
                             }
 
                             // FIXME: move to its own function/method?!
                             // Update header length
-                            data.as_mut()[PACKET_HDR_LEN] = slice.len() as u8;
+                            data.as_mut()[PACKET_HDR_LEN] = payload_length + EMPTY_PACKET_LEN;
 
                             ReturnCode::SUCCESS
                         })
@@ -438,10 +428,7 @@ impl App {
                 ble.kernel_tx
                     .take()
                     .map(|data| {
-                        for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
-                            .iter_mut()
-                            .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
-                        {
+                        for (out, inp) in data.as_mut().iter_mut().zip(slice.as_ref().iter()) {
                             *out = *inp;
                         }
                         let result = ble.radio
@@ -890,7 +877,6 @@ where
                     if let Some(BLEState::NotInitialized) = app.process_status {
                         app.advertisement_buf = slice;
                         app.process_status = Some(BLEState::Initialized);
-                        app.initialize_advertisement_buffer();
                         ReturnCode::SUCCESS
                     } else {
                         ReturnCode::EINVAL

@@ -12,7 +12,7 @@ int test_reset_advertisement_buffer(void);
  ******************************************************************************/
 int main(void) {
   int err;
-  printf("[Test] Bluetooth Low Energy Buffer Management\r\n");
+  printf("[Test] Bluetooth Low Energy Reset Advertisement Buffer\r\n");
 
   err = test_reset_advertisement_buffer();
   if (err < TOCK_SUCCESS) {
@@ -59,6 +59,3 @@ int test_reset_advertisement_buffer(void) {
 
   return ble_start_advertising();
 }
-
-
-
