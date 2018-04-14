@@ -272,6 +272,13 @@ Applications can specify their required stack and heap sizes by defining the
 make variables `STACK_SIZE` and `APP_HEAP_SIZE`, which default to 2K and 1K
 respectively as of this writing.
 
+`libtock` will set the stack pointer during startup. To allow each application
+to set its own stack size, the linker script expects a symbol `STACK_SIZE` to
+be defined. The Tock build system will define this symbol during linking, using
+the make variable `STACK_SIZE`. A consequence of this technique is that
+changing the stack size requires that any source file also be touched so that
+the app will re-link.
+
 ### Libraries
 
 Application code does not need to stand alone, libraries are available that can

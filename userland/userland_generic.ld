@@ -38,6 +38,7 @@ SECTIONS {
          *    uint32_t bss_start;
          *    uint32_t bss_size;
          *    uint32_t reldata_start;
+         *    uint32_t stack_size;
          *  };
          */
         /* Offset of GOT symbols in flash */
@@ -59,6 +60,8 @@ SECTIONS {
         /* First address offset after program flash, where elf2tbf places
          * .rel.data section */
         LONG(LOADADDR(.endsec) - _text);
+        /* The size of the stack requested by this application */
+        LONG(STACK_SIZE);
 
         KEEP (*(.start))
         *(.text*)

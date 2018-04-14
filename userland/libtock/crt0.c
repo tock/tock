@@ -1,5 +1,16 @@
 #include <tock.h>
 
+#if defined(STACK_SIZE)
+#warning Attempt to compile libtock with a fixed STACK_SIZE.
+#warning
+#warning Instead, STACK_SIZE should be a variable that is linked in,
+#warning usually at compile time via something like this:
+#warning   `gcc ... -Xlinker --defsym=STACK_SIZE=2048`
+#warning
+#warning This allows applications to set their own STACK_SIZE.
+#error Fixed STACK_SIZE.
+#endif
+
 extern int main(void);
 
 // Allow _start to go undeclared
@@ -31,6 +42,8 @@ struct hdr {
   // First address offset after program flash, where elf2tbf places
   // .rel.data section
   uint32_t reldata_start;
+  // The size of the stack requested by this application
+  uint32_t stack_size;
 };
 
 struct reldata {
@@ -46,10 +59,10 @@ void _start(void* text_start,
             void* memory_len __attribute__((unused)),
             void* app_heap_break __attribute__((unused))) {
 
-  // Allocate stack and data. `brk` to STACK_SIZE + got_size + data_size +
+  // Allocate stack and data. `brk` to stack_size + got_size + data_size +
   // bss_size from start of memory
-  uint32_t stacktop = (uint32_t)mem_start + STACK_SIZE;
   struct hdr* myhdr = (struct hdr*)text_start;
+  uint32_t stacktop = (uint32_t)mem_start + myhdr->stack_size;
 
   {
     uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;

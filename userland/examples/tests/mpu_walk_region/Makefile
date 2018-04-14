@@ -6,8 +6,7 @@ TOCK_USERLAND_BASE_DIR = ../../..
 # Which files to compile.
 C_SRCS := $(wildcard *.c)
 
-# Include the STACK_SIZE so the test can use it
-override CFLAGS += -DSTACK_SIZE=$(STACK_SIZE)
+STACK_SIZE := 1024
 
 # Include userland master makefile. Contains rules and flags for actually
 # building the application.
