@@ -118,12 +118,6 @@ class PeripheralStructField(CodeBlock):
 
     @staticmethod
     def fields(register):
-        mode_map = {
-            "read-only": "ReadOnly",
-            "read-write": "ReadWrite",
-            "write-only": "WriteOnly",
-        }
-
         def identifier(name):
             identifier =  name.lower()
             if identifier in RUST_KEYWORDS:
@@ -135,11 +129,22 @@ class PeripheralStructField(CodeBlock):
                 return ""
             return ", {}::Register".format(reg.name)
 
+        def mode(access):
+            mode_map = {
+                "read-only": "ReadOnly",
+                "read-write": "ReadWrite",
+                "write-only": "WriteOnly",
+            }
+            if access == None:
+                return mode_map['read-write']
+            else:
+                return mode_map[access]
+
         return {
             "comment": comment(register.description),
             "name": identifier(register.name),
             "size": register._size,
-            "mode": mode_map[register._access],
+            "mode": mode(register._access),
             "definition": definition(register),
         }
 
