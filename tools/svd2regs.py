@@ -247,6 +247,7 @@ def parse(peripheral_name, mcu, svd, group):
 
 
 def generate(name, peripherals):
+    peripherals = list(peripherals)
     main_peripheral = peripherals[0]
     return Includes() \
            + generate_peripheral_struct(name, main_peripheral) \
@@ -272,8 +273,8 @@ def rustfmt(code, path, *args):
     fmt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
     out, err = fmt.communicate(code)
     if err:
-        print code
-        print err
+        print(code)
+        print(err)
         sys.exit()
 
     return out
