@@ -1,21 +1,22 @@
-# usage: svd2regs.py [-h] (--mcu VENDOR MCU | --svd SVD) [--save FILE] [--fmt]
-# [--path PATH] [--args ARGS]
-# [PERIPHERAL [PERIPHERAL ...]]
+# usage: svd2regs.py [-h] (--mcu VENDOR MCU | --svd SVD) [--save FILE]
+#                    [--fmt] [--path PATH] [--args ARGS]
+#                    peripheral
 #
 # positional arguments:
-# PERIPHERAL        Name of the Peripheral
+#   peripheral        Name of the Peripheral
 #
 # optional arguments:
-# -h, --help        show this help message and exit
-# --mcu VENDOR MCU  Vendor and MCU (Database from cmsis-svd)
-# --svd SVD         Path to SVD-File
-# --save FILE       Save generated Code to file
+#   -h, --help        show this help message and exit
+#   --group, -g       Peripheral is a group with several instances
+#   --mcu VENDOR MCU  Vendor and MCU (Database from cmsis-svd)
+#   --svd SVD         Path to SVD-File
+#   --save FILE       Save generated Code to file
 #
 # rustfmt:
 # Format with rustfmt
 #
-# --fmt ['ARG ..']  enable rustfmt with optional arguments
-# --path PATH       path to rustfmt
+#   --fmt ['ARG ..']  enable rustfmt with optional arguments
+#   --path PATH       path to rustfmt
 #
 # Examples:
 #   SIM peripheral from Database
@@ -61,11 +62,11 @@ def comment(text):
 class CodeBlock(str):
     TEMPLATE = ""
 
-    def __new__(cls, obj=None):
-        return cls.TEMPLATE.format(**cls.fields(obj))
+    def __new__(cls, *args):
+        return cls.TEMPLATE.format(**cls.fields(*args))
 
     @staticmethod
-    def fields(obj):
+    def fields(*args):
         return {}
 
 
@@ -83,10 +84,10 @@ const {name}_BASE: StaticRef<{title}Registers> =
 """
 
     @staticmethod
-    def fields(peripheral):
+    def fields(base, peripheral):
         return {
             "name": peripheral.name,
-            "title": peripheral.name.title(),
+            "title": base.title(),
             "base": peripheral.base_address,
         }
 
@@ -100,10 +101,10 @@ struct {name}Registers {{
 """
 
     @staticmethod
-    def fields(peripheral):
+    def fields(name, peripheral):
         return {
             "comment": comment(peripheral.description),
-            "name": peripheral.name.title(),
+            "name": name.title(),
             "fields": "\n".join(
                 PeripheralStructField(register)
                 for register in peripheral.registers
@@ -235,31 +236,34 @@ def get_parser(mcu, svd):
         sys.exit()
 
 
-def parse(peripherals, mcu, svd):
+def parse(peripheral_name, mcu, svd, group):
     svd_parser = get_parser(mcu, svd)
     dev = svd_parser.get_device()
-    if not peripherals:
-        peripherals = [peripheral.name for peripheral in dev.peripherals]
-    return filter(lambda p: p.name in peripherals, dev.peripherals)
+    if group:
+        flt = lambda p: p.group_name == peripheral_name
+    else:
+        flt = lambda p: p.name == peripheral_name
+    return peripheral_name, filter(flt, dev.peripherals)
 
 
-def generate(peripherals):
-    return Includes() + "\n".join(generate_peripherial(p) for p in peripherals)
-
-
-def generate_peripherial(peripheral):
-    return generate_peripheral_struct(peripheral) \
+def generate(name, peripherals):
+    main_peripheral = peripherals[0]
+    return Includes() \
+           + generate_peripheral_struct(name, main_peripheral) \
            + generate_bitfields_macro(filter(lambda r: len(r._fields) > 1,
-                                      peripheral.registers)) \
-           + PeripheralBaseDeclaration(peripheral)
+                                             main_peripheral.registers)) \
+           + "\n".join(PeripheralBaseDeclaration(name, peripheral)
+                       for peripheral in peripherals)
 
 
-def generate_peripheral_struct(peripheral):
-    return PeripheralStruct(peripheral)
+def generate_peripheral_struct(name, peripheral):
+    return PeripheralStruct(name, peripheral)
 
 
 def generate_bitfields_macro(registers):
-    return BitfieldsMacro(registers)
+    if registers:
+        return BitfieldsMacro(registers)
+    return ""
 
 
 def rustfmt(code, path, *args):
@@ -277,8 +281,9 @@ def rustfmt(code, path, *args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("peripherals", nargs="*", metavar="PERIPHERAL",
-                        help="Name of the Peripheral")
+    parser.add_argument("peripheral", help="Name of the Peripheral")
+    parser.add_argument("--group", "-g", action="store_true",
+                        help="Peripheral is a group with several instances")
     xor = parser.add_mutually_exclusive_group(required=True)
     xor.add_argument('--mcu', nargs=2, metavar=('VENDOR', 'MCU'),
                      help='Vendor and MCU (Database from cmsis-svd)')
@@ -296,7 +301,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    code = generate(parse(args.peripherals, args.mcu, args.svd))
+    code = generate(*parse(args.peripheral, args.mcu, args.svd, args.group))
     if args.fmt is not None:
         code = rustfmt(code, args.path, *args.fmt.strip("'").split(" "))
     args.save.write(code)
