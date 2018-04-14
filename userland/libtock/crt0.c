@@ -60,9 +60,11 @@ void _start(void* text_start,
             void* app_heap_break __attribute__((unused))) {
 
   // Allocate stack and data. `brk` to stack_size + got_size + data_size +
-  // bss_size from start of memory
+  // bss_size from start of memory. Also make sure that the stack starts on an
+  // 8 byte boundary per section 5.2.1.2 here:
+  // http://infocenter.arm.com/help/topic/com.arm.doc.ihi0042f/IHI0042F_aapcs.pdf
   struct hdr* myhdr = (struct hdr*)text_start;
-  uint32_t stacktop = (uint32_t)mem_start + myhdr->stack_size;
+  uint32_t stacktop = (((uint32_t)mem_start + myhdr->stack_size + 7) & 0xfffffff8);
 
   {
     uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
