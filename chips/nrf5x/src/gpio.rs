@@ -105,7 +105,6 @@ struct GpioRegisters {
 }
 
 /// Gpio
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Write GPIO port
     Out [
@@ -132,12 +131,12 @@ register_bitfields! [u32,
         /// Writing a '0' has no effect
         PIN OFFSET(0) NUMBITS(32)
     ],
-    /// Read GPIO port 
+    /// Read GPIO port
     In [
         /// Pin[n], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
-        PIN OFFSET(0) NUMBITS(32) 
+        PIN OFFSET(0) NUMBITS(32)
     ],
     /// Direction of GPIO pins
     Dir [
@@ -231,9 +230,8 @@ register_bitfields! [u32,
 ];
 
 /// GpioTe
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
-    /// Task for writing to pin specified in CONFIG[n].PSEL. 
+    /// Task for writing to pin specified in CONFIG[n].PSEL.
     /// Action on pin is configured in CONFIG[n].POLARITY
     TasksOut [
         TASK OFFSET(0) NUMBITS(1) [
@@ -249,7 +247,7 @@ register_bitfields! [u32,
             Ready = 1
         ]
     ],
-    
+
     /// Event generated from multiple input pins
     EventsPort [
         PINS OFFSET(0) NUMBITS(1) [

@@ -228,13 +228,12 @@ unsafe extern "C" fn hard_fault_handler() {
     }
 }
 
-#[link_section=".vectors"]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[link_section = ".vectors"]
 #[no_mangle] // ensures that the symbol is kept until the final binary
 /// ARM Cortex M Vector Table
-pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Stack Pointer
-    _estack, 
+    _estack,
     // Reset Handler
     reset_handler,
     // NMI
@@ -248,9 +247,9 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     // Usage Fault
     unhandled_interrupt,
     // Reserved
-    unhandled_interrupt, 
+    unhandled_interrupt,
     // Reserved
-    unhandled_interrupt, 
+    unhandled_interrupt,
     // Reserved
     unhandled_interrupt,
     // Reserved
@@ -264,7 +263,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     // PendSv
     unhandled_interrupt,
     // SysTick
-    systick_handler
+    systick_handler,
 ];
 
 #[link_section = ".vectors"]

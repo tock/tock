@@ -72,24 +72,26 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[link_section=".vectors"]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[link_section = ".vectors"]
 // no_mangle Ensures that the symbol is kept until the final binary
 #[no_mangle]
-pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
-    _estack, reset_handler,
-    /* NMI */           unhandled_interrupt,
-    /* Hard Fault */    hard_fault_handler,
-    /* MemManage */     unhandled_interrupt,
-    /* BusFault */      unhandled_interrupt,
-    /* UsageFault*/     unhandled_interrupt,
-    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    reset_handler,
+    unhandled_interrupt, // NMI
+    hard_fault_handler,  // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
     unhandled_interrupt,
-    /* SVC */           svc_handler,
-    /* DebugMon */      unhandled_interrupt,
     unhandled_interrupt,
-    /* PendSV */        unhandled_interrupt,
-    /* SysTick */       systick_handler
+    unhandled_interrupt,
+    unhandled_interrupt,
+    svc_handler,         // SVC
+    unhandled_interrupt, // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt, // PendSV
+    systick_handler,     // SysTick
 ];
 
 #[link_section = ".vectors"]
