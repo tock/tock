@@ -129,22 +129,17 @@ class PeripheralStructField(CodeBlock):
                 return ""
             return ", {}::Register".format(reg.name)
 
-        def mode(access):
-            mode_map = {
-                "read-only": "ReadOnly",
-                "read-write": "ReadWrite",
-                "write-only": "WriteOnly",
-            }
-            if access == None:
-                return mode_map['read-write']
-            else:
-                return mode_map[access]
+        mode_map = {
+            "read-only": "ReadOnly",
+            "read-write": "ReadWrite",
+            "write-only": "WriteOnly",
+        }
 
         return {
             "comment": comment(register.description),
             "name": identifier(register.name),
             "size": register._size,
-            "mode": mode(register._access),
+            "mode": mode_map.get(register._access, "ReadWrite"),
             "definition": definition(register),
         }
 
