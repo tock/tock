@@ -9,13 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ADV_DATA_MAX_SIZE 31
-#define ADV_SIZE 39
-
 // Entire Advertisement Buffer
 static unsigned char advertisement_buf[ADV_SIZE];
-// AdvData buffer - to be used by `ADV_IND`, `ADV_NONCONN_IND` and `ADV_SCAN_IND`
-static unsigned char adv_data[ADV_DATA_MAX_SIZE];
 // Index in the AdvData buffer
 static uint8_t adv_data_idx = 0;
 
@@ -23,12 +18,23 @@ static uint8_t adv_data_idx = 0;
  *   INTERNAL BLE HELPER FUNCTION Prototypes
  *
  *   s_   - static (file scope)
- ******************************************************************************/
+ *******
+ ***********************************************************************/
 
 // internal helper function to configure flags in the advertisement
 // flags     - a byte of flags to use in the advertisement
 static int s_ble_configure_flags(uint8_t flags) {
-  return allow(BLE_DRIVER_NUMBER, GAP_FLAGS, &flags, 1);
+  int new_len = adv_data_idx + 3;
+  if (new_len <= ADV_DATA_MAX_SIZE) {
+    struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected *) advertisement_buf;
+    buf->adv_data[adv_data_idx] = 2;
+    buf->adv_data[adv_data_idx+1] = GAP_FLAGS;
+    buf->adv_data[adv_data_idx+2] = flags;
+    adv_data_idx = new_len;
+    return TOCK_SUCCESS;
+  } else {
+    return TOCK_FAIL;
+  }
 }
 
 // internal helper to configure gap data in the advertisement
@@ -43,22 +49,13 @@ static int s_ble_configure_adv_data(GapAdvertisementData_t type,
   if (new_length > ADV_DATA_MAX_SIZE) {
     return TOCK_FAIL;
   } else {
-    adv_data[adv_data_idx]     = data_len + 1;
-    adv_data[adv_data_idx + 1] = type;
-    memcpy(&adv_data[adv_data_idx + 2], data, data_len);
+    struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected *) advertisement_buf;
+    buf->adv_data[adv_data_idx]     = data_len + 1;
+    buf->adv_data[adv_data_idx + 1] = type;
+    memcpy(&buf->adv_data[adv_data_idx + 2], data, data_len);
     adv_data_idx = new_length;
     return TOCK_SUCCESS;
   }
-}
-
-// internal helper to request the kernel to generate a random advertisemen address
-static int s_request_advertisement_address(void) {
-  return command(BLE_DRIVER_NUMBER, BLE_REQ_ADV_ADDR, 0, 0);
-}
-
-static int s_initialize_advertisement_buffer(void) {
-  return allow(BLE_DRIVER_NUMBER, BLE_CFG_ADV_BUF_ALLOW,
-               (void *)advertisement_buf, ADV_SIZE);
 }
 
 /*******************************************************************************
@@ -69,13 +66,13 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
   int err;
 
   adv_data_idx = 0;
-  memset(adv_data, 0, ADV_DATA_MAX_SIZE);
+  memset(advertisement_buf, 0, 39);
 
-  err = s_initialize_advertisement_buffer();
+  struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected*) advertisement_buf;
 
-  err = s_request_advertisement_address();
-  if (err < TOCK_SUCCESS)
-    return err;
+  buf->hdr.pdu = AdvertisementConnectUndirected;
+  // random address
+  buf->hdr.tx_add = 1;
 
   // configure advertisement interval
   // if the interval is less than 20 or bigger than 10240 to kernel
@@ -95,12 +92,14 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
 }
 
 int ble_start_advertising(void) {
-  int err = allow(BLE_DRIVER_NUMBER, BLE_CFG_GAP_BUF_ALLOW, (void *)adv_data, adv_data_idx);
+  struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected*) advertisement_buf;
+  buf->hdr.length = 6 + adv_data_idx;
+
+  int err = allow(BLE_DRIVER_NUMBER, 0, (void *)advertisement_buf, sizeof(advertisement_buf));
   if (err < TOCK_SUCCESS)
     return err;
 
   return command(BLE_DRIVER_NUMBER, BLE_ADV_START_CMD, 0, 0);
-
 }
 
 int ble_stop_advertising(void) {
@@ -113,7 +112,7 @@ int ble_reset_advertisement(void) {
     return err;
   else {
     adv_data_idx = 0;
-    memset(adv_data, 0, ADV_DATA_MAX_SIZE);
+    memset(advertisement_buf, 0, ADV_DATA_MAX_SIZE);
     return TOCK_SUCCESS;
   }
 }

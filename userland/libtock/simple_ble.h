@@ -18,17 +18,44 @@ extern "C" {
  ******************************************************************************/
 
 #define BLE_DRIVER_NUMBER 0x30000
+
+#define ADV_DATA_MAX_SIZE 31
+#define ADV_SIZE 39
+#define ADV_A_SIZE 6
+
 #define BLE_ADV_START_CMD 0
 #define BLE_ADV_STOP_CMD 1
 #define BLE_CFG_TX_POWER_CMD 2
 #define BLE_CFG_ADV_ITV_CMD 3
 #define BLE_ADV_CLEAR_DATA_CMD 4
 #define BLE_SCAN_CMD 5
-#define BLE_REQ_ADV_ADDR 6
+
 #define BLE_SCAN_SUB 0
-#define BLE_CFG_GAP_BUF_ALLOW 0
+
+#define BLE_CFG_ADV_BUF_ALLOW 0
 #define BLE_CFG_SCAN_BUF_ALLOW 1
-#define BLE_CFG_ADV_BUF_ALLOW 2
+
+typedef enum {
+   AdvertisementConnectUndirected = 0x00,
+   AdvertisementConnectDirected = 0x01,
+   AdvertisementNonConnectUndirected = 0x02,
+   AdvertisementScanUndirected = 0x06,
+} AdvertisementType_t;
+
+struct __attribute__((packed)) Header {
+  uint16_t pdu: 4;
+  uint16_t _rfu1: 2;
+  uint16_t tx_add: 1;
+  uint16_t rx_add: 1;
+  uint16_t length: 6;
+  uint16_t _rfu2: 2;
+};
+
+struct AdvertisingConnectUndirected {
+  struct Header hdr;
+  uint8_t adv_a[6];
+  uint8_t adv_data[31];
+};
 
 typedef enum {
   GAP_FLAGS = 0x01, /* Flags, see enum below */
