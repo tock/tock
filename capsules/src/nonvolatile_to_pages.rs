@@ -21,6 +21,7 @@
 //! -----
 //!
 //! ```
+//! sam4l::flashcalw::FLASH_CONTROLLER.configure();
 //! pub static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //! let nv_to_page = static_init!(
 //!     capsules::nonvolatile_to_pages::NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
