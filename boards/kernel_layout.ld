@@ -157,6 +157,7 @@ SECTIONS
       _sstorage = .;
       *(.storage* storage*)
       _estorage = .;
+      . = ALIGN(512);
     } > rom
     . = ALIGN(512);
 
@@ -209,14 +210,14 @@ SECTIONS
 
 
     /* Kernel data that must be relocated. This is program data that is
-     * exepected to live in SRAM, but is initialized with a value. This data is
+     * expected to live in SRAM, but is initialized with a value. This data is
      * physically placed into flash and is copied into SRAM by Tock. The
      * symbols here will be defined with addresses in SRAM.
      *
      * Tock assumes the relocation section follows all static elements and will
      * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
      */
-    .relocate : AT (_etext)
+    .relocate :
     {
         . = ALIGN(4);
         _srelocate = .;
@@ -225,7 +226,7 @@ SECTIONS
 
         . = ALIGN(4);
         _erelocate = .;
-    } > ram
+    } > ram AT > rom
 
 
 
