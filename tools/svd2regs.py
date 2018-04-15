@@ -103,12 +103,12 @@ struct {name}Registers {{
 """
 
     @staticmethod
-    def fields(name, peripheral):
+    def fields(name, peripheral, dev):
         return {
             "comment": comment(peripheral.description),
             "name": name.title(),
             "fields": "\n".join(
-                PeripheralStructField(register)
+                PeripheralStructField(register, dev)
                 for register in peripheral.registers
             )
         }
@@ -119,7 +119,7 @@ class PeripheralStructField(CodeBlock):
 {name}: {mode}<u{size}{definition}>,"""
 
     @staticmethod
-    def fields(register):
+    def fields(register, dev):
         def identifier(name):
             identifier =  name.lower()
             if identifier in RUST_KEYWORDS:
@@ -131,15 +131,29 @@ class PeripheralStructField(CodeBlock):
                 return ""
             return ", {}::Register".format(reg.name)
 
+        def get_register_size(reg):
+            size = reg._size
+            if size is None and reg.parent:
+                size = reg.parent.size
+            if size is None and dev.size:
+                size = dev.size
+            if size is None:
+                raise Exception(
+                    "Cant figure out size of register {}".format(reg.name)
+                )
+            if size not in [8, 16, 32]:
+                raise Exception(
+                    "Invalid size {} of register {}".format(size, reg.name)
+                )
+            return size
+
         mode_map = {
             "read-only": "ReadOnly",
             "read-write": "ReadWrite",
             "write-only": "WriteOnly",
         }
 
-        size = register._size
-        if size is None:
-            size = register.parent.parent.width
+        size = get_register_size(register)
 
         return {
             "comment": comment(register.description),
@@ -249,22 +263,18 @@ def parse(peripheral_name, mcu, svd, group):
         flt = lambda p: p.group_name == peripheral_name
     else:
         flt = lambda p: p.name == peripheral_name
-    return peripheral_name, filter(flt, dev.peripherals)
+    return peripheral_name, filter(flt, dev.peripherals), dev
 
 
-def generate(name, peripherals):
+def generate(name, peripherals, dev):
     peripherals = list(peripherals)
     main_peripheral = peripherals[0]
     return Includes() \
-           + generate_peripheral_struct(name, main_peripheral) \
+           + PeripheralStruct(name, main_peripheral, dev) \
            + generate_bitfields_macro(filter(lambda r: len(r._fields) > 1,
                                              main_peripheral.registers)) \
            + "\n".join(PeripheralBaseDeclaration(name, peripheral)
                        for peripheral in peripherals)
-
-
-def generate_peripheral_struct(name, peripheral):
-    return PeripheralStruct(name, peripheral)
 
 
 def generate_bitfields_macro(registers):
