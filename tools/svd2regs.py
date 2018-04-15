@@ -137,10 +137,14 @@ class PeripheralStructField(CodeBlock):
             "write-only": "WriteOnly",
         }
 
+        size = register._size
+        if size is None:
+            size = register.parent.parent.width
+
         return {
             "comment": comment(register.description),
             "name": identifier(register.name),
-            "size": register._size,
+            "size": size,
             "mode": mode_map.get(register._access, "ReadWrite"),
             "definition": definition(register),
         }
