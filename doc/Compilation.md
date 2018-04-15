@@ -11,7 +11,6 @@ of how platforms program each onto an actual board.
 <!-- toc -->
 
 - [Compiling the kernel](#compiling-the-kernel)
-  * [Xargo](#xargo)
   * [Life of a Tock compilation](#life-of-a-tock-compilation)
 - [Compiling a process](#compiling-a-process)
   * [Position Independent Code](#position-independent-code)
@@ -77,16 +76,6 @@ which includes the LLVM data-layout definition, architecture definitions for
 the compiler, arguments to pass to the linker and compilation options such as
 floating-point support.
 
-### Xargo
-
-While Cargo does manage building the Tock rust crates, Tock actually uses a
-wrapper around Cargo called [Xargo](https://github.com/japaric/xargo). Xargo
-is designed to help cross-compile the `core` crate provided by rust itself.
-Once is has taken care of that cross-compilation, it passes through all commands
-to Cargo proper.
-
-In the future rust may incorporate support for building the core crates for ARM
-targets directly, and we will no longer need Xargo.
 
 ### Life of a Tock compilation
 

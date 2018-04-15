@@ -65,11 +65,6 @@ If you choose to install manually, you will need the following software:
 1. [rustup](http://rustup.rs/).
 
         $ curl https://sh.rustup.rs -sSf | sh
-        $ rustup install nightly-2017-09-20
-
-1. [Xargo](https://github.com/japaric/xargo)
-
-        $ cargo install xargo
 
 1. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 

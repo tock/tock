@@ -22,7 +22,6 @@ before_install:
   - export PATH="$PATH:$HOME/uncrustify-uncrustify-0.65/build"
 
 before_script:
-  - (cargo install xargo || true)
   - tools/install_cargo_fmt.sh
   - npm install -g markdown-toc
 

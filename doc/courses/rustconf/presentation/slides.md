@@ -117,11 +117,9 @@ Maybe...
 
 ## Tools
 
-  * `make` (just instrumenting `xargo`)
+  * `make` (just instrumenting `cargo`)
 
   * Rust (nightly for `asm!`, compiling `core`, etc)
-
-  * `xargo` to automate compiling base libraries
 
   * `arm-none-eabi` GCC/LD to link binaries
 

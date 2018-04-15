@@ -60,7 +60,7 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
   * `make`
 
-  * Rust/Cargo/Xargo (Rust code → LLVM)
+  * Rust/Cargo (Rust code → LLVM)
 
   * `arm-none-eabi` (LLVM → Cortex-M)
 
