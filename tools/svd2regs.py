@@ -94,7 +94,7 @@ const {name}_BASE: StaticRef<{title}Registers> =
 
 class PeripheralStruct(CodeBlock):
     TEMPLATE = """{comment}
-#[repr(C, packed)]
+#[repr(C)]
 struct {name}Registers {{
 {fields}
 }}
