@@ -231,26 +231,13 @@ pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 //           | (6 bytes) |      | 6 bytes      |     | 22 bytes     |
 //           +-----------+      +--------------+     +--------------+
 //
-#[allow(unused)]
-enum BLEAdvertisementType {
-    ConnectUndirected = 0x00,
-    ConnectDirected = 0x01,
-    NonConnectUndirected = 0x02,
-    ScanRequest = 0x03,
-    ScanResponse = 0x04,
-    ConnectRequest = 0x05,
-    ScanUndirected = 0x06,
-}
 
-const PACKET_HDR_PDU: usize = 0;
 const PACKET_HDR_LEN: usize = 1;
 const PACKET_ADDR_START: usize = 2;
 const PACKET_ADDR_END: usize = 7;
 const PACKET_PAYLOAD_START: usize = 8;
 const PACKET_LENGTH: usize = 39;
 
-const MIN_PAYLOAD_LEN: u8 = 3;
-const MAX_PAYLOAD_LEN: u8 = 31;
 const EMPTY_PACKET_LEN: u8 = 6;
 
 #[derive(PartialEq, Debug)]
@@ -285,7 +272,6 @@ impl AlarmData {
 }
 
 pub struct App {
-    advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
@@ -304,7 +290,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            advertisement_buf: None,
             alarm_data: AlarmData::new(),
             app_write: None,
             app_read: None,
@@ -336,10 +321,9 @@ impl App {
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
-        self.advertisement_buf
+        self.app_write
             .as_mut()
             .map(|data| {
-                data.as_mut()[PACKET_HDR_LEN] = 6;
                 data.as_mut()[PACKET_ADDR_START] = 0xf0;
                 data.as_mut()[PACKET_ADDR_START + 1] = (appid.idx() & 0xff) as u8;
                 data.as_mut()[PACKET_ADDR_START + 2] = ((appid.idx() << 8) & 0xff) as u8;
@@ -355,7 +339,7 @@ impl App {
         match self.process_status {
             Some(BLEState::Advertising(_)) | Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
             _ => {
-                self.advertisement_buf
+                self.app_write
                     .as_mut()
                     .map(|data| {
                         for byte in data.as_mut()[PACKET_PAYLOAD_START..].iter_mut() {
@@ -372,57 +356,12 @@ impl App {
         }
     }
 
-    // Hard-coded to ADV_NONCONN_IND
-    fn configure_advertisement_pdu(&mut self) -> ReturnCode {
-        self.advertisement_buf
-            .as_mut()
-            .map(|slice| {
-                slice.as_mut()[PACKET_HDR_PDU] = BLEAdvertisementType::NonConnectUndirected as u8;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or(ReturnCode::FAIL)
-    }
-
-    // Replace AdvData for `ConnectUndirected`, `NonConnectUndirected` and `ScanUndirected`
-    fn replace_adv_data(&mut self) -> ReturnCode {
-        self.app_write
-            .take()
-            .as_ref()
-            .map(|slice| {
-                let payload_length = slice.len() as u8;
-                if payload_length >= MIN_PAYLOAD_LEN && payload_length <= MAX_PAYLOAD_LEN {
-                    self.advertisement_buf
-                        .as_mut()
-                        .map(|data| {
-                            for (dst, src) in data.as_mut()[PACKET_PAYLOAD_START..]
-                                .iter_mut()
-                                .zip(slice.as_ref().iter())
-                            {
-                                *dst = *src;
-                            }
-
-                            // FIXME: move to its own function/method?!
-                            // Update header length
-                            data.as_mut()[PACKET_HDR_LEN] = payload_length + EMPTY_PACKET_LEN;
-
-                            ReturnCode::SUCCESS
-                        })
-                        // FIXME: better returncode to indicate that option is None
-                        .unwrap_or(ReturnCode::FAIL)
-                } else {
-                    ReturnCode::ESIZE
-                }
-            })
-            // FIXME: better returncode to indicate that option is None
-            .unwrap_or(ReturnCode::FAIL)
-    }
-
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
         B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
         A: kernel::hil::time::Alarm + 'a,
     {
-        self.advertisement_buf
+        self.app_write
             .as_ref()
             .map(|slice| {
                 ble.kernel_tx
@@ -816,26 +755,7 @@ where
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
-
-            // Initilize BLE Driver
-            // Allow call to allocate the advertisement buffer must be
-            // invoked before this
-            // Request advertisement address
-            6 => self.app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        let status = app.generate_random_address(appid);
-                        if status == ReturnCode::SUCCESS {
-                            app.configure_advertisement_pdu()
-                        } else {
-                            status
-                        }
-                    } else {
-                        ReturnCode::EINVAL
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
-
+            
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -847,14 +767,15 @@ where
         slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            // Configure complete AdvData buffer
+            // Configure complete Advertisement buffer
             0 => self.app
                 .enter(appid, |app, _| {
-                    if app.process_status != Some(BLEState::NotInitialized) {
-                        app.app_write = slice;
-                        app.replace_adv_data()
+                    app.app_write = slice;
+                    if let ReturnCode::SUCCESS = app.generate_random_address(appid) {
+                        app.process_status = Some(BLEState::Initialized);
+                        ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::EINVAL
+                        ReturnCode::FAIL
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -870,19 +791,8 @@ where
                     _ => ReturnCode::EINVAL,
                 })
                 .unwrap_or_else(|err| err.into()),
-
-            // Initialize Advertisement Buffer
-            2 => self.app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::NotInitialized) = app.process_status {
-                        app.advertisement_buf = slice;
-                        app.process_status = Some(BLEState::Initialized);
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EINVAL
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
+        
+            // Operation not supported
             _ => ReturnCode::ENOSUPPORT,
         }
     }
