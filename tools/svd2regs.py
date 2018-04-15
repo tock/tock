@@ -104,33 +104,6 @@ struct {name}Registers {{
 
     @staticmethod
     def fields(name, peripheral, dev):
-        return {
-            "comment": comment(peripheral.description),
-            "name": name.title(),
-            "fields": "\n".join(
-                PeripheralStructField(register, dev)
-                for register in peripheral.registers
-            )
-        }
-
-
-class PeripheralStructField(CodeBlock):
-    TEMPLATE = """{comment}
-{name}: {mode}<u{size}{definition}>,"""
-
-    @staticmethod
-    def fields(register, dev):
-        def identifier(name):
-            identifier =  name.lower()
-            if identifier in RUST_KEYWORDS:
-                identifier = "{}_".format(identifier)
-            return identifier
-
-        def definition(reg):
-            if len(reg._fields) == 1:
-                return ""
-            return ", {}::Register".format(reg.name)
-
         def get_register_size(reg):
             size = reg._size
             if size is None and reg.parent:
@@ -147,13 +120,57 @@ class PeripheralStructField(CodeBlock):
                 )
             return size
 
+        fields = []
+        offset = 0
+        cnt = 0
+        for register in sorted(peripheral.registers,
+                               key=lambda r: r.address_offset):
+            if register.address_offset > offset:
+                diff = (register.address_offset - offset)
+                fields.append(ReservedStructField(cnt, diff))
+                cnt += 1
+                offset += diff
+            if offset != register.address_offset:
+                raise Exception(
+                    "Offset Mismatch at register {} ({} != {})".format(
+                        register.name,
+                        register.address_offset,
+                        offset
+                    )
+                )
+            size = get_register_size(register)
+            fields.append(PeripheralStructField(register, size))
+            offset += size / 8
+
+        return {
+            "comment": comment(peripheral.description),
+            "name": name.title(),
+            "fields": "\n".join(fields)
+        }
+
+
+class PeripheralStructField(CodeBlock):
+    TEMPLATE = """{comment}
+{name}: {mode}<u{size}{definition}>,"""
+
+    @staticmethod
+    def fields(register, size):
+        def identifier(name):
+            identifier = pydentifier.lower_underscore(name)
+            if identifier in RUST_KEYWORDS:
+                identifier = "{}_".format(identifier)
+            return identifier
+
+        def definition(reg):
+            if len(reg._fields) == 1:
+                return ""
+            return ", {}::Register".format(reg.name)
+
         mode_map = {
             "read-only": "ReadOnly",
             "read-write": "ReadWrite",
             "write-only": "WriteOnly",
         }
-
-        size = get_register_size(register)
 
         return {
             "comment": comment(register.description),
@@ -161,6 +178,17 @@ class PeripheralStructField(CodeBlock):
             "size": size,
             "mode": mode_map.get(register._access, "ReadWrite"),
             "definition": definition(register),
+        }
+
+
+class ReservedStructField(CodeBlock):
+    TEMPLATE = """_reserved{cnt}: [u8; {size}],"""
+
+    @staticmethod
+    def fields(cnt, size):
+        return {
+            "cnt": cnt,
+            "size": size,
         }
 
 
