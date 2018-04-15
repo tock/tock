@@ -69,7 +69,6 @@ struct FicrRegisters {
     info_flash: ReadOnly<u32, InfoFlash::Register>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Code memory page size
     CodePageSize [
@@ -119,7 +118,7 @@ register_bitfields! [u32,
     /// Device address 2
     DeviceAddress1 [
         /// 16 MSB of 48 bit device address
-        DEVICEADDRESS OFFSET(0) NUMBITS(16)        
+        DEVICEADDRESS OFFSET(0) NUMBITS(16)
     ],
     /// Part code
     InfoPart [
@@ -184,7 +183,7 @@ register_bitfields! [u32,
 
         ]
     ],
-    /// Flash 
+    /// Flash
     InfoFlash [
         FLASH OFFSET(0) NUMBITS(32) [
             /// 128 kByte FLASH

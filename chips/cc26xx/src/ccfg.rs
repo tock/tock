@@ -4,7 +4,6 @@
 //!
 //! Currently setup to use the default settings.
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 #[no_mangle]
 #[link_section = ".ccfg"]
 pub static CCFG_CONF: [u32; 22] = [

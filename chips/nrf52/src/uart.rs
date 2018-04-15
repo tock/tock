@@ -67,7 +67,6 @@ struct UarteRegisters {
     pub config: ReadWrite<u32, Config::Register>,     // 0x56C-0x570
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Start task
     Task [
@@ -78,7 +77,7 @@ register_bitfields! [u32,
     Event [
         READY OFFSET(0) NUMBITS(1)
     ],
-    
+
     /// Shortcuts
     Shorts [
         // Shortcut between ENDRX and STARTRX
@@ -99,7 +98,7 @@ register_bitfields! [u32,
         TXSTARTED OFFSET(20) NUMBITS(1),
         TXSTOPPED OFFSET(22) NUMBITS(1)
     ],
-    
+
     /// UART Errors
     ErrorSrc [
         OVERRUN OFFSET(0) NUMBITS(1),
@@ -107,7 +106,7 @@ register_bitfields! [u32,
         FRAMING OFFSET(2) NUMBITS(1),
         BREAK OFFSET(3) NUMBITS(1)
     ],
-    
+
     /// Enable UART
     Uart [
         ENABLE OFFSET(0) NUMBITS(4) [
@@ -115,7 +114,7 @@ register_bitfields! [u32,
             OFF = 0
         ]
     ],
-    
+
     /// Pin select
     Psel [
         // Pin number
@@ -123,22 +122,22 @@ register_bitfields! [u32,
         // Connect/Disconnect
         CONNECT OFFSET(31) NUMBITS(1)
     ],
-    
+
     /// Baudrate
     Baudrate [
         BAUDRAUTE OFFSET(0) NUMBITS(32)
     ],
-    
+
     /// DMA pointer
     Pointer [
         POINTER OFFSET(0) NUMBITS(32)
     ],
-    
+
     /// Counter value
     Counter [
         COUNTER OFFSET(0) NUMBITS(8)
     ],
-    
+
     /// Configuration of parity and flow control
     Config [
         HWFC OFFSET(0) NUMBITS(1),

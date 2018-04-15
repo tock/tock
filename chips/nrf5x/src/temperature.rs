@@ -60,7 +60,6 @@ struct TemperatureRegisters {
     pub t: [ReadWrite<u32, B::Register>; 5],
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Start task
     Task [
@@ -86,12 +85,12 @@ register_bitfields! [u32,
     Temp [
         TEMP OFFSET(0) NUMBITS(32)
     ],
-    
+
     /// Slope of piece wise linear function
     A [
         SLOPE OFFSET(0) NUMBITS(12)
     ],
-    
+
     /// y-intercept of wise linear function
     B [
         INTERCEPT OFFSET(0) NUMBITS(14)
@@ -99,7 +98,7 @@ register_bitfields! [u32,
 
     /// End point of wise linear function
     T [
-       PIECE OFFSET(0) NUMBITS(8) 
+       PIECE OFFSET(0) NUMBITS(8)
     ]
 ];
 

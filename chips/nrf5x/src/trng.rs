@@ -60,7 +60,6 @@ pub struct RngRegisters {
     pub value: ReadOnly<u32, Value::Register>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Start task
     Task [
@@ -71,7 +70,7 @@ register_bitfields! [u32,
     Event [
         READY OFFSET(0) NUMBITS(1)
     ],
-    
+
     /// Shortcut register
     Shorts [
         /// Shortcut between VALRDY event and STOP task
@@ -93,7 +92,7 @@ register_bitfields! [u32,
         /// Bias correction
         DERCEN OFFSET(0) NUMBITS(32)
     ],
-    
+
     /// Output random number
     Value [
         /// Generated random number

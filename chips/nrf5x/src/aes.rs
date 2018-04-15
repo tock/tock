@@ -87,7 +87,6 @@ struct AesEcbRegisters {
     pub ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Start task
     Task [
