@@ -30,8 +30,7 @@ int main (void) {
   int r = test_all();
   if (r == 0) {
     printf("All tests succeeded\n");
-  }
-  else {
+  } else {
     printf("Failed with code %d\n", r);
   }
 
@@ -88,7 +87,7 @@ static int test(uint8_t *readbuf, uint8_t *writebuf, size_t size, size_t offset,
   }
 
   done = false;
-  ret = nonvolatile_storage_internal_write(offset, len);
+  ret  = nonvolatile_storage_internal_write(offset, len);
   if (ret != 0) {
     printf("\tERROR calling write\n");
     return ret;
