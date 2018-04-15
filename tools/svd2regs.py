@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
-# usage: svd2regs.py [-h] (--mcu VENDOR MCU | --svd SVD) [--save FILE]
-#                    [--fmt] [--path PATH] [--args ARGS]
+# usage: svd2regs.py [-h] [--group] (--mcu VENDOR MCU | --svd [SVD])
+#                    [--save FILE] [--fmt ['ARG ..']] [--path PATH]
 #                    peripheral
 #
 # positional arguments:
@@ -11,7 +11,7 @@
 #   -h, --help        show this help message and exit
 #   --group, -g       Peripheral is a group with several instances
 #   --mcu VENDOR MCU  Vendor and MCU (Database from cmsis-svd)
-#   --svd SVD         Path to SVD-File
+#   --svd [SVD]         Path to SVD-File
 #   --save FILE       Save generated Code to file
 #
 # rustfmt:
@@ -250,7 +250,7 @@ def get_parser(mcu, svd):
     try:
         if mcu:
             return SVDParser.for_packaged_svd(mcu[0], "{}.svd".format(mcu[1]))
-        return SVDParser(ET.fromstring(svd.read()))
+        return SVDParser(ET.ElementTree(ET.fromstring(svd.read())))
     except IOError:
         print("No SVD file found")
         sys.exit()
@@ -304,8 +304,8 @@ def parse_args():
     xor = parser.add_mutually_exclusive_group(required=True)
     xor.add_argument('--mcu', nargs=2, metavar=('VENDOR', 'MCU'),
                      help='Vendor and MCU (Database from cmsis-svd)')
-    xor.add_argument('--svd', type=argparse.FileType('r'), default=sys.stdin,
-                     help='Path to SVD-File')
+    xor.add_argument('--svd', type=argparse.FileType('r'), const=sys.stdin,
+                     nargs="?", metavar="SVD", help='Path to SVD-File')
     parser.add_argument("--save", type=argparse.FileType('w'), metavar="FILE",
                         default=sys.stdout, help="Save generated Code to file")
     fmt = parser.add_argument_group('rustfmt',
