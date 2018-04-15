@@ -35,12 +35,10 @@ extern "C" {
 #define BLE_CFG_ADV_BUF_ALLOW 0
 #define BLE_CFG_SCAN_BUF_ALLOW 1
 
-typedef enum {
-   AdvertisementConnectUndirected = 0x00,
-   AdvertisementConnectDirected = 0x01,
-   AdvertisementNonConnectUndirected = 0x02,
-   AdvertisementScanUndirected = 0x06,
-} AdvertisementType_t;
+#define ADV_IND  0x00
+#define ADV_DIRECT_IND  0x01
+#define ADV_NON_CONN_IND  0x02
+#define ADV_SCAN_IND  0x06 
 
 struct __attribute__((packed)) Header {
   uint16_t pdu: 4;
@@ -51,8 +49,8 @@ struct __attribute__((packed)) Header {
   uint16_t _rfu2: 2;
 };
 
-struct AdvertisingConnectUndirected {
-  struct Header hdr;
+struct AdvertisingNonConnectUndirected {
+  struct Header header;
   uint8_t adv_a[6];
   uint8_t adv_data[31];
 };

@@ -4,6 +4,11 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "bitfield"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "capsules"
 version = "0.1.0"
 dependencies = [
@@ -20,6 +25,9 @@ dependencies = [
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "bitfield 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "nrf52"
@@ -51,3 +59,4 @@ dependencies = [
 
 [metadata]
 "checksum bitfield 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f989ae9b9fff3271a712a309fce47f0c46dd3476cb40074ddfcc06ad4a76cf6a"
+"checksum bitfield 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ce82aa1082cbfdaa1c5e4c44b832d3e7fcf8d672033553f4e3a32487901e05ac"

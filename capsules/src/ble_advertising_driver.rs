@@ -163,9 +163,10 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::convert::TryFrom;
 use kernel;
 use kernel::hil::ble_advertising;
-use kernel::hil::ble_advertising::RadioChannel;
+use kernel::hil::ble_advertising::*;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 
@@ -370,12 +371,41 @@ impl App {
                         for (out, inp) in data.as_mut().iter_mut().zip(slice.as_ref().iter()) {
                             *out = *inp;
                         }
-                        let result = ble.radio
-                            .transmit_advertisement(data, PACKET_LENGTH, channel);
-                        ble.kernel_tx.replace(result);
-                        ReturnCode::SUCCESS
+
+                        // Read 4 LSB (pdu type)
+                        match data[0] & 0xf {
+                            1 => {
+                                if let Ok(adv_conn_dir) =
+                                    <AdvertisingConnectDirected>::try_from(data)
+                                {
+                                    ble.radio.transmit_advertisement(&adv_conn_dir, channel);
+                                    unsafe {
+                                        ble.kernel_tx.replace(&mut BUF);
+                                    }
+                                    ReturnCode::SUCCESS
+                                } else {
+                                    ReturnCode::FAIL
+                                }
+                            }
+                            2 => {
+                                if let Ok(adv_non_conn_ind) =
+                                    <AdvertisingNonConnectUndirected>::try_from(data)
+                                {
+                                    ble.radio.transmit_advertisement(&adv_non_conn_ind, channel);
+                                    unsafe {
+                                        ble.kernel_tx.replace(&mut BUF);
+                                    }
+                                    ReturnCode::SUCCESS
+                                } else {
+                                    ReturnCode::FAIL
+                                }
+                            }
+                            _ => {
+                                unimplemented!("");
+                            }
+                        }
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .unwrap()
             })
             .unwrap_or(ReturnCode::FAIL)
     }
@@ -755,7 +785,7 @@ where
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
-            
+
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -791,7 +821,7 @@ where
                     _ => ReturnCode::EINVAL,
                 })
                 .unwrap_or_else(|err| err.into()),
-        
+
             // Operation not supported
             _ => ReturnCode::ENOSUPPORT,
         }

@@ -1,5 +1,5 @@
-#![feature(const_fn, const_cell_new)]
-#![forbid(unsafe_code)]
+#![feature(const_fn, const_cell_new, try_from)]
+// #![forbid(unsafe_code)]
 #![no_std]
 
 #[allow(unused_imports)]

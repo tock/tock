@@ -47,15 +47,122 @@
 //!
 //! ```
 
+use core::convert::TryFrom;
 use returncode::ReturnCode;
 
+#[allow(unused)]
+#[repr(u8)]
+enum BLEAdvertisementType {
+    ConnectUndirected = 0x00,
+    ConnectDirected = 0x01,
+    NonConnectUndirected = 0x02,
+    ScanUndirected = 0x06,
+}
+
+/// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B]
+/// 2.3 Advertising Channel PDU
+bitfield!{
+    #[derive(Copy, Clone)]
+    pub struct Header(u16);
+    impl Debug;
+    /// pdu 4 bits
+    pub pdu,        _:    3, 0;
+    /// rfu 2 bits
+    pub _rfu1,      _:          5, 4;
+    /// txAdd 1 bit
+    pub tx_add,     _: 6, 6;
+    /// rxAdd 1 bit
+    pub rx_add,     _: 7, 7;
+    /// length 6 bits
+    pub length,     _: 13, 8;
+    /// rfu 2 bits
+    pub _rfu2,      _:          15, 14;
+}
+
+pub trait Advertisement {
+    fn header(&self) -> u16;
+    fn address(&self) -> &'static [u8];
+    fn data(&self) -> &'static [u8];
+}
+
+#[derive(Debug)]
+pub struct AdvertisingNonConnectUndirected {
+    header: Header,
+    adv_a: &'static [u8],
+    adv_data: &'static [u8],
+}
+
+impl Advertisement for AdvertisingNonConnectUndirected {
+    fn header(&self) -> u16 {
+        self.header.0
+    }
+
+    fn address(&self) -> &'static [u8] {
+        self.adv_a
+    }
+
+    fn data(&self) -> &'static [u8] {
+        self.adv_data
+    }
+}
+
+#[derive(Debug)]
+pub struct AdvertisingConnectDirected {
+    header: Header,
+    adv_a: &'static [u8],
+    init_a: &'static [u8],
+}
+
+impl Advertisement for AdvertisingConnectDirected {
+    fn header(&self) -> u16 {
+        self.header.0
+    }
+
+    fn address(&self) -> &'static [u8] {
+        self.adv_a
+    }
+
+    fn data(&self) -> &'static [u8] {
+        self.init_a
+    }
+}
+
+impl TryFrom<&'static mut [u8]> for AdvertisingNonConnectUndirected {
+    type Error = ();
+
+    fn try_from(buf: &'static mut [u8]) -> Result<Self, Self::Error> {
+        if buf.len() == 39 && buf[0] & 0xf == 2 {
+            let header = Header((buf[0]) as u16 | (buf[1] as u16) << 8);
+            Ok(AdvertisingNonConnectUndirected {
+                header: header,
+                adv_a: &buf[2..8],
+                adv_data: &buf[8..],
+            })
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<&'static mut [u8]> for AdvertisingConnectDirected {
+    type Error = ();
+
+    fn try_from(buf: &'static mut [u8]) -> Result<Self, Self::Error> {
+        if buf.len() == 12 && buf[0] & 0xf == 1 {
+            let header = Header((buf[0]) as u16 | (buf[1] as u16) << 8);
+            Ok(AdvertisingConnectDirected {
+                header: header,
+                adv_a: &buf[2..8],
+                init_a: &buf[8..],
+            })
+        } else {
+            Err(())
+        }
+    }
+}
+
 pub trait BleAdvertisementDriver {
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8];
+    fn transmit_advertisement<A: Advertisement>(&self, buf: &A, channel: RadioChannel);
     fn receive_advertisement(&self, channel: RadioChannel);
     fn set_receive_client(&self, client: &'static RxClient);
     fn set_transmit_client(&self, client: &'static TxClient);

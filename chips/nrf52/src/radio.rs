@@ -39,7 +39,7 @@ use kernel;
 use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::ble_advertising;
-use kernel::hil::ble_advertising::RadioChannel;
+use kernel::hil::ble_advertising::*;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
@@ -737,16 +737,6 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
-    fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
-        // set payload
-        for (i, c) in buf.as_ref().iter().enumerate() {
-            unsafe {
-                PAYLOAD[i] = *c;
-            }
-        }
-        buf
-    }
-
     fn ble_initialize(&self, channel: RadioChannel) {
         self.radio_on();
 
@@ -850,17 +840,21 @@ impl Radio {
 }
 
 impl ble_advertising::BleAdvertisementDriver for Radio {
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        _len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8] {
-        let res = self.replace_radio_buffer(buf);
+    fn transmit_advertisement<A: Advertisement>(&self, buf: &A, channel: RadioChannel) {
+        unsafe {
+            let h = buf.header();
+            PAYLOAD[0] = (h & 0xff) as u8;
+            PAYLOAD[1] = ((h >> 8) & 0xff) as u8;
+            // this is ok because AdvA is always 6 bytes
+            PAYLOAD[2..8].copy_from_slice(buf.address());
+            // variable size
+            for (dst, src) in PAYLOAD.iter_mut().skip(8).zip(buf.data().iter()) {
+                *dst = *src;
+            }
+        }
         self.ble_initialize(channel);
         self.tx();
         self.enable_interrupts();
-        res
     }
 
     fn receive_advertisement(&self, channel: RadioChannel) {

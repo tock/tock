@@ -8,7 +8,11 @@
 
 #![feature(asm, core_intrinsics, unique, nonzero, ptr_internals)]
 #![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
+#![feature(try_from)]
 #![no_std]
+
+#[macro_use]
+extern crate bitfield;
 
 #[macro_use]
 pub mod common;
