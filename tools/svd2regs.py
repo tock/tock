@@ -1,3 +1,5 @@
+#!/usr/bin/python
+#
 # usage: svd2regs.py [-h] (--mcu VENDOR MCU | --svd SVD) [--save FILE]
 #                    [--fmt] [--path PATH] [--args ARGS]
 #                    peripheral
