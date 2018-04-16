@@ -1043,22 +1043,15 @@ impl App {
             }
             BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
                 if Some(adv_addr) == self.advertising_address {
-
-                    unsafe {
-                        gpio::PORT[17].clear();
-                    }
-
                     let mut conndata = ConnectionData::new(&lldata);
 
                     let channel = conndata.next_channel();
                     self.state = Some(BleLinkLayerState::WaitingForConnection(conndata));
-                    //let channel = RadioChannel::AdvertisingChannel37;
                     self.channel = Some(channel);
 
                     self.prepare_empty_conn_pdu(ble);
 
                     PhyTransition::MoveToRX
-                    //PhyTransition::MoveToTX
                 } else {
                     debug!("Why here?");
                     // TODO parse LLData and switch to data channel
@@ -1382,9 +1375,6 @@ where
                 }
             },
             BLEState::Connection => {
-                unsafe {
-                    gpio::PORT[20].clear();
-                }
                 ReadAction::ReadFrameAndMoveToTX
             },
             BLEState::Scanning => ReadAction::ReadFrameAndStayRX,
@@ -1438,12 +1428,8 @@ where
                                     .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
                                 tx_response = TxImmediate::TX;
                             } else {
-                                let next_channel = RadioChannel::AdvertisingChannel37;
 
-                                app.channel = Some(next_channel);
-                                self.radio
-                                    .set_channel(next_channel, ACCESS_ADDRESS_ADV, CRCINIT);
-
+                                // TODO: Shut down radio when sleeping
                                 app.set_next_alarm::<A::Frequency>(self.alarm.now());
                             }
                         } else {

@@ -237,50 +237,6 @@ impl Radio {
         }
     }
 
-    fn schedule_tx_after_usec(&self) {
-        let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
-        let end_time = self.get_packet_end_time_value();
-
-        let time =
-            1000 + BLE_T_IFS - NRF52_RX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - NRF52_TX_DELAY;
-
-        unsafe {
-            nrf5x::timer::TIMER0.clear();
-            nrf5x::timer::TIMER0.set_cc0(time);
-            nrf5x::timer::TIMER0.set_events_compare(0, 0);
-        }
-
-        debug!("end_time: {} now_time {}\n", end_time, current_time);
-
-        // let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
-        // debug!("{} , {}\n", current_time, time);
-
-        // CH20: CC[0] => TXEN
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
-    }
-
-    fn schedule_rx_after_usec(&self) {
-        let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
-
-        let end_time = self.get_packet_end_time_value();
-        let earlier_listen = 2;
-
-        let time =
-            500 + BLE_T_IFS - NRF52_TX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - earlier_listen;
-
-        unsafe {
-            nrf5x::timer::TIMER0.set_cc0(time);
-            nrf5x::timer::TIMER0.set_events_compare(0, 0);
-        }
-
-        let now_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
-
-        debug!("end_time: {} now_time {}\n", end_time, current_time);
-
-        // CH21: CC[0] => RXEN
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
-    }
-
     fn schedule_tx_after_t_ifs(&self) {
         let end_time = self.get_packet_end_time_value();
 
@@ -396,7 +352,6 @@ impl Radio {
         if self.debug_bit.get() {
             unsafe {
                 gpio::PORT[18].clear();
-                //debug!("rx_end after connection! :O\n")
             }
         }
 
@@ -426,6 +381,7 @@ impl Radio {
                     self.schedule_tx_after_t_ifs();
                 }
                 PhyTransition::MoveToRX => {
+                    // Handle connection request
 
                     self.debug_bit.set(true);
                     self.disable_radio();
@@ -633,6 +589,7 @@ impl Radio {
     // Set access address to 0x8E89BED6
     pub fn ble_set_access_address(&self, aa: u32) {
         let regs = unsafe { &*self.regs };
+
 
         regs.prefix0
             .set((regs.prefix0.get() & 0xffffff00) | (aa >> 24));

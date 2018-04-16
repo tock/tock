@@ -55,6 +55,8 @@ impl ConnectionData {
 
 		let (channels, number_used_channels) = ConnectionData::expand_channel_map(lldata.chm);
 
+		debug!("hop: {} {:b}\n", lldata.hop_and_sca & 0b11111, lldata.hop_and_sca);
+
 	    ConnectionData {
 	    	last_unmapped_channel: 0,
 	    	channels,
