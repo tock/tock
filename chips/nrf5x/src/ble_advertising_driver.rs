@@ -815,7 +815,7 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn prepare_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>) -> ReturnCode
+    fn prepare_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, transmit_sequence_number: u8, next_expected_sequence_number: u8) -> ReturnCode
     where
         B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
         A: kernel::hil::time::Alarm + 'a,
@@ -826,8 +826,13 @@ impl App {
             .as_ref()
             .map(|_| {
                 ble.replace_buffer( &|data: &mut [u8]| {
+
+                    // LLID == 0x01 Empty PDU
+                    data.as_mut()[PACKET_HDR_PDU] = 0x01 |
+                            (next_expected_sequence_number & 0b1) << 2 |
+                            (transmit_sequence_number & 0b1) << 3;
+
                     data.as_mut()[PACKET_HDR_LEN] = 0;
-                    data.as_mut()[PACKET_HDR_PDU] = 0x01;
                 });
 
                 ReturnCode::SUCCESS
@@ -1115,14 +1120,15 @@ where
                                 },
                                 Some(ResponseAction::Connection(conndata)) => {
                                     app.state = Some(BleLinkLayerState::WaitingForConnection);
-                                    app.process_status = Some(AppBLEState::Connection(conndata));
-                                    app.prepare_empty_conn_pdu(&self);
                                     PhyTransition::MoveToRX
                                 },
                                 _ => PhyTransition::None,
                             }
                         }
-                        Some(AppBLEState::Connection(_)) => {
+                        Some(AppBLEState::Connection(ref mut conndata)) => {
+
+                            // TODO Parse PDU
+                            buf
                             app.prepare_empty_conn_pdu(&self);
                             PhyTransition::MoveToTX
                         }
