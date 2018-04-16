@@ -585,8 +585,8 @@ const NBR_PACKETS: usize = 20;
 enum AppBLEState {
     NotInitialized,
     Initialized,
-    Scanning(BLEScanningState),
-    Advertising(BLEAdvertisingState),
+    Scanning,
+    Advertising,
 }
 
 #[derive(Clone, Copy)]
@@ -595,22 +595,6 @@ enum BLEState {
     Advertising,
     Initiating,
     Connection,
-}
-
-#[derive(PartialEq, Debug, Copy, Clone)]
-enum BLEAdvertisingState {
-    Idle,
-    Advertising(RadioChannel),
-    Listening(RadioChannel),
-    Responding(RadioChannel),
-    Connection(RadioChannel),
-}
-
-#[derive(PartialEq, Debug, Copy, Clone)]
-enum BLEScanningState {
-    Idle,
-    Scanning(RadioChannel),
-    Requesting(RadioChannel),
 }
 
 #[derive(Copy, Clone)]
@@ -829,7 +813,7 @@ impl App {
 
     fn reset_payload(&mut self) -> ReturnCode {
         match self.process_status {
-            Some(AppBLEState::Advertising(_)) | Some(AppBLEState::Scanning(_)) => ReturnCode::EBUSY,
+            Some(AppBLEState::Advertising) | Some(AppBLEState::Scanning) => ReturnCode::EBUSY,
             _ => {
                 let res = self.advertisement_buf
                     .as_mut()
@@ -993,7 +977,7 @@ impl App {
             .map(|slice| {
                 ble.replace_buffer( &|data: &mut [u8]| {
                     data.as_mut()[PACKET_HDR_LEN] = 0;
-                    data.as_mut()[PACKET_HDR_PDU] = (0x01);
+                    data.as_mut()[PACKET_HDR_PDU] = 0x01;
                 });
 
                 ReturnCode::SUCCESS
@@ -1379,7 +1363,6 @@ where
             },
             BLEState::Scanning => ReadAction::ReadFrameAndStayRX,
             BLEState::Initiating => ReadAction::SkipFrame,
-            _ => ReadAction::SkipFrame,
         }
     }
 }
@@ -1488,7 +1471,7 @@ where
                 .enter(appid, |app, _| {
                     if let Some(AppBLEState::Initialized) = app.process_status {
                         app.process_status =
-                            Some(AppBLEState::Advertising(BLEAdvertisingState::Idle));
+                            Some(AppBLEState::Advertising);
                         app.channel = Some(RadioChannel::AdvertisingChannel37);
                         app.random_nonce = self.alarm.now();
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
@@ -1503,8 +1486,8 @@ where
             // Stop periodic advertisements or passive scanning
             1 => self.app
                 .enter(appid, |app, _| match app.process_status {
-                    Some(AppBLEState::Advertising(BLEAdvertisingState::Idle))
-                    | Some(AppBLEState::Scanning(BLEScanningState::Idle)) => {
+                    Some(AppBLEState::Advertising)
+                    | Some(AppBLEState::Scanning) => {
                         app.process_status = Some(AppBLEState::Initialized);
                         ReturnCode::SUCCESS
                     }
@@ -1522,9 +1505,9 @@ where
             2 => {
                 self.app
                     .enter(appid, |app, _| {
-                        if app.process_status != Some(AppBLEState::Scanning(BLEScanningState::Idle))
+                        if app.process_status != Some(AppBLEState::Scanning)
                             && app.process_status
-                                != Some(AppBLEState::Advertising(BLEAdvertisingState::Idle))
+                                != Some(AppBLEState::Advertising)
                         {
                             match data as u8 {
                                 e @ 0...10 | e @ 0xec...0xff => {
@@ -1550,12 +1533,8 @@ where
             // data - advertisement interval in ms
             // FIXME: add check that data is a multiple of 0.625
             3 => self.app
-                .enter(appid, |app, _| match app.process_status {
-                    Some(AppBLEState::Scanning(state)) if state != BLEScanningState::Idle => {
-                        ReturnCode::EBUSY
-                    }
-
-                    Some(AppBLEState::Advertising(state)) if state != BLEAdvertisingState::Idle => {
+                .enter(appid, |app, _| match self.busy.get() {
+                    BusyState::Busy(appid) if app.appid() == appid => {
                         ReturnCode::EBUSY
                     }
                     _ => {
@@ -1577,7 +1556,7 @@ where
             5 => self.app
                 .enter(appid, |app, _| {
                     if let Some(AppBLEState::Initialized) = app.process_status {
-                        app.process_status = Some(AppBLEState::Scanning(BLEScanningState::Idle));
+                        app.process_status = Some(AppBLEState::Scanning);
                         app.channel = Some(RadioChannel::AdvertisingChannel37);
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         self.reset_active_alarm();
