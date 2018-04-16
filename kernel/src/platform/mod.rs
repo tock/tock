@@ -21,7 +21,7 @@ pub trait Chip {
     fn has_pending_interrupts(&self) -> bool;
     fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;
-    fn prepare_for_sleep(&self) {}
+    fn sleep(&self);
 }
 
 /// Generic operations that clock-like things are expected to support.
