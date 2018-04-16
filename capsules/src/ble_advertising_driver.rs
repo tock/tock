@@ -753,7 +753,7 @@ where
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
-            
+
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -789,7 +789,7 @@ where
                     _ => ReturnCode::EINVAL,
                 })
                 .unwrap_or_else(|err| err.into()),
-        
+
             // Operation not supported
             _ => ReturnCode::ENOSUPPORT,
         }

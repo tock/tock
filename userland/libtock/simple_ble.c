@@ -26,10 +26,10 @@ static uint8_t adv_data_idx = 0;
 static int s_ble_configure_flags(uint8_t flags) {
   int new_len = adv_data_idx + 3;
   if (new_len <= ADV_DATA_MAX_SIZE) {
-    struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected *) advertisement_buf;
-    buf->adv_data[adv_data_idx] = 2;
-    buf->adv_data[adv_data_idx+1] = GAP_FLAGS;
-    buf->adv_data[adv_data_idx+2] = flags;
+    struct AdvertisingNonConnectUndirected *buf = (struct AdvertisingNonConnectUndirected *) advertisement_buf;
+    buf->adv_data[adv_data_idx]     = 2;
+    buf->adv_data[adv_data_idx + 1] = GAP_FLAGS;
+    buf->adv_data[adv_data_idx + 2] = flags;
     adv_data_idx = new_len;
     return TOCK_SUCCESS;
   } else {
@@ -49,7 +49,7 @@ static int s_ble_configure_adv_data(GapAdvertisementData_t type,
   if (new_length > ADV_DATA_MAX_SIZE) {
     return TOCK_FAIL;
   } else {
-    struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected *) advertisement_buf;
+    struct AdvertisingNonConnectUndirected *buf = (struct AdvertisingNonConnectUndirected *) advertisement_buf;
     buf->adv_data[adv_data_idx]     = data_len + 1;
     buf->adv_data[adv_data_idx + 1] = type;
     memcpy(&buf->adv_data[adv_data_idx + 2], data, data_len);
@@ -66,13 +66,13 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
   int err;
 
   adv_data_idx = 0;
-  memset(advertisement_buf, 0, 39);
+  memset(advertisement_buf, 0, ADV_DATA_MAX_SIZE);
 
-  struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected*) advertisement_buf;
+  struct AdvertisingNonConnectUndirected *buf = (struct AdvertisingNonConnectUndirected*) advertisement_buf;
 
-  buf->hdr.pdu = AdvertisementConnectUndirected;
+  buf->header.pdu = ADV_NON_CONN_IND;
   // random address
-  buf->hdr.tx_add = 1;
+  buf->header.tx_add = 1;
 
   // configure advertisement interval
   // if the interval is less than 20 or bigger than 10240 to kernel
@@ -92,8 +92,8 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
 }
 
 int ble_start_advertising(void) {
-  struct AdvertisingConnectUndirected *buf = (struct AdvertisingConnectUndirected*) advertisement_buf;
-  buf->hdr.length = 6 + adv_data_idx;
+  struct AdvertisingNonConnectUndirected *buf = (struct AdvertisingNonConnectUndirected*) advertisement_buf;
+  buf->header.length = ADV_A_SIZE + adv_data_idx;
 
   int err = allow(BLE_DRIVER_NUMBER, 0, (void *)advertisement_buf, sizeof(advertisement_buf));
   if (err < TOCK_SUCCESS)
@@ -112,7 +112,8 @@ int ble_reset_advertisement(void) {
     return err;
   else {
     adv_data_idx = 0;
-    memset(advertisement_buf, 0, ADV_DATA_MAX_SIZE);
+    struct AdvertisingNonConnectUndirected *buf = (struct AdvertisingNonConnectUndirected*) advertisement_buf;
+    memset(buf->adv_data, 0, ADV_DATA_MAX_SIZE);
     return TOCK_SUCCESS;
   }
 }
