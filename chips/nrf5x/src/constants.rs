@@ -84,6 +84,10 @@ pub const PPI_CHEN_CH31: u32 = 1 << 31; // RTC0->EVENTS_COMPARE[0]	    TIMER0->T
 // BUFFER SIZE
 pub const RADIO_PAYLOAD_LENGTH: usize = 255;
 
+
+// Advertising ACCESS ADDRESS
+pub const ADV_ACCESS_ADDRESS_BLE: u32 = 0x8e89bed6;
+
 pub enum RadioMode {
     Nrf1Mbit = 0,
     Nrf2Mbit = 1,

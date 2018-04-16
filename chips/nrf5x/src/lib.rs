@@ -12,6 +12,7 @@ pub mod ble_advertising_driver;
 pub mod ble_advertising_hil;
 pub mod ble_connection;
 pub mod ble_event_handler;
+pub mod ble_link_layer;
 pub mod clock;
 pub mod gpio;
 pub mod peripheral_interrupts;

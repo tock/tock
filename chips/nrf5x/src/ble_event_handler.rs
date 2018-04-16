@@ -1,4 +1,3 @@
-use ble_advertising_driver::{App, BLEPduType};
 use kernel;
 use kernel::returncode::ReturnCode;
 use ble_advertising_hil::RadioChannel;
@@ -15,7 +14,7 @@ pub trait BLESender {
         edit_buffer: &Fn(&mut [u8]) -> (),
     );
 
-    fn receive_buffer(&self, channel: RadioChannel, appid: kernel::AppId);
+    fn receive_buffer(&self, appid: kernel::AppId);
 
     fn set_tx_power(&self, power: u8) -> ReturnCode;
 

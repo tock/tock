@@ -48,6 +48,7 @@
 //! ```
 
 use kernel::ReturnCode;
+use ble_connection::ConnectionData;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
@@ -73,6 +74,13 @@ pub enum PhyTransition {
     MoveToRX,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum ResponseAction {
+    ScanResponse,
+    Connection(ConnectionData),
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ReadAction {
     SkipFrame,
     ReadFrameAndStayRX,

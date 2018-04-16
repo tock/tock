@@ -19,7 +19,6 @@ const NUMBER_DATA_CHANNELS: usize = NUMBER_CHANNELS - 3;
 
 type ChannelMap = [u8; NUMBER_CHANNELS];
 
-// #[derive(Copy, Clone)]
 pub struct ConnectionData {
 	last_unmapped_channel: u8,
 	channels: ChannelMap,
@@ -35,6 +34,8 @@ impl PartialEq for ConnectionData {
         self.last_unmapped_channel == other.last_unmapped_channel
     }
 }
+
+impl Eq for ConnectionData {}
 
 impl fmt::Debug for ConnectionData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
