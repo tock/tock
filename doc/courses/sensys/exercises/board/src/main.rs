@@ -42,7 +42,8 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.

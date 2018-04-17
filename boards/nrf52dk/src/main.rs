@@ -106,7 +106,8 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// Supported drivers by the platform
 pub struct Platform {

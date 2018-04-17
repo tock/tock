@@ -23,7 +23,7 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory

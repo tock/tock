@@ -44,7 +44,7 @@ impl<T> AppliedGrant<T> {
 }
 
 pub struct Allocator<'a> {
-    app: Option<&'a mut process::Process<'a>>,
+    app: Option<&'a mut &'a mut process::Process<'a>>,
     app_id: usize,
 }
 

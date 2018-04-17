@@ -37,7 +37,7 @@ static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 // State for loading and holding applications.
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 20;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
@@ -47,7 +47,10 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None,
+];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
