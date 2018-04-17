@@ -6,6 +6,7 @@ use cc26xx::rtc;
 use cc26xx::uart;
 use cortexm4::{self, nvic};
 use kernel;
+use kernel::support;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -55,5 +56,11 @@ impl kernel::Chip for Cc26X2 {
 
     fn has_pending_interrupts(&self) -> bool {
         unsafe { nvic::has_pending() }
+    }
+
+    fn sleep(&self) {
+        unsafe {
+            support::wfi();
+        }
     }
 }

@@ -1,6 +1,7 @@
 use cortexm4::{self, nvic};
 use i2c;
 use kernel;
+use kernel::support;
 use nrf5x;
 use nrf5x::peripheral_interrupts::*;
 use radio;
@@ -89,5 +90,11 @@ impl kernel::Chip for NRF52 {
 
     fn has_pending_interrupts(&self) -> bool {
         unsafe { nvic::has_pending() }
+    }
+
+    fn sleep(&self) {
+        unsafe {
+            support::wfi();
+        }
     }
 }
