@@ -37,6 +37,7 @@
 #[macro_use]
 pub mod macros;
 
+use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
 
@@ -92,8 +93,9 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     associated_register: PhantomData<R>,
 }
 
-/// Cached values of registers.
-pub struct CachedRegister<T: IntLike, R: RegisterLongName> {
+/// Memory-resident values of registers.
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct RegisterValue<T: IntLike, R: RegisterLongName> {
     value: T,
     associated_register: PhantomData<R>,
 }
@@ -149,8 +151,8 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     }
 
     #[inline]
-    pub fn cache(&self) -> CachedRegister<T, R> {
-        CachedRegister::new(self.get())
+    pub fn get_value(&self) -> RegisterValue<T, R> {
+        RegisterValue::new(self.get())
     }
 }
 
@@ -189,8 +191,8 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     }
 
     #[inline]
-    pub fn cache(&self) -> CachedRegister<T, R> {
-        CachedRegister::new(self.get())
+    pub fn get_value(&self) -> RegisterValue<T, R> {
+        RegisterValue::new(self.get())
     }
 }
 
@@ -214,9 +216,9 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     }
 }
 
-impl<T: IntLike, R: RegisterLongName> CachedRegister<T, R> {
+impl<T: IntLike, R: RegisterLongName> RegisterValue<T, R> {
     pub fn new(value: T) -> Self {
-        CachedRegister {
+        RegisterValue {
             value: value,
             associated_register: PhantomData,
         }
@@ -245,6 +247,18 @@ impl<T: IntLike, R: RegisterLongName> CachedRegister<T, R> {
     #[inline]
     pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
+    }
+}
+
+impl<R: RegisterLongName> From<RegisterValue<u32, R>> for u32 {
+    fn from(r: RegisterValue<u32, R>) -> u32 {
+        r.value
+    }
+}
+
+impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for RegisterValue<T, R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.value)
     }
 }
 
@@ -365,6 +379,12 @@ impl<R: RegisterLongName> FieldValue<u32, R> {
 impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
     fn from(val: FieldValue<u32, R>) -> u32 {
         val.value
+    }
+}
+
+impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for FieldValue<T, R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.value)
     }
 }
 

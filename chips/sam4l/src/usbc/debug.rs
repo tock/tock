@@ -1,5 +1,20 @@
 use core::fmt;
 
+pub struct HexBuf<'a>(pub &'a [u8]);
+
+impl<'a> fmt::Debug for HexBuf<'a> {
+    #[allow(unused_must_use)]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[");
+        let mut i: usize = 0;
+        for b in self.0 {
+            write!(f, "{}{:.02x}", if i > 0 { " " } else { "" }, b);
+            i += 1;
+        }
+        write!(f, "]")
+    }
+}
+
 // Bitfields for UDINT, UDINTCLR, UDINTESET
 pub const UDINT_SUSP: u32 = 1 << 0;
 pub const UDINT_SOF: u32 = 1 << 2;
@@ -45,7 +60,45 @@ impl fmt::Debug for UdintFlags {
     }
 }
 
-// Bitfields for UECONnSET, UESTAn, UESTAnCLR
+macro_rules! debug_flags {
+    ( $tyname:ident {$( $flag:ident = $offset:expr; )*} ) => {
+
+        pub struct $tyname(pub u32);
+
+        impl fmt::Debug for $tyname {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let w: u32 = self.0;
+                write!(f, "{{")?;
+                $(
+                    if w & (1 << $offset) != 0 {
+                        write!(f, "{} ", stringify!($flag))?;
+                    }
+                )*
+                write!(f, "}}")
+            }
+        }
+    };
+}
+
+debug_flags!(UeconFlags {
+    BUSY1E = 25;
+    BUSY0E = 24;
+    STALLRQ = 19;
+    RSTDT = 18;
+    FIFOCON = 14;
+    KILLBK = 13;
+    NBUSYBKE = 12;
+    // RAMACERE = 11;
+    NREPLY = 8;
+    // STALLEDE_CRCERRE = 6;
+    RXSTPE = 2;
+    TXINE = 0;
+    NAKINE = 4;
+    NAKOUTE = 3;
+    RXOUTE = 1;
+});
+
+// Bitfields for UESTAn
 pub const TXIN: u32 = 1 << 0;
 pub const RXOUT: u32 = 1 << 1;
 pub const RXSTP: u32 = 1 << 2;

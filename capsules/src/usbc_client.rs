@@ -22,15 +22,22 @@ static STRINGS: &'static [&'static str] = &[
     "Serial No. 5",   // Serial number
 ];
 
-const DESCRIPTOR_BUFLEN: usize = 30;
+const DESCRIPTOR_BUFLEN: usize = 32;
 
-const N_ENDPOINTS: usize = 1;
+const N_ENDPOINTS: usize = 3;
 
 pub struct Client<'a, C: 'a> {
+    // The hardware controller
     controller: &'a C,
+
+    // State for tracking each endpoint
     state: [Cell<State>; N_ENDPOINTS],
-    buffers: [[VolatileCell<u8>; 8]; N_ENDPOINTS],
+
+    // Storage for composing responses to device-descriptor requests
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
+
+    // An eight-byte buffer for each endpoint
+    buffers: [[VolatileCell<u8>; 8]; N_ENDPOINTS],
 }
 
 #[derive(Copy, Clone)]
@@ -76,6 +83,15 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
         self.controller.endpoint_set_buffer(0, &self.buffers[0]);
         self.controller.enable_as_device(DeviceSpeed::Full); // must be Full for Bulk transfers
         self.controller.endpoint_ctrl_out_enable(0);
+
+        // Set up a bulk-in endpoint for debugging
+        self.controller.endpoint_set_buffer(1, &self.buffers[1]);
+        self.controller.endpoint_bulk_in_enable(1);
+
+        // Set up a bulk-out endpoint for debugging
+        // NOTE: We are sharing the endpoint 1 buffer for debugging amusement
+        self.controller.endpoint_set_buffer(2, &self.buffers[1]);
+        self.controller.endpoint_bulk_out_enable(2);
     }
 
     fn attach(&self) {
@@ -89,6 +105,10 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
 
     /// Handle a Control Setup transaction
     fn ctrl_setup(&self, endpoint: usize) -> CtrlSetupResult {
+        if endpoint != 0 {
+            // For now we only support the default Control endpoint
+            return CtrlSetupResult::ErrInvalidDeviceIndex;
+        }
         SetupData::get(&self.buffers[endpoint]).map_or(CtrlSetupResult::ErrNoParse, |setup_data| {
             setup_data.get_standard_request().map_or_else(
                 || {
@@ -150,14 +170,51 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
 
                                             let buf = self.descriptor_buf();
                                             let mut storage_avail = buf.len();
+                                            let mut related_descriptor_length = 0;
+                                            let mut num_endpoints = 0;
 
-                                            let di = InterfaceDescriptor::default();
+                                            // endpoint 1: a Bulk-In endpoint
+                                            let e1 = EndpointDescriptor {
+                                                endpoint_address: EndpointAddress::new(
+                                                    1,
+                                                    TransferDirection::DeviceToHost,
+                                                ),
+                                                transfer_type: TransferType::Bulk,
+                                                max_packet_size: 8,
+                                                interval: 100,
+                                            };
+                                            storage_avail -=
+                                                e1.write_to(&buf[storage_avail - e1.size()..]);
+                                            related_descriptor_length += e1.size();
+                                            num_endpoints += 1;
+
+                                            // endpoint 2: a Bulk-Out endpoint
+                                            let e2 = EndpointDescriptor {
+                                                endpoint_address: EndpointAddress::new(
+                                                    2,
+                                                    TransferDirection::HostToDevice,
+                                                ),
+                                                transfer_type: TransferType::Bulk,
+                                                max_packet_size: 8,
+                                                interval: 100,
+                                            };
+                                            storage_avail -=
+                                                e2.write_to(&buf[storage_avail - e2.size()..]);
+                                            related_descriptor_length += e2.size();
+                                            num_endpoints += 1;
+
+                                            let di = InterfaceDescriptor {
+                                                num_endpoints: num_endpoints,
+                                                ..Default::default()
+                                            };
                                             storage_avail -=
                                                 di.write_to(&buf[storage_avail - di.size()..]);
+                                            related_descriptor_length += di.size();
 
                                             let dc = ConfigurationDescriptor {
                                                 num_interfaces: 1,
-                                                related_descriptor_length: di.size(),
+                                                related_descriptor_length:
+                                                    related_descriptor_length,
                                                 ..Default::default()
                                             };
                                             storage_avail -=
@@ -292,5 +349,27 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
             _ => {}
         };
         self.state[endpoint].set(State::Init);
+    }
+
+    /// Handle a Bulk IN transaction
+    fn bulk_in(&self, endpoint: usize) -> BulkInResult {
+        // Write a packet into the endpoint buffer
+        let _buf = &self.buffers[endpoint];
+        // (Actually just send whatever happens to be in the buffer.)
+        let packet_bytes = 8;
+
+        debug!("Sent {} bulk bytes", packet_bytes);
+
+        BulkInResult::Packet(packet_bytes)
+    }
+
+    /// Handle a Bulk OUT transaction
+    fn bulk_out(&self, endpoint: usize, packet_bytes: u32) -> BulkOutResult {
+        // Consume a packet from the endpoint buffer
+        let _buf = &self.buffers[endpoint];
+
+        debug!("Read {} bulk bytes", packet_bytes);
+
+        BulkOutResult::Ok
     }
 }
