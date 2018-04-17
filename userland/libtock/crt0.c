@@ -64,15 +64,6 @@ void _start(void* text_start,
   struct hdr* myhdr = (struct hdr*)text_start;
   uint32_t stacktop = (uint32_t)mem_start + myhdr->stack_size;
 
-  {
-    uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
-    memop(0, stacktop + heap_size);
-    memop(11, stacktop + heap_size);
-    memop(10, stacktop);
-    asm volatile ("mov sp, %[stacktop]" :: [stacktop] "r" (stacktop) : "memory");
-    asm volatile ("mov r9, sp");
-  }
-
   // fix up GOT
   volatile uint32_t* got_start     = (uint32_t*)(myhdr->got_start + stacktop);
   volatile uint32_t* got_sym_start = (uint32_t*)(myhdr->got_sym_start + (uint32_t)text_start);
@@ -101,6 +92,15 @@ void _start(void* text_start,
     } else {
       *target = (*target ^ 0x80000000) + (uint32_t)text_start;
     }
+  }
+
+  {
+    uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
+    memop(0, stacktop + heap_size);
+    memop(11, stacktop + heap_size);
+    memop(10, stacktop);
+    asm volatile ("mov sp, %[stacktop]" :: [stacktop] "r" (stacktop) : "memory");
+    asm volatile ("mov r9, sp");
   }
 
   main();
