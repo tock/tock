@@ -254,7 +254,6 @@ impl Uarte {
     /// UART interrupt handler that listens for both tx_end and rx_end events
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
-
         let regs = unsafe { &*self.regs };
 
         if self.tx_ready() {
@@ -306,15 +305,18 @@ impl Uarte {
                     // Signal client that the read is done
                     self.client.get().map(|client| {
                         self.rx_buffer.take().map(|rx_buffer| {
-                            client.receive_complete(rx_buffer, 
-                                                    rx_bytes,
-                                                    kernel::hil::uart::Error::CommandComplete);
+                            client.receive_complete(
+                                rx_buffer,
+                                rx_bytes,
+                                kernel::hil::uart::Error::CommandComplete,
+                            );
                         });
                     });
-                }
-                else {
+                } else {
                     self.set_rx_dma_pointer_to_buffer();
                     //Flush the fifo, as per the datasheet recommendations
+                    //Also recommends that we set the MAXCNT register to > 4
+                    //Not sure how that affects program flow, however.
                     regs.task_flush_rx.write(Task::ENABLE::SET);
                     regs.task_startrx.write(Task::ENABLE::SET);
                     self.enable_rx_interrupts();
@@ -345,7 +347,7 @@ impl Uarte {
 
     /// Check if either the rx_buffer is full or the UART has timed out
     pub fn rx_ready(&self) -> bool {
-        let regs = unsafe{ &*self.regs};
+        let regs = unsafe { &*self.regs };
         regs.event_endrx.is_set(Event::READY)
     }
 
@@ -397,14 +399,14 @@ impl kernel::hil::uart::UART for Uarte {
 
     fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) {
         let regs = unsafe { &*self.regs };
-        
+
         // truncate rx_len if necessary
         let mut length = rx_len;
         if rx_len > rx_buf.len() {
             length = rx_buf.len();
         }
-        //**** Probably need to check what happens when you want to wait for more data than the 
-        //     rx_buffer is sized to fit. I don't know why you'd do this but whatever. 
+        //**** Probably need to check what happens when you want to wait for more data than the
+        //     rx_buffer is sized to fit. I don't know why you'd do this but whatever.
 
         self.rx_remaining_bytes.set(length);
         self.offset.set(0);
