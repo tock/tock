@@ -1,6 +1,6 @@
-use ble_advertising_driver::LLData;
 use core::fmt;
 use ble_advertising_hil::RadioChannel;
+use ble_link_layer::LLData;
 
 // pub struct LLData {
 //     pub aa: [u8; 4],
