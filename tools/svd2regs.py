@@ -130,17 +130,19 @@ struct {name}Registers {{
                 fields.append(ReservedStructField(cnt, diff))
                 cnt += 1
                 offset += diff
-            if offset != register.address_offset:
-                raise Exception(
+            if offset == register.address_offset:
+                size = get_register_size(register)
+                fields.append(PeripheralStructField(register, size))
+                offset += size / 8
+            else:
+                # TODO: handle overlapping registers better (Unions?)
+                print(
                     "Offset Mismatch at register {} ({} != {})".format(
                         register.name,
                         register.address_offset,
                         offset
                     )
                 )
-            size = get_register_size(register)
-            fields.append(PeripheralStructField(register, size))
-            offset += size / 8
 
         return {
             "comment": comment(peripheral.description),
