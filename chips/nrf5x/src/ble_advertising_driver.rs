@@ -815,6 +815,23 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
+    fn set_next_sequence_number<'a, B, A>(&mut self, ble: &BLE<'a, B, A>) -> ReturnCode
+        where
+            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+            A: kernel::hil::time::Alarm + 'a,
+    {
+        let (trans, next) = if let Some(AppBLEState::Connection(ref mut data)) = self.process_status {
+            data.transmit_seq_nbr += 1;
+
+            (data.transmit_seq_nbr, data.next_seq_nbr)
+        } else {
+            panic!("set_next_sequence_number needs state to be Connection");
+        };
+
+
+        self.prepare_empty_conn_pdu(ble, trans, next)
+    }
+
     fn prepare_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, transmit_sequence_number: u8, next_expected_sequence_number: u8) -> ReturnCode
     where
         B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
@@ -1105,35 +1122,33 @@ where
                 // TODO call advertising/scanner/connection/initiating driver
 
                 transition = if valid_pkt {
-                    let res = match app.process_status {
-                        Some(AppBLEState::Advertising) => {
-                            let pdu_type = pdu_type.expect("PDU type should be valid");
-                            let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
 
-                            let response_action = self.link_layer.handle_rx_end(app, pdu);
 
-                            match response_action {
-                                Some(ResponseAction::ScanResponse) => {
-                                    app.prepare_scan_response(&self);
+                    let res = if let Some(AppBLEState::Advertising) = app.process_status {
+                        let pdu_type = pdu_type.expect("PDU type should be valid");
+                        let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
 
-                                    PhyTransition::MoveToTX
-                                },
-                                Some(ResponseAction::Connection(conndata)) => {
-                                    app.state = Some(BleLinkLayerState::WaitingForConnection);
-                                    PhyTransition::MoveToRX
-                                },
-                                _ => PhyTransition::None,
-                            }
+                        let response_action = self.link_layer.handle_rx_end(app, pdu);
+
+                        match response_action {
+                            Some(ResponseAction::ScanResponse) => {
+                                app.prepare_scan_response(&self);
+
+                                PhyTransition::MoveToTX
+                            },
+                            Some(ResponseAction::Connection(conndata)) => {
+                                app.state = Some(BleLinkLayerState::WaitingForConnection);
+                                PhyTransition::MoveToRX
+                            },
+                            _ => PhyTransition::None,
                         }
-                        Some(AppBLEState::Connection(ref mut conndata)) => {
-
-                            // TODO Parse PDU
-                            buf
-                            app.prepare_empty_conn_pdu(&self);
-                            PhyTransition::MoveToTX
-                        }
-                        _ => PhyTransition::None
+                    } else if let Some(AppBLEState::Connection(_)) = app.process_status {
+                        app.set_next_sequence_number(&self);
+                        PhyTransition::MoveToTX
+                    } else {
+                        PhyTransition::None
                     };
+
 
                     if let Some(AppBLEState::Connection(ref mut conn_data)) = app.process_status {
                         let channel = conn_data.next_channel();
