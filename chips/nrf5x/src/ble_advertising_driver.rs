@@ -884,6 +884,7 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
                     self.radio.set_channel(RadioChannel::AdvertisingChannel37, constants::ADV_ACCESS_ADDRESS_BLE, constants::RADIO_CRCINIT_BLE);
 
                     //TODO - for now, let the advertiser always set MoveToRX, change later
+                    app.channel = Some(RadioChannel::AdvertisingChannel37);
                     self.radio.set_transition_state(PhyTransition::MoveToRX);
                     app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                     self.transmit_buffer(appid);
