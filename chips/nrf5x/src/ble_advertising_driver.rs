@@ -939,7 +939,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                         let pdu_type = pdu_type.expect("PDU type should be valid");
                         let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
 
-                        let response_action = Some(ResponseAction::ScanResponse);//self.link_layer.handle_rx_end(app, pdu);
+                        let response_action = self.link_layer.handle_rx_end(app, pdu);
 
                         match response_action {
                             Some(ResponseAction::ScanResponse) => {

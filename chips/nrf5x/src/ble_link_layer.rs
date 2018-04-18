@@ -36,7 +36,7 @@ impl LinkLayer {
         }
     }
 
-    pub fn handle_rx_end(self, app: &App, pdu: BLEPduType) -> Option<ResponseAction> {
+    pub fn handle_rx_end(&self, app: &App, pdu: BLEPduType) -> Option<ResponseAction> {
         match pdu {
             BLEPduType::ScanRequest(_scan_addr, ref adv_addr) => {
                 if app.is_my_address(adv_addr) {
