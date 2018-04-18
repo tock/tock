@@ -261,9 +261,7 @@ impl<'a> Ast<'a> {
     /// Returns if an alarm is currently set
     pub fn is_alarm_enabled(&self) -> bool {
         while self.busy() {}
-        unsafe {
-            (*self.regs).sr.is_set(Status::ALARM0)
-        }
+        unsafe { (*self.regs).sr.is_set(Status::ALARM0) }
     }
 
     fn set_prescalar(&self, val: u8) {
