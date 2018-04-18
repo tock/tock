@@ -5,6 +5,7 @@ extern crate kernel;
 
 pub mod systick;
 pub mod nvic;
+pub mod scb;
 
 #[no_mangle]
 #[naked]
