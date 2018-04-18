@@ -629,7 +629,42 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn prepare_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, transmit_sequence_number: u8, next_expected_sequence_number: u8) -> ReturnCode
+    fn prepare_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, buf: &[u8]) -> ReturnCode
+        where
+            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+            A: kernel::hil::time::Alarm + 'a,
+    {
+
+
+            let (trans, next) = if let Some(AppBLEState::Connection(ref mut data)) = self.process_status {
+
+                if let Some((sn, nesn)) = ConnectionPdu::get_data_pdu_header(&buf) {
+
+                    //Does the packet carry the sequence number that I expected?
+                    //If true, increment next_seq_nbr
+                    let received_new_data_pdu: bool = (sn == data.next_seq_nbr);
+                    if received_new_data_pdu {
+                        data.next_seq_nbr = (data.next_seq_nbr + 1) % 2; //flip the bit
+                    } //else it is resent data an next_seq_nbr shall not be changed
+
+                    //Does my peer expect the same sequence number as I am going to send?
+                    //If NOT equal, my peer did receive my previous packet. I should increment tansmit_seq_nbr
+                    let resend_last_data_pdu: bool = (nesn == data.transmit_seq_nbr);
+                    if !resend_last_data_pdu {
+                        data.transmit_seq_nbr = (data.transmit_seq_nbr + 1) % 2; //flip the bit
+                    }
+                }
+
+            (data.transmit_seq_nbr, data.next_seq_nbr)
+        } else {
+            panic!("set_next_sequence_number needs state to be Connection");
+        };
+
+
+        self.set_empty_conn_pdu(ble, trans, next)
+    }
+
+    fn set_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, transmit_sequence_number: u8, next_expected_sequence_number: u8) -> ReturnCode
         where
             B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
             A: kernel::hil::time::Alarm + 'a,
@@ -898,55 +933,33 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 // TODO call advertising/scanner/connection/initiating driver
 
                 transition = if valid_pkt {
-                    let res = match app.process_status {
-                        Some(AppBLEState::Advertising) => {
-                            let pdu_type = pdu_type.expect("PDU type should be valid");
-                            let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
 
-                            let response_action = Some(ResponseAction::ScanResponse);//self.link_layer.handle_rx_end(app, pdu);
 
-                            match response_action {
-                                Some(ResponseAction::ScanResponse) => {
-                                    app.prepare_scan_response(&self);
+                    let res = if let Some(AppBLEState::Advertising) = app.process_status {
+                        let pdu_type = pdu_type.expect("PDU type should be valid");
+                        let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
 
-                                    PhyTransition::MoveToTX
-                                }
-                                Some(ResponseAction::Connection(conndata)) => {
-                                    app.state = Some(BleLinkLayerState::WaitingForConnection);
-                                    PhyTransition::MoveToRX
-                                }
-                                _ => PhyTransition::None,
+                        let response_action = Some(ResponseAction::ScanResponse);//self.link_layer.handle_rx_end(app, pdu);
+
+                        match response_action {
+                            Some(ResponseAction::ScanResponse) => {
+                                app.prepare_scan_response(&self);
+
+                                PhyTransition::MoveToTX
                             }
-                        }
-                        Some(AppBLEState::Connection(ref mut conndata)) => {
-
-
-                            if let Some((sn, nesn)) = ConnectionPdu::get_data_pdu_header(&buf){
-
-                                //Does the packet carry the sequence number that I expected?
-                                //If true, increment next_seq_nbr
-                                let received_new_data_pdu: bool = (sn == conndata.next_seq_nbr);
-                                if received_new_data_pdu {
-                                    conndata.next_seq_nbr = (conndata.next_seq_nbr + 1) % 2; //flip the bit
-                                } //else it is resent data an next_seq_nbr shall not be changed
-
-                                //Does my peer expect the same sequence number as I am going to send?
-                                //If NOT equal, my peer did receive my previous packet. I should increment tansmit_seq_nbr
-                                let resend_last_data_pdu: bool = (nesn == conndata.transmit_seq_nbr);
-                                if !resend_last_data_pdu {
-                                    conndata.transmit_seq_nbr = (conndata.transmit_seq_nbr + 1) % 2; //flip the bit
-                                }
-
-
-                                app.prepare_empty_conn_pdu(&self, conndata.transmit_seq_nbr, conndata.next_seq_nbr);
-
-
+                            Some(ResponseAction::Connection(conndata)) => {
+                                app.state = Some(BleLinkLayerState::WaitingForConnection);
+                                PhyTransition::MoveToRX
                             }
-
-                            PhyTransition::MoveToTX
+                            _ => PhyTransition::None,
                         }
-                        _ => PhyTransition::None
+                    } else if let Some(AppBLEState::Connection(_)) = app.process_status {
+                        app.prepare_empty_conn_pdu(&self, buf);
+                        PhyTransition::MoveToTX
+                    } else {
+                        PhyTransition::None
                     };
+
 
                     if let Some(AppBLEState::Connection(ref mut conn_data)) = app.process_status {
                         let channel = conn_data.next_channel();
