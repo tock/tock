@@ -175,7 +175,7 @@ pub unsafe fn reset_handler() {
 
     sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
         frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
-        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
+        startup_mode: sam4l::pm::OscillatorStartup::SlowStart,
     });
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
