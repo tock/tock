@@ -255,12 +255,11 @@ the board specific READMEs:
 ## Formatting Rust Source Code
 
 Rust includes a tool for automatically formatting Rust source
-code. This requires a `cargo` tool:
-
-    $ cargo install rustfmt
-
-Then run:
+code. Simply run:
 
     $ make format
 
-to format the repository.
+from the root of the repository to format all rust code in the repository.
+To format all code (rust and c), run:
+
+    $ make formatall
