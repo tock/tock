@@ -298,6 +298,11 @@ def parse(peripheral_name, mcu, svd, group):
 
 def generate(name, peripherals, dev):
     peripherals = list(peripherals)
+
+    if len(peripherals) == 0:
+        print('Error: no peripheral found.')
+        return ''
+
     main_peripheral = peripherals[0]
     return Includes() \
            + PeripheralStruct(name, main_peripheral, dev) \
