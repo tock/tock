@@ -374,7 +374,7 @@ impl Radio {
 
             match result {
                 PhyTransition::MoveToTX => {
-                    // debug!("responding to scan request\n");
+
                     self.setup_tx();
                     self.schedule_tx_after_t_ifs();
                 }
@@ -409,7 +409,6 @@ impl Radio {
     fn handle_tx_end_event(&self) {
         let regs = unsafe { &*self.regs };
 
-
         regs.event_disabled.set(0);
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
         regs.event_end.set(0);
@@ -421,7 +420,9 @@ impl Radio {
 
             // TODO wfr_enable
             self.schedule_rx_after_t_ifs();
+
         } else if PhyTransition::MoveToTX == self.transition.get() {
+
             self.wait_until_disabled();
 
             let should_tx = self.advertisement_client

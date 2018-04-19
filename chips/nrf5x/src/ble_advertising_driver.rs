@@ -960,17 +960,12 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                         }
                     } else if let Some(AppBLEState::Connection(_)) = app.process_status {
                         app.prepare_empty_conn_pdu(&self, buf);
+                        self.radio.set_transition_state(PhyTransition::MoveToRX);
                         PhyTransition::MoveToTX
                     } else {
                         PhyTransition::None
                     };
 
-
-                    if let Some(AppBLEState::Connection(ref mut conn_data)) = app.process_status {
-                        //let channel = conn_data.next_channel();
-
-                        //self.radio.set_channel(channel, conn_data.aa, conn_data.crcinit);
-                    }
 
                     res
                 } else {
@@ -981,7 +976,6 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
         transition
     }
-
 
     fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction {
 

@@ -28,7 +28,7 @@ pub struct ConnectionData {
 	pub aa: u32,
 	pub crcinit: u32,
 	pub transmit_seq_nbr: u8,
-	pub next_seq_nbr: u8
+	pub next_seq_nbr: u8,
 }
 
 impl PartialEq for ConnectionData {
