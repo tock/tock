@@ -634,8 +634,6 @@ impl App {
             B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
             A: kernel::hil::time::Alarm + 'a,
     {
-
-
             let (trans, next) = if let Some(AppBLEState::Connection(ref mut data)) = self.process_status {
 
                 if let Some((sn, nesn)) = ConnectionPdu::get_data_pdu_header(&buf) {
@@ -948,8 +946,14 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
                                 PhyTransition::MoveToTX
                             }
-                            Some(ResponseAction::Connection(conndata)) => {
+                            Some(ResponseAction::Connection(mut conndata)) => {
+
+                                let channel = conndata.next_channel();
+                                self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
+
+                                app.process_status = Some(AppBLEState::Connection(conndata));
                                 app.state = Some(BleLinkLayerState::WaitingForConnection);
+
                                 PhyTransition::MoveToRX
                             }
                             _ => PhyTransition::None,
@@ -963,9 +967,9 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 
                     if let Some(AppBLEState::Connection(ref mut conn_data)) = app.process_status {
-                        let channel = conn_data.next_channel();
+                        //let channel = conn_data.next_channel();
 
-                        self.radio.set_channel(channel, conn_data.aa, conn_data.crcinit);
+                        //self.radio.set_channel(channel, conn_data.aa, conn_data.crcinit);
                     }
 
                     res
