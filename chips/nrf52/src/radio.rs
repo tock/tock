@@ -369,8 +369,6 @@ impl Radio {
             ReturnCode::FAIL
         };
 
-        // TODO create PDU struct with crc info
-
         if let Some(client) = self.rx_client.get() {
             let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok) };
 
