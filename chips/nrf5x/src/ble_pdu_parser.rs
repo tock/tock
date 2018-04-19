@@ -2,22 +2,6 @@ use ble_link_layer::LLData;
 use core::fmt;
 
 
-pub enum ConnectionPdu{}
-
-impl ConnectionPdu {
-    pub fn get_data_pdu_header(buf: &[u8]) -> Option<(u8, u8)> {
-        //There must at least be a 16-bits header
-        if buf.len() >= 16 {
-            let nesn = buf[0] & 0b100;
-            let sn = buf[0] & 0b1000;
-            Some((sn, nesn))
-        } else {
-            None
-        }
-    }
-}
-
-
 #[derive(Debug)]
 pub enum BLEPduType<'a> {
     ConnectUndirected(DeviceAddress, &'a [u8]),

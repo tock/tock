@@ -29,6 +29,9 @@ pub struct ConnectionData {
 	pub crcinit: u32,
 	pub transmit_seq_nbr: u8,
 	pub next_seq_nbr: u8,
+	pub conn_interval_start: Option<u32>,
+	pub lldata: LLData
+
 }
 
 impl PartialEq for ConnectionData {
@@ -54,7 +57,7 @@ impl fmt::Debug for ConnectionData {
 
 
 impl ConnectionData {
-	pub fn new(lldata: &LLData) -> ConnectionData {
+	pub fn new(lldata: LLData) -> ConnectionData {
 
 		let (channels, number_used_channels) = ConnectionData::expand_channel_map(lldata.chm);
 
@@ -68,7 +71,9 @@ impl ConnectionData {
 			aa: (lldata.aa[0] as u32) << 24 | (lldata.aa[1] as u32) << 16 | (lldata.aa[2] as u32) << 8 | (lldata.aa[3] as u32),
 			crcinit: (lldata.crc_init[0] as u32) << 16 | (lldata.crc_init[1] as u32) << 8 | (lldata.crc_init[2] as u32),
 			transmit_seq_nbr: 0,
-			next_seq_nbr: 0
+			next_seq_nbr: 0,
+			conn_interval_start: None,
+			lldata,
 	    }
 	}
 
@@ -126,6 +131,55 @@ impl ConnectionData {
 
             RadioChannel::from_channel_index(table[remapping_index as usize]).unwrap()
 	    }
+	}
+
+	pub fn next_sequence_number(&mut self, buf_head_flags: u8) -> (u8, u8, bool) {
+
+
+		let (sn, nesn) = ConnectionData::get_data_pdu_header(buf_head_flags);
+
+		//Does the packet carry the sequence number that I expected?
+		//If true, increment next_seq_nbr
+		let received_new_data_pdu: bool = (sn == self.next_seq_nbr);
+		if received_new_data_pdu {
+			self.next_seq_nbr = (self.next_seq_nbr + 1) % 2; //flip the bit
+		} //else it is resent data an next_seq_nbr shall not be changed
+
+		//Does my peer expect the same sequence number as I am going to send?
+		//If NOT equal, my peer did receive my previous packet. I should increment tansmit_seq_nbr
+		let resend_last_data_pdu: bool = (nesn == self.transmit_seq_nbr);
+		if !resend_last_data_pdu {
+			self.transmit_seq_nbr = (self.transmit_seq_nbr + 1) % 2; //flip the bit
+		}
+
+		(self.transmit_seq_nbr, self.next_seq_nbr, resend_last_data_pdu)
+
+	}
+
+	fn get_data_pdu_header(buf_head_flags: u8) -> (u8, u8) {
+		//There must at least be a 2 bytes header
+			let nesn = buf_head_flags & 0b100;
+			let sn = buf_head_flags & 0b1000;
+			(sn, nesn)
+	}
+
+	pub fn connection_interval_ended(&mut self, rx_timestamp: u32, now_time: u32) -> bool {
+
+		//TODO - Perhaps add jitter in the comparison?
+		match self.conn_interval_start {
+			Some(start_time) => {
+				if now_time + 150 >= start_time + (self.lldata.interval as u32) * 5 / 4 {
+					self.conn_interval_start = None;
+					true
+				} else {
+					false
+				}
+			},
+			None => {
+				self.conn_interval_start = Some(rx_timestamp);
+				false
+			},
+		}
 	}
 }
 

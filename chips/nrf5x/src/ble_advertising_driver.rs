@@ -212,7 +212,6 @@ use ble_link_layer::TxNextChannelType;
 use constants;
 use ble_pdu_parser::BLEAdvertisementType;
 use ble_pdu_parser::BLEPduType;
-use ble_pdu_parser::ConnectionPdu;
 use ble_pdu_parser::DeviceAddress;
 
 /// Syscall Number
@@ -395,6 +394,7 @@ impl AlarmData {
 enum BleLinkLayerState {
     RespondingToScanRequest,
     WaitingForConnection,
+    EndOfConnectionEvent,
 }
 
 pub struct App {
@@ -629,38 +629,6 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn prepare_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, buf: &[u8]) -> ReturnCode
-        where
-            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-            A: kernel::hil::time::Alarm + 'a,
-    {
-            let (trans, next) = if let Some(AppBLEState::Connection(ref mut data)) = self.process_status {
-
-                if let Some((sn, nesn)) = ConnectionPdu::get_data_pdu_header(&buf) {
-
-                    //Does the packet carry the sequence number that I expected?
-                    //If true, increment next_seq_nbr
-                    let received_new_data_pdu: bool = (sn == data.next_seq_nbr);
-                    if received_new_data_pdu {
-                        data.next_seq_nbr = (data.next_seq_nbr + 1) % 2; //flip the bit
-                    } //else it is resent data an next_seq_nbr shall not be changed
-
-                    //Does my peer expect the same sequence number as I am going to send?
-                    //If NOT equal, my peer did receive my previous packet. I should increment tansmit_seq_nbr
-                    let resend_last_data_pdu: bool = (nesn == data.transmit_seq_nbr);
-                    if !resend_last_data_pdu {
-                        data.transmit_seq_nbr = (data.transmit_seq_nbr + 1) % 2; //flip the bit
-                    }
-                }
-
-            (data.transmit_seq_nbr, data.next_seq_nbr)
-        } else {
-            panic!("set_next_sequence_number needs state to be Connection");
-        };
-
-
-        self.set_empty_conn_pdu(ble, trans, next)
-    }
 
     fn set_empty_conn_pdu<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, transmit_sequence_number: u8, next_expected_sequence_number: u8) -> ReturnCode
         where
@@ -901,7 +869,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
         B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
         A: kernel::hil::time::Alarm + 'a,
 {
-    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> PhyTransition {
+    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, rx_timestamp: u32) -> PhyTransition {
         let mut transition = PhyTransition::None;
 
         if let Some(appid) = self.sending_app.get() {
@@ -959,7 +927,31 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             _ => PhyTransition::None,
                         }
                     } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-                        app.prepare_empty_conn_pdu(&self, buf);
+
+
+
+
+
+                        let (sn, nesn, interval_ended) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+
+                            let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
+
+
+
+                            let interval_ended = conndata.connection_interval_ended(rx_timestamp, self.alarm.now());
+
+
+                            (sn, nesn, interval_ended)
+                        } else {
+                            panic!("Process status is not Connection in Connection!");
+                        };
+
+                        if interval_ended {
+                            app.state = Some(BleLinkLayerState::EndOfConnectionEvent);
+                        }
+
+                        app.set_empty_conn_pdu(&self, sn, nesn);
+
                         self.radio.set_transition_state(PhyTransition::MoveToRX);
                         PhyTransition::MoveToTX
                     } else {

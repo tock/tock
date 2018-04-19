@@ -102,7 +102,7 @@ pub enum DisablePHY {
 
 pub trait RxClient {
     fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction;
-    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) -> PhyTransition;
+    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, rx_timestamp: u32) -> PhyTransition;
 }
 
 pub trait TxClient {

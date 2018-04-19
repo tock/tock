@@ -370,7 +370,7 @@ impl Radio {
         };
 
         if let Some(client) = self.rx_client.get() {
-            let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok) };
+            let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok, self.get_packet_address_time_value()) };
 
             match result {
                 PhyTransition::MoveToTX => {

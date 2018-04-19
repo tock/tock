@@ -45,8 +45,8 @@ impl LinkLayer {
                     None
                 }
             }
-            BLEPduType::ConnectRequest(_init_addr, ref adv_addr, ref lldata) => {
-                if app.is_my_address(adv_addr) {
+            BLEPduType::ConnectRequest(_init_addr, adv_addr, lldata) => {
+                if app.is_my_address(&adv_addr) {
                     Some(ResponseAction::Connection(ConnectionData::new(lldata)))
                 } else {
                     None
