@@ -190,7 +190,7 @@ class ReservedStructField(CodeBlock):
     def fields(cnt, size):
         return {
             "cnt": cnt,
-            "size": size,
+            "size": int(size),
         }
 
 
