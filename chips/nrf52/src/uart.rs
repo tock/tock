@@ -8,6 +8,7 @@
 //! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Date: March 10 2018
 
+use core;
 use core::cell::Cell;
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
@@ -151,8 +152,8 @@ register_bitfields! [u32,
 pub struct Uarte {
     regs: *const UarteRegisters,
     client: Cell<Option<&'static kernel::hil::uart::Client>>,
-    buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
-    remaining_bytes: Cell<usize>,
+    tx_buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
+    tx_remaining_bytes: Cell<usize>,
     rx_buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
     rx_remaining_bytes: Cell<usize>,
     offset: Cell<usize>,
@@ -173,8 +174,8 @@ impl Uarte {
         Uarte {
             regs: UARTE_BASE as *const UarteRegisters,
             client: Cell::new(None),
-            buffer: kernel::common::take_cell::TakeCell::empty(),
-            remaining_bytes: Cell::new(0),
+            tx_buffer: kernel::common::take_cell::TakeCell::empty(),
+            tx_remaining_bytes: Cell::new(0),
             rx_buffer: kernel::common::take_cell::TakeCell::empty(),
             rx_remaining_bytes: Cell::new(0),
             offset: Cell::new(0),
@@ -261,7 +262,7 @@ impl Uarte {
             // disable interrupts
             regs.event_endtx.write(Event::READY::CLEAR);
             let tx_bytes = regs.txd_amount.get() as usize;
-            let rem = self.remaining_bytes.get();
+            let rem = self.tx_remaining_bytes.get();
 
             // More bytes transmitted than requested `return silently`
             // Cause probably a hardware fault
@@ -271,20 +272,23 @@ impl Uarte {
                 return;
             }
 
-            self.remaining_bytes.set(rem - tx_bytes);
+            self.tx_remaining_bytes.set(rem - tx_bytes);
             self.offset.set(tx_bytes);
 
-            if self.remaining_bytes.get() == 0 {
+            if self.tx_remaining_bytes.get() == 0 {
                 // Signal client write done
                 self.client.get().map(|client| {
-                    self.buffer.take().map(|buffer| {
-                        client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
+                    self.tx_buffer.take().map(|tx_buffer| {
+                        client.transmit_complete(
+                            tx_buffer,
+                            kernel::hil::uart::Error::CommandComplete,
+                        );
                     });
                 });
             }
             // Not all bytes have been transmitted then update offset and continue transmitting
             else {
-                self.set_dma_pointer_to_buffer();
+                self.set_tx_dma_pointer_to_buffer();
                 regs.task_starttx.write(Task::ENABLE::SET);
                 self.enable_tx_interrupts();
             }
@@ -315,8 +319,6 @@ impl Uarte {
                 } else {
                     self.set_rx_dma_pointer_to_buffer();
                     //Flush the fifo, as per the datasheet recommendations
-                    //Also recommends that we set the MAXCNT register to > 4
-                    //Not sure how that affects program flow, however.
                     regs.task_flush_rx.write(Task::ENABLE::SET);
                     regs.task_startrx.write(Task::ENABLE::SET);
                     self.enable_rx_interrupts();
@@ -330,7 +332,7 @@ impl Uarte {
     pub unsafe fn send_byte(&self, byte: u8) {
         let regs = &*self.regs;
 
-        self.remaining_bytes.set(1);
+        self.tx_remaining_bytes.set(1);
         regs.event_endtx.write(Event::READY::CLEAR);
         // precaution: copy value into variable with static lifetime
         BYTE = byte;
@@ -351,11 +353,11 @@ impl Uarte {
         regs.event_endrx.is_set(Event::READY)
     }
 
-    fn set_dma_pointer_to_buffer(&self) {
+    fn set_tx_dma_pointer_to_buffer(&self) {
         let regs = unsafe { &*self.regs };
-        self.buffer.map(|buffer| {
+        self.tx_buffer.map(|tx_buffer| {
             regs.txd_ptr
-                .set(buffer[self.offset.get()..].as_ptr() as u32);
+                .set(tx_buffer[self.offset.get()..].as_ptr() as u32);
         });
     }
 
@@ -385,10 +387,10 @@ impl kernel::hil::uart::UART for Uarte {
             return;
         }
 
-        self.remaining_bytes.set(tx_len);
+        self.tx_remaining_bytes.set(tx_len);
         self.offset.set(0);
-        self.buffer.replace(tx_data);
-        self.set_dma_pointer_to_buffer();
+        self.tx_buffer.replace(tx_data);
+        self.set_tx_dma_pointer_to_buffer();
 
         regs.txd_maxcnt.write(Counter::COUNTER.val(tx_len as u32));
         regs.task_stoptx.write(Task::ENABLE::SET);
@@ -401,19 +403,18 @@ impl kernel::hil::uart::UART for Uarte {
         let regs = unsafe { &*self.regs };
 
         // truncate rx_len if necessary
-        let mut length = rx_len;
-        if rx_len > rx_buf.len() {
-            length = rx_buf.len();
-        }
+        let mut truncated_length = core::cmp::min(rx_len, rx_buf.len());
+        truncated_length = core::cmp::min(truncated_length, 255);
         //**** Probably need to check what happens when you want to wait for more data than the
         //     rx_buffer is sized to fit. I don't know why you'd do this but whatever.
 
-        self.rx_remaining_bytes.set(length);
+        self.rx_remaining_bytes.set(truncated_length);
         self.offset.set(0);
         self.rx_buffer.replace(rx_buf);
         self.set_rx_dma_pointer_to_buffer();
 
-        regs.rxd_maxcnt.write(Counter::COUNTER.val(length as u32));
+        regs.rxd_maxcnt
+            .write(Counter::COUNTER.val(truncated_length as u32));
         regs.task_stoprx.write(Task::ENABLE::SET);
         regs.task_startrx.write(Task::ENABLE::SET);
 
