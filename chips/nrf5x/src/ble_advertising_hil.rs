@@ -106,7 +106,7 @@ pub trait RxClient {
 }
 
 pub trait TxClient {
-    fn transmit_event(&self, result: ReturnCode);
+    fn transmit_end(&self, result: ReturnCode) -> PhyTransition;
 }
 
 pub trait AdvertisementClient {

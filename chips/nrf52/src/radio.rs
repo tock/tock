@@ -413,31 +413,50 @@ impl Radio {
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
         regs.event_end.set(0);
 
-        if PhyTransition::MoveToRX == self.transition.get() {
+        let crc_ok = if regs.crcok.get() == 1 {
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
+        };
 
-            // TODO set wfr_time (= NRF_RADIO->SHORTS)
-            self.setup_rx();
 
-            // TODO wfr_enable
-            self.schedule_rx_after_t_ifs();
+        if let Some(client) = self.tx_client.get() {
+            let result = client.transmit_end(crc_ok);
 
-        } else if PhyTransition::MoveToTX == self.transition.get() {
+            match result {
+                PhyTransition::MoveToTX => {
+                    self.wait_until_disabled();
 
-            self.wait_until_disabled();
+                    let should_tx = self.advertisement_client
+                        .get()
+                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
+                    if should_tx == TxImmediate::TX {
+                        self.tx();
+                    }
+                }
+                PhyTransition::MoveToRX => {
+                    self.setup_rx();
+                    // TODO wfr_enable
+                    self.schedule_rx_after_t_ifs();
+                }
+                PhyTransition::None => {
+                    self.disable_radio();
+                    self.wait_until_disabled();
+                    let should_tx = self.advertisement_client
+                        .get()
+                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
 
-            let should_tx = self.advertisement_client
-                .get()
-                .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
-            if should_tx == TxImmediate::TX {
-                self.tx();
+                    match should_tx {
+                        TxImmediate::TX => self.tx(),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_t_ifs(),
+                        TxImmediate::GoToSleep => {},
+                    }
+                }
             }
         } else {
-
-            // TODO timer->task_stop
-            // TODO clear CHEN 4, 5, 20, 31
-
-            assert_eq!(self.transition.get(), PhyTransition::None)
+            panic!("No rx_client?\n");
         }
+
     }
 
     #[inline(never)]

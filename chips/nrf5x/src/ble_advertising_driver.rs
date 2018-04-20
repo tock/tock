@@ -995,16 +995,35 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-tranmissions for invalid CRCs
-    fn transmit_event(&self, _crc_ok: ReturnCode) {
+    fn transmit_end(&self, _crc_ok: ReturnCode) -> PhyTransition {
+        let mut transition = PhyTransition::None;
+
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 debug!("\n==transmit_event! {:?}", app.process_status);
-                /*app.collect_string_log("transmit", self.alarm_now());
 
-                app.handle_tx_event(&self, appid);*/
+                transition = match app.process_status {
+                    Some(AppBLEState::Advertising) => match app.state {
+                        Some(BleLinkLayerState::RespondingToScanRequest) => PhyTransition::MoveToRX,
+                        Some(BleLinkLayerState::WaitingForConnection) => PhyTransition::MoveToRX,
+                        None => PhyTransition::MoveToTX
+                    },
+                    Some(AppBLEState::Connection(_)) => {
+                        if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+                            // TODO read conndata for retransmit status?
+                            unimplemented!();
+                            PhyTransition::MoveToTX
+                        } else {
+                            PhyTransition::MoveToRX
+                        }
+                    }
+                    _ => PhyTransition::None
+                };
             });
             self.reset_active_alarm();
         }
+
+        transition
     }
 }
 
