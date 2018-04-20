@@ -22,7 +22,7 @@ type ChannelMap = [u8; NUMBER_CHANNELS];
 pub struct ConnectionData {
 	last_unmapped_channel: u8,
 	channels: ChannelMap,
-	conn_event_counter: u16,
+	pub conn_event_counter: u16,
 	hop_increment: u8,
 	number_used_channels: u8,
 	pub aa: u32,
@@ -158,8 +158,8 @@ impl ConnectionData {
 
 	fn get_data_pdu_header(buf_head_flags: u8) -> (u8, u8) {
 		//There must at least be a 2 bytes header
-			let nesn = buf_head_flags & 0b100;
-			let sn = buf_head_flags & 0b1000;
+			let nesn = (buf_head_flags & 0b100) >> 2;
+			let sn = (buf_head_flags & 0b1000) >> 3;
 			(sn, nesn)
 	}
 
