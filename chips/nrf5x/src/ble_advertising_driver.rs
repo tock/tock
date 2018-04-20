@@ -848,7 +848,6 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
 
                     //TODO - for now, let the advertiser always set MoveToRX, change later
                     app.channel = Some(RadioChannel::AdvertisingChannel37);
-                    self.radio.set_transition_state(PhyTransition::MoveToRX);
                     app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                     self.transmit_buffer(appid);
                 }
@@ -913,7 +912,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                                 self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
 
                                 app.process_status = Some(AppBLEState::Connection(conndata));
-                                app.state = Some(BleLinkLayerState::WaitingForConnection);
+                                // app.state = Some(BleLinkLayerState::WaitingForConnection);
 
                                 PhyTransition::MoveToRX
                             }
@@ -924,10 +923,10 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
 
 
-                            let interval_ended = conndata.connection_interval_ended(rx_timestamp, self.alarm.now());
+                            let _interval_ended = conndata.connection_interval_ended(rx_timestamp, self.alarm.now());
 
 
-                            (sn, nesn, interval_ended)
+                            (sn, nesn, true)
                         } else {
                             panic!("Process status is not Connection in Connection!");
                         };
@@ -938,7 +937,6 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
                         app.set_empty_conn_pdu(&self, sn, nesn);
 
-                        self.radio.set_transition_state(PhyTransition::MoveToRX);
                         PhyTransition::MoveToTX
                     } else {
                         PhyTransition::None
@@ -986,15 +984,12 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
 
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
-                debug!("\n==transmit_event! {:?}", app.process_status);
-
                 transition = if let Some(AppBLEState::Advertising) = app.process_status {
                     if let Some(BleLinkLayerState::RespondingToScanRequest) = app.state {
-                        PhyTransition::MoveToRX
-                    } else if let Some(BleLinkLayerState::WaitingForConnection) = app.state {
-                        PhyTransition::MoveToRX
-                    } else {
+                        app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                         PhyTransition::MoveToTX
+                    } else {
+                        PhyTransition::MoveToRX
                     }
                 } else if let Some(AppBLEState::Connection(_)) = app.process_status {
                     if let Some(BleLinkLayerState::EndOfConnectionEvent) = app.state {

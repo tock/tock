@@ -323,7 +323,6 @@ impl Radio {
                 }
                 ReadAction::ReadFrameAndMoveToTX => {
                     // TODO set phy_rx_started = 1
-                    self.transition.set(PhyTransition::MoveToTX);
                     self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
                 }
                 ReadAction::SkipFrame => {
@@ -749,7 +748,7 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
     }
 
     fn set_transition_state(&self, state: PhyTransition) {
-        self.transition.set(state);
+        // self.transition.set(state);
     }
 
     fn set_access_address(&self, aa: u32) {
