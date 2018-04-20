@@ -228,9 +228,6 @@ use ble_pdu_parser::PACKET_PAYLOAD_START;
 use ble_pdu_parser::PACKET_LENGTH;
 
 
-
-
-
 #[allow(unused)]
 struct BLEGap(BLEGapType);
 
@@ -862,7 +859,6 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
 }
 
 
-
 // Callback from the radio once a RX event occur
 impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
     where
@@ -900,8 +896,6 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 // TODO call advertising/scanner/connection/initiating driver
 
                 transition = if valid_pkt {
-
-
                     let res = if let Some(AppBLEState::Advertising) = app.process_status {
                         let pdu_type = pdu_type.expect("PDU type should be valid");
                         let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
@@ -915,7 +909,6 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                                 PhyTransition::MoveToTX
                             }
                             Some(ResponseAction::Connection(mut conndata)) => {
-
                                 let channel = conndata.next_channel();
                                 self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
 
@@ -927,15 +920,8 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             _ => PhyTransition::None,
                         }
                     } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-
-
-
-
-
                         let (sn, nesn, interval_ended) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
-
                             let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
-
 
 
                             let interval_ended = conndata.connection_interval_ended(rx_timestamp, self.alarm.now());
@@ -1002,30 +988,33 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
             let _ = self.app.enter(appid, |app, _| {
                 debug!("\n==transmit_event! {:?}", app.process_status);
 
-                transition = match app.process_status {
-                    Some(AppBLEState::Advertising) => match app.state {
-                        Some(BleLinkLayerState::RespondingToScanRequest) => PhyTransition::MoveToRX,
-                        Some(BleLinkLayerState::WaitingForConnection) => PhyTransition::MoveToRX,
-                        None => PhyTransition::MoveToTX
-                    },
-                    Some(AppBLEState::Connection(_)) => {
+                transition = if let Some(AppBLEState::Advertising) = app.process_status {
+                    if let Some(BleLinkLayerState::RespondingToScanRequest) = app.state {
+                        PhyTransition::MoveToRX
+                    } else if let Some(BleLinkLayerState::WaitingForConnection) = app.state {
+                        PhyTransition::MoveToRX
+                    } else {
+                        PhyTransition::MoveToTX
+                    }
+                } else if let Some(AppBLEState::Connection(_)) = app.process_status {
+                    if let Some(BleLinkLayerState::EndOfConnectionEvent) = app.state {
+                        app.state = None;
                         if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
-                            // TODO read conndata for retransmit status?
-                            unimplemented!();
-                            PhyTransition::MoveToTX
-                        } else {
-                            PhyTransition::MoveToRX
+                            let channel = conndata.next_channel();
+                            self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
                         }
                     }
-                    _ => PhyTransition::None
+                    PhyTransition::MoveToRX
+                } else {
+                    PhyTransition::None
                 };
             });
             self.reset_active_alarm();
         }
-
         transition
     }
 }
+
 
 impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
     where
