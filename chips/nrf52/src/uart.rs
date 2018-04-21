@@ -404,7 +404,7 @@ impl kernel::hil::uart::UART for Uarte {
 
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
-        
+
         self.rx_remaining_bytes.set(truncated_length);
         self.offset.set(0);
         self.rx_buffer.replace(rx_buf);
