@@ -403,18 +403,17 @@ impl kernel::hil::uart::UART for Uarte {
         let regs = unsafe { &*self.regs };
 
         // truncate rx_len if necessary
-        let mut truncated_length = core::cmp::min(rx_len, rx_buf.len());
-        truncated_length = core::cmp::min(truncated_length, 255);
-        //**** Probably need to check what happens when you want to wait for more data than the
-        //     rx_buffer is sized to fit. I don't know why you'd do this but whatever.
-
+        let truncated_length = core::cmp::min(rx_len, rx_buf.len());
+        
         self.rx_remaining_bytes.set(truncated_length);
         self.offset.set(0);
         self.rx_buffer.replace(rx_buf);
         self.set_rx_dma_pointer_to_buffer();
 
+        let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
+
         regs.rxd_maxcnt
-            .write(Counter::COUNTER.val(truncated_length as u32));
+            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
         regs.task_stoprx.write(Task::ENABLE::SET);
         regs.task_startrx.write(Task::ENABLE::SET);
 
