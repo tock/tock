@@ -10,11 +10,14 @@
 
 use core;
 use core::cell::Cell;
+use core::cmp::min;
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use nrf5x::pinmux;
 
 const UARTE_BASE: u32 = 0x40002000;
+const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
+
 static mut BYTE: u8 = 0;
 
 #[repr(C)]
@@ -256,26 +259,29 @@ impl Uarte {
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         let regs = unsafe { &*self.regs };
+        // disable interrupts
+        self.disable_tx_interrupts();
 
         if self.tx_ready() {
-            self.disable_tx_interrupts();
-            // disable interrupts
+            let regs = unsafe { &*self.regs };
             regs.event_endtx.write(Event::READY::CLEAR);
             let tx_bytes = regs.txd_amount.get() as usize;
-            let rem = self.tx_remaining_bytes.get();
 
-            // More bytes transmitted than requested `return silently`
-            // Cause probably a hardware fault
-            // FIXME: Progate error to the capsule
-            if tx_bytes > rem {
-                debug!("error more bytes than requested\r\n");
-                return;
-            }
+            let rem = match self.tx_remaining_bytes.get().checked_sub(tx_bytes) {
+                None => {
+                    debug!(
+                        "Error more bytes transmitted than requested\n \
+                         remaining: {} \t transmitted: {}",
+                        self.tx_remaining_bytes.get(),
+                        tx_bytes
+                    );
+                    return;
+                }
+                Some(r) => r,
+            };
 
-            self.tx_remaining_bytes.set(rem - tx_bytes);
-            self.offset.set(tx_bytes);
-
-            if self.tx_remaining_bytes.get() == 0 {
+            // All bytes have been transmitted
+            if rem == 0 {
                 // Signal client write done
                 self.client.get().map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
@@ -285,10 +291,13 @@ impl Uarte {
                         );
                     });
                 });
-            }
-            // Not all bytes have been transmitted then update offset and continue transmitting
-            else {
+            } else {
+                // Not all bytes have been transmitted then update offset and continue transmitting
+                self.offset.set(self.offset.get() + tx_bytes);
+                self.tx_remaining_bytes.set(rem);
                 self.set_tx_dma_pointer_to_buffer();
+                regs.txd_maxcnt
+                    .write(Counter::COUNTER.val(min(rem as u32, UARTE_MAX_BUFFER_SIZE)));
                 regs.task_starttx.write(Task::ENABLE::SET);
                 self.enable_tx_interrupts();
             }
@@ -327,7 +336,7 @@ impl Uarte {
         }
     }
 
-    /// Transmit one byte at the time and the client is resposible for polling
+    /// Transmit one byte at the time and the client is responsible for polling
     /// This is used by the panic handler
     pub unsafe fn send_byte(&self, byte: u8) {
         let regs = &*self.regs;
@@ -381,9 +390,9 @@ impl kernel::hil::uart::UART for Uarte {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        let regs = unsafe { &*self.regs };
+        let truncated_len = min(tx_data.len(), tx_len);
 
-        if tx_len == 0 {
+        if truncated_len == 0 {
             return;
         }
 
@@ -392,8 +401,9 @@ impl kernel::hil::uart::UART for Uarte {
         self.tx_buffer.replace(tx_data);
         self.set_tx_dma_pointer_to_buffer();
 
-        regs.txd_maxcnt.write(Counter::COUNTER.val(tx_len as u32));
-        regs.task_stoptx.write(Task::ENABLE::SET);
+        let regs = unsafe { &*self.regs };
+        regs.txd_maxcnt
+            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
         regs.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
