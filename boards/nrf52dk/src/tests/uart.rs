@@ -22,8 +22,8 @@ pub unsafe fn run() {
     let buf = static_init!([u8; BUFFER_SIZE_2048], [0; BUFFER_SIZE_2048]);
 
     // create an iterator of printable ascii characters and write to the uart buffer
-    for (ascii, b) in (33..126).cycle().take(BUFFER_SIZE_2048).zip(buf.iter_mut()) {
-        *b = ascii;
+    for (ascii_char, b) in (33..126).cycle().zip(buf.iter_mut()) {
+        *b = ascii_char;
     }
 
     transmit_entire_buffer(buf);
