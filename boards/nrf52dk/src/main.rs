@@ -95,7 +95,7 @@ pub mod io;
 
 // FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
 //
-// Also read the instructions in `tests` how to run tests
+// Also read the instructions in `tests` how to run the tests
 #[allow(dead_code)]
 mod tests;
 
@@ -158,7 +158,7 @@ pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52::init();
 
-    // make non-volatile memory writable and activate the reset button (pin 21)
+    // Make non-volatile memory writable and activate the reset button (pin 21)
     let nvmc = nrf52::nvmc::Nvmc::new();
     let uicr = nrf52::uicr::Uicr::new();
     nvmc.configure_writeable();
