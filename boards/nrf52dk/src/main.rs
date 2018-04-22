@@ -93,8 +93,11 @@ const BUTTON_RST_PIN: usize = 21;
 #[macro_use]
 pub mod io;
 
+// FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
+//
+// Also read the instructions in `tests` how to run tests
 #[allow(dead_code)]
-mod aes_test;
+mod tests;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -359,7 +362,6 @@ pub unsafe fn reset_handler() {
     while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        // aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,
@@ -375,6 +377,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
