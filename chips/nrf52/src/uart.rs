@@ -303,7 +303,7 @@ impl Uarte {
             //should check if rx_bytes > 0 (because we'll flush the FIFO and it will flag
             //ENDRX even if it's empty)
             if rx_bytes > 0 {
-                self.rx_remaining_bytes.set(rem - rx_bytes);
+                self.rx_remaining_bytes.set(rem.saturating_sub(rx_bytes));
                 //check if we're waiting for more (i.e. are we done listening?)
                 if self.rx_remaining_bytes.get() == 0 {
                     // Signal client that the read is done
