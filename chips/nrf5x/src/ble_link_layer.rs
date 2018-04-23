@@ -1,11 +1,13 @@
-use ble_advertising_driver::{App, AppBLEState};
+use ble_advertising_driver::{App, AppBLEState, BleLinkLayerState};
 use ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
 use ble_connection::ConnectionData;
 use ble_pdu_parser::{BLEAdvertisementType, BLEPduType};
 use constants;
 use core::fmt;
 
+
 use ble_pdu_parser::PACKET_ADDR_START;
+use ble_advertising_hil::ActionAfterTimerExpire;
 
 pub type TxNextChannelType = (TxImmediate, Option<(RadioChannel, u32, u32)>);
 
@@ -78,6 +80,28 @@ impl LinkLayer {
             }
             _ => {
                 (TxImmediate::GoToSleep, None)
+            }
+        }
+    }
+
+    pub fn handle_timer_expire(&self, app: &mut App) -> ActionAfterTimerExpire {
+
+        match app.process_status {
+            Some(AppBLEState::Advertising) => {
+                ActionAfterTimerExpire::ContinueAdvertising
+            }
+            Some(AppBLEState::Connection(_)) => {
+                match app.state {
+                    Some(BleLinkLayerState::WaitingForConnection) => {
+                        ActionAfterTimerExpire::EndConnectionAttempt
+                    }
+                    _ => {
+                        ActionAfterTimerExpire::ContinueConnection
+                    }
+                }
+            }
+            _ => {
+                panic!("Timer expired but app has no state\n");
             }
         }
     }

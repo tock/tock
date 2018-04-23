@@ -100,6 +100,7 @@ impl Radio {
             advertisement_client: Cell::new(None),
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
+            transition: Cell::new(PhyTransition::None),
             debug_bit: Cell::new(false),
         }
     }
@@ -476,9 +477,27 @@ impl Radio {
         {
             if self.state.get() == RadioState::RX {
                 regs.event_disabled.set(0);
-                self.advertisement_client
+                let transition = self.advertisement_client
                     .get()
                     .map(|client| client.timer_expired());
+
+                self.wait_until_disabled();
+
+                match transition {
+                    Some(PhyTransition::MoveToTX) => {
+                        self.setup_tx();
+                        self.tx();
+                    }
+                    Some(PhyTransition::MoveToRX) => {
+                        self.setup_tx();
+                        self.schedule_rx_after_t_ifs();
+                    }
+                    _ => {
+                        //Do nothing, the device should sleep and wait for timer to fire in BLE
+                    }
+                }
+
+
             } else if self.state.get() == RadioState::Uninitialized {
                 panic!("Oh no!\n");
             } else {

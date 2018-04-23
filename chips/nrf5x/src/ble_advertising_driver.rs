@@ -226,6 +226,7 @@ use ble_pdu_parser::PACKET_ADDR_START;
 use ble_pdu_parser::PACKET_ADDR_END;
 use ble_pdu_parser::PACKET_PAYLOAD_START;
 use ble_pdu_parser::PACKET_LENGTH;
+use ble_advertising_hil::ActionAfterTimerExpire;
 
 
 #[allow(unused)]
@@ -388,7 +389,7 @@ impl AlarmData {
 }
 
 #[derive(PartialEq)]
-enum BleLinkLayerState {
+pub enum BleLinkLayerState {
     RespondingToScanRequest,
     WaitingForConnection,
     EndOfConnectionEvent,
@@ -405,7 +406,7 @@ pub struct App {
     advertisement_interval_ms: u32,
     alarm_data: AlarmData,
     tx_power: u8,
-    state: Option<BleLinkLayerState>,
+    pub state: Option<BleLinkLayerState>,
     pub channel: Option<RadioChannel>,
     /// The state of an app-specific pseudo random number.
     ///
@@ -912,7 +913,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                                 self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
 
                                 app.process_status = Some(AppBLEState::Connection(conndata));
-                                // app.state = Some(BleLinkLayerState::WaitingForConnection);
+                                app.state = Some(BleLinkLayerState::WaitingForConnection);
 
                                 PhyTransition::MoveToRX
                             }
@@ -1048,15 +1049,64 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
         result
     }
 
-    fn timer_expired(&self) {
+    fn timer_expired(&self) -> PhyTransition {
+
+        let mut result = PhyTransition::None;
+
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
-                app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
-                self.transmit_buffer(appid);
+
+                let state = self.link_layer.handle_timer_expire(app);
+
+                match state {
+                    ActionAfterTimerExpire::ContinueAdvertising => {
+
+                        //***
+                        //self.advertisement_done();
+                        //***
+
+                        app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
+                        //self.transmit_buffer(appid);
+
+                        result = PhyTransition::MoveToTX;
+                    }
+                    ActionAfterTimerExpire::ContinueConnection => {
+                        //We should stay in the connection, but no more data should be sent on this channel
+
+                        //***
+                        //self.advertisement_done();
+                        //***
+
+                        result = PhyTransition::MoveToRX;
+                    }
+                    ActionAfterTimerExpire::EndConnectionAttempt => {
+                        //We have not yet established the connection, and have been waiting for too long
+                        //for a packet. Return to advertising
+                        app.state = None;
+                        app.process_status = Some(AppBLEState::Advertising);
+
+                        //***
+                        //Set channel 39 so that we will go to sleep upon calling advertisement_done()
+                        app.channel = Some(RadioChannel::AdvertisingChannel39);
+                        //self.advertisement_done();
+                        //***
+                    }
+                    _ => {
+                        panic!("Timer expired but app has invalide state");
+                    }
+                }
+
+
+                //Called to set new channel
+                self.advertisement_done();
+
+                //TODO - return whether we shall tx or rx or nothing
+
             });
 
             self.reset_active_alarm();
         }
+        result
     }
 }
 

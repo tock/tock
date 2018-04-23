@@ -79,6 +79,13 @@ pub enum ResponseAction {
     Connection(ConnectionData),
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum ActionAfterTimerExpire {
+    ContinueAdvertising,
+    ContinueConnection,
+    EndConnectionAttempt,
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ReadAction {
     SkipFrame,
@@ -110,7 +117,7 @@ pub trait TxClient {
 
 pub trait AdvertisementClient {
     fn advertisement_done(&self) -> TxImmediate;
-    fn timer_expired(&self);
+    fn timer_expired(&self) -> PhyTransition;
 }
 
 // Bluetooth Core Specification:Vol. 6. Part B, section 1.4.1 Advertising and Data Channel Indices
