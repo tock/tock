@@ -133,6 +133,34 @@ impl Radio {
         self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
 
+    fn setup_rx(&self) {
+
+        let regs = unsafe { &*self.regs };
+
+        self.set_dma_ptr_rx();
+
+        // CH20: TIMER0.EVENTS_COMPARE[0] -> RADIO.TASKS_TXEN
+        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH20);
+
+        self.state.set(RadioState::RX);
+
+        regs.bcc.set(8); // count one byte
+
+        regs.event_address.set(0);
+        regs.event_devmatch.set(0);
+        regs.bcmatch.set(0);
+        regs.event_rssiend.set(0);
+        regs.crcok.set(0);
+
+
+        regs.shorts.set(
+            nrf5x::constants::RADIO_SHORTS_END_DISABLE | nrf5x::constants::RADIO_SHORTS_READY_START
+                | nrf5x::constants::RADIO_SHORTS_ADDRESS_BCSTART,
+        );
+
+        self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_ADDRESS);
+    }
+
     fn wait_until_disabled(&self) {
         let regs = unsafe { &*self.regs };
 
@@ -162,33 +190,6 @@ impl Radio {
 
         // TODO: if not already going to rx!
         regs.task_rxen.set(1);
-    }
-
-    fn setup_rx(&self) {
-
-        let regs = unsafe { &*self.regs };
-
-        self.set_dma_ptr_rx();
-
-        // CH20: TIMER0.EVENTS_COMPARE[0] -> RADIO.TASKS_TXEN
-        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH20);
-
-        self.state.set(RadioState::RX);
-
-        regs.bcc.set(8); // count one byte
-
-        regs.event_address.set(0);
-        regs.event_devmatch.set(0);
-        regs.bcmatch.set(0);
-        regs.event_rssiend.set(0);
-        regs.crcok.set(0);
-
-        regs.shorts.set(
-            nrf5x::constants::RADIO_SHORTS_END_DISABLE | nrf5x::constants::RADIO_SHORTS_READY_START
-                | nrf5x::constants::RADIO_SHORTS_ADDRESS_BCSTART,
-        );
-
-        self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_ADDRESS);
     }
 
     fn set_rx_address(&self) {
@@ -245,6 +246,7 @@ impl Radio {
             nrf5x::timer::TIMER0.set_cc0(end_time + usec);
             nrf5x::timer::TIMER0.set_events_compare(0, 0);
         }
+
     }
 
     fn schedule_tx_after_us(&self, usec: Option<u32>) {
@@ -256,7 +258,7 @@ impl Radio {
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
     }
 
-    fn schedule_rx_after_us(&self, usec: Option<u32>) {
+    fn schedule_rx_after_us(&self, usec: Option<u32>, timeout: u32) {
         let earlier_listen : u32 = 2;
 
         let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_RX_DELAY - earlier_listen;
@@ -265,6 +267,16 @@ impl Radio {
 
         // CH21: CC[0] => RXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
+
+
+        //Prepare timer to timeout 'timeout' usec after we have started to rx
+        unsafe {
+            nrf5x::timer::TIMER0.set_cc1(self.get_packet_end_time_value() + time + timeout);
+            nrf5x::timer::TIMER0.set_events_compare(1, 0);
+            self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22);
+        }
+
+        self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
 
     fn disable_radio(&self) {
@@ -286,6 +298,7 @@ impl Radio {
 
         let regs = unsafe { &*self.regs };
         regs.event_address.set(0);
+        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH22);
 
 
         self.clear_interrupt(
@@ -380,7 +393,8 @@ impl Radio {
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
-                    self.schedule_rx_after_us(time);
+                    //TODO - what timeout should be used
+                    self.schedule_rx_after_us(time, 10000);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -402,6 +416,7 @@ impl Radio {
     }
 
     fn handle_tx_end_event(&self) {
+
         let regs = unsafe { &*self.regs };
 
         regs.event_disabled.set(0);
@@ -432,7 +447,8 @@ impl Radio {
                 PhyTransition::MoveToRX(time) => {
                     self.setup_rx();
                     // TODO wfr_enable
-                    self.schedule_rx_after_us(time);
+                    //TODO - what timeout should be used
+                    self.schedule_rx_after_us(time, 10000);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -451,7 +467,6 @@ impl Radio {
         } else {
             panic!("No rx_client?\n");
         }
-
     }
 
     #[inline(never)]
@@ -488,8 +503,9 @@ impl Radio {
                         self.tx();
                     }
                     Some(PhyTransition::MoveToRX(time)) => {
-                        self.setup_tx();
-                        self.schedule_rx_after_us(time);
+                        self.setup_rx();
+                        //TODO - what timeout should be used
+                        self.schedule_rx_after_us(time, 10000);
                     }
                     _ => {
                         //Do nothing, the device should sleep and wait for timer to fire in BLE

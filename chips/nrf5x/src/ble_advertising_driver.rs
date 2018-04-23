@@ -924,15 +924,12 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             _ => PhyTransition::None,
                         }
                     } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-                        let mut start_time = None;
-
-                        let (sn, nesn, interval_ended, interval_end_time) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+                        let (sn, nesn, interval_ended) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
                             let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
                             let (_, _, more_data) = ConnectionData::get_data_pdu_header(buf[0]);
 
 
                             let (interval_ended, interval_end_time) = conndata.connection_interval_ended(rx_timestamp);
-
 
                             // If more_data is set, stay on the channel and listen
                             // If more_data is false, skip to next channel even if current interval has time left
@@ -1076,12 +1073,18 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
 
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
 
-                        //TODO - we should start tx:ing as soon as possible, is this the best way of saying that?
-                        result = PhyTransition::MoveToTX(Some(0));
+
+                        if Some(RadioChannel::AdvertisingChannel39) != app.channel {
+
+                            //TODO - we should start tx:ing as soon as possible, is this the best way of saying that?
+                            result = PhyTransition::MoveToTX(Some(0));
+                        }
+
                     }
                     ActionAfterTimerExpire::ContinueConnection => {
                         //We should stay in the connection, but no more data should be sent on this channel
-                        //TODO - check how long it is before we shall start to listen and return that value
+                        //TODO - check if we have reached supervision time out. If so, kill connection.
+                        //Otherwise we might just have missed a packet.
                         result = PhyTransition::MoveToRX(None);
                     }
                     ActionAfterTimerExpire::EndConnectionAttempt => {

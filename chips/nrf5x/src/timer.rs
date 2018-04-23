@@ -150,19 +150,19 @@ impl Timer {
         self.timer().cc[1].get()
     }
     pub fn set_cc1(&self, val: u32) {
-        self.timer().cc[0].set(val);
+        self.timer().cc[1].set(val);
     }
     pub fn get_cc2(&self) -> u32 {
         self.timer().cc[2].get()
     }
     pub fn set_cc2(&self, val: u32) {
-        self.timer().cc[0].set(val);
+        self.timer().cc[2].set(val);
     }
     pub fn get_cc3(&self) -> u32 {
         self.timer().cc[3].get()
     }
     pub fn set_cc3(&self, val: u32) {
-        self.timer().cc[0].set(val);
+        self.timer().cc[3].set(val);
     }
 
     pub fn set_events_compare(&self, index: usize, val: u32) {
