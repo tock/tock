@@ -100,7 +100,6 @@ impl Radio {
             advertisement_client: Cell::new(None),
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
-            transition: Cell::new(PhyTransition::None),
             debug_bit: Cell::new(false),
         }
     }
@@ -745,10 +744,6 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
         self.ble_set_channel(channel);
         self.ble_set_access_address(address);
         self.ble_set_crcinit(crcinit);
-    }
-
-    fn set_transition_state(&self, state: PhyTransition) {
-        // self.transition.set(state);
     }
 
     fn set_access_address(&self, aa: u32) {

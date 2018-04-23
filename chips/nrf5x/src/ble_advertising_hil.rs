@@ -63,7 +63,6 @@ pub trait BleAdvertisementDriver {
 pub trait BleConfig {
     fn set_tx_power(&self, power: u8) -> ReturnCode;
     fn set_channel(&self, channel: RadioChannel, address: u32, crcinit: u32);
-    fn set_transition_state(&self, state: PhyTransition);
     fn set_access_address(&self, aa: u32);
 }
 
