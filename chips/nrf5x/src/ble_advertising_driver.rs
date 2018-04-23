@@ -1074,48 +1074,32 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                 match state {
                     ActionAfterTimerExpire::ContinueAdvertising => {
 
-                        //***
-                        //self.advertisement_done();
-                        //***
-
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
-                        //self.transmit_buffer(appid);
 
                         //TODO - we should start tx:ing as soon as possible, is this the best way of saying that?
                         result = PhyTransition::MoveToTX(Some(0));
                     }
                     ActionAfterTimerExpire::ContinueConnection => {
                         //We should stay in the connection, but no more data should be sent on this channel
-
-                        //***
-                        //self.advertisement_done();
-                        //***
-
                         //TODO - check how long it is before we shall start to listen and return that value
                         result = PhyTransition::MoveToRX(None);
                     }
                     ActionAfterTimerExpire::EndConnectionAttempt => {
                         //We have not yet established the connection, and have been waiting for too long
-                        //for a packet. Return to advertising
+                        //for a packet. Return to advertising.
                         app.state = None;
                         app.process_status = Some(AppBLEState::Advertising);
 
-                        //***
                         //Set channel 39 so that we will go to sleep upon calling advertisement_done()
                         app.channel = Some(RadioChannel::AdvertisingChannel39);
-                        //self.advertisement_done();
-                        //***
                     }
                     _ => {
                         panic!("Timer expired but app has invalide state");
                     }
                 }
 
-
                 //Called to set new channel
                 self.advertisement_done();
-
-                //TODO - return whether we shall tx or rx or nothing
 
             });
 
