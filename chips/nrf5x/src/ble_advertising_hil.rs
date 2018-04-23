@@ -69,8 +69,8 @@ pub trait BleConfig {
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum PhyTransition {
     None,
-    MoveToTX,
-    MoveToRX,
+    MoveToTX(Option<u32>),
+    MoveToRX(Option<u32>),
 }
 
 #[derive(Debug, Eq, PartialEq)]

@@ -247,8 +247,8 @@ impl Radio {
         }
     }
 
-    fn schedule_tx_after_us(&self, usec: u32) {
-        let time = usec - NRF52_DISABLE_TX_DELAY;
+    fn schedule_tx_after_us(&self, usec: Option<u32>) {
+        let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_TX_DELAY;
 
         self.set_cc0_after_packet_end(time);
 
@@ -256,10 +256,10 @@ impl Radio {
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
     }
 
-    fn schedule_rx_after_us(&self, usec: u32) {
-        let earlier_listen = 2;
+    fn schedule_rx_after_us(&self, usec: Option<u32>) {
+        let earlier_listen : u32 = 2;
 
-        let time = usec - NRF52_DISABLE_RX_DELAY - earlier_listen;
+        let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_RX_DELAY - earlier_listen;
 
         self.set_cc0_after_packet_end(time);
 
@@ -368,19 +368,19 @@ impl Radio {
             let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok, self.get_packet_address_time_value()) };
 
             match result {
-                PhyTransition::MoveToTX => {
+                PhyTransition::MoveToTX(time) => {
 
                     self.setup_tx();
-                    self.schedule_tx_after_us(BLE_T_IFS);
-                }
-                PhyTransition::MoveToRX => {
-                    // Handle connection request
+                    self.schedule_tx_after_us(time);
 
+                }
+                PhyTransition::MoveToRX(time) => {
+                    // Handle connection request
                     self.debug_bit.set(true);
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
-                    self.rx();
+                    self.schedule_rx_after_us(time);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -391,7 +391,7 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(BLE_T_IFS),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(None),
                         TxImmediate::GoToSleep => {},
                     }
                 }
@@ -419,7 +419,7 @@ impl Radio {
             let result = client.transmit_end(crc_ok);
 
             match result {
-                PhyTransition::MoveToTX => {
+                PhyTransition::MoveToTX(time) => {
                     self.wait_until_disabled();
 
                     let should_tx = self.advertisement_client
@@ -429,10 +429,10 @@ impl Radio {
                         self.tx();
                     }
                 }
-                PhyTransition::MoveToRX => {
+                PhyTransition::MoveToRX(time) => {
                     self.setup_rx();
                     // TODO wfr_enable
-                    self.schedule_rx_after_us(BLE_T_IFS);
+                    self.schedule_rx_after_us(time);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -443,7 +443,7 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(BLE_T_IFS),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(None),
                         TxImmediate::GoToSleep => {},
                     }
                 }
