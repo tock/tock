@@ -247,9 +247,6 @@ impl Radio {
             nrf5x::timer::TIMER0.set_events_compare(0, 0);
         }
 
-        // let current_time = unsafe {nrf5x::timer::TIMER0.capture(3) };
-        // debug!("{} , {}\n", current_time, time);
-
         // CH20: CC[0] => TXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
     }
@@ -465,15 +462,6 @@ impl Radio {
         // let current_time = unsafe {nrf5x::timer::TIMER0.capture(4) };
 
         let mut enabled_interrupts = regs.intenclr.get();
-
-
-        if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_READY) > 0
-            && regs.event_ready.get() == 1 {
-            unsafe {
-                gpio::PORT[19].clear();
-            }
-            regs.intenclr.set(nrf5x::constants::RADIO_INTENSET_READY);
-        }
 
         if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_ADDRESS) > 0
             && regs.event_address.get() == 1
