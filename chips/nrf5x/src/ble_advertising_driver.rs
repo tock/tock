@@ -218,6 +218,7 @@ use ble_pdu_parser::DeviceAddress;
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
+const TRANSMIT_WINDOW_DELAY_CONN_IND: u32 = 1000 * 5 / 4; // 1.25ms in us
 
 use ble_pdu_parser::PACKET_START;
 use ble_pdu_parser::PACKET_HDR_PDU;
@@ -906,16 +907,21 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             Some(ResponseAction::ScanResponse) => {
                                 app.prepare_scan_response(&self);
 
-                                PhyTransition::MoveToTX
+                                PhyTransition::MoveToTX(None)
                             }
                             Some(ResponseAction::Connection(mut conndata)) => {
                                 let channel = conndata.next_channel();
                                 self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
 
+                                // windowOffset is a multiple of 1.25ms, convert to us
+                                let transmitWindowOffset = (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
+
+                                let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmitWindowOffset;
+
                                 app.process_status = Some(AppBLEState::Connection(conndata));
                                 app.state = Some(BleLinkLayerState::WaitingForConnection);
 
-                                PhyTransition::MoveToRX
+                                PhyTransition::MoveToRX(Some(delay_until_rx))
                             }
                             _ => PhyTransition::None,
                         }
@@ -938,7 +944,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
                         app.set_empty_conn_pdu(&self, sn, nesn);
 
-                        PhyTransition::MoveToTX
+                        PhyTransition::MoveToTX(None)
                     } else {
                         PhyTransition::None
                     };
@@ -988,9 +994,9 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                 transition = if let Some(AppBLEState::Advertising) = app.process_status {
                     if let Some(BleLinkLayerState::RespondingToScanRequest) = app.state {
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
-                        PhyTransition::MoveToTX
+                        PhyTransition::MoveToTX(None)
                     } else {
-                        PhyTransition::MoveToRX
+                        PhyTransition::MoveToRX(None)
                     }
                 } else if let Some(AppBLEState::Connection(_)) = app.process_status {
                     if let Some(BleLinkLayerState::EndOfConnectionEvent) = app.state {
@@ -1000,7 +1006,7 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                             self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
                         }
                     }
-                    PhyTransition::MoveToRX
+                    PhyTransition::MoveToRX(None)
                 } else {
                     PhyTransition::None
                 };
@@ -1068,7 +1074,8 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                         //self.transmit_buffer(appid);
 
-                        result = PhyTransition::MoveToTX;
+                        //TODO - we should start tx:ing as soon as possible, is this the best way of saying that?
+                        result = PhyTransition::MoveToTX(Some(0));
                     }
                     ActionAfterTimerExpire::ContinueConnection => {
                         //We should stay in the connection, but no more data should be sent on this channel
@@ -1077,7 +1084,8 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         //self.advertisement_done();
                         //***
 
-                        result = PhyTransition::MoveToRX;
+                        //TODO - check how long it is before we shall start to listen and return that value
+                        result = PhyTransition::MoveToRX(None);
                     }
                     ActionAfterTimerExpire::EndConnectionAttempt => {
                         //We have not yet established the connection, and have been waiting for too long

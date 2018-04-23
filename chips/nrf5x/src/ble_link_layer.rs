@@ -165,14 +165,14 @@ impl LLData {
                 buffer[PACKET_ADDR_START + 16],
             ],
             win_size: buffer[PACKET_ADDR_START + 19],
-            win_offset: (buffer[PACKET_ADDR_START + 20] as u16) << 8
-                | buffer[PACKET_ADDR_START + 21] as u16,
-            interval: (buffer[PACKET_ADDR_START + 22] as u16) << 8
-                | buffer[PACKET_ADDR_START + 23] as u16,
-            latency: (buffer[PACKET_ADDR_START + 24] as u16) << 8
-                | buffer[PACKET_ADDR_START + 25] as u16,
-            timeout: (buffer[PACKET_ADDR_START + 26] as u16) << 8
-                | buffer[PACKET_ADDR_START + 27] as u16,
+            win_offset: (buffer[PACKET_ADDR_START + 21] as u16) << 8
+                | buffer[PACKET_ADDR_START + 20] as u16,
+            interval: (buffer[PACKET_ADDR_START + 23] as u16) << 8
+                | buffer[PACKET_ADDR_START + 22] as u16,
+            latency: (buffer[PACKET_ADDR_START + 25] as u16) << 8
+                | buffer[PACKET_ADDR_START + 24] as u16,
+            timeout: (buffer[PACKET_ADDR_START + 27] as u16) << 8
+                | buffer[PACKET_ADDR_START + 26] as u16,
             chm: [
                 buffer[PACKET_ADDR_START + 28],
                 buffer[PACKET_ADDR_START + 29],

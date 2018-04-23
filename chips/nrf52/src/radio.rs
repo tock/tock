@@ -62,6 +62,9 @@ const NRF52_TX_END_DELAY: u32 = 3;
 const NRF52_RX_END_DELAY: u32 = 7;
 const BLE_T_IFS: u32 = 150;
 
+const NRF52_DISABLE_TX_DELAY : u32 = NRF52_RX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX + NRF52_TX_DELAY;
+const NRF52_DISABLE_RX_DELAY : u32 = NRF52_TX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX;
+
 static mut TX_PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
@@ -76,7 +79,6 @@ pub struct Radio {
     advertisement_client: Cell<Option<&'static nrf5x::ble_advertising_hil::AdvertisementClient>>,
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
-    transition: Cell<PhyTransition>,
     debug_bit: Cell<bool>,
 }
 
@@ -100,7 +102,6 @@ impl Radio {
             advertisement_client: Cell::new(None),
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
-            transition: Cell::new(PhyTransition::None),
             debug_bit: Cell::new(false),
         }
     }
@@ -237,32 +238,30 @@ impl Radio {
         }
     }
 
-    fn schedule_tx_after_t_ifs(&self) {
+    fn set_cc0_after_packet_end(&self, usec: u32) {
         let end_time = self.get_packet_end_time_value();
 
-        let time =
-            end_time + BLE_T_IFS - NRF52_RX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - NRF52_TX_DELAY;
-
         unsafe {
-            nrf5x::timer::TIMER0.set_cc0(time);
+            nrf5x::timer::TIMER0.set_cc0(end_time + usec);
             nrf5x::timer::TIMER0.set_events_compare(0, 0);
         }
+    }
+
+    fn schedule_tx_after_us(&self, usec: Option<u32>) {
+        let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_TX_DELAY;
+
+        self.set_cc0_after_packet_end(time);
 
         // CH20: CC[0] => TXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
     }
 
-    fn schedule_rx_after_t_ifs(&self) {
-        let end_time = self.get_packet_end_time_value();
-        let earlier_listen = 2;
+    fn schedule_rx_after_us(&self, usec: Option<u32>) {
+        let earlier_listen : u32 = 2;
 
-        let time =
-            end_time + BLE_T_IFS - NRF52_TX_END_DELAY - NRF52_FAST_RAMPUP_TIME_TX - earlier_listen;
+        let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_RX_DELAY - earlier_listen;
 
-        unsafe {
-            nrf5x::timer::TIMER0.set_cc0(time);
-            nrf5x::timer::TIMER0.set_events_compare(0, 0);
-        }
+        self.set_cc0_after_packet_end(time);
 
         // CH21: CC[0] => RXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
@@ -369,19 +368,19 @@ impl Radio {
             let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok, self.get_packet_address_time_value()) };
 
             match result {
-                PhyTransition::MoveToTX => {
+                PhyTransition::MoveToTX(time) => {
 
                     self.setup_tx();
-                    self.schedule_tx_after_t_ifs();
-                }
-                PhyTransition::MoveToRX => {
-                    // Handle connection request
+                    self.schedule_tx_after_us(time);
 
+                }
+                PhyTransition::MoveToRX(time) => {
+                    // Handle connection request
                     self.debug_bit.set(true);
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
-                    self.rx();
+                    self.schedule_rx_after_us(time);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -392,7 +391,7 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_t_ifs(),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(None),
                         TxImmediate::GoToSleep => {},
                     }
                 }
@@ -420,7 +419,7 @@ impl Radio {
             let result = client.transmit_end(crc_ok);
 
             match result {
-                PhyTransition::MoveToTX => {
+                PhyTransition::MoveToTX(time) => {
                     self.wait_until_disabled();
 
                     let should_tx = self.advertisement_client
@@ -430,10 +429,10 @@ impl Radio {
                         self.tx();
                     }
                 }
-                PhyTransition::MoveToRX => {
+                PhyTransition::MoveToRX(time) => {
                     self.setup_rx();
                     // TODO wfr_enable
-                    self.schedule_rx_after_t_ifs();
+                    self.schedule_rx_after_us(time);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -444,7 +443,7 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_t_ifs(),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(None),
                         TxImmediate::GoToSleep => {},
                     }
                 }
@@ -484,13 +483,13 @@ impl Radio {
                 self.wait_until_disabled();
 
                 match transition {
-                    Some(PhyTransition::MoveToTX) => {
+                    Some(PhyTransition::MoveToTX(time)) => {
                         self.setup_tx();
                         self.tx();
                     }
-                    Some(PhyTransition::MoveToRX) => {
+                    Some(PhyTransition::MoveToRX(time)) => {
                         self.setup_tx();
-                        self.schedule_rx_after_t_ifs();
+                        self.schedule_rx_after_us(time);
                     }
                     _ => {
                         //Do nothing, the device should sleep and wait for timer to fire in BLE
