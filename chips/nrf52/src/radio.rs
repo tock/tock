@@ -79,7 +79,6 @@ pub struct Radio {
     advertisement_client: Cell<Option<&'static nrf5x::ble_advertising_hil::AdvertisementClient>>,
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
-    transition: Cell<PhyTransition>,
     debug_bit: Cell<bool>,
 }
 
