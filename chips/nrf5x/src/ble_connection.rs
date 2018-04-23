@@ -136,7 +136,7 @@ impl ConnectionData {
 	pub fn next_sequence_number(&mut self, buf_head_flags: u8) -> (u8, u8, bool) {
 
 
-		let (sn, nesn) = ConnectionData::get_data_pdu_header(buf_head_flags);
+		let (sn, nesn, _) = ConnectionData::get_data_pdu_header(buf_head_flags);
 
 		//Does the packet carry the sequence number that I expected?
 		//If true, increment next_seq_nbr
@@ -156,28 +156,31 @@ impl ConnectionData {
 
 	}
 
-	fn get_data_pdu_header(buf_head_flags: u8) -> (u8, u8) {
+	pub fn get_data_pdu_header(buf_head_flags: u8) -> (u8, u8, bool) {
 		//There must at least be a 2 bytes header
-			let nesn = (buf_head_flags & 0b100) >> 2;
-			let sn = (buf_head_flags & 0b1000) >> 3;
-			(sn, nesn)
+		let more_data = (buf_head_flags & 0b10000) >> 4 == 1;
+		let nesn = (buf_head_flags & 0b100) >> 2;
+		let sn = (buf_head_flags & 0b1000) >> 3;
+		(sn, nesn, more_data)
 	}
 
-	pub fn connection_interval_ended(&mut self, rx_timestamp: u32, now_time: u32) -> bool {
+	pub fn connection_interval_ended(&mut self, rx_timestamp: u32) -> (bool, Option<u32>) {
 
 		//TODO - Perhaps add jitter in the comparison?
 		match self.conn_interval_start {
 			Some(start_time) => {
-				if now_time + 150 >= start_time + (self.lldata.interval as u32) * 5 / 4 {
+				let end_interval = (start_time + (self.lldata.interval as u32) * 1000 * 5 / 4);
+
+				if rx_timestamp >= end_interval - 150 {
 					self.conn_interval_start = None;
-					true
+					(true, Some(end_interval))
 				} else {
-					false
+					(false, Some(end_interval))
 				}
 			},
 			None => {
 				self.conn_interval_start = Some(rx_timestamp);
-				false
+				(false, None)
 			},
 		}
 	}

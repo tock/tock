@@ -393,7 +393,7 @@ impl AlarmData {
 pub enum BleLinkLayerState {
     RespondingToScanRequest,
     WaitingForConnection,
-    EndOfConnectionEvent,
+    EndOfConnectionEvent(u32),
 }
 
 pub struct App {
@@ -926,24 +926,33 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             _ => PhyTransition::None,
                         }
                     } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-                        let (sn, nesn, interval_ended) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+                        let mut start_time = None;
+
+                        let (sn, nesn, interval_ended, interval_end_time) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
                             let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
+                            let (_, _, more_data) = ConnectionData::get_data_pdu_header(buf[0]);
 
 
-                            let _interval_ended = conndata.connection_interval_ended(rx_timestamp, self.alarm.now());
+                            let (interval_ended, interval_end_time) = conndata.connection_interval_ended(rx_timestamp);
 
 
-                            (sn, nesn, true)
+                            // If more_data is set, stay on the channel and listen
+                            // If more_data is false, skip to next channel even if current interval has time left
+
+                            let skip_to_next_channel = interval_ended || !more_data;
+
+                            (sn, nesn, skip_to_next_channel, interval_end_time)
                         } else {
                             panic!("Process status is not Connection in Connection!");
                         };
 
-                        if interval_ended {
-                            app.state = Some(BleLinkLayerState::EndOfConnectionEvent);
+                        if let Some(interval_end_time) = interval_end_time && interval_ended {
+                            app.state = Some(BleLinkLayerState::EndOfConnectionEvent(interval_end_time));
                         }
 
                         app.set_empty_conn_pdu(&self, sn, nesn);
 
+                        // Respond to Data PDU just received
                         PhyTransition::MoveToTX(None)
                     } else {
                         PhyTransition::None
@@ -999,14 +1008,14 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                         PhyTransition::MoveToRX(None)
                     }
                 } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-                    if let Some(BleLinkLayerState::EndOfConnectionEvent) = app.state {
+                    if let Some(BleLinkLayerState::EndOfConnectionEvent(start_time)) = app.state {
                         app.state = None;
                         if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
                             let channel = conndata.next_channel();
                             self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
                         }
                     }
-                    PhyTransition::MoveToRX(None)
+                    PhyTransition::MoveToRX(Some(start_time))
                 } else {
                     PhyTransition::None
                 };
