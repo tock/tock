@@ -880,16 +880,14 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
                 let mut valid_pkt = false;
 
-                if result == ReturnCode::SUCCESS {
-                    match app.process_status {
-                        Some(AppBLEState::Advertising) => {
-                            valid_pkt = pdu_type.as_ref().map_or(false, |pdu| pdu.validate_pdu(len));
-                        }
-                        Some(AppBLEState::Connection(_)) => {
-                            valid_pkt = true;
-                        }
-                        _ => {}
+                match app.process_status {
+                    Some(AppBLEState::Advertising) => {
+                        valid_pkt = result == ReturnCode::SUCCESS && pdu_type.as_ref().map_or(false, |pdu| pdu.validate_pdu(len));
                     }
+                    Some(AppBLEState::Connection(_)) => {
+                        valid_pkt = true;
+                    }
+                    _ => {}
                 }
                 // End validate PDU type
 
