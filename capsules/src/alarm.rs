@@ -3,7 +3,6 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::process::Error;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000000;
@@ -144,15 +143,8 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
                         if let Expiration::Disabled = td.expiration {
                             self.num_armed.set(self.num_armed.get() + 1);
                         }
-
                         td.expiration = Expiration::Abs(time as u32);
-
-                        if self.alarm.is_armed() {
-                            (ReturnCode::SuccessWithValue { value: time }, true)
-                        } else {
-                            //self.alarm.set_alarm(time as u32);
-                            (ReturnCode::SuccessWithValue { value: time}, true)
-                        }
+                        (ReturnCode::SuccessWithValue { value: time }, true)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
                 };
@@ -161,16 +153,12 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
                 }
                 return_code
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
-fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
-    now.wrapping_sub(prev) >= cur.wrapping_sub(prev)
+fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
+    now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
 impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
@@ -178,7 +166,7 @@ impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
         let now = self.alarm.now();
         self.app_alarm.each(|alarm| {
             if let Expiration::Abs(exp) = alarm.expiration {
-                let expired = past_from_base(exp, now, self.prev.get());
+                let expired = has_expired(exp, now, self.prev.get());
                 if expired {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
@@ -195,7 +183,7 @@ impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
             self.alarm.disable();
         } else if let Some(next_alarm) = self.reset_active_alarm(now) {
             let new_now = self.alarm.now();
-            if past_from_base(next_alarm, new_now, now) {
+            if has_expired(next_alarm, new_now, now) {
                 self.fired();
             }
         } else {
