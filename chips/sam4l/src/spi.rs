@@ -247,7 +247,9 @@ impl SpiHw {
         }
     }
 
-    fn init_as_role(&self, spi: &SpiRegisterManager, role: SpiRole) {
+    fn init_as_role(&self, role: SpiRole) {
+        let spi = &SpiRegisterManager::new(&self);
+
         self.role.set(role);
 
         if role == SpiRole::SpiMaster {
@@ -256,7 +258,7 @@ impl SpiHw {
         }
 
         // Sets bits per transfer to 8
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         csr.modify(ChipSelectParams::BITS::Eight);
 
         // Set mode to master or slave
@@ -327,22 +329,19 @@ impl SpiHw {
         if clock % real_rate != 0 && scbr != 0xFF {
             scbr += 1;
         }
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         csr.modify(ChipSelectParams::SCBR.val(scbr));
         clock / scbr
     }
 
     fn get_baud_rate(&self) -> u32 {
-        let spi = &SpiRegisterManager::new(&self);
         let clock = 48000000;
-        let scbr = self.get_active_csr(spi).read(ChipSelectParams::SCBR);
+        let scbr = self.get_active_csr().read(ChipSelectParams::SCBR);
         clock / scbr
     }
 
     fn set_clock(&self, polarity: ClockPolarity) {
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         match polarity {
             ClockPolarity::IdleHigh => csr.modify(ChipSelectParams::CPOL::InactiveHigh),
             ClockPolarity::IdleLow => csr.modify(ChipSelectParams::CPOL::InactiveLow),
@@ -350,8 +349,7 @@ impl SpiHw {
     }
 
     fn get_clock(&self) -> ClockPolarity {
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         if csr.matches_all(ChipSelectParams::CPOL::InactiveLow) {
             ClockPolarity::IdleLow
         } else {
@@ -360,8 +358,7 @@ impl SpiHw {
     }
 
     fn set_phase(&self, phase: ClockPhase) {
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         match phase {
             ClockPhase::SampleLeading => csr.modify(ChipSelectParams::NCPHA::CaptureLeading),
             ClockPhase::SampleTrailing => csr.modify(ChipSelectParams::NCPHA::CaptureTrailing),
@@ -369,8 +366,7 @@ impl SpiHw {
     }
 
     fn get_phase(&self) -> ClockPhase {
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         if csr.matches_all(ChipSelectParams::NCPHA::CaptureTrailing) {
             ClockPhase::SampleTrailing
         } else {
@@ -393,7 +389,9 @@ impl SpiHw {
     }
 
     /// Returns the currently active peripheral
-    fn get_active_peripheral(&self, spi: &SpiRegisterManager) -> Peripheral {
+    fn get_active_peripheral(&self) -> Peripheral {
+        let spi = &SpiRegisterManager::new(&self);
+
         if self.role.get() == SpiRole::SpiMaster {
             if spi.registers.mr.matches_all(Mode::PCS::PCS3) {
                 Peripheral::Peripheral3
@@ -413,11 +411,10 @@ impl SpiHw {
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3,
     /// whichever corresponds to the active peripheral
-    fn get_active_csr<'a>(
-        &self,
-        spi: &'a SpiRegisterManager,
-    ) -> &'a regs::ReadWrite<u32, ChipSelectParams::Register> {
-        match self.get_active_peripheral(spi) {
+    fn get_active_csr(&self) -> &regs::ReadWrite<u32, ChipSelectParams::Register> {
+        let spi = &SpiRegisterManager::new(&self);
+
+        match self.get_active_peripheral() {
             Peripheral::Peripheral0 => &spi.registers.csr[0],
             Peripheral::Peripheral1 => &spi.registers.csr[1],
             Peripheral::Peripheral2 => &spi.registers.csr[2],
@@ -512,8 +509,7 @@ impl spi::SpiMaster for SpiHw {
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
     fn init(&self) {
-        let spi = &SpiRegisterManager::new(&self);
-        self.init_as_role(spi, SpiRole::SpiMaster);
+        self.init_as_role(SpiRole::SpiMaster);
     }
 
     fn is_busy(&self) -> bool {
@@ -597,14 +593,12 @@ impl spi::SpiMaster for SpiHw {
     }
 
     fn hold_low(&self) {
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         csr.modify(ChipSelectParams::CSAAT::ActiveAfterTransfer);
     }
 
     fn release_low(&self) {
-        let spi = &SpiRegisterManager::new(&self);
-        let csr = self.get_active_csr(spi);
+        let csr = self.get_active_csr();
         csr.modify(ChipSelectParams::CSAAT::InactiveAfterTransfer);
     }
 
@@ -631,8 +625,7 @@ impl spi::SpiSlave for SpiHw {
     }
 
     fn init(&self) {
-        let spi = &SpiRegisterManager::new(&self);
-        self.init_as_role(spi, SpiRole::SpiSlave);
+        self.init_as_role(SpiRole::SpiSlave);
     }
 
     /// This sets the value in the TDR register, to be sent as soon as the
