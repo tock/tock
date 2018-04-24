@@ -23,6 +23,8 @@ pub trait UsbController {
     fn endpoint_bulk_in_enable(&self, endpoint: usize);
 
     fn endpoint_bulk_out_enable(&self, endpoint: usize);
+
+    fn endpoint_bulk_resume(&self, endpoint: usize);
 }
 
 pub enum DeviceSpeed {

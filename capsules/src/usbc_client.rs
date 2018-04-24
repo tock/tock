@@ -22,6 +22,9 @@ static STRINGS: &'static [&'static str] = &[
     "Serial No. 5",   // Serial number
 ];
 
+// Currently, our descriptors fit exactly into this buffer size.  An
+// inconvenience with anything bigger: there is no derived Default
+// implementation for [Cell<u8>; DESCRIPTOR_BUFLEN]
 const DESCRIPTOR_BUFLEN: usize = 32;
 
 const N_ENDPOINTS: usize = 3;
@@ -33,11 +36,18 @@ pub struct Client<'a, C: 'a> {
     // State for tracking each endpoint
     state: [Cell<State>; N_ENDPOINTS],
 
+    // An eight-byte buffer for each endpoint
+    buffers: [[VolatileCell<u8>; 8]; N_ENDPOINTS],
+
     // Storage for composing responses to device-descriptor requests
     descriptor_storage: [Cell<u8>; DESCRIPTOR_BUFLEN],
 
-    // An eight-byte buffer for each endpoint
-    buffers: [[VolatileCell<u8>; 8]; N_ENDPOINTS],
+    // State for a debugging feature: A buffer for echoing bulk data
+    // from an OUT endpoint back to an IN endpoint
+    echo_buf: [Cell<u8>; 8], // Must be no larger than endpoint packet buffer
+    echo_len: Cell<usize>,
+    delayed_in: Cell<bool>,
+    delayed_out: Cell<bool>,
 }
 
 #[derive(Copy, Clone)]
@@ -68,12 +78,33 @@ impl<'a, C: UsbController> Client<'a, C> {
             state: Default::default(),
             buffers: Default::default(),
             descriptor_storage: Default::default(),
+
+            echo_buf: Default::default(),
+            echo_len: Cell::new(0),
+            delayed_in: Cell::new(false),
+            delayed_out: Cell::new(false),
         }
     }
 
     #[inline]
     fn descriptor_buf(&'a self) -> &'a [Cell<u8>] {
         &self.descriptor_storage
+    }
+
+    fn alert_full(&self) {
+        // In case we reported Delay before, alert the controller
+        // that we now have data to send on the Bulk IN endpoint 1
+        if self.delayed_in.take() {
+            self.controller.endpoint_bulk_resume(1);
+        }
+    }
+
+    fn alert_empty(&self) {
+        // In case we reported Delay before, alert the controller
+        // that we can now receive data on the Bulk OUT endpoint 2
+        if self.delayed_out.take() {
+            self.controller.endpoint_bulk_resume(2);
+        }
     }
 }
 
@@ -89,8 +120,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
         self.controller.endpoint_bulk_in_enable(1);
 
         // Set up a bulk-out endpoint for debugging
-        // NOTE: We are sharing the endpoint 1 buffer for debugging amusement
-        self.controller.endpoint_set_buffer(2, &self.buffers[1]);
+        self.controller.endpoint_set_buffer(2, &self.buffers[2]);
         self.controller.endpoint_bulk_out_enable(2);
     }
 
@@ -101,6 +131,13 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     fn bus_reset(&self) {
         // Should the client initiate reconfiguration here?
         // For now, the hardware layer does it.
+
+        debug!("Bus reset");
+
+        // Reset the state for our pair of debugging endpoints
+        self.echo_len.set(0);
+        self.delayed_in.set(false);
+        self.delayed_out.set(false);
     }
 
     /// Handle a Control Setup transaction
@@ -203,6 +240,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                             related_descriptor_length += e2.size();
                                             num_endpoints += 1;
 
+                                            // A single interface, with the above endpoints
                                             let di = InterfaceDescriptor {
                                                 num_endpoints: num_endpoints,
                                                 ..Default::default()
@@ -211,6 +249,7 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                                 di.write_to(&buf[storage_avail - di.size()..]);
                                             related_descriptor_length += di.size();
 
+                                            // A single configuration, with the above interface
                                             let dc = ConfigurationDescriptor {
                                                 num_interfaces: 1,
                                                 related_descriptor_length:
@@ -319,11 +358,10 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     }
 
     /// Handle a Control Out transaction
-    fn ctrl_out(&self, endpoint: usize, packet_bytes: u32) -> CtrlOutResult {
+    fn ctrl_out(&self, endpoint: usize, _packet_bytes: u32) -> CtrlOutResult {
         match self.state[endpoint].get() {
             State::CtrlOut => {
-                debug!("Received {} vendor control bytes", packet_bytes);
-                // &self.buffer[endpoint][0 .. packet_bytes as usize]
+                // Gamely accept the data
                 CtrlOutResult::Ok
             }
             _ => {
@@ -354,22 +392,55 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     /// Handle a Bulk IN transaction
     fn bulk_in(&self, endpoint: usize) -> BulkInResult {
         // Write a packet into the endpoint buffer
-        let _buf = &self.buffers[endpoint];
-        // (Actually just send whatever happens to be in the buffer.)
-        let packet_bytes = 8;
 
-        debug!("Sent {} bulk bytes", packet_bytes);
+        let packet_bytes = self.echo_len.get();
+        if packet_bytes > 0 {
+            // Copy the entire echo buffer into the packet
+            let packet = &self.buffers[endpoint];
+            for i in 0..packet_bytes {
+                packet[i].set(self.echo_buf[i].get());
+            }
+            self.echo_len.set(0);
 
-        BulkInResult::Packet(packet_bytes)
+            // We can receive more now
+            self.alert_empty();
+
+            BulkInResult::Packet(packet_bytes)
+        } else {
+            // Nothing to send
+            self.delayed_in.set(true);
+            BulkInResult::Delay
+        }
     }
 
     /// Handle a Bulk OUT transaction
     fn bulk_out(&self, endpoint: usize, packet_bytes: u32) -> BulkOutResult {
         // Consume a packet from the endpoint buffer
-        let _buf = &self.buffers[endpoint];
 
-        debug!("Read {} bulk bytes", packet_bytes);
+        let new_len = packet_bytes as usize;
+        let current_len = self.echo_len.get();
+        let total_len = current_len + new_len as usize;
 
-        BulkOutResult::Ok
+        if total_len > self.echo_buf.len() {
+            // The packet won't fit in our little buffer.  We'll have
+            // to wait until it is drained
+            self.delayed_out.set(true);
+            BulkOutResult::Delay
+        } else if new_len > 0 {
+            // Copy the packet into our echo buffer
+            let packet = &self.buffers[endpoint];
+            for i in 0..new_len {
+                self.echo_buf[current_len + i].set(packet[i].get());
+            }
+            self.echo_len.set(total_len);
+
+            // We can start sending again
+            self.alert_full();
+
+            BulkOutResult::Ok
+        } else {
+            debug!("Ignoring zero-length OUT packet");
+            BulkOutResult::Ok
+        }
     }
 }

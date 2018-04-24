@@ -227,14 +227,28 @@ fn usbc_regs() -> &'static UsbcRegisters {
 
 // Datastructures for tracking USB controller state
 
+pub const N_ENDPOINTS: usize = 8;
+
 // This ensures the `descriptors` field is laid out first
 #[repr(C)]
 // This provides the required alignment for the `descriptors` field
 #[repr(align(8))]
 pub struct Usbc<'a> {
-    descriptors: [Endpoint; 8],
-    state: Cell<State>,
+    descriptors: [Endpoint; N_ENDPOINTS],
+    state: Cell<Option<State>>,
+    requests: [Cell<Requests>; N_ENDPOINTS],
     client: Option<&'a hil::usb::Client>,
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+pub struct Requests {
+    pub resume: bool,
+}
+
+impl Requests {
+    pub const fn new() -> Self {
+        Requests { resume: false }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -260,8 +274,6 @@ pub enum Mode {
         state: DeviceState,
     },
 }
-
-pub const N_ENDPOINTS: usize = 8;
 
 type EndpointConfigValue = RegisterValue<u32, EndpointConfig::Register>;
 type EndpointStatusValue = RegisterValue<u32, EndpointStatus::Register>;
@@ -407,7 +419,7 @@ impl<'a> Usbc<'a> {
     const fn new() -> Self {
         Usbc {
             client: None,
-            state: Cell::new(State::Reset),
+            state: Cell::new(Some(State::Reset)),
             descriptors: [
                 new_endpoint(),
                 new_endpoint(),
@@ -418,25 +430,40 @@ impl<'a> Usbc<'a> {
                 new_endpoint(),
                 new_endpoint(),
             ],
+            requests: [
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+                Cell::new(Requests::new()),
+            ],
         }
+    }
+
+    /// Set a client to receive data from the USBC
+    pub fn set_client(&mut self, client: &'a hil::usb::Client) {
+        self.client = Some(client);
     }
 
     fn map_state<F, R>(&self, closure: F) -> R
     where
         F: FnOnce(&mut State) -> R,
     {
-        let mut state = self.state.get();
+        let mut state = self.state.take().expect("map_state: state value is in use");
         let result = closure(&mut state);
-        self.state.set(state);
+        self.state.set(Some(state));
         result
     }
 
     fn get_state(&self) -> State {
-        self.state.get()
+        self.state.get().expect("get_state: state value is in use")
     }
 
     fn set_state(&self, state: State) {
-        self.state.set(state);
+        self.state.set(Some(state));
     }
 
     /// Provide a buffer for transfers in and out of the given endpoint
@@ -661,9 +688,38 @@ impl<'a> Usbc<'a> {
         debug1!("Initialized endpoint {}", endpoint);
     }
 
-    /// Set a client to receive data from the USBC
-    pub fn set_client(&mut self, client: &'a hil::usb::Client) {
-        self.client = Some(client);
+    fn _endpoint_resume(&self, endpoint: usize) {
+        self.map_state(|state| match *state {
+            State::Active(Mode::Device { ref mut state, .. }) => {
+                let endpoint_state = &mut state.endpoint_states[endpoint];
+                match *endpoint_state {
+                    EndpointState::BulkIn(BulkInState::Delay) => {
+                        // Return to Init state
+                        endpoint_enable_interrupts(endpoint, EndpointControl::TXINE::SET);
+                        *endpoint_state = EndpointState::BulkIn(BulkInState::Init);
+                    }
+                    EndpointState::BulkOut(BulkOutState::Delay) => {
+                        // Return to Init state
+                        endpoint_enable_interrupts(endpoint, EndpointControl::RXOUTE::SET);
+                        *endpoint_state = EndpointState::BulkOut(BulkOutState::Init);
+                    }
+                    _ => debug!("Ignoring superfluous resume"),
+                }
+            }
+            _ => debug!("Ignoring inappropriate resume"),
+        });
+    }
+
+    fn handle_requests(&self) {
+        for endpoint in 0..N_ENDPOINTS {
+            let mut requests = self.requests[endpoint].get();
+
+            if requests.resume {
+                self._endpoint_resume(endpoint);
+                requests.resume = false;
+                self.requests[endpoint].set(requests);
+            }
+        }
     }
 
     /// Handle an interrupt from the USBC
@@ -683,6 +739,9 @@ impl<'a> Usbc<'a> {
                 Mode::Host => internal_err!("Host mode unimplemented"),
             },
         });
+
+        // Client callbacks invoked above may have generated state-changing requests
+        self.handle_requests();
     }
 
     /// Handle an interrupt while in device mode
@@ -1155,9 +1214,6 @@ impl<'a> Usbc<'a> {
 
                     debug1!("\tep{}: RXOUT", endpoint);
 
-                    // Acknowledge
-                    usbc_regs().uestaclr[endpoint].write(EndpointStatus::RXOUT::SET);
-
                     if !usbc_regs().uecon[endpoint].is_set(EndpointControl::FIFOCON) {
                         debug!("Got RXOUT but not FIFOCON");
                         return;
@@ -1175,6 +1231,9 @@ impl<'a> Usbc<'a> {
                     });
                     match result {
                         Some(BulkOutResult::Ok) => {
+                            // Acknowledge
+                            usbc_regs().uestaclr[endpoint].write(EndpointStatus::RXOUT::SET);
+
                             // Clear FIFOCON to signal that the packet was consumed
                             usbc_regs().ueconclr[endpoint].write(EndpointControl::FIFOCON::SET);
 
@@ -1187,10 +1246,7 @@ impl<'a> Usbc<'a> {
                             // Remain in Init state
                         }
                         Some(BulkOutResult::Delay) => {
-                            // The client is not ready to consume data
-
-                            // TODO: provide interface for client to alert us that
-                            // it may be ready to consume again
+                            // The client is not ready to consume data; wait for resume
 
                             endpoint_disable_interrupts(endpoint, EndpointControl::RXOUTE::SET);
 
@@ -1226,9 +1282,6 @@ impl<'a> Usbc<'a> {
 
                     debug1!("\tep{}: TXIN", endpoint);
 
-                    // Acknowledge
-                    usbc_regs().uestaclr[endpoint].write(EndpointStatus::TXIN::SET);
-
                     if !usbc_regs().uecon[endpoint].is_set(EndpointControl::FIFOCON) {
                         debug!("Got TXIN but not FIFOCON");
                         return;
@@ -1241,6 +1294,9 @@ impl<'a> Usbc<'a> {
                     });
                     match result {
                         Some(BulkInResult::Packet(packet_bytes)) => {
+                            // Acknowledge
+                            usbc_regs().uestaclr[endpoint].write(EndpointStatus::TXIN::SET);
+
                             // Tell the controller the size of the packet
                             let bank = 0;
                             self.descriptors[endpoint][bank]
@@ -1259,10 +1315,7 @@ impl<'a> Usbc<'a> {
                             // Remain in Init state
                         }
                         Some(BulkInResult::Delay) => {
-                            // The client is not ready to send data
-
-                            // TODO: provide interface for client to alert us that
-                            // it may be ready to send again
+                            // The client is not ready to send data; wait for resume
 
                             endpoint_disable_interrupts(endpoint, EndpointControl::TXINE::SET);
 
@@ -1281,7 +1334,10 @@ impl<'a> Usbc<'a> {
                     }
                 }
             }
-            BulkInState::Delay => internal_err!("Not reached"),
+            BulkInState::Delay => {
+                // Endpoint interrupts should be handled already or disabled
+                internal_err!("Not reached");
+            }
         }
     }
 
@@ -1432,6 +1488,12 @@ impl<'a> UsbController for Usbc<'a> {
         ));
 
         self._endpoint_enable(endpoint, endpoint_cfg)
+    }
+
+    fn endpoint_bulk_resume(&self, endpoint: usize) {
+        let mut requests = self.requests[endpoint].get();
+        requests.resume = true;
+        self.requests[endpoint].set(requests);
     }
 }
 
