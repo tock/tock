@@ -919,15 +919,17 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                                 app.process_status = Some(AppBLEState::Connection(conndata));
                                 app.state = Some(BleLinkLayerState::WaitingForConnection);
 
-                                PhyTransition::MoveToRX(Some(delay_until_rx))
+
+                                //TODO - send reasonable timeout argument (second argument)
+                                PhyTransition::MoveToRX(Some(delay_until_rx), 1000000)
                             }
                             _ => PhyTransition::None,
                         }
                     } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-                        let (sn, nesn, interval_ended) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+
+                        let (sn, nesn, interval_ended, interval_end_time) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
                             let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
                             let (_, _, more_data) = ConnectionData::get_data_pdu_header(buf[0]);
-
 
                             let (interval_ended, interval_end_time) = conndata.connection_interval_ended(rx_timestamp);
 
@@ -941,8 +943,11 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                             panic!("Process status is not Connection in Connection!");
                         };
 
-                        if let Some(interval_end_time) = interval_end_time && interval_ended {
-                            app.state = Some(BleLinkLayerState::EndOfConnectionEvent(interval_end_time));
+                        match interval_end_time {
+                            Some(interval_end_time) if interval_ended => {
+                                app.state = Some(BleLinkLayerState::EndOfConnectionEvent(interval_end_time));
+                            }
+                            _ => {}
                         }
 
                         app.set_empty_conn_pdu(&self, sn, nesn);
@@ -1000,17 +1005,23 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                         PhyTransition::MoveToTX(None)
                     } else {
-                        PhyTransition::MoveToRX(None)
+                        PhyTransition::MoveToRX(None, 10000)
                     }
                 } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-                    if let Some(BleLinkLayerState::EndOfConnectionEvent(start_time)) = app.state {
+                    let start_time = if let Some(BleLinkLayerState::EndOfConnectionEvent(start_time)) = app.state {
                         app.state = None;
                         if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
                             let channel = conndata.next_channel();
                             self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
                         }
-                    }
-                    PhyTransition::MoveToRX(Some(start_time))
+                        Some(start_time)
+                    } else {
+                        None
+                    };
+
+                    //debug!("transmit end, schedule at time {:?}\n", start_time);
+                    //TODO - send reasonable timeout argument (second argument)
+                    PhyTransition::MoveToRX(start_time, 1000000)
                 } else {
                     PhyTransition::None
                 };
@@ -1061,6 +1072,7 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
 
     fn timer_expired(&self) -> PhyTransition {
 
+
         let mut result = PhyTransition::None;
 
         if let Some(appid) = self.sending_app.get() {
@@ -1085,7 +1097,8 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         //We should stay in the connection, but no more data should be sent on this channel
                         //TODO - check if we have reached supervision time out. If so, kill connection.
                         //Otherwise we might just have missed a packet.
-                        result = PhyTransition::MoveToRX(None);
+                        //TODO - send reasonable timeout argument (second argument)
+                        result = PhyTransition::MoveToRX(None, 10000);
                     }
                     ActionAfterTimerExpire::EndConnectionAttempt => {
                         //We have not yet established the connection, and have been waiting for too long

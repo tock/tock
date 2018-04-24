@@ -70,7 +70,7 @@ pub trait BleConfig {
 pub enum PhyTransition {
     None,
     MoveToTX(Option<u32>),
-    MoveToRX(Option<u32>),
+    MoveToRX(Option<u32>, u32), //(schedule_rx_after_time, timeout)
 }
 
 #[derive(Debug, Eq, PartialEq)]
