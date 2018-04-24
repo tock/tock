@@ -190,6 +190,9 @@ pub struct SpiHw {
     // Slave client is distinct from master client
     slave_client: Cell<Option<&'static SpiSlaveClient>>,
     role: Cell<SpiRole>,
+
+    // Record whether we are currently accessing the hardware
+    accessing: Cell<bool>,
 }
 
 const SPI_BASE: StaticRef<SpiRegisters> =
@@ -208,12 +211,18 @@ impl PeripheralManagement<pm::Clock> for SpiHw {
 
     fn before_peripheral_access(&self, clock: &pm::Clock, _: &SpiRegisters) {
         clock.enable();
+        self.accessing.set(true);
     }
 
     fn after_peripheral_access(&self, clock: &pm::Clock, registers: &SpiRegisters) {
         if !registers.sr.is_set(Status::SPIENS) {
             clock.disable();
         }
+        self.accessing.set(false);
+    }
+
+    fn is_accessing(&self) -> bool {
+        self.accessing.get()
     }
 }
 
@@ -233,6 +242,8 @@ impl SpiHw {
 
             slave_client: Cell::new(None),
             role: Cell::new(SpiRole::SpiMaster),
+
+            accessing: Cell::new(false),
         }
     }
 
