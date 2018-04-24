@@ -204,29 +204,23 @@ fn elf_to_tbf(
 
     // Next up is the .text section.
     let section_start_text = binary_index;
-    let post_text_pad = align4needed!(text.data.len());
-    binary_index += text.data.len() + post_text_pad;
+    binary_index += text.data.len();
 
     // Next up is the app writeable app_state section. If this is not used or
     // non-existent, it will just be zero and won't matter.
     let appstate_offset = binary_index;
     let appstate_size = appstate.shdr.size as usize;
-    // Make sure we pad back to a multiple of 4.
-    let post_appstate_pad = align4needed!(appstate_size);
-    binary_index += appstate_size + post_appstate_pad;
+    binary_index += appstate_size;
 
     // Next up is the .got section.
-    let post_got_pad = align4needed!(got.data.len());
-    binary_index += got.data.len() + post_got_pad;
+    binary_index += got.data.len();
 
     // Next up is the .data section.
-    let post_data_pad = align4needed!(data.data.len());
-    binary_index += data.data.len() + post_data_pad;
+    binary_index += data.data.len();
 
     // Next up is the rel_data. We also include a u32 length to begin the
     // rel_data.
-    let post_reldata_pad = align4needed!(rel_data.len());
-    binary_index += rel_data.len() + post_reldata_pad + mem::size_of::<u32>();
+    binary_index += rel_data.len() + mem::size_of::<u32>();
 
     // That is everything that we are going to include in our app binary. Now
     // we need to pad the binary to a power of 2 in size, and make sure it is
@@ -263,16 +257,9 @@ fn elf_to_tbf(
     output.write_all(tbfheader.generate().unwrap().get_ref())?;
 
     output.write_all(text.data.as_ref())?;
-    util::do_pad(output, post_text_pad as usize)?;
-
     output.write_all(appstate.data.as_ref())?;
-    util::do_pad(output, post_appstate_pad as usize)?;
-
     output.write_all(got.data.as_ref())?;
-    util::do_pad(output, post_got_pad as usize)?;
-
     output.write_all(data.data.as_ref())?;
-    util::do_pad(output, post_data_pad as usize)?;
 
     let rel_data_len: [u8; 4] = [
         (rel_data.len() & 0xff) as u8,
@@ -282,7 +269,6 @@ fn elf_to_tbf(
     ];
     output.write_all(&rel_data_len)?;
     output.write_all(rel_data.as_ref())?;
-    util::do_pad(output, post_reldata_pad as usize)?;
 
     // Pad to get a power of 2 sized flash app.
     util::do_pad(output, post_content_pad as usize)?;

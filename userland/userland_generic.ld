@@ -38,7 +38,6 @@ SECTIONS {
          *    uint32_t bss_start;
          *    uint32_t bss_size;
          *    uint32_t reldata_start;
-         *    uint32_t stack_size;
          *  };
          */
         /* Offset of GOT symbols in flash */
@@ -60,7 +59,7 @@ SECTIONS {
         /* First address offset after program flash, where elf2tbf places
          * .rel.data section */
         LONG(LOADADDR(.endsec) - _text);
-        /* The size of the stack requested by this application */
+         /* The size of the stack requested by this application */
         LONG(STACK_SIZE);
 
         KEEP (*(.start))
@@ -146,7 +145,7 @@ SECTIONS {
      * .ARM.exidx is sorted, so has to go in its own output section.
      *
      * __NOTE__: It's at the end because we currently don't actually serialize
-     * it to the binary in elf2tab. If it was before the RAM sections, it would
+     * it to the binary in elf2tbf. If it was before the RAM sections, it would
      * through off our calculations of the header.
      */
     PROVIDE_HIDDEN (__exidx_start = .);
