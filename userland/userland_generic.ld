@@ -20,6 +20,14 @@ MEMORY {
 }
 
 SECTIONS {
+    /* App state section. Used for persistent app data.
+     * Goes before the Text section in Flash.
+     */
+    .app_state :
+    {
+        KEEP (*(.app_state))
+    } > FLASH =0xFF
+
     /* Text section, Code! */
     .text :
     {
@@ -72,12 +80,6 @@ SECTIONS {
         . = ALIGN(4); /* Make sure we're word-aligned here */
     } > FLASH =0xFF
 
-
-    /* App state section. Used for persistent app data. */
-    .app_state :
-    {
-        KEEP (*(.app_state))
-    } > FLASH =0xFF
 
     /* Global Offset Table */
     .got :

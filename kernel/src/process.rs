@@ -375,7 +375,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
             TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32),
+                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32) + self.get_total_writeable_flash_size(),
             _ => 0,
         }
     }
@@ -427,6 +427,15 @@ impl TbfHeader {
             }
             _ => (0, 0),
         }
+    }
+
+    /// Get the total size of writable flash regions.
+    fn get_total_writeable_flash_size(&self) -> u32 {
+        let mut total_size = 0;
+        for region_index in 0..self.number_writeable_flash_regions() {
+            total_size += self.get_writeable_flash_region(region_index).1
+        }
+        total_size
     }
 }
 
@@ -1046,7 +1055,7 @@ impl<'a> Process<'a> {
                 }
 
                 let flash_protected_size = process.header.get_protected_size() as usize;
-                let flash_app_start = app_flash_address as usize + flash_protected_size;
+                let flash_app_start = app_flash_address as usize + flash_protected_size + process.header.get_total_writeable_flash_size() as usize;
 
                 process.tasks.enqueue(Task::FunctionCall(FunctionCall {
                     pc: init_fn,
@@ -1417,7 +1426,9 @@ impl<'a> Process<'a> {
         let flash_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
         let flash_start = self.text.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
-        let flash_app_start = flash_start + flash_protected_size;
+        let flash_writeable_size = self.header.get_total_writeable_flash_size() as usize;
+        let flash_writeable_start = flash_start + flash_protected_size;
+        let flash_app_start = flash_start + flash_protected_size + flash_writeable_size;
         let flash_app_size = flash_end - flash_app_start;
         let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
@@ -1502,11 +1513,13 @@ impl<'a> Process<'a> {
 \r\n             │ Unused\
   \r\n  {:#010X} ┴───────────────────────────────────────────\
 \r\n             .....\
-  \r\n  {:#010X} ┬─────────────────────────────────────────── F\
-\r\n             │ App Flash    {:6}                        L\
-  \r\n  {:#010X} ┼─────────────────────────────────────────── A\
-\r\n             │ Protected    {:6}                        S\
-  \r\n  {:#010X} ┴─────────────────────────────────────────── H\
+  \r\n  {:#010X} ┬───────────────────────────────────────────\
+\r\n             │ App Flash    {:6}                        F\
+  \r\n  {:#010X} ┼─────────────────────────────────────────── L\
+\r\n             │ App State    {:6}                        A\
+  \r\n  {:#010X} ┼─────────────────────────────────────────── S\
+\r\n             │ Protected    {:6}                        H\
+  \r\n  {:#010X} ┴───────────────────────────────────────────\
 \r\n\
   \r\n  R0 : {:#010X}    R6 : {:#010X}\
   \r\n  R1 : {:#010X}    R7 : {:#010X}\
@@ -1534,6 +1547,8 @@ impl<'a> Process<'a> {
   flash_end,
   flash_app_size,
   flash_app_start,
+  flash_writeable_size,
+  flash_writeable_start,
   flash_protected_size,
   flash_start,
   r0, self.stored_regs.r6,
