@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # usage: svd2regs.py [-h] [--group] (--mcu VENDOR MCU | --svd [SVD])
 #                    [--save FILE] [--fmt ['ARG ..']] [--path PATH]
@@ -50,8 +50,19 @@ import argparse
 from subprocess import Popen, PIPE
 from xml.etree import ElementTree as ET
 
-from cmsis_svd.parser import SVDParser
-import pydentifier
+try:
+    from cmsis_svd.parser import SVDParser
+except ImportError:
+    print('Could not import CMSIS SVD library')
+    print('pip install cmsis-svd')
+    sys.exit(1)
+
+try:
+    import pydentifier
+except ImportError:
+    print('Could not import Pydentifier library')
+    print('pip install pydentifier')
+    sys.exit(1)
 
 RUST_KEYWORDS = ["mod"]
 COMMENT_MAX_LENGTH = 80
