@@ -20,13 +20,22 @@ MEMORY {
 }
 
 SECTIONS {
+    /* App state section. Used for persistent app data.
+     * We put this first so that if the app code changes but the persistent
+     * data doesn't, the app_state can be preserved.
+     */
+    .app_state :
+    {
+        KEEP (*(.app_state))
+        . = ALIGN(4); /* Make sure we're word-aligned here */
+    } > FLASH =0xFF
+
     /* Text section, Code! */
     .text :
     {
         _text = .;
         /**
          * Populate the header expected by `crt0`:
-         *
          *
          *  struct hdr {
          *    uint32_t got_sym_start;
@@ -38,6 +47,7 @@ SECTIONS {
          *    uint32_t bss_start;
          *    uint32_t bss_size;
          *    uint32_t reldata_start;
+         *    uint32_t stack_size;
          *  };
          */
         /* Offset of GOT symbols in flash */
@@ -56,9 +66,9 @@ SECTIONS {
         LONG(_bss);
         /* Size of BSS section */
         LONG(SIZEOF(.bss));
-        /* First address offset after program flash, where elf2tbf places
+        /* First address offset after program flash, where elf2tab places
          * .rel.data section */
-        LONG(LOADADDR(.endsec) - _text);
+        LONG(LOADADDR(.endflash) - _text);
          /* The size of the stack requested by this application */
         LONG(STACK_SIZE);
 
@@ -71,21 +81,13 @@ SECTIONS {
         . = ALIGN(4); /* Make sure we're word-aligned here */
     } > FLASH =0xFF
 
-
-    /* App state section. Used for persistent app data. */
-    .app_state :
-    {
-        KEEP (*(.app_state))
-        . = ALIGN(4); /* Make sure we're word-aligned here */
-    } > FLASH =0xFF
-
     /* Global Offset Table */
     .got :
     {
+        . = ALIGN(4); /* Make sure we're word-aligned here */
         _got = .;
         *(.got*)
         *(.got.plt*)
-        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM AT > FLASH
 
     /* Data section, static initialized variables
@@ -94,44 +96,22 @@ SECTIONS {
      */
     .data :
     {
+        . = ALIGN(4); /* Make sure we're word-aligned here */
         _data = .;
         KEEP(*(.data*))
-        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM AT > FLASH
 
     /* BSS section, static uninitialized variables */
     .bss :
     {
+        . = ALIGN(4); /* Make sure we're word-aligned here */
         _bss = .;
         KEEP(*(.bss*))
         *(COMMON)
-        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > SRAM
 
-    /*
-     * __NOTE__: The following symbols are used only to hint to elf2tbf how much
-     * total memory to request from the OS.
-     */
-    .stack :
-    {
-        . += STACK_SIZE;
-        . = ALIGN(4); /* Make sure we're word-aligned here */
-    } > SRAM
-
-    .app_heap :
-    {
-        . += APP_HEAP_SIZE;
-        . = ALIGN(4); /* Make sure we're word-aligned here */
-    } > SRAM
-
-    .kernel_heap :
-    {
-        . += KERNEL_HEAP_SIZE;
-        . = ALIGN(4); /* Make sure we're word-aligned here */
-    } > SRAM
-
-    _sram_end = .;
-    .endsec :
+    /* End of flash. */
+    .endflash :
     {
     } > FLASH
 
@@ -155,5 +135,4 @@ SECTIONS {
       *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
-
 }
