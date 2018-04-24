@@ -33,6 +33,7 @@
 //!                                                          mux_alarm as &'static
 //!                                                             MuxAlarm<'static,
 //!                                                                 sam4l::ast::Ast>);
+//! radio_mac.set_transmit_client(lowpan_frag_test);
 //! ...
 //! // Imix initialization
 //! ...
@@ -40,33 +41,43 @@
 
 use capsules;
 extern crate sam4l;
-use capsules::ieee802154::device::MacDevice;
+use capsules::ieee802154::device::{MacDevice, TxClient};
 use capsules::net::ieee802154::MacAddress;
-use capsules::net::ip::{ip6_nh, IP6Header, IPAddr};
-use capsules::net::sixlowpan::{Sixlowpan, SixlowpanClient};
-use capsules::net::sixlowpan_compression;
-use capsules::net::sixlowpan_compression::Context;
+use capsules::net::ipv6::ip_utils::{IPAddr, ip6_nh};
+use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
+use capsules::net::sixlowpan::sixlowpan_compression;
+use capsules::net::sixlowpan::sixlowpan_state::{RxState, Sixlowpan, SixlowpanRxClient,
+                                                SixlowpanState, TxState};
+use capsules::net::udp::udp::UDPHeader;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use core::mem;
+use core::ptr;
+use kernel::ReturnCode;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
-use kernel::ReturnCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
+
+/* pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+pub const DST_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);*/
+
 pub const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
 ]);
 pub const DST_ADDR: IPAddr = IPAddr([
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f
 ]);
 pub const SRC_MAC_ADDR: MacAddress =
     MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
 pub const DST_MAC_ADDR: MacAddress =
     MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
-
+//TODO: No longer pass MAC addresses to 6lowpan code, so these values arent used rn
 pub const IP6_HDR_SIZE: usize = 40;
+pub const UDP_HDR_SIZE: usize = 8;
 pub const PAYLOAD_LEN: usize = 200;
 pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
 
@@ -74,7 +85,6 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
-static mut RADIO_BUF_TMP: [u8; radio::MAX_BUF_SIZE] = [0x0; radio::MAX_BUF_SIZE];
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum TF {
@@ -114,10 +124,19 @@ enum DAC {
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
+// Below was IP6_DGRAM before change to typed buffers
+//static mut IP6_DGRAM: [u8; IP6_HDR_SIZE + PAYLOAD_LEN] = [0; IP6_HDR_SIZE + PAYLOAD_LEN];
+static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE]; //Becomes payload of UDP
 
-pub struct LowpanTest<'a, A: time::Alarm + 'a, T: time::Alarm + 'a> {
+//Use a global variable option, initialize as None, then actually initialize in initialize all
+
+static mut IP6_DG_OPT: Option<IP6Packet> = None;
+//END changes
+
+pub struct LowpanTest<'a, A: time::Alarm + 'a> {
     alarm: A,
-    frag_state: Sixlowpan<'a, T, Context>,
+    sixlowpan_tx: TxState<'a>,
+    radio: &'a MacDevice<'a>,
     test_counter: Cell<usize>,
 }
 
@@ -127,51 +146,83 @@ pub unsafe fn initialize_all(
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    sam4l::ast::Ast<'static>,
 > {
-    let default_rx_state = static_init!(
-        capsules::net::sixlowpan::RxState<'static>,
-        capsules::net::sixlowpan::RxState::new(&mut RX_STATE_BUF)
+    let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
+
+    let sixlowpan = static_init!(
+        Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
+        Sixlowpan::new(
+            sixlowpan_compression::Context {
+                prefix: DEFAULT_CTX_PREFIX,
+                prefix_len: DEFAULT_CTX_PREFIX_LEN,
+                id: 0,
+                compress: false,
+            },
+            &sam4l::ast::AST
+        )
     );
 
-    let frag_state = capsules::net::sixlowpan::Sixlowpan::new(
-        radio_mac,
-        capsules::net::sixlowpan_compression::Context {
-            prefix: DEFAULT_CTX_PREFIX,
-            prefix_len: DEFAULT_CTX_PREFIX_LEN,
-            id: 0,
-            compress: false,
-        },
-        &mut RADIO_BUF_TMP,
-        &sam4l::ast::AST,
-    );
+    let sixlowpan_state = sixlowpan as &SixlowpanState;
+    let sixlowpan_tx = TxState::new(sixlowpan_state);
 
     let lowpan_frag_test = static_init!(
-        LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>, sam4l::ast::Ast>,
-        LowpanTest::new(frag_state, VirtualMuxAlarm::new(mux_alarm))
+        LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        LowpanTest::new(sixlowpan_tx, radio_mac, VirtualMuxAlarm::new(mux_alarm))
     );
 
-    lowpan_frag_test.frag_state.add_rx_state(default_rx_state);
+    sixlowpan_state.add_rx_state(default_rx_state);
+    sixlowpan_state.set_rx_client(lowpan_frag_test);
     lowpan_frag_test.alarm.set_client(lowpan_frag_test);
 
-    radio_mac.set_transmit_client(&lowpan_frag_test.frag_state);
-    radio_mac.set_receive_client(&lowpan_frag_test.frag_state);
+    radio_mac.set_receive_client(sixlowpan);
 
-    lowpan_frag_test.init();
+    // Following code initializes an IP6Packet using the global UDP_DGRAM buffer as the payload
+    let mut udp_hdr: UDPHeader = UDPHeader {
+        src_port: 0,
+        dst_port: 0,
+        len: 0,
+        cksum: 0,
+    };
+    udp_hdr.set_src_port(12345);
+    udp_hdr.set_dst_port(54321);
+    udp_hdr.set_len(PAYLOAD_LEN as u16);
+    //checksum is calculated and set later
+
+    let mut ip6_hdr: IP6Header = IP6Header::new();
+    ip6_hdr.set_next_header(ip6_nh::UDP);
+    ip6_hdr.set_payload_len(PAYLOAD_LEN as u16);
+    ip6_hdr.src_addr = SRC_ADDR;
+    ip6_hdr.dst_addr = DST_ADDR;
+
+    let tr_hdr: TransportHeader = TransportHeader::UDP(udp_hdr);
+
+    let ip_pyld: IPPayload = IPPayload {
+        header: tr_hdr,
+        payload: &mut UDP_DGRAM,
+    };
+
+    let mut ip6_dg: IP6Packet = IP6Packet {
+        header: ip6_hdr,
+        payload: ip_pyld,
+    };
+
+    ip6_dg.set_transport_checksum(); //calculates and sets UDP cksum
+
+    IP6_DG_OPT = Some(ip6_dg);
+    //Now, other places in code should have access to initialized IP6Packet.
+    //Note that this code is inherently unsafe and we make no effort to prevent
+    //race conditions, as this is merely test code
     lowpan_frag_test
 }
 
-impl<'a, A: time::Alarm, T: time::Alarm + 'a> LowpanTest<'a, A, T> {
-    pub fn new(frag_state: Sixlowpan<'a, T, Context>, alarm: A) -> LowpanTest<'a, A, T> {
+impl<'a, A: time::Alarm> LowpanTest<'a, A> {
+    pub fn new(sixlowpan_tx: TxState<'a>, radio: &'a MacDevice<'a>, alarm: A) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
-            frag_state: frag_state,
+            sixlowpan_tx: sixlowpan_tx,
+            radio: radio,
             test_counter: Cell::new(0),
         }
-    }
-
-    pub fn init(&'a self) {
-        self.frag_state.set_client(self);
     }
 
     pub fn start(&self) {
@@ -322,50 +373,83 @@ impl<'a, A: time::Alarm, T: time::Alarm + 'a> LowpanTest<'a, A, T> {
     fn ipv6_send_packet_test(&self, tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
         ipv6_prepare_packet(tf, hop_limit, sac, dac);
         unsafe {
-            self.send_ipv6_packet(&MLP, SRC_MAC_ADDR, DST_MAC_ADDR);
+            self.send_ipv6_packet(&MLP);
         }
     }
 
-    unsafe fn send_ipv6_packet(
-        &self,
-        _: &[u8],
-        src_mac_addr: MacAddress,
-        dst_mac_addr: MacAddress,
-    ) {
-        let frag_state = &self.frag_state;
-        //frag_state.radio.config_set_pan(0xABCD);
-        let ret_code = frag_state.transmit_packet(
-            src_mac_addr,
-            dst_mac_addr,
-            &mut IP6_DGRAM,
-            IP6_DGRAM.len(),
-            None,
-        );
-        debug!("Ret code: {:?}", ret_code);
+    unsafe fn send_ipv6_packet(&self, _: &[u8]) {
+        self.send_next(&mut RF233_BUF);
+    }
+
+    fn send_next(&self, tx_buf: &'static mut [u8]) {
+        unsafe {
+            match IP6_DG_OPT {
+                Some(ref ip6_packet) => {
+                    match self.sixlowpan_tx
+                        .next_fragment(&ip6_packet, tx_buf, self.radio)
+                    {
+                        Ok((is_done, frame)) => {
+                            //TODO: Fix ordering so that debug output does not indicate extra frame sent
+                            debug!("Sent frame!");
+                            if is_done {
+                                debug!("Sent packet!");
+                                self.schedule_next();
+                            } else {
+                                // TODO: Handle err (not just debug statement)
+                                let (retcode, _opt) = self.radio.transmit(frame);
+                                debug!("Retcode from radio transmit is: {:?}", retcode);
+                                match retcode {
+                                    ReturnCode::SUCCESS => {}
+                                    _ => debug!("Error in radio transmit"),
+                                }
+                            }
+                        }
+                        Err((retcode, _buf)) => {
+                            debug!("ERROR!: {:?}", retcode);
+                        }
+                    }
+                }
+                None => debug!("Error! tried to send uninitialized IP6Packet"),
+            }
+        }
     }
 }
 
-impl<'a, A: time::Alarm, T: time::Alarm + 'a> time::Client for LowpanTest<'a, A, T> {
+impl<'a, A: time::Alarm> time::Client for LowpanTest<'a, A> {
     fn fired(&self) {
         self.run_test_and_increment();
     }
 }
 
-impl<'a, A: time::Alarm, T: time::Alarm + 'a> SixlowpanClient for LowpanTest<'a, A, T> {
+impl<'a, A: time::Alarm> SixlowpanRxClient for LowpanTest<'a, A> {
     fn receive<'b>(&self, buf: &'b [u8], len: u16, retcode: ReturnCode) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
         self.test_counter.set((test_num + 1) % self.num_tests());
         self.run_check_test(test_num, buf, len)
     }
-
-    fn send_done(&self, _: &'static mut [u8], _: bool, _: ReturnCode) {
-        debug!("Send completed");
-        self.schedule_next();
-    }
 }
 
-static mut IP6_DGRAM: [u8; IP6_HDR_SIZE + PAYLOAD_LEN] = [0; IP6_HDR_SIZE + PAYLOAD_LEN];
+static mut ARRAY: [u8; 100] = [0x0; 100]; //used in introducing delay between frames
+impl<'a, A: time::Alarm> TxClient for LowpanTest<'a, A> {
+    fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: ReturnCode) {
+        debug!("sendDone return code is: {:?}", result);
+        unsafe {
+            //This unsafe block introduces a delay between frames to prevent
+            // a race condition on the receiver
+            //it is sorta complicated bc I was having some trouble with dead code elimination
+            let mut i = 0;
+            while i < 10000000 {
+                ARRAY[i % 100] = (i % 100) as u8;
+                i = i + 1;
+                if i % 1000000 == 0 {
+                    debug!("Delay, step {:?}", i / 1000000);
+                }
+            }
+        }
+        self.send_next(tx_buf);
+    }
+}
 
 fn ipv6_check_receive_packet(
     tf: TF,
@@ -376,170 +460,290 @@ fn ipv6_check_receive_packet(
     len: u16,
 ) {
     ipv6_prepare_packet(tf, hop_limit, sac, dac);
+    debug!("Checking received packet of length: {}", len);
+    let mut test_success = true;
     unsafe {
-        for i in 0..len as usize {
-            if recv_packet[i] != IP6_DGRAM[i] {
+        // First, need to check header fields match:
+        // Do this by casting first 48 bytes of rcvd packet as IP/UDP headers
+        let rcvip6hdr: IP6Header = ptr::read(recv_packet.as_ptr() as *const _);
+        let rcvudphdr: UDPHeader =
+            ptr::read((recv_packet.as_ptr().offset(IP6_HDR_SIZE as isize)) as *const _);
+
+        // Now compare to the headers that would be being sent by prepare packet
+        // (as we know prepare packet is running in parallel on sender to generate tx packets)
+        match IP6_DG_OPT {
+            Some(ref ip6_packet) => {
+                //First check IP headers
+                if rcvip6hdr.get_version() != ip6_packet.header.get_version() {
+                    test_success = false;
+                    debug!("Mismatched IP ver");
+                }
+
+                if rcvip6hdr.get_traffic_class() != ip6_packet.header.get_traffic_class() {
+                    debug!("Mismatched tc");
+                    test_success = false;
+                }
+                if rcvip6hdr.get_dscp() != ip6_packet.header.get_dscp() {
+                    debug!("Mismatched dcsp");
+                    test_success = false;
+                }
+                if rcvip6hdr.get_ecn() != ip6_packet.header.get_ecn() {
+                    debug!("Mismatched ecn");
+                    test_success = false;
+                }
+                if rcvip6hdr.get_payload_len() != ip6_packet.header.get_payload_len() {
+                    debug!("Mismatched IP len");
+                    test_success = false;
+                }
+                if rcvip6hdr.get_next_header() != ip6_packet.header.get_next_header() {
+                    debug!(
+                        "Mismatched next hdr. Rcvd is: {:?}, expctd is: {:?}",
+                        rcvip6hdr.get_next_header(),
+                        ip6_packet.header.get_next_header()
+                    );
+                    test_success = false;
+                }
+                if rcvip6hdr.get_hop_limit() != ip6_packet.header.get_hop_limit() {
+                    debug!("Mismatched hop limit");
+                    test_success = false;
+                }
+
+                //Now check UDP headers
+
+                match ip6_packet.payload.header {
+                    TransportHeader::UDP(ref sent_udp_pkt) => {
+                        if u16::from_be(rcvudphdr.get_src_port()) != sent_udp_pkt.get_src_port() {
+                            debug!(
+                                "Mismatched src_port. Rcvd is: {:?}, expctd is: {:?}",
+                                rcvudphdr.get_src_port(),
+                                sent_udp_pkt.get_src_port()
+                            );
+                            test_success = false;
+                        }
+
+                        if u16::from_be(rcvudphdr.get_dst_port()) != sent_udp_pkt.get_dst_port() {
+                            debug!(
+                                "Mismatched dst_port. Rcvd is: {:?}, expctd is: {:?}",
+                                rcvudphdr.get_dst_port(),
+                                sent_udp_pkt.get_dst_port()
+                            );
+                            test_success = false;
+                        }
+
+                        if u16::from_be(rcvudphdr.get_len()) != sent_udp_pkt.get_len() {
+                            debug!(
+                                "Mismatched udp_len. Rcvd is: {:?}, expctd is: {:?}",
+                                rcvudphdr.get_len(),
+                                sent_udp_pkt.get_len()
+                            );
+                            test_success = false;
+                        }
+
+                        if u16::from_be(rcvudphdr.get_cksum()) != sent_udp_pkt.get_cksum() {
+                            debug!("mismatched cksum");
+                            test_success = false;
+                        }
+                    }
+                    _ => {
+                        debug!(
+                            "Error: For some reason prepare packet is not
+                                    preparing a UDP payload"
+                        );
+                    }
+                }
+            }
+            None => debug!("Error! tried to read uninitialized IP6Packet"),
+        }
+
+        // Finally, check bytes of UDP Payload
+        let mut payload_success = true;
+        for i in (IP6_HDR_SIZE + UDP_HDR_SIZE)..len as usize {
+            if recv_packet[i] != UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)] {
+                test_success = false;
+                payload_success = false;
                 debug!(
                     "Packets differ at idx: {} where recv = {}, ref = {}",
-                    i, recv_packet[i], IP6_DGRAM[i]
+                    i - (IP6_HDR_SIZE + UDP_HDR_SIZE),
+                    recv_packet[i],
+                    UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)]
                 );
+                //break; //Comment this in to help prevent debug buffer overflows
             }
         }
+        debug!("Payload match is: {}", payload_success);
+        debug!("Complete Test success is: {}", test_success);
     }
 }
 
+//TODO: Change this function to modify IP6Packet struct instead of raw buffer
 fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
+    debug!("Entering prepare packet");
     {
-        let payload = unsafe { &mut IP6_DGRAM[IP6_HDR_SIZE..] };
-        for i in 0..PAYLOAD_LEN {
+        let payload = unsafe { &mut UDP_DGRAM[0..] };
+        for i in 0..(PAYLOAD_LEN - UDP_HDR_SIZE) {
             payload[i] = i as u8;
         }
     }
-    {
-        let ip6_header: &mut IP6Header = unsafe { mem::transmute(IP6_DGRAM.as_mut_ptr()) };
-        *ip6_header = IP6Header::new();
-        ip6_header.set_payload_len(PAYLOAD_LEN as u16);
+    unsafe {
+        //Had to use unsafe here bc IP6_DG_OPT is mutable static
 
-        if tf != TF::TrafficFlow {
-            ip6_header.set_ecn(0b01);
-        }
-        if (tf as u8) & (TF::Traffic as u8) != 0 {
-            ip6_header.set_dscp(0b000000);
-        } else {
-            ip6_header.set_dscp(0b101010);
-        }
+        match IP6_DG_OPT {
+            Some(ref mut ip6_packet) => {
+                {
+                    let ip6_header: &mut IP6Header = &mut ip6_packet.header;
+                    ip6_header.set_payload_len(PAYLOAD_LEN as u16);
 
-        if (tf as u8) & (TF::Flow as u8) != 0 {
-            ip6_header.set_flow_label(0);
-        } else {
-            ip6_header.set_flow_label(0xABCDE);
-        }
+                    if tf != TF::TrafficFlow {
+                        ip6_header.set_ecn(0b01);
+                    }
+                    if (tf as u8) & (TF::Traffic as u8) != 0 {
+                        ip6_header.set_dscp(0b000000);
+                    } else {
+                        ip6_header.set_dscp(0b101010);
+                    }
 
-        ip6_header.set_next_header(ip6_nh::NO_NEXT);
+                    if (tf as u8) & (TF::Flow as u8) != 0 {
+                        ip6_header.set_flow_label(0);
+                    } else {
+                        ip6_header.set_flow_label(0xABCDE);
+                    }
 
-        ip6_header.set_hop_limit(hop_limit);
+                    ip6_header.set_next_header(ip6_nh::UDP);
 
-        match sac {
-            SAC::Inline => {
-                ip6_header.src_addr = SRC_ADDR;
-            }
-            SAC::LLP64 => {
-                // LLP::xxxx:xxxx:xxxx:xxxx
-                ip6_header.src_addr.set_unicast_link_local();
-                ip6_header.src_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
-            }
-            SAC::LLP16 => {
-                // LLP::ff:fe00:xxxx
-                ip6_header.src_addr.set_unicast_link_local();
-                // Distinct from compute_iid because the U/L bit is not flipped
-                ip6_header.src_addr.0[11] = 0xff;
-                ip6_header.src_addr.0[12] = 0xfe;
-                ip6_header.src_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
-            }
-            SAC::LLPIID => {
-                // LLP::IID
-                ip6_header.src_addr.set_unicast_link_local();
-                ip6_header.src_addr.0[8..16]
-                    .copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
-            }
-            SAC::Unspecified => {}
-            SAC::Ctx64 => {
-                // MLP::xxxx:xxxx:xxxx:xxxx
-                ip6_header.src_addr.set_prefix(&MLP, 64);
-                ip6_header.src_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
-            }
-            SAC::Ctx16 => {
-                // MLP::ff:fe00:xxxx
-                ip6_header.src_addr.set_prefix(&MLP, 64);
-                // Distinct from compute_iid because the U/L bit is not flipped
-                ip6_header.src_addr.0[11] = 0xff;
-                ip6_header.src_addr.0[12] = 0xfe;
-                ip6_header.src_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
-            }
-            SAC::CtxIID => {
-                // MLP::IID
-                ip6_header.src_addr.set_prefix(&MLP, 64);
-                ip6_header.src_addr.0[8..16]
-                    .copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
-            }
-        }
+                    ip6_header.set_hop_limit(hop_limit);
 
-        match dac {
-            DAC::Inline => {
-                ip6_header.dst_addr = DST_ADDR;
-            }
-            DAC::LLP64 => {
-                // LLP::xxxx:xxxx:xxxx:xxxx
-                ip6_header.dst_addr.set_unicast_link_local();
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&DST_ADDR.0[8..16]);
-            }
-            DAC::LLP16 => {
-                // LLP::ff:fe00:xxxx
-                ip6_header.dst_addr.set_unicast_link_local();
-                // Distinct from compute_iid because the U/L bit is not flipped
-                ip6_header.dst_addr.0[11] = 0xff;
-                ip6_header.dst_addr.0[12] = 0xfe;
-                ip6_header.dst_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
-            }
-            DAC::LLPIID => {
-                // LLP::IID
-                ip6_header.dst_addr.set_unicast_link_local();
-                ip6_header.dst_addr.0[8..16]
-                    .copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
-            }
-            DAC::Ctx64 => {
-                // MLP::xxxx:xxxx:xxxx:xxxx
-                ip6_header.dst_addr.set_prefix(&MLP, 64);
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
-            }
-            DAC::Ctx16 => {
-                // MLP::ff:fe00:xxxx
-                ip6_header.dst_addr.set_prefix(&MLP, 64);
-                // Distinct from compute_iid because the U/L bit is not flipped
-                ip6_header.dst_addr.0[11] = 0xff;
-                ip6_header.dst_addr.0[12] = 0xfe;
-                ip6_header.dst_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
-            }
-            DAC::CtxIID => {
-                // MLP::IID
-                ip6_header.dst_addr.set_prefix(&MLP, 64);
-                ip6_header.dst_addr.0[8..16]
-                    .copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
-            }
-            DAC::McastInline => {
-                // first byte is ff, that's all we know
-                ip6_header.dst_addr = DST_ADDR;
-                ip6_header.dst_addr.0[0] = 0xff;
-            }
-            DAC::Mcast48 => {
-                // ffXX::00XX:XXXX:XXXX
-                ip6_header.dst_addr.0[0] = 0xff;
-                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
-                ip6_header.dst_addr.0[11..16].copy_from_slice(&DST_ADDR.0[11..16]);
-            }
-            DAC::Mcast32 => {
-                // ffXX::00XX:XXXX
-                ip6_header.dst_addr.0[0] = 0xff;
-                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
-                ip6_header.dst_addr.0[13..16].copy_from_slice(&DST_ADDR.0[13..16]);
-            }
-            DAC::Mcast8 => {
-                // ff02::00XX
-                ip6_header.dst_addr.0[0] = 0xff;
-                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
-                ip6_header.dst_addr.0[15] = DST_ADDR.0[15];
-            }
-            DAC::McastCtx => {
-                // ffXX:XX + plen + pfx64 + XXXX:XXXX
-                ip6_header.dst_addr.0[0] = 0xff;
-                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
-                ip6_header.dst_addr.0[2] = DST_ADDR.0[2];
-                ip6_header.dst_addr.0[3] = 64 as u8;
-                ip6_header.dst_addr.0[4..12].copy_from_slice(&MLP);
-                ip6_header.dst_addr.0[12..16].copy_from_slice(&DST_ADDR.0[12..16]);
-            }
+                    match sac {
+                        SAC::Inline => {
+                            ip6_header.src_addr = SRC_ADDR;
+                        }
+                        SAC::LLP64 => {
+                            // LLP::xxxx:xxxx:xxxx:xxxx
+                            ip6_header.src_addr.set_unicast_link_local();
+                            ip6_header.src_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
+                        }
+                        SAC::LLP16 => {
+                            // LLP::ff:fe00:xxxx
+                            ip6_header.src_addr.set_unicast_link_local();
+                            // Distinct from compute_iid because the U/L bit is not flipped
+                            ip6_header.src_addr.0[11] = 0xff;
+                            ip6_header.src_addr.0[12] = 0xfe;
+                            ip6_header.src_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
+                        }
+                        SAC::LLPIID => {
+                            // LLP::IID
+                            ip6_header.src_addr.set_unicast_link_local();
+                            ip6_header.src_addr.0[8..16].copy_from_slice(
+                                &sixlowpan_compression::compute_iid(&SRC_MAC_ADDR),
+                            );
+                        }
+                        SAC::Unspecified => {}
+                        SAC::Ctx64 => {
+                            // MLP::xxxx:xxxx:xxxx:xxxx
+                            ip6_header.src_addr.set_prefix(&MLP, 64);
+                            ip6_header.src_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
+                        }
+                        SAC::Ctx16 => {
+                            // MLP::ff:fe00:xxxx
+                            ip6_header.src_addr.set_prefix(&MLP, 64);
+                            // Distinct from compute_iid because the U/L bit is not flipped
+                            ip6_header.src_addr.0[11] = 0xff;
+                            ip6_header.src_addr.0[12] = 0xfe;
+                            ip6_header.src_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
+                        }
+                        SAC::CtxIID => {
+                            // MLP::IID
+                            ip6_header.src_addr.set_prefix(&MLP, 64);
+                            ip6_header.src_addr.0[8..16].copy_from_slice(
+                                &sixlowpan_compression::compute_iid(&SRC_MAC_ADDR),
+                            );
+                        }
+                    }
+
+                    match dac {
+                        DAC::Inline => {
+                            ip6_header.dst_addr = DST_ADDR;
+                        }
+                        DAC::LLP64 => {
+                            // LLP::xxxx:xxxx:xxxx:xxxx
+                            ip6_header.dst_addr.set_unicast_link_local();
+                            ip6_header.dst_addr.0[8..16].copy_from_slice(&DST_ADDR.0[8..16]);
+                        }
+                        DAC::LLP16 => {
+                            // LLP::ff:fe00:xxxx
+                            ip6_header.dst_addr.set_unicast_link_local();
+                            // Distinct from compute_iid because the U/L bit is not flipped
+                            ip6_header.dst_addr.0[11] = 0xff;
+                            ip6_header.dst_addr.0[12] = 0xfe;
+                            ip6_header.dst_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
+                        }
+                        DAC::LLPIID => {
+                            // LLP::IID
+                            ip6_header.dst_addr.set_unicast_link_local();
+                            ip6_header.dst_addr.0[8..16].copy_from_slice(
+                                &sixlowpan_compression::compute_iid(&DST_MAC_ADDR),
+                            );
+                        }
+                        DAC::Ctx64 => {
+                            // MLP::xxxx:xxxx:xxxx:xxxx
+                            ip6_header.dst_addr.set_prefix(&MLP, 64);
+                            ip6_header.dst_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
+                        }
+                        DAC::Ctx16 => {
+                            // MLP::ff:fe00:xxxx
+                            ip6_header.dst_addr.set_prefix(&MLP, 64);
+                            // Distinct from compute_iid because the U/L bit is not flipped
+                            ip6_header.dst_addr.0[11] = 0xff;
+                            ip6_header.dst_addr.0[12] = 0xfe;
+                            ip6_header.dst_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
+                        }
+                        DAC::CtxIID => {
+                            // MLP::IID
+                            ip6_header.dst_addr.set_prefix(&MLP, 64);
+                            ip6_header.dst_addr.0[8..16].copy_from_slice(
+                                &sixlowpan_compression::compute_iid(&DST_MAC_ADDR),
+                            );
+                        }
+                        DAC::McastInline => {
+                            // first byte is ff, that's all we know
+                            ip6_header.dst_addr = DST_ADDR;
+                            ip6_header.dst_addr.0[0] = 0xff;
+                        }
+                        DAC::Mcast48 => {
+                            // ffXX::00XX:XXXX:XXXX
+                            ip6_header.dst_addr.0[0] = 0xff;
+                            ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                            ip6_header.dst_addr.0[11..16].copy_from_slice(&DST_ADDR.0[11..16]);
+                        }
+                        DAC::Mcast32 => {
+                            // ffXX::00XX:XXXX
+                            ip6_header.dst_addr.0[0] = 0xff;
+                            ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                            ip6_header.dst_addr.0[13..16].copy_from_slice(&DST_ADDR.0[13..16]);
+                        }
+                        DAC::Mcast8 => {
+                            // ff02::00XX
+                            ip6_header.dst_addr.0[0] = 0xff;
+                            ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                            ip6_header.dst_addr.0[15] = DST_ADDR.0[15];
+                        }
+                        DAC::McastCtx => {
+                            // ffXX:XX + plen + pfx64 + XXXX:XXXX
+                            ip6_header.dst_addr.0[0] = 0xff;
+                            ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                            ip6_header.dst_addr.0[2] = DST_ADDR.0[2];
+                            ip6_header.dst_addr.0[3] = 64 as u8;
+                            ip6_header.dst_addr.0[4..12].copy_from_slice(&MLP);
+                            ip6_header.dst_addr.0[12..16].copy_from_slice(&DST_ADDR.0[12..16]);
+                        }
+                    }
+                } //This bracket ends mutable borrow of ip6_packet for header
+                  //Now that packet is fully prepared, set checksum
+                ip6_packet.set_transport_checksum(); //calculates and sets UDP cksum
+            } //End of Some{}
+            None => debug!("Error! tried to prepare uninitialized IP6Packet"),
         }
     }
+
     debug!(
         "Packet with tf={:?} hl={} sac={:?} dac={:?}",
         tf, hop_limit, sac, dac

@@ -42,6 +42,8 @@ mod i2c_dummy;
 mod lowpan_frag_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
+#[allow(dead_code)]
+mod app_layer_icmp_lowpan_frag;
 
 #[allow(dead_code)]
 mod aes_test;
