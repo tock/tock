@@ -178,7 +178,7 @@ specific rules and a header for the binary so that Tock can load the application
 correctly.
 
 Each Tock application uses a
-[linker script](https://github.com/helena-project/tock/blob/master/userland/userland_generic.ld)
+[linker script](https://github.com/tock/tock/blob/master/userland/userland_generic.ld)
 that places Flash at address `0x80000000` and SRAM at address `0x00000000`.
 This allows relocations pointing at Flash to be easily differentiated from
 relocations pointing at RAM.
@@ -279,7 +279,7 @@ be persistent even when other apps are being developed.
 
 In practice, this is automatically handled for applications. As part of the
 compilation process, a tool called
-[Elf to Tock Binary Format](https://github.com/helena-project/tock/tree/master/userland/tools/elf2tbf)
+[Elf to Tock Binary Format](https://github.com/tock/tock/tree/master/userland/tools/elf2tbf)
 does the conversion from ELF to Tock's expected binary format, ensuring that
 sections are placed in the expected order, adding a section that lists
 necessary load-time relocations, and creating the TBF header.
@@ -446,7 +446,7 @@ include ../../AppMakefile.mk
 **Example:** We don't have an in-tree example of a single app that rebuilds
 a dedicated library in the Tock repository, but libtock is effectively treated
 this way as its Makefile is
-[included by AppMakefile.mk](https://github.com/helena-project/tock/blob/master/userland/AppMakefile.mk#L17).
+[included by AppMakefile.mk](https://github.com/tock/tock/blob/master/userland/AppMakefile.mk#L17).
 
 ##### Pre-built libraries
 
@@ -476,7 +476,7 @@ variable `EXTERN_LIBS` in your application Makefile, e.g.
 `EXTERN_LIBS += ../../libexample`.
 
 **Example:** In the Tock repository, lua53
-[ships a pre-built archive](https://github.com/helena-project/tock/tree/master/userland/lua53/build/cortex-m4).
+[ships a pre-built archive](https://github.com/tock/tock/tree/master/userland/lua53/build/cortex-m4).
 
 ##### Manually including libraries
 

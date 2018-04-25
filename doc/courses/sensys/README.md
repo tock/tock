@@ -60,7 +60,7 @@ If you choose to install manually, you will need the following software:
 
 1. A local clone of the Tock repository
 
-        $ git clone https://github.com/helena-project/tock.git
+        $ git clone https://github.com/tock/tock.git
 
 1. [rustup](http://rustup.rs/).
 
@@ -74,7 +74,7 @@ If you choose to install manually, you will need the following software:
 1. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 
    OS-specific installation instructions can be found
-   [here](https://github.com/helena-project/tock/blob/master/doc/Getting_Started.md#arm-none-eabi-toolchain)
+   [here](https://github.com/tock/tock/blob/master/doc/Getting_Started.md#arm-none-eabi-toolchain)
 
 1. [tockloader](https://github.com/tock/tockloader)
 

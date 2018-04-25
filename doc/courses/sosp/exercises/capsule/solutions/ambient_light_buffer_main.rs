@@ -1,6 +1,6 @@
 //! Board file for Hail development platform.
 //!
-//! - https://github.com/helena-project/tock/tree/master/boards/hail
+//! - https://github.com/tock/tock/tree/master/boards/hail
 //! - https://github.com/lab11/hail
 
 #![no_std]

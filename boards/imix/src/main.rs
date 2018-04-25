@@ -1,7 +1,7 @@
 //! Board file for Imix development platform.
 //!
-//! - <https://github.com/helena-project/tock/tree/master/boards/imix>
-//! - <https://github.com/helena-project/imix>
+//! - <https://github.com/tock/tock/tree/master/boards/imix>
+//! - <https://github.com/tock/imix>
 
 #![no_std]
 #![no_main]

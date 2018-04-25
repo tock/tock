@@ -33,7 +33,7 @@ time:
 
 5. A local clone of the Tock repository
 
-        $ git clone https://github.com/helena-project/tock.git
+        $ git clone https://github.com/tock/tock.git
 
 6. [rustup](http://rustup.rs/).
 

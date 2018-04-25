@@ -301,7 +301,7 @@ function name and arguments and then internally translate these into a
 `command`, `subscribe`, etc. Where it makes sense, the libraries also provide
 a synchronous interface to a driver using an internal callback and `yield_for`
 (example:
-[`tmp006_read_sync`](https://github.com/helena-project/tock/blob/master/userland/libtock/tmp006.c#L19))
+[`tmp006_read_sync`](https://github.com/tock/tock/blob/master/userland/libtock/tmp006.c#L19))
 
 `libtock` also provides the startup code for applications
 ([`crt0.c`](../userland/libtock/crt0.c)),
@@ -339,5 +339,5 @@ files when it runs.
 
 ## Rust Applications
 
-See the [libtock-rs](https://github.com/helena-project/libtock-rs) repo for more
+See the [libtock-rs](https://github.com/tock/libtock-rs) repo for more
 information on writing userland rust apps.

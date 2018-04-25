@@ -148,7 +148,7 @@ that explains how to program the board:
 ### Loading Apps
 
 You can create a custom
-[Makefile-app](https://github.com/helena-project/tock/blob/master/boards/imix/Makefile-app)
+[Makefile-app](https://github.com/tock/tock/blob/master/boards/imix/Makefile-app)
 and include the commands needed to program an app and kernels on your board.
 
 ### Common Pitfalls
