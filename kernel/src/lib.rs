@@ -52,7 +52,7 @@ pub use returncode::ReturnCode;
 pub fn main<P: Platform, C: Chip>(
     platform: &P,
     chip: &mut C,
-    processes: &'static mut [Option<process::Process<'static>>],
+    processes: &'static mut [Option<&mut process::Process<'static>>],
     ipc: &ipc::IPC,
 ) {
     let processes = unsafe {
