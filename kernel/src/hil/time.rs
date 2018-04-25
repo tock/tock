@@ -3,8 +3,10 @@
 pub trait Time {
     type Frequency: Frequency;
 
+    /// Disable any outstanding alarm or timer
     fn disable(&self);
 
+    /// Returns whether a timer or alarm is currently armed
     fn is_armed(&self) -> bool;
 }
 
