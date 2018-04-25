@@ -56,8 +56,8 @@ extern crate nrf5x;
 
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::{Chip, SysTick};
 use kernel::hil::uart::UART;
+use kernel::{Chip, SysTick};
 use nrf5x::pinmux::Pinmux;
 use nrf5x::rtc::{Rtc, RTC};
 
@@ -152,7 +152,7 @@ pub unsafe fn reset_handler() {
             (
                 &nrf5x::gpio::PORT[LED4_PIN],
                 capsules::led::ActivationMode::ActiveLow
-            ) // 24
+            ), // 24
         ],
         256 / 8
     );
@@ -180,7 +180,7 @@ pub unsafe fn reset_handler() {
             (
                 &nrf5x::gpio::PORT[BUTTON4_PIN],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // 20
+            ), // 20
         ],
         4 * 4
     );
@@ -208,7 +208,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[15], //
             &nrf5x::gpio::PORT[14], //
             &nrf5x::gpio::PORT[13], //
-            &nrf5x::gpio::PORT[12]  //
+            &nrf5x::gpio::PORT[12], //
         ],
         4 * 11
     );

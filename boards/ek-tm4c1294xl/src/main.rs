@@ -10,9 +10,9 @@ extern crate kernel;
 extern crate tm4c129x;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
+use kernel::Platform;
 
 #[macro_use]
 pub mod io;
@@ -125,7 +125,7 @@ pub unsafe fn reset_handler() {
             (
                 &tm4c129x::gpio::PN[1],
                 capsules::led::ActivationMode::ActiveHigh
-            ) // D4
+            ), // D4
         ]
     );
     let led = static_init!(
@@ -144,7 +144,7 @@ pub unsafe fn reset_handler() {
             (
                 &tm4c129x::gpio::PJ[1],
                 capsules::button::GpioMode::LowWhenPressed
-            ) //USR_SW2
+            ), //USR_SW2
         ]
     );
     let button = static_init!(

@@ -25,8 +25,8 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x20005;

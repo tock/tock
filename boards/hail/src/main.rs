@@ -17,10 +17,10 @@ extern crate sam4l;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use kernel::Platform;
 use kernel::hil;
-use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::Controller;
+use kernel::Platform;
 
 /// Support routines for debugging I/O.
 ///
@@ -113,8 +113,8 @@ impl Platform for Hail {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::{PA, PB};
     use sam4l::gpio::PeripheralFunction::{A, B};
+    use sam4l::gpio::{PA, PB};
 
     PA[04].configure(Some(A)); // A0 - ADC0
     PA[05].configure(Some(A)); // A1 - ADC1
@@ -357,7 +357,7 @@ pub unsafe fn reset_handler() {
             (
                 &sam4l::gpio::PA[14],
                 capsules::led::ActivationMode::ActiveLow
-            )
+            ),
         ]
     ); // Blue
     let led = static_init!(
@@ -368,12 +368,10 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button_pins = static_init!(
         [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
-        [
-            (
-                &sam4l::gpio::PA[16],
-                capsules::button::GpioMode::LowWhenPressed
-            )
-        ]
+        [(
+            &sam4l::gpio::PA[16],
+            capsules::button::GpioMode::LowWhenPressed
+        )]
     );
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -392,7 +390,7 @@ pub unsafe fn reset_handler() {
             &sam4l::adc::CHANNEL_AD3, // A2
             &sam4l::adc::CHANNEL_AD4, // A3
             &sam4l::adc::CHANNEL_AD5, // A4
-            &sam4l::adc::CHANNEL_AD6  // A5
+            &sam4l::adc::CHANNEL_AD6, // A5
         ]
     );
     let adc = static_init!(
@@ -421,7 +419,7 @@ pub unsafe fn reset_handler() {
             &sam4l::gpio::PB[14], // D0
             &sam4l::gpio::PB[15], // D1
             &sam4l::gpio::PB[11], // D6
-            &sam4l::gpio::PB[12]
+            &sam4l::gpio::PB[12],
         ]
     ); // D7
     let gpio = static_init!(

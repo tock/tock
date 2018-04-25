@@ -15,9 +15,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::hil::rng;
 use kernel::process::Error;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x40001;

@@ -6,8 +6,8 @@ use core::cell::Cell;
 use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
-use kernel::{ClockInterface, StaticRef};
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::{ClockInterface, StaticRef};
 use scif;
 
 /// §10.7 PM::UserInterface from SAM4L Datasheet.
@@ -693,26 +693,26 @@ pub fn get_system_frequency() -> u32 {
 /// pm_register is one of hsbmask, pbamask, pbbmask, pbcmask or pbdmask.
 ///
 macro_rules! mask_clock {
-    ($module:ident: $field:ident | $mask:expr) => ({
+    ($module:ident : $field:ident | $mask:expr) => {{
         unlock(concat_idents!($module, _MASK_OFFSET));
         let val = PM_REGS.$field.get() | ($mask);
         PM_REGS.$field.set(val);
-    });
+    }};
 
-    ($module:ident: $field:ident & $mask:expr) => ({
+    ($module:ident : $field:ident & $mask:expr) => {{
         unlock(concat_idents!($module, _MASK_OFFSET));
         let val = PM_REGS.$field.get() & ($mask);
         PM_REGS.$field.set(val);
-    });
+    }};
 }
 
 /// Utility macro to get value of clock register. Used to check if a specific
 /// clock is enabled or not. See above description of `make_clock!`.
 macro_rules! get_clock {
-    ($module:ident: $field:ident & $mask:expr) => ({
+    ($module:ident : $field:ident & $mask:expr) => {{
         unlock(concat_idents!($module, _MASK_OFFSET));
         (PM_REGS.$field.get() & ($mask)) != 0
-    });
+    }};
 }
 
 /// Determines if the chip can safely go into deep sleep without preventing

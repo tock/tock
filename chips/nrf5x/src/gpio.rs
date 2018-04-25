@@ -4,8 +4,9 @@
 //! * Philip Levis <pal@cs.stanford.edu>
 //! * Date: August 18, 2016
 
-use core::{cell::Cell, ops::{Index, IndexMut}};
-use kernel::{hil, common::regs::ReadWrite};
+use core::{cell::Cell,
+           ops::{Index, IndexMut}};
+use kernel::{common::regs::ReadWrite, hil};
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;

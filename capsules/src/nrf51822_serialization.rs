@@ -17,9 +17,9 @@
 //! ```
 
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::uart::{self, Client, UARTAdvanced};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x80004;

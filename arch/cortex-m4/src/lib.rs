@@ -11,8 +11,8 @@ extern crate kernel;
 
 pub mod mpu;
 pub mod nvic;
-pub mod systick;
 pub mod scb;
+pub mod systick;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}

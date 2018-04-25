@@ -19,11 +19,11 @@
 #![allow(unused_parens)]
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
+use kernel::ReturnCode;
 use rf233_const::*;
 
 const INTERRUPT_ID: usize = 0x2154;

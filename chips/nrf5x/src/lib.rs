@@ -8,11 +8,11 @@ extern crate kernel;
 mod peripheral_registers;
 
 pub mod aes;
+pub mod constants;
 pub mod gpio;
 pub mod peripheral_interrupts;
 pub mod pinmux;
 pub mod rtc;
-pub mod timer;
 pub mod temperature;
+pub mod timer;
 pub mod trng;
-pub mod constants;

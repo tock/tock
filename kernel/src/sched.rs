@@ -3,9 +3,9 @@
 use core::ptr;
 use core::ptr::NonNull;
 use memop;
-use platform::{Chip, Platform};
 use platform::mpu::MPU;
 use platform::systick::SysTick;
+use platform::{Chip, Platform};
 use process;
 use process::{Process, Task};
 use returncode::ReturnCode;

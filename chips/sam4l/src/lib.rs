@@ -17,26 +17,26 @@ extern crate kernel;
 #[macro_use]
 mod helpers;
 
-pub mod chip;
+pub mod adc;
+pub mod aes;
 pub mod ast;
 pub mod bpm;
 pub mod bscif;
-pub mod dma;
-pub mod i2c;
-pub mod spi;
-pub mod nvic;
-pub mod pm;
-pub mod gpio;
-pub mod usart;
-pub mod scif;
-pub mod adc;
-pub mod flashcalw;
-pub mod wdt;
-pub mod trng;
+pub mod chip;
 pub mod crccu;
 pub mod dac;
-pub mod aes;
+pub mod dma;
+pub mod flashcalw;
+pub mod gpio;
+pub mod i2c;
+pub mod nvic;
+pub mod pm;
+pub mod scif;
+pub mod spi;
+pub mod trng;
+pub mod usart;
 pub mod usbc;
+pub mod wdt;
 
 use cortexm4::{generic_isr, svc_handler, systick_handler};
 

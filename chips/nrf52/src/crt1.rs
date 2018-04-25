@@ -40,7 +40,7 @@ unsafe extern "C" fn unhandled_interrupt() {
 }
 
 unsafe extern "C" fn hard_fault_handler() {
-    use {core, kernel, core::intrinsics::offset};
+    use {core, core::intrinsics::offset, kernel};
 
     let faulting_stack: *mut u32;
     let kernel_stack: bool;

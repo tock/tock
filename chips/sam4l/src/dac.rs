@@ -6,9 +6,9 @@
 //! - Date: May 26th, 2017
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
+use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
 
 #[repr(C)]

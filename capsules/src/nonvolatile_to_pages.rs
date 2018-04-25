@@ -33,9 +33,9 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 /// This module is either waiting to do something, or handling a read/write.
 #[derive(Clone, Copy, Debug, PartialEq)]

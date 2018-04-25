@@ -184,7 +184,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[25],
             &nrf5x::gpio::PORT[24],
             &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22] // -----
+            &nrf5x::gpio::PORT[22], // -----
         ]
     );
 
@@ -249,7 +249,7 @@ pub unsafe fn reset_handler() {
             (
                 &nrf5x::gpio::PORT[BUTTON4_PIN],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // 16
+            ), // 16
         ]
     );
     let button = static_init!(

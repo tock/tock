@@ -24,10 +24,10 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use helpers::{DeferredCall, Task};
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 use pm;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
@@ -440,7 +440,9 @@ const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
 // Macros for getting the i-th bit.
 macro_rules! bit {
-    ($w:expr) => (0x1u32 << $w);
+    ($w:expr) => {
+        0x1u32 << $w
+    };
 }
 
 impl FLASHCALW {
@@ -590,7 +592,7 @@ impl FLASHCALW {
     pub fn get_flash_size(&self) -> u32 {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         let flash_sizes = [
-            4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048
+            4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048,
         ];
         // get the FSZ number and lookup in the table for the size.
         flash_sizes[regs.fpr.read(FlashParameter::FSZ) as usize] << 10

@@ -20,10 +20,10 @@
 //  conveniently disable and enable the individual submodules at will.
 
 use kernel::hil::Controller;
-use sam4l::gpio::{PA, PB, PC};
 use sam4l::gpio::GPIOPin;
 use sam4l::gpio::PeripheralFunction;
 use sam4l::gpio::PeripheralFunction::{A, B, E};
+use sam4l::gpio::{PA, PB, PC};
 
 struct DetachablePin {
     pin: &'static GPIOPin,

@@ -44,11 +44,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x80000;
