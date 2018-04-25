@@ -64,6 +64,16 @@ else
   endif
 endif
 
+# Validate that rustup is new enough
+MINIMUM_RUSTUP_VERSION := 1.11.0
+RUSTUP_VERSION := $(strip $(word 2, $(shell rustup --version)))
+ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+  $(warning Required tool `rustup` is out-of-date.)
+  $(warning Running `rustup update` in 3 seconds (ctrl-c to cancel))
+  $(shell sleep 3s)
+  DUMMY := $(shell rustup update)
+endif
+
 ifneq ($(shell rustup component list | grep rust-src),rust-src (installed))
   $(shell rustup component add rust-src)
 endif
