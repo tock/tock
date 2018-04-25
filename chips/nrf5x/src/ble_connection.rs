@@ -167,20 +167,21 @@ impl ConnectionData {
 	pub fn connection_interval_ended(&mut self, rx_timestamp: u32) -> (bool, Option<u32>) {
 
 		//TODO - Perhaps add jitter in the comparison?
+
+		let interval = (self.lldata.interval as u32) * 1000 * 5 / 4;
+
 		match self.conn_interval_start {
 			Some(start_time) => {
-				let end_interval = (start_time + (self.lldata.interval as u32) * 1000 * 5 / 4);
-
-				if rx_timestamp >= end_interval - 150 {
+				if rx_timestamp >= (interval + start_time) - 150 {
 					self.conn_interval_start = None;
-					(true, Some(end_interval))
+					(true, Some(interval + start_time))
 				} else {
-					(false, Some(end_interval))
+					(false, Some(interval + start_time))
 				}
 			},
 			None => {
 				self.conn_interval_start = Some(rx_timestamp);
-				(false, None)
+				(false, Some(interval + rx_timestamp))
 			},
 		}
 	}
