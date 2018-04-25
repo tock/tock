@@ -191,8 +191,7 @@ impl<'a, U: UART> Console<'a, U> {
                     // For simplicity, impose a small maximum receive length
                     // instead of doing incremental reads
                     ReturnCode::EINVAL
-                }
-                else {
+                } else {
                     // Note: We have ensured above that rx_buffer is present
                     app.read_len = read_len;
                     self.rx_buffer.take().map(|buffer| {
@@ -231,11 +230,11 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                 })
                 .unwrap_or_else(|err| err.into()),
             2 => self.apps
-                 .enter(appid, |app, _| {
-                     app.read_buffer = slice;
-                     ReturnCode::SUCCESS
-                 })
-                 .unwrap_or_else(|err| err.into()),
+                .enter(appid, |app, _| {
+                    app.read_buffer = slice;
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -391,41 +390,44 @@ impl<'a, U: UART> Client for Console<'a, U> {
         self.rx_in_progress.get().map(|appid| {
             self.rx_in_progress.set(None);
 
-            self.apps.enter(appid, |app, _| {
-                app.read_callback.map(|mut cb| {
-                    let (result, len) = match error {
-                        uart::Error::CommandComplete => {
-                            // Copy the data into the application buffer, if it exists
-                            match app.read_buffer.take() {
-                                Some(mut app_buffer) => {
-                                    // We used UART::receive(), so we received the requested length
-                                    let len = app.read_len;
-                                    self.rx_buffer.map(|buffer| {
-                                        // Copy our driver's buffer into the app's buffer
-                                        for (i, c) in app_buffer.as_mut()[0..len].iter_mut().enumerate() {
-                                            *c = buffer[i]
-                                        }
-                                    });
-                                    (ReturnCode::SUCCESS, len)
-                                }
-                                None => {
-                                    (ReturnCode::EINVAL, 0)
+            self.apps
+                .enter(appid, |app, _| {
+                    app.read_callback.map(|mut cb| {
+                        let (result, len) = match error {
+                            uart::Error::CommandComplete => {
+                                // Copy the data into the application buffer, if it exists
+                                match app.read_buffer.take() {
+                                    Some(mut app_buffer) => {
+                                        // We used UART::receive(),
+                                        // so we received the requested length
+                                        let len = app.read_len;
+                                        self.rx_buffer.map(|buffer| {
+                                            // Copy our driver's buffer into the app's buffer
+                                            for (i, c) in
+                                                app_buffer.as_mut()[0..len].iter_mut().enumerate()
+                                            {
+                                                *c = buffer[i]
+                                            }
+                                        });
+                                        (ReturnCode::SUCCESS, len)
+                                    }
+                                    None => (ReturnCode::EINVAL, 0),
                                 }
                             }
-                        }
-                        _ => {
-                            // Some UART error occurred
-                            (ReturnCode::FAIL, 0)
-                        }
-                    };
+                            _ => {
+                                // Some UART error occurred
+                                (ReturnCode::FAIL, 0)
+                            }
+                        };
 
-                    // Schedule the app's callback
-                    cb.schedule(From::from(result), len, 0);
-                });
+                        // Schedule the app's callback
+                        cb.schedule(From::from(result), len, 0);
+                    });
 
-            // If the enter() above fails because the app has disappeared,
-            // we simply drop the received data.
-            }).unwrap_or_default();
+                    // If the enter() above fails because the app has disappeared,
+                    // we simply drop the received data.
+                })
+                .unwrap_or_default();
         });
     }
 }
