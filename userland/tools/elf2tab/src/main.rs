@@ -135,30 +135,19 @@ fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief));
 }
 
-fn get_section<'a>(input: &'a elf::File, name: &str) -> elf::Section {
-    match input.get_section(name) {
-        Some(section) => elf::Section {
-            data: section.data.clone(),
-            shdr: section.shdr.clone(),
-        },
-        None => elf::Section {
-            data: Vec::new(),
-            shdr: elf::types::SectionHeader {
-                name: String::from(name),
-                shtype: elf::types::SHT_NULL,
-                flags: elf::types::SHF_NONE,
-                addr: 0,
-                offset: 0,
-                size: 0,
-                link: 0,
-                info: 0,
-                addralign: 0,
-                entsize: 0,
-            },
-        },
-    }
-}
-
+/// Convert an ELF file to a TBF (Tock Binary Format) binary file.
+///
+/// This will place all writeable and executable sections from the ELF file
+/// into a binary and prepend a TBF header to it. For all writeable sections,
+/// if there is a .rel.X section it will be included at the end with a 32 bit
+/// length parameter first.
+///
+/// Assumptions:
+/// - Sections with only the writeable flag set are writeable flash regions
+///   and will be marked as such in the TBF header.
+/// - Sections that have flags writeable and alloc, and are of type PROGBITS,
+///   will be in RAM and should count towards minimum required RAM.
+/// - Sections that are writeable flash regions include .wfr in their name.
 fn elf_to_tbf(
     input: &elf::File,
     output: &mut Write,
@@ -170,25 +159,66 @@ fn elf_to_tbf(
 ) -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
 
-    // Pull out the sections from the .elf we need.
-    let rel_data = input
-        .sections
-        .iter()
-        .find(|section| section.shdr.name == ".rel.data".as_ref())
-        .map(|section| section.data.as_ref())
-        .unwrap_or(&[] as &[u8]);
-    let text = get_section(input, ".text");
-    let got = get_section(input, ".got");
-    let data = get_section(input, ".data");
-    let bss = get_section(input, ".bss");
-    let appstate = get_section(input, ".app_state");
+    // Get an array of the sections sorted so we place them in the proper order
+    // in the binary.
+    let mut sections_sort: Vec<(usize, usize)> = Vec::new();
+    for (i, section) in input.sections.iter().enumerate() {
+        sections_sort.push((i, section.shdr.offset as usize));
+    }
+    sections_sort.sort_by_key(|s| s.1);
 
-    // Calculate how much RAM this app should ask the kernel for.
-    let got_size = align4!(got.shdr.size) as u32;
-    let data_size = align4!(data.shdr.size) as u32;
-    let bss_size = align4!(bss.shdr.size) as u32;
-    let minimum_ram_size = align8!(stack_len) + align4!(app_heap_len) + align4!(kernel_heap_len)
-        + got_size + data_size + bss_size;
+    // Keep track of how much RAM this app will need.
+    let mut minimum_ram_size: u32 = 0;
+
+    // Find the ELF segment for the RAM segment. That will tell us how much
+    // RAM we need to reserve for when those are copied into memory.
+    for segment in input.phdrs.iter() {
+        if segment.progtype == elf::types::PT_LOAD
+            && segment.flags.0 == elf::types::PF_W.0 + elf::types::PF_R.0
+        {
+            minimum_ram_size = segment.memsz as u32;
+            break;
+        }
+    }
+    if verbose {
+        println!(
+            "Min RAM size from sections in ELF: {} bytes",
+            minimum_ram_size
+        );
+    }
+
+    // Add in room the app is asking us to reserve for the stack and heaps to
+    // the minimum required RAM size.
+    minimum_ram_size += align8!(stack_len) + align4!(app_heap_len) + align4!(kernel_heap_len);
+
+    // Need an array of sections to look for relocation data to include.
+    let mut rel_sections: Vec<String> = Vec::new();
+
+    // Iterate the sections in the ELF file to find properties of the app that
+    // are required to go in the TBF header.
+    let mut writeable_flash_regions_count = 0;
+
+    for s in sections_sort.iter() {
+        let section = &input.sections[s.0];
+
+        // Count write only sections as writeable flash regions.
+        if section.shdr.name.contains(".wfr") && section.shdr.size > 0 {
+            writeable_flash_regions_count += 1;
+        }
+
+        // Check write+alloc sections for possible .rel.X sections.
+        if section.shdr.flags.0 == elf::types::SHF_WRITE.0 + elf::types::SHF_ALLOC.0 {
+            // This section is also one we might need to include relocation
+            // data for.
+            rel_sections.push(section.shdr.name.clone());
+        }
+    }
+    if verbose {
+        println!(
+            "Number of writeable flash regions: {}",
+            writeable_flash_regions_count
+        );
+    }
 
     // Keep track of an index of where we are in creating the app binary.
     let mut binary_index = 0;
@@ -196,31 +226,109 @@ fn elf_to_tbf(
     // Now we can create the first pass TBF header. This is mostly to get the
     // size of the header since we have to fill in some of the offsets later.
     let mut tbfheader = header::TbfHeader::new();
-    let header_length = tbfheader.create(minimum_ram_size, appstate.shdr.size > 0, package_name);
-    binary_index += header_length;
+    let header_length = tbfheader.create(
+        minimum_ram_size,
+        writeable_flash_regions_count,
+        package_name,
+    );
+    let protected_region_size = header_length;
+    binary_index += protected_region_size;
 
-    // `app_start` is the address that is passed to the app.
-    let app_start = binary_index;
+    // The init function is where the app will start executing, defined as an
+    // offset from the end of protected region at the beginning of the app in
+    // flash. Typically the protected region only includes the TBF header. To
+    // calculate the offset we need to find which section includes the entry
+    // function and then determine its offset relative to the end of the
+    // protected region.
+    let mut init_fn_offset: u32 = 0;
 
-    // Next up is the .text section.
-    let section_start_text = binary_index;
-    binary_index += text.data.len();
+    // Need a place to put the app sections before we know the true TBF header.
+    let mut binary: Vec<u8> = Vec::new();
 
-    // Next up is the app writeable app_state section. If this is not used or
-    // non-existent, it will just be zero and won't matter.
-    let appstate_offset = binary_index;
-    let appstate_size = appstate.shdr.size as usize;
-    binary_index += appstate_size;
+    // Iterate the sections in the ELF file and add them to the binary as needed
+    for s in sections_sort.iter() {
+        let section = &input.sections[s.0];
 
-    // Next up is the .got section.
-    binary_index += got.data.len();
+        // Determine if this is the section where the entry point is in. If it
+        // is, then we need to calculate the correct init_fn_offset.
+        if input.ehdr.entry >= section.shdr.addr
+            && input.ehdr.entry < (section.shdr.addr + section.shdr.size)
+        {
+            if verbose {
+                println!("Entry point is in {} section", section.shdr.name);
+            }
+            init_fn_offset = (input.ehdr.entry - section.shdr.addr) as u32
+                + (binary_index - protected_region_size) as u32
+        }
 
-    // Next up is the .data section.
-    binary_index += data.data.len();
+        // If this is writeable, executable, or allocated, is nonzero length,
+        // and is type `PROGBITS` we want to add it to the binary.
+        if (section.shdr.flags.0
+            & (elf::types::SHF_WRITE.0 + elf::types::SHF_EXECINSTR.0 + elf::types::SHF_ALLOC.0)
+            != 0) && section.shdr.shtype == elf::types::SHT_PROGBITS
+            && section.shdr.size > 0
+        {
+            if verbose {
+                println!(
+                    "Including the {} section at offset {} (0x{:x})",
+                    section.shdr.name, binary_index, binary_index
+                );
+            }
+            binary.extend(&section.data);
 
-    // Next up is the rel_data. We also include a u32 length to begin the
-    // rel_data.
-    binary_index += rel_data.len() + mem::size_of::<u32>();
+            // Check if this is a writeable flash region. If so, we need to
+            // set the offset and size in the header.
+            if section.shdr.name.contains(".wfr") && section.shdr.size > 0 {
+                tbfheader.set_writeable_flash_region_values(
+                    binary_index as u32,
+                    section.shdr.size as u32,
+                );
+            }
+
+            // Now increment where we are in the binary.
+            binary_index += section.shdr.size as usize;
+        }
+    }
+
+    // Now that we have checked all of the sections, we can set the
+    // init_fn_offset.
+    tbfheader.set_init_fn_offset(init_fn_offset);
+
+    // Next we have to add in any relocation data.
+    let mut relocation_binary: Vec<u8> = Vec::new();
+
+    // For each section that might have relocation data, check if a .rel.X
+    // section exists and if so include it.
+    if verbose {
+        println!("Searching for .rel.X sections to add.");
+    }
+    for relocation_section_name in rel_sections.iter() {
+        let mut name: String = ".rel".to_owned();
+        name.push_str(relocation_section_name);
+
+        let rel_data = input
+            .sections
+            .iter()
+            .find(|section| section.shdr.name == name)
+            .map(|section| section.data.as_ref())
+            .unwrap_or(&[] as &[u8]);
+
+        relocation_binary.extend(rel_data);
+
+        if verbose && rel_data.len() > 0 {
+            println!(
+                "  Adding {} section. Length: {} bytes at {} (0x{:x})",
+                name,
+                rel_data.len(),
+                binary_index + mem::size_of::<u32>() + rel_data.len(),
+                binary_index + mem::size_of::<u32>() + rel_data.len()
+            );
+        }
+    }
+
+    // Add the relocation data to our total length. Also include the 4 bytes for
+    // the relocation data length.
+    binary_index += relocation_binary.len() + mem::size_of::<u32>();
 
     // That is everything that we are going to include in our app binary. Now
     // we need to pad the binary to a power of 2 in size, and make sure it is
@@ -234,20 +342,8 @@ fn elf_to_tbf(
     binary_index += post_content_pad;
     let total_size = binary_index;
 
-    // Now we can calculate sizes and offsets that need to go to the header.
-
-    // The init function is where the app will start executing, defined as
-    // an offset from the end of protected region at the beginning of the app
-    // in flash. Typically the protected region only includes the TBF header.
-    // To calculate the offset we need to find the function in the binary
-    // and then add the offset to the start of the .text section.
-    let init_fn_offset =
-        (input.ehdr.entry - text.shdr.addr) as u32 + (section_start_text - app_start) as u32;
-
-    // Now we can update the header with key values that we have now calculated.
+    // Now set the total size of the app in the header.
     tbfheader.set_total_size(total_size as u32);
-    tbfheader.set_init_fn_offset(init_fn_offset as u32);
-    tbfheader.set_appstate_values(appstate_offset as u32, appstate_size as u32);
 
     if verbose {
         print!("{}", tbfheader);
@@ -255,20 +351,16 @@ fn elf_to_tbf(
 
     // Write the header and actual app to a binary file.
     output.write_all(tbfheader.generate().unwrap().get_ref())?;
-
-    output.write_all(text.data.as_ref())?;
-    output.write_all(appstate.data.as_ref())?;
-    output.write_all(got.data.as_ref())?;
-    output.write_all(data.data.as_ref())?;
+    output.write_all(binary.as_ref())?;
 
     let rel_data_len: [u8; 4] = [
-        (rel_data.len() & 0xff) as u8,
-        (rel_data.len() >> 8 & 0xff) as u8,
-        (rel_data.len() >> 16 & 0xff) as u8,
-        (rel_data.len() >> 24 & 0xff) as u8,
+        (relocation_binary.len() & 0xff) as u8,
+        (relocation_binary.len() >> 8 & 0xff) as u8,
+        (relocation_binary.len() >> 16 & 0xff) as u8,
+        (relocation_binary.len() >> 24 & 0xff) as u8,
     ];
     output.write_all(&rel_data_len)?;
-    output.write_all(rel_data.as_ref())?;
+    output.write_all(relocation_binary.as_ref())?;
 
     // Pad to get a power of 2 sized flash app.
     util::do_pad(output, post_content_pad as usize)?;

@@ -111,7 +111,7 @@ pub struct TbfHeader {
     hdr_base: TbfHeaderBase,
     hdr_main: TbfHeaderMain,
     hdr_pkg_name_tlv: Option<TbfHeaderTlv>,
-    hdr_wfr: Option<TbfHeaderWriteableFlashRegion>,
+    hdr_wfr: Vec<TbfHeaderWriteableFlashRegion>,
     package_name: String,
     package_name_pad: usize,
 }
@@ -137,7 +137,7 @@ impl TbfHeader {
                 minimum_ram_size: 0,
             },
             hdr_pkg_name_tlv: None,
-            hdr_wfr: None,
+            hdr_wfr: Vec::new(),
             package_name: String::new(),
             package_name_pad: 0,
         }
@@ -150,7 +150,12 @@ impl TbfHeader {
     ///
     /// Returns: The length of the header in bytes. The length is guaranteed
     ///          to be a multiple of 4.
-    pub fn create(&mut self, minimum_ram_size: u32, appstate: bool, package_name: String) -> usize {
+    pub fn create(
+        &mut self,
+        minimum_ram_size: u32,
+        writeable_flash_regions: usize,
+        package_name: String,
+    ) -> usize {
         // Need to calculate lengths ahead of time.
         // Need the base and the main section.
         let mut header_length = mem::size_of::<TbfHeaderBase>() + mem::size_of::<TbfHeaderMain>();
@@ -168,10 +173,8 @@ impl TbfHeader {
             0
         };
 
-        // We have one app flash region, add that.
-        if appstate {
-            header_length += mem::size_of::<TbfHeaderWriteableFlashRegion>();
-        }
+        // Add room for the writeable flash regions header TLV.
+        header_length += mem::size_of::<TbfHeaderWriteableFlashRegion>() * writeable_flash_regions;
 
         // Flags default to app is enabled.
         let flags = 0x00000001;
@@ -191,8 +194,8 @@ impl TbfHeader {
         }
 
         // If there is an app state region, start setting up that header.
-        if appstate {
-            self.hdr_wfr = Some(TbfHeaderWriteableFlashRegion {
+        for _ in 0..writeable_flash_regions {
+            self.hdr_wfr.push(TbfHeaderWriteableFlashRegion {
                 base: TbfHeaderTlv {
                     tipe: TbfHeaderTypes::TbfHeaderWriteableFlashRegions,
                     length: 8,
@@ -217,11 +220,15 @@ impl TbfHeader {
     }
 
     /// Update the header with appstate values if appropriate.
-    pub fn set_appstate_values(&mut self, appstate_offset: u32, appstate_size: u32) {
-        self.hdr_wfr.as_mut().map(|wfr| {
-            wfr.offset = appstate_offset;
-            wfr.size = appstate_size;
-        });
+    pub fn set_writeable_flash_region_values(&mut self, offset: u32, size: u32) {
+        for wfr in &mut self.hdr_wfr {
+            // Find first unused WFR header and use that.
+            if wfr.size == 0 {
+                wfr.offset = offset;
+                wfr.size = size;
+                break;
+            }
+        }
     }
 
     /// Create the header in binary form.
@@ -237,12 +244,9 @@ impl TbfHeader {
             util::do_pad(&mut header_buf, self.package_name_pad)?;
         }
 
-        // Only put these in the header if the app_state section is nonzero.
-        match self.hdr_wfr {
-            Some(wfr) => {
-                header_buf.write_all(unsafe { util::as_byte_slice(&wfr) })?;
-            }
-            None => {}
+        // Put all writeable flash region header elements in.
+        for wfr in self.hdr_wfr.iter() {
+            header_buf.write_all(unsafe { util::as_byte_slice(wfr) })?;
         }
 
         let current_length = header_buf.get_ref().len();
@@ -291,9 +295,12 @@ impl TbfHeader {
 
 impl fmt::Display for TbfHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TBF Header:")?;
         write!(f, "{}", self.hdr_base)?;
         write!(f, "{}", self.hdr_main)?;
-        self.hdr_wfr.map_or(Ok(()), |wfr| write!(f, "{}", wfr))?;
+        for wfr in self.hdr_wfr.iter() {
+            write!(f, "{}", wfr)?;
+        }
         Ok(())
     }
 }

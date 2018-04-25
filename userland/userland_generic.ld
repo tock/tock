@@ -20,20 +20,12 @@ MEMORY {
 }
 
 SECTIONS {
-    /* App state section. Used for persistent app data.
-     * We put this first so that if the app code changes but the persistent
-     * data doesn't, the app_state can be preserved.
+    /* Section for just the app crt0 header.
+     * This must be first so that the app can find it.
      */
-    .app_state :
+    .crt0_header :
     {
-        KEEP (*(.app_state))
-        . = ALIGN(4); /* Make sure we're word-aligned here */
-    } > FLASH =0xFF
-
-    /* Text section, Code! */
-    .text :
-    {
-        _text = .;
+        _beg = .; /* Start of the app in flash. */
         /**
          * Populate the header expected by `crt0`:
          *
@@ -51,13 +43,13 @@ SECTIONS {
          *  };
          */
         /* Offset of GOT symbols in flash */
-        LONG(LOADADDR(.got) - _text);
+        LONG(LOADADDR(.got) - _beg);
         /* Offset of GOT section in memory */
         LONG(_got);
         /* Size of GOT section */
         LONG(SIZEOF(.got));
         /* Offset of data symbols in flash */
-        LONG(LOADADDR(.data) - _text);
+        LONG(LOADADDR(.data) - _beg);
         /* Offset of data section in memory */
         LONG(_data);
         /* Size of data section */
@@ -68,10 +60,26 @@ SECTIONS {
         LONG(SIZEOF(.bss));
         /* First address offset after program flash, where elf2tab places
          * .rel.data section */
-        LONG(LOADADDR(.endflash) - _text);
-         /* The size of the stack requested by this application */
+        LONG(LOADADDR(.endflash) - _beg);
+        /* The size of the stack requested by this application */
         LONG(STACK_SIZE);
+    } > FLASH =0xFF
 
+    /* App state section. Used for persistent app data.
+     * We put this first so that if the app code changes but the persistent
+     * data doesn't, the app_state can be preserved.
+     */
+    .wfr.app_state :
+    {
+        KEEP (*(.app_state))
+        . = ALIGN(4); /* Make sure we're word-aligned here */
+    } > FLASH =0xFF
+
+    /* Text section, Code! */
+    .text :
+    {
+        . = ALIGN(4);
+        _text = .;
         KEEP (*(.start))
         *(.text*)
         *(.rodata*)
@@ -88,6 +96,7 @@ SECTIONS {
         _got = .;
         *(.got*)
         *(.got.plt*)
+        . = ALIGN(4);
     } > SRAM AT > FLASH
 
     /* Data section, static initialized variables
@@ -99,6 +108,7 @@ SECTIONS {
         . = ALIGN(4); /* Make sure we're word-aligned here */
         _data = .;
         KEEP(*(.data*))
+        . = ALIGN(4);
     } > SRAM AT > FLASH
 
     /* BSS section, static uninitialized variables */
@@ -108,6 +118,7 @@ SECTIONS {
         _bss = .;
         KEEP(*(.bss*))
         *(COMMON)
+        . = ALIGN(4);
     } > SRAM
 
     /* End of flash. */
