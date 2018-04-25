@@ -13,8 +13,7 @@ int main(void) {
 
     if (c == TOCK_FAIL) {
       printf("\ngetch() failed!\n");
-    }
-    else {
+    } else {
       printf("Got character: '%c'\n", (char) c);
     }
   }
