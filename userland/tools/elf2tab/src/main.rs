@@ -143,10 +143,8 @@ fn print_usage(program: &str, opts: Options) {
 /// length parameter first.
 ///
 /// Assumptions:
-/// - Sections with only the writeable flag set are writeable flash regions
-///   and will be marked as such in the TBF header.
-/// - Sections that have flags writeable and alloc, and are of type PROGBITS,
-///   will be in RAM and should count towards minimum required RAM.
+/// - Sections in a segment that is RW and set to be loaded will be in RAM and
+///   should count towards minimum required RAM.
 /// - Sections that are writeable flash regions include .wfr in their name.
 fn elf_to_tbf(
     input: &elf::File,
@@ -274,6 +272,12 @@ fn elf_to_tbf(
                     section.shdr.name, binary_index, binary_index
                 );
             }
+            if align4needed!(binary_index) != 0 {
+                println!(
+                    "Warning! Placing section {} at 0x{:x}, which is not 4-byte aligned.",
+                    section.shdr.name, binary_index
+                );
+            }
             binary.extend(&section.data);
 
             // Check if this is a writeable flash region. If so, we need to
@@ -322,6 +326,12 @@ fn elf_to_tbf(
                 rel_data.len(),
                 binary_index + mem::size_of::<u32>() + rel_data.len(),
                 binary_index + mem::size_of::<u32>() + rel_data.len()
+            );
+        }
+        if rel_data.len() > 0 && align4needed!(binary_index) != 0 {
+            println!(
+                "Warning! Placing section {} at 0x{:x}, which is not 4-byte aligned.",
+                name, binary_index
             );
         }
     }
