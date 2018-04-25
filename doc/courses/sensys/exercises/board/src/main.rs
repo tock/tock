@@ -188,6 +188,7 @@ pub unsafe fn reset_handler() {
             &sam4l::usart::USART0,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
