@@ -168,12 +168,12 @@ impl ConnectionData {
 
 		//TODO - Perhaps add jitter in the comparison?
 
-		let interval = (self.lldata.interval as u32) * 1000 * 5 / 4;
+		let interval = (self.lldata.interval as u32) * 1000 * 5 / 4 - 1000;
 
 		match self.conn_interval_start {
 			Some(start_time) => {
 				if rx_timestamp >= (interval + start_time) - 150 {
-					self.conn_interval_start = None;
+					// self.conn_interval_start = None;
 					(true, Some(interval + start_time))
 				} else {
 					(false, Some(interval + start_time))

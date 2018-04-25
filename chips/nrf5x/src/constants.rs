@@ -30,6 +30,11 @@ pub const RADIO_CRCCNF_LEN_3BYTES: u32 = 3;
 pub const RADIO_CRCINIT_BLE: u32 = 0x555555;
 pub const RADIO_CRCPOLY_BLE: u32 = 0x00065B;
 
+// BLE
+
+pub const BLE_T_IFS: u32 = 150;
+
+
 // MODE
 pub const RADIO_MODE_BLE_1MBIT: u32 = 3;
 

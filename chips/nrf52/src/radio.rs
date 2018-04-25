@@ -45,6 +45,8 @@ use ppi;
 use nrf5x::gpio;
 use kernel::hil::gpio::Pin;
 use nrf5x::ble_advertising_hil::TxImmediate;
+use nrf5x::ble_advertising_hil::DelayStartPoint;
+use nrf5x::ble_advertising_hil::DelayValue;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -60,7 +62,6 @@ const NRF52_FAST_RAMPUP_TIME_TX: u32 = 40;
 const NRF52_TX_DELAY: u32 = 3;
 const NRF52_TX_END_DELAY: u32 = 3;
 const NRF52_RX_END_DELAY: u32 = 7;
-const BLE_T_IFS: u32 = 150;
 
 const NRF52_DISABLE_TX_DELAY : u32 = NRF52_RX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX + NRF52_TX_DELAY;
 const NRF52_DISABLE_RX_DELAY : u32 = NRF52_TX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX;
@@ -80,6 +81,8 @@ pub struct Radio {
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
     debug_bit: Cell<bool>,
+    debug_list: Cell<[(u32, u32, bool); 32]>,
+    debug_index: Cell<usize>,
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -103,6 +106,8 @@ impl Radio {
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
             debug_bit: Cell::new(false),
+            debug_list: Cell::new([(0, 0, false); 32]),
+            debug_index: Cell::new(0)
         }
     }
 
@@ -239,47 +244,66 @@ impl Radio {
         }
     }
 
-    fn set_cc0_after_packet_end(&self, usec: u32) {
-        let end_time = self.get_packet_end_time_value();
-
-        unsafe {
-            nrf5x::timer::TIMER0.set_cc0(end_time + usec);
-            nrf5x::timer::TIMER0.set_events_compare(0, 0);
+    fn get_packet_time_value_with_delay(&self, start_point: DelayStartPoint) -> u32 {
+        match start_point {
+            DelayStartPoint::ScheduleFromPacketEnd(v) => {
+                self.get_packet_end_time_value() + v.value()
+            },
+            DelayStartPoint::ScheduleFromPacketStart(v) => {
+                self.get_packet_address_time_value() + v.value()
+            },
+            DelayStartPoint::ScheduleAtAbsoluteTimestamp(ab) => ab
         }
-
     }
 
-    fn schedule_tx_after_us(&self, usec: Option<u32>) {
-        let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_TX_DELAY;
+    fn set_cc0(&self, usec: u32) {
+        unsafe {
+            nrf5x::timer::TIMER0.set_cc0(usec);
+            nrf5x::timer::TIMER0.set_events_compare(0, 0);
+        }
+    }
 
-        self.set_cc0_after_packet_end(time);
+    fn append_debug_list(&self, time: u32, rx: bool) {
+        if self.debug_bit.get() {
+            let mut list = self.debug_list.get();
+            let index = self.debug_index.get();
+            let current_time = unsafe { nrf5x::timer::TIMER0.capture(4) };
+            list[index] = (current_time, time, rx);
+            self.debug_list.set(list);
+            self.debug_index.set(index + 1);
+        }
+    }
+
+    fn schedule_tx_after_us(&self, delay: DelayStartPoint) {
+        let t0 = self.get_packet_time_value_with_delay(delay);
+        let time = t0 - NRF52_DISABLE_TX_DELAY;
+
+        self.set_cc0(time);
 
         // CH20: CC[0] => TXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
+        self.append_debug_list(time, false);
     }
 
-    fn schedule_rx_after_us(&self, usec: Option<u32>, timeout: u32) {
+    fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
         let earlier_listen : u32 = 2;
+        let t0 = self.get_packet_time_value_with_delay(delay);
+        let time = t0 - NRF52_DISABLE_RX_DELAY - earlier_listen;
 
-        let time = usec.unwrap_or(BLE_T_IFS) - NRF52_DISABLE_RX_DELAY - earlier_listen;
-
-        self.set_cc0_after_packet_end(time);
+        self.set_cc0(time);
 
         // CH21: CC[0] => RXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
+        self.append_debug_list(time, true);
 
-        if !self.debug_bit.get() {
-            if let Some(time) = usec {
-                self.set_rx_timeout(time, timeout);
-            }
-        }
+        // self.set_rx_timeout(t0 + timeout);
     }
 
-    fn set_rx_timeout(&self, usec: u32, timeout: u32) {
+    fn set_rx_timeout(&self, usec: u32) {
 
         //Prepare timer to timeout 'timeout' usec after we have started to rx
         unsafe {
-            nrf5x::timer::TIMER0.set_cc1(self.get_packet_end_time_value() + usec + timeout);
+            nrf5x::timer::TIMER0.set_cc1(usec);
             nrf5x::timer::TIMER0.set_events_compare(1, 0);
         }
 
@@ -364,14 +388,6 @@ impl Radio {
     }
 
     fn handle_rx_end_event(&self) {
-
-        if self.debug_bit.get() {
-            unsafe {
-                gpio::PORT[18].clear();
-            }
-        }
-
-
         let regs = unsafe { &*self.regs };
         regs.event_end.set(0);
 
@@ -389,20 +405,18 @@ impl Radio {
             let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok, self.get_packet_address_time_value()) };
 
             match result {
-                PhyTransition::MoveToTX(time) => {
-
+                PhyTransition::MoveToTX(delay) => {
                     self.setup_tx();
-                    self.schedule_tx_after_us(time);
-
+                    self.schedule_tx_after_us(delay);
                 }
-                PhyTransition::MoveToRX(time, timeout) => {
+                PhyTransition::MoveToRX(delay, timeout) => {
                     // Handle connection request
                     self.debug_bit.set(true);
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
                     //TODO - what timeout should be used
-                    self.schedule_rx_after_us(time, timeout);
+                    self.schedule_rx_after_us(delay, timeout);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -413,7 +427,7 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(None),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay)),
                         TxImmediate::GoToSleep => {},
                     }
                 }
@@ -442,7 +456,7 @@ impl Radio {
             let result = client.transmit_end(crc_ok);
 
             match result {
-                PhyTransition::MoveToTX(time) => {
+                PhyTransition::MoveToTX(delay) => {
                     self.wait_until_disabled();
 
                     let should_tx = self.advertisement_client
@@ -452,11 +466,11 @@ impl Radio {
                         self.tx();
                     }
                 }
-                PhyTransition::MoveToRX(time, timeout) => {
+                PhyTransition::MoveToRX(delay, timeout) => {
                     self.setup_rx();
                     // TODO wfr_enable
                     //TODO - what timeout should be used
-                    self.schedule_rx_after_us(time, timeout);
+                    self.schedule_rx_after_us(delay, timeout);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -467,9 +481,29 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(None),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay)),
                         TxImmediate::GoToSleep => {},
                     }
+                }
+            }
+            if self.debug_bit.get() {
+                let index = self.debug_index.get();
+
+                if index >= 4 {
+                    let list = self.debug_list.get();
+
+                    for &(current, start, rx) in list.iter() {
+                        if current == 0 && start == 0 {
+                            break
+                        }
+
+                        if rx {
+                            debug!("rx current = {}, start = {}, diff = {}\n", current, start, start - current);
+                        } else {
+                            debug!("tx current = {}, start = {}, diff = {}\n", current, start, start - current);
+                        }
+                    }
+                    self.debug_index.set(0);
                 }
             }
         } else {
@@ -506,14 +540,14 @@ impl Radio {
                 self.wait_until_disabled();
 
                 match transition {
-                    Some(PhyTransition::MoveToTX(time)) => {
+                    Some(PhyTransition::MoveToTX(delay)) => {
                         self.setup_tx();
                         self.tx();
                     }
-                    Some(PhyTransition::MoveToRX(time, timeout)) => {
+                    Some(PhyTransition::MoveToRX(delay, timeout)) => {
                         self.setup_rx();
                         //TODO - what timeout should be used
-                        self.schedule_rx_after_us(time, timeout);
+                        self.schedule_rx_after_us(delay, timeout);
                     }
                     _ => {
                         //Do nothing, the device should sleep and wait for timer to fire in BLE

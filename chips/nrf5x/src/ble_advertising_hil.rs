@@ -49,6 +49,7 @@
 
 use kernel::ReturnCode;
 use ble_connection::ConnectionData;
+use constants::BLE_T_IFS;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
@@ -66,11 +67,33 @@ pub trait BleConfig {
     fn set_access_address(&self, aa: u32);
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq)]
+pub enum DelayValue {
+    UsecValue(u32),
+    BLEStandardDelay
+}
+
+impl DelayValue {
+    pub fn value(self) -> u32 {
+        match self {
+            DelayValue::UsecValue(v) => v,
+            DelayValue::BLEStandardDelay => BLE_T_IFS,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum DelayStartPoint {
+    ScheduleFromPacketStart(DelayValue),
+    ScheduleFromPacketEnd(DelayValue),
+    ScheduleAtAbsoluteTimestamp(u32)
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub enum PhyTransition {
     None,
-    MoveToTX(Option<u32>),
-    MoveToRX(Option<u32>, u32), //(schedule_rx_after_time, timeout)
+    MoveToTX(DelayStartPoint),
+    MoveToRX(DelayStartPoint, u32), //(schedule_rx_after_time, timeout)
 }
 
 #[derive(Debug, Eq, PartialEq)]
