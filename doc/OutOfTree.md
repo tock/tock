@@ -18,7 +18,7 @@ abreast of Tock development:
     Any major Tock changes will be announced via this list. The list
     also support general Tock development, however it is relatively low
     traffic (<1 email/day on average).
-  - [Tock GitHub](https://github.com/helena-project/tock/): All Tock
+  - [Tock GitHub](https://github.com/tock/tock/): All Tock
     changes go through Pull Requests. Non-trivial changes will generally
     wait at least one week to merge to allow for feedback.
 

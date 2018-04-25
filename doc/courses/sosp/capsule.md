@@ -61,7 +61,7 @@ unused stubs we've included:
 
     ...
     warning: field is never used: `light`
-     --> /Volumes/code/helena-project/tock/capsules/src/sosp.rs:9:5
+     --> /Volumes/code/tock/tock/capsules/src/sosp.rs:9:5
       |
     9 |     light: &'a AmbientLight,
       |     ^^^^^^^^

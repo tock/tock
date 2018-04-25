@@ -1615,7 +1615,7 @@ unsafe fn load(tbf_header: TbfHeader,
                -> Option<LoadResult> {
     if tbf_header.needs_pic_fixup() {
         unimplemented!("Kernel PIC fixup has been deprecated and removed. See \
-                       https://github.com/helena-project/tock/pull/714 for \
+                       https://github.com/tock/tock/pull/714 for \
                        more information");
     } else {
         // No PIC fixup requested from the kernel. We only need to set an
