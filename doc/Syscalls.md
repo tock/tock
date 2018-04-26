@@ -327,7 +327,7 @@ struct TestBoard {
     console: &'static Console<'static, usart::USART>,
 }
 
-impl Platform for Hail {
+impl Platform for TestBoard {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
