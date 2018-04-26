@@ -121,7 +121,8 @@ impl ICMP6Header {
             ICMP6HeaderOptions::Type1 { unused } | ICMP6HeaderOptions::Type3 { unused } => {
                 off = enc_consume!(buf, off; encode_u32, unused);
             }
-            ICMP6HeaderOptions::Type128 { id, seqno } | ICMP6HeaderOptions::Type129 { id, seqno } => {
+            ICMP6HeaderOptions::Type128 { id, seqno }
+            | ICMP6HeaderOptions::Type129 { id, seqno } => {
                 off = enc_consume!(buf, off; encode_u16, id);
                 off = enc_consume!(buf, off; encode_u16, seqno);
             }
