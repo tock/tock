@@ -114,8 +114,7 @@ impl UART {
         let regs: &UARTRegisters = unsafe { &*self.registers };
         self.tx
             .get()
-            .unwrap()
-            .configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel));
+            .map(|pin| pin.configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel)));
         self.enable();
         regs.ctl.set(regs.ctl.get() | (1 << 8)); // TE
     }
@@ -124,8 +123,7 @@ impl UART {
         let regs: &UARTRegisters = unsafe { &*self.registers };
         self.rx
             .get()
-            .unwrap()
-            .configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel));
+            .map(|pin| pin.configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel)));
         self.enable();
         regs.ctl.set(regs.ctl.get() | (1 << 9)); // RE
     }

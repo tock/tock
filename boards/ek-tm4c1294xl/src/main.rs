@@ -1,5 +1,5 @@
 //! Board file for EK-TM4C1294XL development platform.
-//!
+
 #![no_std]
 #![no_main]
 #![feature(asm, const_fn, lang_items, compiler_builtins_lib)]
@@ -17,8 +17,6 @@ use kernel::hil::Controller;
 
 #[macro_use]
 pub mod io;
-#[allow(dead_code)]
-//mod test_take_map_cell;
 
 // State for loading and holding applications.
 
@@ -33,7 +31,8 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -67,66 +66,7 @@ impl Platform for EkTm4c1294xl {
     }
 }
 
-// Alternate I/O - Mapping
-
-/*
-/// Helper function called during bring-up that configures multiplexed I/O.
-unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::{PA, PB};
-    use sam4l::gpio::PeripheralFunction::{A, B};
-
-    PA[04].configure(Some(A)); // A0 - ADC0
-    PA[05].configure(Some(A)); // A1 - ADC1
-    PA[06].configure(Some(A)); // DAC
-    PA[07].configure(None); //... WKP - Wakeup
-    PA[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
-    PA[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
-    PA[10].configure(None); //... unused
-    PA[11].configure(Some(A)); // FTDI_OUT - USART0 RX FTDI->SAM4L
-    PA[12].configure(Some(A)); // FTDI_IN - USART0 TX SAM4L->FTDI
-    PA[13].configure(None); //... RED_LED
-    PA[14].configure(None); //... BLUE_LED
-    PA[15].configure(None); //... GREEN_LED
-    PA[16].configure(None); //... BUTTON - User Button
-    PA[17].configure(None); //... !NRF_RESET - Reset line for nRF51822
-    PA[18].configure(None); //... ACC_INT2 - FXOS8700CQ Interrupt 2
-    PA[19].configure(None); //... unused
-    PA[20].configure(None); //... !LIGHT_INT - ISL29035 Light Sensor Interrupt
-    // SPI Mode
-    PA[21].configure(Some(A)); // D3 - SPI MISO
-    PA[22].configure(Some(A)); // D2 - SPI MOSI
-    PA[23].configure(Some(A)); // D4 - SPI SCK
-    PA[24].configure(Some(A)); // D5 - SPI CS0
-    // // I2C MODE
-    // PA[21].configure(None); // D3
-    // PA[22].configure(None); // D2
-    // PA[23].configure(Some(B)); // D4 - TWIMS0 SDA
-    // PA[24].configure(Some(B)); // D5 - TWIMS0 SCL
-    // UART Mode
-    PA[25].configure(Some(B)); // RX - USART2 RXD
-    PA[26].configure(Some(B)); // TX - USART2 TXD
-
-    PB[00].configure(Some(A)); // SENSORS_SDA - TWIMS1 SDA
-    PB[01].configure(Some(A)); // SENSORS_SCL - TWIMS1 SCL
-    PB[02].configure(Some(A)); // A2 - ADC3
-    PB[03].configure(Some(A)); // A3 - ADC4
-    PB[04].configure(Some(A)); // A4 - ADC5
-    PB[05].configure(Some(A)); // A5 - ADC6
-    PB[06].configure(Some(A)); // NRF_CTS - USART3 RTS
-    PB[07].configure(Some(A)); // NRF_RTS - USART3 CTS
-    PB[08].configure(None); //... NRF_INT - Interrupt line nRF->SAM4L
-    PB[09].configure(Some(A)); // NRF_OUT - USART3 RXD
-    PB[10].configure(Some(A)); // NRF_IN - USART3 TXD
-    PB[11].configure(None); //... D6
-    PB[12].configure(None); //... D7
-    PB[13].configure(None); //... unused
-    PB[14].configure(None); //... D0
-    PB[15].configure(None); //... D1
-}
-*/
-
 /// Reset Handler
-
 #[no_mangle]
 pub unsafe fn reset_handler() {
     tm4c129x::init();
@@ -249,9 +189,6 @@ pub unsafe fn reset_handler() {
     // Attach the kernel debug interface to this console
     let kc = static_init!(capsules::console::App, capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(tm4c1294.console), kc);
-
-    // Uncomment to measure overheads for TakeCell and MapCell:
-    // test_take_map_cell::test_take_map_cell();
 
     debug!("Initialization complete. Entering main loop...\r");
 

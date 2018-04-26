@@ -24,14 +24,14 @@ impl Chip for Tm4c129x {
     type SysTick = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&mut self) {
-        use nvic::*;
+        use nvic;
 
         unsafe {
             loop {
                 if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
-                        UART0 => uart::UART0.handle_interrupt(),
-                        TIMER0A => gpt::TIMER0.handle_interrupt(),
+                        nvic::UART0 => uart::UART0.handle_interrupt(),
+                        nvic::TIMER0A => gpt::TIMER0.handle_interrupt(),
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
@@ -58,7 +58,7 @@ impl Chip for Tm4c129x {
         &self.systick
     }
 
-    fn prepare_for_sleep(&self) {
+    fn sleep(&self) {
         /*if pm::deep_sleep_ready() {
             unsafe {
                 cortexm4::scb::set_sleepdeep();
