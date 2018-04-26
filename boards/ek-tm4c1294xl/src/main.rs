@@ -80,6 +80,7 @@ pub unsafe fn reset_handler() {
             &tm4c129x::uart::UART0,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
