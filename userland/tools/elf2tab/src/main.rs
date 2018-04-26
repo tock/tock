@@ -99,7 +99,7 @@ build-date = {}",
     // add them to the TAB file.
     for input_elf in matches.free {
         let elf_path = path::Path::new(&input_elf);
-        let bin_path = path::Path::new(&input_elf).with_extension("bin");
+        let tbf_path = path::Path::new(&input_elf).with_extension("tbf");
 
         let elffile = elf::File::open_path(&elf_path).expect("Could not open the .elf file.");
         // Get output file as both read/write for creating the binary and
@@ -109,7 +109,7 @@ build-date = {}",
             .write(true)
             .create(true)
             .truncate(true)
-            .open(bin_path.clone())
+            .open(tbf_path.clone())
             .unwrap();
 
         // Do the conversion to a tock binary.
@@ -125,8 +125,13 @@ build-date = {}",
 
         // Add the file to the TAB tar file.
         outfile.seek(io::SeekFrom::Start(0)).unwrap();
-        tab.append_file(bin_path.file_name().unwrap(), &mut outfile)
+        tab.append_file(tbf_path.file_name().unwrap(), &mut outfile)
             .unwrap();
+        outfile.seek(io::SeekFrom::Start(0)).unwrap();
+        tab.append_file(
+            tbf_path.with_extension("bin").file_name().unwrap(),
+            &mut outfile,
+        ).unwrap();
     }
 }
 
