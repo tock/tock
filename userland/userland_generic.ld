@@ -108,7 +108,7 @@ SECTIONS {
         . = ALIGN(4); /* Make sure we're word-aligned here */
         _data = .;
         KEEP(*(.data*))
-        . = ALIGN(4);
+        . = ALIGN(4); /* Make sure we're word-aligned at the end of flash */
     } > SRAM AT > FLASH
 
     /* BSS section, static uninitialized variables */
