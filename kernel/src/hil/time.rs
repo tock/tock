@@ -18,6 +18,15 @@ pub trait Frequency {
     fn frequency() -> u32;
 }
 
+/// 16MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq16MHz;
+impl Frequency for Freq16MHz {
+    fn frequency() -> u32 {
+        16000000
+    }
+}
+
 /// 32KHz `Frequency`
 #[derive(Debug)]
 pub struct Freq32KHz;
