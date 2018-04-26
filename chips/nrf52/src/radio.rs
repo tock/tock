@@ -38,15 +38,12 @@ use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction};
+use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, TxImmediate, DelayStartPoint};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 use ppi;
 use nrf5x::gpio;
 use kernel::hil::gpio::Pin;
-use nrf5x::ble_advertising_hil::TxImmediate;
-use nrf5x::ble_advertising_hil::DelayStartPoint;
-use nrf5x::ble_advertising_hil::DelayValue;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -81,8 +78,6 @@ pub struct Radio {
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
     debug_bit: Cell<bool>,
-    debug_list: Cell<[(u32, u32, bool); 32]>,
-    debug_index: Cell<usize>,
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -106,8 +101,6 @@ impl Radio {
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
             debug_bit: Cell::new(false),
-            debug_list: Cell::new([(0, 0, false); 32]),
-            debug_index: Cell::new(0)
         }
     }
 
@@ -246,13 +239,13 @@ impl Radio {
 
     fn get_packet_time_value_with_delay(&self, start_point: DelayStartPoint) -> u32 {
         match start_point {
-            DelayStartPoint::ScheduleFromPacketEnd(v) => {
-                self.get_packet_end_time_value() + v.value()
+            DelayStartPoint::PacketEndUsecDelay(_) | DelayStartPoint::PacketEndBLEStandardDelay => {
+                self.get_packet_end_time_value() + start_point.value()
             },
-            DelayStartPoint::ScheduleFromPacketStart(v) => {
-                self.get_packet_address_time_value() + v.value()
+            DelayStartPoint::PacketStartUsecDelay(_) => {
+                self.get_packet_address_time_value() + start_point.value()
             },
-            DelayStartPoint::ScheduleAtAbsoluteTimestamp(ab) => ab
+            DelayStartPoint::AbsoluteTimestamp(ab) => ab
         }
     }
 
@@ -260,17 +253,6 @@ impl Radio {
         unsafe {
             nrf5x::timer::TIMER0.set_cc0(usec);
             nrf5x::timer::TIMER0.set_events_compare(0, 0);
-        }
-    }
-
-    fn append_debug_list(&self, time: u32, rx: bool) {
-        if self.debug_bit.get() {
-            let mut list = self.debug_list.get();
-            let index = self.debug_index.get();
-            let current_time = unsafe { nrf5x::timer::TIMER0.capture(4) };
-            list[index] = (current_time, time, rx);
-            self.debug_list.set(list);
-            self.debug_index.set(index + 1);
         }
     }
 
@@ -282,7 +264,6 @@ impl Radio {
 
         // CH20: CC[0] => TXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
-        self.append_debug_list(time, false);
     }
 
     fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
@@ -294,8 +275,6 @@ impl Radio {
 
         // CH21: CC[0] => RXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
-        self.append_debug_list(time, true);
-
         // self.set_rx_timeout(t0 + timeout);
     }
 
@@ -411,11 +390,9 @@ impl Radio {
                 }
                 PhyTransition::MoveToRX(delay, timeout) => {
                     // Handle connection request
-                    self.debug_bit.set(true);
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
-                    //TODO - what timeout should be used
                     self.schedule_rx_after_us(delay, timeout);
                 }
                 PhyTransition::None => {
@@ -427,7 +404,7 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay)),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay),
                         TxImmediate::GoToSleep => {},
                     }
                 }
@@ -468,8 +445,6 @@ impl Radio {
                 }
                 PhyTransition::MoveToRX(delay, timeout) => {
                     self.setup_rx();
-                    // TODO wfr_enable
-                    //TODO - what timeout should be used
                     self.schedule_rx_after_us(delay, timeout);
                 }
                 PhyTransition::None => {
@@ -481,29 +456,9 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay)),
+                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay),
                         TxImmediate::GoToSleep => {},
                     }
-                }
-            }
-            if self.debug_bit.get() {
-                let index = self.debug_index.get();
-
-                if index >= 4 {
-                    let list = self.debug_list.get();
-
-                    for &(current, start, rx) in list.iter() {
-                        if current == 0 && start == 0 {
-                            break
-                        }
-
-                        if rx {
-                            debug!("rx current = {}, start = {}, diff = {}\n", current, start, start - current);
-                        } else {
-                            debug!("tx current = {}, start = {}, diff = {}\n", current, start, start - current);
-                        }
-                    }
-                    self.debug_index.set(0);
                 }
             }
         } else {

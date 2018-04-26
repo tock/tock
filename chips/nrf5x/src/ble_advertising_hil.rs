@@ -68,25 +68,20 @@ pub trait BleConfig {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum DelayValue {
-    UsecValue(u32),
-    BLEStandardDelay
+pub enum DelayStartPoint {
+    PacketEndBLEStandardDelay,
+    PacketStartUsecDelay(u32),
+    PacketEndUsecDelay(u32),
+    AbsoluteTimestamp(u32)
 }
 
-impl DelayValue {
+impl DelayStartPoint {
     pub fn value(self) -> u32 {
         match self {
-            DelayValue::UsecValue(v) => v,
-            DelayValue::BLEStandardDelay => BLE_T_IFS,
+            DelayStartPoint::PacketEndUsecDelay(v) | DelayStartPoint::PacketStartUsecDelay(v) | DelayStartPoint::AbsoluteTimestamp(v) => v,
+            DelayStartPoint::PacketEndBLEStandardDelay => BLE_T_IFS,
         }
     }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum DelayStartPoint {
-    ScheduleFromPacketStart(DelayValue),
-    ScheduleFromPacketEnd(DelayValue),
-    ScheduleAtAbsoluteTimestamp(u32)
 }
 
 #[derive(Debug, Eq, PartialEq)]

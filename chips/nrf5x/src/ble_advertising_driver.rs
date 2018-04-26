@@ -196,7 +196,7 @@
 //! * Date: June 22, 2017
 
 use ble_advertising_hil;
-use ble_advertising_hil::{RadioChannel, ReadAction, DelayStartPoint, DelayValue};
+use ble_advertising_hil::{RadioChannel, ReadAction, DelayStartPoint};
 use ble_connection::ConnectionData;
 use ble_event_handler::BLESender;
 use core::cell::Cell;
@@ -895,73 +895,75 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 // TODO call advertising/scanner/connection/initiating driver
 
                 transition = if valid_pkt {
-                    let res = if let Some(AppBLEState::Advertising) = app.process_status {
-                        let pdu_type = pdu_type.expect("PDU type should be valid");
-                        let pdu = BLEPduType::from_buffer(pdu_type, buf).expect("PDU should be valid");
+                    let res = match app.process_status {
+                        Some(AppBLEState::Advertising) => {
+                            if let Some(pdu) = pdu_type.and_then(|pdu_type| { BLEPduType::from_buffer(pdu_type, buf) }) {
+                                let response_action = self.link_layer.handle_rx_end(app, pdu);
 
-                        let response_action = self.link_layer.handle_rx_end(app, pdu);
+                                match response_action {
+                                    Some(ResponseAction::ScanResponse) => {
+                                        app.prepare_scan_response(&self);
 
-                        match response_action {
-                            Some(ResponseAction::ScanResponse) => {
-                                app.prepare_scan_response(&self);
+                                        PhyTransition::MoveToTX(DelayStartPoint::PacketEndBLEStandardDelay) // Science!
+                                    }
+                                    Some(ResponseAction::Connection(mut conndata)) => {
+                                        let channel = conndata.next_channel();
+                                        self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
 
-                                PhyTransition::MoveToTX(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay))
+                                        // windowOffset is a multiple of 1.25ms, convert to us
+                                        let transmitWindowOffset = (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
+
+                                        let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmitWindowOffset;
+
+                                        debug!("{}\n", delay_until_rx);
+
+                                        app.process_status = Some(AppBLEState::Connection(conndata));
+                                        app.state = Some(BleLinkLayerState::WaitingForConnection);
+
+
+                                        //TODO - send reasonable timeout argument (second argument)
+                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx), 1000000)
+                                    }
+                                    _ => PhyTransition::None,
+                                }
+                            } else {
+                                PhyTransition::None
                             }
-                            Some(ResponseAction::Connection(mut conndata)) => {
-                                let channel = conndata.next_channel();
-                                self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
+                        },
+                        Some(AppBLEState::Connection(_)) => {
+                            let (sn, nesn, interval_ended, interval_end_time) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+                                let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
+                                let (_, _, more_data) = ConnectionData::get_data_pdu_header(buf[0]);
 
-                                // windowOffset is a multiple of 1.25ms, convert to us
-                                let transmitWindowOffset = (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
+                                let (interval_ended, interval_end_time) = conndata.connection_interval_ended(rx_timestamp);
 
-                                let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmitWindowOffset;
+                                // If more_data is set, stay on the channel and listen
+                                // If more_data is false, skip to next channel even if current interval has time left
 
-                                debug!("{}\n", delay_until_rx);
+                                let skip_to_next_channel = interval_ended || !more_data;
 
-                                app.process_status = Some(AppBLEState::Connection(conndata));
-                                app.state = Some(BleLinkLayerState::WaitingForConnection);
+                                if skip_to_next_channel {
+                                    conndata.conn_interval_start = None;
+                                }
 
+                                (sn, nesn, skip_to_next_channel, interval_end_time)
+                            } else {
+                                panic!("Process status is not Connection in Connection!");
+                            };
 
-                                //TODO - send reasonable timeout argument (second argument)
-                                PhyTransition::MoveToRX(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::UsecValue(delay_until_rx)), 1000000)
-                            }
-                            _ => PhyTransition::None,
-                        }
-                    } else if let Some(AppBLEState::Connection(_)) = app.process_status {
-
-                        let (sn, nesn, interval_ended, interval_end_time) = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
-                            let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
-                            let (_, _, more_data) = ConnectionData::get_data_pdu_header(buf[0]);
-
-                            let (interval_ended, interval_end_time) = conndata.connection_interval_ended(rx_timestamp);
-
-                            // If more_data is set, stay on the channel and listen
-                            // If more_data is false, skip to next channel even if current interval has time left
-
-                            let skip_to_next_channel = interval_ended || !more_data;
-
-                            if skip_to_next_channel {
-                                conndata.conn_interval_start = None;
+                            match interval_end_time {
+                                Some(interval_end_time) if interval_ended => {
+                                    app.state = Some(BleLinkLayerState::EndOfConnectionEvent(interval_end_time));
+                                }
+                                _ => {}
                             }
 
-                            (sn, nesn, skip_to_next_channel, interval_end_time)
-                        } else {
-                            panic!("Process status is not Connection in Connection!");
-                        };
+                            app.set_empty_conn_pdu(&self, sn, nesn);
 
-                        match interval_end_time {
-                            Some(interval_end_time) if interval_ended => {
-                                app.state = Some(BleLinkLayerState::EndOfConnectionEvent(interval_end_time));
-                            }
-                            _ => {}
-                        }
-
-                        app.set_empty_conn_pdu(&self, sn, nesn);
-
-                        // Respond to Data PDU just received
-                        PhyTransition::MoveToTX(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay))
-                    } else {
-                        PhyTransition::None
+                            // Respond to Data PDU just received
+                            PhyTransition::MoveToTX(DelayStartPoint::PacketEndBLEStandardDelay)
+                        },
+                        _ => PhyTransition::None,
                     };
 
 
@@ -1009,9 +1011,9 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                 transition = if let Some(AppBLEState::Advertising) = app.process_status {
                     if let Some(BleLinkLayerState::RespondingToScanRequest) = app.state {
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
-                        PhyTransition::MoveToTX(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay))
+                        PhyTransition::MoveToTX(DelayStartPoint::PacketEndBLEStandardDelay)
                     } else {
-                        PhyTransition::MoveToRX(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay), 10000)
+                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndBLEStandardDelay, 10000)
                     }
                 } else if let Some(AppBLEState::Connection(_)) = app.process_status {
                     let start_time = if let Some(BleLinkLayerState::EndOfConnectionEvent(delay_time)) = app.state {
@@ -1020,9 +1022,9 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                             let channel = conndata.next_channel();
                             self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
                         }
-                        DelayStartPoint::ScheduleAtAbsoluteTimestamp(delay_time)
+                        DelayStartPoint::AbsoluteTimestamp(delay_time)
                     } else {
-                        DelayStartPoint::ScheduleFromPacketEnd(DelayValue::BLEStandardDelay)
+                        DelayStartPoint::PacketEndBLEStandardDelay
                     };
 
                     //debug!("transmit end, schedule at time {:?}\n", start_time);
@@ -1032,7 +1034,7 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                     PhyTransition::None
                 };
             });
-            self.reset_active_alarm();
+            // self.reset_active_alarm();
         }
         transition
     }
@@ -1095,7 +1097,7 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         if Some(RadioChannel::AdvertisingChannel39) != app.channel {
 
                             //TODO - we should start tx:ing as soon as possible, is this the best way of saying that?
-                            result = PhyTransition::MoveToTX(DelayStartPoint::ScheduleFromPacketEnd(DelayValue::UsecValue(0)));
+                            result = PhyTransition::MoveToTX(DelayStartPoint::PacketEndUsecDelay(0));
                         }
 
                     }
@@ -1104,7 +1106,9 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         //TODO - check if we have reached supervision time out. If so, kill connection.
                         //Otherwise we might just have missed a packet.
                         //TODO - send reasonable timeout argument (second argument)
-                        result = PhyTransition::MoveToRX(DelayStartPoint::ScheduleFromPacketStart(DelayValue::BLEStandardDelay), 10000);
+
+                        let calculated_value_from_conn_interval = 300; // TODO calculate from conndata
+                        result = PhyTransition::MoveToRX(DelayStartPoint::PacketStartUsecDelay(calculated_value_from_conn_interval), 10000);
                     }
                     ActionAfterTimerExpire::EndConnectionAttempt => {
                         //We have not yet established the connection, and have been waiting for too long
