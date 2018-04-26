@@ -1,6 +1,5 @@
 //! ARM Cortex-M4 SysTick peripheral.
 
-use core::cmp;
 use kernel;
 use kernel::common::VolatileCell;
 
@@ -64,52 +63,35 @@ impl SysTick {
 
 impl kernel::SysTick for SysTick {
     fn set_timer(&self, us: u32) {
-        let reload = if us == 0 {
-            0
-        } else {
-            // only support values up to 1 second. That's twice as much as the
-            // interface promises, so we're good. This makes computing hertz
-            // safer
-            let us = cmp::min(us, 1_000_000);
-            let hertz = self.hertz();
+        let reload = {
+            // We need to convert from microseconds to native tics, which could overflow in 32-bit
+            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
+            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
+            // instead.
+            let us = us as u64;
+            let hertz = self.hertz() as u64;
 
-            // What we actually want is:
-            //
-            // reload = hertz * us / 1000000
-            //
-            // But that can overflow if hertz and us are sufficiently large.
-            // Dividing first may, instead, result in a reload value that's off
-            // by a lot (because integer division rounds down).
-            //
-            // We use division to compute the reload value to avoid
-            // multiplication overflows.
-            //
-            // 0 < us <= 1_000_000 so the divisions are never by zero
-            //
-            // As a result that the reload value might be slightly less
-            // accurate. For example, with a 48MHz clock, the reload value for
-            // 11ms should be 528000, but using integer division we'll get
-            // 533333. A small price to pay for not crashing.
-            hertz / (1_000_000 / us)
+            hertz * us / 1_000_000
         };
 
         self.regs.value.set(0);
-        self.regs.reload.set(reload);
+        self.regs.reload.set(reload as u32);
     }
 
-    fn value(&self) -> u32 {
-        let hertz = self.hertz();
-        let value = self.regs.value.get() & 0xffffff;
+    fn greater_than(&self, us: u32) -> bool {
+        let tics = {
+            // We need to convert from microseconds to native tics, which could overflow in 32-bit
+            // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
+            // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
+            // instead.
+            let us = us as u64;
+            let hertz = self.hertz() as u64;
 
-        // Just the opposite computation as in `set_timer` with the same
-        // drawbacks
-        if hertz > 1_000_000 {
-            // More accurate
-            value / (hertz / 1_000_000)
-        } else {
-            // Using the previous branch would divide by zero
-            (value / hertz) / 1_000_000
-        }
+            (hertz * us / 1_000_000) as u32
+        };
+
+        let value = self.regs.value.get() & 0xffffff;
+        value > tics
     }
 
     fn overflowed(&self) -> bool {
