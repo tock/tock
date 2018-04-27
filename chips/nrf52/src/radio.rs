@@ -78,6 +78,7 @@ pub struct Radio {
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
     debug_bit: Cell<bool>,
+    debug_value: Cell<u8>,
     address_receive_time: Cell<Option<u32>>,
 }
 
@@ -102,6 +103,7 @@ impl Radio {
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
             debug_bit: Cell::new(false),
+            debug_value: Cell::new(0),
             address_receive_time: Cell::new(None),
         }
     }
@@ -248,7 +250,7 @@ impl Radio {
                 //self.get_packet_address_time_value() + start_point.value()
                 match self.address_receive_time.get() {
                     Some(time) => time + start_point.value(),
-                    None => panic!("Trying to get time for last ADDRESS, but non has been saved");
+                    None => panic!("Trying to get time for last ADDRESS, but non has been saved"),
                 }
             },
             DelayStartPoint::AbsoluteTimestamp(ab) => ab
@@ -342,7 +344,7 @@ impl Radio {
 
 
         self.clear_interrupt(
-            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS | nrf5x::constants::PPI_CHEN_CH22,
+            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS
         );
 
         // Calculate accurate packets start time?
@@ -420,6 +422,10 @@ impl Radio {
                 PhyTransition::MoveToRX(delay, timeout) => {
                     // Handle connection request
                     self.debug_bit.set(true);
+
+                    let v = self.debug_value.get();
+                    self.debug_value.set(v + 1);
+
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
@@ -519,25 +525,35 @@ impl Radio {
         {
             if self.state.get() == RadioState::RX {
                 regs.event_disabled.set(0);
-                let transition = self.advertisement_client
-                    .get()
-                    .map(|client| client.timer_expired());
 
-                self.wait_until_disabled();
+                if self.debug_value.get() != 1 {
+                    debug!("Mut\n");
 
-                match transition {
-                    Some(PhyTransition::MoveToTX(delay)) => {
-                        self.setup_tx();
-                        self.tx();
-                    }
-                    Some(PhyTransition::MoveToRX(delay, timeout)) => {
-                        self.setup_rx();
-                        //TODO - what timeout should be used
-                        self.schedule_rx_after_us(delay, timeout);
-                    }
-                    _ => {
-                        //Do nothing, the device should sleep and wait for timer to fire in BLE
-                    }
+                    /*let mut now = 0;
+                    unsafe { now = nrf5x::timer::TIMER0.get_cc1() }
+                    debug!("now {} address {:?}\n", now, self.address_receive_time.get());*/
+
+                    let transition = self.advertisement_client
+                        .get()
+                        .map(|client| client.timer_expired());
+
+                    self.wait_until_disabled();
+
+                    match transition {
+                        Some(PhyTransition::MoveToTX(delay)) => {
+                            self.setup_tx();
+                            self.tx();
+                        }
+                        Some(PhyTransition::MoveToRX(delay, timeout)) => {
+                            self.setup_rx();
+                            //TODO - what timeout should be used
+                            self.schedule_rx_after_us(delay, timeout);
+                        }
+                        _ => {
+                            //Do nothing, the device should sleep and wait for timer to fire in BLE
+                        }
+                }
+
                 }
 
 

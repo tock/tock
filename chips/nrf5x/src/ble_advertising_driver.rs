@@ -911,10 +911,13 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                                         let channel = conndata.next_channel();
                                         self.radio.set_channel(channel, conndata.aa, conndata.crcinit);
 
+
                                         // windowOffset is a multiple of 1.25ms, convert to us
                                         let transmitWindowOffset = (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
 
                                         let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmitWindowOffset;
+
+                                        conndata.conn_interval_length_usec = Some(transmitWindowOffset - 1000);
 
                                         app.process_status = Some(AppBLEState::Connection(conndata));
                                         app.state = Some(BleLinkLayerState::WaitingForConnection);
@@ -923,7 +926,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 
                                         //TODO - send reasonable timeout argument (second argument)
-                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx), 1000000000)
+                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx - 1000), delay_until_rx + transmitWindowOffset)
                                     }
                                     _ => PhyTransition::None,
                                 }
@@ -1093,8 +1096,6 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                     ActionAfterTimerExpire::ContinueAdvertising => {
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
 
-                        debug!("Expired!\n");
-
                         if Some(RadioChannel::AdvertisingChannel39) != app.channel {
 
                             //TODO - we should start tx:ing as soon as possible, is this the best way of saying that?
@@ -1102,16 +1103,18 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         }
 
                     }
-                    ActionAfterTimerExpire::ContinueConnection(conn_supervision_timeout) => {
+                    ActionAfterTimerExpire::ContinueConnection(conn_supervision_timeout, conn_interval_length) => {
                         //We should stay in the connection, but no more data should be sent on this channel
                         //TODO - check if we have reached supervision time out. If so, kill connection.
                         //Otherwise we might just have missed a packet.
                         //TODO - send reasonable timeout argument (second argument)
 
-                        let calculated_value_from_conn_interval = 3000; // TODO calculate from conndata
+                        let arbitrary_default_value= 3000; // TODO calculate from conndata
+                        //debug!("Expect\n");
 
-
-                        result = PhyTransition::MoveToRX(DelayStartPoint::PacketStartUsecDelay(calculated_value_from_conn_interval), conn_supervision_timeout);
+                        result = PhyTransition::MoveToRX(DelayStartPoint::PacketStartUsecDelay(
+                            conn_interval_length.unwrap_or(arbitrary_default_value)),
+                                                         conn_supervision_timeout);
                     }
                     _ => {
                         panic!("Timer expired but app has invalid state");

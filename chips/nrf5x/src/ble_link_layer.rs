@@ -92,7 +92,7 @@ impl LinkLayer {
             }
             Some(AppBLEState::Connection(ref conndata)) => {
 
-                ActionAfterTimerExpire::ContinueConnection(conndata.calculate_conn_supervision_timeout())
+                ActionAfterTimerExpire::ContinueConnection(conndata.calculate_conn_supervision_timeout(), conndata.conn_interval_length_usec)
             }
             _ => {
                 panic!("Timer expired but app has no state\n");

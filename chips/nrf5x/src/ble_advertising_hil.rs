@@ -100,7 +100,7 @@ pub enum ResponseAction {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ActionAfterTimerExpire {
     ContinueAdvertising,
-    ContinueConnection(u32),
+    ContinueConnection(u32, Option<u32>),
     EndConnectionAttempt,
 }
 

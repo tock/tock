@@ -30,6 +30,7 @@ pub struct ConnectionData {
 	pub transmit_seq_nbr: u8,
 	pub next_seq_nbr: u8,
 	pub conn_interval_start: Option<u32>,
+    pub conn_interval_length_usec: Option<u32>,
 	pub lldata: LLData
 
 }
@@ -73,6 +74,7 @@ impl ConnectionData {
 			transmit_seq_nbr: 0,
 			next_seq_nbr: 0,
 			conn_interval_start: None,
+            conn_interval_length_usec: None,
 			lldata,
 	    }
 	}
@@ -168,6 +170,7 @@ impl ConnectionData {
 
 		//TODO - Perhaps add jitter in the comparison?
 
+		//-1000 usec for earlier listening
 		let interval = (self.lldata.interval as u32) * 1000 * 5 / 4 - 1000;
 
 		match self.conn_interval_start {
