@@ -25,7 +25,7 @@ SECTIONS {
      */
     .crt0_header :
     {
-        _beg = .; /* Start of the app in flash. */
+        _beginning = .; /* Start of the app in flash. */
         /**
          * Populate the header expected by `crt0`:
          *
@@ -43,13 +43,13 @@ SECTIONS {
          *  };
          */
         /* Offset of GOT symbols in flash */
-        LONG(LOADADDR(.got) - _beg);
+        LONG(LOADADDR(.got) - _beginning);
         /* Offset of GOT section in memory */
         LONG(_got);
         /* Size of GOT section */
         LONG(SIZEOF(.got));
         /* Offset of data symbols in flash */
-        LONG(LOADADDR(.data) - _beg);
+        LONG(LOADADDR(.data) - _beginning);
         /* Offset of data section in memory */
         LONG(_data);
         /* Size of data section */
@@ -60,7 +60,7 @@ SECTIONS {
         LONG(SIZEOF(.bss));
         /* First address offset after program flash, where elf2tab places
          * .rel.data section */
-        LONG(LOADADDR(.endflash) - _beg);
+        LONG(LOADADDR(.endflash) - _beginning);
         /* The size of the stack requested by this application */
         LONG(STACK_SIZE);
     } > FLASH =0xFF
