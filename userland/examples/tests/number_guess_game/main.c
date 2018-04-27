@@ -10,7 +10,7 @@ int get_number(void);
 
 int get_number(void) {
   char buffer[10] = {0};
-  int idx = 0;
+  int idx         = 0;
 
   // Read in a number until a new line
   while (1) {
@@ -32,7 +32,7 @@ int get_number(void) {
       } else if ((in >= 48 && in <= 57) || in == 45) {
         // If this is a valid number record it
         buffer[idx] = in;
-        idx += 1;
+        idx        += 1;
 
         // Echo back to the user
         putnstr(&in, 1);
