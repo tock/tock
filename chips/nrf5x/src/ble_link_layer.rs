@@ -90,15 +90,9 @@ impl LinkLayer {
             Some(AppBLEState::Advertising) => {
                 ActionAfterTimerExpire::ContinueAdvertising
             }
-            Some(AppBLEState::Connection(_)) => {
-                match app.state {
-                    Some(BleLinkLayerState::WaitingForConnection) => {
-                        ActionAfterTimerExpire::EndConnectionAttempt
-                    }
-                    _ => {
-                        ActionAfterTimerExpire::ContinueConnection
-                    }
-                }
+            Some(AppBLEState::Connection(ref conndata)) => {
+
+                ActionAfterTimerExpire::ContinueConnection(conndata.calculate_conn_supervision_timeout())
             }
             _ => {
                 panic!("Timer expired but app has no state\n");

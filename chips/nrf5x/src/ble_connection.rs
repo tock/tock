@@ -185,6 +185,11 @@ impl ConnectionData {
 			},
 		}
 	}
+
+	pub fn calculate_conn_supervision_timeout(&self) -> u32 {
+
+		((self.lldata.timeout as u32) * 1000 * 5 / 4) * 10
+	}
 }
 
 

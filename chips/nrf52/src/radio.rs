@@ -78,6 +78,7 @@ pub struct Radio {
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
     debug_bit: Cell<bool>,
+    address_receive_time: Cell<Option<u32>>,
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -101,6 +102,7 @@ impl Radio {
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
             debug_bit: Cell::new(false),
+            address_receive_time: Cell::new(None),
         }
     }
 
@@ -243,7 +245,11 @@ impl Radio {
                 self.get_packet_end_time_value() + start_point.value()
             },
             DelayStartPoint::PacketStartUsecDelay(_) => {
-                self.get_packet_address_time_value() + start_point.value()
+                //self.get_packet_address_time_value() + start_point.value()
+                match self.address_receive_time.get() {
+                    Some(time) => time + start_point.value(),
+                    None => panic!("Trying to get time for last ADDRESS, but non has been saved");
+                }
             },
             DelayStartPoint::AbsoluteTimestamp(ab) => ab
         }
@@ -257,6 +263,8 @@ impl Radio {
     }
 
     fn schedule_tx_after_us(&self, delay: DelayStartPoint) {
+        let now = unsafe {nrf5x::timer::TIMER0.capture(4)};
+
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_TX_DELAY;
 
@@ -267,26 +275,42 @@ impl Radio {
     }
 
     fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
+
+        //let n1 = unsafe {nrf5x::timer::TIMER0.capture(4)};
+
         let earlier_listen : u32 = 2;
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_RX_DELAY - earlier_listen;
 
+
+        //let n2 = unsafe {nrf5x::timer::TIMER0.capture(4)};
+
         self.set_cc0(time);
+
+        /*if self.debug_bit.get() {
+           debug!("t0 {} now {} scheduled {}\n", t0, n1, time);
+        }*/
 
         // CH21: CC[0] => RXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
-        // self.set_rx_timeout(t0 + timeout);
+
+        //if !self.debug_bit.get() {
+            self.set_rx_timeout(t0 + timeout);
+        //}
     }
 
     fn set_rx_timeout(&self, usec: u32) {
 
         //Prepare timer to timeout 'timeout' usec after we have started to rx
         unsafe {
-            nrf5x::timer::TIMER0.set_cc1(usec);
-            nrf5x::timer::TIMER0.set_events_compare(1, 0);
+            //nrf5x::timer::TIMER0.set_cc1(usec);
+            nrf5x::timer::TIMER0.set_events_compare(1, usec);
+
+
+            //debug!("diff {}\n", nrf5x::timer::TIMER0.get_cc2() - nrf5x::timer::TIMER0.get_cc1());
         }
 
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22);
+        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22 | nrf5x::constants::PPI_CHEN_CH26);
         self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
 
@@ -312,8 +336,13 @@ impl Radio {
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH22);
 
 
+        unsafe {
+            self.address_receive_time.set(Some(nrf5x::timer::TIMER0.get_cc1()));
+        }
+
+
         self.clear_interrupt(
-            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS,
+            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS | nrf5x::constants::PPI_CHEN_CH22,
         );
 
         // Calculate accurate packets start time?
@@ -390,6 +419,7 @@ impl Radio {
                 }
                 PhyTransition::MoveToRX(delay, timeout) => {
                     // Handle connection request
+                    self.debug_bit.set(true);
                     self.disable_radio();
                     self.wait_until_disabled();
                     self.setup_rx();
@@ -470,6 +500,7 @@ impl Radio {
     pub fn handle_interrupt(&self) {
 
         let regs = unsafe { &*self.regs };
+
 
         // let current_time = unsafe {nrf5x::timer::TIMER0.capture(4) };
 
@@ -596,12 +627,14 @@ impl Radio {
             // CH26: RADIO.EVENTS_ADDRESS -> TIMER0.TASKS_CAPTURE[1]
             // CH27: RADIO.EVENTS_END -> TIMER0.TASKS_CAPTURE[2]
             self.enable_ppi(nrf5x::constants::PPI_CHEN_CH26 | nrf5x::constants::PPI_CHEN_CH27);
+
+            unsafe {
+                nrf5x::timer::TIMER0.set_prescaler(4);
+                nrf5x::timer::TIMER0.set_bitmode(3);
+                nrf5x::timer::TIMER0.start();
+            }
         }
-        unsafe {
-            nrf5x::timer::TIMER0.set_prescaler(4);
-            nrf5x::timer::TIMER0.set_bitmode(3);
-            nrf5x::timer::TIMER0.start();
-        }
+
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation

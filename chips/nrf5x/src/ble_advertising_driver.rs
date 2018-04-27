@@ -219,6 +219,7 @@ pub const DRIVER_NUM: usize = 0x03_00_00;
 
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 const TRANSMIT_WINDOW_DELAY_CONN_IND: u32 = 1000 * 5 / 4; // 1.25ms in us
+const STANDARD_TIMEOUT: u32 = 8000; //in usec
 
 use ble_pdu_parser::PACKET_START;
 use ble_pdu_parser::PACKET_HDR_PDU;
@@ -915,14 +916,14 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
                                         let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmitWindowOffset;
 
-                                        debug!("{}\n", delay_until_rx);
-
                                         app.process_status = Some(AppBLEState::Connection(conndata));
                                         app.state = Some(BleLinkLayerState::WaitingForConnection);
 
+                                        //conndata.calculate_conn_supervision_timeout()
+
 
                                         //TODO - send reasonable timeout argument (second argument)
-                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx), 1000000)
+                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx), 1000000000)
                                     }
                                     _ => PhyTransition::None,
                                 }
@@ -1013,7 +1014,7 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                         PhyTransition::MoveToTX(DelayStartPoint::PacketEndBLEStandardDelay)
                     } else {
-                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndBLEStandardDelay, 10000)
+                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndBLEStandardDelay, STANDARD_TIMEOUT)
                     }
                 } else if let Some(AppBLEState::Connection(_)) = app.process_status {
                     let start_time = if let Some(BleLinkLayerState::EndOfConnectionEvent(delay_time)) = app.state {
@@ -1090,9 +1091,9 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
 
                 match state {
                     ActionAfterTimerExpire::ContinueAdvertising => {
-
                         app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
 
+                        debug!("Expired!\n");
 
                         if Some(RadioChannel::AdvertisingChannel39) != app.channel {
 
@@ -1101,26 +1102,19 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         }
 
                     }
-                    ActionAfterTimerExpire::ContinueConnection => {
+                    ActionAfterTimerExpire::ContinueConnection(conn_supervision_timeout) => {
                         //We should stay in the connection, but no more data should be sent on this channel
                         //TODO - check if we have reached supervision time out. If so, kill connection.
                         //Otherwise we might just have missed a packet.
                         //TODO - send reasonable timeout argument (second argument)
 
-                        let calculated_value_from_conn_interval = 300; // TODO calculate from conndata
-                        result = PhyTransition::MoveToRX(DelayStartPoint::PacketStartUsecDelay(calculated_value_from_conn_interval), 10000);
-                    }
-                    ActionAfterTimerExpire::EndConnectionAttempt => {
-                        //We have not yet established the connection, and have been waiting for too long
-                        //for a packet. Return to advertising.
-                        app.state = None;
-                        app.process_status = Some(AppBLEState::Advertising);
+                        let calculated_value_from_conn_interval = 3000; // TODO calculate from conndata
 
-                        //Set channel 39 so that we will go to sleep upon calling advertisement_done()
-                        app.channel = Some(RadioChannel::AdvertisingChannel39);
+
+                        result = PhyTransition::MoveToRX(DelayStartPoint::PacketStartUsecDelay(calculated_value_from_conn_interval), conn_supervision_timeout);
                     }
                     _ => {
-                        panic!("Timer expired but app has invalide state");
+                        panic!("Timer expired but app has invalid state");
                     }
                 }
 
