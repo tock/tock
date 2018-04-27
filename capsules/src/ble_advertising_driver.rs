@@ -232,13 +232,8 @@ pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 //           +-----------+      +--------------+     +--------------+
 //
 
-const PACKET_HDR_LEN: usize = 1;
-const PACKET_ADDR_START: usize = 2;
-const PACKET_ADDR_END: usize = 7;
-const PACKET_PAYLOAD_START: usize = 8;
+const PACKET_ADDR_LEN: usize = 6;
 const PACKET_LENGTH: usize = 39;
-
-const EMPTY_PACKET_LEN: u8 = 6;
 
 #[derive(PartialEq, Debug)]
 enum BLEState {
@@ -274,6 +269,8 @@ impl AlarmData {
 pub struct App {
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    address: [u8; PACKET_ADDR_LEN],
+    pdu_type: u8,
     scan_callback: Option<kernel::Callback>,
     process_status: Option<BLEState>,
     advertisement_interval_ms: u32,
@@ -293,6 +290,8 @@ impl Default for App {
             alarm_data: AlarmData::new(),
             app_write: None,
             app_read: None,
+            address: [0; PACKET_ADDR_LEN],
+            pdu_type: 0,
             scan_callback: None,
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
@@ -321,39 +320,15 @@ impl App {
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
-        self.app_write
-            .as_mut()
-            .map(|data| {
-                data.as_mut()[PACKET_ADDR_START] = 0xf0;
-                data.as_mut()[PACKET_ADDR_START + 1] = (appid.idx() & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 2] = ((appid.idx() << 8) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 3] = ((appid.idx() << 16) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 4] = ((appid.idx() << 24) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_END] = 0xf0;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or(ReturnCode::FAIL)
-    }
-
-    fn reset_payload(&mut self) -> ReturnCode {
-        match self.process_status {
-            Some(BLEState::Advertising(_)) | Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
-            _ => {
-                self.app_write
-                    .as_mut()
-                    .map(|data| {
-                        for byte in data.as_mut()[PACKET_PAYLOAD_START..].iter_mut() {
-                            *byte = 0x00;
-                        }
-
-                        // Reset header length
-                        data.as_mut()[PACKET_HDR_LEN] = EMPTY_PACKET_LEN;
-
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::EINVAL)
-            }
-        }
+        self.address = [
+            0xf0,
+            (appid.idx() & 0xff) as u8,
+            ((appid.idx() << 8) & 0xff) as u8,
+            ((appid.idx() << 16) & 0xff) as u8,
+            ((appid.idx() << 24) & 0xff) as u8,
+            0xf0,
+        ];
+        ReturnCode::SUCCESS
     }
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
@@ -363,15 +338,27 @@ impl App {
     {
         self.app_write
             .as_ref()
-            .map(|slice| {
+            .map(|adv_data| {
                 ble.kernel_tx
                     .take()
-                    .map(|data| {
-                        for (out, inp) in data.as_mut().iter_mut().zip(slice.as_ref().iter()) {
-                            *out = *inp;
+                    .map(|kernel_tx| {
+                        let adv_data_len =
+                            cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                        let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
+                        let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                        {
+                            let (header, payload) = kernel_tx.split_at_mut(2);
+                            header[0] = self.pdu_type | 1 << 6;
+                            header[1] = (payload_len & 0x7f) as u8;
+
+                            let (adva, data) = payload.split_at_mut(6);
+                            adva.copy_from_slice(&self.address);
+                            data[..adv_data_len].copy_from_slice(adv_data_corrected);
                         }
-                        let result = ble.radio
-                            .transmit_advertisement(data, PACKET_LENGTH, channel);
+                        let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                        let result =
+                            ble.radio
+                                .transmit_advertisement(kernel_tx, total_len, channel);
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
@@ -655,7 +642,7 @@ where
         &self,
         command_num: usize,
         data: usize,
-        _: usize,
+        interval: usize,
         appid: kernel::AppId,
     ) -> ReturnCode {
         match command_num {
@@ -663,11 +650,19 @@ where
             0 => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
-                        app.process_status = Some(BLEState::AdvertisingIdle);
-                        app.random_nonce = self.alarm.now();
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
-                        self.reset_active_alarm();
-                        ReturnCode::SUCCESS
+                        let pdu_type = data;
+                        match pdu_type {
+                            0b0000 | 0b0001 | 0b0110 => {
+                                app.pdu_type = pdu_type as u8;
+                                app.process_status = Some(BLEState::AdvertisingIdle);
+                                app.random_nonce = self.alarm.now();
+                                app.advertisement_interval_ms = cmp::max(20, interval as u32);
+                                app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                                self.reset_active_alarm();
+                                ReturnCode::SUCCESS
+                            }
+                            _ => ReturnCode::EINVAL,
+                        }
                     } else {
                         ReturnCode::EBUSY
                     }
@@ -712,33 +707,6 @@ where
                     })
                     .unwrap_or_else(|err| err.into())
             }
-
-            // Configure advertisement interval
-            // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 4.4.2.2
-            //
-            // The advertisment interval shall an integer multiple of 0.625ms in the range of
-            // 20ms to 10240 ms!
-            //
-            // data - advertisement interval in ms
-            // FIXME: add check that data is a multiple of 0.625
-            3 => self.app
-                .enter(appid, |app, _| match app.process_status {
-                    Some(BLEState::Scanning(_)) | Some(BLEState::Advertising(_)) => {
-                        ReturnCode::EBUSY
-                    }
-                    _ => {
-                        app.advertisement_interval_ms = cmp::max(20, cmp::min(10240, data as u32));
-                        ReturnCode::SUCCESS
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
-
-            // Reset payload when the kernel is not actively advertising
-            // reset_payload checks whether the current app is correct state or not
-            // i.e. if it's ok to reset the payload or not
-            4 => self.app
-                .enter(appid, |app, _| app.reset_payload())
-                .unwrap_or_else(|err| err.into()),
 
             // Passive scanning mode
             5 => self.app
