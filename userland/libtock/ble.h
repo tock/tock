@@ -74,7 +74,7 @@ typedef enum {
 // advd               - The advertising data
 // len                - Length of the advertising data (will be truncated to 31 bytes)
 // interval           - The advertising interval in milliseonds
-int ble_start_advertising(int pdu_type, char* advd, int len, uint16_t interval);
+int ble_start_advertising(int pdu_type, uint8_t* advd, int len, uint16_t interval);
 
 // stop advertising but don't change anything in the packet configuration
 int ble_stop_advertising(void);
