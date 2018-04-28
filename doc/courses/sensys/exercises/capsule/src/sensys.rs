@@ -9,7 +9,8 @@
 extern crate kernel;
 
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
-use kernel::hil::time::{self, Alarm};
+#[allow(unused_imports)]
+use kernel::hil::time::{self, Alarm, Frequency};
 
 #[allow(unused)]
 pub struct Sensys<'a, A: Alarm + 'a> {
