@@ -9,8 +9,9 @@
 extern crate kernel;
 
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
-use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::hil::time::{self, Alarm};
 
+#[allow(unused)]
 pub struct Sensys<'a, A: Alarm + 'a> {
     alarm: &'a A,
     light: &'a AmbientLight,
@@ -34,5 +35,5 @@ impl<'a, A: Alarm> time::Client for Sensys<'a, A> {
 }
 
 impl<'a, A: Alarm> AmbientLightClient for Sensys<'a, A> {
-    fn callback(&self, lux: usize) {}
+    fn callback(&self, _lux: usize) {}
 }
