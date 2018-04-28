@@ -256,7 +256,7 @@ impl App {
                                     // Set TxAdd because AdvA field is going to be a "random"
                                     // address
                                     header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
-                                },
+                                }
                                 _ => {}
                             }
                             // The LENGTH field is 6-bits wide, so make sure to truncate it
