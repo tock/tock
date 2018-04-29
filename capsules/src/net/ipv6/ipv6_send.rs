@@ -43,7 +43,6 @@ pub trait IP6Client {
 /// setting the gateway MAC address), as well as a way to send an IPv6
 /// packet.
 pub trait IP6Sender<'a> {
-
     /// This method sets the `IP6Client` for the `IP6Sender` instance, which
     /// receives the `send_done` callback when transmission has finished.
     ///

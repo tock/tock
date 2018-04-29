@@ -23,7 +23,7 @@
 //! For a layer interested in sending a packet, this library exposes a
 //! [TxState](struct.TxState.html) struct that statefully compresses an
 //! [IP6Packet](struct.IP6Packet.html) struct. First, the `TxState` object
-//! is initialized for compressing a new packet by calling the `TxState.init` 
+//! is initialized for compressing a new packet by calling the `TxState.init`
 //! method. The caller then repeatedly calls `TxState.next_fragment`, which
 //! returns the next frame to be send (or indicates that the transmission
 //! is complete). Note that the upper layer is responsible for sending each
