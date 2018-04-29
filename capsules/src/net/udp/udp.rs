@@ -7,7 +7,9 @@ use net::stream::SResult;
 use net::stream::decode_u16;
 use net::stream::encode_u16;
 
-/// The `UDPHeader` struct is the layout for the UDP packet header.
+/// The `UDPHeader` struct follows the layout for the UDP packet header.
+/// Note that the implementation of this struct provides getters and setters
+/// for the various fields of the header, to avoid confusion with endian-ness.
 #[derive(Copy, Clone)]
 pub struct UDPHeader {
     pub src_port: u16,
@@ -72,6 +74,17 @@ impl UDPHeader {
         8
     }
 
+    /// This function serializes the `UDPHeader` into the provided buffer.
+    ///
+    /// # Arguments
+    ///
+    /// `buf` - A mutable buffer to serialize the `UDPHeader` into
+    /// `offset` - The current offset into the provided buffer
+    ///
+    /// # Return Value
+    ///
+    /// This function returns the new offset into the buffer wrapped in an
+    /// SResult.
     pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
         stream_len_cond!(buf, self.get_hdr_size() + offset);
 
@@ -83,6 +96,15 @@ impl UDPHeader {
         stream_done!(off, off);
     }
 
+    /// This function deserializes the `UDPHeader` from the provided buffer.
+    ///
+    /// # Arguments
+    ///
+    /// `buf` - The byte array corresponding to a serialized `UDPHeader`
+    ///
+    /// # Return Value
+    ///
+    /// This function returns a `UDPHeader` struct wrapped in an SResult
     // TODO: Decode has not been tested
     pub fn decode(buf: &[u8]) -> SResult<UDPHeader> {
         stream_len_cond!(buf, 8);

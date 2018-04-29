@@ -1,4 +1,6 @@
-//! ICMPv6 layer of the Tock networking stack.
+//! ICMPv6 layer of the Tock network stack.
+//!
+//! This file contains a layer for sending ICMPv6 packets.
 //!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 

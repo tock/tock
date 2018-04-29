@@ -1,3 +1,10 @@
+//! This file contains the definition and implementation for a simple UDP
+//! sending interface. The [UDPSender](trait.UDPSender.html) trait provides
+//! an interface for upper layer to send a UDP packet, and the
+//! [UDPSendClient](trait.UDPSendClient.html) trait is implemented by the
+//! upper layer to allow them to receive the `send_done` callback once
+//! transmission has completed.
+
 use core::cell::Cell;
 use kernel::ReturnCode;
 use net::ipv6::ip_utils::IPAddr;
@@ -5,20 +12,11 @@ use net::ipv6::ipv6::TransportHeader;
 use net::ipv6::ipv6_send::{IP6Client, IP6Sender};
 use net::udp::udp::UDPHeader;
 
-/// The `send_done` function in this trait is invoked
-/// after the UDPSender has completed sending the
-/// requested packet. Note that the `UDPSender::set_client`
-/// method must be called to set the client.
+/// The `send_done` function in this trait is invoked after the UDPSender
+/// has completed sending the requested packet. Note that the
+/// `UDPSender::set_client` method must be called to set the client.
 pub trait UDPSendClient {
     fn send_done(&self, result: ReturnCode);
-}
-
-/// This is a specific instantiation of the `UDPSender` trait. Note
-/// that this struct contains a reference to an `IP6Sender` which it
-/// forwards packets to (and receives callbacks from).
-pub struct UDPSendStruct<'a, T: IP6Sender<'a> + 'a> {
-    ip_send_struct: &'a T,
-    client: Cell<Option<&'a UDPSendClient>>,
 }
 
 /// This trait represents the bulk of the UDP functionality. The two
@@ -27,11 +25,48 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a> + 'a> {
 /// not. Calling `send_to` tells the UDP layer to construct a default
 /// `UDPHeader` and forward the payload to the respective destination and port.
 pub trait UDPSender<'a> {
+    /// This function sets the client for the `UDPSender` instance
+    ///
+    /// # Arguments
+    /// `client` - Implementation of `UDPSendClient` to be set as the client
+    /// for the `UDPSender` instance
     fn set_client(&self, client: &'a UDPSendClient);
 
+    /// This function constructs a `UDPHeader` and sends the payload to the
+    /// provided destination IP address over the provided source and
+    /// destination ports.
+    ///
+    /// # Arguments
+    /// `dest` - IPv6 address to send the UDP packet to
+    /// `dst_port` - Destination port to send the packet to
+    /// `src_port` - Port to send the packet from
+    /// `buf` - UDP payload
+    ///
+    /// # Return Value
+    /// Any synchronous errors are returned via the returned `ReturnCode`
+    /// value; asynchronous errors are delivered via the callback.
     fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &'a [u8]) -> ReturnCode;
 
+    /// This function constructs an IP packet from the completed `UDPHeader`
+    /// and buffer, and sends it to the provided IP address
+    ///
+    /// # Arguments
+    /// `dest` - IP address to send the UDP packet to
+    /// `udp_header` - Completed UDP header to be sent to the destination
+    /// `buf` - A byte array containing the UDP payload
+    ///
+    /// # Return Value
+    /// Returns any synchronous errors or success. Note that any asynchrounous
+    /// errors are returned via the callback.
     fn send(&self, dest: IPAddr, udp_header: UDPHeader, buf: &'a [u8]) -> ReturnCode;
+}
+
+/// This is a specific instantiation of the `UDPSender` trait. Note
+/// that this struct contains a reference to an `IP6Sender` which it
+/// forwards packets to (and receives callbacks from).
+pub struct UDPSendStruct<'a, T: IP6Sender<'a> + 'a> {
+    ip_send_struct: &'a T,
+    client: Cell<Option<&'a UDPSendClient>>,
 }
 
 /// Below is the implementation of the `UDPSender` traits for the

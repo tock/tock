@@ -4,6 +4,65 @@
 //! bulk of the functionality required for manipulating the fields of the
 //! IPv6 header. Additionally, the IP6Packet struct allows for multiple types
 //! of transport-level structures to be encapsulated within.
+//!
+//! An implementation for the structure of an IPv6 packet is provided by this
+//! file, and a rough outline is given below:
+//!
+//!            ----------------------------------------------
+//!            |                 IP6Packet                  |
+//!            |--------------------------------------------|
+//!            |                 |         IPPayload        |
+//!            |    IP6Header    |--------------------------|
+//!            |                 |TransportHeader | Payload |
+//!            ----------------------------------------------
+//!
+//! The [IP6Packet](struct.IP6Packet.html) struct contains an
+//! [IP6Header](struct.IP6Header.html) struct and an
+//! [IPPayload](struct.IPPayload.html) struct, with the `IPPayload` struct
+//! also containing a [TransportHeader](enum.TransportHeader.html) enum and
+//! a `Payload` buffer. Note that transport-level headers are contained inside
+//! the `TransportHeader`.
+//!
+//! For a client interested in using this interface, they first statically
+//! allocate an `IP6Packet` struct, then set the appropriate headers and
+//! payload using the functions defined for the different structs. These
+//! methods are described in greater detail below.
+
+// Discussion of Design Decisions
+// ------------------------------
+// Although still a work-in-progress, the IPv6 layer is quite complicated, and
+// this initial interface represents some of the compromises made in trying
+// to design a memory efficient, modular IP layer. The primary decision made
+// for the IPv6 layer was the design of the `IP6Packet` struct. We noticed
+// that the mutable payload buffer should always be associated with some type
+// of headers; that is, we noticed that the payload for an IP packet should
+// be perminantly owned by an instance of an IPv6 packet. This avoids runtime
+// checks, as Rust can guarantee that the payload for an IPv6 packet is always
+// there, as it cannot be moved. In order to facilitate this design while still
+// allowing for (somewhat) arbitrary transport-level headers, we needed to
+// separate out the `TransportHeader` enum from the payload itself. Since
+// we did not want the IP layer to always have to have knowledge of/deal with
+// the transport-level header, we decided to add an intermediate `IPPayload`
+// struct, which encapsulated the `TransportHeader` and associated payload.
+//
+// Known Problems and Remaining Work
+// ---------------------------------
+// This layer is still in the early stages of implementation, and both the
+// interfaces and underlying code will change substantially. There are two main
+// areas of focus for additional work: 1) ensuring that the IP6Packet/IP6Header/
+// IPPayload design makes sense and is properly layered, and 2) figuring out
+// and implementing a receive path that uses this encapsulation.
+//
+// One of the primary problems with the current encapsulation design is that
+// it is impossible to encode recursive headers - any subsequent headers (IPv6
+// or transport) must be serialized and carried in the raw payload. This may
+// be avoided with references and allocation, but since we do not have
+// a memory allocator we could not allocate all possible headers at compile
+// time. Additionally, we couldn't just allocate headers "as-needed" on the
+// stack, as the network send interface is asynchronous, so anything allocated
+// on the stack would eventually be popped/disappear. Although this is not
+// a major problem in general, it makes handling encapsulated IPv6 packets
+// (as required by 6LoWPAN) difficult.
 
 use net::icmpv6::icmpv6::ICMP6Header;
 use net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, IPAddr, ip6_nh};
@@ -13,6 +72,8 @@ use net::stream::SResult;
 use net::tcp::TCPHeader;
 use net::udp::udp::UDPHeader;
 
+/// This is the struct definition for an IPv6 header. It contains (in order)
+/// the same fields as a normal IPv6 header.
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct IP6Header {
@@ -40,10 +101,23 @@ impl Default for IP6Header {
 }
 
 impl IP6Header {
+    /// This function returns an IP6Header struct initialized to the default
+    /// values.
     pub fn new() -> IP6Header {
         IP6Header::default()
     }
 
+    /// This function is used to transform a raw buffer into an IP6Header
+    /// struct. This is useful for deserializing a header upon reception.
+    ///
+    /// # Arguments
+    ///
+    /// `buf` - The serialized version of an IPv6 header
+    ///
+    /// # Return Value
+    ///
+    /// `SResult<IP6Header>` - The resulting decoded IP6Header struct wrapped
+    /// in an SResult
     pub fn decode(buf: &[u8]) -> SResult<IP6Header> {
         // TODO: Let size of header be a constant
         stream_len_cond!(buf, 40);
@@ -63,7 +137,17 @@ impl IP6Header {
         stream_done!(off, ip6_header);
     }
 
-    // Returns the offset wrapped in an SResult
+    /// This function transforms the `self` instance of an IP6Header into a
+    /// byte array
+    ///
+    /// # Arguments
+    ///
+    /// `buf` - A mutable array where the serialized version of the IP6Header
+    /// struct is written to
+    ///
+    /// # Return Value
+    ///
+    /// `SResult<usize>` - The offset wrapped in an SResult
     pub fn encode(&self, buf: &mut [u8]) -> SResult<usize> {
         stream_len_cond!(buf, 40);
 
@@ -160,9 +244,9 @@ impl IP6Header {
     }
 }
 
-// TODO: Note that this design decision means that we cannot have recursive
-// IP6 packets directly - we must have/use RawIPPackets instead. This makes
-// it difficult to recursively compress IP6 packets as required by 6lowpan
+/// This defines the currently supported `TransportHeader` types. The contents
+/// of each header is encapsulated by the enum type. Note that this definition
+/// of `TransportHeader`s means that recursive headers are not supported.
 pub enum TransportHeader {
     UDP(UDPHeader),
     TCP(TCPHeader),
@@ -171,12 +255,20 @@ pub enum TransportHeader {
     /* Raw(RawIPPacket<'a>), */
 }
 
+/// The `IPPayload` struct contains a `TransportHeader` and a mutable buffer
+/// (the payload).
 pub struct IPPayload<'a> {
     pub header: TransportHeader,
     pub payload: &'a mut [u8],
 }
 
 impl<'a> IPPayload<'a> {
+    /// This function constructs a new `IPPayload` struct
+    ///
+    /// # Arguments
+    ///
+    /// `header` - A `TransportHeader` for the `IPPayload`
+    /// `payload` - A reference to a mutable buffer for the raw payload
     pub fn new(header: TransportHeader, payload: &'a mut [u8]) -> IPPayload<'a> {
         IPPayload {
             header: header,
@@ -184,6 +276,19 @@ impl<'a> IPPayload<'a> {
         }
     }
 
+    /// This function sets the payload for the `IPPayload`, and sets both the
+    /// TransportHeader and copies the provided payload buffer.
+    ///
+    /// # Arguments
+    ///
+    /// `transport_header` - The new `TransportHeader` header for the payload
+    /// `payload` - The payload to be copied into the `IPPayload`
+    ///
+    /// # Return Value
+    ///
+    /// `(u8, u16)` - Returns a tuple of the `ip6_nh` type of the
+    /// `transport_header` and the total length of the `IPPayload`
+    /// (when serialized)
     pub fn set_payload(&mut self, transport_header: TransportHeader, payload: &[u8]) -> (u8, u16) {
         if self.payload.len() < payload.len() {
             // TODO: Error
@@ -204,6 +309,17 @@ impl<'a> IPPayload<'a> {
         }
     }
 
+    /// This function encodes the `IPPayload` as a byte array
+    ///
+    /// # Arguments
+    ///
+    /// `buf` - Buffer to write the serialized `IPPayload` to
+    /// `offset` - Current offset into the buffer
+    ///
+    /// # Return Value
+    ///
+    /// `SResult<usize>` - The final offset into the buffer `buf` is returned
+    /// wrapped in an SResult
     pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
         let (offset, _) = match self.header {
             TransportHeader::UDP(udp_header) => udp_header.encode(buf, offset).done().unwrap(),
@@ -232,6 +348,8 @@ impl<'a> IPPayload<'a> {
     }
 }
 
+/// This struct defines the `IP6Packet` format, and contains an `IP6Header`
+/// and an `IPPayload`.
 pub struct IP6Packet<'a> {
     pub header: IP6Header,
     pub payload: IPPayload<'a>,
@@ -243,10 +361,16 @@ pub struct IP6Packet<'a> {
 impl<'a> IP6Packet<'a> {
     // Sets fields to appropriate defaults
 
-    pub fn new(pyld: IPPayload<'a>) -> IP6Packet<'a> {
+    /// This function returns a new `IP6Packet` struct. Note that the
+    /// `IP6Packet.header` field is set to `IP6Header::default()`
+    ///
+    /// # Arguments
+    ///
+    /// `payload` - The `IPPayload` struct for the `IP6Packet`
+    pub fn new(payload: IPPayload<'a>) -> IP6Packet<'a> {
         IP6Packet {
             header: IP6Header::default(),
-            payload: pyld,
+            payload: payload,
         }
     }
 
@@ -298,6 +422,20 @@ impl<'a> IP6Packet<'a> {
         }
     }
 
+    /// This function should be the function used to set the payload for a
+    /// given `IP6Packet` object. It first calls the `IPPayload::set_payload`
+    /// method to set the transport header and transport payload, which then
+    /// returns the `ip6_nh` value for the `TransportHeader` and the length of
+    /// the serialized `IPPayload` region. This function then sets the
+    /// `IP6Header` next header field correctly. **Without using this function,
+    /// the `IP6Header.next_header` field may not agree with the actual
+    /// next header (`IP6Header.payload.header`)**
+    ///
+    /// # Arguments
+    ///
+    /// `transport_header` - The `TransportHeader` to be set as the next header
+    /// `payload` - The transport payload to be copied into the `IPPayload`
+    /// transport payload
     pub fn set_payload(&mut self, transport_header: TransportHeader, payload: &[u8]) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);

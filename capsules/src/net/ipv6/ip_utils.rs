@@ -1,3 +1,7 @@
+//! This file implements various utilities used by the different components
+//! of the IP stack. Note that this file also contains the definition for the
+//! [IPAddr](struct.IPAddr.html] struct and associated helper functions.
+
 use net::icmpv6::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
 use net::ipv6::ipv6::IP6Header;
 use net::udp::udp::UDPHeader;

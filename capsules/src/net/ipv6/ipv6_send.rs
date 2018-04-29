@@ -1,3 +1,21 @@
+//! This file contains the interface definition for sending an IPv6 packet.
+//! The [IP6Sender](trait.IP6Sender.html) trait provides an interface
+//! for sending IPv6 packets, while the [IP6Client](trait.IP6Client) trait
+//! must be implemented by upper layers to receive the `send_done` callback
+//! when a transmission has completed.
+//!
+//! This file also includes an implementation of the `IP6Sender` trait, which
+//! sends an IPv6 packet using 6LoWPAN.
+
+// Additional Work and Known Problems
+// ----------------------------------
+// The main areas for additional work is with regards to the interface provided
+// by `IP6Sender`. The current interface differs from the one provided in
+// the networking stack overview document, and should be changed to better
+// reflect that document. Additionally, the specific implementation is
+// over 6LoWPAN, and should be separated from the generic IPv6 sending
+// interface.
+
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, TxClient};
 use kernel::ReturnCode;
@@ -12,23 +30,63 @@ use net::sixlowpan::sixlowpan_state::TxState;
 const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
 const DST_MAC_ADDR: MacAddress = MacAddress::Short(0xf00e);
 
+/// This trait must be implemented by upper layers in order to receive
+/// the `send_done` callback when a transmission has completed. The upper
+/// layer must then call `IP6Sender.set_client` in order to receive this
+/// callback.
 pub trait IP6Client {
     fn send_done(&self, result: ReturnCode);
 }
 
+/// This trait provides a basic IPv6 sending interface. It exposes basic
+/// configuration information for the IPv6 layer (setting the source address,
+/// setting the gateway MAC address), as well as a way to send an IPv6
+/// packet.
 pub trait IP6Sender<'a> {
+
+    /// This method sets the `IP6Client` for the `IP6Sender` instance, which
+    /// receives the `send_done` callback when transmission has finished.
+    ///
+    /// # Arguments
+    /// `client` - Client that implements the `IP6Client` trait to receive the
+    /// `send_done` callback
     fn set_client(&self, client: &'a IP6Client);
 
+    /// This method sets the source address for packets sent from the
+    /// `IP6Sender` instance.
+    ///
+    /// # Arguments
+    /// `src_addr` - `IPAddr` to set as the source address for packets sent
+    /// from this instance of `IP6Sender`
     fn set_addr(&self, src_addr: IPAddr);
 
+    /// This method sets the gateway/next hop MAC address for this `IP6Sender`
+    /// instance.
+    ///
+    /// # Arguments
+    /// `gateway` - MAC address to send the constructed packet to
     fn set_gateway(&self, gateway: MacAddress);
 
+    /// This method sets the `IP6Header` for the `IP6Sender` instance
+    ///
+    /// # Arguments
+    /// `ip6_header` - New `IP6Header` that subsequent packets sent via this
+    /// `IP6Sender` instance will use
     fn set_header(&mut self, ip6_header: IP6Header);
 
+    /// This method sends the provided transport header and payload to the
+    /// given destination IP address
+    ///
+    /// # Arguments
+    /// `dst` - IPv6 address to send the packet to
+    /// `transport_header` - The `TransportHeader` for the packet being sent
+    /// `payload` - The transport payload for the packet being sent
     fn send_to(&self, dst: IPAddr, transport_header: TransportHeader, payload: &[u8])
         -> ReturnCode;
 }
 
+/// This struct is a specific implementation of the `IP6Sender` trait. This
+/// struct sends the packet using 6LoWPAN over a generic `MacDevice` object.
 pub struct IP6SendStruct<'a> {
     // We want the ip6_packet field to be a TakeCell so that it is easy to mutate
     ip6_packet: TakeCell<'static, IP6Packet<'static>>,
