@@ -249,11 +249,7 @@ impl Radio {
                 self.get_packet_end_time_value() + start_point.value()
             },
             DelayStartPoint::PacketStartUsecDelay(_) => {
-
-                match self.address_receive_time.take() {
-                    Some(time) => time + start_point.value(),
-                    None => panic!("Trying to get time for last ADDRESS, but non has been saved"),
-                }
+                self.get_packet_address_time_value() + start_point.value()
             },
             DelayStartPoint::AbsoluteTimestamp(ab) => ab
         }
@@ -327,10 +323,8 @@ impl Radio {
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH22);
 
 
-        unsafe {
-            self.address_receive_time.set(Some(nrf5x::timer::TIMER0.get_cc1()));
-        }
 
+        self.address_receive_time.set(Some(unsafe { nrf5x::timer::TIMER0.get_cc1() }));
 
         self.clear_interrupt(
             nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS
@@ -419,8 +413,6 @@ impl Radio {
                     self.wait_until_disabled();
                     self.setup_rx();
                     self.schedule_rx_after_us(delay, timeout);
-
-                    debug!("End of receive conn_req\n");
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -512,12 +504,11 @@ impl Radio {
         }
 
         if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_DISABLED) > 0
-            && regs.event_disabled.get() == 1
-        {
+            && regs.event_disabled.get() == 1 {
             if self.state.get() == RadioState::RX {
                 regs.event_disabled.set(0);
 
-                //if self.debug_value.get() != 1 {
+                if self.debug_value.get() != 1 {
 
                     let transition = self.advertisement_client
                         .get()
@@ -538,7 +529,7 @@ impl Radio {
                         _ => {
                             //Do nothing, the device should sleep and wait for timer to fire in BLE
                         }
-                //}
+                    }
 
                 }
 
@@ -589,7 +580,12 @@ impl Radio {
     }
 
     fn get_packet_address_time_value(&self) -> u32 {
-        unsafe { nrf5x::timer::TIMER0.get_cc1() }
+        match self.address_receive_time.get() {
+            Some(time) => time,
+            None => {
+                panic!("Trying to get time for last ADDRESS, but non has been saved\n");
+            },
+        }
     }
 
     fn get_packet_end_time_value(&self) -> u32 {
