@@ -1074,9 +1074,14 @@ where
                         DelayStartPoint::PacketEndBLEStandardDelay
                     };
 
+                    let timeout = if let Some(AppBLEState::Connection(ref conndata)) = app.process_status {
+                        (conndata.lldata.win_size as u32) * 1000 * 5 / 4
+                    } else {
+                        panic!("We are not in connection???");
+                    };
+
                     //debug!("transmit end, schedule at time {:?}\n", start_time);
-                    //TODO - send reasonable timeout argument (second argument)
-                    PhyTransition::MoveToRX(start_time, 1000000)
+                    PhyTransition::MoveToRX(start_time, timeout)
                 } else {
                     PhyTransition::None
                 };

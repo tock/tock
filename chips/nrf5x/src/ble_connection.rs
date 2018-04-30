@@ -173,12 +173,9 @@ impl ConnectionData {
 
         match self.conn_interval_start {
             Some(start_time) => {
-                if rx_timestamp >= (interval + start_time) - 150 {
-                    // self.conn_interval_start = None;
-                    (true, Some(interval + start_time))
-                } else {
-                    (false, Some(interval + start_time))
-                }
+                let interval_ended = rx_timestamp >= (interval + start_time) - 150;
+
+                (interval_ended, Some(interval + start_time))
             }
             None => {
                 self.conn_interval_start = Some(rx_timestamp);

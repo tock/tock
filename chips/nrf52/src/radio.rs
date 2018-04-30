@@ -343,11 +343,7 @@ impl Radio {
             let result = unsafe { client.receive_start(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2) };
 
             match result {
-                ReadAction::ReadFrameAndStayRX => {
-                    // TODO set phy_rx_started = 1
-                    self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
-                }
-                ReadAction::ReadFrameAndMoveToTX => {
+                ReadAction::ReadFrameAndStayRX | ReadAction::ReadFrameAndMoveToTX => {
                     // TODO set phy_rx_started = 1
                     self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
                 }
