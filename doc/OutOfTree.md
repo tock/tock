@@ -42,7 +42,6 @@ something like:
     │   └── my_board
     │       ├── Cargo.toml
     │       ├── Makefile
-    │       ├── Xargo.toml
     │       └── src
     │           └── main.rs
     ├── my_drivers
@@ -104,11 +103,6 @@ to elements of Tock.
   kernel = { path = "../../tock/kernel" }
   my_drivers = { path = "../../my_drivers" }
   ```
-
-
-Finally, you will need a Xargo.toml. We recommend simply copying
-Xargo.toml from any existing board. You should not need to customize
-this file.
 
 
 

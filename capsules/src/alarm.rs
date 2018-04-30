@@ -1,8 +1,8 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000000;

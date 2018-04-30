@@ -20,9 +20,9 @@ First, clone the tock-rust-template repository.
          $ git clone https://github.com/tock/tock-rust-template.git
 
 This is the base for Tock applications written in Rust. Your code goes in the
-`src` folder in `main.rs`. The `Cargo` and `Xargo` files are Rust build
+`src` folder in `main.rs`. The `Cargo` files are Rust build
 configurations. The `thumbv7em-tock-eabi.json` and `layout.ld` files are code
-compilation configurations. The Makefile uses `xargo` to create ELF files, and
+compilation configurations. The Makefile uses `cargo` to create ELF files, and
 several scripts in `tools/` to build Tock binaries, with all built output going
 in the directory `target/thumb7em-tock-eabi/release/`.
 

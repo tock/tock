@@ -14,7 +14,9 @@ use std::slice;
 
 /// Takes a value and rounds it up to be aligned % 4
 macro_rules! align4 {
-    ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
+    ($e:expr) => {
+        ($e) + ((4 - (($e) % 4)) % 4)
+    };
 }
 
 #[repr(u16)]

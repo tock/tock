@@ -38,11 +38,6 @@ time:
 6. [rustup](http://rustup.rs/).
 
         $ curl https://sh.rustup.rs -sSf | sh
-        $ rustup install nightly-2017-06-20
-
-7. [Xargo](https://github.com/japaric/xargo)
-
-        $ cargo install xargo
 
 8. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 

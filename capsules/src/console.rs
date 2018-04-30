@@ -36,10 +36,10 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
 use kernel::process::Error;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000001;

@@ -13,10 +13,10 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
 

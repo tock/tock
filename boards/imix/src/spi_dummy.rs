@@ -1,9 +1,9 @@
 //! A dummy SPI client to test the SPI implementation
 
-use kernel::ReturnCode;
 use kernel::hil::gpio;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiMaster};
+use kernel::ReturnCode;
 use sam4l;
 
 #[allow(unused_variables, dead_code)]
