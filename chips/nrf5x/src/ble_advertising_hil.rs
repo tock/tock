@@ -67,7 +67,6 @@ pub trait BleConfig {
     fn set_access_address(&self, aa: u32);
 }
 
-#[derive(Debug, Eq, PartialEq)]
 pub enum DelayStartPoint {
     PacketEndBLEStandardDelay,
     PacketStartUsecDelay(u32),
@@ -99,8 +98,7 @@ pub enum ResponseAction {
 
 pub enum ActionAfterTimerExpire {
     ContinueAdvertising,
-    ContinueConnection(u32, Option<u32>),
-    EndConnectionAttempt,
+    ContinueConnection(u32, u32),
 }
 
 pub enum ReadAction {

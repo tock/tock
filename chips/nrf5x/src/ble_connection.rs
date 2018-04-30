@@ -157,7 +157,7 @@ impl ConnectionData {
         //TODO - Perhaps add jitter in the comparison?
 
         //-1000 usec for earlier listening
-        let interval = (self.lldata.interval as u32) * 1000 * 5 / 4 - 1000;
+        let interval = self.lldata.connection_interval() - 1000;
 
         match self.conn_interval_start {
             Some(start_time) => {

@@ -90,7 +90,7 @@ impl LinkLayer {
             Some(AppBLEState::Connection(ref conndata)) => {
                 ActionAfterTimerExpire::ContinueConnection(
                     conndata.calculate_conn_supervision_timeout(),
-                    conndata.conn_interval_length_usec,
+                    conndata.lldata.connection_interval(),
                 )
             }
             _ => {
@@ -103,9 +103,9 @@ impl LinkLayer {
 pub struct LLData {
     pub aa: [u8; 4],
     pub crc_init: [u8; 3],
-    pub win_size: u8,
-    pub win_offset: u16,
-    pub interval: u16,
+    win_size: u8,
+    win_offset: u16,
+    interval: u16,
     pub latency: u16,
     pub timeout: u16,
     pub chm: [u8; 5],
@@ -175,5 +175,30 @@ impl LLData {
             ],
             hop_and_sca: buffer[PACKET_ADDR_START + 33],
         }
+    }
+
+    #[inline(always)]
+    fn msec_to_usec(msec: u32) -> u32 {
+        msec * 1000
+    }
+
+    #[inline(always)]
+    fn msec_to_multiple_of_125(msec: u32) -> u32 {
+        Self::msec_to_usec(msec) * 5 / 4
+    }
+
+    #[inline(always)]
+    pub fn window_offset(&self) -> u32 {
+        Self::msec_to_multiple_of_125(self.win_offset as u32)
+    }
+
+    #[inline(always)]
+    pub fn window_size(&self) -> u32 {
+        Self::msec_to_multiple_of_125(self.win_size as u32)
+    }
+
+    #[inline(always)]
+    pub fn connection_interval(&self) -> u32 {
+        Self::msec_to_multiple_of_125(self.interval as u32)
     }
 }

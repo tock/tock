@@ -918,17 +918,9 @@ where
                                             conndata.crcinit,
                                         );
 
-                                        // windowOffset is a multiple of 1.25ms, convert to us
-                                        let transmit_window_offset =
-                                            (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
-                                        let transmit_window_size =
-                                            (conndata.lldata.win_size as u32) * 1000 * 5 / 4;
-
                                         let delay_until_rx =
-                                            TRANSMIT_WINDOW_DELAY_CONN_IND + transmit_window_offset;
-
-                                        conndata.conn_interval_length_usec =
-                                            Some((conndata.lldata.interval as u32) * 1000 * 5 / 4);
+                                            TRANSMIT_WINDOW_DELAY_CONN_IND + conndata.lldata.window_offset();
+                                        let window_size = conndata.lldata.window_size();
 
                                         app.process_status =
                                             Some(AppBLEState::Connection(conndata));
@@ -937,7 +929,7 @@ where
                                         //TODO - send reasonable timeout argument (second argument)
                                         PhyTransition::MoveToRX(
                                             DelayStartPoint::PacketEndUsecDelay(delay_until_rx),
-                                            transmit_window_size,
+                                            window_size,
                                         )
                                     }
                                     _ => PhyTransition::None,
@@ -1042,7 +1034,7 @@ where
 
                     let timeout =
                         if let Some(AppBLEState::Connection(ref conndata)) = app.process_status {
-                            (conndata.lldata.win_size as u32) * 1000 * 5 / 4
+                            conndata.lldata.window_size()
                         } else {
                             panic!("We are not in connection???");
                         };
@@ -1123,14 +1115,10 @@ where
                     ) => {
                         //We should stay in the connection, but no more data should be sent on this channel
                         //TODO - check if we have reached supervision time out. If so, kill connection.
-                        //Otherwise we might just have missed a packet.
-                        //TODO - send reasonable timeout argument (second argument)
-
-                        let arbitrary_default_value = 3000; // TODO calculate from conndata
 
                         result = PhyTransition::MoveToRX(
                             DelayStartPoint::PacketStartUsecDelay(
-                                conn_interval_length.unwrap_or(arbitrary_default_value),
+                                conn_interval_length,
                             ),
                             conn_supervision_timeout,
                         );
