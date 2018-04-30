@@ -150,7 +150,6 @@ pub struct RADIO {
     pub power: VolatileCell<u32>,          // 0xFFC - 0x1000
 }
 
-
 pub const PPI_BASE: usize = 0x4001F000;
 #[repr(C)]
 pub struct PPI {

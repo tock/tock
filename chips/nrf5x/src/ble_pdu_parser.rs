@@ -1,7 +1,6 @@
 use ble_link_layer::LLData;
 use core::fmt;
 
-
 #[derive(Debug)]
 pub enum BLEPduType<'a> {
     ConnectUndirected(DeviceAddress, &'a [u8]),
@@ -82,7 +81,6 @@ pub const PACKET_ADDR_END: usize = 7;
 pub const PACKET_PAYLOAD_START: usize = 8;
 pub const PACKET_LENGTH: usize = 39;
 
-
 #[repr(u8)]
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BLEAdvertisementType {
@@ -110,23 +108,22 @@ impl BLEAdvertisementType {
     }
 
     pub fn validate_pdu(&self, len: u8) -> bool {
-
         match self {
-                &BLEAdvertisementType::ScanRequest
-                | &BLEAdvertisementType::ConnectDirected => len == SCAN_REQ_LEN,
+            &BLEAdvertisementType::ScanRequest | &BLEAdvertisementType::ConnectDirected => {
+                len == SCAN_REQ_LEN
+            }
 
-                &BLEAdvertisementType::ScanResponse
-                | &BLEAdvertisementType::ConnectUndirected
-                | &BLEAdvertisementType::ScanUndirected
-                | &BLEAdvertisementType::NonConnectUndirected => {
-                    len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN
-                }
+            &BLEAdvertisementType::ScanResponse
+            | &BLEAdvertisementType::ConnectUndirected
+            | &BLEAdvertisementType::ScanUndirected
+            | &BLEAdvertisementType::NonConnectUndirected => {
+                len >= DEVICE_ADDRESS_LEN && len <= SCAN_IND_MAX_LEN
+            }
 
-                &BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN,
+            &BLEAdvertisementType::ConnectRequest => len == CONNECT_REQ_LEN,
         }
     }
 }
-
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct DeviceAddress(pub [u8; 6]);

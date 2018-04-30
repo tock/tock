@@ -37,13 +37,14 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
+use kernel::hil::gpio::Pin;
 use nrf5x;
-use nrf5x::ble_advertising_hil::{PhyTransition, RadioChannel, ReadAction, TxImmediate, DelayStartPoint};
+use nrf5x::ble_advertising_hil::{DelayStartPoint, PhyTransition, RadioChannel, ReadAction,
+                                 TxImmediate};
 use nrf5x::constants::TxPower;
+use nrf5x::gpio;
 use peripheral_registers;
 use ppi;
-use nrf5x::gpio;
-use kernel::hil::gpio::Pin;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -60,8 +61,8 @@ const NRF52_TX_DELAY: u32 = 3;
 const NRF52_TX_END_DELAY: u32 = 3;
 const NRF52_RX_END_DELAY: u32 = 7;
 
-const NRF52_DISABLE_TX_DELAY : u32 = NRF52_RX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX + NRF52_TX_DELAY;
-const NRF52_DISABLE_RX_DELAY : u32 = NRF52_TX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX;
+const NRF52_DISABLE_TX_DELAY: u32 = NRF52_RX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX + NRF52_TX_DELAY;
+const NRF52_DISABLE_RX_DELAY: u32 = NRF52_TX_END_DELAY + NRF52_FAST_RAMPUP_TIME_TX;
 
 static mut TX_PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
@@ -136,7 +137,6 @@ impl Radio {
     }
 
     fn setup_rx(&self) {
-
         let regs = unsafe { &*self.regs };
 
         self.set_dma_ptr_rx();
@@ -153,7 +153,6 @@ impl Radio {
         regs.bcmatch.set(0);
         regs.event_rssiend.set(0);
         regs.crcok.set(0);
-
 
         regs.shorts.set(
             nrf5x::constants::RADIO_SHORTS_END_DISABLE | nrf5x::constants::RADIO_SHORTS_READY_START
@@ -242,16 +241,14 @@ impl Radio {
     }
 
     fn get_packet_time_value_with_delay(&self, start_point: DelayStartPoint) -> u32 {
-
-
         match start_point {
             DelayStartPoint::PacketEndUsecDelay(_) | DelayStartPoint::PacketEndBLEStandardDelay => {
                 self.get_packet_end_time_value() + start_point.value()
-            },
+            }
             DelayStartPoint::PacketStartUsecDelay(_) => {
                 self.get_packet_address_time_value() + start_point.value()
-            },
-            DelayStartPoint::AbsoluteTimestamp(ab) => ab
+            }
+            DelayStartPoint::AbsoluteTimestamp(ab) => ab,
         }
     }
 
@@ -263,7 +260,7 @@ impl Radio {
     }
 
     fn schedule_tx_after_us(&self, delay: DelayStartPoint) {
-        let now = unsafe {nrf5x::timer::TIMER0.capture(4)};
+        let now = unsafe { nrf5x::timer::TIMER0.capture(4) };
 
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_TX_DELAY;
@@ -275,11 +272,9 @@ impl Radio {
     }
 
     fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
-
-        let earlier_listen : u32 = 2;
+        let earlier_listen: u32 = 2;
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_RX_DELAY - earlier_listen;
-
 
         self.set_cc0(time);
 
@@ -290,7 +285,6 @@ impl Radio {
     }
 
     fn set_rx_timeout(&self, usec: u32) {
-
         //Prepare timer to timeout 'timeout' usec after we have started to rx
         unsafe {
             nrf5x::timer::TIMER0.set_cc1(usec);
@@ -317,17 +311,15 @@ impl Radio {
     }
 
     fn handle_address_event(&self) -> bool {
-
         let regs = unsafe { &*self.regs };
         regs.event_address.set(0);
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH22);
 
-
-
-        self.address_receive_time.set(Some(unsafe { nrf5x::timer::TIMER0.get_cc1() }));
+        self.address_receive_time
+            .set(Some(unsafe { nrf5x::timer::TIMER0.get_cc1() }));
 
         self.clear_interrupt(
-            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS
+            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS,
         );
 
         // Calculate accurate packets start time?
@@ -370,7 +362,6 @@ impl Radio {
                     if should_tx == TxImmediate::TX {
                         self.tx();
                     }
-
                 }
             }
         } else {
@@ -395,7 +386,14 @@ impl Radio {
         };
 
         if let Some(client) = self.rx_client.get() {
-            let result = unsafe { client.receive_end(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2, crc_ok, self.get_packet_address_time_value()) };
+            let result = unsafe {
+                client.receive_end(
+                    &mut RX_PAYLOAD,
+                    RX_PAYLOAD[1] + 2,
+                    crc_ok,
+                    self.get_packet_address_time_value(),
+                )
+            };
 
             match result {
                 PhyTransition::MoveToTX(delay) => {
@@ -423,8 +421,10 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay),
-                        TxImmediate::GoToSleep => {},
+                        TxImmediate::RespondAfterTifs => {
+                            self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
+                        }
+                        TxImmediate::GoToSleep => {}
                     }
                 }
             }
@@ -434,7 +434,6 @@ impl Radio {
     }
 
     fn handle_tx_end_event(&self) {
-
         let regs = unsafe { &*self.regs };
 
         regs.event_disabled.set(0);
@@ -446,7 +445,6 @@ impl Radio {
         } else {
             ReturnCode::FAIL
         };
-
 
         if let Some(client) = self.tx_client.get() {
             let result = client.transmit_end(crc_ok);
@@ -475,8 +473,10 @@ impl Radio {
 
                     match should_tx {
                         TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs =>  self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay),
-                        TxImmediate::GoToSleep => {},
+                        TxImmediate::RespondAfterTifs => {
+                            self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
+                        }
+                        TxImmediate::GoToSleep => {}
                     }
                 }
             }
@@ -487,9 +487,7 @@ impl Radio {
 
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-
         let regs = unsafe { &*self.regs };
-
 
         // let current_time = unsafe {nrf5x::timer::TIMER0.capture(4) };
 
@@ -504,12 +502,12 @@ impl Radio {
         }
 
         if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_DISABLED) > 0
-            && regs.event_disabled.get() == 1 {
+            && regs.event_disabled.get() == 1
+        {
             if self.state.get() == RadioState::RX {
                 regs.event_disabled.set(0);
 
                 if self.debug_value.get() != 1 {
-
                     let transition = self.advertisement_client
                         .get()
                         .map(|client| client.timer_expired());
@@ -530,10 +528,7 @@ impl Radio {
                             //Do nothing, the device should sleep and wait for timer to fire in BLE
                         }
                     }
-
                 }
-
-
             } else if self.state.get() == RadioState::Uninitialized {
                 panic!("Oh no!\n");
             } else {
@@ -584,7 +579,7 @@ impl Radio {
             Some(time) => time,
             None => {
                 panic!("Trying to get time for last ADDRESS, but non has been saved\n");
-            },
+            }
         }
     }
 
@@ -631,7 +626,6 @@ impl Radio {
             nrf5x::timer::TIMER0.set_bitmode(3);
             nrf5x::timer::TIMER0.start();
         }
-
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
@@ -654,7 +648,6 @@ impl Radio {
     // Set access address to 0x8E89BED6
     pub fn ble_set_access_address(&self, aa: u32) {
         let regs = unsafe { &*self.regs };
-
 
         regs.prefix0
             .set((regs.prefix0.get() & 0xffffff00) | (aa >> 24));

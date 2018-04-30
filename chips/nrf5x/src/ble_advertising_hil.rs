@@ -47,9 +47,9 @@
 //!
 //! ```
 
-use kernel::ReturnCode;
 use ble_connection::ConnectionData;
 use constants::BLE_T_IFS;
+use kernel::ReturnCode;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
@@ -72,13 +72,15 @@ pub enum DelayStartPoint {
     PacketEndBLEStandardDelay,
     PacketStartUsecDelay(u32),
     PacketEndUsecDelay(u32),
-    AbsoluteTimestamp(u32)
+    AbsoluteTimestamp(u32),
 }
 
 impl DelayStartPoint {
     pub fn value(self) -> u32 {
         match self {
-            DelayStartPoint::PacketEndUsecDelay(v) | DelayStartPoint::PacketStartUsecDelay(v) | DelayStartPoint::AbsoluteTimestamp(v) => v,
+            DelayStartPoint::PacketEndUsecDelay(v)
+            | DelayStartPoint::PacketStartUsecDelay(v)
+            | DelayStartPoint::AbsoluteTimestamp(v) => v,
             DelayStartPoint::PacketEndBLEStandardDelay => BLE_T_IFS,
         }
     }
@@ -115,7 +117,7 @@ pub enum ReadAction {
 pub enum TxImmediate {
     GoToSleep,
     RespondAfterTifs,
-    TX
+    TX,
 }
 
 pub enum DisablePHY {
@@ -126,7 +128,13 @@ pub enum DisablePHY {
 
 pub trait RxClient {
     fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction;
-    fn receive_end(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, rx_timestamp: u32) -> PhyTransition;
+    fn receive_end(
+        &self,
+        buf: &'static mut [u8],
+        len: u8,
+        result: ReturnCode,
+        rx_timestamp: u32,
+    ) -> PhyTransition;
 }
 
 pub trait TxClient {

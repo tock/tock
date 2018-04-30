@@ -61,8 +61,8 @@ impl Radio {
         regs.prefix0.set(0x0000008e);
         regs.base0.set(0x89bed600);
 
-        self.set_tx_address(0x00);  //If 1 - Transmit address select
-        self.set_rx_address(0x01);  //If 1 - Receive address select
+        self.set_tx_address(0x00); //If 1 - Transmit address select
+        self.set_rx_address(0x01); //If 1 - Receive address select
 
         // Set Packet Config
         self.set_packet_config(0x00);
@@ -90,9 +90,7 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         let prefix: u32 = address[0] as u32;
         let base: u32 =
-            (address[1] as u32) << 24 |
-                (address[2] as u32) << 16 |
-                (address[3] as u32) << 8;
+            (address[1] as u32) << 24 | (address[2] as u32) << 16 | (address[3] as u32) << 8;
         regs.prefix1.set(prefix);
         regs.base1.set(base);
         regs.rxaddresses.set(0b010);
@@ -214,8 +212,6 @@ impl Radio {
                 ReturnCode::FAIL
             };
 
-
-
             /*
             let pdu = unsafe {
                 let parsed_type = BLEAdvertisementType::from_u8(&PAYLOAD[0] & 0x0f);
@@ -227,7 +223,6 @@ impl Radio {
                 _ => None
             };
             */
-
 
             match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
@@ -246,9 +241,8 @@ impl Radio {
                     //self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-
                             //if client.get_address() == addr {
-                                client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
+                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
                             //}
                         });
                     }
@@ -293,7 +287,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         len: usize,
         channel: RadioChannel,
     ) -> &'static mut [u8] {
-
         let res = self.replace_radio_buffer(buf, len);
         self.ble_initialize(channel);
         self.tx();

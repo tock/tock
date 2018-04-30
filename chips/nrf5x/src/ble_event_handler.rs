@@ -1,7 +1,7 @@
+use ble_advertising_driver::BusyState;
+use ble_advertising_hil::RadioChannel;
 use kernel;
 use kernel::returncode::ReturnCode;
-use ble_advertising_hil::RadioChannel;
-use ble_advertising_driver::BusyState;
 
 pub trait BLESender {
     fn transmit_buffer(&self, appid: kernel::AppId);

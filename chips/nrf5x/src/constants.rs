@@ -34,7 +34,6 @@ pub const RADIO_CRCPOLY_BLE: u32 = 0x00065B;
 
 pub const BLE_T_IFS: u32 = 150;
 
-
 // MODE
 pub const RADIO_MODE_BLE_1MBIT: u32 = 3;
 
@@ -88,7 +87,6 @@ pub const PPI_CHEN_CH31: u32 = 1 << 31; // RTC0->EVENTS_COMPARE[0]	    TIMER0->T
 
 // BUFFER SIZE
 pub const RADIO_PAYLOAD_LENGTH: usize = 255;
-
 
 // Advertising ACCESS ADDRESS
 pub const ADV_ACCESS_ADDRESS_BLE: u32 = 0x8e89bed6;

@@ -1,13 +1,11 @@
 use ble_advertising_driver::{App, AppBLEState, BleLinkLayerState};
 use ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
+use ble_advertising_hil::ActionAfterTimerExpire;
 use ble_connection::ConnectionData;
 use ble_pdu_parser::{BLEAdvertisementType, BLEPduType};
+use ble_pdu_parser::PACKET_ADDR_START;
 use constants;
 use core::fmt;
-
-
-use ble_pdu_parser::PACKET_ADDR_START;
-use ble_advertising_hil::ActionAfterTimerExpire;
 
 pub type TxNextChannelType = (TxImmediate, Option<(RadioChannel, u32, u32)>);
 
@@ -20,21 +18,21 @@ impl Default for LinkLayer {
 }
 
 impl LinkLayer {
-    pub fn handle_rx_start(&self, app: &mut App, pdu_type: Option<BLEAdvertisementType>) -> ReadAction {
+    pub fn handle_rx_start(
+        &self,
+        app: &mut App,
+        pdu_type: Option<BLEAdvertisementType>,
+    ) -> ReadAction {
         match app.process_status {
-            Some(AppBLEState::Advertising) => {
-                match pdu_type {
-                    Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrameAndMoveToTX,
-                    Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrameAndStayRX,
-                    _ => ReadAction::SkipFrame,
-                }
-            }
-            Some(AppBLEState::Connection(_)) => {
-                ReadAction::ReadFrameAndMoveToTX
-            }
+            Some(AppBLEState::Advertising) => match pdu_type {
+                Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrameAndMoveToTX,
+                Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrameAndStayRX,
+                _ => ReadAction::SkipFrame,
+            },
+            Some(AppBLEState::Connection(_)) => ReadAction::ReadFrameAndMoveToTX,
             Some(AppBLEState::Scanning) => ReadAction::ReadFrameAndStayRX,
             Some(AppBLEState::InitiatingConnection) => ReadAction::SkipFrame,
-            _ => ReadAction::SkipFrame
+            _ => ReadAction::SkipFrame,
         }
     }
 
@@ -66,7 +64,14 @@ impl LinkLayer {
             Some(AppBLEState::Advertising) => {
                 if let Some(channel) = app.channel {
                     if let Some(next_channel) = channel.get_next_advertising_channel() {
-                        (TxImmediate::TX, Some((next_channel, constants::ADV_ACCESS_ADDRESS_BLE, constants::RADIO_CRCINIT_BLE)))
+                        (
+                            TxImmediate::TX,
+                            Some((
+                                next_channel,
+                                constants::ADV_ACCESS_ADDRESS_BLE,
+                                constants::RADIO_CRCINIT_BLE,
+                            )),
+                        )
                     } else {
                         (TxImmediate::GoToSleep, None)
                     }
@@ -76,23 +81,23 @@ impl LinkLayer {
             }
             Some(AppBLEState::Connection(ref mut conn_data)) => {
                 let channel = conn_data.next_channel();
-                (TxImmediate::RespondAfterTifs, Some((channel, conn_data.aa, conn_data.crcinit)))
+                (
+                    TxImmediate::RespondAfterTifs,
+                    Some((channel, conn_data.aa, conn_data.crcinit)),
+                )
             }
-            _ => {
-                (TxImmediate::GoToSleep, None)
-            }
+            _ => (TxImmediate::GoToSleep, None),
         }
     }
 
     pub fn handle_timer_expire(&self, app: &mut App) -> ActionAfterTimerExpire {
-
         match app.process_status {
-            Some(AppBLEState::Advertising) => {
-                ActionAfterTimerExpire::ContinueAdvertising
-            }
+            Some(AppBLEState::Advertising) => ActionAfterTimerExpire::ContinueAdvertising,
             Some(AppBLEState::Connection(ref conndata)) => {
-
-                ActionAfterTimerExpire::ContinueConnection(conndata.calculate_conn_supervision_timeout(), conndata.conn_interval_length_usec)
+                ActionAfterTimerExpire::ContinueConnection(
+                    conndata.calculate_conn_supervision_timeout(),
+                    conndata.conn_interval_length_usec,
+                )
             }
             _ => {
                 panic!("Timer expired but app has no state\n");

@@ -4,7 +4,6 @@ pub struct PPIRegisters {
     regs: *const peripheral_registers::PPI,
 }
 
-
 pub static mut PPI: PPIRegisters = PPIRegisters::new();
 
 impl PPIRegisters {
