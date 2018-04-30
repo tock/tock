@@ -724,11 +724,11 @@ where
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
         BLE {
-            radio: radio,
+            radio,
             busy: Cell::new(BusyState::Free),
             app: container,
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
-            alarm: alarm,
+            alarm,
             sending_app: Cell::new(None),
             receiving_app: Cell::new(None),
             link_layer: LinkLayer,
@@ -846,6 +846,21 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
+    fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction {
+        // TODO parse differently when not advertising - move to link layer?
+        let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
+
+        let mut read_action = ReadAction::SkipFrame;
+
+        if let Some(appid) = self.receiving_app.get() {
+            let _ = self.app.enter(appid, |app, _| {
+                read_action = self.link_layer.handle_rx_start(app, pdu_type)
+            });
+        }
+
+        read_action
+    }
+
     fn receive_end(
         &self,
         buf: &'static mut [u8],
@@ -982,21 +997,6 @@ where
         }
 
         transition
-    }
-
-    fn receive_start(&self, buf: &'static mut [u8], len: u8) -> ReadAction {
-        // TODO parse differently when not advertising - move to link layer?
-        let pdu_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
-
-        let mut read_action = ReadAction::SkipFrame;
-
-        if let Some(appid) = self.receiving_app.get() {
-            let _ = self.app.enter(appid, |app, _| {
-                read_action = self.link_layer.handle_rx_start(app, pdu_type)
-            });
-        }
-
-        read_action
     }
 }
 
@@ -1153,6 +1153,22 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
+    fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
+        match subscribe_num {
+            // Callback for scanning
+            0 => self.app
+                .enter(callback.app_id(), |app, _| match app.process_status {
+                    Some(AppBLEState::NotInitialized) | Some(AppBLEState::Initialized) => {
+                        app.scan_callback = Some(callback);
+                        ReturnCode::SUCCESS
+                    }
+                    _ => ReturnCode::EINVAL,
+                })
+                .unwrap_or_else(|err| err.into()),
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
     fn command(
         &self,
         command_num: usize,
@@ -1323,22 +1339,6 @@ where
                     } else {
                         ReturnCode::EINVAL
                     }
-                })
-                .unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
-        match subscribe_num {
-            // Callback for scanning
-            0 => self.app
-                .enter(callback.app_id(), |app, _| match app.process_status {
-                    Some(AppBLEState::NotInitialized) | Some(AppBLEState::Initialized) => {
-                        app.scan_callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    }
-                    _ => ReturnCode::EINVAL,
                 })
                 .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
