@@ -218,6 +218,8 @@ use ble_pdu_parser::DeviceAddress;
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
+
+//Blutooth Specification Volume 6, Part B, Section 4.5.3
 const TRANSMIT_WINDOW_DELAY_CONN_IND: u32 = 1000 * 5 / 4; // 1.25ms in us
 const STANDARD_TIMEOUT: u32 = 8000; //in usec
 
@@ -913,20 +915,18 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 
                                         // windowOffset is a multiple of 1.25ms, convert to us
-                                        let transmitWindowOffset = (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
+                                        let transmit_window_offset = (conndata.lldata.win_offset as u32) * 1000 * 5 / 4;
+                                        let transmit_window_size = (conndata.lldata.win_size as u32) * 1000 * 5 / 4;
 
-                                        let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmitWindowOffset;
+                                        let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND + transmit_window_offset;
 
-                                        conndata.conn_interval_length_usec = Some(transmitWindowOffset - 1000);
+                                        conndata.conn_interval_length_usec = Some((conndata.lldata.interval as u32) * 1000 * 5 / 4);
 
                                         app.process_status = Some(AppBLEState::Connection(conndata));
                                         app.state = Some(BleLinkLayerState::WaitingForConnection);
 
-                                        //conndata.calculate_conn_supervision_timeout()
-
-
                                         //TODO - send reasonable timeout argument (second argument)
-                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx - 1000), delay_until_rx + transmitWindowOffset)
+                                        PhyTransition::MoveToRX(DelayStartPoint::PacketEndUsecDelay(delay_until_rx),  transmit_window_size)
                                     }
                                     _ => PhyTransition::None,
                                 }
@@ -1110,7 +1110,6 @@ impl<'a, B, A> ble_advertising_hil::AdvertisementClient for BLE<'a, B, A>
                         //TODO - send reasonable timeout argument (second argument)
 
                         let arbitrary_default_value= 3000; // TODO calculate from conndata
-                        //debug!("Expect\n");
 
                         result = PhyTransition::MoveToRX(DelayStartPoint::PacketStartUsecDelay(
                             conn_interval_length.unwrap_or(arbitrary_default_value)),

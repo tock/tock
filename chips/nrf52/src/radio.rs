@@ -242,13 +242,15 @@ impl Radio {
     }
 
     fn get_packet_time_value_with_delay(&self, start_point: DelayStartPoint) -> u32 {
+
+
         match start_point {
             DelayStartPoint::PacketEndUsecDelay(_) | DelayStartPoint::PacketEndBLEStandardDelay => {
                 self.get_packet_end_time_value() + start_point.value()
             },
             DelayStartPoint::PacketStartUsecDelay(_) => {
-                //self.get_packet_address_time_value() + start_point.value()
-                match self.address_receive_time.get() {
+
+                match self.address_receive_time.take() {
                     Some(time) => time + start_point.value(),
                     None => panic!("Trying to get time for last ADDRESS, but non has been saved"),
                 }
@@ -278,38 +280,25 @@ impl Radio {
 
     fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
 
-        //let n1 = unsafe {nrf5x::timer::TIMER0.capture(4)};
-
         let earlier_listen : u32 = 2;
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_RX_DELAY - earlier_listen;
 
 
-        //let n2 = unsafe {nrf5x::timer::TIMER0.capture(4)};
-
         self.set_cc0(time);
-
-        /*if self.debug_bit.get() {
-           debug!("t0 {} now {} scheduled {}\n", t0, n1, time);
-        }*/
 
         // CH21: CC[0] => RXEN
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
 
-        //if !self.debug_bit.get() {
-            self.set_rx_timeout(t0 + timeout);
-        //}
+        self.set_rx_timeout(t0 + timeout);
     }
 
     fn set_rx_timeout(&self, usec: u32) {
 
         //Prepare timer to timeout 'timeout' usec after we have started to rx
         unsafe {
-            //nrf5x::timer::TIMER0.set_cc1(usec);
-            nrf5x::timer::TIMER0.set_events_compare(1, usec);
-
-
-            //debug!("diff {}\n", nrf5x::timer::TIMER0.get_cc2() - nrf5x::timer::TIMER0.get_cc1());
+            nrf5x::timer::TIMER0.set_cc1(usec);
+            nrf5x::timer::TIMER0.set_events_compare(1, 0);
         }
 
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22 | nrf5x::constants::PPI_CHEN_CH26);
@@ -430,6 +419,8 @@ impl Radio {
                     self.wait_until_disabled();
                     self.setup_rx();
                     self.schedule_rx_after_us(delay, timeout);
+
+                    debug!("End of receive conn_req\n");
                 }
                 PhyTransition::None => {
                     self.disable_radio();
@@ -526,12 +517,7 @@ impl Radio {
             if self.state.get() == RadioState::RX {
                 regs.event_disabled.set(0);
 
-                if self.debug_value.get() != 1 {
-                    debug!("Mut\n");
-
-                    /*let mut now = 0;
-                    unsafe { now = nrf5x::timer::TIMER0.get_cc1() }
-                    debug!("now {} address {:?}\n", now, self.address_receive_time.get());*/
+                //if self.debug_value.get() != 1 {
 
                     let transition = self.advertisement_client
                         .get()
@@ -552,7 +538,7 @@ impl Radio {
                         _ => {
                             //Do nothing, the device should sleep and wait for timer to fire in BLE
                         }
-                }
+                //}
 
                 }
 
@@ -643,12 +629,11 @@ impl Radio {
             // CH26: RADIO.EVENTS_ADDRESS -> TIMER0.TASKS_CAPTURE[1]
             // CH27: RADIO.EVENTS_END -> TIMER0.TASKS_CAPTURE[2]
             self.enable_ppi(nrf5x::constants::PPI_CHEN_CH26 | nrf5x::constants::PPI_CHEN_CH27);
-
-            unsafe {
-                nrf5x::timer::TIMER0.set_prescaler(4);
-                nrf5x::timer::TIMER0.set_bitmode(3);
-                nrf5x::timer::TIMER0.start();
-            }
+        }
+        unsafe {
+            nrf5x::timer::TIMER0.set_prescaler(4);
+            nrf5x::timer::TIMER0.set_bitmode(3);
+            nrf5x::timer::TIMER0.start();
         }
 
     }
