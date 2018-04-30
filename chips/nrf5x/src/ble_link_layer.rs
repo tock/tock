@@ -11,12 +11,6 @@ pub type TxNextChannelType = (TxImmediate, Option<(RadioChannel, u32, u32)>);
 
 pub struct LinkLayer;
 
-impl Default for LinkLayer {
-    fn default() -> LinkLayer {
-        LinkLayer
-    }
-}
-
 impl LinkLayer {
     pub fn handle_rx_start(
         &self,
@@ -25,12 +19,12 @@ impl LinkLayer {
     ) -> ReadAction {
         match app.process_status {
             Some(AppBLEState::Advertising) => match pdu_type {
-                Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrameAndMoveToTX,
-                Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrameAndStayRX,
+                Some(BLEAdvertisementType::ScanRequest) => ReadAction::ReadFrame,
+                Some(BLEAdvertisementType::ConnectRequest) => ReadAction::ReadFrame,
                 _ => ReadAction::SkipFrame,
             },
-            Some(AppBLEState::Connection(_)) => ReadAction::ReadFrameAndMoveToTX,
-            Some(AppBLEState::Scanning) => ReadAction::ReadFrameAndStayRX,
+            Some(AppBLEState::Connection(_)) => ReadAction::ReadFrame,
+            Some(AppBLEState::Scanning) => ReadAction::ReadFrame,
             Some(AppBLEState::InitiatingConnection) => ReadAction::SkipFrame,
             _ => ReadAction::SkipFrame,
         }

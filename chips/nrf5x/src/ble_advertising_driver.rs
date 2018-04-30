@@ -201,7 +201,6 @@ use ble_advertising_hil::PhyTransition;
 use ble_advertising_hil::ResponseAction;
 use ble_advertising_hil::TxImmediate;
 use ble_connection::ConnectionData;
-use ble_event_handler::BLESender;
 use ble_link_layer::LinkLayer;
 use ble_link_layer::TxNextChannelType;
 use ble_pdu_parser::BLEAdvertisementType;
@@ -587,11 +586,15 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn prepare_advertisement(
+    fn prepare_advertisement<'a, B, A>(
         &mut self,
-        ble: &BLESender,
+        ble: &BLE<'a, B, A>,
         advertisement_type: BLEAdvertisementType,
-    ) -> ReturnCode {
+    ) -> ReturnCode
+    where
+        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+        A: kernel::hil::time::Alarm + 'a,
+    {
         self.state = None;
 
         self.advertisement_buf
@@ -728,7 +731,7 @@ where
             alarm: alarm,
             sending_app: Cell::new(None),
             receiving_app: Cell::new(None),
-            link_layer: LinkLayer::default(),
+            link_layer: LinkLayer,
         }
     }
 
@@ -759,13 +762,7 @@ where
             self.alarm.set_alarm(next_alarm);
         }
     }
-}
 
-impl<'a, B, A> BLESender for BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
-{
     fn transmit_buffer(&self, appid: kernel::AppId) {
         self.sending_app.set(Some(appid));
         self.kernel_tx.take().map(|buf| {
@@ -774,43 +771,12 @@ where
         });
     }
 
-    fn transmit_buffer_edit(
-        &self,
-        len: usize,
-        appid: kernel::AppId,
-        edit_buffer: &Fn(&mut [u8]) -> (),
-    ) {
-        self.kernel_tx.map(|buffer| {
-            edit_buffer(buffer);
-        });
-
-        self.transmit_buffer(appid);
-    }
-
     fn replace_buffer(&self, edit_buffer: &Fn(&mut [u8]) -> ()) {
         self.kernel_tx.take().map(|buffer| {
             edit_buffer(buffer);
             let res = self.radio.set_advertisement_data(buffer, PACKET_LENGTH);
             self.kernel_tx.replace(res);
         });
-    }
-
-    fn receive_buffer(&self, appid: kernel::AppId) {
-        self.receiving_app.set(Some(appid));
-        self.radio.receive_advertisement();
-    }
-    fn set_tx_power(&self, power: u8) -> ReturnCode {
-        self.radio.set_tx_power(power)
-    }
-
-    fn set_busy(&self, state: BusyState) {
-        self.busy.set(state);
-    }
-    fn alarm_now(&self) -> u32 {
-        self.alarm.now()
-    }
-    fn set_access_address(&self, address: u32) {
-        self.radio.set_access_address(address)
     }
 }
 
@@ -1074,11 +1040,12 @@ where
                         DelayStartPoint::PacketEndBLEStandardDelay
                     };
 
-                    let timeout = if let Some(AppBLEState::Connection(ref conndata)) = app.process_status {
-                        (conndata.lldata.win_size as u32) * 1000 * 5 / 4
-                    } else {
-                        panic!("We are not in connection???");
-                    };
+                    let timeout =
+                        if let Some(AppBLEState::Connection(ref conndata)) = app.process_status {
+                            (conndata.lldata.win_size as u32) * 1000 * 5 / 4
+                        } else {
+                            panic!("We are not in connection???");
+                        };
 
                     //debug!("transmit end, schedule at time {:?}\n", start_time);
                     PhyTransition::MoveToRX(start_time, timeout)
@@ -1106,10 +1073,10 @@ where
                     app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                 }
 
-                let (tx_immediate, channeltriple): TxNextChannelType =
+                let (tx_immediate, channel_triple): TxNextChannelType =
                     self.link_layer.handle_event_done(app);
 
-                app.channel = if let Some((channel, adv_addr, crcinit)) = channeltriple {
+                app.channel = if let Some((channel, adv_addr, crcinit)) = channel_triple {
                     self.radio.set_channel(channel, adv_addr, crcinit);
 
                     Some(channel)

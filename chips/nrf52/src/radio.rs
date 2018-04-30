@@ -189,7 +189,6 @@ impl Radio {
 
         self.setup_rx();
 
-        // TODO: if not already going to rx!
         regs.task_rxen.set(1);
     }
 
@@ -322,9 +321,6 @@ impl Radio {
             nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS,
         );
 
-        // Calculate accurate packets start time?
-        // let address_time = self.get_packet_address_time_value();
-
         loop {
             let state = regs.state.get();
 
@@ -343,21 +339,15 @@ impl Radio {
             let result = unsafe { client.receive_start(&mut RX_PAYLOAD, RX_PAYLOAD[1] + 2) };
 
             match result {
-                ReadAction::ReadFrameAndStayRX | ReadAction::ReadFrameAndMoveToTX => {
-                    // TODO set phy_rx_started = 1
+                ReadAction::ReadFrame => {
+                    // We want to read packet, enable interrupt on EVENT_END
                     self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
                 }
                 ReadAction::SkipFrame => {
                     self.disable_radio();
                     self.wait_until_disabled();
 
-                    let should_tx = self.advertisement_client
-                        .get()
-                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
-
-                    if should_tx == TxImmediate::TX {
-                        self.tx();
-                    }
+                    self.handle_advertisement_done();
                 }
             }
         } else {
@@ -411,21 +401,26 @@ impl Radio {
                 PhyTransition::None => {
                     self.disable_radio();
                     self.wait_until_disabled();
-                    let should_tx = self.advertisement_client
-                        .get()
-                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
 
-                    match should_tx {
-                        TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs => {
-                            self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
-                        }
-                        TxImmediate::GoToSleep => {}
-                    }
+                    self.handle_advertisement_done();
                 }
             }
         } else {
             panic!("No rx_client?\n");
+        }
+    }
+
+    fn handle_advertisement_done(&self) {
+        let should_tx = self.advertisement_client
+            .get()
+            .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
+
+        match should_tx {
+            TxImmediate::TX => self.tx(),
+            TxImmediate::RespondAfterTifs => {
+                self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
+            }
+            TxImmediate::GoToSleep => {}
         }
     }
 
@@ -463,17 +458,8 @@ impl Radio {
                 PhyTransition::None => {
                     self.disable_radio();
                     self.wait_until_disabled();
-                    let should_tx = self.advertisement_client
-                        .get()
-                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
 
-                    match should_tx {
-                        TxImmediate::TX => self.tx(),
-                        TxImmediate::RespondAfterTifs => {
-                            self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
-                        }
-                        TxImmediate::GoToSleep => {}
-                    }
+                    self.handle_advertisement_done();
                 }
             }
         } else {
@@ -517,7 +503,6 @@ impl Radio {
                         }
                         Some(PhyTransition::MoveToRX(delay, timeout)) => {
                             self.setup_rx();
-                            //TODO - what timeout should be used
                             self.schedule_rx_after_us(delay, timeout);
                         }
                         _ => {
@@ -526,7 +511,7 @@ impl Radio {
                     }
                 }
             } else if self.state.get() == RadioState::Uninitialized {
-                panic!("Oh no!\n");
+                panic!("EVENT_DISABLED while Uninitialized?\n");
             } else {
                 self.handle_tx_end_event()
             }

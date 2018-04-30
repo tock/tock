@@ -2,18 +2,6 @@ use ble_advertising_hil::RadioChannel;
 use ble_link_layer::LLData;
 use core::fmt;
 
-// pub struct LLData {
-//     pub aa: [u8; 4],
-//     pub crc_init: [u8; 3],
-//     win_size: u8,
-//     win_offset: u16,
-//     interval: u16,
-//     latency: u16,
-//     timeout: u16,
-//     chm: [u8; 5],
-//     hop_and_sca: u8 // hops 5 bits, sca 3 bits
-// }
-
 const NUMBER_CHANNELS: usize = 40;
 const NUMBER_DATA_CHANNELS: usize = NUMBER_CHANNELS - 3;
 

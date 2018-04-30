@@ -109,8 +109,7 @@ pub enum ActionAfterTimerExpire {
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ReadAction {
     SkipFrame,
-    ReadFrameAndStayRX,
-    ReadFrameAndMoveToTX,
+    ReadFrame,
 }
 
 #[derive(PartialEq)]
