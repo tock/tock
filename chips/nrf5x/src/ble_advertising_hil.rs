@@ -86,43 +86,32 @@ impl DelayStartPoint {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
 pub enum PhyTransition {
     None,
     MoveToTX(DelayStartPoint),
     MoveToRX(DelayStartPoint, u32), //(schedule_rx_after_time, timeout)
 }
 
-#[derive(Debug, Eq, PartialEq)]
 pub enum ResponseAction {
     ScanResponse,
     Connection(ConnectionData),
 }
 
-#[derive(Debug, Eq, PartialEq)]
 pub enum ActionAfterTimerExpire {
     ContinueAdvertising,
     ContinueConnection(u32, Option<u32>),
     EndConnectionAttempt,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ReadAction {
     SkipFrame,
     ReadFrame,
 }
 
-#[derive(PartialEq)]
 pub enum TxImmediate {
     GoToSleep,
     RespondAfterTifs,
     TX,
-}
-
-pub enum DisablePHY {
-    DisableAfterRX,
-    NoDisable,
-    AlreadyDisabled,
 }
 
 pub trait RxClient {

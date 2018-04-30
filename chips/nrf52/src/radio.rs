@@ -259,6 +259,8 @@ impl Radio {
     }
 
     fn schedule_tx_after_us(&self, delay: DelayStartPoint) {
+        self.setup_tx();
+
         let now = unsafe { nrf5x::timer::TIMER0.capture(4) };
 
         let t0 = self.get_packet_time_value_with_delay(delay);
@@ -271,6 +273,8 @@ impl Radio {
     }
 
     fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
+        self.setup_rx();
+
         let earlier_listen: u32 = 2;
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_RX_DELAY - earlier_listen;
@@ -345,7 +349,6 @@ impl Radio {
                 }
                 ReadAction::SkipFrame => {
                     self.disable_radio();
-                    self.wait_until_disabled();
 
                     self.handle_advertisement_done();
                 }
@@ -383,7 +386,6 @@ impl Radio {
 
             match result {
                 PhyTransition::MoveToTX(delay) => {
-                    self.setup_tx();
                     self.schedule_tx_after_us(delay);
                 }
                 PhyTransition::MoveToRX(delay, timeout) => {
@@ -395,12 +397,10 @@ impl Radio {
 
                     self.disable_radio();
                     self.wait_until_disabled();
-                    self.setup_rx();
                     self.schedule_rx_after_us(delay, timeout);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
-                    self.wait_until_disabled();
 
                     self.handle_advertisement_done();
                 }
@@ -411,16 +411,18 @@ impl Radio {
     }
 
     fn handle_advertisement_done(&self) {
-        let should_tx = self.advertisement_client
-            .get()
-            .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
+        self.wait_until_disabled();
 
-        match should_tx {
-            TxImmediate::TX => self.tx(),
-            TxImmediate::RespondAfterTifs => {
-                self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
+        if let Some(client) = self.advertisement_client.get() {
+            match client.advertisement_done() {
+                TxImmediate::TX => self.tx(),
+                TxImmediate::RespondAfterTifs => {
+                    self.schedule_tx_after_us(DelayStartPoint::PacketEndBLEStandardDelay)
+                }
+                TxImmediate::GoToSleep => {}
             }
-            TxImmediate::GoToSleep => {}
+        } else {
+            panic!("No advertisement client?");
         }
     }
 
@@ -442,22 +444,13 @@ impl Radio {
 
             match result {
                 PhyTransition::MoveToTX(delay) => {
-                    self.wait_until_disabled();
-
-                    let should_tx = self.advertisement_client
-                        .get()
-                        .map_or(TxImmediate::GoToSleep, |client| client.advertisement_done());
-                    if should_tx == TxImmediate::TX {
-                        self.tx();
-                    }
+                    self.handle_advertisement_done();
                 }
                 PhyTransition::MoveToRX(delay, timeout) => {
-                    self.setup_rx();
                     self.schedule_rx_after_us(delay, timeout);
                 }
                 PhyTransition::None => {
                     self.disable_radio();
-                    self.wait_until_disabled();
 
                     self.handle_advertisement_done();
                 }
@@ -492,20 +485,19 @@ impl Radio {
                 if self.debug_value.get() != 1 {
                     let transition = self.advertisement_client
                         .get()
-                        .map(|client| client.timer_expired());
+                        .map_or(PhyTransition::None, |client| client.timer_expired());
 
                     self.wait_until_disabled();
 
                     match transition {
-                        Some(PhyTransition::MoveToTX(delay)) => {
+                        PhyTransition::MoveToTX(delay) => {
                             self.setup_tx();
                             self.tx();
                         }
-                        Some(PhyTransition::MoveToRX(delay, timeout)) => {
-                            self.setup_rx();
+                        PhyTransition::MoveToRX(delay, timeout) => {
                             self.schedule_rx_after_us(delay, timeout);
                         }
-                        _ => {
+                        PhyTransition::None => {
                             //Do nothing, the device should sleep and wait for timer to fire in BLE
                         }
                     }

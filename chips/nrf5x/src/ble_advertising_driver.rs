@@ -1084,9 +1084,12 @@ where
                     None
                 };
 
-                if tx_immediate == TxImmediate::GoToSleep {
-                    // TODO: Shut down radio when sleeping
-                    app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                match tx_immediate {
+                    TxImmediate::GoToSleep => {
+                        // TODO: Shut down radio when sleeping
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                    },
+                    _ => {}
                 }
 
                 result = tx_immediate;
