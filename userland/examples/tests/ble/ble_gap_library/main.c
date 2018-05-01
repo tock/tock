@@ -52,6 +52,7 @@ int main(void) {
  ******************************************************************************/
 
 // GAP_COMPLETE_LOCAL_NAME || Len || Name
+//
 // Total 32 bytes
 int test_off_by_one_name(void) {
   unsigned char device_name[] = "TockTockTockTockTockTockTockTo";
@@ -63,7 +64,7 @@ int test_off_by_one_name(void) {
 // Len || GAP_COMPLETE_LIST_16BIT_SERVICE_IDS || UUID16 (4 bytes)
 // Len || GAP_SERVICE_DATA || Service Data (28 bytes)
 // 
-// 32 bytes 
+// Total 32 bytes 
 int test_off_by_one_service_data(void) {
   unsigned char data[] = "TockTockTockTockTockTockTo";
 
@@ -72,9 +73,9 @@ int test_off_by_one_service_data(void) {
 }
 
 // Len || GAP_COMPLETE_LIST_16BIT_SERVICE_IDS || UUID16 (4 bytes)
-// Len || GAP_SERVICE_DATA || Service Data (28 bytes)
+// Len || GAP_SERVICE_DATA || Service Data (27 bytes)
 // 
-// 31 bytes 
+// Total 31 bytes 
 int test_exactly_full_buffer_service_data(void) {
   unsigned char data[] = "TockTockTockTockTockTockT";
 
