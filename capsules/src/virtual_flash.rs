@@ -25,10 +25,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
+use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::ReturnCode;
 
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests. After each completed request the list is checked to see if there

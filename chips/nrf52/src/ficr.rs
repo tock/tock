@@ -69,7 +69,6 @@ struct FicrRegisters {
     info_flash: ReadOnly<u32, InfoFlash::Register>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Code memory page size
     CodePageSize [
@@ -119,7 +118,7 @@ register_bitfields! [u32,
     /// Device address 2
     DeviceAddress1 [
         /// 16 MSB of 48 bit device address
-        DEVICEADDRESS OFFSET(0) NUMBITS(16)        
+        DEVICEADDRESS OFFSET(0) NUMBITS(16)
     ],
     /// Part code
     InfoPart [
@@ -127,7 +126,8 @@ register_bitfields! [u32,
             /// nRF52838
             N52832 = 0x52832,
             /// Unspecified
-            Unspecified = 0xFFFFFFFF
+            #[allow(overflowing_literals)]
+            Unspecified = 0xffffffff
         ]
     ],
     /// Part Variant, Hardware version and Production configuration
@@ -148,7 +148,8 @@ register_bitfields! [u32,
             /// AAE0
             AAE0 = 0x41414530,
             /// Unspecified
-            Unspecified = 0xFFFFFFFF
+            #[allow(overflowing_literals)]
+            Unspecified = 0xffffffff
         ]
     ],
     /// Package option
@@ -164,7 +165,8 @@ register_bitfields! [u32,
             /// CKxx - 7x8 WLCSP 56 balls with backside coating for light protection
             CK = 0x2005,
             /// Unspecified
-            Unspecified = 0xFFFFFFFF
+            #[allow(overflowing_literals)]
+            Unspecified = 0xffffffff
         ]
     ],
     /// RAM variant
@@ -176,10 +178,12 @@ register_bitfields! [u32,
             K32 = 0x20,
             /// 64 kByte RAM
             K64 = 0x40,
-            Unspecified = 0xFFFFFFFF
+            #[allow(overflowing_literals)]
+            Unspecified = 0xffffffff
+
         ]
     ],
-    /// Flash 
+    /// Flash
     InfoFlash [
         FLASH OFFSET(0) NUMBITS(32) [
             /// 128 kByte FLASH
@@ -189,7 +193,8 @@ register_bitfields! [u32,
             /// 512 kByte FLASH
             K512 = 0x200,
             /// Unspecified
-            Unspecified = 0xFFFFFFFF
+            #[allow(overflowing_literals)]
+            Unspecified = 0xffffffff
         ]
     ]
 ];
@@ -208,34 +213,38 @@ enum Variant {
 }
 
 #[derive(PartialEq, Debug)]
+#[repr(u32)]
 enum Part {
     N52832 = 0x52832,
     Unspecified = 0xffffffff,
 }
 
 #[derive(PartialEq, Debug)]
+#[repr(u32)]
 enum Package {
     QF = 0x2000,
     CH = 0x2001,
     CI = 0x2002,
     CK = 0x2005,
-    Unspecified = 0xFFFFFFFF,
+    Unspecified = 0xffffffff,
 }
 
 #[derive(PartialEq, Debug)]
+#[repr(u32)]
 enum Ram {
     K16 = 0x10,
     K32 = 0x20,
     K64 = 0x40,
-    Unspecified = 0xFFFFFFFF,
+    Unspecified = 0xffffffff,
 }
 
 #[derive(Debug)]
+#[repr(u32)]
 enum Flash {
     K128 = 0x80,
     K256 = 0x100,
     K512 = 0x200,
-    Unspecified = 0xFFFFFFFF,
+    Unspecified = 0xffffffff,
 }
 
 pub struct Ficr {

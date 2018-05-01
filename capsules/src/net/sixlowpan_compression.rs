@@ -3,7 +3,7 @@
 use core::mem;
 use core::result::Result;
 use net::ieee802154::MacAddress;
-use net::ip::{IP6Header, IPAddr, ip6_nh};
+use net::ip::{ip6_nh, IP6Header, IPAddr};
 use net::util;
 use net::util::{slice_to_u16, u16_to_slice};
 

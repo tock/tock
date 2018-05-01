@@ -40,9 +40,9 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
 pub static mut RXBUFFER: [u8; 512] = [0; 512];

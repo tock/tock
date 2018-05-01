@@ -11,6 +11,7 @@ use flashcalw;
 use gpio;
 use helpers::{DeferredCall, Task};
 use i2c;
+use kernel::support;
 use kernel::Chip;
 use pm;
 use spi;
@@ -161,7 +162,7 @@ impl Chip for Sam4l {
         &self.systick
     }
 
-    fn prepare_for_sleep(&self) {
+    fn sleep(&self) {
         if pm::deep_sleep_ready() {
             unsafe {
                 cortexm4::scb::set_sleepdeep();
@@ -170,6 +171,10 @@ impl Chip for Sam4l {
             unsafe {
                 cortexm4::scb::unset_sleepdeep();
             }
+        }
+
+        unsafe {
+            support::wfi();
         }
     }
 }

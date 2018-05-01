@@ -1,15 +1,14 @@
 //! Board file for Imix development platform.
 //!
-//! - <https://github.com/helena-project/tock/tree/master/boards/imix>
-//! - <https://github.com/helena-project/imix>
+//! - <https://github.com/tock/tock/tree/master/boards/imix>
+//! - <https://github.com/tock/imix>
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items, compiler_builtins_lib, const_cell_new)]
+#![feature(asm, const_fn, lang_items, const_cell_new)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
@@ -23,12 +22,12 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::hil;
-use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
+use kernel::hil::Controller;
 
 /// Support routines for debugging I/O.
 ///
@@ -40,9 +39,9 @@ pub mod io;
 #[allow(dead_code)]
 mod i2c_dummy;
 #[allow(dead_code)]
-mod spi_dummy;
-#[allow(dead_code)]
 mod lowpan_frag_dummy;
+#[allow(dead_code)]
+mod spi_dummy;
 
 #[allow(dead_code)]
 mod aes_test;
@@ -63,7 +62,7 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
 // Save some deep nesting
 type RF233Device =
@@ -92,6 +91,7 @@ struct Imix {
         'static,
         sam4l::usart::USART,
     >,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -139,6 +139,7 @@ impl kernel::Platform for Imix {
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -146,8 +147,8 @@ impl kernel::Platform for Imix {
 }
 
 unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::{PA, PB, PC};
     use sam4l::gpio::PeripheralFunction::{A, B, C, E};
+    use sam4l::gpio::{PA, PB, PC};
 
     // Right column: Imix pin name
     // Left  column: SAM4L peripheral function
@@ -247,6 +248,7 @@ pub unsafe fn reset_handler() {
             &sam4l::usart::USART3,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
@@ -324,7 +326,6 @@ pub unsafe fn reset_handler() {
     );
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
-    sam4l::spi::SPI.enable();
 
     // Create a virtualized client for SPI system call interface,
     // then the system call capsule
@@ -420,7 +421,7 @@ pub unsafe fn reset_handler() {
             &sam4l::adc::CHANNEL_AD3, // AD2
             &sam4l::adc::CHANNEL_AD4, // AD3
             &sam4l::adc::CHANNEL_AD5, // AD4
-            &sam4l::adc::CHANNEL_AD6  // AD5
+            &sam4l::adc::CHANNEL_AD6, // AD5
         ]
     );
     let adc = static_init!(
@@ -446,7 +447,7 @@ pub unsafe fn reset_handler() {
             &sam4l::gpio::PC[28], // P5
             &sam4l::gpio::PC[27], // P6
             &sam4l::gpio::PC[26], // P7
-            &sam4l::gpio::PA[20]  // P8
+            &sam4l::gpio::PA[20], // P8
         ]
     );
 
@@ -469,7 +470,7 @@ pub unsafe fn reset_handler() {
             (
                 &sam4l::gpio::PC[10],
                 capsules::led::ActivationMode::ActiveHigh
-            )
+            ),
         ]
     );
     let led = static_init!(
@@ -481,12 +482,10 @@ pub unsafe fn reset_handler() {
 
     let button_pins = static_init!(
         [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
-        [
-            (
-                &sam4l::gpio::PC[24],
-                capsules::button::GpioMode::LowWhenPressed
-            )
-        ]
+        [(
+            &sam4l::gpio::PC[24],
+            capsules::button::GpioMode::LowWhenPressed
+        )]
     );
 
     let button = static_init!(
@@ -572,6 +571,32 @@ pub unsafe fn reset_handler() {
         capsules::usb_user::UsbSyscallDriver::new(usb_client, kernel::Grant::create())
     );
 
+    sam4l::flashcalw::FLASH_CONTROLLER.configure();
+    pub static mut FLASH_PAGEBUFFER: sam4l::flashcalw::Sam4lPage =
+        sam4l::flashcalw::Sam4lPage::new();
+    let nv_to_page = static_init!(
+        capsules::nonvolatile_to_pages::NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
+        capsules::nonvolatile_to_pages::NonvolatileToPages::new(
+            &mut sam4l::flashcalw::FLASH_CONTROLLER,
+            &mut FLASH_PAGEBUFFER
+        )
+    );
+    hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
+
+    let nonvolatile_storage = static_init!(
+        capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+        capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
+            nv_to_page,
+            kernel::Grant::create(),
+            0x60000, // Start address for userspace accessible region
+            0x20000, // Length of userspace accessible region
+            0,       // Start address of kernel accessible region
+            0,       // Length of kernel accessible region
+            &mut capsules::nonvolatile_storage_driver::BUFFER
+        )
+    );
+    hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
+
     let imix = Imix {
         console: console,
         alarm: alarm,
@@ -589,6 +614,7 @@ pub unsafe fn reset_handler() {
         radio_driver: radio_driver,
         usb_driver: usb_driver,
         nrf51822: nrf_serialization,
+        nonvolatile_storage: nonvolatile_storage,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();

@@ -1,9 +1,8 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib, asm)]
+#![feature(lang_items, asm)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 
 extern crate cc26x2;
 extern crate cc26xx;
@@ -23,7 +22,7 @@ const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultRes
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -88,7 +87,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc26xx::gpio::PORT[7],
                 capsules::led::ActivationMode::ActiveHigh
-            ) // Green
+            ), // Green
         ]
     );
     let led = static_init!(
@@ -107,7 +106,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc26xx::gpio::PORT[14],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // Button 1
+            ), // Button 1
         ]
     );
     let button = static_init!(
@@ -126,6 +125,7 @@ pub unsafe fn reset_handler() {
             &cc26xx::uart::UART0,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
@@ -161,7 +161,7 @@ pub unsafe fn reset_handler() {
             &cc26xx::gpio::PORT[26],
             &cc26xx::gpio::PORT[27],
             &cc26xx::gpio::PORT[30],
-            &cc26xx::gpio::PORT[31]
+            &cc26xx::gpio::PORT[31],
         ]
     );
     let gpio = static_init!(

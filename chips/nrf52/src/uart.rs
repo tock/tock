@@ -8,12 +8,16 @@
 //! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Date: March 10 2018
 
+use core;
 use core::cell::Cell;
+use core::cmp::min;
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use nrf5x::pinmux;
 
 const UARTE_BASE: u32 = 0x40002000;
+const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
+
 static mut BYTE: u8 = 0;
 
 #[repr(C)]
@@ -67,7 +71,6 @@ struct UarteRegisters {
     pub config: ReadWrite<u32, Config::Register>,     // 0x56C-0x570
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Start task
     Task [
@@ -78,7 +81,7 @@ register_bitfields! [u32,
     Event [
         READY OFFSET(0) NUMBITS(1)
     ],
-    
+
     /// Shortcuts
     Shorts [
         // Shortcut between ENDRX and STARTRX
@@ -99,7 +102,7 @@ register_bitfields! [u32,
         TXSTARTED OFFSET(20) NUMBITS(1),
         TXSTOPPED OFFSET(22) NUMBITS(1)
     ],
-    
+
     /// UART Errors
     ErrorSrc [
         OVERRUN OFFSET(0) NUMBITS(1),
@@ -107,7 +110,7 @@ register_bitfields! [u32,
         FRAMING OFFSET(2) NUMBITS(1),
         BREAK OFFSET(3) NUMBITS(1)
     ],
-    
+
     /// Enable UART
     Uart [
         ENABLE OFFSET(0) NUMBITS(4) [
@@ -115,7 +118,7 @@ register_bitfields! [u32,
             OFF = 0
         ]
     ],
-    
+
     /// Pin select
     Psel [
         // Pin number
@@ -123,22 +126,22 @@ register_bitfields! [u32,
         // Connect/Disconnect
         CONNECT OFFSET(31) NUMBITS(1)
     ],
-    
+
     /// Baudrate
     Baudrate [
         BAUDRAUTE OFFSET(0) NUMBITS(32)
     ],
-    
+
     /// DMA pointer
     Pointer [
         POINTER OFFSET(0) NUMBITS(32)
     ],
-    
+
     /// Counter value
     Counter [
         COUNTER OFFSET(0) NUMBITS(8)
     ],
-    
+
     /// Configuration of parity and flow control
     Config [
         HWFC OFFSET(0) NUMBITS(1),
@@ -152,8 +155,10 @@ register_bitfields! [u32,
 pub struct Uarte {
     regs: *const UarteRegisters,
     client: Cell<Option<&'static kernel::hil::uart::Client>>,
-    buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
-    remaining_bytes: Cell<usize>,
+    tx_buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
+    tx_remaining_bytes: Cell<usize>,
+    rx_buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
+    rx_remaining_bytes: Cell<usize>,
     offset: Cell<usize>,
 }
 
@@ -172,8 +177,10 @@ impl Uarte {
         Uarte {
             regs: UARTE_BASE as *const UarteRegisters,
             client: Cell::new(None),
-            buffer: kernel::common::take_cell::TakeCell::empty(),
-            remaining_bytes: Cell::new(0),
+            tx_buffer: kernel::common::take_cell::TakeCell::empty(),
+            tx_remaining_bytes: Cell::new(0),
+            rx_buffer: kernel::common::take_cell::TakeCell::empty(),
+            rx_remaining_bytes: Cell::new(0),
             offset: Cell::new(0),
         }
     }
@@ -228,7 +235,6 @@ impl Uarte {
         regs.enable.write(Uart::ENABLE::OFF);
     }
 
-    #[allow(dead_code)]
     fn enable_rx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenset.write(Interrupt::ENDRX::SET);
@@ -239,7 +245,6 @@ impl Uarte {
         regs.intenset.write(Interrupt::ENDTX::SET);
     }
 
-    #[allow(dead_code)]
     fn disable_rx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenclr.write(Interrupt::ENDRX::SET);
@@ -250,53 +255,93 @@ impl Uarte {
         regs.intenclr.write(Interrupt::ENDTX::SET);
     }
 
-    /// UART interrupt handler that only listens to `tx_end` events
+    /// UART interrupt handler that listens for both tx_end and rx_end events
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
+        let regs = unsafe { &*self.regs };
         // disable interrupts
         self.disable_tx_interrupts();
 
-        let regs = unsafe { &*self.regs };
-
         if self.tx_ready() {
+            let regs = unsafe { &*self.regs };
             regs.event_endtx.write(Event::READY::CLEAR);
             let tx_bytes = regs.txd_amount.get() as usize;
-            let rem = self.remaining_bytes.get();
 
-            // More bytes transmitted than requested `return silently`
-            // Cause probably a hardware fault
-            // FIXME: Progate error to the capsule
-            if tx_bytes > rem {
-                debug!("error more bytes than requested\r\n");
-                return;
-            }
+            let rem = match self.tx_remaining_bytes.get().checked_sub(tx_bytes) {
+                None => {
+                    debug!(
+                        "Error more bytes transmitted than requested\n \
+                         remaining: {} \t transmitted: {}",
+                        self.tx_remaining_bytes.get(),
+                        tx_bytes
+                    );
+                    return;
+                }
+                Some(r) => r,
+            };
 
-            self.remaining_bytes.set(rem - tx_bytes);
-            self.offset.set(tx_bytes);
-
-            if self.remaining_bytes.get() == 0 {
+            // All bytes have been transmitted
+            if rem == 0 {
                 // Signal client write done
                 self.client.get().map(|client| {
-                    self.buffer.take().map(|buffer| {
-                        client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
+                    self.tx_buffer.take().map(|tx_buffer| {
+                        client.transmit_complete(
+                            tx_buffer,
+                            kernel::hil::uart::Error::CommandComplete,
+                        );
                     });
                 });
-            }
-            // Not all bytes have been transmitted then update offset and continue transmitting
-            else {
-                self.set_dma_pointer_to_buffer();
+            } else {
+                // Not all bytes have been transmitted then update offset and continue transmitting
+                self.offset.set(self.offset.get() + tx_bytes);
+                self.tx_remaining_bytes.set(rem);
+                self.set_tx_dma_pointer_to_buffer();
+                regs.txd_maxcnt
+                    .write(Counter::COUNTER.val(min(rem as u32, UARTE_MAX_BUFFER_SIZE)));
                 regs.task_starttx.write(Task::ENABLE::SET);
                 self.enable_tx_interrupts();
             }
         }
+
+        if self.rx_ready() {
+            self.disable_rx_interrupts();
+            regs.event_endrx.write(Event::READY::CLEAR);
+            //Get the number of bytes in the buffer
+            let rx_bytes = regs.rxd_amount.get() as usize;
+            let rem = self.rx_remaining_bytes.get();
+            //should check if rx_bytes > 0 (because we'll flush the FIFO and it will flag
+            //ENDRX even if it's empty)
+            if rx_bytes > 0 {
+                self.rx_remaining_bytes.set(rem.saturating_sub(rx_bytes));
+                //check if we're waiting for more (i.e. are we done listening?)
+                if self.rx_remaining_bytes.get() == 0 {
+                    // Signal client that the read is done
+                    self.client.get().map(|client| {
+                        self.rx_buffer.take().map(|rx_buffer| {
+                            client.receive_complete(
+                                rx_buffer,
+                                rx_bytes,
+                                kernel::hil::uart::Error::CommandComplete,
+                            );
+                        });
+                    });
+                } else {
+                    self.set_rx_dma_pointer_to_buffer();
+                    //Flush the fifo, as per the datasheet recommendations
+                    regs.task_flush_rx.write(Task::ENABLE::SET);
+                    regs.task_startrx.write(Task::ENABLE::SET);
+                    self.enable_rx_interrupts();
+                }
+            }
+        }
     }
 
-    /// Transmit one byte at the time and the client is resposible for polling
+    /// Transmit one byte at the time and the client is responsible for polling
     /// This is used by the panic handler
     pub unsafe fn send_byte(&self, byte: u8) {
         let regs = &*self.regs;
 
-        self.remaining_bytes.set(1);
+        self.tx_remaining_bytes.set(1);
         regs.event_endtx.write(Event::READY::CLEAR);
         // precaution: copy value into variable with static lifetime
         BYTE = byte;
@@ -305,17 +350,31 @@ impl Uarte {
         regs.task_starttx.write(Task::ENABLE::SET);
     }
 
-    /// Check if the UART tranmission is done
+    /// Check if the UART transmission is done
     pub fn tx_ready(&self) -> bool {
         let regs = unsafe { &*self.regs };
         regs.event_endtx.is_set(Event::READY)
     }
 
-    fn set_dma_pointer_to_buffer(&self) {
+    /// Check if either the rx_buffer is full or the UART has timed out
+    pub fn rx_ready(&self) -> bool {
         let regs = unsafe { &*self.regs };
-        self.buffer.map(|buffer| {
+        regs.event_endrx.is_set(Event::READY)
+    }
+
+    fn set_tx_dma_pointer_to_buffer(&self) {
+        let regs = unsafe { &*self.regs };
+        self.tx_buffer.map(|tx_buffer| {
             regs.txd_ptr
-                .set(buffer[self.offset.get()..].as_ptr() as u32);
+                .set(tx_buffer[self.offset.get()..].as_ptr() as u32);
+        });
+    }
+
+    fn set_rx_dma_pointer_to_buffer(&self) {
+        let regs = unsafe { &*self.regs };
+        self.rx_buffer.map(|rx_buffer| {
+            regs.rxd_ptr
+                .set(rx_buffer[self.offset.get()..].as_ptr() as u32);
         });
     }
 }
@@ -331,26 +390,43 @@ impl kernel::hil::uart::UART for Uarte {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        let regs = unsafe { &*self.regs };
+        let truncated_len = min(tx_data.len(), tx_len);
 
-        if tx_len == 0 {
+        if truncated_len == 0 {
             return;
         }
 
-        self.remaining_bytes.set(tx_len);
+        self.tx_remaining_bytes.set(tx_len);
         self.offset.set(0);
-        self.buffer.replace(tx_data);
-        self.set_dma_pointer_to_buffer();
+        self.tx_buffer.replace(tx_data);
+        self.set_tx_dma_pointer_to_buffer();
 
-        regs.txd_maxcnt.write(Counter::COUNTER.val(tx_len as u32));
-        regs.task_stoptx.write(Task::ENABLE::SET);
+        let regs = unsafe { &*self.regs };
+        regs.txd_maxcnt
+            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
         regs.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
     }
 
-    #[allow(unused)]
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        unimplemented!()
+    fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) {
+        let regs = unsafe { &*self.regs };
+
+        // truncate rx_len if necessary
+        let truncated_length = core::cmp::min(rx_len, rx_buf.len());
+
+        self.rx_remaining_bytes.set(truncated_length);
+        self.offset.set(0);
+        self.rx_buffer.replace(rx_buf);
+        self.set_rx_dma_pointer_to_buffer();
+
+        let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
+
+        regs.rxd_maxcnt
+            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
+        regs.task_stoprx.write(Task::ENABLE::SET);
+        regs.task_startrx.write(Task::ENABLE::SET);
+
+        self.enable_rx_interrupts();
     }
 }

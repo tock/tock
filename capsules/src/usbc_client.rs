@@ -13,7 +13,7 @@ const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;
 
 static LANGUAGES: &'static [u16] = &[
-    0x0409 // English (United States)
+    0x0409, // English (United States)
 ];
 
 static STRINGS: &'static [&'static str] = &[

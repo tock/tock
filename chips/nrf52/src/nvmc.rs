@@ -40,7 +40,6 @@ struct NvmcRegisters {
     pub imiss: ReadWrite<u32, CacheMiss::Register>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Ready flag
     Ready [

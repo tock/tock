@@ -18,7 +18,7 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/sensys/README.md>
+<https://github.com/tock/tock/tree/master/doc/courses/sensys/README.md>
 
 > aka
 
@@ -60,7 +60,7 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
   * `make`
 
-  * Rust/Cargo/Xargo (Rust code → LLVM)
+  * Rust/Cargo (Rust code → LLVM)
 
   * `arm-none-eabi` (LLVM → Cortex-M)
 
@@ -132,7 +132,7 @@ Turn to the person next to you:
 
 
  - Head to <http://j2x.us/tock1> to get started!
- - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md))
+ - \tiny ([https://github.com/tock/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/tock/tock/blob/master/doc/courses/sensys/environment.md))
 
 # Part 2: User space
 
@@ -303,15 +303,15 @@ Turn to the person next to you:
 
   3. Get an application running on Hail
 
-  4. [Print "Hello World" every second](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
+  4. [Print "Hello World" every second](https://github.com/tock/tock/blob/master/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
 
-  5. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/exercises/app/solutions/sensors.c)
+  5. [Extend your app to sample on-board sensors](https://github.com/tock/tock/blob/master/doc/courses/sensys/exercises/app/solutions/sensors.c)
 
-  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
+  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/tock/tock/blob/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
 
 
  - Head to <http://j2x.us/tock2> to get started!
- - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
+ - \tiny ([https://github.com/tock/tock/blob/master/doc/courses/sensys/application.md](https://github.com/tock/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
 
@@ -461,7 +461,7 @@ Turn to the person next to you:
 
 
  - Head to <http://j2x.us/tock3> to get started!
- - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
+ - \tiny ([https://github.com/tock/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/tock/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
 
 ## We need the Hails back!
 
@@ -494,7 +494,7 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
 <https://www.tockos.org>
 
-<https://github.com/helena-project/tock>
+<https://github.com/tock/tock>
 
 <tock-dev@googlegroups.com>
 

@@ -34,10 +34,10 @@
 //! ```
 
 use callback::{AppId, Callback};
-use core::{slice, str};
 use core::cmp::min;
 use core::fmt::{write, Arguments, Result, Write};
 use core::ptr::{read_volatile, write_volatile};
+use core::{slice, str};
 use driver::Driver;
 use hil;
 use mem::AppSlice;
@@ -173,10 +173,12 @@ pub unsafe fn assign_gpios(
 /// In-kernel gpio debugging, accepts any GPIO HIL method
 #[macro_export]
 macro_rules! debug_gpio {
-    ($i:tt, $method:ident) => ({
+    ($i:tt, $method:ident) => {{
         #[allow(unused_unsafe)]
-        unsafe { $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method()); }
-    });
+        unsafe {
+            $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
+        }
+    }};
 }
 
 ///////////////////////////////////////////////////////////////////

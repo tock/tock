@@ -9,7 +9,7 @@ use core::ptr;
 use core::slice;
 use kernel::StaticRef;
 use kernel::common::VolatileCell;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, RegisterValue, WriteOnly};
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, LocalRegisterCopy, WriteOnly};
 use kernel::hil;
 use kernel::hil::usb::*;
 use pm;
@@ -275,8 +275,8 @@ pub enum Mode {
     },
 }
 
-type EndpointConfigValue = RegisterValue<u32, EndpointConfig::Register>;
-type EndpointStatusValue = RegisterValue<u32, EndpointStatus::Register>;
+type EndpointConfigValue = LocalRegisterCopy<u32, EndpointConfig::Register>;
+type EndpointStatusValue = LocalRegisterCopy<u32, EndpointStatus::Register>;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct DeviceConfig {
@@ -751,7 +751,7 @@ impl<'a> Usbc<'a> {
         device_config: &DeviceConfig,
         device_state: &mut DeviceState,
     ) {
-        let udint = usbc_regs().udint.get_value();
+        let udint = usbc_regs().udint.extract();
 
         debug1!("--> UDINT={:?}", UdintFlags(udint.get()));
 
@@ -850,7 +850,7 @@ impl<'a> Usbc<'a> {
     }
 
     fn handle_endpoint_interrupt(&self, endpoint: usize, endpoint_state: &mut EndpointState) {
-        let status = usbc_regs().uesta[endpoint].get_value();
+        let status = usbc_regs().uesta[endpoint].extract();
         debug1!("  UESTA{}={:?}", endpoint, UestaFlags(status.get()));
 
         if status.is_set(EndpointStatus::STALLED) {
@@ -1464,7 +1464,7 @@ impl<'a> UsbController for Usbc<'a> {
     }
 
     fn endpoint_ctrl_out_enable(&self, endpoint: usize) {
-        let endpoint_cfg = RegisterValue::new(From::from(
+        let endpoint_cfg = LocalRegisterCopy::new(From::from(
             EndpointConfig::EPTYPE::Control + EndpointConfig::EPDIR::Out
                 + EndpointConfig::EPSIZE::Bytes8 + EndpointConfig::EPBK::Single,
         ));
@@ -1473,7 +1473,7 @@ impl<'a> UsbController for Usbc<'a> {
     }
 
     fn endpoint_bulk_in_enable(&self, endpoint: usize) {
-        let endpoint_cfg = RegisterValue::new(From::from(
+        let endpoint_cfg = LocalRegisterCopy::new(From::from(
             EndpointConfig::EPTYPE::Bulk + EndpointConfig::EPDIR::In
                 + EndpointConfig::EPSIZE::Bytes8 + EndpointConfig::EPBK::Single,
         ));
@@ -1482,7 +1482,7 @@ impl<'a> UsbController for Usbc<'a> {
     }
 
     fn endpoint_bulk_out_enable(&self, endpoint: usize) {
-        let endpoint_cfg = RegisterValue::new(From::from(
+        let endpoint_cfg = LocalRegisterCopy::new(From::from(
             EndpointConfig::EPTYPE::Bulk + EndpointConfig::EPDIR::Out
                 + EndpointConfig::EPSIZE::Bytes8 + EndpointConfig::EPBK::Single,
         ));

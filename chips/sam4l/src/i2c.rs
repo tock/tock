@@ -11,11 +11,11 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use kernel::{ClockInterface, StaticRef};
-use kernel::common::VolatileCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::{ClockInterface, StaticRef};
 use pm;
 
 // Listing of all registers related to the TWIM peripheral.
@@ -23,23 +23,23 @@ use pm;
 #[repr(C)]
 #[allow(dead_code)]
 struct TWIMRegisters {
-    control: VolatileCell<u32>,
-    clock_waveform_generator: VolatileCell<u32>,
-    smbus_timing: VolatileCell<u32>,
-    command: VolatileCell<u32>,
-    next_command: VolatileCell<u32>,
-    receive_holding: VolatileCell<u32>,
-    transmit_holding: VolatileCell<u32>,
-    status: VolatileCell<u32>,
-    interrupt_enable: VolatileCell<u32>,
-    interrupt_disable: VolatileCell<u32>,
-    interrupt_mask: VolatileCell<u32>,
-    status_clear: VolatileCell<u32>,
-    parameter: VolatileCell<u32>,
-    version: VolatileCell<u32>,
-    hsmode_clock_waveform_generator: VolatileCell<u32>,
-    slew_rate: VolatileCell<u32>,
-    hsmod_slew_rate: VolatileCell<u32>,
+    cr: WriteOnly<u32, Control::Register>,
+    cwgr: ReadWrite<u32, ClockWaveformGenerator::Register>,
+    smbtr: ReadWrite<u32, SmbusTiming::Register>,
+    cmdr: ReadWrite<u32, Command::Register>,
+    ncmdr: ReadWrite<u32, Command::Register>,
+    rhr: ReadOnly<u32, ReceiveHolding::Register>,
+    thr: WriteOnly<u32, TransmitHolding::Register>,
+    sr: ReadOnly<u32, Status::Register>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    scr: WriteOnly<u32, StatusClear::Register>,
+    pr: ReadOnly<u32>,
+    vr: ReadOnly<u32>,
+    hscwgr: ReadWrite<u32>,
+    srr: ReadWrite<u32, SlewRate::Register>,
+    hssrr: ReadWrite<u32>,
 }
 
 // Listing of all registers related to the TWIS peripheral.
@@ -47,23 +47,422 @@ struct TWIMRegisters {
 #[repr(C)]
 #[allow(dead_code)]
 struct TWISRegisters {
-    control: VolatileCell<u32>,
-    nbytes: VolatileCell<u32>,
-    timing: VolatileCell<u32>,
-    receive_holding: VolatileCell<u32>,
-    transmit_holding: VolatileCell<u32>,
-    packet_error_check: VolatileCell<u32>,
-    status: VolatileCell<u32>,
-    interrupt_enable: VolatileCell<u32>,
-    interrupt_disable: VolatileCell<u32>,
-    interrupt_mask: VolatileCell<u32>,
-    status_clear: VolatileCell<u32>,
-    parameter: VolatileCell<u32>,
-    version: VolatileCell<u32>,
-    hsmode_timing: VolatileCell<u32>,
-    slew_rate: VolatileCell<u32>,
-    hsmod_slew_rate: VolatileCell<u32>,
+    cr: ReadWrite<u32, ControlSlave::Register>,
+    nbytes: ReadWrite<u32, Nbytes::Register>,
+    tr: ReadWrite<u32, Timing::Register>,
+    rhr: ReadOnly<u32, ReceiveHolding::Register>,
+    thr: WriteOnly<u32, TransmitHolding::Register>,
+    pecr: ReadOnly<u32, PacketErrorCheck::Register>,
+    sr: ReadOnly<u32, StatusSlave::Register>,
+    ier: WriteOnly<u32, InterruptSlave::Register>,
+    idr: WriteOnly<u32, InterruptSlave::Register>,
+    imr: ReadOnly<u32, InterruptSlave::Register>,
+    scr: WriteOnly<u32, StatusClearSlave::Register>,
+    pr: ReadOnly<u32>,
+    vr: ReadOnly<u32>,
+    hstr: ReadWrite<u32>,
+    srr: ReadWrite<u32, SlewRateSlave::Register>,
+    hssrr: ReadWrite<u32>,
 }
+
+register_bitfields![u32,
+    Control [
+        /// Stop the Current Transfer
+        STOP 8,
+        /// Software Reset
+        SWRST 7,
+        /// SMBus Disable
+        SMDIS 5,
+        /// SMBus Enable
+        SMEN 4,
+        /// Master Disable
+        MDIS 1,
+        /// Master Enable
+        MEN 0
+    ],
+
+    ClockWaveformGenerator [
+        /// Clock Prescaler
+        EXP OFFSET(28) NUMBITS(3) [],
+        /// Data Setup and Hold Cycles
+        DATA OFFSET(24) NUMBITS(4) [],
+        /// START and STOP Cycles
+        STASTO OFFSET(16) NUMBITS(8) [],
+        /// Clock High Cycles
+        HIGH OFFSET(8) NUMBITS(8) [],
+        /// Clock Low Cycles
+        LOW OFFSET(0) NUMBITS(8) []
+    ],
+
+    SmbusTiming [
+        /// SMBus Timeout Clock Prescaler
+        EXP OFFSET(28) NUMBITS(4) [],
+        /// Clock High Maximum Cycles
+        THMAX OFFSET(16) NUMBITS(8) [],
+        /// Master Clock Stretch Maximum Cycles
+        TLWOM OFFSET(8) NUMBITS(8) [],
+        /// Slave Clock Stretch Maximum Cycles
+        TLOWS OFFSET(0) NUMBITS(8) []
+    ],
+
+    Command [
+        /// HS-mode Master Code
+        HSMCODE OFFSET(28) NUMBITS(3) [],
+        /// HS-mode
+        HS OFFSET(26) NUMBITS(1) [
+            NoHSMode = 0,
+            HSMode = 1
+        ],
+        /// ACK Last Master RX Byte
+        ACKLAST OFFSET(25) NUMBITS(1) [
+            NackLast = 0,
+            AckLast = 1
+        ],
+        /// Packet Error Checking Enable
+        PECEN OFFSET(24) NUMBITS(1) [
+            NoPecByteVerification = 0,
+            PecByteVerification = 1
+        ],
+        /// Number of Data Bytes in Transfer
+        NBYTES OFFSET(16) NUMBITS(8) [],
+        /// CMDR Valid
+        VALID OFFSET(15) NUMBITS(1) [],
+        /// Send STOP Condition
+        STOP OFFSET(14) NUMBITS(1) [
+            NoSendStop = 0,
+            SendStop = 1
+        ],
+        /// Send START Condition
+        START OFFSET(13) NUMBITS(1) [
+            NoStartCondition = 0,
+            StartCondition = 1
+        ],
+        /// Transfer is to Same Address as Previous Address
+        REPSAME OFFSET(12) NUMBITS(1) [],
+        /// Ten Bit Addressing Mode
+        TENBIT OFFSET(11) NUMBITS(1) [
+            SevenBitAddressing = 0,
+            TenBitAddressing = 1
+        ],
+        /// Slave Address
+        SADR OFFSET(1) NUMBITS(10) [],
+        /// Transfer Direction
+        READ OFFSET(0) NUMBITS(1) [
+            Transmit = 0,
+            Receive = 1
+        ]
+    ],
+
+    ReceiveHolding [
+        /// Received Data
+        RXDATA OFFSET(0) NUMBITS(8) []
+    ],
+
+    TransmitHolding [
+        /// Data to Transmit
+        TXDATA OFFSET(0) NUMBITS(8) []
+    ],
+
+    Status [
+        /// ACK in HS-mode Master Code Phase Received
+        HSMCACK 17,
+        /// Master Interface Enable
+        MENB 16,
+        /// Stop Request Accepted
+        STOP 14,
+        /// PEC Error
+        PECERR 13,
+        /// Timeout
+        TOUT 12,
+        /// Arbitration Lost
+        ARBLST 10,
+        /// NAK in Data Phase Received
+        DNAK 9,
+        /// NAK in Address Phase Received
+        ANAK 8,
+        /// Two-wire Bus is Free
+        BUSFREE 5,
+        /// Master Interface is Idle
+        IDLE 4,
+        /// Command Complete
+        CCOMP 3,
+        /// Ready for More Commands
+        CRDY 2,
+        /// THR Data Ready
+        TXRDY 1,
+        /// RHR Data Ready
+        RXRDY 0
+    ],
+
+    Interrupt [
+        /// ACK in HS-mode Master Code Phase Received
+        HSMCACK 17,
+        /// Stop Request Accepted
+        STOP 14,
+        /// PEC Error
+        PECERR 13,
+        /// Timeout
+        TOUT 12,
+        /// Arbitration Lost
+        ARBLST 10,
+        /// NAK in Data Phase Received
+        DNAK 9,
+        /// NAK in Address Phase Received
+        ANAK 8,
+        /// Two-wire Bus is Free
+        BUSFREE 5,
+        /// Master Interface is Idle
+        IDLE 4,
+        /// Command Complete
+        CCOMP 3,
+        /// Ready for More Commands
+        CRDY 2,
+        /// THR Data Ready
+        TXRDY 1,
+        /// RHR Data Ready
+        RXRDY 0
+    ],
+
+    StatusClear [
+        /// ACK in HS-mode Master Code Phase Received
+        HSMCACK 17,
+        /// Stop Request Accepted
+        STOP 14,
+        /// PEC Error
+        PECERR 13,
+        /// Timeout
+        TOUT 12,
+        /// Arbitration Lost
+        ARBLST 10,
+        /// NAK in Data Phase Received
+        DNAK 9,
+        /// NAK in Address Phase Received
+        ANAK 8,
+        /// Command Complete
+        CCOMP 3
+    ],
+
+    SlewRate [
+        /// Input Spike Filter Control
+        FILTER OFFSET(28) NUMBITS(2) [
+            StandardOrFast = 2,
+            FastModePlus = 3
+        ],
+        /// Clock Slew Limit
+        CLSLEW OFFSET(24) NUMBITS(2) [],
+        /// Clock Drive Strength LOW
+        CLDRIVEL OFFSET(16) NUMBITS(3) [],
+        /// Data Slew Limit
+        DASLEW OFFSET(8) NUMBITS(2) [],
+        /// Data Drive Strength LOW
+        DADRIVEL OFFSET(0) NUMBITS(3) []
+    ]
+];
+
+register_bitfields![u32,
+    ControlSlave [
+        /// Ten Bit Address Match
+        TENBIT OFFSET(26) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ],
+        /// Slave Address
+        ADR OFFSET(16) NUMBITS(10) [],
+        /// Stretch Clock on Data Byte Reception
+        SODR OFFSET(15) NUMBITS(1) [],
+        /// Stretch Clock on Address Match
+        SOAM OFFSET(14) NUMBITS(1) [
+            NoStretch = 0,
+            Stretch = 1
+        ],
+        /// NBYTES Count Up
+        CUP OFFSET(13) NUMBITS(1) [
+            CountDown = 0,
+            CountUp = 1
+        ],
+        /// Slave Receiver Data Phase ACK Value
+        ACK OFFSET(12) NUMBITS(1) [
+            AckLow = 0,
+            AckHigh = 1
+        ],
+        /// Packet Error Checking Enable
+        PECEN OFFSET(11) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ],
+        /// SMBus Host Header
+        SMHH OFFSET(10) NUMBITS(1) [
+            NoAckHostHeader = 0,
+            AckHostHeader = 1
+        ],
+        /// SMBus Default Address
+        SMDA OFFSET(9) NUMBITS(1) [
+            NoAckDefaultAddress = 0,
+            AckDefaultAddress = 1
+        ],
+        /// Software Reset
+        SWRST OFFSET(7) NUMBITS(1) [],
+        /// Clock Stretch Enable
+        STREN OFFSET(4) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ],
+        /// General Call Address Match
+        GCMATCH OFFSET(3) NUMBITS(1) [
+            NoAckGeneralCallAddress = 0,
+            AckGeneralCallAddress = 1
+        ],
+        /// Slave Address Match
+        SMATCH OFFSET(2) NUMBITS(1) [
+            NoAckSlaveAddress = 0,
+            AckSlaveAddress = 1
+        ],
+        /// SMBus Mode Enable
+        SMEN OFFSET(1) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ],
+        /// Slave Enable
+        SEN OFFSET(0) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ]
+    ],
+
+    Nbytes [
+        NBYTES OFFSET(0) NUMBITS(8) []
+    ],
+
+    Timing [
+        /// Clock Prescaler
+        EXP OFFSET(28) NUMBITS(4) [],
+        /// Data Setup Cycles
+        SUDAT OFFSET(16) NUMBITS(8) [],
+        /// SMBus Timeout Cycles
+        TTOUT OFFSET(8) NUMBITS(8) [],
+        /// SMBus Low Cycles
+        TLOWS OFFSET(0) NUMBITS(8) []
+    ],
+
+    PacketErrorCheck [
+        /// Calculated PEC Value
+        PEC OFFSET(0) NUMBITS(8) []
+    ],
+
+    StatusSlave [
+        /// Byte Transfer Finished
+        BTF 23,
+        /// Repeated Start Received
+        REP 22,
+        /// Stop Received
+        STO 21,
+        /// SMBus Default Address Match
+        SMBDAM 20,
+        /// SMBus Host Header Address Match
+        SMBHHM 19,
+        /// General Call Match
+        GCM 17,
+        /// Slave Address Match
+        SAM 16,
+        /// Bus Error
+        BUSERR 14,
+        /// SMBus PEC Error
+        SMBPECERR 13,
+        /// SMBus Timeout
+        SMBTOUT 12,
+        /// NAK Received
+        NAK 8,
+        /// Overrun
+        ORUN 7,
+        /// Underrun
+        URUN 6,
+        /// Transmitter Mode
+        TRA 5,
+        /// Transmission Complete
+        TCOMP 3,
+        /// Slave Enabled
+        SEN 2,
+        /// THR Data Ready
+        TXRDY 1,
+        /// RHR Data Ready
+        RXRDY 0
+    ],
+
+    InterruptSlave [
+        /// Byte Transfer Finished
+        BTF 23,
+        /// Repeated Start Received
+        REP 22,
+        /// Stop Received
+        STO 21,
+        /// SMBus Default Address Match
+        SMBDAM 20,
+        /// SMBus Host Header Address Match
+        SMBHHM 19,
+        /// General Call Match
+        GCM 17,
+        /// Slave Address Match
+        SAM 16,
+        /// Bus Error
+        BUSERR 14,
+        /// SMBus PEC Error
+        SMBPECERR 13,
+        /// SMBus Timeout
+        SMBTOUT 12,
+        /// NAK Received
+        NAK 8,
+        /// Overrun
+        ORUN 7,
+        /// Underrun
+        URUN 6,
+        /// Transmission Complete
+        TCOMP 3,
+        /// THR Data Ready
+        TXRDY 1,
+        /// RHR Data Ready
+        RXRDY 0
+    ],
+
+    StatusClearSlave [
+        /// Byte Transfer Finished
+        BTF 23,
+        /// Repeated Start Received
+        REP 22,
+        /// Stop Received
+        STO 21,
+        /// SMBus Default Address Match
+        SMBDAM 20,
+        /// SMBus Host Header Address Match
+        SMBHHM 19,
+        /// General Call Match
+        GCM 17,
+        /// Slave Address Match
+        SAM 16,
+        /// Bus Error
+        BUSERR 14,
+        /// SMBus PEC Error
+        SMBPECERR 13,
+        /// SMBus Timeout
+        SMBTOUT 12,
+        /// NAK Received
+        NAK 8,
+        /// Overrun
+        ORUN 7,
+        /// Underrun
+        URUN 6,
+        /// Transmission Complete
+        TCOMP 3
+    ],
+
+    SlewRateSlave [
+        /// Input Spike Filter Control
+        FILTER OFFSET(28) NUMBITS(2) [],
+        /// Data Slew Limit
+        DASLEW OFFSET(8) NUMBITS(2) [],
+        /// Data Drive Strength LOW
+        DADRIVEL OFFSET(0) NUMBITS(3) []
+    ]
+];
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
 const I2C_BASE_ADDRS: [StaticRef<TWIMRegisters>; 4] = unsafe {
@@ -191,8 +590,9 @@ impl PeripheralManagement<TWIMClock> for I2CHw {
     }
 
     fn after_peripheral_access(&self, clock: &TWIMClock, registers: &TWIMRegisters) {
-        let mask = registers.interrupt_mask.get();
-        if mask == 0 {
+        // If there are no interrupts active then we can disable the clock
+        // for this peripheral.
+        if registers.imr.get() == 0 {
             clock.disable();
         }
     }
@@ -205,7 +605,7 @@ impl PeripheralManagement<TWISClock> for I2CHw {
     fn get_registers<'a>(&'a self) -> &'a TWISRegisters {
         &*self.slave_mmio_address
             .as_ref()
-            .expect("Access of non-existant slave")
+            .expect("Access of non-existent slave")
     }
 
     fn get_clock(&self) -> &TWISClock {
@@ -219,9 +619,9 @@ impl PeripheralManagement<TWISClock> for I2CHw {
     }
 
     fn after_peripheral_access(&self, clock: &TWISClock, registers: &TWISRegisters) {
-        let mask = registers.interrupt_mask.get();
-        //if mask & 0x00000008 == 0 {
-        if mask == 0 {
+        // If there are no interrupts active then we can disable the clock
+        // for this peripheral.
+        if registers.imr.get() == 0 {
             clock.disable();
         }
     }
@@ -328,9 +728,12 @@ impl I2CHw {
         let data = 0;
         let stasto = f_prescaled;
 
-        let cwgr = ((exp & 0x7) << 28) | ((data & 0xF) << 24) | ((stasto & 0xFF) << 16)
-            | ((high & 0xFF) << 8) | ((low & 0xFF) << 0);
-        twim.registers.clock_waveform_generator.set(cwgr);
+        twim.registers.cwgr.write(
+            ClockWaveformGenerator::EXP.val(exp) + ClockWaveformGenerator::DATA.val(data)
+                + ClockWaveformGenerator::STASTO.val(stasto)
+                + ClockWaveformGenerator::HIGH.val(high)
+                + ClockWaveformGenerator::LOW.val(low),
+        )
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
@@ -351,19 +754,29 @@ impl I2CHw {
         let old_status = {
             let twim = &TWIMRegisterManager::new(&self);
 
-            let old_status = twim.registers.status.get();
+            let old_status = twim.registers.sr.extract();
 
-            twim.registers.status_clear.set(!0);
+            // Clear all status registers.
+            twim.registers.scr.write(
+                StatusClear::HSMCACK::SET + StatusClear::STOP::SET + StatusClear::PECERR::SET
+                    + StatusClear::TOUT::SET + StatusClear::ARBLST::SET
+                    + StatusClear::DNAK::SET + StatusClear::ANAK::SET
+                    + StatusClear::CCOMP::SET,
+            );
 
             old_status
         };
 
-        let err = match old_status {
-            x if x & (1 <<  8) != 0 /*ANACK*/  => Some(Error::AddressNak),
-            x if x & (1 <<  9) != 0 /*DNACK*/  => Some(Error::DataNak),
-            x if x & (1 << 10) != 0 /*ARBLST*/ => Some(Error::ArbitrationLost),
-            x if x & (1 <<  3) != 0 /*CCOMP*/   => Some(Error::CommandComplete),
-            _ => None
+        let err = if old_status.is_set(Status::ANAK) {
+            Some(Error::AddressNak)
+        } else if old_status.is_set(Status::DNAK) {
+            Some(Error::DataNak)
+        } else if old_status.is_set(Status::ARBLST) {
+            Some(Error::ArbitrationLost)
+        } else if old_status.is_set(Status::CCOMP) {
+            Some(Error::CommandComplete)
+        } else {
+            None
         };
 
         let on_deck = self.on_deck.get();
@@ -373,15 +786,15 @@ impl I2CHw {
                 {
                     let twim = &TWIMRegisterManager::new(&self);
 
-                    twim.registers.command.set(0);
-                    twim.registers.next_command.set(0);
+                    twim.registers.cmdr.set(0);
+                    twim.registers.ncmdr.set(0);
                     self.disable_interrupts(twim);
 
                     if err.is_some() {
                         // enable, reset, disable
-                        twim.registers.control.set(0x1 << 0);
-                        twim.registers.control.set(0x1 << 7);
-                        twim.registers.control.set(0x1 << 1);
+                        twim.registers.cr.write(Control::MEN::SET);
+                        twim.registers.cr.write(Control::SWRST::SET);
+                        twim.registers.cr.write(Control::MDIS::SET);
                     }
                 }
 
@@ -409,22 +822,22 @@ impl I2CHw {
                 // because we will never get another byte and therefore
                 // no more interrupts. So, we just read the byte we have
                 // and call this I2C command complete.
-                if (len == 1) && (old_status & 0x01 != 0) {
+                if (len == 1) && old_status.is_set(Status::TXRDY) {
                     let the_byte = {
                         let twim = &TWIMRegisterManager::new(&self);
 
-                        twim.registers.command.set(0);
-                        twim.registers.next_command.set(0);
+                        twim.registers.cmdr.set(0);
+                        twim.registers.ncmdr.set(0);
                         self.disable_interrupts(twim);
 
                         if err.is_some() {
                             // enable, reset, disable
-                            twim.registers.control.set(0x1 << 0);
-                            twim.registers.control.set(0x1 << 7);
-                            twim.registers.control.set(0x1 << 1);
+                            twim.registers.cr.write(Control::MEN::SET);
+                            twim.registers.cr.write(Control::SWRST::SET);
+                            twim.registers.cr.write(Control::MDIS::SET);
                         }
 
-                        twim.registers.receive_holding.get() as u8
+                        twim.registers.rhr.read(ReceiveHolding::RXDATA) as u8
                     };
 
                     err.map(|err| {
@@ -448,12 +861,10 @@ impl I2CHw {
                     {
                         let twim = &TWIMRegisterManager::new(&self);
                         // Enable transaction error interrupts
-                        twim.registers.interrupt_enable.set(
-                            (1 << 3)    // CCOMP   - Command completed
-                                   | (1 << 8)    // ANAK   - Address not ACKd
-                                   | (1 << 9)    // DNAK   - Data not ACKd
-                                   | (1 << 10),
-                        ); // ARBLST - Arbitration lost
+                        twim.registers.ier.write(
+                            Interrupt::CCOMP::SET + Interrupt::ANAK::SET + Interrupt::DNAK::SET
+                                + Interrupt::ARBLST::SET,
+                        );
                     }
                     self.dma.get().map(|dma| {
                         let buf = dma.abort_xfer().unwrap();
@@ -465,26 +876,28 @@ impl I2CHw {
         }
     }
 
-    fn setup_xfer(&self, twim: &TWIMRegisterManager, chip: u8, flags: usize, read: bool, len: u8) {
+    fn setup_xfer(
+        &self,
+        twim: &TWIMRegisterManager,
+        chip: u8,
+        flags: FieldValue<u32, Command::Register>,
+        direction: FieldValue<u32, Command::Register>,
+        len: u8,
+    ) {
         // disable before configuring
-        twim.registers.control.set(0x1 << 1);
+        twim.registers.cr.write(Control::MDIS::SET);
 
-        let read = if read { 1 } else { 0 };
-        let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
-                                             // bit is ignored anyway)
-                    | flags  // START, STOP & ACKLAST flags
-                    | (1 << 15) // VALID
-                    | (len as usize) << 16 // NBYTES (at most 255)
-                    | read;
-        twim.registers.command.set(command as u32);
-        twim.registers.next_command.set(0);
+        // Configure the command register with the settings for this transfer.
+        twim.registers.cmdr.write(
+            Command::SADR.val(chip as u32) + flags + Command::VALID::SET
+                + Command::NBYTES.val(len as u32) + direction,
+        );
+        twim.registers.ncmdr.set(0);
 
         // Enable transaction error interrupts
-        twim.registers.interrupt_enable.set(
-            (1 << 3)     // CCOMP   - Command completed
-                                                    | (1 << 8)   // ANAK   - Address not ACKd
-                                                    | (1 << 9)   // DNAK   - Data not ACKd
-                                                    | (1 << 10), // ARBLST - Abitration lost
+        twim.registers.ier.write(
+            Interrupt::CCOMP::SET + Interrupt::ANAK::SET + Interrupt::DNAK::SET
+                + Interrupt::ARBLST::SET,
         );
     }
 
@@ -492,48 +905,56 @@ impl I2CHw {
         &self,
         twim: &TWIMRegisterManager,
         chip: u8,
-        flags: usize,
-        read: bool,
+        flags: FieldValue<u32, Command::Register>,
+        direction: FieldValue<u32, Command::Register>,
         len: u8,
     ) {
         // disable before configuring
-        twim.registers.control.set(0x1 << 1);
+        twim.registers.cr.write(Control::MDIS::SET);
 
-        let read = if read { 1 } else { 0 };
-        let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
-                                             // bit is ignored anyway)
-                    | flags  // START, STOP & ACKLAST flags
-                    | (1 << 15) // VALID
-                    | (len as usize) << 16 // NBYTES (at most 255)
-                    | read;
-        twim.registers.next_command.set(command as u32);
+        twim.registers.ncmdr.write(
+            Command::SADR.val(chip as u32) + flags + Command::VALID::SET
+                + Command::NBYTES.val(len as u32) + direction,
+        );
 
         // Enable
-        twim.registers.control.set(0x1 << 0);
+        twim.registers.cr.write(Control::MEN::SET);
     }
 
     fn master_enable(&self, twim: &TWIMRegisterManager) {
         // Enable to begin transfer
-        twim.registers.control.set(0x1 << 0);
+        twim.registers.cr.write(Control::MEN::SET);
     }
 
-    fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
+    fn write(
+        &self,
+        chip: u8,
+        flags: FieldValue<u32, Command::Register>,
+        data: &'static mut [u8],
+        len: u8,
+    ) {
         let twim = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, len as usize);
-            self.setup_xfer(twim, chip, flags, false, len);
+            self.setup_xfer(twim, chip, flags, Command::READ::Transmit, len);
             self.master_enable(twim);
             dma.start_xfer();
         });
     }
 
-    fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
+    fn read(
+        &self,
+        chip: u8,
+        flags: FieldValue<u32, Command::Register>,
+        data: &'static mut [u8],
+        len: u8,
+    ) {
         let twim = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.0, data, len as usize);
-            self.setup_xfer(twim, chip, flags, true, len);
+            self.setup_xfer(twim, chip, flags, Command::READ::Receive, len);
             self.master_enable(twim);
             dma.start_xfer();
         });
@@ -544,15 +965,27 @@ impl I2CHw {
         self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, split as usize);
-            self.setup_xfer(twim, chip, START, false, split);
-            self.setup_nextfer(twim, chip, START | STOP, true, read_len);
+            self.setup_xfer(
+                twim,
+                chip,
+                Command::START::StartCondition,
+                Command::READ::Transmit,
+                split,
+            );
+            self.setup_nextfer(
+                twim,
+                chip,
+                Command::START::StartCondition + Command::STOP::SendStop,
+                Command::READ::Receive,
+                read_len,
+            );
             self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
             dma.start_xfer();
         });
     }
 
     fn disable_interrupts(&self, twim: &TWIMRegisterManager) {
-        twim.registers.interrupt_disable.set(!0);
+        twim.registers.idr.set(!0);
     }
 
     /// Handle possible interrupt for TWIS module.
@@ -561,41 +994,51 @@ impl I2CHw {
             let twis = &TWISRegisterManager::new(&self);
 
             // Get current status from the hardware.
-            let status = twis.registers.status.get();
-            let imr = twis.registers.interrupt_mask.get();
-            let interrupts = status & imr;
+            let status = twis.registers.sr.extract();
+            let imr = twis.registers.imr.extract();
+            // This will still be a "status" register, just with all of the
+            // status bits corresponding to disabled interrupts cleared.
+            let interrupts = status.bitand(imr.get());
 
             // Check for errors.
-            if interrupts & ((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6)) > 0 {
+            if interrupts.matches_any(
+                StatusSlave::BUSERR::SET + StatusSlave::SMBPECERR::SET + StatusSlave::SMBTOUT::SET
+                    + StatusSlave::ORUN::SET + StatusSlave::URUN::SET,
+            ) {
                 // From the datasheet: If a bus error (misplaced START or STOP)
                 // condition is detected, the SR.BUSERR bit is set and the TWIS
                 // waits for a new START condition.
-                if interrupts & (1 << 14) > 0 {
+                if interrupts.is_set(StatusSlave::BUSERR) {
                     // Restart and wait for the next start byte
-                    twis.registers.status_clear.set(status);
+                    twis.registers.scr.set(status.get());
                     return;
                 }
 
-                panic!("ERR 0x{:x}", interrupts);
+                panic!("ERR 0x{:x}", interrupts.get());
             }
 
             // Check if we got the address match interrupt
-            if interrupts & (1 << 16) > 0 {
-                twis.registers.nbytes.set(0);
+            if interrupts.is_set(StatusSlave::SAM) {
+                twis.registers.nbytes.write(Nbytes::NBYTES.val(0));
 
                 // Did we get a read or a write?
-                if status & (1 << 5) > 0 {
+                if status.is_set(StatusSlave::TRA) {
                     // This means the slave is in transmit mode, AKA we got a
                     // read.
 
                     // Clear the byte transfer done if set (copied from ASF)
-                    twis.registers.status_clear.set(1 << 23);
+                    twis.registers.scr.write(StatusClearSlave::BTF::SET);
 
                     // Setup interrupts that we now care about
-                    twis.registers.interrupt_enable.set((1 << 3) | (1 << 23));
                     twis.registers
-                        .interrupt_enable
-                        .set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
+                        .ier
+                        .write(InterruptSlave::TCOMP::SET + InterruptSlave::BTF::SET);
+                    twis.registers.ier.write(
+                        InterruptSlave::BUSERR::SET + InterruptSlave::SMBPECERR::SET
+                            + InterruptSlave::SMBTOUT::SET
+                            + InterruptSlave::ORUN::SET
+                            + InterruptSlave::URUN::SET,
+                    );
 
                     if self.slave_read_buffer.is_some() {
                         // Have buffer to send, start reading
@@ -604,16 +1047,18 @@ impl I2CHw {
 
                         if len >= 1 {
                             self.slave_read_buffer.map(|buffer| {
-                                twis.registers.transmit_holding.set(buffer[0] as u32);
+                                twis.registers
+                                    .thr
+                                    .write(TransmitHolding::TXDATA.val(buffer[0] as u32));
                             });
                             self.slave_read_buffer_index.set(1);
                         } else {
                             // Send dummy byte
-                            twis.registers.transmit_holding.set(0x2e);
+                            twis.registers.thr.write(TransmitHolding::TXDATA.val(0x2e));
                         }
 
                         // Make it happen by clearing status.
-                        twis.registers.status_clear.set(status);
+                        twis.registers.scr.set(status.get());
                     } else {
                         // Call to upper layers asking for a buffer to send
                         self.slave_client.get().map(|client| {
@@ -624,14 +1069,16 @@ impl I2CHw {
                     // Slave is in receive mode, AKA we got a write.
 
                     // Get transmission complete and rxready interrupts.
-                    twis.registers.interrupt_enable.set((1 << 3) | (1 << 0));
+                    twis.registers
+                        .ier
+                        .write(InterruptSlave::TCOMP::SET + InterruptSlave::RXRDY::SET);
 
                     // Set index to 0
                     self.slave_write_buffer_index.set(0);
 
                     if self.slave_write_buffer.is_some() {
                         // Clear to continue with existing buffer.
-                        twis.registers.status_clear.set(status);
+                        twis.registers.scr.set(status.get());
                     } else {
                         // Call to upper layers asking for a buffer to
                         // read into.
@@ -643,16 +1090,16 @@ impl I2CHw {
             } else {
                 // Did not get address match interrupt.
 
-                if interrupts & (1 << 3) > 0 {
+                if interrupts.is_set(StatusSlave::TCOMP) {
                     // Transmission complete
 
                     let nbytes = twis.registers.nbytes.get();
 
-                    twis.registers.interrupt_disable.set(0xFFFFFFFF);
-                    twis.registers.interrupt_enable.set(1 << 16);
-                    twis.registers.status_clear.set(status);
+                    twis.registers.idr.set(!0);
+                    twis.registers.ier.write(InterruptSlave::SAM::SET);
+                    twis.registers.scr.set(status.get());
 
-                    if status & (1 << 5) > 0 {
+                    if status.is_set(StatusSlave::TRA) {
                         // read
                         self.slave_client.get().map(|client| {
                             self.slave_read_buffer.take().map(|buffer| {
@@ -671,12 +1118,13 @@ impl I2CHw {
 
                         if len > idx {
                             self.slave_write_buffer.map(|buffer| {
-                                buffer[idx as usize] = twis.registers.receive_holding.get() as u8;
+                                buffer[idx as usize] =
+                                    twis.registers.rhr.read(ReceiveHolding::RXDATA) as u8;
                             });
                             self.slave_write_buffer_index.set(idx + 1);
                         } else {
                             // Just drop on floor
-                            twis.registers.receive_holding.get();
+                            twis.registers.rhr.get();
                         }
 
                         self.slave_client.get().map(|client| {
@@ -689,7 +1137,7 @@ impl I2CHw {
                             });
                         });
                     }
-                } else if interrupts & (1 << 23) > 0 {
+                } else if interrupts.is_set(StatusSlave::BTF) {
                     // Byte transfer finished. Send the next byte from the
                     // buffer.
 
@@ -700,23 +1148,23 @@ impl I2CHw {
 
                         if len > idx {
                             self.slave_read_buffer.map(|buffer| {
-                                twis.registers
-                                    .transmit_holding
-                                    .set(buffer[idx as usize] as u32);
+                                twis.registers.thr.write(
+                                    TransmitHolding::TXDATA.val(buffer[idx as usize] as u32),
+                                );
                             });
                             self.slave_read_buffer_index.set(idx + 1);
                         } else {
                             // Send dummy byte
-                            twis.registers.transmit_holding.set(0xdf);
+                            twis.registers.thr.write(TransmitHolding::TXDATA.val(0xdf));
                         }
                     } else {
                         // Send a default byte
-                        twis.registers.transmit_holding.set(0xdc);
+                        twis.registers.thr.write(TransmitHolding::TXDATA.val(0xdc));
                     }
 
                     // Make it happen by clearing status.
-                    twis.registers.status_clear.set(status);
-                } else if interrupts & (1 << 0) > 0 {
+                    twis.registers.scr.set(status.get());
+                } else if interrupts.is_set(StatusSlave::RXRDY) {
                     // Receive byte ready.
 
                     if self.slave_write_buffer.is_some() {
@@ -727,7 +1175,9 @@ impl I2CHw {
                         // bit fixes that. However, sometimes in the middle of a
                         // transfer we get an RXREADY interrupt where the BTF
                         // bit is NOT set. I don't know why.
-                        if status & (1 << 23) > 0 || self.slave_write_buffer_index.get() > 0 {
+                        if status.is_set(StatusSlave::BTF)
+                            || self.slave_write_buffer_index.get() > 0
+                        {
                             // Have buffer to read into
                             let len = self.slave_write_buffer_len.get();
                             let idx = self.slave_write_buffer_index.get();
@@ -735,23 +1185,23 @@ impl I2CHw {
                             if len > idx {
                                 self.slave_write_buffer.map(|buffer| {
                                     buffer[idx as usize] =
-                                        twis.registers.receive_holding.get() as u8;
+                                        twis.registers.rhr.read(ReceiveHolding::RXDATA) as u8;
                                 });
                                 self.slave_write_buffer_index.set(idx + 1);
                             } else {
                                 // Just drop on floor
-                                twis.registers.receive_holding.get();
+                                twis.registers.rhr.get();
                             }
                         } else {
                             // Just drop on floor
-                            twis.registers.receive_holding.get();
+                            twis.registers.rhr.get();
                         }
                     } else {
                         // Just drop on floor
-                        twis.registers.receive_holding.get();
+                        twis.registers.rhr.get();
                     }
 
-                    twis.registers.status_clear.set(status);
+                    twis.registers.scr.set(status.get());
                 }
             }
         }
@@ -766,14 +1216,14 @@ impl I2CHw {
             if self.slave_mmio_address.is_some() {
                 let twis = &TWISRegisterManager::new(&self);
 
-                let status = twis.registers.status.get();
-                let imr = twis.registers.interrupt_mask.get();
-                let interrupts = status & imr;
+                let status = twis.registers.sr.extract();
+                let imr = twis.registers.imr.extract();
+                let interrupts = status.bitand(imr.get());
 
                 // Address match status bit still set, so we need to tell the TWIS
                 // to continue.
-                if (interrupts & (1 << 16) > 0) && (status & (1 << 5) == 0) {
-                    twis.registers.status_clear.set(status);
+                if interrupts.is_set(StatusSlave::SAM) && !status.is_set(StatusSlave::TRA) {
+                    twis.registers.scr.set(status.get());
                 }
             }
         }
@@ -790,37 +1240,39 @@ impl I2CHw {
                 let twis = &TWISRegisterManager::new(&self);
 
                 // Check to see if we should send the first byte.
-                let status = twis.registers.status.get();
-                let imr = twis.registers.interrupt_mask.get();
-                let interrupts = status & imr;
+                let status = twis.registers.sr.extract();
+                let imr = twis.registers.imr.extract();
+                let interrupts = status.bitand(imr.get());
 
                 // Address match status bit still set. We got this function
                 // call in response to an incoming read. Send the first
                 // byte.
-                if (interrupts & (1 << 16) > 0) && (status & (1 << 5) > 0) {
-                    twis.registers.status_clear.set(1 << 23);
+                if interrupts.is_set(StatusSlave::SAM) && status.is_set(StatusSlave::TRA) {
+                    twis.registers.scr.write(StatusClearSlave::BTF::SET);
 
                     let len = self.slave_read_buffer_len.get();
 
                     if len >= 1 {
                         self.slave_read_buffer.map(|buffer| {
-                            twis.registers.transmit_holding.set(buffer[0] as u32);
+                            twis.registers
+                                .thr
+                                .write(TransmitHolding::TXDATA.val(buffer[0] as u32));
                         });
                         self.slave_read_buffer_index.set(1);
                     } else {
                         // Send dummy byte
-                        twis.registers.transmit_holding.set(0x75);
+                        twis.registers.thr.write(TransmitHolding::TXDATA.val(0x75));
                     }
 
                     // Make it happen by clearing status.
-                    twis.registers.status_clear.set(status);
+                    twis.registers.scr.set(status.get());
                 }
             }
         }
     }
 
     fn slave_disable_interrupts(&self, twis: &TWISRegisterManager) {
-        twis.registers.interrupt_disable.set(!0);
+        twis.registers.idr.set(!0);
     }
 
     pub fn slave_set_address(&self, address: u8) {
@@ -832,15 +1284,14 @@ impl I2CHw {
             let twis = &TWISRegisterManager::new(&self);
 
             // Enable and configure
-            let control = (((self.my_slave_address.get() as usize) & 0x7F) << 16) |
-                           (1 << 14) | // SOAM - stretch on address match
-                           (1 << 13) | // CUP - count nbytes up
-                           (1 << 4)  | // STREN - stretch clock enable
-                           (1 << 2); //.. SMATCH - ack on slave address
-            twis.registers.control.set(control as u32);
+            let control = ControlSlave::ADR.val((self.my_slave_address.get() as u32) & 0x7F)
+                + ControlSlave::SOAM::Stretch + ControlSlave::CUP::CountUp
+                + ControlSlave::STREN::Enable
+                + ControlSlave::SMATCH::AckSlaveAddress;
+            twis.registers.cr.write(control);
 
             // Set this separately because that makes the HW happy.
-            twis.registers.control.set((control as u32) | 0x1);
+            twis.registers.cr.write(control + ControlSlave::SEN::Enable);
         }
     }
 }
@@ -858,35 +1309,48 @@ impl hil::i2c::I2CMaster for I2CHw {
         let twim = &TWIMRegisterManager::new(&self);
 
         // enable, reset, disable
-        twim.registers.control.set(0x1 << 0);
-        twim.registers.control.set(0x1 << 7);
-        twim.registers.control.set(0x1 << 1);
+        twim.registers.cr.write(Control::MEN::SET);
+        twim.registers.cr.write(Control::SWRST::SET);
+        twim.registers.cr.write(Control::MDIS::SET);
 
         // Init the bus speed
         self.set_bus_speed(twim);
 
         // slew
-        twim.registers
-            .slew_rate
-            .set((0x2 << 28) | (7 << 16) | (7 << 0));
+        twim.registers.srr.write(
+            SlewRate::FILTER::StandardOrFast + SlewRate::CLDRIVEL.val(7)
+                + SlewRate::DADRIVEL.val(7),
+        );
 
         // clear interrupts
-        twim.registers.status_clear.set(!0);
+        twim.registers.scr.set(!0);
     }
 
     /// This disables the entire I2C peripheral
     fn disable(&self) {
         let twim = &TWIMRegisterManager::new(&self);
-        twim.registers.control.set(0x1 << 1);
+        twim.registers.cr.write(Control::MDIS::SET);
         self.disable_interrupts(twim);
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        I2CHw::write(self, addr, START | STOP, data, len);
+        I2CHw::write(
+            self,
+            addr,
+            Command::START::StartCondition + Command::STOP::SendStop,
+            data,
+            len,
+        );
     }
 
     fn read(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        I2CHw::read(self, addr, START | STOP, data, len);
+        I2CHw::read(
+            self,
+            addr,
+            Command::START::StartCondition + Command::STOP::SendStop,
+            data,
+            len,
+        );
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
@@ -900,25 +1364,29 @@ impl hil::i2c::I2CSlave for I2CHw {
             let twis = &TWISRegisterManager::new(&self);
 
             // enable, reset, disable
-            twis.registers.control.set(0x1 << 0);
-            twis.registers.control.set(0x1 << 7);
-            twis.registers.control.set(0);
+            twis.registers.cr.write(ControlSlave::SEN::SET);
+            twis.registers.cr.write(ControlSlave::SWRST::SET);
+            twis.registers.cr.set(0);
 
             // slew
-            twis.registers.slew_rate.set((0x2 << 28) | (7 << 0));
+            twis.registers
+                .srr
+                .write(SlewRateSlave::FILTER.val(0x2) + SlewRateSlave::DADRIVEL.val(7));
 
             // clear interrupts
-            twis.registers.status_clear.set(!0);
+            twis.registers.scr.set(!0);
 
             // We want to interrupt only on slave address match so we can
             // wait for a message from a master and then decide what to do
             // based on read/write.
-            twis.registers.interrupt_enable.set(1 << 16);
+            twis.registers.ier.write(InterruptSlave::SAM::SET);
 
             // Also setup all of the error interrupts.
-            twis.registers
-                .interrupt_enable
-                .set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
+            twis.registers.ier.write(
+                InterruptSlave::BUSERR::SET + InterruptSlave::SMBPECERR::SET
+                    + InterruptSlave::SMBTOUT::SET + InterruptSlave::ORUN::SET
+                    + InterruptSlave::URUN::SET,
+            );
         }
 
         self.slave_enabled.set(true);
@@ -930,7 +1398,7 @@ impl hil::i2c::I2CSlave for I2CHw {
 
         if self.slave_mmio_address.is_some() {
             let twis = &TWISRegisterManager::new(&self);
-            twis.registers.control.set(0);
+            twis.registers.cr.set(0);
             self.slave_disable_interrupts(twis);
         }
     }

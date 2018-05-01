@@ -735,24 +735,22 @@ where
                 // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
                 // only be sent on the other 37 RadioChannel channels.
 
-                let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some()
-                    && result == ReturnCode::SUCCESS
-                {
-                    let dest = app.app_read.as_mut().unwrap();
-                    let d = &mut dest.as_mut();
+                if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
                     // write to buffer in userland
-                    for (i, c) in buf[0..len as usize].iter().enumerate() {
-                        d[i] = *c;
-                    }
-                    true
-                } else {
-                    false
-                };
+                    let success = app.app_read
+                        .as_mut()
+                        .map(|userland| {
+                            for (dst, src) in userland.iter_mut().zip(buf[0..len as usize].iter()) {
+                                *dst = *src;
+                            }
+                        })
+                        .is_some();
 
-                if notify_userland {
-                    app.scan_callback.map(|mut cb| {
-                        cb.schedule(usize::from(result), len as usize, 0);
-                    });
+                    if success {
+                        app.scan_callback.map(|mut cb| {
+                            cb.schedule(usize::from(result), len as usize, 0);
+                        });
+                    }
                 }
 
                 match app.process_status {

@@ -10,10 +10,10 @@ extern crate nrf5x;
 #[macro_use(debug, debug_verbose, debug_gpio)]
 extern crate kernel;
 
-pub mod clock;
 pub mod chip;
+pub mod clock;
 pub mod crt1;
-pub mod uart;
 pub mod radio;
+pub mod uart;
 
 pub use crt1::init;

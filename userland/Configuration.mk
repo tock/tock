@@ -57,8 +57,7 @@ override CPPFLAGS += \
 	    -mfloat-abi=soft\
 	    -msingle-pic-base\
 	    -mpic-register=r9\
-	    -mno-pic-data-is-text-relative\
-	    -DSTACK_SIZE=$(STACK_SIZE)
+	    -mno-pic-data-is-text-relative
 
 # This allows Tock to add additional warnings for functions that frequently cause problems.
 # See the included header for more details.

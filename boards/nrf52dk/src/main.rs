@@ -62,11 +62,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib)]
+#![feature(lang_items)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
@@ -93,8 +92,11 @@ const BUTTON_RST_PIN: usize = 21;
 #[macro_use]
 pub mod io;
 
+// FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
+//
+// Also read the instructions in `tests` how to run the tests
 #[allow(dead_code)]
-mod aes_test;
+mod tests;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -106,7 +108,8 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -154,7 +157,7 @@ pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52::init();
 
-    // make non-volatile memory writable and activate the reset button (pin 21)
+    // Make non-volatile memory writable and activate the reset button (pin 21)
     let nvmc = nrf52::nvmc::Nvmc::new();
     let uicr = nrf52::uicr::Uicr::new();
     nvmc.configure_writeable();
@@ -181,7 +184,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[25],
             &nrf5x::gpio::PORT[24],
             &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22] // -----
+            &nrf5x::gpio::PORT[22], // -----
         ]
     );
 
@@ -246,7 +249,7 @@ pub unsafe fn reset_handler() {
             (
                 &nrf5x::gpio::PORT[BUTTON4_PIN],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // 16
+            ), // 16
         ]
     );
     let button = static_init!(
@@ -296,6 +299,7 @@ pub unsafe fn reset_handler() {
             &nrf52::uart::UARTE0,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
@@ -357,7 +361,6 @@ pub unsafe fn reset_handler() {
     while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        // aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,
@@ -373,6 +376,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

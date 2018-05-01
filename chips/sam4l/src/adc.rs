@@ -15,14 +15,14 @@
 //! - Author: Philip Levis <pal@cs.stanford.edu>, Branden Ghena <brghena@umich.edu>
 //! - Updated: May 1, 2017
 
-use core::{cmp, mem, slice};
 use core::cell::Cell;
+use core::{cmp, mem, slice};
 use dma;
-use kernel::ReturnCode;
 use kernel::common::math;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
 use scif;
 

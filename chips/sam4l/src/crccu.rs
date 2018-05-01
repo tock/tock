@@ -49,8 +49,8 @@
 // - Support continuous-mode CRC
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::hil::crc::{self, CrcAlg};
+use kernel::ReturnCode;
 use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 
 // A memory-mapped register

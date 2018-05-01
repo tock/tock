@@ -12,7 +12,7 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md>
+<https://github.com/tock/tock/tree/master/doc/courses/sosp/README.md>
 
 > aka
 
@@ -103,11 +103,9 @@ Maybe...
 
 ## Tools
 
-  * `make` (just instrumenting `xargo`)
+  * `make` (just instrumenting `cargo`)
 
   * Rust (nightly for `asm!`, compiling `core`, etc)
-
-  * `xargo` to automate compiling base libraries
 
   * `arm-none-eabi` GCC/LD to link binaries
 
@@ -165,7 +163,7 @@ $ tockloader listen
 
 
  - Head to \texttt{<http://bit.ly/2lniNt6>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/environment.md))
+ - \tiny ([github.com/tock/tock/blob/master/doc/courses/sosp/environment.md](https://github.com/tock/tock/blob/master/doc/courses/sosp/environment.md))
 
 # Part 2: User space
 
@@ -284,15 +282,15 @@ int ipc_notify_client(int pid);
 
   1. Get an application running on Hail
 
-  2. [Print "Hello World" every second](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
+  2. [Print "Hello World" every second](https://github.com/tock/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
 
-  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
+  3. [Extend your app to sample on-board sensors](https://github.com/tock/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
 
-  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
+  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/tock/tock/blob/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
 
 
  - Head to \texttt{<http://bit.ly/2hgpl8n>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/application.md#2-check-your-understanding))
+ - \tiny ([github.com/tock/tock/blob/master/doc/courses/sosp/application.md](https://github.com/tock/tock/blob/master/doc/courses/sosp/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
 
@@ -481,13 +479,13 @@ pub trait NineDofClient {
 
 
  - Head to \texttt{<http://bit.ly/2zLoD9W>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md#2-check-your-understanding))
+ - \tiny ([github.com/tock/tock/blob/master/doc/courses/sosp/capsule.md](https://github.com/tock/tock/blob/master/doc/courses/sosp/capsule.md#2-check-your-understanding))
 
 ## Stay in touch!
 
 <https://www.tockos.org>
 
-<https://github.com/helena-project/tock>
+<https://github.com/tock/tock>
 
 <tock-dev@googlegroups.com>
 

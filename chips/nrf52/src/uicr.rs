@@ -21,7 +21,6 @@ pub struct UicrRegisters {
     pub nfcpins: ReadWrite<u32, NfcPins::Register>,
 }
 
-// #[cfg_attr(rustfmt, rustfmt_skip)]
 register_bitfields! [u32,
     /// Task register 
     Pselreset [

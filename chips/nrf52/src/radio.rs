@@ -36,10 +36,10 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
@@ -701,7 +701,9 @@ impl Radio {
                     self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-                            // length is S0 (1 Byte) + Length (1 Bytes) + S1 (0 Bytes) + Payload
+                            // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                            // And because the length field is directly read from the packet
+                            // We need to add 2 to length to get the total length
                             client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 2, result)
                         });
                     }

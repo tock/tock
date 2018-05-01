@@ -226,12 +226,12 @@
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, RxClient, TxClient};
 use ieee802154::framer::Frame;
-use kernel::ReturnCode;
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::ReturnCode;
 use net::frag_utils::Bitmap;
 use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use net::sixlowpan_compression;

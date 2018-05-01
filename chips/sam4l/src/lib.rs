@@ -17,26 +17,26 @@ extern crate kernel;
 #[macro_use]
 mod helpers;
 
-pub mod chip;
+pub mod adc;
+pub mod aes;
 pub mod ast;
 pub mod bpm;
 pub mod bscif;
-pub mod dma;
-pub mod i2c;
-pub mod spi;
-pub mod nvic;
-pub mod pm;
-pub mod gpio;
-pub mod usart;
-pub mod scif;
-pub mod adc;
-pub mod flashcalw;
-pub mod wdt;
-pub mod trng;
+pub mod chip;
 pub mod crccu;
 pub mod dac;
-pub mod aes;
+pub mod dma;
+pub mod flashcalw;
+pub mod gpio;
+pub mod i2c;
+pub mod nvic;
+pub mod pm;
+pub mod scif;
+pub mod spi;
+pub mod trng;
+pub mod usart;
 pub mod usbc;
+pub mod wdt;
 
 use cortexm4::{generic_isr, svc_handler, systick_handler};
 
@@ -72,24 +72,26 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[link_section=".vectors"]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[link_section = ".vectors"]
 // no_mangle Ensures that the symbol is kept until the final binary
 #[no_mangle]
-pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
-    _estack, reset_handler,
-    /* NMI */           unhandled_interrupt,
-    /* Hard Fault */    hard_fault_handler,
-    /* MemManage */     unhandled_interrupt,
-    /* BusFault */      unhandled_interrupt,
-    /* UsageFault*/     unhandled_interrupt,
-    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    reset_handler,
+    unhandled_interrupt, // NMI
+    hard_fault_handler,  // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
     unhandled_interrupt,
-    /* SVC */           svc_handler,
-    /* DebugMon */      unhandled_interrupt,
     unhandled_interrupt,
-    /* PendSV */        unhandled_interrupt,
-    /* SysTick */       systick_handler
+    unhandled_interrupt,
+    unhandled_interrupt,
+    svc_handler,         // SVC
+    unhandled_interrupt, // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt, // PendSV
+    systick_handler,     // SysTick
 ];
 
 #[link_section = ".vectors"]
