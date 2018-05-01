@@ -17,7 +17,7 @@
 //! +----------+------+--------+----+--------+----+---------+-----+
 //! ```
 //!
-//! * Premable - 1 byte
+//! * Preamable - 1 byte
 //!
 //! * Base and prefix forms together the access address
 //!
@@ -226,7 +226,7 @@ pub struct RadioRegisters {
     /// Address: 0x530 - 0x534
     pub rxaddresses: ReadWrite<u32, ReceiveAddresses::Register>,
 
-    /// CRC configration
+    /// CRC configuration
     /// Address: 0x534 - 0x538
     pub crccnf: ReadWrite<u32, CrcConfiguration::Register>,
 
@@ -382,7 +382,7 @@ register_bitfields! [u32,
         /// Frequency = 2400 + FREQUENCY (MHz)
         FREQUENCY OFFSET(0) NUMBITS(7) [],
         /// Channel map selection.
-        /// Channel map between 2400 MHZ .. 2500 MH
+        /// Channel map between 2400 MHZ .. 2500 MHZ
         MAP OFFSET(8) NUMBITS(1) [
             DEFAULT = 0,
             LOW = 1

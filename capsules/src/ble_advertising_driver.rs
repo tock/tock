@@ -14,19 +14,13 @@
 //!
 //! The allow systems calls are used for buffers from allocated by userland
 //!
-//! There are three different buffers:
-//!
-//! * Bluetooth Low Energy Gap Types
-//! * Passive Scanner
-//! * Advertisement
-//!
+//! There are two different buffers:
 //! * 0: Advertising data
 //! * 1: Passive scanning buffer
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
 //! * SUCCESS: The buffer has successfully been filled
-//! * ENOSUPPORT: Invalid allow_num
 //! * ENOMEM: No sufficient memory available
 //! * EINVAL: Invalid address of the buffer or other error
 //! * EBUSY: The driver is currently busy with other tasks
@@ -35,28 +29,28 @@
 //!
 //! ### Subscribe system call
 //!
-//!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
-//! 'subscribe' is used to specify the specific operation, currently:
+//!  The `subscribe` system call supports two arguments `subscribe number' and `callback`.
+//!  The `subscribe` is used to specify the specific operation, currently:
 //!
 //! * 0: provides a callback user-space when a device scanning for advertisements
 //!      and the callback is used to invoke user-space processes.
 //!
-//! The possible return codes from the 'allow' system call indicate the following:
+//! The possible return codes from the `allow` system call indicate the following:
 //!
 //! * ENOMEM:    Not sufficient amount memory
 //! * EINVAL:    Invalid operation
 //!
 //! ### Command system call
 //!
-//! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
-//! 'cmd' is used to specify the specific operation, currently
-//! the following cmd's are supported:
+//! The `command` system call supports two arguments `command number` and `subcommand number`.
+//! `command number` is used to specify the specific operation, currently
+//! the following commands are supported:
 //!
 //! * 0: start advertisement
 //! * 1: stop advertisement
 //! * 5: start scanning
 //!
-//! The possible return codes from the 'command' system call indicate the following:
+//! The possible return codes from the `command` system call indicate the following:
 //!
 //! * SUCCESS:      The command was successful
 //! * EBUSY:        The driver is currently busy with other tasks
@@ -112,6 +106,7 @@ use kernel::returncode::ReturnCode;
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
+/// Advertisement Buffer
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 
 const PACKET_ADDR_LEN: usize = 6;
@@ -164,6 +159,7 @@ const SCAN_RESP: AdvPduType = 0b0100;
 const CONNECT_IND: AdvPduType = 0b0101;
 const ADV_SCAN_IND: AdvPduType = 0b0110;
 
+/// Process specific memory
 pub struct App {
     process_status: Option<BLEState>,
     alarm_data: AlarmData,
@@ -267,9 +263,8 @@ impl App {
                             data[..adv_data_len].copy_from_slice(adv_data_corrected);
                         }
                         let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                        let result =
-                            ble.radio
-                                .transmit_advertisement(kernel_tx, total_len, channel);
+                        let result = ble.radio
+                            .transmit_advertisement(kernel_tx, total_len, channel);
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
@@ -342,7 +337,7 @@ where
     // to it.
     //
     // This method iterates through all grants so it should be used somewhat
-    // sparringly. Moreover, it should _not_ be called from within a grant,
+    // sparingly. Moreover, it should _not_ be called from within a grant,
     // since any open grant will not be iterated over and the wrong timer will
     // likely be chosen.
     fn reset_active_alarm(&self) {
@@ -398,7 +393,7 @@ where
                         // operation at the appropriate time. Instead, reschedule the
                         // operation for later. This is _kind_ of simulating actual
                         // on-air interference
-                        debug!("BLE: operationg delayed for app {:?}", app.appid());
+                        debug!("BLE: operation delayed for app {:?}", app.appid());
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         return;
                     }
@@ -444,12 +439,12 @@ where
         if let Some(appid) = self.receiving_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
-                // bytes we need check for that!
+                // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
                 // 39 bytes.
                 // Therefore, we ignore payloads with a header size bigger than 39 because the
                 // channels 37, 38 and 39 should only be used for advertisements!
-                // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
+                // Packets that are bigger than 39 bytes are likely `Channel PDUs` which should
                 // only be sent on the other 37 RadioChannel channels.
 
                 if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
@@ -508,7 +503,7 @@ where
     A: kernel::hil::time::Alarm + 'a,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
-    // re-tranmissions for invalid CRCs
+    // re-transmissions for invalid CRCs
     fn transmit_event(&self, _crc_ok: ReturnCode) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
@@ -557,7 +552,7 @@ where
         appid: kernel::AppId,
     ) -> ReturnCode {
         match command_num {
-            // Start periodic advertisments
+            // Start periodic advertisements
             0 => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
@@ -605,10 +600,13 @@ where
                             && app.process_status != Some(BLEState::AdvertisingIdle)
                         {
                             match data as u8 {
-                                e @ 0...10 | e @ 0xec...0xff => {
-                                    app.tx_power = e;
-                                    // ask chip if the power level is supported
-                                    self.radio.set_tx_power(e)
+                                tx_power @ 0...10 | tx_power @ 0xec...0xff => {
+                                    // query the underlying chip if the power level is supported
+                                    let status = self.radio.set_tx_power(tx_power);
+                                    if let ReturnCode::SUCCESS = status {
+                                        app.tx_power = tx_power;
+                                    }
+                                    status
                                 }
                                 _ => ReturnCode::EINVAL,
                             }
@@ -644,7 +642,7 @@ where
         slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            // Configure complete Advertisement buffer
+            // Advertisement buffer
             0 => self.app
                 .enter(appid, |app, _| {
                     app.adv_data = slice;
@@ -657,7 +655,7 @@ where
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            // Passive Scanning
+            // Passive scanning buffer
             1 => self.app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
