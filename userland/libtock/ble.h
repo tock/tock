@@ -13,8 +13,6 @@ extern "C" {
  *    *_ALLOW - allow call
  *    *_SUB   - subscribe call
  *
- *    All enumerations in GapAdvertisementData_t corresponds to allow calls
- *    in the BluetoothAdvertisingDriver
  ******************************************************************************/
 
 #define BLE_DRIVER_NUMBER 0x30000

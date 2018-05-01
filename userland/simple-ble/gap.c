@@ -64,7 +64,7 @@ int gap_add_service_uuid16(AdvData_t *adv_data, const uint16_t *uuid16, uint8_t 
 
 int gap_add_service_data(AdvData_t *adv_data, uint16_t uuid16, uint8_t *data, uint8_t data_len) {
   uint8_t pdu_size = data_len + 2;
-  // potential buffer overflow in libtock generate error
+  // potential buffer overflow generate error
   if (pdu_size > ADV_DATA_MAX_SIZE || data == NULL) {
     return -1;
   } else {

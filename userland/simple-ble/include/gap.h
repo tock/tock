@@ -61,6 +61,10 @@ typedef struct AdvData {
   int capacity;
 } AdvData_t;
 
+// Advertisment data constructor
+
+// buf                 - pointer to buffer to hold advertisement data
+// len                 - length of the advertisment data
 AdvData_t gap_adv_data_new(uint8_t* buf, int len);
 
 int gap_add_flags(AdvData_t *adv_data, uint8_t flags);
@@ -69,28 +73,32 @@ int gap_add_adv_data_field(AdvData_t *adv_data, GapAdvertisementData_t type,
 
 // configure advertisement name
 //
+// adv_data            - advertisement data structure to insert `device name` into
 // device_name         - device named to be used in the advertisement
-// size_b              - size of device in bytes
+// len                 - length of device name
 int gap_add_device_name(AdvData_t *adv_data, const uint8_t *device_name, uint8_t len);
 
 // configure list of 16 bit uuids
 //
-// uuid16               - array of 16 bit uuids
-// size_b               - size of uuid16 in bytes
+// adv_data             - advertisement data structure to insert to `uuid16` into
+// uuid16               - 16 bit uuid identifier of service
+// len                  - length of uuid16 service identifier
 int gap_add_service_uuid16(AdvData_t *adv_data, const uint16_t *uuid16, uint8_t len);
 
 // configure service data
 //
+// adv_data             - advertisement data structure to insert `service data` into
 // uuid16               - 16 bit uuid to be associated with the data
-// data                 - array of data in bytes
-// size_b               - size of data in bytes
-int gap_add_service_data(AdvData_t *adv_data, uint16_t uuid16, uint8_t *data, uint8_t data_len);
+// data                 - service data
+// len                  - length of service data
+int gap_add_service_data(AdvData_t *adv_data, uint16_t uuid16, uint8_t *data, uint8_t len);
 
 // configure manufacturer specific data
 //
-// data                 - array of data in bytes
-// size_b               - size of data in bytes
-int gap_add_manufacturer_specific_data(AdvData_t *adv_data, uint8_t *data, uint8_t size_b);
+// adv_data             - advertisement data structure to insert `manufacturer specific data` into
+// data                 - manufacturer specific data 
+// len                  - length of manufacturer specific data
+int gap_add_manufacturer_specific_data(AdvData_t *adv_data, uint8_t *data, uint8_t len);
 
 #ifdef __cplusplus
 }
