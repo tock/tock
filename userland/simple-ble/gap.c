@@ -63,16 +63,9 @@ int gap_add_service_uuid16(AdvData_t *adv_data, const uint16_t *uuid16, uint8_t 
 }
 
 int gap_add_service_data(AdvData_t *adv_data, uint16_t uuid16, uint8_t *data, uint8_t data_len) {
-  uint8_t pdu_size = data_len + 2;
-  // potential buffer overflow generate error
-  if (pdu_size > ADV_DATA_MAX_SIZE || data == NULL) {
-    return -1;
-  } else {
-    uint8_t pdu[ADV_DATA_MAX_SIZE];
-    memcpy(pdu, &uuid16, 2);
-    memcpy(pdu + 2, data, data_len);
-    return gap_add_adv_data_field(adv_data, GAP_SERVICE_DATA, pdu, pdu_size);
-  }
+  int err = gap_add_service_uuid16(adv_data, &uuid16, 2);
+  if (err < 0) return err;
+  return gap_add_adv_data_field(adv_data, GAP_SERVICE_DATA, data, data_len);
 }
 
 int gap_add_manufacturer_specific_data(AdvData_t *adv_data, uint8_t *data, uint8_t size_b) {

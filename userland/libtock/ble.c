@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 int ble_start_advertising(int pdu_type, uint8_t* advd, int len, uint16_t interval) {
   int err = allow(BLE_DRIVER_NUMBER, 0, advd, len);
   if (err < TOCK_SUCCESS)

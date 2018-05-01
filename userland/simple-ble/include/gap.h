@@ -7,7 +7,6 @@ extern "C" {
 #endif
 
 #define ADV_DATA_MAX_SIZE 31
-#define ADV_SIZE 39
 #define ADV_A_SIZE 6
 
 #define ADV_IND  0x00
