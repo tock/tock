@@ -4,13 +4,13 @@ extern crate getopts;
 extern crate tar;
 
 use getopts::Options;
-use std::{fs, path};
 use std::cmp;
 use std::env;
 use std::fmt::Write as fmtwrite;
 use std::io;
 use std::io::{Seek, Write};
 use std::mem;
+use std::{fs, path};
 
 #[macro_use]
 mod util;
