@@ -147,10 +147,6 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 
-$$(BUILDDIR)/$(1)/$(1).bin: $$(BUILDDIR)/$(1)/$(1).elf | $$(BUILDDIR)/$(1) validate_gcc_flags
-	$$(TRACE_BIN)
-	$$(Q)$$(ELF2TBF) $$(ELF2TBF_ARGS) -o $$@ $$<
-
 # NOTE: This rule creates an lst file for the elf as flashed on the board
 #       (i.e. at address 0x80000000). This is not likely what you want.
 $$(BUILDDIR)/$(1)/$(1).lst: $$(BUILDDIR)/$(1)/$(1).elf
@@ -249,14 +245,14 @@ $(foreach arch, $(TOCK_ARCHS), $(eval $(call BUILD_RULES,$(arch))))
 
 
 # TAB file generation. Used for Tockloader
-$(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).bin)
-	$(TOCK_USERLAND_BASE_DIR)/tools/tab/create_tab.py $@ $(PACKAGE_NAME) $^
+$(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).elf)
+	$(Q)$(ELF2TAB) $(ELF2TAB_ARGS) -o $@ $^
 
 
 
 # Rules for building apps
 .PHONY:	all
-all:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).bin) $(BUILDDIR)/$(PACKAGE_NAME).tab size
+all:	$(BUILDDIR)/$(PACKAGE_NAME).tab size
 
 .PHONY: size
 size:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).elf)
