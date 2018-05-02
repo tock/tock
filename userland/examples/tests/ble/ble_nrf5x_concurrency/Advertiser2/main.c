@@ -10,9 +10,9 @@ int main(void) {
 
   // declarations of variables to be used in this BLE example application
   uint16_t advertising_interval_ms = 300;
-  uint8_t device_name[]            = "TockOS2";
+  uint8_t device_name[]            = "Advertiser2";
 
-  // configure device name as Advertiser1
+  // configure device name as Advertiser2
   printf(" - Setting the device name... %s\n", device_name);
   int err = gap_add_device_name(&adv_data, device_name, sizeof(device_name)-1);
   if (err < TOCK_SUCCESS)

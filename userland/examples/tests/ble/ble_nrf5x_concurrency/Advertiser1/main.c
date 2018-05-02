@@ -10,7 +10,7 @@ int main(void) {
 
   // declarations of variables to be used in this BLE example application
   uint16_t advertising_interval_ms = 100;
-  uint8_t device_name[]            = "TockOS1";
+  uint8_t device_name[]            = "Advertiser1";
 
   // configure device name as Advertiser1
   printf(" - Setting the device name... %s\n", device_name);

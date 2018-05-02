@@ -27,7 +27,7 @@ int main(void) {
 
   // start advertising
   printf(" - Begin advertising!\n");
-  err = ble_start_advertising(0b0010, data, sizeof(data), advertising_interval_ms);
+  err = ble_start_advertising(ADV_NONCONN_IND, data, sizeof(data), advertising_interval_ms);
   if (err < TOCK_SUCCESS)
     printf("ble_start_advertising, error: %s\r\n", tock_strerror(err));
   return 0;

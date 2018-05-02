@@ -29,7 +29,7 @@ extern "C" {
 
 #define ADV_IND  0x00
 #define ADV_DIRECT_IND  0x01
-#define ADV_NON_CONN_IND  0x02
+#define ADV_NONCONN_IND  0x02
 #define ADV_SCAN_IND  0x06 
 
 typedef enum {
@@ -68,10 +68,10 @@ typedef enum {
 
 // start advertising
 //
-// pdu_type           - Type of advertising PDU. One of ADV_IND, ADV_NON_CONN or ADV_SCAN_IND
+// pdu_type           - Type of advertising PDU. One of ADV_IND, ADV_NONCONN_IND or ADV_SCAN_IND
 // advd               - The advertising data
 // len                - Length of the advertising data (will be truncated to 31 bytes)
-// interval           - The advertising interval in milliseonds
+// interval           - The advertising interval in milliseconds
 int ble_start_advertising(int pdu_type, uint8_t* advd, int len, uint16_t interval);
 
 // stop advertising but don't change anything in the packet configuration

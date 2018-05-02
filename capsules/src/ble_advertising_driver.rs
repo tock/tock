@@ -47,7 +47,7 @@
 //! the following commands are supported:
 //!
 //! * 0: start advertisement
-//! * 1: stop advertisement
+//! * 1: stop advertisement or scanning
 //! * 5: start scanning
 //!
 //! The possible return codes from the `command` system call indicate the following:
@@ -189,7 +189,7 @@ impl Default for App {
             adv_data: None,
             scan_buffer: None,
             address: [0; PACKET_ADDR_LEN],
-            pdu_type: ADV_IND,
+            pdu_type: ADV_NONCONN_IND,
             scan_callback: None,
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
@@ -256,7 +256,7 @@ impl App {
                                 _ => {}
                             }
                             // The LENGTH field is 6-bits wide, so make sure to truncate it
-                            header[1] = (payload_len & 0x7f) as u8;
+                            header[1] = (payload_len & 0x3f) as u8;
 
                             let (adva, data) = payload.split_at_mut(6);
                             adva.copy_from_slice(&self.address);

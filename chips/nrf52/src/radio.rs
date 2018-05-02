@@ -17,7 +17,7 @@
 //! +----------+------+--------+----+--------+----+---------+-----+
 //! ```
 //!
-//! * Preamable - 1 byte
+//! * Preamble - 1 byte
 //!
 //! * Base and prefix forms together the access address
 //!

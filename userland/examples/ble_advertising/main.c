@@ -25,7 +25,7 @@ int main(void) {
   uint8_t manufacturer_data[]      = {0x13, 0x37};
   uint8_t fake_temperature_data[]  = {0x00, 0x00};
 
-  static uint8_t adv_data_buf[31];
+  static uint8_t adv_data_buf[ADV_DATA_MAX_SIZE];
 
   // configure advertisement interval to 300ms
   // configure LE only and discoverable
@@ -63,7 +63,7 @@ int main(void) {
 
   // start advertising
   printf(" - Begin advertising! %s\n", device_name);
-  err = ble_start_advertising(ADV_NON_CONN_IND, adv_data.buf, adv_data.offset, advertising_interval_ms);
+  err = ble_start_advertising(ADV_NONCONN_IND, adv_data.buf, adv_data.offset, advertising_interval_ms);
   if (err < TOCK_SUCCESS)
     printf("ble_start_advertising, error: %s\r\n", tock_strerror(err));
 
