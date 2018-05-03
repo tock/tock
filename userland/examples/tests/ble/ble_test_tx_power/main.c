@@ -1,5 +1,5 @@
 #include <rng.h>
-#include <simple_ble.h>
+#include <ble.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <timer.h>
