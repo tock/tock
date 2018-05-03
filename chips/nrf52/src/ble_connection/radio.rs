@@ -47,8 +47,6 @@ use nrf5x::gpio;
 use peripheral_registers;
 use ppi;
 use radio;
-use kernel::common::regs::Field;
-use kernel::common::regs::FieldValue;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -120,7 +118,7 @@ impl Radio {
 
         self.setup_tx();
 
-        regs.task_txen.write(radio::Task::ENABLE::SET);
+        regs.task_txen.set(1);
     }
 
     fn setup_tx(&self) {
@@ -129,15 +127,15 @@ impl Radio {
         self.set_dma_ptr_tx();
         self.state.set(RadioState::TX);
 
-        regs.event_ready.write(radio::Event::READY::CLEAR);
-        regs.event_end.write(radio::Event::READY::CLEAR);
-        regs.event_disabled.write(radio::Event::READY::CLEAR);
+        regs.event_ready.set(0);
+        regs.event_end.set(0);
+        regs.event_disabled.set(0);
 
-        regs.shorts.write(
-            radio::Shortcut::END_DISABLE::SET + radio::Shortcut::READY_START::SET
+        regs.shorts.set(
+            nrf5x::constants::RADIO_SHORTS_END_DISABLE | nrf5x::constants::RADIO_SHORTS_READY_START,
         );
 
-        self.enable_interrupt(radio::Interrupt::DISABLED::SET);
+        self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
 
     fn setup_rx(&self) {
@@ -150,20 +148,20 @@ impl Radio {
 
         self.state.set(RadioState::RX);
 
-        regs.bcc.write(radio::BitCounterCompare::BCC.val(8)); // count one byte
+        regs.bcc.set(8); // count one byte
 
-        regs.event_address.write(radio::Event::READY::CLEAR);
-        // regs.event_devmatch.write(radio::Event::READY::CLEAR);
-        regs.event_bcmatch.write(radio::Event::READY::CLEAR);
-        // regs.event_rssiend.write(radio::Event::READY::CLEAR);
-        regs.event_crcok.write(radio::Event::READY::CLEAR);
+        regs.event_address.set(0);
+        regs.event_devmatch.set(0);
+        regs.event_bcmatch.set(0);
+        regs.event_rssiend.set(0);
+        regs.event_crcok.set(0);
 
-        regs.shorts.write(
-                radio::Shortcut::END_DISABLE::SET + radio::Shortcut::READY_START::SET
-                    + radio::Shortcut::ADDRESS_BCSTART::SET
+        regs.shorts.set(
+            nrf5x::constants::RADIO_SHORTS_END_DISABLE | nrf5x::constants::RADIO_SHORTS_READY_START
+                | nrf5x::constants::RADIO_SHORTS_ADDRESS_BCSTART,
         );
 
-        self.enable_interrupt(radio::Interrupt::ADDRESS::SET);
+        self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_ADDRESS);
     }
 
     fn wait_until_disabled(&self) {
@@ -171,8 +169,10 @@ impl Radio {
 
         let state = regs.state.get();
 
-        if !regs.state.matches_all(radio::State::STATE.val(0)) {
-            if regs.state.matches_any(radio::State::STATE.val(4) + radio::State::STATE.val(12)) {
+        if state != nrf5x::constants::RADIO_STATE_DISABLE {
+            if state == nrf5x::constants::RADIO_STATE_RXDISABLE
+                || state == nrf5x::constants::RADIO_STATE_TXDISABLE
+            {
                 while regs.state.get() == state {
                     // wait until state completes transition with a blocking loop
                 }
@@ -186,35 +186,35 @@ impl Radio {
         self.wait_until_disabled();
         self.disable_all_interrupts();
 
-        regs.event_end.write(radio::Event::READY::CLEAR);
-        regs.event_disabled.write(radio::Event::READY::CLEAR);
+        regs.event_end.set(0);
+        regs.event_disabled.set(0);
 
         self.setup_rx();
 
-        regs.task_rxen.write(radio::Task::ENABLE::SET);
+        regs.task_rxen.set(1);
     }
 
     fn set_rx_address(&self) {
         let regs = unsafe { &*self.regs };
-        regs.rxaddresses.write(radio::ReceiveAddresses::ADDRESS.val(1));
+        regs.rxaddresses.set(0x01);
     }
 
     fn set_tx_address(&self) {
         let regs = unsafe { &*self.regs };
-        regs.txaddress.write(radio::TransmitAddress::ADDRESS.val(0));
+        regs.txaddress.set(0x00);
     }
 
     fn radio_on(&self) {
         let regs = unsafe { &*self.regs };
         // reset and enable power
-        regs.power.write(radio::Task::ENABLE::CLEAR);
-        regs.power.write(radio::Task::ENABLE::SET);
+        regs.power.set(0);
+        regs.power.set(1);
     }
 
     fn radio_off(&self) {
         let regs = unsafe { &*self.regs };
         regs.shorts.set(0);
-        regs.power.write(radio::Task::ENABLE::CLEAR);
+        regs.power.set(0);
     }
 
     fn set_tx_power(&self) {
@@ -224,20 +224,20 @@ impl Radio {
 
     fn set_tifs(&self) {
         let regs = unsafe { &*self.regs };
-        regs.tifs.set(150u32);
+        regs.tifs.set(150 as u32);
     }
 
     fn set_dma_ptr_tx(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.packetptr.set(TX_PAYLOAD.as_ptr() as u32);
+            regs.packetptr.set((&TX_PAYLOAD as *const u8) as u32);
         }
     }
 
     fn set_dma_ptr_rx(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.packetptr.set(RX_PAYLOAD.as_ptr() as u32);
+            regs.packetptr.set((&RX_PAYLOAD as *const u8) as u32);
         }
     }
 
@@ -297,7 +297,7 @@ impl Radio {
         }
 
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22 | nrf5x::constants::PPI_CHEN_CH26);
-        self.enable_interrupt(radio::Interrupt::DISABLED::SET);
+        self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
 
     fn disable_radio(&self) {
@@ -324,7 +324,7 @@ impl Radio {
             .set(Some(unsafe { nrf5x::timer::TIMER0.get_cc1() }));
 
         self.clear_interrupt(
-            radio::Interrupt::DISABLED::SET + radio::Interrupt::ADDRESS::SET,
+            nrf5x::constants::RADIO_INTENSET_DISABLED | nrf5x::constants::RADIO_INTENSET_ADDRESS,
         );
 
         loop {
@@ -347,7 +347,7 @@ impl Radio {
             match result {
                 ReadAction::ReadFrame => {
                     // We want to read packet, enable interrupt on EVENT_END
-                    self.enable_interrupt(radio::Interrupt::END::SET);
+                    self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_END);
                 }
                 ReadAction::SkipFrame => {
                     self.disable_radio();
@@ -366,11 +366,11 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         regs.event_end.set(0);
 
-        self.clear_interrupt(radio::Interrupt::END::SET);
+        self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_END);
 
         // CH21: TIMER0.EVENTS_COMPARE[0] -> RADIO.RXEN
         self.disable_ppi(nrf5x::constants::PPI_CHEN_CH21);
-        let crc_ok = if regs.crcstatus.is_set(radio::Event::READY) {
+        let crc_ok = if regs.event_crcok.get() == 1 {
             ReturnCode::SUCCESS
         } else {
             ReturnCode::FAIL
@@ -431,11 +431,11 @@ impl Radio {
     fn handle_tx_end_event(&self) {
         let regs = unsafe { &*self.regs };
 
-        regs.event_disabled.write(radio::Event::READY::CLEAR);
-        self.clear_interrupt(radio::Interrupt::DISABLED::SET);
-        regs.event_end.write(radio::Event::READY::CLEAR);
+        regs.event_disabled.set(0);
+        self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
+        regs.event_end.set(0);
 
-        let crc_ok = if regs.crcstatus.is_set(radio::Event::READY) {
+        let crc_ok = if regs.event_crcok.get() == 1 {
             ReturnCode::SUCCESS
         } else {
             ReturnCode::FAIL
@@ -467,23 +467,24 @@ impl Radio {
         let regs = unsafe { &*self.regs };
 
         // let current_time = unsafe {nrf5x::timer::TIMER0.capture(4) };
-        let mut handled_disabled_event = false;
 
-        if regs.intenclr.matches_any(radio::Interrupt::ADDRESS::SET)
-            && regs.event_address.matches_any(radio::Event::READY::SET)
+        let mut enabled_interrupts = regs.intenclr.get();
+
+        if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_ADDRESS) > 0
+            && regs.event_address.get() == 1
         {
             if self.handle_address_event() {
-                handled_disabled_event = true;
+                enabled_interrupts &= !nrf5x::constants::RADIO_INTENSET_DISABLED;
             }
         }
 
-        if !handled_disabled_event && regs.intenclr.matches_any(radio::Interrupt::DISABLED::SET)
-            && regs.event_disabled.matches_any(radio::Event::READY::SET)
+        if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_DISABLED) > 0
+            && regs.event_disabled.get() == 1
         {
             if self.state.get() == RadioState::RX {
-                regs.event_disabled.write(radio::Event::READY::CLEAR);
+                regs.event_disabled.set(0);
 
-                if self.debug_value.get() != 1 {
+                //if self.debug_value.get() != 1 {
                     let transition = self.advertisement_client
                         .get()
                         .map_or(PhyTransition::None, |client| client.timer_expired());
@@ -502,7 +503,7 @@ impl Radio {
                             //Do nothing, the device should sleep and wait for timer to fire in BLE
                         }
                     }
-                }
+               // }
             } else if self.state.get() == RadioState::Uninitialized {
                 panic!("EVENT_DISABLED while Uninitialized?\n");
             } else {
@@ -510,8 +511,8 @@ impl Radio {
             }
         }
 
-        if regs.intenclr.matches_any(radio::Interrupt::END::SET)
-            && regs.event_end.matches_any(radio::Event::READY::SET)
+        if (enabled_interrupts & nrf5x::constants::RADIO_INTENSET_END) > 0
+            && regs.event_end.get() == 1
         {
             self.handle_rx_end_event();
         }
@@ -519,17 +520,17 @@ impl Radio {
 
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.write(radio::Interrupt::ADDRESS::SET);
+        regs.intenset.set(nrf5x::constants::RADIO_INTENSET_ADDRESS);
     }
 
-    pub fn enable_interrupt(&self, intr: FieldValue<u32, radio::Interrupt::Register>) {
+    pub fn enable_interrupt(&self, intr: u32) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.write(intr);
+        regs.intenset.set(intr);
     }
 
-    pub fn clear_interrupt(&self, intr: FieldValue<u32, radio::Interrupt::Register>) {
+    pub fn clear_interrupt(&self, intr: u32) {
         let regs = unsafe { &*self.regs };
-        regs.intenclr.write(intr);
+        regs.intenclr.set(intr);
     }
 
     pub fn disable_all_interrupts(&self) {
@@ -605,8 +606,10 @@ impl Radio {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
     fn ble_set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
-        regs.crccnf
-            .write(radio::CrcConfiguration::LEN::THREE + radio::CrcConfiguration::SKIPADDR::EXCLUDE);
+        regs.crccnf.set(
+            nrf5x::constants::RADIO_CRCCNF_SKIPADDR << nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS
+                | nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES,
+        );
         self.ble_set_crcinit(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
@@ -640,21 +643,29 @@ impl Radio {
 
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
-        regs.pcnf0.write(
-            radio::PacketConfiguration0::LFLEN.val(8) + radio::PacketConfiguration0::S0LEN.val(1)
-                + radio::PacketConfiguration0::S1LEN::CLEAR
-                + radio::PacketConfiguration0::S1INCL::CLEAR
-                + radio::PacketConfiguration0::PLEN::EIGHT,
+        regs.pcnf0.set(
+            (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE << nrf5x::constants::RADIO_PCNF0_LFLEN_POS)
+                | (nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE
+                    << nrf5x::constants::RADIO_PCNF0_S0LEN_POS)
+                | (nrf5x::constants::RADIO_PCNF0_S1_ZERO << nrf5x::constants::RADIO_PCNF0_S1LEN_POS)
+                | (NRF52_RADIO_PCNF0_S1INCL_MSK << NRF52_RADIO_PCNFO_S1INCL_POS)
+                | (NRF52_RADIO_PCNF0_PLEN_8BITS << NRF52_RADIO_PCNF0_PLEN_POS),
         );
 
-        regs.pcnf1.write(
-            radio::PacketConfiguration1::WHITEEN::ENABLED + radio::PacketConfiguration1::ENDIAN::LITTLE
-                + radio::PacketConfiguration1::BALEN.val(3)
-                + radio::PacketConfiguration1::STATLEN::CLEAR
-                + radio::PacketConfiguration1::MAXLEN.val(255),
+        regs.pcnf1.set(
+            (nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED
+                << nrf5x::constants::RADIO_PCNF1_WHITEEN_POS)
+                | (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE
+                    << nrf5x::constants::RADIO_PCNF1_ENDIAN_POS)
+                | (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES
+                    << nrf5x::constants::RADIO_PCNF1_BALEN_POS)
+                | (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND
+                    << nrf5x::constants::RADIO_PCNF1_STATLEN_POS)
+                | (nrf5x::constants::RADIO_PCNF1_MAXLEN_255BYTES
+                    << nrf5x::constants::RADIO_PCNF1_MAXLEN_POS),
         );
 
-        regs.modecnf0.write(radio::RadioModeConfig::RU.val(1)); // FAST
+        regs.modecnf0.set(NRF52_RADIO_MODECNF0_RU_FAST);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
@@ -678,7 +689,7 @@ impl Radio {
     fn ble_set_channel(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
 
-        assert_eq!(nrf5x::constants::RADIO_STATE_DISABLE, regs.state.get());
+        // assert_eq!(nrf5x::constants::RADIO_STATE_DISABLE, regs.state.get());
 
         self.channel.set(Some(channel));
         regs.frequency.set(channel as u32);
@@ -735,7 +746,7 @@ impl ble_advertising_hil::BleConfig for Radio {
     // underlying chip must validate if the current `tx_power` is supported as well
     fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
         // Convert u8 to TxPower
-        match nrf5x::constants::TxPower::try_from(tx_power) {
+        match TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
             Err(_) => kernel::ReturnCode::ENOSUPPORT,
             // Valid transmitting power, propogate success

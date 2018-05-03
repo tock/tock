@@ -1,5 +1,4 @@
 use kernel::common::VolatileCell;
-use nrf5x;
 
 pub const PPI_BASE: usize = 0x4001F000;
 #[repr(C)]

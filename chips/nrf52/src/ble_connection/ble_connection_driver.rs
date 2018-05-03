@@ -126,14 +126,14 @@ impl ConnectionData {
 
         //Does the packet carry the sequence number that I expected?
         //If true, increment next_seq_nbr
-        let received_new_data_pdu: bool = (sn == self.next_seq_nbr);
+        let received_new_data_pdu: bool = sn == self.next_seq_nbr;
         if received_new_data_pdu {
             self.next_seq_nbr = (self.next_seq_nbr + 1) % 2; //flip the bit
         } //else it is resent data an next_seq_nbr shall not be changed
 
         //Does my peer expect the same sequence number as I am going to send?
         //If NOT equal, my peer did receive my previous packet. I should increment tansmit_seq_nbr
-        let resend_last_data_pdu: bool = (nesn == self.transmit_seq_nbr);
+        let resend_last_data_pdu: bool = nesn == self.transmit_seq_nbr;
         if !resend_last_data_pdu {
             self.transmit_seq_nbr = (self.transmit_seq_nbr + 1) % 2; //flip the bit
         }

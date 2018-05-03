@@ -213,7 +213,6 @@ use kernel;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
-use ble_connection::ble_pdu_parser::PACKET_ADDR_END;
 use ble_connection::ble_pdu_parser::PACKET_ADDR_START;
 use ble_connection::ble_pdu_parser::PACKET_HDR_LEN;
 use ble_connection::ble_pdu_parser::PACKET_HDR_PDU;
@@ -830,6 +829,7 @@ where
 
                     //TODO - for now, let the advertiser always set MoveToRX, change later
                     app.channel = Some(RadioChannel::AdvertisingChannel37);
+
                     app.prepare_advertisement(self, BLEAdvertisementType::ConnectUndirected);
                     self.transmit_buffer(appid);
                 }
@@ -1121,9 +1121,6 @@ where
                             ),
                             conn_supervision_timeout,
                         );
-                    }
-                    _ => {
-                        panic!("Timer expired but app has invalid state");
                     }
                 }
 

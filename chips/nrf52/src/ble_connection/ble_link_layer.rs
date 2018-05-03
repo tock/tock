@@ -1,4 +1,4 @@
-use ble_connection::ble_advertising_driver::{App, AppBLEState, BleLinkLayerState};
+use ble_connection::ble_advertising_driver::{App, AppBLEState};
 use ble_connection::ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
 use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
 use ble_connection::ble_connection_driver::ConnectionData;

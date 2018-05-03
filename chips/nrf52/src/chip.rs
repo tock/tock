@@ -7,6 +7,7 @@ use nrf5x::peripheral_interrupts::*;
 use radio;
 use spi;
 use uart;
+use ble_connection;
 
 pub struct NRF52 {
     mpu: cortexm4::mpu::MPU,
@@ -42,7 +43,7 @@ impl kernel::Chip for NRF52 {
                 match interrupt {
                     ECB => nrf5x::aes::AESECB.handle_interrupt(),
                     GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                    RADIO => radio::RADIO.handle_interrupt(),
+                    RADIO => ble_connection::radio::RADIO.handle_interrupt(),
                     RNG => nrf5x::trng::TRNG.handle_interrupt(),
                     RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
                     TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
