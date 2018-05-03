@@ -398,6 +398,8 @@ where
                         return;
                     }
 
+                    app.alarm_data.expiration = Expiration::Disabled;
+
                     match app.process_status {
                         Some(BLEState::AdvertisingIdle) => {
                             self.busy.set(true);
@@ -469,7 +471,6 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
-                        app.alarm_data.expiration = Expiration::Disabled;
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
                         self.radio
@@ -511,7 +512,6 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
-                        app.alarm_data.expiration = Expiration::Disabled;
                         self.sending_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
                         app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
