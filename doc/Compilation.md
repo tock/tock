@@ -20,8 +20,7 @@ of how platforms program each onto an actual board.
     + [Metadata](#metadata)
   * [Tock userland compilation environment](#tock-userland-compilation-environment)
     + [Customizing the build](#customizing-the-build)
-      - [
-      Flags](#flags)
+      - [Flags](#flags)
       - [Application configuration](#application-configuration)
       - [Advanced](#advanced)
     + [Compiling Libraries for Tock](#compiling-libraries-for-tock)

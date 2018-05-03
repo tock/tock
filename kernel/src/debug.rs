@@ -185,7 +185,7 @@ macro_rules! debug_gpio {
 // debug! and debug_verbose! support
 
 pub const APPID_IDX: usize = 255;
-const BUF_SIZE: usize = 4 * 4096;
+const BUF_SIZE: usize = 1024;
 
 pub struct DebugWriter {
     driver: Option<&'static Driver>,

@@ -21,7 +21,7 @@ int main(void) {
   uint16_t advertising_interval_ms = 300;
   uint8_t device_name[]            = "TockOS";
   uint16_t uuids[]                 = {0x1800, 0x1809};
-  uint8_t manufacturer_data[]      = {0x37, 0x13};
+  uint8_t manufacturer_data[]      = {0x13, 0x37};
   uint8_t fake_temperature_data[]  = {0x00, 0x00};
 
   // configure advertisement interval to 300ms
