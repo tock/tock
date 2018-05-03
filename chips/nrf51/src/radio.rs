@@ -16,10 +16,8 @@ use kernel;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::ble_advertising_hil::RadioChannel;
-//use nrf5x::ble_advertising_hil::{RadioChannel, DeviceAddress};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
-//use nrf5x::ble_advertising_driver::{BLEAdvertisementType, BLEPduType};
 
 static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
@@ -61,8 +59,8 @@ impl Radio {
         regs.prefix0.set(0x0000008e);
         regs.base0.set(0x89bed600);
 
-        self.set_tx_address(0x00); //If 1 - Transmit address select
-        self.set_rx_address(0x01); //If 1 - Receive address select
+        self.set_tx_address(0x00);
+        self.set_rx_address(0x01);
 
         // Set Packet Config
         self.set_packet_config(0x00);
@@ -84,16 +82,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         regs.ready.set(0);
         regs.rxen.set(1);
-    }
-
-    pub fn ble_set_access_address(&self, address: [u8; 4]) {
-        let regs = unsafe { &*self.regs };
-        let prefix: u32 = address[0] as u32;
-        let base: u32 =
-            (address[1] as u32) << 24 | (address[2] as u32) << 16 | (address[3] as u32) << 8;
-        regs.prefix1.set(prefix);
-        regs.base1.set(base);
-        regs.rxaddresses.set(0b010);
     }
 
     fn set_crc_config(&self) {
@@ -204,7 +192,7 @@ impl Radio {
 
         if regs.end.get() == 1 {
             regs.end.set(0);
-            //regs.disable.set(1);
+            regs.disable.set(1);
 
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
@@ -212,24 +200,12 @@ impl Radio {
                 ReturnCode::FAIL
             };
 
-            /*
-            let pdu = unsafe {
-                let parsed_type = BLEAdvertisementType::from_u8(&PAYLOAD[0] & 0x0f);
-                parsed_type.map(|adv_type| BLEPduType::from_buffer(adv_type, &PAYLOAD[..]) )
-            };
-
-            let addr = match pdu {
-                Some(BLEPduType::ScanRequest(_, a2)) => Some(a2),
-                _ => None
-            };
-            */
-
             match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    //self.radio_off();
+                    self.radio_off();
                     self.tx_client
                         .get()
                         .map(|client| client.transmit_event(result));
@@ -238,12 +214,10 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    //self.radio_off();
+                    self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-                            //if client.get_address() == addr {
                             client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
-                            //}
                         });
                     }
                 }
@@ -323,9 +297,5 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
                 kernel::ReturnCode::SUCCESS
             }
         }
-    }
-
-    fn set_access_address(&self, address: [u8; 4]) {
-        self.ble_set_access_address(address)
     }
 }
