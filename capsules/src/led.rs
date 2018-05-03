@@ -48,8 +48,8 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
 
-use kernel::{AppId, Driver, ReturnCode};
 use kernel::hil;
+use kernel::{AppId, Driver, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000002;

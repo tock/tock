@@ -50,9 +50,9 @@
 //!   of the button.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000003;
@@ -125,11 +125,16 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     ///   interrupt will be called with two parameters: the index of the button
     ///   that triggered the interrupt and the pressed/not pressed state of the
     ///   button.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => self.apps
-                .enter(callback.app_id(), |cntr, _| {
-                    cntr.0 = Some(callback);
+                .enter(app_id, |cntr, _| {
+                    cntr.0 = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

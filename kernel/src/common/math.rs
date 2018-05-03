@@ -95,3 +95,11 @@ pub fn log_base_two(num: u32) -> u32 {
         31 - num.leading_zeros()
     }
 }
+
+pub fn log_base_two_u64(num: u64) -> u32 {
+    if num == 0 {
+        0
+    } else {
+        63 - num.leading_zeros()
+    }
+}

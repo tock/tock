@@ -36,9 +36,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x80001;
 
 pub static mut BUFFER: [u8; 8] = [0; 8];
 
@@ -414,10 +417,15 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup a callback for when all events complete or data is ready.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

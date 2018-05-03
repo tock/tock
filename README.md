@@ -1,6 +1,6 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
-[![Build Status](https://travis-ci.org/helena-project/tock.svg?branch=master)](https://travis-ci.org/helena-project/tock)
+[![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
 [![irc](https://img.shields.io/badge/irc-%23tock-lightgrey.svg)](https://kiwiirc.com/client/irc.freenode.net/tock)
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
@@ -48,7 +48,7 @@ Tock's use of Rust, the build system, and applications.
 
 ### Keep Up To Date
 
-Check out the [blog](http://www.tockos.org/blog/) where the **Talking Tock**
+Check out the [blog](https://www.tockos.org/blog/) where the **Talking Tock**
 post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 

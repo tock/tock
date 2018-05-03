@@ -123,11 +123,11 @@ pub struct PacketSize(u32);
 impl PacketSize {
     pub fn new(byte_count: u32, multi_packet_size: u32, auto_zlp: bool) -> PacketSize {
         PacketSize(
-            (byte_count & 0x7fff) | ((multi_packet_size & 0x7fff) << 16) | ((if auto_zlp {
+            (byte_count & 0x7fff) | ((multi_packet_size & 0x7fff) << 16) | (if auto_zlp {
                 1 << 31
             } else {
                 0
-            })),
+            }),
         )
     }
 

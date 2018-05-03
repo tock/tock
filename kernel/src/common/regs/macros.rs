@@ -1,3 +1,6 @@
+//! Macros for cleanly defining peripheral registers.
+
+/// Helper macro for defining register fields.
 #[macro_export]
 macro_rules! register_bitmasks {
     {
@@ -97,6 +100,7 @@ macro_rules! register_bitmasks {
     };
 }
 
+/// Define register types and fields.
 #[macro_export]
 macro_rules! register_bitfields {
     {
@@ -106,6 +110,7 @@ macro_rules! register_bitfields {
             #[allow(non_snake_case)]
             $(#[$inner])*
             pub mod $reg {
+                #[derive(Clone, Copy)]
                 pub struct Register;
                 impl $crate::common::regs::RegisterLongName for Register {}
 

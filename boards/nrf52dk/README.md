@@ -41,7 +41,7 @@ Because the nRF52DK has integrated JTAG support, you can debug it
 directly using gdb. In this setup, gdb connects to a process that
 gives access to the device over JTAG. </br>
 
-There already exist prepared scripts to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/helena-project/tock/tree/master/boards/nrf52dk/jtag). </br>
+There already exist prepared scripts to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/tock/tock/tree/master/boards/nrf52dk/jtag). </br>
 Open two separate terminals go to the jtag directory by: </br>
 
 ```bash

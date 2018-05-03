@@ -35,7 +35,7 @@ impl<T> AppliedGrant<T> {
         R: Copy,
     {
         let mut allocator = Allocator {
-            app: unsafe { Some(process::PROCS[self.appid].as_mut().unwrap()) },
+            app: unsafe { process::PROCS[self.appid].as_mut() },
             app_id: self.appid,
         };
         let mut root = unsafe { Owned::new(self.grant, self.appid) };
@@ -44,7 +44,7 @@ impl<T> AppliedGrant<T> {
 }
 
 pub struct Allocator<'a> {
-    app: Option<&'a mut process::Process<'a>>,
+    app: Option<&'a mut &'a mut process::Process<'a>>,
     app_id: usize,
 }
 

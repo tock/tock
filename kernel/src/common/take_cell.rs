@@ -1,7 +1,7 @@
 //! Tock specific `Cell` types for sharing references.
 
-use core::{mem, ptr};
 use core::cell::{Cell, UnsafeCell};
+use core::{mem, ptr};
 
 /// A shared reference to a mutable reference.
 ///

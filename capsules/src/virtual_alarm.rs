@@ -123,16 +123,12 @@ impl<'a, Alrm: Alarm> MuxAlarm<'a, Alrm> {
     }
 }
 
-fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
-    now.wrapping_sub(prev) >= cur.wrapping_sub(prev)
+fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
+    now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
 impl<'a, Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
     fn fired(&self) {
-        // Disable the alarm. If there are remaining armed alarms at the end we
-        // will enable the alarm again via `set_alarm`
-        self.alarm.disable();
-
         let now = self.alarm.now();
 
         // Capture this before the loop because it can change while checking
@@ -143,31 +139,32 @@ impl<'a, Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
 
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the fired() callback.
-        for cur in self.virtual_alarms.iter() {
-            let should_fire = past_from_base(cur.when.get(), now + 100, prev);
-            if cur.armed.get() && should_fire {
+        self.virtual_alarms
+            .iter()
+            .filter(|cur| cur.armed.get() && has_expired(cur.when.get(), now, prev))
+            .for_each(|cur| {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
                 cur.fired();
-            }
-        }
+            });
 
         // Find the soonest alarm client (if any) and set the "next" underlying
-        // alarm based on it.
-        let mut next = None;
-        let mut min_distance: u32 = u32::max_value();
-        for cur in self.virtual_alarms.iter() {
-            if cur.armed.get() {
-                let distance = cur.when.get().wrapping_sub(now);
-                if cur.armed.get() && distance < min_distance {
-                    min_distance = distance;
-                    next = Some(cur);
-                }
-            }
-        }
+        // alarm based on it.  This needs to happen after firing all expired
+        // alarms since those may have reset new alarms.
+        let next = self.virtual_alarms
+            .iter()
+            .filter(|cur| cur.armed.get())
+            .min_by_key(|cur| cur.when.get().wrapping_sub(now));
 
         self.prev.set(now);
         // If there is an alarm to fire, set the underlying alarm to it
-        next.map(|valrm| self.alarm.set_alarm(valrm.when.get()));
+        if let Some(valrm) = next {
+            self.alarm.set_alarm(valrm.when.get());
+            if has_expired(valrm.when.get(), self.alarm.now(), prev) {
+                self.fired();
+            }
+        } else {
+            self.alarm.disable();
+        }
     }
 }

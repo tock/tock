@@ -157,6 +157,7 @@ SECTIONS
       _sstorage = .;
       *(.storage* storage*)
       _estorage = .;
+      . = ALIGN(512);
     } > rom
     . = ALIGN(512);
 
@@ -189,34 +190,13 @@ SECTIONS
 
 
 
-    /* Kernel data that must be relocated. This is program data that is
-     * exepected to live in SRAM, but is initialized with a value. This data is
-     * physically placed into flash and is copied into SRAM by Tock. The
-     * symbols here will be defined with addresses in SRAM.
-     *
-     * Tock assumes the relocation section follows all static elements and will
-     * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
-     */
-    .relocate : AT (_etext)
-    {
-        . = ALIGN(4);
-        _srelocate = .;
-        *(.ramfunc .ramfunc.*);
-        *(.data .data.*);
-
-        . = ALIGN(4);
-        _erelocate = .;
-    } > ram
-
-
-
-
-    .sram (NOLOAD) :
+    .stack (NOLOAD) :
     {
         /* Kernel stack.
          *
-         * To keep all kernel memory contiguous (eases MPU protection of kernel
-         * data), Tock next places its own stack into SRAM.
+         * Tock places the kernel stack at the bottom of SRAM so that the
+         * kernel will trigger memory fault if it exceeds its stack depth,
+         * rather than silently overwriting valuable data.
          */
         . = ALIGN(8);
          _sstack = .;
@@ -225,9 +205,34 @@ SECTIONS
 
         . = ALIGN(8);
         _estack = .;
+    } > ram
 
 
 
+    /* Kernel data that must be relocated. This is program data that is
+     * expected to live in SRAM, but is initialized with a value. This data is
+     * physically placed into flash and is copied into SRAM by Tock. The
+     * symbols here will be defined with addresses in SRAM.
+     *
+     * Tock assumes the relocation section follows all static elements and will
+     * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
+     */
+    .relocate :
+    {
+        . = ALIGN(4);
+        _srelocate = .;
+        *(.ramfunc .ramfunc.*);
+        *(.data .data.*);
+
+        . = ALIGN(4);
+        _erelocate = .;
+    } > ram AT > rom
+
+
+
+
+    .sram (NOLOAD) :
+    {
         /* Kernel BSS section. Memory that is expected to be initialized to
          * zero.
          *

@@ -40,7 +40,7 @@ extern "C" {
 
 #include "tock.h"
 
-#define DRIVER_NUM_APP_FLASH 30
+#define DRIVER_NUM_APP_FLASH 0x50000
 
 
 // Declare an application state structure

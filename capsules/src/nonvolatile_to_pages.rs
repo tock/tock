@@ -21,6 +21,7 @@
 //! -----
 //!
 //! ```
+//! sam4l::flashcalw::FLASH_CONTROLLER.configure();
 //! pub static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //! let nv_to_page = static_init!(
 //!     capsules::nonvolatile_to_pages::NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
@@ -32,9 +33,9 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 /// This module is either waiting to do something, or handling a read/write.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -84,7 +85,8 @@ impl<'a, F: hil::flash::Flash + 'a> NonvolatileToPages<'a, F> {
 }
 
 impl<'a, F: hil::flash::Flash + 'a> hil::nonvolatile_storage::NonvolatileStorage
-    for NonvolatileToPages<'a, F> {
+    for NonvolatileToPages<'a, F>
+{
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(Some(client));
     }

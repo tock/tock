@@ -32,3 +32,9 @@ impl Pinmux {
         }
     }
 }
+
+impl Into<u32> for Pinmux {
+    fn into(self) -> u32 {
+        self.0
+    }
+}

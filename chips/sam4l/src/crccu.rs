@@ -49,8 +49,8 @@
 // - Support continuous-mode CRC
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::hil::crc::{self, CrcAlg};
+use kernel::ReturnCode;
 use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 
 // A memory-mapped register
@@ -261,11 +261,9 @@ impl<'a> Crccu<'a> {
     pub fn enable(&self) {
         if self.state.get() != State::Enabled {
             self.init();
-            unsafe {
-                // see "10.7.4 Clock Mask"
-                enable_clock(Clock::HSB(HSBClock::CRCCU));
-                enable_clock(Clock::PBB(PBBClock::CRCCU));
-            }
+            // see "10.7.4 Clock Mask"
+            enable_clock(Clock::HSB(HSBClock::CRCCU));
+            enable_clock(Clock::PBB(PBBClock::CRCCU));
             self.state.set(State::Enabled);
         }
     }
@@ -273,10 +271,8 @@ impl<'a> Crccu<'a> {
     /// Disable the CRCCU's clocks and interrupt
     pub fn disable(&self) {
         if self.state.get() == State::Enabled {
-            unsafe {
-                disable_clock(Clock::PBB(PBBClock::CRCCU));
-                disable_clock(Clock::HSB(HSBClock::CRCCU));
-            }
+            disable_clock(Clock::PBB(PBBClock::CRCCU));
+            disable_clock(Clock::HSB(HSBClock::CRCCU));
             self.state.set(State::Initialized);
         }
     }

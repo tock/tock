@@ -2,8 +2,6 @@
 
 set -e
 
-export RUSTUP_TOOLCHAIN=nightly-2018-01-05
-
 # Verify that we're running in the base directory
 if [ ! -x tools/run_cargo_fmt.sh ]; then
 	echo ERROR: $0 must be run from the tock repository root.

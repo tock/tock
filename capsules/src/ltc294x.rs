@@ -44,11 +44,14 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x80000;
 
 pub static mut BUFFER: [u8; 20] = [0; 20];
 
@@ -476,10 +479,15 @@ impl<'a> Driver for LTC294XDriver<'a> {
     ///   - `3`: `done()` was called.
     ///   - `4`: Read the voltage.
     ///   - `5`: Read the current.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

@@ -66,10 +66,10 @@
 //! the SAM4L.
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::process::Error;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x40002;
@@ -170,12 +170,17 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
     ///
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
             0 => self.apps
                 .enter(appid, |app, _| {
-                    app.buffer = Some(slice);
+                    app.buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),
@@ -200,12 +205,17 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ///
     ///   * `result` is the result of the CRC computation when `status == EBUSY`.
     ///
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
             0 => self.apps
-                .enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

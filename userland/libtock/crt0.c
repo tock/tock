@@ -1,5 +1,16 @@
 #include <tock.h>
 
+#if defined(STACK_SIZE)
+#warning Attempt to compile libtock with a fixed STACK_SIZE.
+#warning
+#warning Instead, STACK_SIZE should be a variable that is linked in,
+#warning usually at compile time via something like this:
+#warning   `gcc ... -Xlinker --defsym=STACK_SIZE=2048`
+#warning
+#warning This allows applications to set their own STACK_SIZE.
+#error Fixed STACK_SIZE.
+#endif
+
 extern int main(void);
 
 // Allow _start to go undeclared
@@ -28,9 +39,11 @@ struct hdr {
   uint32_t bss_start;
   // Size of BSS section
   uint32_t bss_size;
-  // First address offset after program flash, where elf2tbf places
+  // First address offset after program flash, where elf2tab places
   // .rel.data section
   uint32_t reldata_start;
+  // The size of the stack requested by this application
+  uint32_t stack_size;
 };
 
 struct reldata {
@@ -41,15 +54,47 @@ struct reldata {
 __attribute__ ((section(".start"), used))
 __attribute__ ((weak))
 __attribute__ ((noreturn))
-void _start(void* text_start,
+void _start(void* app_start,
             void* mem_start,
             void* memory_len __attribute__((unused)),
             void* app_heap_break __attribute__((unused))) {
 
-  // Allocate stack and data. `brk` to STACK_SIZE + got_size + data_size +
-  // bss_size from start of memory
-  uint32_t stacktop = (uint32_t)mem_start + STACK_SIZE;
-  struct hdr* myhdr = (struct hdr*)text_start;
+  // Allocate stack and data. `brk` to stack_size + got_size + data_size +
+  // bss_size from start of memory. Also make sure that the stack starts on an
+  // 8 byte boundary per section 5.2.1.2 here:
+  // http://infocenter.arm.com/help/topic/com.arm.doc.ihi0042f/IHI0042F_aapcs.pdf
+  struct hdr* myhdr = (struct hdr*)app_start;
+  uint32_t stacktop = (((uint32_t)mem_start + myhdr->stack_size + 7) & 0xfffffff8);
+
+  // fix up GOT
+  volatile uint32_t* got_start     = (uint32_t*)(myhdr->got_start + stacktop);
+  volatile uint32_t* got_sym_start = (uint32_t*)(myhdr->got_sym_start + (uint32_t)app_start);
+  for (uint32_t i = 0; i < (myhdr->got_size / (uint32_t)sizeof(uint32_t)); i++) {
+    if ((got_sym_start[i] & 0x80000000) == 0) {
+      got_start[i] = got_sym_start[i] + stacktop;
+    } else {
+      got_start[i] = (got_sym_start[i] ^ 0x80000000) + (uint32_t)app_start;
+    }
+  }
+
+  // load data section
+  void* data_start     = (void*)(myhdr->data_start + stacktop);
+  void* data_sym_start = (void*)(myhdr->data_sym_start + (uint32_t)app_start);
+  memcpy(data_start, data_sym_start, myhdr->data_size);
+
+  // zero BSS
+  char* bss_start = (char*)(myhdr->bss_start + stacktop);
+  memset(bss_start, 0, myhdr->bss_size);
+
+  struct reldata* rd = (struct reldata*)(myhdr->reldata_start + (uint32_t)app_start);
+  for (uint32_t i = 0; i < (rd->len / (int)sizeof(uint32_t)); i += 2) {
+    uint32_t* target = (uint32_t*)(rd->data[i] + stacktop);
+    if ((*target & 0x80000000) == 0) {
+      *target += stacktop;
+    } else {
+      *target = (*target ^ 0x80000000) + (uint32_t)app_start;
+    }
+  }
 
   {
     uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
@@ -58,36 +103,6 @@ void _start(void* text_start,
     memop(10, stacktop);
     asm volatile ("mov sp, %[stacktop]" :: [stacktop] "r" (stacktop) : "memory");
     asm volatile ("mov r9, sp");
-  }
-
-  // fix up GOT
-  volatile uint32_t* got_start     = (uint32_t*)(myhdr->got_start + stacktop);
-  volatile uint32_t* got_sym_start = (uint32_t*)(myhdr->got_sym_start + (uint32_t)text_start);
-  for (uint32_t i = 0; i < (myhdr->got_size / (uint32_t)sizeof(uint32_t)); i++) {
-    if ((got_sym_start[i] & 0x80000000) == 0) {
-      got_start[i] = got_sym_start[i] + stacktop;
-    } else {
-      got_start[i] = (got_sym_start[i] ^ 0x80000000) + (uint32_t)text_start;
-    }
-  }
-
-  // load data section
-  void* data_start     = (void*)(myhdr->data_start + stacktop);
-  void* data_sym_start = (void*)(myhdr->data_sym_start + (uint32_t)text_start);
-  memcpy(data_start, data_sym_start, myhdr->data_size);
-
-  // zero BSS
-  char* bss_start = (char*)(myhdr->bss_start + stacktop);
-  memset(bss_start, 0, myhdr->bss_size);
-
-  struct reldata* rd = (struct reldata*)(myhdr->reldata_start + (uint32_t)text_start);
-  for (uint32_t i = 0; i < (rd->len / (int)sizeof(uint32_t)); i += 2) {
-    uint32_t* target = (uint32_t*)(rd->data[i] + stacktop);
-    if ((*target & 0x80000000) == 0) {
-      *target += stacktop;
-    } else {
-      *target = (*target ^ 0x80000000) + (uint32_t)text_start;
-    }
   }
 
   main();

@@ -2,7 +2,7 @@
 
 #include "tock.h"
 
-#define DRIVER_NUM_NONVOLATILE_STORAGE 27
+#define DRIVER_NUM_NONVOLATILE_STORAGE 0x50001
 
 #ifdef __cplusplus
 extern "C" {

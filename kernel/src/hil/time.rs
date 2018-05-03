@@ -3,8 +3,10 @@
 pub trait Time {
     type Frequency: Frequency;
 
+    /// Disable any outstanding alarm or timer
     fn disable(&self);
 
+    /// Returns whether a timer or alarm is currently armed
     fn is_armed(&self) -> bool;
 }
 
@@ -14,6 +16,15 @@ pub trait Time {
 /// convert native cycles to real-time values.
 pub trait Frequency {
     fn frequency() -> u32;
+}
+
+/// 16MHz `Frequency`
+#[derive(Debug)]
+pub struct Freq16MHz;
+impl Frequency for Freq16MHz {
+    fn frequency() -> u32 {
+        16000000
+    }
 }
 
 /// 32KHz `Frequency`

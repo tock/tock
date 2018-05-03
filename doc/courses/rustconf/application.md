@@ -17,12 +17,12 @@ Tock, and build our own applications in Rust.
 
 First, clone the tock-rust-template repository.
 
-         $ git clone https://github.com/helena-project/tock-rust-template.git
+         $ git clone https://github.com/tock/tock-rust-template.git
 
 This is the base for Tock applications written in Rust. Your code goes in the
-`src` folder in `main.rs`. The `Cargo` and `Xargo` files are Rust build
+`src` folder in `main.rs`. The `Cargo` files are Rust build
 configurations. The `thumbv7em-tock-eabi.json` and `layout.ld` files are code
-compilation configurations. The Makefile uses `xargo` to create ELF files, and
+compilation configurations. The Makefile uses `cargo` to create ELF files, and
 several scripts in `tools/` to build Tock binaries, with all built output going
 in the directory `target/thumb7em-tock-eabi/release/`.
 
@@ -33,7 +33,7 @@ and then prints a message through it via the `write!` macro. The
 `write_fmt` function inside of `write!` work. Note that `write!` returns a
 `Result`, which we call unwrap on to handle.
 
-We also use the [Tock crate](https://github.com/helena-project/libtock-rs)
+We also use the [Tock crate](https://github.com/tock/libtock-rs)
 which contains the Rust library for interacting with a Tock kernel. Two pieces
 of Tock functionality which we will explain here are the Console and Timer
 modules that the Tock crate exports.
@@ -113,7 +113,7 @@ explained above, as well as the Rust
 
 Now that we have the ability to write Tock applications in Rust, lets do
 something a little more complex. The Hail board you are using has several
-sensors on it [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png).
+sensors on it [as shown here](https://github.com/tock/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png).
 These sensors include a light sensor, a humidity and temperature sensor, and an
 acceleration and magnetic field sensor (marked as accelerometer in the
 picture). Each sensing medium can be accessed separately through the Tock

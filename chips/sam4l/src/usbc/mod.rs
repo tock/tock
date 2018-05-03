@@ -12,8 +12,8 @@ use self::registers::*;
 use core::cell::Cell;
 use core::fmt;
 use core::slice;
-use kernel::common::VolatileCell;
 use kernel::common::take_cell::MapCell;
+use kernel::common::VolatileCell;
 use kernel::hil;
 use kernel::hil::usb::*;
 use pm;
@@ -168,43 +168,41 @@ impl<'a> Usbc<'a> {
         self.state.map(|state| {
             match *state {
                 State::Reset => {
-                    unsafe {
-                        // Are the USBC clocks enabled at reset?
-                        //   10.7.4 says no, but 17.5.3 says yes
-                        // Also, "Being in Idle state does not require the USB clocks to
-                        //   be activated" (17.6.2)
-                        enable_clock(Clock::HSB(HSBClock::USBC));
-                        enable_clock(Clock::PBB(PBBClock::USBC));
+                    // Are the USBC clocks enabled at reset?
+                    //   10.7.4 says no, but 17.5.3 says yes
+                    // Also, "Being in Idle state does not require the USB clocks to
+                    //   be activated" (17.6.2)
+                    enable_clock(Clock::HSB(HSBClock::USBC));
+                    enable_clock(Clock::PBB(PBBClock::USBC));
 
-                        // If we got to this state via disable() instead of chip reset,
-                        // the values USBCON.FRZCLK, USBCON.UIMOD, UDCON.LS have *not* been
-                        // reset to their default values.
+                    // If we got to this state via disable() instead of chip reset,
+                    // the values USBCON.FRZCLK, USBCON.UIMOD, UDCON.LS have *not* been
+                    // reset to their default values.
 
-                        if let Mode::Device { speed, .. } = mode {
-                            UDCON_LS.write(speed)
-                        }
-
-                        USBCON_UIMOD.write(mode); // see registers.rs: maybe wrong bit?
-                        USBCON_FRZCLK.write(false);
-                        USBCON_USBE.write(true);
-
-                        UDESC.write(&self.descriptors as *const _ as u32);
-
-                        // Device interrupts
-                        let udints = // UDINT_SUSP |
-                                     // UDINT_SOF |
-                                     UDINT_EORST |
-                                     UDINT_EORSM |
-                                     UDINT_UPRSM;
-
-                        // Clear pending device global interrupts
-                        UDINTCLR.write(udints);
-
-                        // Enable device global interrupts
-                        UDINTESET.write(udints);
-
-                        debug!("Enabled.");
+                    if let Mode::Device { speed, .. } = mode {
+                        UDCON_LS.write(speed)
                     }
+
+                    USBCON_UIMOD.write(mode); // see registers.rs: maybe wrong bit?
+                    USBCON_FRZCLK.write(false);
+                    USBCON_USBE.write(true);
+
+                    UDESC.write(&self.descriptors as *const _ as u32);
+
+                    // Device interrupts
+                    let udints = // UDINT_SUSP |
+                                 // UDINT_SOF |
+                                 UDINT_EORST |
+                                 UDINT_EORSM |
+                                 UDINT_UPRSM;
+
+                    // Clear pending device global interrupts
+                    UDINTCLR.write(udints);
+
+                    // Enable device global interrupts
+                    UDINTESET.write(udints);
+
+                    debug!("Enabled.");
                     *state = State::Idle(mode);
                 }
                 _ => client_err!("Already enabled"),
@@ -227,12 +225,11 @@ impl<'a> Usbc<'a> {
 
         self.state.map(|state| {
             if *state != State::Reset {
-                unsafe {
-                    USBCON_USBE.write(false);
+                USBCON_USBE.write(false);
 
-                    disable_clock(Clock::PBB(PBBClock::USBC));
-                    disable_clock(Clock::HSB(HSBClock::USBC));
-                }
+                disable_clock(Clock::PBB(PBBClock::USBC));
+                disable_clock(Clock::HSB(HSBClock::USBC));
+
                 *state = State::Reset;
             }
         });

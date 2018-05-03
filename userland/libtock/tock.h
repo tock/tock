@@ -59,7 +59,15 @@ bool driver_exists(uint32_t driver);
 #define TOCK_EUNINSTALLED -12
 #define TOCK_ENOACK       -13
 
+// Pass this to the subscribe syscall as a function pointer to deactivate the callback.
+#define TOCK_DEACTIVATE_CALLBACK    0
+
+// Pass this to the allow syscall as pointer to revoke the "allow"-syscall.
+#define TOCK_REVOKE_ALLOW           0
+
 const char* tock_strerror(int tock_errno);
+void tock_expect(int expected, int actual, const char* file, unsigned line);
+#define TOCK_EXPECT(_e, _a) tock_expect((_e), (_a), __FILE__, __LINE__)
 
 #ifdef __cplusplus
 }

@@ -11,8 +11,8 @@ extern crate kernel;
 
 pub mod mpu;
 pub mod nvic;
-pub mod systick;
 pub mod scb;
+pub mod systick;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}
@@ -107,13 +107,11 @@ _ggeneric_isr_no_stacking:
 }
 
 #[cfg(not(target_os = "none"))]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {}
+pub unsafe extern "C" fn svc_handler() {}
 
 #[cfg(target_os = "none")]
 #[naked]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {
+pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
   cmp lr, #0xfffffff9

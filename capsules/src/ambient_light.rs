@@ -9,8 +9,8 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60002;
@@ -62,11 +62,16 @@ impl<'a> Driver for AmbientLight<'a> {
     ///
     /// - `0`: Subscribe to light intensity readings. The callback signature is
     /// `fn(lux: usize)`, where `lux` is the light intensity in lux (lx).
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => self.apps
-                .enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

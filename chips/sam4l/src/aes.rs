@@ -1,7 +1,10 @@
-//! Implementation of the AESA peripheral on the SAM4L
-//! Authors: Daniel Giffin  <daniel@beech-grove.net>
-//!          Hubert Teo <hubert.teo.hk@gmail.com>
-//!          Brad Campbell <bradjc5@gmail.com>
+//! Implementation of the AESA peripheral on the SAM4L.
+//!
+//! Authors:
+//!
+//! - Daniel Giffin  <daniel@beech-grove.net>
+//! - Hubert Teo <hubert.teo.hk@gmail.com>
+//! - Brad Campbell <bradjc5@gmail.com>
 //!
 //! Converted to new register abstraction by Philip Levis <pal@cs.stanford.edu>
 
@@ -168,22 +171,18 @@ impl<'a> Aes<'a> {
     }
 
     fn enable_clock(&self) {
-        unsafe {
-            pm::enable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
-            scif::generic_clock_enable_divided(
-                scif::GenericClock::GCLK4,
-                scif::ClockSource::CLK_CPU,
-                1,
-            );
-            scif::generic_clock_enable(scif::GenericClock::GCLK4, scif::ClockSource::CLK_CPU);
-        }
+        pm::enable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
+        scif::generic_clock_enable_divided(
+            scif::GenericClock::GCLK4,
+            scif::ClockSource::CLK_CPU,
+            1,
+        );
+        scif::generic_clock_enable(scif::GenericClock::GCLK4, scif::ClockSource::CLK_CPU);
     }
 
     fn disable_clock(&self) {
-        unsafe {
-            scif::generic_clock_disable(scif::GenericClock::GCLK4);
-            pm::disable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
-        }
+        scif::generic_clock_disable(scif::GenericClock::GCLK4);
+        pm::disable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
     }
 
     fn enable_interrupts(&self) {

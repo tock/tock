@@ -27,7 +27,7 @@ for mkfile in `find . -maxdepth 3 -name Makefile`; do
 
 	pushd $dir > /dev/null
 	echo ""
-	echo "Fromatting $dir"
+	echo "Formatting $dir"
 	make format || (echo "${bold} ⤤ Failure formatting $dir${normal}" ; opt_rebuild $dir; exit 1)
 	popd > /dev/null
 done

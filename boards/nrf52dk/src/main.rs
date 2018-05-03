@@ -62,13 +62,12 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib)]
+#![feature(lang_items)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;
@@ -93,8 +92,11 @@ const BUTTON_RST_PIN: usize = 21;
 #[macro_use]
 pub mod io;
 
+// FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
+//
+// Also read the instructions in `tests` how to run the tests
 #[allow(dead_code)]
-mod aes_test;
+mod tests;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -106,17 +108,18 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
+    ble_radio: &'static nrf52::ble_connection::ble_advertising_driver::BLE<
         'static,
-        nrf52::radio::Radio,
+        nrf52::ble_connection::radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
+    console: &'static capsules::console::Console<'static, nrf52::uart::Uarte>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
@@ -140,7 +143,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -154,9 +157,9 @@ pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52::init();
 
-    // make non-volatile memory writable and activate the reset button (pin 21)
-    let nvmc = nrf52::nvmc::NVMC::new();
-    let uicr = nrf52::uicr::UICR::new();
+    // Make non-volatile memory writable and activate the reset button (pin 21)
+    let nvmc = nrf52::nvmc::Nvmc::new();
+    let uicr = nrf52::uicr::Uicr::new();
     nvmc.configure_writeable();
     while !nvmc.is_ready() {}
     uicr.set_psel0_reset_pin(BUTTON_RST_PIN);
@@ -181,8 +184,15 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[25],
             &nrf5x::gpio::PORT[24],
             &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22] // -----
+            &nrf5x::gpio::PORT[22], // -----
         ]
+    );
+
+    // Configure kernel debug gpios as early as possible
+    kernel::debug::assign_gpios(
+        Some(&nrf5x::gpio::PORT[LED1_PIN]),
+        Some(&nrf5x::gpio::PORT[LED2_PIN]),
+        Some(&nrf5x::gpio::PORT[LED3_PIN]),
     );
 
     let gpio = static_init!(
@@ -239,7 +249,7 @@ pub unsafe fn reset_handler() {
             (
                 &nrf5x::gpio::PORT[BUTTON4_PIN],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // 16
+            ), // 16
         ]
     );
     let button = static_init!(
@@ -277,22 +287,23 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
 
-    nrf52::uart::UART0.configure(
+    nrf52::uart::UARTE0.configure(
         nrf5x::pinmux::Pinmux::new(6), // tx
         nrf5x::pinmux::Pinmux::new(8), // rx
         nrf5x::pinmux::Pinmux::new(7), // cts
         nrf5x::pinmux::Pinmux::new(5),
     ); // rts
     let console = static_init!(
-        capsules::console::Console<nrf52::uart::UARTE>,
+        capsules::console::Console<nrf52::uart::Uarte>,
         capsules::console::Console::new(
-            &nrf52::uart::UART0,
+            &nrf52::uart::UARTE0,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
-    kernel::hil::uart::UART::set_client(&nrf52::uart::UART0, console);
+    kernel::hil::uart::UART::set_client(&nrf52::uart::UARTE0, console);
     console.initialize();
 
     // Attach the kernel debug interface to this console
@@ -300,28 +311,28 @@ pub unsafe fn reset_handler() {
     kernel::debug::assign_console_driver(Some(console), kc);
 
     let ble_radio = static_init!(
-        nrf5x::ble_advertising_driver::BLE<
+        nrf52::ble_connection::ble_advertising_driver::BLE<
             'static,
-            nrf52::radio::Radio,
+            nrf52::ble_connection::radio::Radio,
             VirtualMuxAlarm<'static, Rtc>,
         >,
-        nrf5x::ble_advertising_driver::BLE::new(
-            &mut nrf52::radio::RADIO,
+        nrf52::ble_connection::ble_advertising_driver::BLE::new(
+            &mut nrf52::ble_connection::radio::RADIO,
             kernel::Grant::create(),
-            &mut nrf5x::ble_advertising_driver::BUF,
+            &mut nrf52::ble_connection::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
     );
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_receive_client(
-        &nrf52::radio::RADIO,
+    nrf52::ble_connection::ble_advertising_hil::BleAdvertisementDriver::set_receive_client(
+        &nrf52::ble_connection::radio::RADIO,
         ble_radio,
     );
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::radio::RADIO,
+    nrf52::ble_connection::ble_advertising_hil::BleAdvertisementDriver::set_transmit_client(
+        &nrf52::ble_connection::radio::RADIO,
         ble_radio,
     );
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_advertisement_client(
-        &nrf52::radio::RADIO,
+    nrf52::ble_connection::ble_advertising_hil::BleAdvertisementDriver::set_advertisement_client(
+        &nrf52::ble_connection::radio::RADIO,
         ble_radio,
     );
     ble_radio_virtual_alarm.set_client(ble_radio);
@@ -343,17 +354,17 @@ pub unsafe fn reset_handler() {
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf5x::clock::CLOCK.low_stop();
-    nrf5x::clock::CLOCK.high_stop();
+    nrf52::clock::CLOCK.low_stop();
+    nrf52::clock::CLOCK.high_stop();
 
-    nrf5x::clock::CLOCK.low_set_source(nrf5x::clock::LowClockSource::XTAL);
-    nrf5x::clock::CLOCK.low_start();
-    nrf5x::clock::CLOCK.high_start();
-    while !nrf5x::clock::CLOCK.low_started() {}
-    while !nrf5x::clock::CLOCK.high_started() {}
+    nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
+    nrf52::clock::CLOCK.low_start();
+    nrf52::clock::CLOCK.high_set_source(nrf52::clock::HighClockSource::XTAL);
+    nrf52::clock::CLOCK.high_start();
+    while !nrf52::clock::CLOCK.low_started() {}
+    while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        // aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,
@@ -368,6 +379,8 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf52::chip::NRF52::new();
 
     debug!("Initialization complete. Entering main loop\r");
+    debug!("{}", &nrf52::ficr::FICR_INSTANCE);
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

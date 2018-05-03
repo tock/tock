@@ -40,7 +40,7 @@ extern "C" {
                           -> *mut u8;
 }
 
-pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
+pub static mut PROCS: &'static mut [Option<&mut Process<'static>>] = &mut [];
 
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
@@ -54,7 +54,7 @@ pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 /// selected.
 pub unsafe fn load_processes(start_of_flash: *const u8,
                              app_memory: &mut [u8],
-                             procs: &mut [Option<Process<'static>>],
+                             procs: &mut [Option<&mut Process<'static>>],
                              fault_response: FaultResponse) {
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
@@ -913,7 +913,7 @@ impl<'a> Process<'a> {
                          remaining_app_memory: *mut u8,
                          remaining_app_memory_size: usize,
                          fault_response: FaultResponse)
-                         -> (Option<Process<'a>>, usize, usize) {
+                         -> (Option<&'static mut Process<'a>>, usize, usize) {
         if let Some(tbf_header) = parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
 
@@ -924,7 +924,7 @@ impl<'a> Process<'a> {
             }
 
             // Otherwise, actually load the app.
-            let min_app_ram_size = tbf_header.get_minimum_app_ram_size();
+            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
             let package_name = tbf_header.get_package_name(app_flash_address);
             let init_fn = app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
             let needs_pic_fixup = tbf_header.needs_pic_fixup();
@@ -933,11 +933,35 @@ impl<'a> Process<'a> {
             if let Some(load_result) =
                 load(tbf_header, remaining_app_memory) {
 
+                // First determine how much space we need in the application's
+                // memory space just for kernel and grant state. We need to make
+                // sure we allocate enough memory just for that.
+
+                // Make room for grant pointers.
+                let grant_ptr_size = mem::size_of::<*const usize>();
+                let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+                let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+
+                // Allocate memory for callback ring buffer.
+                let callback_size = mem::size_of::<Task>();
+                let callback_len = 10;
+                let callbacks_offset = callback_len * callback_size;
+
+                // Make room to store this process's metadata.
+                let process_struct_offset = mem::size_of::<Process>();
+
+                // Need to make sure that the amount of memory we allocate for
+                // this process at least covers this state.
+                if min_app_ram_size < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32 {
+                    min_app_ram_size = (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
+                }
+
                 // TODO round app_ram_size up to a closer MPU unit.
                 // This is a very conservative approach that rounds up to power of
                 // two. We should be able to make this closer to what we actually need.
                 let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
 
+                // Check that we can actually give this app this much memory.
                 if app_ram_size > remaining_app_memory_size {
                     panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
                            package_name,
@@ -951,29 +975,29 @@ impl<'a> Process<'a> {
                 let mut kernel_memory_break = app_memory.as_mut_ptr()
                     .offset(app_memory.len() as isize);
 
-                // Make room for grant pointers.
-                let pointer_size = mem::size_of::<*const usize>();
-                let num_ctrs = read_volatile(&grant::CONTAINER_COUNTER);
-                let grant_ptrs_size = num_ctrs * pointer_size;
-                kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_size as isize));
+                // Now that we know we have the space we can setup the grant
+                // pointers.
+                kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
                 // Set all pointers to null.
                 let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize,
-                                                     num_ctrs);
+                                                     grant_ptrs_num);
                 for opt in opts.iter_mut() {
                     *opt = ptr::null()
                 }
 
-                // Allocate memory for callback ring buffer.
-                let callback_size = mem::size_of::<Task>();
-                let callback_len = 10;
-                let callback_offset = callback_len * callback_size;
-                kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
+                // Now that we know we have the space we can setup the memory
+                // for the callbacks.
+                kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
 
                 // Set up ring buffer.
                 let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
                                                              callback_len);
                 let tasks = RingBuffer::new(callback_buf);
+
+                // Last thing is the process struct.
+                kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
+                let process_struct_memory_location = kernel_memory_break;
 
                 // Determine the debug information to the best of our
                 // understanding. If the app is doing all of the PIC fixup and
@@ -985,40 +1009,39 @@ impl<'a> Process<'a> {
                     app_stack_start_pointer = Some(load_result.initial_stack_pointer);
                 }
 
-                let mut process = Process {
-                    memory: app_memory,
+                // Create the Process struct in the app grant region.
+                let mut process: &mut Process = mem::transmute(process_struct_memory_location);
 
-                    header: load_result.header,
+                process.memory = app_memory;
+                process.header = load_result.header;
+                process.kernel_memory_break = kernel_memory_break;
+                process.app_break = load_result.initial_sbrk_pointer;
+                process.current_stack_pointer = load_result.initial_stack_pointer;
 
-                    kernel_memory_break: kernel_memory_break,
-                    app_break: load_result.initial_sbrk_pointer,
-                    current_stack_pointer: load_result.initial_stack_pointer,
+                process.text = slice::from_raw_parts(app_flash_address, app_flash_size);
 
-                    text: slice::from_raw_parts(app_flash_address, app_flash_size),
+                process.stored_regs = Default::default();
+                process.yield_pc = init_fn;
+                // Set the Thumb bit and clear everything else
+                process.psr = 0x01000000;
 
-                    stored_regs: Default::default(),
-                    yield_pc: init_fn,
-                    // Set the Thumb bit and clear everything else
-                    psr: 0x01000000,
+                process.state = State::Yielded;
+                process.fault_response = fault_response;
 
-                    state: State::Yielded,
-                    fault_response: fault_response,
+                process.mpu_regions = [Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                              Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                              Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                              Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                              Cell::new((ptr::null(), math::PowerOfTwo::zero()))];
+                process.tasks = tasks;
+                process.package_name = package_name;
 
-                    mpu_regions: [Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                                  Cell::new((ptr::null(), math::PowerOfTwo::zero()))],
-                    tasks: tasks,
-                    package_name: package_name,
-
-                    debug: ProcessDebug {
-                        app_heap_start_pointer: app_heap_start_pointer,
-                        app_stack_start_pointer: app_stack_start_pointer,
-                        min_stack_pointer: load_result.initial_stack_pointer,
-                        syscall_count: Cell::new(0),
-                        last_syscall: Cell::new(None),
-                    }
+                process.debug = ProcessDebug {
+                    app_heap_start_pointer: app_heap_start_pointer,
+                    app_stack_start_pointer: app_stack_start_pointer,
+                    min_stack_pointer: load_result.initial_stack_pointer,
+                    syscall_count: Cell::new(0),
+                    last_syscall: Cell::new(None),
                 };
 
                 if (init_fn & 0x1) != 1 {
@@ -1598,7 +1621,7 @@ unsafe fn load(tbf_header: TbfHeader,
                -> Option<LoadResult> {
     if tbf_header.needs_pic_fixup() {
         unimplemented!("Kernel PIC fixup has been deprecated and removed. See \
-                       https://github.com/helena-project/tock/pull/714 for \
+                       https://github.com/tock/tock/pull/714 for \
                        more information");
     } else {
         // No PIC fixup requested from the kernel. We only need to set an
@@ -1606,8 +1629,8 @@ unsafe fn load(tbf_header: TbfHeader,
         // own.
         let load_result = LoadResult {
             // Set the initial stack and process memory size to 64 bytes.
-            initial_stack_pointer: mem_base.offset(64),
-            initial_sbrk_pointer: mem_base.offset(64),
+            initial_stack_pointer: mem_base.offset(128),
+            initial_sbrk_pointer: mem_base.offset(128),
             header: tbf_header,
         };
 

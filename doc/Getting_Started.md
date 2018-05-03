@@ -6,16 +6,38 @@ developing Tock.
 
 ## Requirements
 
-1. [Rust](http://www.rust-lang.org/) (install `rustup` so Tock will choose the right version automatically)
-2. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
+1. [Rust](http://www.rust-lang.org/)
+2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
 3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 4. Command line utilities: wget, sed, make, cmake
 
+### Super Quick Setup
+
+MacOS:
+```
+$ curl https://sh.rustup.rs -sSf | sh
+$ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
+$ pip3 install tockloader
+```
+
+Ubuntu:
+```
+$ curl https://sh.rustup.rs -sSf | sh
+$ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
+$ pip3 install tockloader --user
+$ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
+```
+
+Then build the kernel by running `make` in the `boards/<platform>` directory.
+
 ### Installing Requirements
+
+These steps go into a little more depth. Note that the build system is capable
+of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `rustc 1.24.0-nightly (8e7a609e6 2018-01-04)`. We recommend
+We are using `nightly-2018-04-19`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -30,17 +52,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2018-01-05
-```
-
-#### Xargo
-
-Rust core libraries for ARM Cortex-M target do not come with `rustup` by
-default, so we use [`xargo`](https://github.com/japaric/xargo), a wrapper
-around `cargo`, which compiles these libraries.
-
-```bash
-$ cargo install xargo
+$ rustup install nightly-2018-04-19
 ```
 
 #### `arm-none-eabi` toolchain
@@ -168,7 +180,7 @@ $ make
 ```
 
 This will build the app and generate a binary in Tock Binary Format
-(using the `elf2tbf` utility):
+(using the `elf2tab` utility):
 `userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
 
 ## Loading the kernel and applications onto a board
@@ -181,7 +193,7 @@ such as easy to manage serial connections, and the ability to list, add,
 replace, and remove applications over JTAG (or USB if a bootloader is
 installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version >= 0.8)
+1. [tockloader](https://github.com/tock/tockloader) (version >= 0.8)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
@@ -230,15 +242,25 @@ the board specific READMEs:
 * [nRF52-DK](../boards/nrf52dk/README.md)
 
 
-## Formatting Rust Source Code
+## Formatting Rust source code
 
 Rust includes a tool for automatically formatting Rust source
-code. This requires a `cargo` tool:
-
-    $ cargo install rustfmt
-
-Then run:
+code. Simply run:
 
     $ make format
 
-to format the repository.
+from the root of the repository to format all rust code in the repository.
+To format all code (rust and c), run:
+
+    $ make formatall
+
+
+## Keeping build tools up to date
+
+Occasionally, Tock updates to a new nightly version of Rust. The build system
+automatically checks whether the versions of `rustc` and `rustup` are correct
+for the build requirements, and updates them when necessary. After initial
+installation of the initial four requirements, you shouldn't have to worry
+about keeping them up to date.
+
+

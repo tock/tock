@@ -1143,13 +1143,13 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
+    fn subscribe(&self, subscribe_num: usize, callback: Option<kernel::Callback>, app_id: kernel::AppId) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning
             0 => self.app
-                .enter(callback.app_id(), |app, _| match app.process_status {
+                .enter(app_id, |app, _| match app.process_status {
                     Some(AppBLEState::NotInitialized) | Some(AppBLEState::Initialized) => {
-                        app.scan_callback = Some(callback);
+                        app.scan_callback = callback;
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EINVAL,
@@ -1292,13 +1292,13 @@ where
         &self,
         appid: kernel::AppId,
         allow_num: usize,
-        slice: kernel::AppSlice<kernel::Shared, u8>,
+        slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
         match AllowType::from_usize(allow_num) {
             Some(AllowType::BLEGap(gap_type)) => self.app
                 .enter(appid, |app, _| {
                     if app.process_status != Some(AppBLEState::NotInitialized) {
-                        app.app_write = Some(slice);
+                        app.app_write = slice;
                         app.set_gap_data(gap_type)
                     } else {
                         ReturnCode::EINVAL
@@ -1309,7 +1309,7 @@ where
             Some(AllowType::PassiveScanning) => self.app
                 .enter(appid, |app, _| match app.process_status {
                     Some(AppBLEState::NotInitialized) | Some(AppBLEState::Initialized) => {
-                        app.app_read = Some(slice);
+                        app.app_read = slice;
                         app.process_status = Some(AppBLEState::Initialized);
                         ReturnCode::SUCCESS
                     }
@@ -1320,7 +1320,7 @@ where
             Some(AllowType::InitAdvertisementBuffer) => self.app
                 .enter(appid, |app, _| {
                     if let Some(AppBLEState::NotInitialized) = app.process_status {
-                        app.advertisement_buf = Some(slice);
+                        app.advertisement_buf = slice;
 
                         app.process_status = Some(AppBLEState::Initialized);
                         app.initialize_advertisement_buffer();

@@ -126,9 +126,9 @@ There are a few more advanced sample applications that are worth checking out:
 
   * [accel-leds](../../userland/examples/accel-leds) changes LED color based on
     the board's orientation
-  * [ble-env-sense](../../userland/examples/ble-env-sense) shows how to
+  * [ble-env-sense](../../userland/examples/services/ble-env-sense) shows how to
     integrate with the onboard Bluetooth to act as an environmental sensor
-  * [find_north](../../userland/examples/find-north) acts as a simple compass,
+  * [find_north](../../userland/examples/find_north) acts as a simple compass,
     turning the LED on when the board is pointed north (the magnetometer tends
     to get confused in large buildings, best tried outdoors)
 
@@ -159,6 +159,14 @@ cd tock/boards/hail
 make program
 ```
 
+### Debugging the Kernel
+
+You can use gdb to debug a running kernel. The `jlink/` folder has some scripts
+designed to work with the [J-Link Debugger](https://www.segger.com/products/debug-probes/j-link/).
+In one terminal run `jlink_gdbserver.sh`, and in another terminal `./gdb_session.sh`.
+
+You may also find the `make lst` target helpful. It will generate a listings file
+with disassembly of the kernel image at `target/thumbv7em-none-eabi/release/hail.lst`.
 
 
-[tockloader]: https://github.com/helena-project/tockloader
+[tockloader]: https://github.com/tock/tockloader

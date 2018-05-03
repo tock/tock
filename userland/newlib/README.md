@@ -10,7 +10,7 @@ Compiling a new version of Newlib
 
 In the `Makefile`, edit the variable `NEWLIB_VERSION` with the version
 you want to compile. The releases are listed
-[here](ftp://sourceware.org/pub/newlib/).
+[here](http://sourceware.org/pub/newlib/).
 
 Then:
 

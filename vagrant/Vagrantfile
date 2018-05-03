@@ -63,7 +63,7 @@ Vagrant.configure("2") do |config|
   # Set up rust development environment
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     wget https://sh.rustup.rs -O rustup.sh && sh rustup.sh -y
-    source ~/.profile && rustup install nightly-2018-01-05
+    source ~/.profile && rustup install nightly-2018-04-19
   SHELL
 
   # Copy git configuration
