@@ -14,6 +14,7 @@ extern crate bitfield;
 mod peripheral_registers;
 
 pub mod chip;
+pub mod ble_connection;
 pub mod crt1;
 pub mod ficr;
 pub mod nvmc;

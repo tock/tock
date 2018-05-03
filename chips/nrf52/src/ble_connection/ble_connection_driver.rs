@@ -1,5 +1,5 @@
-use ble_advertising_hil::RadioChannel;
-use ble_link_layer::LLData;
+use ble_connection::ble_advertising_hil::RadioChannel;
+use ble_connection::ble_link_layer::LLData;
 use core::fmt;
 
 const NUMBER_CHANNELS: usize = 40;

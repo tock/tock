@@ -8,11 +8,6 @@ extern crate kernel;
 mod peripheral_registers;
 
 pub mod aes;
-pub mod ble_advertising_driver;
-pub mod ble_advertising_hil;
-pub mod ble_connection;
-pub mod ble_link_layer;
-pub mod ble_pdu_parser;
 pub mod clock;
 pub mod gpio;
 pub mod peripheral_interrupts;

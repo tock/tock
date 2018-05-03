@@ -47,8 +47,8 @@
 //!
 //! ```
 
-use ble_connection::ConnectionData;
-use constants::BLE_T_IFS;
+use ble_connection::ble_connection_driver::ConnectionData;
+use nrf5x::constants::BLE_T_IFS;
 use kernel::ReturnCode;
 
 pub trait BleAdvertisementDriver {

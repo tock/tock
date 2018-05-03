@@ -195,23 +195,31 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017
 
-use ble_advertising_hil;
-use ble_advertising_hil::{DelayStartPoint, RadioChannel, ReadAction};
-use ble_advertising_hil::PhyTransition;
-use ble_advertising_hil::ResponseAction;
-use ble_advertising_hil::TxImmediate;
-use ble_connection::ConnectionData;
-use ble_link_layer::LinkLayer;
-use ble_link_layer::TxNextChannelType;
-use ble_pdu_parser::BLEAdvertisementType;
-use ble_pdu_parser::BLEPduType;
-use ble_pdu_parser::DeviceAddress;
-use constants;
+use ble_connection::ble_advertising_hil;
+use ble_connection::ble_advertising_hil::{DelayStartPoint, RadioChannel, ReadAction};
+use ble_connection::ble_advertising_hil::PhyTransition;
+use ble_connection::ble_advertising_hil::ResponseAction;
+use ble_connection::ble_advertising_hil::TxImmediate;
+use ble_connection::ble_connection_driver::ConnectionData;
+use ble_connection::ble_link_layer::LinkLayer;
+use ble_connection::ble_link_layer::TxNextChannelType;
+use ble_connection::ble_pdu_parser::BLEAdvertisementType;
+use ble_connection::ble_pdu_parser::BLEPduType;
+use ble_connection::ble_pdu_parser::DeviceAddress;
+use nrf5x::constants;
 use core::cell::Cell;
 use core::cmp;
 use kernel;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
+use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
+use ble_connection::ble_pdu_parser::PACKET_ADDR_END;
+use ble_connection::ble_pdu_parser::PACKET_ADDR_START;
+use ble_connection::ble_pdu_parser::PACKET_HDR_LEN;
+use ble_connection::ble_pdu_parser::PACKET_HDR_PDU;
+use ble_connection::ble_pdu_parser::PACKET_LENGTH;
+use ble_connection::ble_pdu_parser::PACKET_PAYLOAD_START;
+use ble_connection::ble_pdu_parser::PACKET_START;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
@@ -221,15 +229,6 @@ pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 //Blutooth Specification Volume 6, Part B, Section 4.5.3
 const TRANSMIT_WINDOW_DELAY_CONN_IND: u32 = 1000 * 5 / 4; // 1.25ms in us
 const STANDARD_TIMEOUT: u32 = 8000; //in usec
-
-use ble_advertising_hil::ActionAfterTimerExpire;
-use ble_pdu_parser::PACKET_ADDR_END;
-use ble_pdu_parser::PACKET_ADDR_START;
-use ble_pdu_parser::PACKET_HDR_LEN;
-use ble_pdu_parser::PACKET_HDR_PDU;
-use ble_pdu_parser::PACKET_LENGTH;
-use ble_pdu_parser::PACKET_PAYLOAD_START;
-use ble_pdu_parser::PACKET_START;
 
 #[allow(unused)]
 struct BLEGap(BLEGapType);

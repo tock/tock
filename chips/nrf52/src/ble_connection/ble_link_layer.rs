@@ -1,10 +1,10 @@
-use ble_advertising_driver::{App, AppBLEState, BleLinkLayerState};
-use ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
-use ble_advertising_hil::ActionAfterTimerExpire;
-use ble_connection::ConnectionData;
-use ble_pdu_parser::{BLEAdvertisementType, BLEPduType};
-use ble_pdu_parser::PACKET_ADDR_START;
-use constants;
+use ble_connection::ble_advertising_driver::{App, AppBLEState, BleLinkLayerState};
+use ble_connection::ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
+use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
+use ble_connection::ble_connection_driver::ConnectionData;
+use ble_connection::ble_pdu_parser::{BLEAdvertisementType, BLEPduType};
+use ble_connection::ble_pdu_parser::PACKET_ADDR_START;
+use nrf5x::constants;
 use core::fmt;
 
 pub type TxNextChannelType = (TxImmediate, Option<(RadioChannel, u32, u32)>);
