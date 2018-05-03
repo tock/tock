@@ -1,3 +1,4 @@
+use ble_connection;
 use cortexm4::{self, nvic};
 use i2c;
 use kernel;
@@ -7,7 +8,6 @@ use nrf5x::peripheral_interrupts::*;
 use radio;
 use spi;
 use uart;
-use ble_connection;
 
 pub struct NRF52 {
     mpu: cortexm4::mpu::MPU,

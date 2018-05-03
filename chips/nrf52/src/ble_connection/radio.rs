@@ -33,15 +33,15 @@
 //!
 //! * CRC - 3 bytes
 
+use ble_connection::ble_advertising_hil;
+use ble_connection::ble_advertising_hil::{DelayStartPoint, PhyTransition, RadioChannel,
+                                          ReadAction, TxImmediate};
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::ReturnCode;
 use kernel::hil::gpio::Pin;
+use kernel::ReturnCode;
 use nrf5x;
-use ble_connection::ble_advertising_hil;
-use ble_connection::ble_advertising_hil::{DelayStartPoint, PhyTransition, RadioChannel, ReadAction,
-                                 TxImmediate};
 use nrf5x::constants::TxPower;
 use nrf5x::gpio;
 use peripheral_registers;
@@ -485,25 +485,25 @@ impl Radio {
                 regs.event_disabled.set(0);
 
                 //if self.debug_value.get() != 1 {
-                    let transition = self.advertisement_client
-                        .get()
-                        .map_or(PhyTransition::None, |client| client.timer_expired());
+                let transition = self.advertisement_client
+                    .get()
+                    .map_or(PhyTransition::None, |client| client.timer_expired());
 
-                    self.wait_until_disabled();
+                self.wait_until_disabled();
 
-                    match transition {
-                        PhyTransition::MoveToTX(delay) => {
-                            self.setup_tx();
-                            self.tx();
-                        }
-                        PhyTransition::MoveToRX(delay, timeout) => {
-                            self.schedule_rx_after_us(delay, timeout);
-                        }
-                        PhyTransition::None => {
-                            //Do nothing, the device should sleep and wait for timer to fire in BLE
-                        }
+                match transition {
+                    PhyTransition::MoveToTX(delay) => {
+                        self.setup_tx();
+                        self.tx();
                     }
-               // }
+                    PhyTransition::MoveToRX(delay, timeout) => {
+                        self.schedule_rx_after_us(delay, timeout);
+                    }
+                    PhyTransition::None => {
+                        //Do nothing, the device should sleep and wait for timer to fire in BLE
+                    }
+                }
+            // }
             } else if self.state.get() == RadioState::Uninitialized {
                 panic!("EVENT_DISABLED while Uninitialized?\n");
             } else {
@@ -733,10 +733,7 @@ impl ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn set_transmit_client(&self, client: &'static ble_advertising_hil::TxClient) {
         self.tx_client.set(Some(client));
     }
-    fn set_advertisement_client(
-        &self,
-        client: &'static ble_advertising_hil::AdvertisementClient,
-    ) {
+    fn set_advertisement_client(&self, client: &'static ble_advertising_hil::AdvertisementClient) {
         self.advertisement_client.set(Some(client));
     }
 }

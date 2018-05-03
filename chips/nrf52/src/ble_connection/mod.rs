@@ -1,4 +1,3 @@
-
 pub mod ble_advertising_driver;
 pub mod ble_advertising_hil;
 pub mod ble_connection_driver;

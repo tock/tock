@@ -48,8 +48,8 @@
 //! ```
 
 use ble_connection::ble_connection_driver::ConnectionData;
-use nrf5x::constants::BLE_T_IFS;
 use kernel::ReturnCode;
+use nrf5x::constants::BLE_T_IFS;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];

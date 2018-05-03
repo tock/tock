@@ -196,29 +196,29 @@
 //! * Date: June 22, 2017
 
 use ble_connection::ble_advertising_hil;
-use ble_connection::ble_advertising_hil::{DelayStartPoint, RadioChannel, ReadAction};
+use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
 use ble_connection::ble_advertising_hil::PhyTransition;
 use ble_connection::ble_advertising_hil::ResponseAction;
 use ble_connection::ble_advertising_hil::TxImmediate;
+use ble_connection::ble_advertising_hil::{DelayStartPoint, RadioChannel, ReadAction};
 use ble_connection::ble_connection_driver::ConnectionData;
 use ble_connection::ble_link_layer::LinkLayer;
 use ble_connection::ble_link_layer::TxNextChannelType;
 use ble_connection::ble_pdu_parser::BLEAdvertisementType;
 use ble_connection::ble_pdu_parser::BLEPduType;
 use ble_connection::ble_pdu_parser::DeviceAddress;
-use nrf5x::constants;
-use core::cell::Cell;
-use core::cmp;
-use kernel;
-use kernel::hil::time::Frequency;
-use kernel::returncode::ReturnCode;
-use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
 use ble_connection::ble_pdu_parser::PACKET_ADDR_START;
 use ble_connection::ble_pdu_parser::PACKET_HDR_LEN;
 use ble_connection::ble_pdu_parser::PACKET_HDR_PDU;
 use ble_connection::ble_pdu_parser::PACKET_LENGTH;
 use ble_connection::ble_pdu_parser::PACKET_PAYLOAD_START;
 use ble_connection::ble_pdu_parser::PACKET_START;
+use core::cell::Cell;
+use core::cmp;
+use kernel;
+use kernel::hil::time::Frequency;
+use kernel::returncode::ReturnCode;
+use nrf5x::constants;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
@@ -654,8 +654,8 @@ impl App {
             .map(|_| {
                 ble.replace_buffer(&|data: &mut [u8]| {
                     // LLID == 0x01 Empty PDU
-                    data.as_mut()[PACKET_HDR_PDU] = 0x01
-                        | (next_expected_sequence_number & 0b1) << 2
+                    data.as_mut()[PACKET_HDR_PDU] = 0x01 | (next_expected_sequence_number & 0b1)
+                        << 2
                         | (transmit_sequence_number & 0b1) << 3;
 
                     data.as_mut()[PACKET_HDR_LEN] = 0;
@@ -917,8 +917,8 @@ where
                                             conndata.crcinit,
                                         );
 
-                                        let delay_until_rx =
-                                            TRANSMIT_WINDOW_DELAY_CONN_IND + conndata.lldata.window_offset();
+                                        let delay_until_rx = TRANSMIT_WINDOW_DELAY_CONN_IND
+                                            + conndata.lldata.window_offset();
                                         let window_size = conndata.lldata.window_size();
 
                                         app.process_status =
@@ -1079,7 +1079,7 @@ where
                     TxImmediate::GoToSleep => {
                         // TODO: Shut down radio when sleeping
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
-                    },
+                    }
                     _ => {}
                 }
 
@@ -1116,9 +1116,7 @@ where
                         //TODO - check if we have reached supervision time out. If so, kill connection.
 
                         result = PhyTransition::MoveToRX(
-                            DelayStartPoint::PacketStartUsecDelay(
-                                conn_interval_length,
-                            ),
+                            DelayStartPoint::PacketStartUsecDelay(conn_interval_length),
                             conn_supervision_timeout,
                         );
                     }
@@ -1140,7 +1138,12 @@ where
     B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
     A: kernel::hil::time::Alarm + 'a,
 {
-    fn subscribe(&self, subscribe_num: usize, callback: Option<kernel::Callback>, app_id: kernel::AppId) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<kernel::Callback>,
+        app_id: kernel::AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning
             0 => self.app
