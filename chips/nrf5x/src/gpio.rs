@@ -6,7 +6,8 @@
 
 use core::{cell::Cell,
            ops::{Index, IndexMut}};
-use kernel::{common::regs::ReadWrite, hil};
+use kernel::{common::regs::{FieldValue, ReadWrite},
+             hil};
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
@@ -342,6 +343,11 @@ impl GPIOPin {
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
+
+    pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
+        let gpio_regs = unsafe { &*self.gpio_register };
+        gpio_regs.pin_cnf[self.pin as usize].write(config);
+    }
 }
 
 impl hil::gpio::PinCtl for GPIOPin {
@@ -351,8 +357,7 @@ impl hil::gpio::PinCtl for GPIOPin {
             hil::gpio::InputMode::PullDown => PinConfig::PULL::Pulldown,
             hil::gpio::InputMode::PullNone => PinConfig::PULL::Disabled,
         };
-        let gpio_regs = unsafe { &*self.gpio_register };
-        gpio_regs.pin_cnf[self.pin as usize].write(pin_config);
+        self.write_config(pin_config);
     }
 }
 

@@ -7,12 +7,13 @@ extern crate cortexm0;
 extern crate nrf5x;
 
 #[allow(unused_imports)]
-#[macro_use(debug, debug_verbose, debug_gpio)]
+#[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 pub mod chip;
 pub mod clock;
 pub mod crt1;
+pub mod i2c;
 pub mod radio;
 pub mod uart;
 
