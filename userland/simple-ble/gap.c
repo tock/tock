@@ -19,6 +19,7 @@ int gap_add_flags(AdvData_t *adv_data, uint8_t flags) {
     adv_data->buf[adv_data->offset + 1] = GAP_FLAGS;
     adv_data->buf[adv_data->offset + 2] = flags;
     adv_data->offset = new_len;
+    // always writes 3 bytes
     return 3;
   } else {
     return -1;
@@ -41,7 +42,7 @@ int gap_add_adv_data_field(AdvData_t *adv_data, GapAdvertisementData_t type,
   adv_data->buf[adv_data->offset + 1] = type;
   memcpy(&adv_data->buf[adv_data->offset + 2], data, data_len);
   adv_data->offset = new_length;
-  return 0;
+  return 2 + data_len;
 }
 
 int gap_add_device_name(AdvData_t *adv_data, const uint8_t *device_name, uint8_t len) {
