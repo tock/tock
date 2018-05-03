@@ -167,6 +167,14 @@ impl Timer {
         self.timer().cc[3].set(val);
     }
 
+    pub fn set_events_compare(&self, index: usize, val: u32) {
+        self.timer().event_compare[index].set(val);
+    }
+
+    pub fn get_events_compare(&self, index: usize) -> u32 {
+        self.timer().event_compare[index].get()
+    }
+
     pub fn enable_interrupts(&self, interrupts: u32) {
         self.timer().intenset.set(interrupts << 16);
     }
