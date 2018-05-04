@@ -49,6 +49,13 @@ pub static mut TIMER2: Timer = Timer {
     client: Cell::new(None),
 };
 
+pub enum BitmodeValue {
+    Size16Bits = 0,
+    Size8Bits = 1,
+    Size24Bits = 2,
+    Size32Bits = 3,
+}
+
 #[allow(non_snake_case)]
 fn TIMER(location: Location) -> &'static peripheral_registers::TIMER {
     let ptr =
@@ -98,8 +105,10 @@ impl Timer {
         self.timer().task_clear.set(1);
     }
 
-    pub fn set_bitmode(&self, bitmode: u32) {
-        self.timer().bitmode.set(bitmode);
+    ///Sets the number of bits used by the TIMER
+    pub fn set_bitmode(&self, bitmode: BitmodeValue) {
+
+        self.timer().bitmode.set(bitmode as u32);
     }
 
     /// Capture the current timer value into the CC register
