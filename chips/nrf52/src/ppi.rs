@@ -138,10 +138,10 @@ register_bitfields! [u32,
          CH31 OFFSET(31) NUMBITS(1)
     ],
     TaskEndPoint [
-        ENABLE OFFSET(0) NUMBITS(1)
+        ADDRESS OFFSET(0) NUMBITS(32)
     ],
     EventEndPoint [
-        ENABLE OFFSET(0) NUMBITS(1)
+        ADDRESS OFFSET(0) NUMBITS(32)
     ]
 ];
 
