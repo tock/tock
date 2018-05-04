@@ -11,8 +11,6 @@
 //! associated with the task. Similarly, a peripheral event is connected to an EEP using
 //! the address of the event register associated with the event.
 //!
-//!
-//!
 //! Pre-programmed Channels:
 //! Channel	EEP	                        TEP
 //! 20	    TIMER0->EVENTS_COMPARE[0]	RADIO->TASKS_TXEN
@@ -28,14 +26,13 @@
 //! 30	    RTC0->EVENTS_COMPARE[0]	    TIMER0->TASKS_CLEAR
 //! 31	    RTC0->EVENTS_COMPARE[0]	    TIMER0->TASKS_START
 //!
-//! //! Author
+//! Author
 //! ---------
 //! * Johan Lindskogen
 //! * Francine Mäkelä
 //! * Date: May 04, 2018
 
-use kernel::common::regs::FieldValue;
-use kernel::common::regs::ReadWrite;
+use kernel::common::regs::{FieldValue, ReadWrite};
 
 pub const PPI_BASE: usize = 0x4001F000;
 
