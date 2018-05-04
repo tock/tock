@@ -15,7 +15,6 @@
 // Date: Jan 12 2017
 //
 
-// I like them sometimes, for formatting -pal
 #![allow(unused_parens)]
 
 use core::cell::Cell;

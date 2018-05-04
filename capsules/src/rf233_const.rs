@@ -1,4 +1,4 @@
-//! Support for the RF233 capsule.
+//! Support for the RF233 capsule
 
 #![allow(non_camel_case_types)]
 
