@@ -26,6 +26,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use peripheral_registers;
+use kernel::common::VolatileCell;
 
 #[derive(Copy, Clone)]
 pub enum Location {
@@ -176,12 +177,8 @@ impl Timer {
         self.timer().cc[3].set(val);
     }
 
-    pub fn set_events_compare(&self, index: usize, val: u32) {
-        self.timer().event_compare[index].set(val);
-    }
-
-    pub fn get_events_compare(&self, index: usize) -> u32 {
-        self.timer().event_compare[index].get()
+    pub fn events_compare(&self) -> &[VolatileCell<u32>] {
+        &self.timer().event_compare
     }
 
     pub fn enable_interrupts(&self, interrupts: u32) {
