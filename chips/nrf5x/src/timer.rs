@@ -24,9 +24,9 @@
 
 use core::cell::Cell;
 use core::mem;
+use kernel::common::VolatileCell;
 use kernel::hil;
 use peripheral_registers;
-use kernel::common::VolatileCell;
 
 #[derive(Copy, Clone)]
 pub enum Location {
@@ -108,7 +108,6 @@ impl Timer {
 
     ///Sets the number of bits used by the TIMER
     pub fn set_bitmode(&self, bitmode: BitmodeValue) {
-
         self.timer().bitmode.set(bitmode as u32);
     }
 
