@@ -344,3 +344,25 @@ pub unsafe fn enable_rc32k() {
         .rc32ktune
         .write(RC32kTuning::COARSE.val(0x1d) + RC32kTuning::FINE.val(0x15));
 }
+
+pub unsafe fn rc32k_enabled() -> bool {
+    return (*BSCIF).rc32kcr.is_set(RC32Control::EN);
+}
+
+pub unsafe fn setup_rc_1mhz() {
+    // Unlock the BSCIF::RC32KCR register
+    (*BSCIF)
+        .unlock
+        .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
+    (*BSCIF).rc1mcr.modify(RC1MClockConfig::CLKOEN::Output);
+    while (*BSCIF).rc1mcr.matches_all(RC1MClockConfig::CLKOEN::NotOutput) {}
+}
+
+pub unsafe fn disable_rc_1mhz() {
+    // Unlock the BSCIF::RC32KCR register
+    (*BSCIF)
+        .unlock
+        .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
+    (*BSCIF).rc1mcr.modify(RC1MClockConfig::CLKOEN::NotOutput);
+    while (*BSCIF).rc1mcr.matches_all(RC1MClockConfig::CLKOEN::Output) {}
+}

@@ -25,6 +25,8 @@ pub enum Register {
     DFLL0MUL = 0x30,
     DFLL0STEP = 0x34,
     DFLL0SSG = 0x38,
+    RCFASTCFG = 0x48,
+    RC80MCR = 0x50,
 }
 
 #[allow(non_camel_case_types)]
@@ -88,9 +90,9 @@ struct ScifRegisters {
     dfll0ratio: ReadOnly<u32>,
     dfll0sync: WriteOnly<u32>,
     rccr: ReadWrite<u32>,
-    rcfastcfg: ReadWrite<u32>,
+    rcfastcfg: ReadWrite<u32, Rcfast::Register>,
     rcfastsr: ReadOnly<u32>,
-    rc80mcr: ReadWrite<u32>,
+    rc80mcr: ReadWrite<u32, Rc80m::Register>,
     _reserved0: [u32; 4],
     hrpcr: ReadWrite<u32>,
     fpcr: ReadWrite<u32>,
@@ -184,6 +186,23 @@ register_bitfields![u32,
             // is not clear in which order the bits are stored
         ],
         PLLEN OFFSET(0) NUMBITS(1) []
+    ],
+    Rcfast [ 
+        CALIB OFFSET(16) NUMBITS(7) [],
+        LOCKMARGIN OFFSET(12) NUMBITS(4) [],
+        FRANGE OFFSET(8) NUMBITS(2) [
+            Range4MHz = 0,
+            Range8MHz = 1,
+            Range12MHz = 2
+        ],
+        FCD OFFSET(7) NUMBITS(1) [],
+        NBPERIODS OFFSET(4) NUMBITS(3) [],
+        JITMODE OFFSET(2) NUMBITS(1) [],
+        TUNEEN OFFSET(1) NUMBITS(1) [],
+        EN OFFSET(0) NUMBITS(1) []
+    ],
+    Rc80m [
+        EN OFFSET(0) NUMBITS(1) []
     ]
 ];
 
@@ -234,11 +253,13 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
     // Check to see if the DFLL is already setup or is not locked
     if (*SCIF)
         .dfll0conf
-        .matches_all(Dfll::MODE::OpenLoop + Dfll::EN::CLEAR)
+        .matches_all(Dfll::EN::CLEAR)
         || (*SCIF).pclksr.matches_all(Interrupt::DFLL0LOCKF::CLEAR)
     {
         // Enable the GENCLK_SRC_RC32K
-        bscif::enable_rc32k();
+        if !bscif::rc32k_enabled() {
+            bscif::enable_rc32k();
+        }
 
         // Next, initialize closed-loop mode ...
 
@@ -249,6 +270,7 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
         (*SCIF).dfll0sync.set(0x01);
         wait_dfll0_ready();
 
+        // TODO: if already in closed mode, only turn on gclk and enable dfll
         // Read the current DFLL settings
         let scif_dfll0conf = (*SCIF).dfll0conf.get();
         // Compute some new configuration field values
@@ -300,6 +322,20 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
     }
 }
 
+pub unsafe fn disable_dfll_rc32k() {
+    // Must do a SCIF sync
+    (*SCIF).dfll0sync.set(0x01);
+    while (*SCIF).pclksr.matches_all(Interrupt::DFLL0RDY::CLEAR) {}
+
+    // Disable the DFLL
+    unlock(Register::DFLL0CONF);
+    (*SCIF).dfll0conf.modify(Dfll::EN::CLEAR);
+
+    //Disable generic clock
+    generic_clock_disable(GenericClock::GCLK0);
+
+}
+
 pub unsafe fn setup_osc_16mhz_fast_startup() {
     // Enable the OSC0 with ~557us startup time
     unlock(Register::OSCCTRL0);
@@ -324,6 +360,12 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
     while (*SCIF).pclksr.matches_all(Interrupt::OSC0RDY::CLEAR) {}
 }
 
+pub unsafe fn disable_osc_16mhz() {
+    unlock(Register::OSCCTRL0);
+    (*SCIF).oscctrl0.modify(Oscillator::OSCEN::CLEAR);
+    while (*SCIF).pclksr.matches_all(Interrupt::OSC0RDY::SET) {}
+}
+
 pub unsafe fn setup_pll_osc_48mhz() {
     unlock(Register::PLL0);
     (*SCIF).pll0.write(
@@ -334,6 +376,50 @@ pub unsafe fn setup_pll_osc_48mhz() {
 
     // Wait for the PLL to become locked
     while (*SCIF).pclksr.matches_all(Interrupt::PLL0LOCK::CLEAR) {}
+}
+
+pub unsafe fn disable_pll() {
+    unlock(Register::PLL0);
+    (*SCIF).pll0.modify(PllControl::PLLEN::CLEAR);
+}
+
+pub unsafe fn setup_rc_80mhz() {
+    unlock(Register::RC80MCR);
+    (*SCIF).rc80mcr.modify(Rc80m::EN::SET);
+    while (*SCIF).rc80mcr.matches_all(Rc80m::EN::CLEAR) {}
+}
+
+pub unsafe fn disable_rc_80mhz() {
+    unlock(Register::RC80MCR);
+    (*SCIF).rc80mcr.modify(Rc80m::EN::CLEAR);
+    while (*SCIF).rc80mcr.matches_all(Rc80m::EN::SET) {}
+}
+
+pub unsafe fn setup_rcfast_4mhz() {
+    unlock(Register::RCFASTCFG);
+    (*SCIF).rcfastcfg.modify(Rcfast::FRANGE::Range4MHz + Rcfast::TUNEEN::CLEAR
+            + Rcfast::EN::SET);
+    while (*SCIF).rcfastcfg.matches_all(Rcfast::EN::CLEAR) {}
+}
+
+pub unsafe fn setup_rcfast_8mhz() {
+    unlock(Register::RCFASTCFG);
+    (*SCIF).rcfastcfg.modify(Rcfast::FRANGE::Range8MHz + Rcfast::TUNEEN::CLEAR
+            + Rcfast::EN::SET);
+    while (*SCIF).rcfastcfg.matches_all(Rcfast::EN::CLEAR) {}
+}
+
+pub unsafe fn setup_rcfast_12mhz() {
+    unlock(Register::RCFASTCFG);
+    (*SCIF).rcfastcfg.modify(Rcfast::FRANGE::Range12MHz + Rcfast::TUNEEN::CLEAR
+            + Rcfast::EN::SET);
+    while (*SCIF).rcfastcfg.matches_all(Rcfast::EN::CLEAR) {}
+}
+
+pub unsafe fn disable_rcfast() {
+    unlock(Register::RCFASTCFG);
+    (*SCIF).rcfastcfg.modify(Rcfast::EN::CLEAR);
+    while (*SCIF).rcfastcfg.matches_all(Rcfast::EN::SET) {}
 }
 
 pub fn generic_clock_disable(clock: GenericClock) {
