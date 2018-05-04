@@ -34,8 +34,8 @@
 //! * Francine Mäkelä
 //! * Date: May 04, 2018
 
-use kernel::common::regs::ReadWrite;
 use kernel::common::regs::FieldValue;
+use kernel::common::regs::ReadWrite;
 
 pub const PPI_BASE: usize = 0x4001F000;
 
@@ -52,54 +52,54 @@ pub struct PPIRegs {
     pub tasks_chg4_dis: ReadWrite<u32, Control::Register>, //0x024
     pub tasks_chg5_en: ReadWrite<u32, Control::Register>, //0x028
     pub tasks_chg5_dis: ReadWrite<u32, Control::Register>, //0x02C
-    _reserved1: [u32; 308], //0x02C - 0x500
-    pub chen: ReadWrite<u32, Channel::Register>, //0x500
-    pub chenset: ReadWrite<u32, Channel::Register>,  //0x504
-    pub chenclr: ReadWrite<u32, Channel::Register>,  //0x508
-    pub ch0_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x510
+    _reserved1: [u32; 308],                               //0x02C - 0x500
+    pub chen: ReadWrite<u32, Channel::Register>,          //0x500
+    pub chenset: ReadWrite<u32, Channel::Register>,       //0x504
+    pub chenclr: ReadWrite<u32, Channel::Register>,       //0x508
+    pub ch0_eep: ReadWrite<u32, EventEndPoint::Register>, //0x510
     pub ch0_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x514
-    pub ch1_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x518
+    pub ch1_eep: ReadWrite<u32, EventEndPoint::Register>, //0x518
     pub ch1_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x51C
-    pub ch2_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x520
+    pub ch2_eep: ReadWrite<u32, EventEndPoint::Register>, //0x520
     pub ch2_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x524
-    pub ch3_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x528
+    pub ch3_eep: ReadWrite<u32, EventEndPoint::Register>, //0x528
     pub ch3_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x52C
-    pub ch4_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x530
+    pub ch4_eep: ReadWrite<u32, EventEndPoint::Register>, //0x530
     pub ch4_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x534
-    pub ch5_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x538
+    pub ch5_eep: ReadWrite<u32, EventEndPoint::Register>, //0x538
     pub ch5_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x53C
-    pub ch6_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x540
+    pub ch6_eep: ReadWrite<u32, EventEndPoint::Register>, //0x540
     pub ch6_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x544
-    pub ch7_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x548
+    pub ch7_eep: ReadWrite<u32, EventEndPoint::Register>, //0x548
     pub ch7_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x54C
-    pub ch8_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x550
+    pub ch8_eep: ReadWrite<u32, EventEndPoint::Register>, //0x550
     pub ch8_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x554
-    pub ch9_eep: ReadWrite<u32, EventEndPoint::Register>,  //0x558
+    pub ch9_eep: ReadWrite<u32, EventEndPoint::Register>, //0x558
     pub ch9_tep: ReadWrite<u32, TaskEndPoint::Register>,  //0x55C
-    pub ch10_eep: ReadWrite<u32,EventEndPoint::Register>, //0x560
+    pub ch10_eep: ReadWrite<u32, EventEndPoint::Register>, //0x560
     pub ch10_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x564
-    pub ch11_eep: ReadWrite<u32,EventEndPoint::Register>, //0x568
+    pub ch11_eep: ReadWrite<u32, EventEndPoint::Register>, //0x568
     pub ch11_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x56C
-    pub ch12_eep: ReadWrite<u32,EventEndPoint::Register>, //0x570
+    pub ch12_eep: ReadWrite<u32, EventEndPoint::Register>, //0x570
     pub ch12_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x574
-    pub ch13_eep: ReadWrite<u32,EventEndPoint::Register>, //0x578
+    pub ch13_eep: ReadWrite<u32, EventEndPoint::Register>, //0x578
     pub ch13_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x57C
-    pub ch14_eep: ReadWrite<u32,EventEndPoint::Register>, //0x580
+    pub ch14_eep: ReadWrite<u32, EventEndPoint::Register>, //0x580
     pub ch14_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x584
-    pub ch15_eep: ReadWrite<u32,EventEndPoint::Register>, //0x588
+    pub ch15_eep: ReadWrite<u32, EventEndPoint::Register>, //0x588
     pub ch15_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x58C
-    pub ch16_eep: ReadWrite<u32,EventEndPoint::Register>, //0x590
+    pub ch16_eep: ReadWrite<u32, EventEndPoint::Register>, //0x590
     pub ch16_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x594
-    pub ch17_eep: ReadWrite<u32,EventEndPoint::Register>, //0x598
+    pub ch17_eep: ReadWrite<u32, EventEndPoint::Register>, //0x598
     pub ch17_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x59C
-    pub ch18_eep: ReadWrite<u32,EventEndPoint::Register>, //0x5A0
+    pub ch18_eep: ReadWrite<u32, EventEndPoint::Register>, //0x5A0
     pub ch18_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x5A4
-    pub ch19_eep: ReadWrite<u32,EventEndPoint::Register>, //0x5A8
+    pub ch19_eep: ReadWrite<u32, EventEndPoint::Register>, //0x5A8
     pub ch19_tep: ReadWrite<u32, TaskEndPoint::Register>, //0x5AC
-    _reserved2: [u32; 148], //0x5AC - 0x800
-    pub chg: [ReadWrite<u32, Channel::Register>; 6], //0x800 - 0x814
-    _reserved3: [u32; 62],  //0x814 - 0x910
-    pub fork_tep: [ReadWrite<u32, TaskEndPoint::Register>; 32],   //0x910 - 0x98C
+    _reserved2: [u32; 148],                               //0x5AC - 0x800
+    pub chg: [ReadWrite<u32, Channel::Register>; 6],      //0x800 - 0x814
+    _reserved3: [u32; 62],                                //0x814 - 0x910
+    pub fork_tep: [ReadWrite<u32, TaskEndPoint::Register>; 32], //0x910 - 0x98C
 }
 
 register_bitfields! [u32,
@@ -171,6 +171,3 @@ impl PPIStruct {
         regs.chenclr.write(channels);
     }
 }
-
-
-

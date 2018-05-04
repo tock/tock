@@ -20,10 +20,10 @@ pub mod crt1;
 pub mod ficr;
 pub mod i2c;
 pub mod nvmc;
+pub mod ppi;
 pub mod radio;
 pub mod spi;
 pub mod uart;
 pub mod uicr;
-pub mod ppi;
 
 pub use crt1::init;
