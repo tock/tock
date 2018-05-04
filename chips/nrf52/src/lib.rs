@@ -20,6 +20,7 @@ pub mod crt1;
 pub mod ficr;
 pub mod i2c;
 pub mod nvmc;
+pub mod ppi;
 pub mod radio;
 pub mod spi;
 pub mod uart;
