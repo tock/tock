@@ -26,6 +26,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil;
 use peripheral_registers;
+use kernel::common::VolatileCell;
 
 #[derive(Copy, Clone)]
 pub enum Location {
@@ -48,6 +49,13 @@ pub static mut TIMER2: Timer = Timer {
     which: Location::TIMER2,
     client: Cell::new(None),
 };
+
+pub enum BitmodeValue {
+    Size16Bits = 0,
+    Size8Bits = 1,
+    Size24Bits = 2,
+    Size32Bits = 3,
+}
 
 #[allow(non_snake_case)]
 fn TIMER(location: Location) -> &'static peripheral_registers::TIMER {
@@ -96,6 +104,12 @@ impl Timer {
     // Clear the value
     pub fn clear(&self) {
         self.timer().task_clear.set(1);
+    }
+
+    ///Sets the number of bits used by the TIMER
+    pub fn set_bitmode(&self, bitmode: BitmodeValue) {
+
+        self.timer().bitmode.set(bitmode as u32);
     }
 
     /// Capture the current timer value into the CC register
@@ -148,19 +162,23 @@ impl Timer {
         self.timer().cc[1].get()
     }
     pub fn set_cc1(&self, val: u32) {
-        self.timer().cc[0].set(val);
+        self.timer().cc[1].set(val);
     }
     pub fn get_cc2(&self) -> u32 {
         self.timer().cc[2].get()
     }
     pub fn set_cc2(&self, val: u32) {
-        self.timer().cc[0].set(val);
+        self.timer().cc[2].set(val);
     }
     pub fn get_cc3(&self) -> u32 {
         self.timer().cc[3].get()
     }
     pub fn set_cc3(&self, val: u32) {
-        self.timer().cc[0].set(val);
+        self.timer().cc[3].set(val);
+    }
+
+    pub fn events_compare(&self) -> &[VolatileCell<u32>] {
+        &self.timer().event_compare
     }
 
     pub fn enable_interrupts(&self, interrupts: u32) {
