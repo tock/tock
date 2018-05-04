@@ -18,8 +18,8 @@
 
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, TxClient};
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
+use kernel::ReturnCode;
 use net::ieee802154::MacAddress;
 use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};

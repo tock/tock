@@ -65,10 +65,10 @@
 // (as required by 6LoWPAN) difficult.
 
 use net::icmpv6::icmpv6::ICMP6Header;
-use net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, IPAddr, ip6_nh};
+use net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, ip6_nh, IPAddr};
+use net::stream::SResult;
 use net::stream::{decode_bytes, decode_u16, decode_u8};
 use net::stream::{encode_bytes, encode_u16, encode_u8};
-use net::stream::SResult;
 use net::tcp::TCPHeader;
 use net::udp::udp::UDPHeader;
 

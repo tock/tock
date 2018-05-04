@@ -3,7 +3,7 @@
 use core::mem;
 use core::result::Result;
 use net::ieee802154::MacAddress;
-use net::ipv6::ip_utils::{IPAddr, ip6_nh};
+use net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use net::udp::udp::UDPHeader;
 use net::util;

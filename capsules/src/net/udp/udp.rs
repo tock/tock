@@ -3,9 +3,9 @@
 //! as the standard encode/decode functionality required for serializing
 //! the struct for transmission.
 
-use net::stream::SResult;
 use net::stream::decode_u16;
 use net::stream::encode_u16;
+use net::stream::SResult;
 
 /// The `UDPHeader` struct follows the layout for the UDP packet header.
 /// Note that the implementation of this struct provides getters and setters

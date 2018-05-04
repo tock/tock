@@ -39,13 +39,13 @@ pub mod io;
 #[allow(dead_code)]
 mod i2c_dummy;
 #[allow(dead_code)]
-mod spi_dummy;
+mod icmp_lowpan_test;
 #[allow(dead_code)]
 mod ipv6_lowpan_test;
 #[allow(dead_code)]
-mod udp_lowpan_test;
+mod spi_dummy;
 #[allow(dead_code)]
-mod icmp_lowpan_test;
+mod udp_lowpan_test;
 
 #[allow(dead_code)]
 mod aes_test;

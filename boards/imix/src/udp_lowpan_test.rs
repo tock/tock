@@ -29,7 +29,7 @@
 use capsules;
 extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
-use capsules::net::ipv6::ip_utils::{IPAddr, ip6_nh};
+use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
 use capsules::net::sixlowpan::sixlowpan_compression;
@@ -38,16 +38,16 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::ReturnCode;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 ]);
 pub const DST_ADDR: IPAddr = IPAddr([
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
 ]);
 pub const PAYLOAD_LEN: usize = 200;
 
