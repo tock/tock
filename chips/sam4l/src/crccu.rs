@@ -58,7 +58,7 @@ use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 const BASE_ADDRESS: *mut CrccuRegisters = 0x400A4000 as *mut CrccuRegisters;
 
 #[repr(C)]
-pub struct CrccuRegisters {
+struct CrccuRegisters {
     // From page 1005 of SAM4L manual
     dscr: ReadWrite<u32, DescriptorBaseAddress::Register>,
     _reserved0: u32,
