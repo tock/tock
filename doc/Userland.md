@@ -192,7 +192,8 @@ Hard Fault Status Register (HFSR):  0x40000000
 
 ---| App Status |---
 App: printf_long   -   [Yielded]
- Events Queued: 0   Syscall Count: 12   Last Syscall: YIELD
+ Events Queued: 0   Syscall Count: 12   Dropped Callback Count: 0
+ Last Syscall: YIELD
 
  ╔═══════════╤══════════════════════════════════════════╗
  ║  Address  │ Region Name    Used | Allocated (bytes)  ║
