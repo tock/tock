@@ -772,12 +772,19 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::TX_RETURN_TO_RX => {
                 let ack: bool = (result & TRX_TRAC_MASK) == 0;
                 if status == ExternalState::RX_AACK_ON as u8 {
+                    let ret_code: ReturnCode =
+                        if (result & TRX_TRAC_MASK) == TRX_TRAC_CHANNEL_ACCESS_FAILURE {
+                            ReturnCode::FAIL
+                        } else {
+                            ReturnCode::SUCCESS
+                        };
+
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
                     self.tx_client.get().map(|c| {
-                        c.send_done(buf.unwrap(), ack, ReturnCode::SUCCESS);
+                        c.send_done(buf.unwrap(), ack, ret_code);
                     });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
