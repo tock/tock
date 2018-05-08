@@ -18,8 +18,8 @@ pub trait SysTick {
     /// accurate and values up to 400ms are valid.
     fn set_timer(&self, us: u32);
 
-    /// Returns the time left in microseconds
-    fn value(&self) -> u32;
+    /// Returns if there is at least `us` microseconds left
+    fn greater_than(&self, us: u32) -> bool;
 
     /// Returns true if the timer has expired
     fn overflowed(&self) -> bool;
@@ -53,7 +53,7 @@ impl SysTick for () {
         false
     }
 
-    fn value(&self) -> u32 {
-        !0
+    fn greater_than(&self, _: u32) -> bool {
+        true
     }
 }
