@@ -1,0 +1,8 @@
+[package]
+name = "tock_native_chip"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+tock_native_arch = { path = "../../arch/native" }
+kernel = { path = "../../kernel" }
