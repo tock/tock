@@ -1,25 +1,65 @@
 //! ARM Cortex-M4 SysTick peripheral.
 
 use kernel;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::StaticRef;
 
-struct Registers {
-    control: VolatileCell<u32>,
-    reload: VolatileCell<u32>,
-    value: VolatileCell<u32>,
-    calibration: VolatileCell<u32>,
+#[repr(C)]
+struct SystickRegisters {
+    syst_csr: ReadWrite<u32, ControlAndStatus::Register>,
+    syst_rvr: ReadWrite<u32, ReloadValue::Register>,
+    syst_cvr: ReadWrite<u32, CurrentValue::Register>,
+    syst_calib: ReadOnly<u32, CalibrationValue::Register>,
 }
+
+register_bitfields![u32,
+    ControlAndStatus [
+        /// Returns 1 if timer counted to 0 since last time this was read.
+        COUNTFLAG 16,
+
+        /// Clock source is (0) External Clock or (1) Processor Clock.
+        CLKSOURCE 2,
+
+        /// Set to 1 to enable SysTick exception request.
+        TICKINT 1,
+
+        /// Enable the counter (1 == Enabled).
+        ENABLE 0
+    ],
+
+    ReloadValue [
+        /// Value loaded to `syst_csr` when counter is enabled and reaches 0.
+        RELOAD          OFFSET(0)  NUMBITS(24)
+    ],
+
+    CurrentValue [
+        /// Reads current value. Write of any value sets to 0.
+        CURRENT         OFFSET(0)  NUMBITS(24)
+    ],
+
+    CalibrationValue [
+        /// 0 if device provides reference clock to processor.
+        NOREF           OFFSET(31) NUMBITS(1),
+
+        /// 0 if TENMS value is exact, 1 if inexact or not given.
+        SKEW            OFFSET(30) NUMBITS(1),
+
+        /// Reload value for 10ms ticks, or 0 if no calibration.
+        TENMS           OFFSET(0)  NUMBITS(24)
+    ]
+];
 
 /// The ARM Cortex-M4 SysTick peripheral
 ///
 /// Documented in the Cortex-M4 Devices Generic User Guide, Chapter 4.4 (pagees
 /// 249-252)
 pub struct SysTick {
-    regs: &'static Registers,
     hertz: u32,
 }
 
-const BASE_ADDR: *const Registers = 0xE000E010 as *const Registers;
+const BASE_ADDR: *const SystickRegisters = 0xE000E010 as *const SystickRegisters;
+const SYSTICK_BASE: StaticRef<SystickRegisters> =
+    unsafe { StaticRef::new(BASE_ADDR as *const SystickRegisters) };
 
 impl SysTick {
     /// Initialize the `SysTick` with default values
@@ -27,10 +67,7 @@ impl SysTick {
     /// Use this constructor if the core implementation has a pre-calibration
     /// value in hardware.
     pub unsafe fn new() -> SysTick {
-        SysTick {
-            regs: &*BASE_ADDR,
-            hertz: 0,
-        }
+        SysTick { hertz: 0 }
     }
 
     /// Initialize the `SysTick` with an explicit clock speed
@@ -50,7 +87,7 @@ impl SysTick {
     // hardware, use `self.hertz`, which is set in the `new_with_calibration`
     // constructor.
     fn hertz(&self) -> u32 {
-        let tenms = self.regs.calibration.get() & 0xffffff;
+        let tenms = SYSTICK_BASE.syst_calib.read(CalibrationValue::TENMS);
         if tenms == 0 {
             self.hertz
         } else {
@@ -74,8 +111,11 @@ impl kernel::SysTick for SysTick {
             hertz * us / 1_000_000
         };
 
-        self.regs.value.set(0);
-        self.regs.reload.set(reload as u32);
+        // n.b.: 4.4.5 'hints and tips' suggests setting reload before value
+        SYSTICK_BASE
+            .syst_rvr
+            .write(ReloadValue::RELOAD.val(reload as u32));
+        SYSTICK_BASE.syst_cvr.set(0);
     }
 
     fn greater_than(&self, us: u32) -> bool {
@@ -90,25 +130,30 @@ impl kernel::SysTick for SysTick {
             (hertz * us / 1_000_000) as u32
         };
 
-        let value = self.regs.value.get() & 0xffffff;
+        let value = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT);
         value > tics
     }
 
     fn overflowed(&self) -> bool {
-        self.regs.control.get() & 1 << 16 != 0
+        SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
     }
 
     fn reset(&self) {
-        self.regs.control.set(0);
-        self.regs.reload.set(0);
-        self.regs.value.set(0);
+        SYSTICK_BASE.syst_csr.set(0);
+        SYSTICK_BASE.syst_rvr.set(0);
+        SYSTICK_BASE.syst_cvr.set(0);
     }
 
     fn enable(&self, with_interrupt: bool) {
         if with_interrupt {
-            self.regs.control.set(0b111);
+            SYSTICK_BASE.syst_csr.write(
+                ControlAndStatus::ENABLE::SET + ControlAndStatus::TICKINT::SET
+                    + ControlAndStatus::CLKSOURCE::SET,
+            );
         } else {
-            self.regs.control.set(0b101);
+            SYSTICK_BASE
+                .syst_csr
+                .write(ControlAndStatus::ENABLE::SET + ControlAndStatus::CLKSOURCE::SET);
         }
     }
 }
