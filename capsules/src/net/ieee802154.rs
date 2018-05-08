@@ -2,9 +2,9 @@
 //! Supports the general MAC frame format, which encompasses data frames, beacon
 //! frames, MAC command frames, and the like.
 
+use net::stream::SResult;
 use net::stream::{decode_bytes_be, decode_u16, decode_u32, decode_u8};
 use net::stream::{encode_bytes, encode_bytes_be, encode_u16, encode_u32, encode_u8};
-use net::stream::SResult;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum MacAddress {
@@ -799,14 +799,12 @@ impl<'a> Header<'a> {
         dst_mode: AddressMode,
         src_mode: AddressMode,
         pan_id_compression: bool,
-    ) -> SResult<
-        (
-            Option<PanID>,
-            Option<MacAddress>,
-            Option<PanID>,
-            Option<MacAddress>,
-        ),
-    > {
+    ) -> SResult<(
+        Option<PanID>,
+        Option<MacAddress>,
+        Option<PanID>,
+        Option<MacAddress>,
+    )> {
         // IEEE 802.15.4: Section 7.2.1.5
         // Whether or not the addresses are included is determined by the mode
         // fields in the frame control field, but the presence of pan IDs

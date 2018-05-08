@@ -1,11 +1,11 @@
 //! Tock core scheduler.
 
-use core::nonzero::NonZero;
 use core::ptr;
+use core::ptr::NonNull;
 use memop;
-use platform::{Chip, Platform};
 use platform::mpu::MPU;
 use platform::systick::SysTick;
+use platform::{Chip, Platform};
 use process;
 use process::{Process, Task};
 use returncode::ReturnCode;
@@ -30,7 +30,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
 
     loop {
         if chip.has_pending_interrupts() || systick.overflowed()
-            || systick.value() <= MIN_QUANTA_THRESHOLD_US
+            || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
         {
             break;
         }
@@ -95,8 +95,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                 let callback_ptr_raw = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let callback_ptr = NonZero::new(callback_ptr_raw);
-                let callback = callback_ptr.map(|ptr| ::Callback::new(appid, appdata, ptr));
+                let callback_ptr = NonNull::new(callback_ptr_raw);
+                let callback = callback_ptr.map(|ptr| ::Callback::new(appid, appdata, ptr.cast()));
 
                 let res = platform.with_driver(driver_num, |driver| match driver {
                     Some(d) => d.subscribe(subdriver_num, callback, appid),

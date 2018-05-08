@@ -17,7 +17,7 @@
 //! +----------+------+--------+----+--------+----+---------+-----+
 //! ```
 //!
-//! * Premable - 1 byte
+//! * Preamble - 1 byte
 //!
 //! * Base and prefix forms together the access address
 //!
@@ -36,10 +36,10 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
@@ -226,7 +226,7 @@ pub struct RadioRegisters {
     /// Address: 0x530 - 0x534
     pub rxaddresses: ReadWrite<u32, ReceiveAddresses::Register>,
 
-    /// CRC configration
+    /// CRC configuration
     /// Address: 0x534 - 0x538
     pub crccnf: ReadWrite<u32, CrcConfiguration::Register>,
 
@@ -382,7 +382,7 @@ register_bitfields! [u32,
         /// Frequency = 2400 + FREQUENCY (MHz)
         FREQUENCY OFFSET(0) NUMBITS(7) [],
         /// Channel map selection.
-        /// Channel map between 2400 MHZ .. 2500 MH
+        /// Channel map between 2400 MHZ .. 2500 MHZ
         MAP OFFSET(8) NUMBITS(1) [
             DEFAULT = 0,
             LOW = 1
@@ -739,9 +739,9 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
-    pub fn replace_radio_buffer(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+    fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
         // set payload
-        for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
+        for (i, c) in buf.as_ref().iter().enumerate() {
             unsafe {
                 PAYLOAD[i] = *c;
             }
@@ -855,10 +855,10 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(
         &self,
         buf: &'static mut [u8],
-        len: usize,
+        _len: usize,
         channel: RadioChannel,
     ) -> &'static mut [u8] {
-        let res = self.replace_radio_buffer(buf, len);
+        let res = self.replace_radio_buffer(buf);
         self.ble_initialize(channel);
         self.tx();
         self.enable_interrupts();

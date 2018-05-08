@@ -27,9 +27,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x80002;

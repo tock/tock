@@ -1,14 +1,14 @@
 //! Common operations in the Tock OS.
 
-pub mod ring_buffer;
-pub mod queue;
-pub mod utils;
-pub mod take_cell;
-pub mod volatile_cell;
-pub mod static_ref;
 pub mod list;
 pub mod math;
 pub mod peripherals;
+pub mod queue;
+pub mod ring_buffer;
+pub mod static_ref;
+pub mod take_cell;
+pub mod utils;
+pub mod volatile_cell;
 
 #[macro_use]
 pub mod regs;

@@ -62,11 +62,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib)]
+#![feature(lang_items)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
@@ -185,7 +184,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[25],
             &nrf5x::gpio::PORT[24],
             &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22] // -----
+            &nrf5x::gpio::PORT[22], // -----
         ]
     );
 
@@ -250,7 +249,7 @@ pub unsafe fn reset_handler() {
             (
                 &nrf5x::gpio::PORT[BUTTON4_PIN],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // 16
+            ), // 16
         ]
     );
     let button = static_init!(

@@ -37,19 +37,21 @@
 #[macro_use]
 pub mod macros;
 
+use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
 
 /// IntLike properties needed to read/write/modify a register.
-pub trait IntLike
-    : BitAnd<Output = Self>
+pub trait IntLike:
+    BitAnd<Output = Self>
     + BitOr<Output = Self>
     + Not<Output = Self>
     + Eq
     + Shr<u32, Output = Self>
     + Shl<u32, Output = Self>
     + Copy
-    + Clone {
+    + Clone
+{
     fn zero() -> Self;
 }
 
@@ -215,6 +217,7 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
 /// having to do a full MMIO read each time. It also allows the value of the
 /// register to be "cached" in case the peripheral driver needs to clear the
 /// register in hardware yet still be able to check the bits.
+#[derive(Copy, Clone)]
 pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
@@ -259,6 +262,30 @@ impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     #[inline]
     pub fn bitand(&self, rhs: T) -> LocalRegisterCopy<T, R> {
         LocalRegisterCopy::new(self.value & rhs)
+    }
+}
+
+impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.value)
+    }
+}
+
+impl<R: RegisterLongName> From<LocalRegisterCopy<u8, R>> for u8 {
+    fn from(r: LocalRegisterCopy<u8, R>) -> u8 {
+        r.value
+    }
+}
+
+impl<R: RegisterLongName> From<LocalRegisterCopy<u16, R>> for u16 {
+    fn from(r: LocalRegisterCopy<u16, R>) -> u16 {
+        r.value
+    }
+}
+
+impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
+    fn from(r: LocalRegisterCopy<u32, R>) -> u32 {
+        r.value
     }
 }
 

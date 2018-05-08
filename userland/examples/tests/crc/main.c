@@ -30,6 +30,8 @@ uint32_t procid;
 int main(void) {
   int r;
 
+  printf("[CRC Test] This app tests the CRC syscall interface\n");
+
   // Get a random number to distinguish this app instance
   if ((r = rng_sync((uint8_t *) &procid, 4, 4)) != 4) {
     printf("RNG failure\n");
@@ -38,12 +40,6 @@ int main(void) {
 
   if (!crc_exists()) {
     printf("CRC driver does not exist\n");
-    exit(1);
-  }
-
-  uint32_t v = crc_version();
-  if (v != 0x00000202) {
-    printf("CRC version unexpected: %lu\n", v);
     exit(1);
   }
 

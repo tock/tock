@@ -47,8 +47,8 @@
 pub const DRIVER_NUM: usize = 0x00000004;
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 pub struct GPIO<'a, G: Pin + 'a> {
     pins: &'a [&'a G],

@@ -2,8 +2,8 @@
 
 use core::cell::Cell;
 use core::mem;
-use kernel::hil::Controller;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
+use kernel::hil::Controller;
 use peripheral_registers::{RTC1, RTC1_BASE};
 
 fn rtc1() -> &'static RTC1 {

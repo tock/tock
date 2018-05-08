@@ -5,11 +5,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items, compiler_builtins_lib, const_cell_new)]
+#![feature(asm, const_fn, lang_items, const_cell_new)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
@@ -23,12 +22,12 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::hil;
-use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
+use kernel::hil::Controller;
 
 /// Support routines for debugging I/O.
 ///
@@ -40,9 +39,13 @@ pub mod io;
 #[allow(dead_code)]
 mod i2c_dummy;
 #[allow(dead_code)]
+mod icmp_lowpan_test;
+#[allow(dead_code)]
+mod ipv6_lowpan_test;
+#[allow(dead_code)]
 mod spi_dummy;
 #[allow(dead_code)]
-mod lowpan_frag_dummy;
+mod udp_lowpan_test;
 
 #[allow(dead_code)]
 mod aes_test;
@@ -148,8 +151,8 @@ impl kernel::Platform for Imix {
 }
 
 unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::{PA, PB, PC};
     use sam4l::gpio::PeripheralFunction::{A, B, C, E};
+    use sam4l::gpio::{PA, PB, PC};
 
     // Right column: Imix pin name
     // Left  column: SAM4L peripheral function
@@ -422,7 +425,7 @@ pub unsafe fn reset_handler() {
             &sam4l::adc::CHANNEL_AD3, // AD2
             &sam4l::adc::CHANNEL_AD4, // AD3
             &sam4l::adc::CHANNEL_AD5, // AD4
-            &sam4l::adc::CHANNEL_AD6  // AD5
+            &sam4l::adc::CHANNEL_AD6, // AD5
         ]
     );
     let adc = static_init!(
@@ -448,7 +451,7 @@ pub unsafe fn reset_handler() {
             &sam4l::gpio::PC[28], // P5
             &sam4l::gpio::PC[27], // P6
             &sam4l::gpio::PC[26], // P7
-            &sam4l::gpio::PA[20]  // P8
+            &sam4l::gpio::PA[20], // P8
         ]
     );
 
@@ -471,7 +474,7 @@ pub unsafe fn reset_handler() {
             (
                 &sam4l::gpio::PC[10],
                 capsules::led::ActivationMode::ActiveHigh
-            )
+            ),
         ]
     );
     let led = static_init!(
@@ -483,12 +486,10 @@ pub unsafe fn reset_handler() {
 
     let button_pins = static_init!(
         [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
-        [
-            (
-                &sam4l::gpio::PC[24],
-                capsules::button::GpioMode::LowWhenPressed
-            )
-        ]
+        [(
+            &sam4l::gpio::PC[24],
+            capsules::button::GpioMode::LowWhenPressed
+        )]
     );
 
     let button = static_init!(

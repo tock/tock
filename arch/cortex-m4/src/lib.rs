@@ -6,13 +6,13 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio)]
+#[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 pub mod mpu;
 pub mod nvic;
-pub mod systick;
 pub mod scb;
+pub mod systick;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}

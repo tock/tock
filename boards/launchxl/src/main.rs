@@ -1,9 +1,8 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib, asm)]
+#![feature(lang_items, asm)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 
 extern crate cc26x2;
 extern crate cc26xx;
@@ -88,7 +87,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc26xx::gpio::PORT[7],
                 capsules::led::ActivationMode::ActiveHigh
-            ) // Green
+            ), // Green
         ]
     );
     let led = static_init!(
@@ -107,7 +106,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc26xx::gpio::PORT[14],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // Button 1
+            ), // Button 1
         ]
     );
     let button = static_init!(
@@ -162,7 +161,7 @@ pub unsafe fn reset_handler() {
             &cc26xx::gpio::PORT[26],
             &cc26xx::gpio::PORT[27],
             &cc26xx::gpio::PORT[30],
-            &cc26xx::gpio::PORT[31]
+            &cc26xx::gpio::PORT[31],
         ]
     );
     let gpio = static_init!(

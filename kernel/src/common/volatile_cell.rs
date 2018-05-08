@@ -23,3 +23,9 @@ impl<T> VolatileCell<T> {
         unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
     }
 }
+
+impl<T: Default> Default for VolatileCell<T> {
+    fn default() -> Self {
+        VolatileCell::new(Default::default())
+    }
+}

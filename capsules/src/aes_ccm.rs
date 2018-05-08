@@ -37,13 +37,13 @@
 //! verify its correctness.
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
                                         AES128_KEY_SIZE, CCM_NONCE_LENGTH};
-use net::stream::{encode_bytes, encode_u16};
+use kernel::ReturnCode;
 use net::stream::SResult;
+use net::stream::{encode_bytes, encode_u16};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CCMState {

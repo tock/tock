@@ -68,7 +68,7 @@ TRACE_LD  =
 TRACE_AR  =
 TRACE_AS  =
 TRACE_LST =
-ELF2TBF_ARGS += -v
+ELF2TAB_ARGS += -v
 else
 Q=@
 TRACE_DIR = @echo " DIR       " $@

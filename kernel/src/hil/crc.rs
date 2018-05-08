@@ -25,9 +25,6 @@ pub enum CrcAlg {
 }
 
 pub trait CRC {
-    /// Get the version of the CRC unit
-    fn get_version(&self) -> u32;
-
     /// Initiate a CRC calculation
     fn compute(&self, data: &[u8], CrcAlg) -> ReturnCode;
 

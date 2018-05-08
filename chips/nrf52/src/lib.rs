@@ -14,15 +14,16 @@ extern crate bitfield;
 #[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
-pub mod clock;
 pub mod chip;
+pub mod clock;
 pub mod crt1;
 pub mod ficr;
+pub mod i2c;
 pub mod nvmc;
+pub mod ppi;
 pub mod radio;
+pub mod spi;
 pub mod uart;
 pub mod uicr;
-pub mod spi;
-pub mod i2c;
 
 pub use crt1::init;

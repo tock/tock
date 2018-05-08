@@ -36,8 +36,8 @@ $ cd userland/examples/blink/
 $ make TOCK_BOARD=imix
 ```
 
-This will build the app, generate a binary in Tock Binary Format (using the
-`elf2tbf` utility), and create a TAB (Tock Application Bundle):
+This will build the app and generate a binary in Tock Binary Format and create a
+TAB (Tock Application Bundle) using the `elf2tab` utility:
 `userland/examples/blink/build/blink.tab`.
 
 Apps can be built and automatically uploaded from the root directory of Tock:
@@ -57,14 +57,14 @@ $ make TOCK_BOARD=imix program
 This builds and loads only a single app. Tock is capable of running multiple apps
 concurrently:
 
-Use `tockloader install -a 0x40000` to add additional apps, and 
+Use `tockloader install -a 0x40000` to add additional apps, and
 `tockloader list -a 0x40000` to see the list of installed applications. The `-a`
 flag specifies the address of the application space, which is different between
 boards.
 
 Please note that forgetting to specify `TOCK_BOARD=imix` when using `make program`
 or forgetting to specify `-a 0x40000` when using `tockloader install` can result
-in overwriting a portion of the kernel, which should be fixed by flashing the 
+in overwriting a portion of the kernel, which should be fixed by flashing the
 kernel again.
 
 ## Debugging

@@ -32,10 +32,10 @@
 
 use core::cell::Cell;
 use kernel;
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
+use kernel::ReturnCode;
 
 // DMA buffer that the aes chip will mutate during encryption
 // Byte 0-15   - Key

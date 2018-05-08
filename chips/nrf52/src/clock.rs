@@ -2,13 +2,15 @@
 //!
 //! Based on Phil Levis clock driver for nRF51
 //!
-//! HFCLK - High Frequency Clock
+//! HFCLK - High Frequency Clock:
+//!
 //!     * 64 MHz internal oscillator (HFINT)
 //!     * 64 MHz crystal oscillator, using 32 MHz external crystal (HFXO)
 //!     * The HFXO must be running to use the RADIO, NFC module or the calibration mechanism
 //!       associated with the 32.768 kHz RC oscillator.
 //!
 //! LFCLK - Low Frequency Clock Source:
+//!
 //!     * 32.768 kHz RC oscillator (LFRC)
 //!     * 32.768 kHz crystal oscillator (LFXO)
 //!     * 32.768 kHz synthesized from HFCLK (LFSYNT)
@@ -167,7 +169,7 @@ impl Clock {
         self.client.set(Some(client));
     }
 
-    /// Enable interrupt (not used yet)
+    /// Enable interrupt
     pub fn interrupt_enable(&self, interrupt: InterruptField) {
         let regs = unsafe { &*self.registers };
         // this is a little too verbose
@@ -179,7 +181,7 @@ impl Clock {
         }
     }
 
-    /// Disable interrupt (not used yet)
+    /// Disable interrupt
     pub fn interrupt_disable(&self, interrupt: InterruptField) {
         let regs = unsafe { &*self.registers };
         // this is a little too verbose

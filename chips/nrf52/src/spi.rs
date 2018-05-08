@@ -32,9 +32,9 @@
 use core::cell::Cell;
 use core::cmp;
 use core::ptr;
-use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
 
 /// SPI master instance 0.

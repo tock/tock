@@ -6,8 +6,8 @@ use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
 use dma;
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::ReturnCode;
 // other modules
 use kernel::hil;
 // local modules
@@ -586,6 +586,28 @@ impl USART {
             self.disable_tx_empty_interrupt(usart);
             self.disable_tx(usart);
             self.usart_tx_state.set(USARTStateTX::Idle);
+
+            // Now that we know the TX transaction is finished we can get the
+            // buffer back from DMA and pass it back to the client. If we don't
+            // wait until we are completely finished, then the
+            // `transmit_complete` callback is in a "bad" part of the USART
+            // state machine, and clients cannot issue other USART calls from
+            // the callback.
+            let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
+                let buf = tx_dma.abort_xfer();
+                tx_dma.disable();
+                buf
+            });
+
+            // alert client
+            self.client.get().map(|usartclient| {
+                buffer.map(|buf| match usartclient {
+                    UsartClient::Uart(client) => {
+                        client.transmit_complete(buf, hil::uart::Error::CommandComplete);
+                    }
+                    UsartClient::SpiMaster(_) => {}
+                });
+            });
         } else if usart.registers.csr.is_set(ChannelStatus::PARE) {
             self.abort_rx(usart, hil::uart::Error::ParityError);
         } else if usart.registers.csr.is_set(ChannelStatus::FRAME) {
@@ -708,23 +730,6 @@ impl dma::DMAClient for USART {
                     // there may still be bytes left in the TX buffer.
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
                     self.enable_tx_empty_interrupt(usart);
-
-                    // get buffer
-                    let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
-                        let buf = tx_dma.abort_xfer();
-                        tx_dma.disable();
-                        buf
-                    });
-
-                    // alert client
-                    self.client.get().map(|usartclient| {
-                        buffer.map(|buf| match usartclient {
-                            UsartClient::Uart(client) => {
-                                client.transmit_complete(buf, hil::uart::Error::CommandComplete);
-                            }
-                            UsartClient::SpiMaster(_) => {}
-                        });
-                    });
                     self.tx_len.set(0);
                 }
             }
