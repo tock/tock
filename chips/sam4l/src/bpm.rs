@@ -77,7 +77,7 @@ register_bitfields![u32,
         /// bit 3 ('PSCM' bit) of the PMCON register, which is *blank* (not a '-')
         /// in the datasheet with supporting comments that this allows a change
         /// 'without CPU halt'
-        PSCM OFFSET(4) NUMBITS(1) [
+        PSCM OFFSET(3) NUMBITS(1) [
             WithCpuHalt = 0,
             WithoutCpuHalt = 1
         ],
