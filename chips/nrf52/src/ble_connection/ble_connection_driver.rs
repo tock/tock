@@ -1,6 +1,7 @@
 use ble_connection::ble_advertising_hil::RadioChannel;
 use ble_connection::ble_link_layer::LLData;
 use core::fmt;
+use core::convert::TryInto;
 
 const NUMBER_CHANNELS: usize = 40;
 const NUMBER_DATA_CHANNELS: usize = NUMBER_CHANNELS - 3;
@@ -103,7 +104,7 @@ impl ConnectionData {
         self.last_unmapped_channel = unmapped_channel;
 
         if used {
-            RadioChannel::from_channel_index(unmapped_channel).unwrap()
+            unmapped_channel.try_into().unwrap()
         } else {
             let mut table: ChannelMap = [0; NUMBER_CHANNELS];
             let remapping_index = unmapped_channel % self.number_used_channels;
@@ -117,7 +118,7 @@ impl ConnectionData {
                 }
             }
 
-            RadioChannel::from_channel_index(table[remapping_index as usize]).unwrap()
+            table[remapping_index as usize].try_into().unwrap()
         }
     }
 

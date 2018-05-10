@@ -50,6 +50,7 @@
 use ble_connection::ble_connection_driver::ConnectionData;
 use kernel::ReturnCode;
 use nrf5x::constants::BLE_T_IFS;
+use core;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
@@ -229,50 +230,57 @@ impl RadioChannel {
             RadioChannel::AdvertisingChannel39 => 39,
         }
     }
+}
 
-    pub fn from_channel_index(index: u8) -> Option<RadioChannel> {
-        match index {
-            0 => Some(RadioChannel::DataChannel0),
-            1 => Some(RadioChannel::DataChannel1),
-            2 => Some(RadioChannel::DataChannel2),
-            3 => Some(RadioChannel::DataChannel3),
-            4 => Some(RadioChannel::DataChannel4),
-            5 => Some(RadioChannel::DataChannel5),
-            6 => Some(RadioChannel::DataChannel6),
-            7 => Some(RadioChannel::DataChannel7),
-            8 => Some(RadioChannel::DataChannel8),
-            9 => Some(RadioChannel::DataChannel9),
-            10 => Some(RadioChannel::DataChannel10),
-            11 => Some(RadioChannel::DataChannel11),
-            12 => Some(RadioChannel::DataChannel12),
-            13 => Some(RadioChannel::DataChannel13),
-            14 => Some(RadioChannel::DataChannel14),
-            15 => Some(RadioChannel::DataChannel15),
-            16 => Some(RadioChannel::DataChannel16),
-            17 => Some(RadioChannel::DataChannel17),
-            18 => Some(RadioChannel::DataChannel18),
-            19 => Some(RadioChannel::DataChannel19),
-            20 => Some(RadioChannel::DataChannel20),
-            21 => Some(RadioChannel::DataChannel21),
-            22 => Some(RadioChannel::DataChannel22),
-            23 => Some(RadioChannel::DataChannel23),
-            24 => Some(RadioChannel::DataChannel24),
-            25 => Some(RadioChannel::DataChannel25),
-            26 => Some(RadioChannel::DataChannel26),
-            27 => Some(RadioChannel::DataChannel27),
-            28 => Some(RadioChannel::DataChannel28),
-            29 => Some(RadioChannel::DataChannel29),
-            30 => Some(RadioChannel::DataChannel30),
-            31 => Some(RadioChannel::DataChannel31),
-            32 => Some(RadioChannel::DataChannel32),
-            33 => Some(RadioChannel::DataChannel33),
-            34 => Some(RadioChannel::DataChannel34),
-            35 => Some(RadioChannel::DataChannel35),
-            36 => Some(RadioChannel::DataChannel36),
-            37 => Some(RadioChannel::AdvertisingChannel37),
-            38 => Some(RadioChannel::AdvertisingChannel38),
-            39 => Some(RadioChannel::AdvertisingChannel39),
-            _ => None,
+#[derive(Debug)]
+pub struct NoDataChannelForIndex;
+
+impl core::convert::TryFrom<u8> for RadioChannel {
+    type Error = NoDataChannelForIndex;
+
+    fn try_from(value: u8) -> Result<Self, NoDataChannelForIndex> {
+        match value {
+            0 => Ok(RadioChannel::DataChannel0),
+            1 => Ok(RadioChannel::DataChannel1),
+            2 => Ok(RadioChannel::DataChannel2),
+            3 => Ok(RadioChannel::DataChannel3),
+            4 => Ok(RadioChannel::DataChannel4),
+            5 => Ok(RadioChannel::DataChannel5),
+            6 => Ok(RadioChannel::DataChannel6),
+            7 => Ok(RadioChannel::DataChannel7),
+            8 => Ok(RadioChannel::DataChannel8),
+            9 => Ok(RadioChannel::DataChannel9),
+            10 => Ok(RadioChannel::DataChannel10),
+            11 => Ok(RadioChannel::DataChannel11),
+            12 => Ok(RadioChannel::DataChannel12),
+            13 => Ok(RadioChannel::DataChannel13),
+            14 => Ok(RadioChannel::DataChannel14),
+            15 => Ok(RadioChannel::DataChannel15),
+            16 => Ok(RadioChannel::DataChannel16),
+            17 => Ok(RadioChannel::DataChannel17),
+            18 => Ok(RadioChannel::DataChannel18),
+            19 => Ok(RadioChannel::DataChannel19),
+            20 => Ok(RadioChannel::DataChannel20),
+            21 => Ok(RadioChannel::DataChannel21),
+            22 => Ok(RadioChannel::DataChannel22),
+            23 => Ok(RadioChannel::DataChannel23),
+            24 => Ok(RadioChannel::DataChannel24),
+            25 => Ok(RadioChannel::DataChannel25),
+            26 => Ok(RadioChannel::DataChannel26),
+            27 => Ok(RadioChannel::DataChannel27),
+            28 => Ok(RadioChannel::DataChannel28),
+            29 => Ok(RadioChannel::DataChannel29),
+            30 => Ok(RadioChannel::DataChannel30),
+            31 => Ok(RadioChannel::DataChannel31),
+            32 => Ok(RadioChannel::DataChannel32),
+            33 => Ok(RadioChannel::DataChannel33),
+            34 => Ok(RadioChannel::DataChannel34),
+            35 => Ok(RadioChannel::DataChannel35),
+            36 => Ok(RadioChannel::DataChannel36),
+            37 => Ok(RadioChannel::AdvertisingChannel37),
+            38 => Ok(RadioChannel::AdvertisingChannel38),
+            39 => Ok(RadioChannel::AdvertisingChannel39),
+            _ => Err(NoDataChannelForIndex),
         }
     }
 }
