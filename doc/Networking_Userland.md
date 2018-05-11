@@ -128,35 +128,38 @@ based protocols, which we currently do not handle.
 ### Tock Userland API
 Below is a list of desired functionality for the libTock userland API.
 
+- `struct sock_addr_t`  
+    `ipv6_addr_t`: IPv6 address (single or ANY)  
+    `port_t`: Transport level port (single or ANY)
+
 - `socket() -> int fd`  
     Returns some integer representing a socket structure.
 
 - `list_ifaces() -> ifaces[]`  
+    ifaces = (ip, string name [8 char])
     This is a stateless function for listing all current interfaces.  
     TODO: Do we need any arguments to this function
 
-- `bind(socketfd, iface)`
-    - `socketfd`: Socket to bind on
-    - `iface`: Interface to bind to (or all interfaces)
+- `udp_socket(socketfd, sock_addr_t)`  
+    `socketfd`: Socket object to be initialized as a UDP socket with the given
+    address information  
+    `sock_addr_t`: Contains an IPv6 address and a port
 
-- `bind_to_port(socketfd, iface, port)`
-    - `socketfd`: Socket to bind on
-    - `iface`: Interface to bind to (or all interfaces)
-    - `port`: Port to listen on
+- `udp_close(socketfd)`  
+    `socketfd`: Socket to close
 
-    This is exposed in the `sock_addr_t` struct in POSIX
+- `send_to(socketfd, buffer, length, sock_addr_t)`  
+    - `socketfd`: Socket to send using  
+    - `buffer`: Buffer to send  
+    - `length`: Length of buffer to send  
+    - `sock_addr_t`: Address struct (IPv6 address, port) to send the packet from
 
-- `send_to(socketfd, buffer, length, dst_addr)`
-    - `socketfd`: Socket to send using
-    - `buffer`: Buffer to send
-    - `length`: Length of buffer to send
-    - `dst_addr`: Address to send to
-
-- `recv_from(socketfd, buffer, length, src_addr)`
-    - `socketfd`: Receiving socket
-    - `buffer`: Buffer to receive into
-    - `length`: Length of buffer
-    - `src_addr`: Address of sender
+- `recv_from(socketfd, buffer, length, sock_addr_t)`  
+    - `socketfd`: Receiving socket  
+    - `buffer`: Buffer to receive into  
+    - `length`: Length of buffer  
+    - `sock_addr_t`: Struct where the kernel writes the received packet's sender
+    information
 
 ### Differences Between the APIs
 
