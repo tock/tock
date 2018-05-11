@@ -132,14 +132,14 @@ Below is a list of desired functionality for the libTock userland API.
     `ipv6_addr_t`: IPv6 address (single or ANY)  
     `port_t`: Transport level port (single or ANY)
 
-- `socket() -> int fd`  
-    Returns some integer representing a socket structure.
+- `struct socket_struct_t`  
+    Opaque to the user; allocated in userland by malloc (or on the stack)
 
 - `list_ifaces() -> iface[]`  
     `ifaces`: A list of `ipv6_addr_t, name` pairs corresponding to all
     interfaces available
 
-- `udp_socket(socketfd, sock_addr_t)`  
+- `udp_socket(socket_struct_t, sock_addr_t) -> int socketfd`  
     `socketfd`: Socket object to be initialized as a UDP socket with the given
     address information  
     `sock_addr_t`: Contains an IPv6 address and a port
