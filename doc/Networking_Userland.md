@@ -135,10 +135,9 @@ Below is a list of desired functionality for the libTock userland API.
 - `socket() -> int fd`  
     Returns some integer representing a socket structure.
 
-- `list_ifaces() -> ifaces[]`  
-    ifaces = (ip, string name [8 char])
-    This is a stateless function for listing all current interfaces.  
-    TODO: Do we need any arguments to this function
+- `list_ifaces() -> iface[]`  
+    `ifaces`: A list of `ipv6_addr_t, name` pairs corresponding to all
+    interfaces available
 
 - `udp_socket(socketfd, sock_addr_t)`  
     `socketfd`: Socket object to be initialized as a UDP socket with the given
