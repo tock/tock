@@ -6,12 +6,12 @@
 //! they provide safe wrappers around unsafe interface so that other kernel
 //! crates do not need to use unsafe code.
 
+pub use tock_regs::*;
+
 pub mod deferred_call;
 pub mod list;
 pub mod math;
 pub mod peripherals;
-#[macro_use]
-pub mod regs;
 pub mod utils;
 
 mod map_cell;

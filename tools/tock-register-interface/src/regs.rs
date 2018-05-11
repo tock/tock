@@ -26,16 +26,13 @@
 //!         MODE        OFFSET(4) NUMBITS(3) [
 //!             FullDuplex = 0,
 //!             HalfDuplex = 1,
-//!         Loopback = 2,
+//!             Loopback = 2,
 //!             Disabled = 3
 //!         ],
 //!         ERRORCOUNT OFFSET(6) NUMBITS(3) []
 //!     ]
 //! ];
 //! ```
-
-#[macro_use]
-pub mod macros;
 
 use core::fmt;
 use core::marker::PhantomData;

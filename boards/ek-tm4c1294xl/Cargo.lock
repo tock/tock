@@ -33,6 +33,9 @@ dependencies = [
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "tock-regs 0.1.0",
+]
 
 [[package]]
 name = "tm4c129x"
@@ -41,4 +44,8 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "tock-regs"
+version = "0.1.0"
 

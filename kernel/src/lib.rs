@@ -9,7 +9,12 @@
 #![feature(asm, core_intrinsics, unique, nonzero, ptr_internals)]
 #![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
 #![feature(nonnull_cast)]
+#![feature(use_extern_macros)]
 #![no_std]
+
+extern crate tock_regs;
+
+pub use tock_regs::{register_bitfields, register_bitmasks};
 
 #[macro_use]
 pub mod common;

@@ -1,4 +1,4 @@
-# Register/Bitfield Interface for Tock
+# Tock Register Interface
 
 This module provides an interface for defining and manipulating memory mapped
 registers and bitfields.
