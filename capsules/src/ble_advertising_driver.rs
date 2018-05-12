@@ -268,9 +268,9 @@ impl App {
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or(ReturnCode::FAIL)
+                    .unwrap_or_else(|| ReturnCode::FAIL)
             })
-            .unwrap_or(ReturnCode::FAIL)
+            .unwrap_or_else(|| ReturnCode::FAIL)
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
