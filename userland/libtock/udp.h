@@ -12,16 +12,34 @@ typedef struct ipv6_addr {
   uint8_t addr[16];
 } ipv6_addr_t;
 
-typedef struct sock_handle {
+typedef struct sock_addr {
   ipv6_addr_t addr;
   udp_port_t port;
+} sock_addr_t;
+
+typedef struct sock_handle {
+  sock_addr_t addr;
 } sock_handle_t;
 
-int udp_socket(sock_handle_t *handle, ipv6_addr_t *my_addr, udp_port_t my_port);
+// Creates a new datagram socket bound to an address.
+// Returns 0 on success, negative on failure.
+int udp_socket(sock_handle_t *handle, sock_addr_t *addr);
+
+// Closes a socket.
+// Returns 0 on success, negative on failure.
 int udp_close(sock_handle_t *handle);
-int udp_send_to(sock_handle_t *handle, ipv6_addr_t *dst_addr, udp_port_t dst_port);
-int udp_recv_from(sock_handle_t *handle, ipv6_addr_t *dst_addr, udp_port_t dst_port);
-int udp_list_ifaces(void); 
+
+// Sends data on a socket.
+// Returns number of bytes sent, negative on failure.
+ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len, sock_addr_t *dst_addr);
+
+// Receives data from a socket.
+// Returns number of bytes received, negative on failure.
+ssize_t udp_recv_from(sock_handle_t *handle, void *buf, size_t len, sock_addr_t *dst_addr);
+
+// Lists interfaces.  
+// Returns number of interfaces, negative on failure.
+int udp_list_ifaces(ipv6_addr_t *ifaces); 
 
 #ifdef __cplusplus
 }
