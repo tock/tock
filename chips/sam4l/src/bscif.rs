@@ -264,15 +264,15 @@ register_bitfields![u32,
     RC1MClockConfig [
         /// 1MHz RC Osc Calibration
         CLKCAL OFFSET(8) NUMBITS(5) [],
-        /// 1MHz RC Osc Clock Output Enable
-        CLKOEN OFFSET(7) NUMBITS(1) [
-            NotOutput = 0,
-            Output = 1
-        ],
         /// Flash Calibration Done
-        FCD OFFSET(0) NUMBITS(1) [
+        FCD OFFSET(7) NUMBITS(1) [
             RedoFlashCalibration = 0,
             DoNotRedoFlashCalibration = 1
+        ],
+        /// 1MHz RC Osc Clock Output Enable
+        CLKOEN OFFSET(0) NUMBITS(1) [
+            NotOutput = 0,
+            Output = 1
         ]
     ],
 
@@ -355,7 +355,7 @@ pub unsafe fn setup_rc_1mhz() {
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
     (*BSCIF).rc1mcr.modify(RC1MClockConfig::CLKOEN::Output);
-    while (*BSCIF).rc1mcr.matches_all(RC1MClockConfig::CLKOEN::NotOutput) {}
+    while !(*BSCIF).rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
 }
 
 pub unsafe fn disable_rc_1mhz() {
@@ -364,5 +364,5 @@ pub unsafe fn disable_rc_1mhz() {
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
     (*BSCIF).rc1mcr.modify(RC1MClockConfig::CLKOEN::NotOutput);
-    while (*BSCIF).rc1mcr.matches_all(RC1MClockConfig::CLKOEN::Output) {}
+    while (*BSCIF).rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
 }

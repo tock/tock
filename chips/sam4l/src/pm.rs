@@ -563,9 +563,6 @@ const PM_REGS: StaticRef<PmRegisters> = unsafe { StaticRef::new(PM_BASE as *cons
 /// configurations for various system clocks and the final frequency that the
 /// system is running at.
 pub struct PowerManager {
-    /// Frequency at which the system clock is running.
-    system_frequency: Cell<u32>,
-
     /// Clock source configuration
     system_clock_source: Cell<SystemClockSource>,
 
@@ -577,9 +574,6 @@ pub struct PowerManager {
 }
 
 pub static mut PM: PowerManager = PowerManager {
-    /// Set to the RCSYS frequency by default (115 kHz).
-    system_frequency: Cell::new(115200),
-
     /// Set to the RCSYS by default.
     system_clock_source: Cell::new(SystemClockSource::RcsysAt115kHz),
 
@@ -613,14 +607,14 @@ impl PowerManager {
         match clock_source {
             SystemClockSource::RcsysAt115kHz => {
                 // no configurations necessary, RCSYS already running 
+                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
                 select_main_clock(MainClock::RCSYS);
-                PM.system_frequency.set(115200);
             }
 
             SystemClockSource::DfllRc32kAt48MHz => {
                 configure_48mhz_dfll();
+                flashcalw::FLASH_CONTROLLER.set_wait_state(1);
                 select_main_clock(MainClock::DFLL);
-                PM.system_frequency.set(48000000);
             }
 
             SystemClockSource::ExternalOscillator {
@@ -631,11 +625,14 @@ impl PowerManager {
                     SystemClockSource::PllExternalOscillatorAt48MHz{..} => {
                         select_main_clock(MainClock::RCSYS);
                     }
+                    SystemClockSource::DfllRc32kAt48MHz => {
+                        select_main_clock(MainClock::RCSYS);
+                    }
                     _ => {}
                 }
                 configure_external_oscillator(frequency, startup_mode);
+                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
                 select_main_clock(MainClock::OSC0);
-                PM.system_frequency.set(16000000);
             }
 
             SystemClockSource::PllExternalOscillatorAt48MHz {
@@ -643,8 +640,8 @@ impl PowerManager {
                 startup_mode,
             } => {
                 configure_external_oscillator_pll(frequency, startup_mode);
+                flashcalw::FLASH_CONTROLLER.set_wait_state(1);
                 select_main_clock(MainClock::PLL);
-                PM.system_frequency.set(48000000);
             }
 
             SystemClockSource::RC80M => {
@@ -657,8 +654,8 @@ impl PowerManager {
                     + CpuClockSelect::CPUSEL::CLEAR);
                 while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
 
+                flashcalw::FLASH_CONTROLLER.set_wait_state(1);
                 select_main_clock(MainClock::RC80M);
-                PM.system_frequency.set(40000000);
             }
 
             SystemClockSource::RCFAST {frequency}=> {
@@ -668,45 +665,39 @@ impl PowerManager {
                     scif::disable_rcfast();
                 }
 
-                configure_rcfast(frequency);
-                select_main_clock(MainClock::RCFAST);
-
-                match frequency {
-                    RcfastFrequency::Frequency4MHz => {
-                        PM.system_frequency.set(4300000);
+                match self.system_clock_source.get() {
+                    SystemClockSource::DfllRc32kAt48MHz => {
+                        select_main_clock(MainClock::RCSYS);
                     }
-                    RcfastFrequency::Frequency8MHz => {
-                        PM.system_frequency.set(8200000);
-                    }
-                    RcfastFrequency::Frequency12MHz => {
-                        PM.system_frequency.set(12000000);
-                    }
+                    _ => {}
                 }
 
+                configure_rcfast(frequency);
+                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
+                select_main_clock(MainClock::RCFAST);
             }
 
             SystemClockSource::RC1M => {
+                match self.system_clock_source.get() {
+                    SystemClockSource::DfllRc32kAt48MHz => {
+                        select_main_clock(MainClock::RCSYS);
+                    }
+                    _ => {}
+                }
+
                 configure_1mhz_rc();
+                flashcalw::FLASH_CONTROLLER.set_wait_state(0);
                 select_main_clock(MainClock::RC1M);
-                PM.system_frequency.set(1000000);
             }
         }
 
-        // Assumes PS2, refer to datasheet pg.1149
-        if PM.system_frequency.get() <= 24000000 {
-            flashcalw::FLASH_CONTROLLER.set_wait_state(0);
-        }
-        else {
-            flashcalw::FLASH_CONTROLLER.set_wait_state(1);
-        }
-
         self.system_clock_source.set(clock_source);
-
     }
 
     pub unsafe fn disable_system_clock(&self, clock_source: SystemClockSource) {
 
         // Disable previous clock
+        
         match clock_source {
             SystemClockSource::RcsysAt115kHz => {
                 //Rcsys is always available except in sleep modes
@@ -782,14 +773,14 @@ impl PowerManager {
         }
     }
     pub unsafe fn change_system_clock(&self, clock_source: SystemClockSource) {
-        let prev_clock_source = self.system_clock_source.get();
+        let prev_clock_source = PM.system_clock_source.get();
         if prev_clock_source == clock_source { return; } 
         self.setup_system_clock(clock_source);
 
         // Don't disable RCFAST if the current clock is still RCFAST 
-        match prev_clock_source {
+        match clock_source {
             SystemClockSource::RCFAST{..} => {
-                match clock_source {
+                match prev_clock_source {
                     SystemClockSource::RCFAST{..} => {
                         return;
                     }
@@ -921,7 +912,24 @@ unsafe fn configure_1mhz_rc() {
 }
 
 pub fn get_system_frequency() -> u32 {
-    unsafe { PM.system_frequency.get() }
+    unsafe {
+        match PM.system_clock_source.get() {
+            SystemClockSource::RcsysAt115kHz => 115200,
+            SystemClockSource::DfllRc32kAt48MHz => 48000000,
+            SystemClockSource::ExternalOscillator {frequency, startup_mode} => 16000000,
+            SystemClockSource::PllExternalOscillatorAt48MHz {
+                frequency, startup_mode} => 48000000,
+            SystemClockSource::RC80M => 40000000,
+            SystemClockSource::RCFAST{frequency} => {
+                match frequency {
+                    RcfastFrequency::Frequency4MHz => 4300000,
+                    RcfastFrequency::Frequency8MHz => 8200000,
+                    RcfastFrequency::Frequency12MHz => 12000000,
+                }
+            }
+            SystemClockSource::RC1M => 1000000,
+        }
+    }
 }
 
 /// Utility macro to modify clock mask registers
