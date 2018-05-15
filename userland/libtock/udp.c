@@ -1,16 +1,21 @@
-#include <udp.h>
-#include <tock.h>
+#include "udp.h"
+#include "tock.h"
 
 static unsigned char BUF_TX_CFG[2 * sizeof(sock_addr_t)];
 static unsigned char BUF_RX_CFG[2 * sizeof(sock_addr_t)];
 
 int udp_socket(sock_handle_t *handle, sock_addr_t *addr) {
-  // TODO
+  /* 
+  memcpy(&(handle->addr), addr, sizeof(sock_addr_t));
+  return allow(UDP_DRIVER, ALLOW_HANDLE, (void *) handle, sizeof(sock_handle_t)); 
+  */
   return TOCK_ENOSUPPORT;
 }
 
 int udp_close(sock_handle_t *handle) {
-  // TODO
+  /* 
+  return allow(UDP_DRIVER, ALLOW_HANDLE, NULL, sizeof(sock_handle_t)); 
+  */
   return TOCK_ENOSUPPORT;
 }
 
