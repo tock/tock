@@ -55,11 +55,9 @@ pub trait UART {
 
     /// Transmit data.
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
-    fn transmit_callback(&self);
 
     /// Receive data until buffer is full.
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
-    fn receive_callback(&self);
 }
 
 pub trait UARTAdvanced: UART {

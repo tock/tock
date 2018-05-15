@@ -37,7 +37,6 @@ pub mod trng;
 pub mod usart;
 pub mod usbc;
 pub mod wdt;
-pub mod clock_pm;
 
 use cortexm4::{generic_isr, svc_handler, systick_handler};
 
