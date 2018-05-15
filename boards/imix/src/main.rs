@@ -329,11 +329,12 @@ pub unsafe fn reset_handler() {
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
     let mux_spi = static_init!(
-            MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-            MuxSpiMaster::new(&sam4l::spi::SPI)
+        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
+        MuxSpiMaster::new(&sam4l::spi::SPI)
     );
     sam4l::spi::SPI.set_client(mux_spi);
-
+    sam4l::spi::SPI.init();
+    
     let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize().unwrap();
     
     // Configure the SI7021, device address 0x40
