@@ -31,15 +31,23 @@ int udp_close(sock_handle_t *handle);
 
 // Sends data on a socket.
 // Returns number of bytes sent, negative on failure.
-ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len, sock_addr_t *dst_addr);
+ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len,
+                    sock_addr_t *dst_addr);
+
+// Receives message from a socket asynchronously. To receive more, subscribe
+// again after processing a message.
+// Returns number of bytes received, negative on failure.
+ssize_t udp_recv_from(subscribe_cb callback, sock_handle_t *handle, void *buf,
+                      size_t len, sock_addr_t *dst_addr);
 
 // Receives data from a socket.
 // Returns number of bytes received, negative on failure.
-ssize_t udp_recv_from(sock_handle_t *handle, void *buf, size_t len, sock_addr_t *dst_addr);
+ssize_t udp_recv_from_sync(sock_handle_t *handle, void *buf, size_t len,
+                           sock_addr_t *dst_addr);
 
-// Lists interfaces.  
-// Returns number of interfaces, negative on failure.
-int udp_list_ifaces(ipv6_addr_t *ifaces); 
+// Lists `len` interfaces at the array pointed to by `ifaces`. 
+// Returns the _total_ number of interfaces, negative on failure.
+int udp_list_ifaces(ipv6_addr_t *ifaces, size_t len); 
 
 #ifdef __cplusplus
 }
