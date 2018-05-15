@@ -1,6 +1,19 @@
 #include "udp.h"
 #include "tock.h"
 
+const int UDP_DRIVER = 0x30002;
+
+static const int ALLOW_RX     = 0;
+static const int ALLOW_TX     = 1;
+static const int ALLOW_CFG    = 2;
+static const int ALLOW_RX_CFG = 3;
+
+static const int SUBSCRIBE_RX = 0;
+static const int SUBSCRIBE_TX = 1;
+
+static const int COMMAND_GET_IFACES = 1;
+static const int COMMAND_SEND = 2;
+
 static unsigned char BUF_TX_CFG[2 * sizeof(sock_addr_t)];
 static unsigned char BUF_RX_CFG[2 * sizeof(sock_addr_t)];
 
@@ -31,7 +44,6 @@ static void tx_done_callback(int result,
 ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len,
                     sock_addr_t *dst_addr) {
 
-  /*
   // Set up source and destination address/port pairs
   int bytes = sizeof(sock_addr_t);
   int err = allow(UDP_DRIVER, ALLOW_CFG, (void *) BUF_TX_CFG, 2 * bytes);
@@ -52,8 +64,6 @@ ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len,
   if (err < 0) return err;
   yield_for(&tx_done);
   return tx_result;
-  */
-  return TOCK_ENOSUPPORT;
 }
 
 static void rx_done_callback(__attribute__ ((unused)) int arg1,
@@ -65,7 +75,6 @@ static void rx_done_callback(__attribute__ ((unused)) int arg1,
 
 ssize_t udp_recv_from_sync(sock_handle_t *handle, void *buf, size_t len,
                            sock_addr_t *dst_addr) {
-  /*
   int err = allow(UDP_DRIVER, ALLOW_RX, (void *) buf, len);
   if (err < 0) return err;
 
@@ -83,14 +92,11 @@ ssize_t udp_recv_from_sync(sock_handle_t *handle, void *buf, size_t len,
 
   yield_for(&rx_done);
   return TOCK_SUCCESS;
-  */
-
-  return TOCK_ENOSUPPORT;
 }
 
 ssize_t udp_recv_from(subscribe_cb callback, sock_handle_t *handle, void *buf,
                       size_t len, sock_addr_t *dst_addr) {
-  /*
+
   int err = allow(UDP_DRIVER, ALLOW_RX, (void *) buf, len);
   if (err < 0) return err;
 
@@ -103,14 +109,10 @@ ssize_t udp_recv_from(subscribe_cb callback, sock_handle_t *handle, void *buf,
   memcpy(BUF_RX_CFG + bytes, dst_addr, bytes);
 
   return subscribe(UDP_DRIVER, SUBSCRIBE_RX, callback, NULL);
-  */
-
-  return TOCK_ENOSUPPORT; 
 }
 
 int udp_list_ifaces(ipv6_addr_t *ifaces, size_t len) {
 
-  /*
   if (!ifaces) return TOCK_EINVAL;
 
   int err = allow(UDP_DRIVER, ALLOW_CFG, (void *)ifaces, len * sizeof(ipv6_addr_t));
@@ -118,7 +120,5 @@ int udp_list_ifaces(ipv6_addr_t *ifaces, size_t len) {
   if (err < 0) return err;
 
   return command(UDP_DRIVER, COMMAND_GET_IFACES, len, 0);
-  */
-  return TOCK_ENOSUPPORT;
 }
 
