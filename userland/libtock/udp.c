@@ -35,7 +35,7 @@ static void tx_done_callback(int result,
   *((bool *) ud) = true;
 }
 
-ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len,
+ssize_t udp_send_to(sock_handle_t *handle, void *buf, size_t len,
                     sock_addr_t *dst_addr) {
 
   // Set up source and destination address/port pairs
@@ -74,7 +74,7 @@ ssize_t udp_recv_from_sync(sock_handle_t *handle, void *buf, size_t len,
 
   // Pass interface to listen on and incoming source address to listen for
   int bytes = sizeof(sock_addr_t);
-  int err = allow(UDP_DRIVER, ALLOW_RX_CFG, (void *) BUF_RX_CFG, 2 * bytes);
+  err = allow(UDP_DRIVER, ALLOW_RX_CFG, (void *) BUF_RX_CFG, 2 * bytes);
   if (err < 0) return err;
 
   memcpy(BUF_RX_CFG, &(handle->addr), bytes);
@@ -96,7 +96,7 @@ ssize_t udp_recv_from(subscribe_cb callback, sock_handle_t *handle, void *buf,
 
   // Pass interface to listen on and incoming source address to listen for
   int bytes = sizeof(sock_addr_t);
-  int err = allow(UDP_DRIVER, ALLOW_RX_CFG, (void *) BUF_RX_CFG, 2 * bytes);
+  err = allow(UDP_DRIVER, ALLOW_RX_CFG, (void *) BUF_RX_CFG, 2 * bytes);
   if (err < 0) return err;
 
   memcpy(BUF_RX_CFG, &(handle->addr), bytes);
@@ -110,7 +110,6 @@ int udp_list_ifaces(ipv6_addr_t *ifaces, size_t len) {
   if (!ifaces) return TOCK_EINVAL;
 
   int err = allow(UDP_DRIVER, ALLOW_CFG, (void *)ifaces, len * sizeof(ipv6_addr_t));
-  int err = 0; 
   if (err < 0) return err;
 
   return command(UDP_DRIVER, COMMAND_GET_IFACES, len, 0);

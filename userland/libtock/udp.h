@@ -31,7 +31,7 @@ int udp_close(sock_handle_t *handle);
 
 // Sends data on a socket.
 // Returns number of bytes sent, negative on failure.
-ssize_t udp_send_to(sock_handle_t *handle, const void *buf, size_t len,
+ssize_t udp_send_to(sock_handle_t *handle, void *buf, size_t len,
                     sock_addr_t *dst_addr);
 
 // Receives message from a socket asynchronously. To receive more, subscribe
