@@ -24,6 +24,7 @@ pub mod ipc;
 pub mod mem;
 pub mod memop;
 pub mod returncode;
+pub mod component;
 
 // Work around https://github.com/rust-lang-nursery/rustfmt/issues/6
 // It's a little sad that we have to skip the whole module, but that's

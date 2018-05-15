@@ -14,6 +14,8 @@ extern crate capsules;
 extern crate kernel;
 extern crate sam4l;
 
+mod components;
+
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
@@ -28,6 +30,9 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 use kernel::hil::Controller;
+use kernel::component::Component;
+use components::spi::SpiSyscallComponent;
+use components::spi::SpiComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -323,34 +328,14 @@ pub unsafe fn reset_handler() {
     );
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
-    // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
+            MuxSpiMaster<'static, sam4l::spi::SpiHw>,
+            MuxSpiMaster::new(&sam4l::spi::SPI)
     );
     sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
 
-    // Create a virtualized client for SPI system call interface,
-    // then the system call capsule
-    let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        VirtualSpiMasterDevice::new(mux_spi, 3)
-    );
-
-    // Create the SPI systemc call capsule, passing the client
-    let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        capsules::spi::Spi::new(syscall_spi_device)
-    );
-
-    // System call capsule requires static buffers so it can
-    // copy from application slices to DMA
-    static mut SPI_READ_BUF: [u8; 64] = [0; 64];
-    static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
-    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
-    syscall_spi_device.set_client(spi_syscalls);
-
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize().unwrap();
+    
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -377,10 +362,8 @@ pub unsafe fn reset_handler() {
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
     // Create a second virtualized SPI client, for the RF233
-    let rf233_spi = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        VirtualSpiMasterDevice::new(mux_spi, 3)
-    );
+    let rf233_spi = SpiComponent::new(mux_spi).finalize().unwrap();
+
     // Create the RF233 driver, passing its pins and SPI client
     let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
         RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
