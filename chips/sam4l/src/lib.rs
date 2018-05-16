@@ -14,8 +14,7 @@ extern crate cortexm4;
 #[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
-#[macro_use]
-mod helpers;
+mod deferred_call_tasks;
 
 pub mod adc;
 pub mod aes;

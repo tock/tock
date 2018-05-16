@@ -23,8 +23,9 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use helpers::{DeferredCall, Task};
+use deferred_call_tasks::Task;
 use kernel::common::cells::TakeCell;
+use kernel::common::deferred_call::DeferredCall;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
 use kernel::ReturnCode;
@@ -315,7 +316,7 @@ enum RegKey {
     GPFRLO,
 }
 
-static DEFERRED_CALL: DeferredCall = unsafe { DeferredCall::new(Task::Flashcalw) };
+static DEFERRED_CALL: DeferredCall<Task> = unsafe { DeferredCall::new(Task::Flashcalw) };
 
 /// There are 18 recognized commands for the flash. These are "bare-bones"
 /// commands and values that are written to the Flash's command register to
