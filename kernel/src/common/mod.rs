@@ -1,5 +1,6 @@
 //! Common operations in the Tock OS.
 
+pub mod deferred_call;
 pub mod list;
 pub mod map_cell;
 pub mod math;
