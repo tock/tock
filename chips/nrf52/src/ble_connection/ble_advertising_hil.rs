@@ -68,11 +68,13 @@ pub trait BleConfig {
     fn set_access_address(&self, aa: u32);
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum DelayStartPoint {
     PacketEndBLEStandardDelay,
     PacketStartUsecDelay(u32),
     PacketEndUsecDelay(u32),
     AbsoluteTimestamp(u32),
+    PreviousPacketStartUsecDelay(u32),
 }
 
 impl DelayStartPoint {
@@ -80,6 +82,7 @@ impl DelayStartPoint {
         match self {
             DelayStartPoint::PacketEndUsecDelay(v)
             | DelayStartPoint::PacketStartUsecDelay(v)
+            | DelayStartPoint::PreviousPacketStartUsecDelay(v)
             | DelayStartPoint::AbsoluteTimestamp(v) => v,
             DelayStartPoint::PacketEndBLEStandardDelay => BLE_T_IFS,
         }

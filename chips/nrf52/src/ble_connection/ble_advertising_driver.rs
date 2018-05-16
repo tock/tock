@@ -219,6 +219,8 @@ use kernel;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 use nrf5x::constants;
+use ble_connection::ble_connection_driver::DataHeader;
+use ble_connection::ble_link_layer::ChannelMap;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
@@ -877,11 +879,12 @@ where
                 // TODO Move into separate module
                 let len: u8 = buf[1];
 
+                let crc_match = result == ReturnCode::SUCCESS;
                 let mut valid_pkt = false;
 
                 match app.process_status {
                     Some(AppBLEState::Advertising) => {
-                        valid_pkt = result == ReturnCode::SUCCESS
+                        valid_pkt = crc_match
                             && pdu_type.as_ref().map_or(false, |pdu| pdu.validate_pdu(len));
                     }
                     Some(AppBLEState::Connection(_)) => {
@@ -911,6 +914,7 @@ where
                                     }
                                     Some(ResponseAction::Connection(mut conndata)) => {
                                         let channel = conndata.next_channel();
+                                        app.channel = Some(channel);
                                         self.radio.set_channel(
                                             channel,
                                             conndata.aa,
@@ -938,13 +942,39 @@ where
                             }
                         }
                         Some(AppBLEState::Connection(_)) => {
+                            let channel = app.channel.unwrap();
                             let (sn, nesn, interval_ended, interval_end_time) = if let Some(
                                 AppBLEState::Connection(ref mut conndata),
                             ) =
                                 app.process_status
                             {
+                                // debug!("{:?} {}", channel, conndata.conn_event_counter);
+
                                 let (sn, nesn, retransmit) = conndata.next_sequence_number(buf[0]);
-                                let (_, _, more_data) = ConnectionData::get_data_pdu_header(buf[0]);
+                                let DataHeader { more_data, llid, .. } = ConnectionData::get_data_pdu_header(buf[0]);
+
+
+
+                                if crc_match { // Only read the data in the pkt if crc matches.
+                                    match llid {
+                                        0x03 => { // 0x03 == Control PDU
+
+                                            match buf[2] {
+                                                0x01 => {
+                                                    let instant: u16 = ((buf[9] as u16) << 8) | buf[8] as u16;
+                                                    conndata.update_channelmap(ChannelMap::read_from_buffer(&buf[3..]), instant);
+                                                    debug_gpio!(0, clear);
+                                                },
+                                                _ => {
+                                                    // Ignore other LL Control Opcodes
+                                                }
+                                            }
+                                        },
+                                        _ => {
+                                            // Ignore other packets, just respond with empty pdu
+                                        }
+                                    }
+                                }
 
                                 let (interval_ended, interval_end_time) =
                                     conndata.connection_interval_ended(rx_timestamp);
@@ -956,6 +986,10 @@ where
 
                                 if skip_to_next_channel {
                                     conndata.conn_interval_start = None;
+                                }
+
+                                if !more_data {
+                                    conndata.increment_conn_event();
                                 }
 
                                 (sn, nesn, skip_to_next_channel, interval_end_time)
@@ -1020,12 +1054,15 @@ where
                     )) = app.state
                     {
                         app.state = None;
-                        if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status
+                        app.channel = if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status
                         {
                             let channel = conndata.next_channel();
                             self.radio
                                 .set_channel(channel, conndata.aa, conndata.crcinit);
-                        }
+                            Some(channel)
+
+                        } else { None };
+
                         DelayStartPoint::AbsoluteTimestamp(delay_time)
                     } else {
                         DelayStartPoint::PacketEndBLEStandardDelay
@@ -1037,8 +1074,6 @@ where
                         } else {
                             panic!("We are not in connection???");
                         };
-
-                    //debug!("transmit end, schedule at time {:?}\n", start_time);
                     PhyTransition::MoveToRX(start_time, timeout)
                 } else {
                     PhyTransition::None
@@ -1109,15 +1144,19 @@ where
                         }
                     }
                     ActionAfterTimerExpire::ContinueConnection(
-                        conn_supervision_timeout,
                         conn_interval_length,
+                        timeout,
                     ) => {
+                        if let Some(AppBLEState::Connection(ref mut conndata)) = app.process_status {
+                            conndata.increment_conn_event();
+                        }
+
                         //We should stay in the connection, but no more data should be sent on this channel
                         //TODO - check if we have reached supervision time out. If so, kill connection.
 
                         result = PhyTransition::MoveToRX(
-                            DelayStartPoint::PacketStartUsecDelay(conn_interval_length),
-                            conn_supervision_timeout,
+                            DelayStartPoint::PreviousPacketStartUsecDelay(conn_interval_length),
+                            timeout,
                         );
                     }
                 }

@@ -80,6 +80,7 @@ pub struct Radio {
     advertisement_client: Cell<Option<&'static ble_advertising_hil::AdvertisementClient>>,
     state: Cell<RadioState>,
     channel: Cell<Option<RadioChannel>>,
+    prev_rx_t0: Cell<u32>,
     debug_bit: Cell<bool>,
     debug_value: Cell<u8>,
     address_receive_time: Cell<Option<u32>>,
@@ -105,6 +106,7 @@ impl Radio {
             advertisement_client: Cell::new(None),
             state: Cell::new(RadioState::Uninitialized),
             channel: Cell::new(None),
+            prev_rx_t0: Cell::new(0),
             debug_bit: Cell::new(false),
             debug_value: Cell::new(0),
             address_receive_time: Cell::new(None),
@@ -246,6 +248,9 @@ impl Radio {
             DelayStartPoint::PacketEndUsecDelay(_) | DelayStartPoint::PacketEndBLEStandardDelay => {
                 self.get_packet_end_time_value() + start_point.value()
             }
+            DelayStartPoint::PreviousPacketStartUsecDelay(v) => {
+                self.prev_rx_t0.get() + start_point.value()
+            }
             DelayStartPoint::PacketStartUsecDelay(_) => {
                 self.get_packet_address_time_value() + start_point.value()
             }
@@ -278,7 +283,8 @@ impl Radio {
         self.setup_rx();
 
         let earlier_listen: u32 = 2;
-        let t0 = self.get_packet_time_value_with_delay(delay);
+        let t0 = self.get_packet_time_value_with_delay(delay.clone());
+        self.prev_rx_t0.set(t0);
         let time = t0 - NRF52_DISABLE_RX_DELAY - earlier_listen;
 
         self.set_cc0(time);
@@ -287,15 +293,20 @@ impl Radio {
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
 
         self.set_rx_timeout(t0 + timeout);
+
+        if self.debug_bit.get() {
+            debug!("{:?} {} {} {} {} ", delay, t0, time, timeout, t0 + timeout)
+        }
     }
 
     fn set_rx_timeout(&self, usec: u32) {
-        //Prepare timer to timeout 'timeout' usec after we have started to rx
         unsafe {
             nrf5x::timer::TIMER0.set_cc1(usec);
             nrf5x::timer::TIMER0.set_events_compare(1, 0);
         }
 
+        // CH22: CC[0] => TASK_DISABLE
+        // CH26: EVENTS_ADDRESS -> CC[1]
         self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22 | nrf5x::constants::PPI_CHEN_CH26);
         self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
@@ -309,8 +320,6 @@ impl Radio {
         regs.task_disable.set(1);
         self.disable_ppi(
             nrf5x::constants::PPI_CHEN_CH20 | nrf5x::constants::PPI_CHEN_CH21
-                | nrf5x::constants::PPI_CHEN_CH23 | nrf5x::constants::PPI_CHEN_CH25
-                | nrf5x::constants::PPI_CHEN_CH31,
         );
         self.state.set(RadioState::Initialized);
     }

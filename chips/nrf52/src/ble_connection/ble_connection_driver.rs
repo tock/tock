@@ -2,18 +2,20 @@ use ble_connection::ble_advertising_hil::RadioChannel;
 use ble_connection::ble_link_layer::LLData;
 use core::fmt;
 use core::convert::TryInto;
+use ble_connection::ble_link_layer::ChannelMap;
 
 const NUMBER_CHANNELS: usize = 40;
 const NUMBER_DATA_CHANNELS: usize = NUMBER_CHANNELS - 3;
 
-type ChannelMap = [u8; NUMBER_CHANNELS];
+type ChannelMapBuffer = [u8; NUMBER_CHANNELS];
 
 pub struct ConnectionData {
     last_unmapped_channel: u8,
-    channels: ChannelMap,
+    channels: ChannelMapBuffer,
     pub conn_event_counter: u16,
     hop_increment: u8,
     number_used_channels: u8,
+    next_channel_map: Option<(ChannelMap, u16)>,
     pub aa: u32,
     pub crcinit: u32,
     pub transmit_seq_nbr: u8,
@@ -46,12 +48,13 @@ impl fmt::Debug for ConnectionData {
 
 impl ConnectionData {
     pub fn new(lldata: LLData) -> ConnectionData {
-        let (channels, number_used_channels) = ConnectionData::expand_channel_map(lldata.chm);
+        let (channels, number_used_channels) = ConnectionData::expand_channel_map(lldata.chm.0);
 
         ConnectionData {
             last_unmapped_channel: 0,
             channels,
             number_used_channels,
+            next_channel_map: None,
             hop_increment: lldata.hop_and_sca & 0b11111,
             conn_event_counter: 0,
             aa: (lldata.aa[0] as u32) << 24 | (lldata.aa[1] as u32) << 16
@@ -66,15 +69,16 @@ impl ConnectionData {
         }
     }
 
-    pub fn update_lldata(&mut self, lldata: LLData) {
-        let (channels, number_used_channels) = ConnectionData::expand_channel_map(lldata.chm);
-
-        self.channels = channels;
-        self.number_used_channels = number_used_channels;
+    pub fn increment_conn_event(&mut self) {
+        self.conn_event_counter = self.conn_event_counter.wrapping_add(1);
     }
 
-    fn expand_channel_map(chm: [u8; 5]) -> (ChannelMap, u8) {
-        let mut channels: ChannelMap = [0; NUMBER_CHANNELS];
+    pub fn update_channelmap(&mut self, channel_map: ChannelMap, instant: u16) {
+        self.next_channel_map = Some((channel_map, instant));
+    }
+
+    fn expand_channel_map(chm: [u8; 5]) -> (ChannelMapBuffer, u8) {
+        let mut channels: ChannelMapBuffer = [0; NUMBER_CHANNELS];
 
         let mut number_used_channels = 0;
 
@@ -97,16 +101,27 @@ impl ConnectionData {
     }
 
     pub fn next_channel(&mut self) -> RadioChannel {
+        if let Some((channel_map, instant)) = self.next_channel_map.take() {
+            if instant == self.conn_event_counter {
+                debug_gpio!(1, clear);
+                let (channels, number_used_channels) = ConnectionData::expand_channel_map(channel_map.0);
+                self.channels = channels;
+                self.number_used_channels = number_used_channels;
+            } else {
+                self.next_channel_map = Some((channel_map, instant));
+            }
+        }
+
         let unmapped_channel =
             (self.last_unmapped_channel + self.hop_increment) % (NUMBER_DATA_CHANNELS as u8);
         let used = self.channels[unmapped_channel as usize] == 1;
 
         self.last_unmapped_channel = unmapped_channel;
 
-        if used {
-            unmapped_channel.try_into().unwrap()
+        let channel = if used {
+            unmapped_channel
         } else {
-            let mut table: ChannelMap = [0; NUMBER_CHANNELS];
+            let mut table: ChannelMapBuffer = [0; NUMBER_CHANNELS];
             let remapping_index = unmapped_channel % self.number_used_channels;
 
             let mut idx = 0;
@@ -118,12 +133,16 @@ impl ConnectionData {
                 }
             }
 
-            table[remapping_index as usize].try_into().unwrap()
-        }
+            table[remapping_index as usize]
+        };
+
+        debug!("{}, {}", channel, self.conn_event_counter);
+
+        channel.try_into().unwrap()
     }
 
     pub fn next_sequence_number(&mut self, buf_head_flags: u8) -> (u8, u8, bool) {
-        let (sn, nesn, _) = ConnectionData::get_data_pdu_header(buf_head_flags);
+        let DataHeader { sequence_number: sn, next_expected_sequence_number: nesn, .. } = ConnectionData::get_data_pdu_header(buf_head_flags);
 
         //Does the packet carry the sequence number that I expected?
         //If true, increment next_seq_nbr
@@ -146,12 +165,19 @@ impl ConnectionData {
         )
     }
 
-    pub fn get_data_pdu_header(buf_head_flags: u8) -> (u8, u8, bool) {
+    pub fn get_data_pdu_header(buf_head_flags: u8) -> DataHeader {
         //There must at least be a 2 bytes header
         let more_data = (buf_head_flags & 0b10000) >> 4 == 1;
         let nesn = (buf_head_flags & 0b100) >> 2;
         let sn = (buf_head_flags & 0b1000) >> 3;
-        (sn, nesn, more_data)
+        let llid = (buf_head_flags & 0b11);
+
+        DataHeader {
+            more_data,
+            next_expected_sequence_number: nesn,
+            sequence_number: sn,
+            llid
+        }
     }
 
     pub fn connection_interval_ended(&mut self, rx_timestamp: u32) -> (bool, Option<u32>) {
@@ -176,4 +202,11 @@ impl ConnectionData {
     pub fn calculate_conn_supervision_timeout(&self) -> u32 {
         ((self.lldata.timeout as u32) * 1000 * 5 / 4) * 10
     }
+}
+
+pub struct DataHeader {
+    pub more_data: bool,
+    pub sequence_number: u8,
+    pub next_expected_sequence_number: u8,
+    pub llid: u8
 }

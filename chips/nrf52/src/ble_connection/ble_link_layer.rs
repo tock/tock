@@ -89,14 +89,28 @@ impl LinkLayer {
             Some(AppBLEState::Advertising) => ActionAfterTimerExpire::ContinueAdvertising,
             Some(AppBLEState::Connection(ref conndata)) => {
                 ActionAfterTimerExpire::ContinueConnection(
-                    conndata.calculate_conn_supervision_timeout(),
                     conndata.lldata.connection_interval(),
+                    conndata.lldata.window_size(),
                 )
             }
             _ => {
                 panic!("Timer expired but app has no state\n");
             }
         }
+    }
+}
+
+pub struct ChannelMap(pub [u8; 5]);
+
+impl ChannelMap {
+    pub fn read_from_buffer(buffer: &[u8]) -> ChannelMap {
+        ChannelMap([
+            buffer[0],
+            buffer[1],
+            buffer[2],
+            buffer[3],
+            buffer[4],
+        ])
     }
 }
 
@@ -108,7 +122,7 @@ pub struct LLData {
     interval: u16,
     pub latency: u16,
     pub timeout: u16,
-    pub chm: [u8; 5],
+    pub chm: ChannelMap,
     pub hop_and_sca: u8, // hops 5 bits, sca 3 bits
 }
 
@@ -122,7 +136,7 @@ impl fmt::Debug for LLData {
                self.interval,
                self.latency,
                self.timeout,
-               self.chm[0], self.chm[1], self.chm[2], self.chm[3], self.chm[4],
+               self.chm.0[0], self.chm.0[1], self.chm.0[2], self.chm.0[3], self.chm.0[4],
                self.hop_and_sca & 0b11111, // Hop
                (self.hop_and_sca & 0b11100000) >> 5, // sca
         )
@@ -139,7 +153,7 @@ impl LLData {
             interval: 0x1800,
             latency: 0x0000,
             timeout: 0x4800, // TODO .to_be() or .to_le()
-            chm: [0x00, 0xf0, 0x1f, 0x00, 0x18],
+            chm: ChannelMap([0x00, 0xf0, 0x1f, 0x00, 0x18]),
             hop_and_sca: (1 << 5) | 15, // = 0010 1111
         }
     }
@@ -166,13 +180,7 @@ impl LLData {
                 | buffer[PACKET_ADDR_START + 24] as u16,
             timeout: (buffer[PACKET_ADDR_START + 27] as u16) << 8
                 | buffer[PACKET_ADDR_START + 26] as u16,
-            chm: [
-                buffer[PACKET_ADDR_START + 28],
-                buffer[PACKET_ADDR_START + 29],
-                buffer[PACKET_ADDR_START + 30],
-                buffer[PACKET_ADDR_START + 31],
-                buffer[PACKET_ADDR_START + 32],
-            ],
+            chm: ChannelMap::read_from_buffer(&buffer[PACKET_ADDR_START + 28 ..]),
             hop_and_sca: buffer[PACKET_ADDR_START + 33],
         }
     }
