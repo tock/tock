@@ -1,7 +1,5 @@
 //! Universal asynchronous receiver/transmitter with EasyDMA (UARTE)
 //!
-//! The driver provides only transmission functionality
-//!
 //! Author
 //! -------------------
 //!
