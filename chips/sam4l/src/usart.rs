@@ -879,6 +879,12 @@ impl hil::uart::UART for USART {
             self.rx_len.set(rx_len);
         });
     }
+
+    fn abort_receive(&self) {
+        let usart = &USARTRegManager::new(&self);
+        self.disable_rx_timeout(usart);
+        self.abort_rx(usart, hil::uart::Error::CommandComplete);
+    }
 }
 
 impl hil::uart::UARTAdvanced for USART {

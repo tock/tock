@@ -187,4 +187,8 @@ impl hil::uart::UART for UART {
     fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {
         unimplemented!()
     }
+
+    fn abort_receive(&self) {
+        unimplemented!()
+    }
 }

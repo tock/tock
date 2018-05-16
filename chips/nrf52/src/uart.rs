@@ -427,4 +427,8 @@ impl kernel::hil::uart::UART for Uarte {
 
         self.enable_rx_interrupts();
     }
+
+    fn abort_receive(&self) {
+        unimplemented!()
+    }
 }
