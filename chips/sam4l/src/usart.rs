@@ -882,7 +882,7 @@ impl hil::uart::UART for USART {
     }
 }
 
-impl hil::uart::UARTAdvanced for USART {
+impl hil::uart::UARTReceiveAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
         let usart = &USARTRegManager::new(&self);
 
