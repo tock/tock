@@ -23,13 +23,8 @@ pub mod hil;
 pub mod ipc;
 pub mod mem;
 pub mod memop;
-pub mod returncode;
-
-// Work around https://github.com/rust-lang-nursery/rustfmt/issues/6
-// It's a little sad that we have to skip the whole module, but that's
-// better than the unmaintainable pile 'o strings IMO
-#[cfg_attr(rustfmt, rustfmt_skip)]
 pub mod process;
+pub mod returncode;
 
 pub mod support;
 
