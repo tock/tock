@@ -47,6 +47,8 @@ use nrf5x::gpio;
 use peripheral_registers;
 use ppi;
 use radio;
+use kernel::common::regs::FieldValue;
+use nrf5x::timer::BitmodeValue;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -146,7 +148,7 @@ impl Radio {
         self.set_dma_ptr_rx();
 
         // CH20: TIMER0.EVENTS_COMPARE[0] -> RADIO.TASKS_TXEN
-        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH20);
+        self.disable_ppi(ppi::Channel::CH20::SET);
 
         self.state.set(RadioState::RX);
 
@@ -261,7 +263,7 @@ impl Radio {
     fn set_cc0(&self, usec: u32) {
         unsafe {
             nrf5x::timer::TIMER0.set_cc0(usec);
-            nrf5x::timer::TIMER0.set_events_compare(0, 0);
+            nrf5x::timer::TIMER0.events_compare()[0].set(0);
         }
     }
 
@@ -276,7 +278,7 @@ impl Radio {
         self.set_cc0(time);
 
         // CH20: CC[0] => TXEN
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH20);
+        self.enable_ppi(ppi::Channel::CH20::SET);
     }
 
     fn schedule_rx_after_us(&self, delay: DelayStartPoint, timeout: u32) {
@@ -290,7 +292,7 @@ impl Radio {
         self.set_cc0(time);
 
         // CH21: CC[0] => RXEN
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH21);
+        self.enable_ppi(ppi::Channel::CH21::SET);
 
         self.set_rx_timeout(t0 + timeout);
 
@@ -302,12 +304,12 @@ impl Radio {
     fn set_rx_timeout(&self, usec: u32) {
         unsafe {
             nrf5x::timer::TIMER0.set_cc1(usec);
-            nrf5x::timer::TIMER0.set_events_compare(1, 0);
+            nrf5x::timer::TIMER0.events_compare()[1].set(0);
         }
 
         // CH22: CC[0] => TASK_DISABLE
         // CH26: EVENTS_ADDRESS -> CC[1]
-        self.enable_ppi(nrf5x::constants::PPI_CHEN_CH22 | nrf5x::constants::PPI_CHEN_CH26);
+        self.enable_ppi(ppi::Channel::CH22::SET + ppi::Channel::CH26::SET);
         self.enable_interrupt(nrf5x::constants::RADIO_INTENSET_DISABLED);
     }
 
@@ -319,7 +321,7 @@ impl Radio {
         regs.shorts.set(0);
         regs.task_disable.set(1);
         self.disable_ppi(
-            nrf5x::constants::PPI_CHEN_CH20 | nrf5x::constants::PPI_CHEN_CH21
+            ppi::Channel::CH20::SET + ppi::Channel::CH21::SET
         );
         self.state.set(RadioState::Initialized);
     }
@@ -327,7 +329,7 @@ impl Radio {
     fn handle_address_event(&self) -> bool {
         let regs = unsafe { &*self.regs };
         regs.event_address.set(0);
-        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH22);
+        self.disable_ppi(ppi::Channel::CH22::SET);
 
         self.address_receive_time
             .set(Some(unsafe { nrf5x::timer::TIMER0.get_cc1() }));
@@ -378,7 +380,7 @@ impl Radio {
         self.clear_interrupt(nrf5x::constants::RADIO_INTENSET_END);
 
         // CH21: TIMER0.EVENTS_COMPARE[0] -> RADIO.RXEN
-        self.disable_ppi(nrf5x::constants::PPI_CHEN_CH21);
+        self.disable_ppi(ppi::Channel::CH21::SET);
         let crc_ok = if regs.event_crcok.get() == 1 {
             ReturnCode::SUCCESS
         } else {
@@ -571,13 +573,13 @@ impl Radio {
         unsafe { nrf5x::timer::TIMER0.get_cc2() }
     }
 
-    fn enable_ppi(&self, pins: u32) {
+    fn enable_ppi(&self, pins: FieldValue<u32, ppi::Channel::Register>) {
         unsafe {
             ppi::PPI.enable(pins);
         }
     }
 
-    fn disable_ppi(&self, pins: u32) {
+    fn disable_ppi(&self, pins: FieldValue<u32, ppi::Channel::Register>) {
         unsafe {
             ppi::PPI.disable(pins);
         }
@@ -603,11 +605,11 @@ impl Radio {
 
             // CH26: RADIO.EVENTS_ADDRESS -> TIMER0.TASKS_CAPTURE[1]
             // CH27: RADIO.EVENTS_END -> TIMER0.TASKS_CAPTURE[2]
-            self.enable_ppi(nrf5x::constants::PPI_CHEN_CH26 | nrf5x::constants::PPI_CHEN_CH27);
+            self.enable_ppi(ppi::Channel::CH26::SET + ppi::Channel::CH27::SET);
         }
         unsafe {
             nrf5x::timer::TIMER0.set_prescaler(4);
-            nrf5x::timer::TIMER0.set_bitmode(3);
+            nrf5x::timer::TIMER0.set_bitmode(BitmodeValue::Size32Bits);
             nrf5x::timer::TIMER0.start();
         }
     }
