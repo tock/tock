@@ -170,7 +170,7 @@ impl ConnectionData {
         let more_data = (buf_head_flags & 0b10000) >> 4 == 1;
         let nesn = (buf_head_flags & 0b100) >> 2;
         let sn = (buf_head_flags & 0b1000) >> 3;
-        let llid = (buf_head_flags & 0b11);
+        let llid = buf_head_flags & 0b11;
 
         DataHeader {
             more_data,

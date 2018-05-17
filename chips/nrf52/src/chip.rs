@@ -5,7 +5,6 @@ use kernel;
 use kernel::support;
 use nrf5x;
 use nrf5x::peripheral_interrupts::*;
-use radio;
 use spi;
 use uart;
 

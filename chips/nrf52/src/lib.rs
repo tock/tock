@@ -14,8 +14,6 @@ extern crate bitfield;
 #[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
-mod peripheral_registers;
-
 pub mod ble_connection;
 pub mod chip;
 pub mod clock;

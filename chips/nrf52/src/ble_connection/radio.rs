@@ -39,14 +39,11 @@ use ble_connection::ble_advertising_hil::{DelayStartPoint, PhyTransition, RadioC
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::hil::gpio::Pin;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
-use nrf5x::gpio;
-use peripheral_registers;
 use ppi;
-use radio;
+use radio::{RadioRegisters, RADIO_BASE};
 use kernel::common::regs::FieldValue;
 use nrf5x::timer::BitmodeValue;
 
@@ -75,7 +72,7 @@ static mut RX_PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
-    regs: *const radio::RadioRegisters,
+    regs: *const RadioRegisters,
     tx_power: Cell<TxPower>,
     rx_client: Cell<Option<&'static ble_advertising_hil::RxClient>>,
     tx_client: Cell<Option<&'static ble_advertising_hil::TxClient>>,
@@ -101,7 +98,7 @@ pub static mut RADIO: Radio = Radio::new();
 impl Radio {
     pub const fn new() -> Radio {
         Radio {
-            regs: radio::RADIO_BASE as *const radio::RadioRegisters,
+            regs: RADIO_BASE as *const RadioRegisters,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
