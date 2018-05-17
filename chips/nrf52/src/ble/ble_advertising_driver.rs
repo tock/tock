@@ -195,32 +195,32 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017
 
-use ble_connection::ble_advertising_hil;
-use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
-use ble_connection::ble_advertising_hil::PhyTransition;
-use ble_connection::ble_advertising_hil::ResponseAction;
-use ble_connection::ble_advertising_hil::TxImmediate;
-use ble_connection::ble_advertising_hil::{DelayStartPoint, RadioChannel, ReadAction};
-use ble_connection::ble_connection_driver::ConnectionData;
-use ble_connection::ble_link_layer::LinkLayer;
-use ble_connection::ble_link_layer::TxNextChannelType;
-use ble_connection::ble_pdu_parser::BLEAdvertisementType;
-use ble_connection::ble_pdu_parser::BLEPduType;
-use ble_connection::ble_pdu_parser::DeviceAddress;
-use ble_connection::ble_pdu_parser::PACKET_ADDR_START;
-use ble_connection::ble_pdu_parser::PACKET_HDR_LEN;
-use ble_connection::ble_pdu_parser::PACKET_HDR_PDU;
-use ble_connection::ble_pdu_parser::PACKET_LENGTH;
-use ble_connection::ble_pdu_parser::PACKET_PAYLOAD_START;
-use ble_connection::ble_pdu_parser::PACKET_START;
+use ble::ble_advertising_hil;
+use ble::ble_advertising_hil::ActionAfterTimerExpire;
+use ble::ble_advertising_hil::PhyTransition;
+use ble::ble_advertising_hil::ResponseAction;
+use ble::ble_advertising_hil::TxImmediate;
+use ble::ble_advertising_hil::{DelayStartPoint, RadioChannel, ReadAction};
+use ble::ble_connection_driver::ConnectionData;
+use ble::ble_link_layer::LinkLayer;
+use ble::ble_link_layer::TxNextChannelType;
+use ble::ble_pdu_parser::BLEAdvertisementType;
+use ble::ble_pdu_parser::BLEPduType;
+use ble::ble_pdu_parser::DeviceAddress;
+use ble::ble_pdu_parser::PACKET_ADDR_START;
+use ble::ble_pdu_parser::PACKET_HDR_LEN;
+use ble::ble_pdu_parser::PACKET_HDR_PDU;
+use ble::ble_pdu_parser::PACKET_LENGTH;
+use ble::ble_pdu_parser::PACKET_PAYLOAD_START;
+use ble::ble_pdu_parser::PACKET_START;
 use core::cell::Cell;
 use core::cmp;
 use kernel;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 use nrf5x::constants;
-use ble_connection::ble_connection_driver::DataHeader;
-use ble_connection::ble_link_layer::ChannelMap;
+use ble::ble_connection_driver::DataHeader;
+use ble::ble_link_layer::ChannelMap;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;

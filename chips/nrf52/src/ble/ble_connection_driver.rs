@@ -1,8 +1,8 @@
-use ble_connection::ble_advertising_hil::RadioChannel;
-use ble_connection::ble_link_layer::LLData;
+use ble::ble_advertising_hil::RadioChannel;
+use ble::ble_link_layer::LLData;
 use core::fmt;
 use core::convert::TryInto;
-use ble_connection::ble_link_layer::ChannelMap;
+use ble::ble_link_layer::ChannelMap;
 
 const NUMBER_CHANNELS: usize = 40;
 const NUMBER_DATA_CHANNELS: usize = NUMBER_CHANNELS - 3;

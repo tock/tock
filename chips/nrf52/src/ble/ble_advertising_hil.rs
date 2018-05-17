@@ -47,7 +47,7 @@
 //!
 //! ```
 
-use ble_connection::ble_connection_driver::ConnectionData;
+use ble::ble_connection_driver::ConnectionData;
 use kernel::ReturnCode;
 use nrf5x::constants::BLE_T_IFS;
 use core;

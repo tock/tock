@@ -33,8 +33,8 @@
 //!
 //! * CRC - 3 bytes
 
-use ble_connection::ble_advertising_hil;
-use ble_connection::ble_advertising_hil::{DelayStartPoint, PhyTransition, RadioChannel,
+use ble::ble_advertising_hil;
+use ble::ble_advertising_hil::{DelayStartPoint, PhyTransition, RadioChannel,
                                           ReadAction, TxImmediate};
 use core::cell::Cell;
 use core::convert::TryFrom;

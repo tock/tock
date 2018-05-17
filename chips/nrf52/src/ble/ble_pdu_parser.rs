@@ -1,4 +1,4 @@
-use ble_connection::ble_link_layer::LLData;
+use ble::ble_link_layer::LLData;
 use core::fmt;
 
 #[derive(Debug)]

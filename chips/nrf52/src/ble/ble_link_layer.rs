@@ -1,9 +1,9 @@
-use ble_connection::ble_advertising_driver::{App, AppBLEState};
-use ble_connection::ble_advertising_hil::ActionAfterTimerExpire;
-use ble_connection::ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
-use ble_connection::ble_connection_driver::ConnectionData;
-use ble_connection::ble_pdu_parser::PACKET_ADDR_START;
-use ble_connection::ble_pdu_parser::{BLEAdvertisementType, BLEPduType};
+use ble::ble_advertising_driver::{App, AppBLEState};
+use ble::ble_advertising_hil::ActionAfterTimerExpire;
+use ble::ble_advertising_hil::{RadioChannel, ReadAction, ResponseAction, TxImmediate};
+use ble::ble_connection_driver::ConnectionData;
+use ble::ble_pdu_parser::PACKET_ADDR_START;
+use ble::ble_pdu_parser::{BLEAdvertisementType, BLEPduType};
 use core::fmt;
 use nrf5x::constants;
 
