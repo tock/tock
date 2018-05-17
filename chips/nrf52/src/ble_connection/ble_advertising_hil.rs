@@ -53,7 +53,7 @@ use nrf5x::constants::BLE_T_IFS;
 use core;
 
 pub trait BleAdvertisementDriver {
-    fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
+    fn transmit_advertisement(&self);
     fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
     fn receive_advertisement(&self);
 

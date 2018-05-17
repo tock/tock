@@ -266,7 +266,7 @@ impl Radio {
 
     fn schedule_tx_after_us(&self, delay: DelayStartPoint) {
         self.setup_tx();
-        
+
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_TX_DELAY;
 
@@ -714,22 +714,18 @@ impl Radio {
 }
 
 impl ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+    fn transmit_advertisement(&self) {
         self.ble_initialize();
-        let res = self.set_advertisement_data(buf, len);
         self.tx();
-
-        res
     }
 
     fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
-        self.replace_radio_buffer(buf, len) // TODO replace signature to accomondate for a more flexible format of packets
+        self.replace_radio_buffer(buf, len) // TODO replace signature to accommodate for a more flexible format of packets
     }
 
     fn receive_advertisement(&self) {
         self.ble_initialize();
         self.rx();
-        self.enable_interrupts();
     }
 
     fn set_receive_client(&self, client: &'static ble_advertising_hil::RxClient) {

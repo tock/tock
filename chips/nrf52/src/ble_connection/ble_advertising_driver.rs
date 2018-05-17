@@ -766,7 +766,8 @@ where
     fn transmit_buffer(&self, appid: kernel::AppId) {
         self.sending_app.set(Some(appid));
         self.kernel_tx.take().map(|buf| {
-            let res = self.radio.transmit_advertisement(buf, PACKET_LENGTH);
+            let res = self.radio.set_advertisement_data(buf, PACKET_LENGTH);
+            self.radio.transmit_advertisement();
             self.kernel_tx.replace(res);
         });
     }
