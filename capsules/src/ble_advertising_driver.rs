@@ -11,88 +11,46 @@
 //! protocol data unit (PDU) is 37 bytes and includes a 6-byte header.
 //!
 //! ### Allow system call
+//!
 //! The allow systems calls are used for buffers from allocated by userland
 //!
-//!
-//! There are three different buffers:
-//!
-//! * Bluetooth Low Energy Gap Types
-//! * Passive Scanner
-//! * Advertisement
-//!
-//!
-//! The following allow numbers are supported:
-//!
-//! * 1: «Flags»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.3
-//! * 2: «Incomplete List of 16-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 4: «Incomplete List of 32-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 5: «Complete List of 32-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 6: «Incomplete List of 128-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 7: «Complete List of 128-bit Service Class UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
-//! * 8: «Shortened Local Name»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.2
-//! * 9: «Complete Local Name»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.2
-//! * 10`: «Tx Power Level»
-//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.5
-//! * 16: «Device ID» Device ID Profile v1.3 or later
-//! * 18`: «Slave Connection Interval Range»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.8 and 18.8
-//! * 20: «List of 16-bit Service Solicitation UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.9 and 18.9
-//! * 21: «List of 128-bit Service Solicitation UUIDs»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.9 and 18.9
-//! * 22: «Service Data»
-//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.10 and 18.10
-//! * 25: «Appearance»
-//! Bluetooth Core Specification:Core Specification Supplement, Part A, section 1.12
-//! * 26: «Advertising Interval»
-//! Bluetooth Core Specification:Core Specification Supplement, Part A, section 1.15
-//! * 49: Passive Scanning
-//! * 50: Advertising
-//! * 255: «Manufacturer Specific Data» Bluetooth Core Specification:Vol. 3, Part C, section 8.1.4
+//! There are two different buffers:
+//! * 0: Advertising data
+//! * 1: Passive scanning buffer
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
 //! * SUCCESS: The buffer has successfully been filled
-//! * ENOSUPPORT: Invalid allow_num
 //! * ENOMEM: No sufficient memory available
 //! * EINVAL: Invalid address of the buffer or other error
 //! * EBUSY: The driver is currently busy with other tasks
 //! * ENOSUPPORT: The operation is not supported
+//! * ERROR: Operation `map` on Option failed
 //!
 //! ### Subscribe system call
-//!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
-//! 'subscribe' is used to specify the specific operation, currently:
+//!
+//!  The `subscribe` system call supports two arguments `subscribe number' and `callback`.
+//!  The `subscribe` is used to specify the specific operation, currently:
 //!
 //! * 0: provides a callback user-space when a device scanning for advertisements
 //!      and the callback is used to invoke user-space processes.
 //!
-//! The possible return codes from the 'allow' system call indicate the following:
+//! The possible return codes from the `allow` system call indicate the following:
 //!
 //! * ENOMEM:    Not sufficient amount memory
 //! * EINVAL:    Invalid operation
 //!
 //! ### Command system call
-//! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
-//! 'cmd' is used to specify the specific operation, currently
-//! the following cmd's are supported:
+//!
+//! The `command` system call supports two arguments `command number` and `subcommand number`.
+//! `command number` is used to specify the specific operation, currently
+//! the following commands are supported:
 //!
 //! * 0: start advertisement
-//! * 1: stop advertisement
-//! * 2: configure tx power
-//! * 3: configure advertisement interval
-//! * 4: clear the advertisement payload
+//! * 1: stop advertisement or scanning
 //! * 5: start scanning
-//! * 6: initialize driver
 //!
-//! The possible return codes from the 'command' system call indicate the following:
+//! The possible return codes from the `command` system call indicate the following:
 //!
 //! * SUCCESS:      The command was successful
 //! * EBUSY:        The driver is currently busy with other tasks
@@ -100,79 +58,9 @@
 //!
 //! Usage
 //! -----
-//! ```
-//! Advertisement:
 //!
-//!           +-------------------------------+
-//!           | Initilize Advertisement Buffer|
-//!           +-------------------------------+
-//!                          |
-//!           +-------------------------------+
-//!           | Request BLE Address           |
-//!           +-------------------------------+
-//!                          |
-//!           +-------------------------------+
-//!           | Configure  ADV_TYPE           |
-//!           +-------------------------------+
-//!                          |
-//!           +-------------------------------+
-//!           | Start Advertising             |
-//!           +-------------------------------+
-//!                          |
-//!           +-------------------------------+
-//!           | Configure Alarm               |------------|
-//!           +-------------------------------+            |
-//!                          |                             |
-//!           +-------------------------------+            |
-//!           | Send Packet                   |------------|
-//!           +-------------------------------+
-//!
-//! Client
-//!           +-------------------------------+
-//!           | Packet Sent or Error          |------------|
-//!           +-------------------------------+            |
-//!                         |                              |
-//!           +-------------------------------+            |
-//!           | Notify BLE Driver             |------------|
-//!           +-------------------------------+
-//!
-//! ```
-//!
-//! ```
-//! Passive Scanning:
-//!
-//!           +-----------------------+
-//!           | Configure Callback    |
-//!           +-----------------------+
-//!                      |
-//!           +-----------------------+
-//!           | Initilize Scan Buffer |
-//!           +-----------------------+
-//!                      |
-//!           +-----------------------+
-//!           | Start Passive Scanning|
-//!           +-----------------------+
-//!                      |
-//!           +-----------------------+
-//!           | Configure Alarm       |--------------|
-//!           +-----------------------+              |
-//!                      |                           |
-//!           +-----------------------+              |
-//!           | Receive Packet        |--------------|
-//!           +-----------------------+
-//!
-//! Client
-//!           +-------------------------------+
-//!           | Packet Received or Error      |------------|
-//!           +-------------------------------+            |
-//!                         |                              |
-//!           +-------------------------------+            |
-//!           | Notify BLE Driver             |------------|
-//!           +-------------------------------+
-//! ```
-//!
-//! You need a device that provides the `nrf5x::ble_advertising_hil::BleAdvertisementDriver` trait
-//! along with a virtual timer to perform events and not block the entire kernel
+//! You need a device that provides the `kernel::BleAdvertisementDriver` trait along with a virtual
+//! timer to perform events and not block the entire kernel
 //!
 //! ```rust
 //!     let ble_radio = static_init!(
@@ -195,6 +83,18 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017
 
+// # Implementation
+//
+// Advertising virtualization works by implementing a virtual periodic timer for each process. The
+// timer is configured to fire at each advertising interval, as specified by the process. When a
+// timer fires, we serialize the advertising packet for that process (using the provided AdvData
+// payload, generated address and PDU type) and perform one advertising event (on each of three
+// channels).
+//
+// This means that advertising events can collide. In this case, we just defer one of the
+// advertisements. Because we add a pseudo random pad to the timer interval each time (as required
+// by the Bluetooth specification) multiple collisions of the same processes are highly unlikely.
+
 use core::cell::Cell;
 use core::cmp;
 use kernel;
@@ -206,147 +106,12 @@ use kernel::returncode::ReturnCode;
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
+/// Advertisement Buffer
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 
-#[allow(unused)]
-struct BLEGap(BLEGapType);
-
-enum AllowType {
-    BLEGap(BLEGapType),
-    PassiveScanning,
-    InitAdvertisementBuffer,
-}
-
-impl AllowType {
-    fn from_usize(n: usize) -> Option<AllowType> {
-        match n {
-            0x01 => Some(AllowType::BLEGap(BLEGapType::Flags)),
-            0x02 => Some(AllowType::BLEGap(BLEGapType::IncompleteList16BitServiceIDs)),
-            0x03 => Some(AllowType::BLEGap(BLEGapType::CompleteList16BitServiceIDs)),
-            0x04 => Some(AllowType::BLEGap(BLEGapType::IncompleteList32BitServiceIDs)),
-            0x05 => Some(AllowType::BLEGap(BLEGapType::CompleteList32BitServiceIDs)),
-            0x06 => Some(AllowType::BLEGap(
-                BLEGapType::IncompleteList128BitServiceIDs,
-            )),
-            0x07 => Some(AllowType::BLEGap(BLEGapType::CompleteList128BitServiceIDs)),
-            0x08 => Some(AllowType::BLEGap(BLEGapType::ShortedLocalName)),
-            0x09 => Some(AllowType::BLEGap(BLEGapType::CompleteLocalName)),
-            0x0A => Some(AllowType::BLEGap(BLEGapType::TxPowerLevel)),
-            0x10 => Some(AllowType::BLEGap(BLEGapType::DeviceId)),
-            0x12 => Some(AllowType::BLEGap(BLEGapType::SlaveConnectionIntervalRange)),
-            0x14 => Some(AllowType::BLEGap(BLEGapType::List16BitSolicitationIDs)),
-            0x15 => Some(AllowType::BLEGap(BLEGapType::List128BitSolicitationIDs)),
-            0x16 => Some(AllowType::BLEGap(BLEGapType::ServiceData)),
-            0x19 => Some(AllowType::BLEGap(BLEGapType::Appearance)),
-            0x1A => Some(AllowType::BLEGap(BLEGapType::AdvertisingInterval)),
-            0x31 => Some(AllowType::PassiveScanning),
-            0x32 => Some(AllowType::InitAdvertisementBuffer),
-            0xFF => Some(AllowType::BLEGap(BLEGapType::ManufacturerSpecificData)),
-            _ => None,
-        }
-    }
-}
-
-// Gap Types only the ones that are defined in libtock are defined here
-#[derive(Debug, PartialEq, Copy, Clone)]
-#[repr(usize)]
-enum BLEGapType {
-    Flags = 0x01,
-    IncompleteList16BitServiceIDs = 0x02,
-    CompleteList16BitServiceIDs = 0x03,
-    IncompleteList32BitServiceIDs = 0x04,
-    CompleteList32BitServiceIDs = 0x05,
-    IncompleteList128BitServiceIDs = 0x06,
-    CompleteList128BitServiceIDs = 0x07,
-    ShortedLocalName = 0x08,
-    CompleteLocalName = 0x09,
-    TxPowerLevel = 0x0A,
-    DeviceId = 0x10,
-    SlaveConnectionIntervalRange = 0x12,
-    List16BitSolicitationIDs = 0x14,
-    List128BitSolicitationIDs = 0x15,
-    ServiceData = 0x16,
-    Appearance = 0x19,
-    AdvertisingInterval = 0x1A,
-    ManufacturerSpecificData = 0xFF,
-}
-
-// ConnectUndirected (ADV_IND): connectable undirected advertising event
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.1
-//
-//   PDU     +-----------+      +--------------+
-//           | AdvA      |  -   | AdvData      |
-//           | (6 bytes) |      | (0-31 bytes) |
-//           +-----------+      +--------------+
-//
-// ConnectDirected (ADV_DIRECT_IND): connectable directed advertising event
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.2
-//
-//   PDU     +-----------+      +--------------+
-//           | AdvA      |  -   | InitA        |
-//           | (6 bytes) |      | (6 bytes)    |
-//           +-----------+      +--------------+
-//
-// NonConnectDirected (ADV_NONCONN_IND): non-connectable undirected advertising event
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.3
-//
-//   PDU     +-----------+      +--------------+
-//           | AdvA      |  -   | AdvData      |
-//           | (6 bytes) |      | (0-31 bytes) |
-//           +-----------+      +--------------+
-//
-//
-// ScanUndirected (ADV_NONCONN_IND): scannable undirected advertising event
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.4
-//
-//   PDU     +-----------+      +--------------+
-//           | AdvA      |  -   | AdvData      |
-//           | (6 bytes) |      | (0-31 bytes) |
-//           +-----------+      +--------------+
-//
-// ScanRequest (SCAN_REQ)
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.2.1
-//
-//   PDU     +-----------+      +--------------+
-//           | ScanA     |  -   | AdvA        |
-//           | (6 bytes) |      | (6 bytes) |
-//           +-----------+      +--------------+
-//
-// ScanResponse (SCAN_RSP)
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.2.2
-//
-//   PDU     +-----------+      +--------------+
-//           | AdvA      |  -   | ScanRspData  |
-//           | (6 bytes) |      | (0-31 bytes) |
-//           +-----------+      +--------------+
-//
-// ConnectRequest (CON_REQ)
-// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.3.1
-//
-//   PDU     +-----------+      +--------------+     +--------------+
-//           | InitA     |  -   | AdvA         |  -  | LLData       |
-//           | (6 bytes) |      | 6 bytes      |     | 22 bytes     |
-//           +-----------+      +--------------+     +--------------+
-//
-#[allow(unused)]
-#[repr(u8)]
-enum BLEAdvertisementType {
-    ConnectUndirected = 0x00,
-    ConnectDirected = 0x01,
-    NonConnectUndirected = 0x02,
-    ScanRequest = 0x03,
-    ScanResponse = 0x04,
-    ConnectRequest = 0x05,
-    ScanUndirected = 0x06,
-}
-
-const PACKET_START: usize = 0;
-const PACKET_HDR_PDU: usize = 0;
-const PACKET_HDR_LEN: usize = 1;
-const PACKET_ADDR_START: usize = 2;
-const PACKET_ADDR_END: usize = 7;
-const PACKET_PAYLOAD_START: usize = 8;
+const PACKET_ADDR_LEN: usize = 6;
 const PACKET_LENGTH: usize = 39;
+const ADV_HEADER_TXADD_OFFSET: usize = 6;
 
 #[derive(PartialEq, Debug)]
 enum BLEState {
@@ -379,15 +144,31 @@ impl AlarmData {
     }
 }
 
+type AdvPduType = u8;
+
+// BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.3
+const ADV_IND: AdvPduType = 0b0000;
+#[allow(dead_code)]
+const ADV_DIRECTED_IND: AdvPduType = 0b0001;
+const ADV_NONCONN_IND: AdvPduType = 0b0010;
+#[allow(dead_code)]
+const SCAN_REQ: AdvPduType = 0b0011;
+#[allow(dead_code)]
+const SCAN_RESP: AdvPduType = 0b0100;
+#[allow(dead_code)]
+const CONNECT_IND: AdvPduType = 0b0101;
+const ADV_SCAN_IND: AdvPduType = 0b0110;
+
+/// Process specific memory
 pub struct App {
-    advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    scan_callback: Option<kernel::Callback>,
-    idx: usize,
     process_status: Option<BLEState>,
-    advertisement_interval_ms: u32,
     alarm_data: AlarmData,
+
+    // Advertising meta-data
+    adv_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    address: [u8; PACKET_ADDR_LEN],
+    pdu_type: AdvPduType,
+    advertisement_interval_ms: u32,
     tx_power: u8,
     /// The state of an app-specific pseudo random number.
     ///
@@ -395,17 +176,21 @@ pub struct App {
     /// It should be read using the `random_number` method, which updates it as
     /// well.
     random_nonce: u32,
+
+    // Scanning meta-data
+    scan_buffer: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    scan_callback: Option<kernel::Callback>,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            advertisement_buf: None,
             alarm_data: AlarmData::new(),
-            app_write: None,
-            app_read: None,
+            adv_data: None,
+            scan_buffer: None,
+            address: [0; PACKET_ADDR_LEN],
+            pdu_type: ADV_NONCONN_IND,
             scan_callback: None,
-            idx: PACKET_PAYLOAD_START,
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
@@ -416,18 +201,6 @@ impl Default for App {
 }
 
 impl App {
-    fn initialize_advertisement_buffer(&mut self) -> ReturnCode {
-        self.advertisement_buf
-            .as_mut()
-            .map(|buf| {
-                for i in buf.as_mut()[PACKET_START..PACKET_LENGTH].iter_mut() {
-                    *i = 0x00;
-                }
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|| ReturnCode::EINVAL)
-    }
-
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
     //
     // A static address is a 48-bit randomly generated address and shall meet the following
@@ -445,93 +218,15 @@ impl App {
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
-        self.advertisement_buf
-            .as_mut()
-            .map(|data| {
-                data.as_mut()[PACKET_HDR_LEN] = 6;
-                data.as_mut()[PACKET_ADDR_START] = 0xf0;
-                data.as_mut()[PACKET_ADDR_START + 1] = (appid.idx() & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 2] = ((appid.idx() << 8) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 3] = ((appid.idx() << 16) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 4] = ((appid.idx() << 24) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_END] = 0xf0;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|| ReturnCode::ESIZE)
-    }
-
-    fn reset_payload(&mut self) -> ReturnCode {
-        match self.process_status {
-            Some(BLEState::Advertising(_)) | Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
-            _ => {
-                let res = self.advertisement_buf
-                    .as_mut()
-                    .map(|data| {
-                        for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH].iter_mut() {
-                            *byte = 0x00;
-                        }
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|| ReturnCode::EINVAL);
-                if res == ReturnCode::SUCCESS {
-                    self.idx = PACKET_PAYLOAD_START;
-                }
-                res
-            }
-        }
-    }
-
-    // Hard-coded to ADV_NONCONN_IND
-    fn configure_advertisement_pdu(&mut self) -> ReturnCode {
-        self.advertisement_buf
-            .as_mut()
-            .map(|slice| {
-                slice.as_mut()[PACKET_HDR_PDU] = BLEAdvertisementType::NonConnectUndirected as u8;
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|| ReturnCode::ESIZE)
-    }
-
-    fn set_gap_data(&mut self, gap_type: BLEGapType) -> ReturnCode {
-        self.app_write
-            .take()
-            .as_ref()
-            .map(|slice| {
-                let idx = self.idx;
-                let end = idx + slice.len() + 2;
-
-                if end <= PACKET_LENGTH {
-                    let result = self.advertisement_buf
-                        .as_mut()
-                        .map(|data| {
-                            // set header and length
-                            data.as_mut()[idx] = (slice.len() + 1) as u8;
-                            data.as_mut()[idx + 1] = gap_type as u8;
-
-                            // update total packet size
-                            data.as_mut()[PACKET_HDR_LEN] = (end - 2) as u8;
-
-                            // set data
-                            for (dst, src) in data.as_mut()[idx + 2..end]
-                                .iter_mut()
-                                .zip(slice.as_ref()[0..slice.len()].iter())
-                            {
-                                *dst = *src;
-                            }
-                            ReturnCode::SUCCESS
-                        })
-                        .unwrap_or_else(|| ReturnCode::EINVAL);
-
-                    // If the operation was successful => update idx
-                    if result == ReturnCode::SUCCESS {
-                        self.idx = end;
-                    }
-                    result
-                } else {
-                    ReturnCode::ESIZE
-                }
-            })
-            .unwrap_or_else(|| ReturnCode::EINVAL)
+        self.address = [
+            0xf0,
+            (appid.idx() & 0xff) as u8,
+            ((appid.idx() << 8) & 0xff) as u8,
+            ((appid.idx() << 16) & 0xff) as u8,
+            ((appid.idx() << 24) & 0xff) as u8,
+            0xf0,
+        ];
+        ReturnCode::SUCCESS
     }
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
@@ -539,26 +234,43 @@ impl App {
         B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
         A: kernel::hil::time::Alarm + 'a,
     {
-        self.advertisement_buf
+        self.adv_data
             .as_ref()
-            .map(|slice| {
+            .map(|adv_data| {
                 ble.kernel_tx
                     .take()
-                    .map(|data| {
-                        for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
-                            .iter_mut()
-                            .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
+                    .map(|kernel_tx| {
+                        let adv_data_len =
+                            cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                        let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
+                        let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
                         {
-                            *out = *inp;
+                            let (header, payload) = kernel_tx.split_at_mut(2);
+                            header[0] = self.pdu_type;
+                            match self.pdu_type {
+                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                    // Set TxAdd because AdvA field is going to be a "random"
+                                    // address
+                                    header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
+                                }
+                                _ => {}
+                            }
+                            // The LENGTH field is 6-bits wide, so make sure to truncate it
+                            header[1] = (payload_len & 0x3f) as u8;
+
+                            let (adva, data) = payload.split_at_mut(6);
+                            adva.copy_from_slice(&self.address);
+                            data[..adv_data_len].copy_from_slice(adv_data_corrected);
                         }
+                        let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
                         let result = ble.radio
-                            .transmit_advertisement(data, PACKET_LENGTH, channel);
+                            .transmit_advertisement(kernel_tx, total_len, channel);
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|| ReturnCode::EINVAL)
+                    .unwrap_or(ReturnCode::FAIL)
             })
-            .unwrap_or_else(|| ReturnCode::EINVAL)
+            .unwrap_or(ReturnCode::FAIL)
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -625,7 +337,7 @@ where
     // to it.
     //
     // This method iterates through all grants so it should be used somewhat
-    // sparringly. Moreover, it should _not_ be called from within a grant,
+    // sparingly. Moreover, it should _not_ be called from within a grant,
     // since any open grant will not be iterated over and the wrong timer will
     // likely be chosen.
     fn reset_active_alarm(&self) {
@@ -681,10 +393,12 @@ where
                         // operation at the appropriate time. Instead, reschedule the
                         // operation for later. This is _kind_ of simulating actual
                         // on-air interference
-                        debug!("BLE: operationg delayed for app {:?}", app.appid());
+                        debug!("BLE: operation delayed for app {:?}", app.appid());
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         return;
                     }
+
+                    app.alarm_data.expiration = Expiration::Disabled;
 
                     match app.process_status {
                         Some(BLEState::AdvertisingIdle) => {
@@ -727,17 +441,17 @@ where
         if let Some(appid) = self.receiving_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
-                // bytes we need check for that!
+                // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
                 // 39 bytes.
                 // Therefore, we ignore payloads with a header size bigger than 39 because the
                 // channels 37, 38 and 39 should only be used for advertisements!
-                // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
+                // Packets that are bigger than 39 bytes are likely `Channel PDUs` which should
                 // only be sent on the other 37 RadioChannel channels.
 
                 if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
                     // write to buffer in userland
-                    let success = app.app_read
+                    let success = app.scan_buffer
                         .as_mut()
                         .map(|userland| {
                             for (dst, src) in userland.iter_mut().zip(buf[0..len as usize].iter()) {
@@ -757,7 +471,6 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
-                        app.alarm_data.expiration = Expiration::Disabled;
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
                         self.radio
@@ -791,7 +504,7 @@ where
     A: kernel::hil::time::Alarm + 'a,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
-    // re-tranmissions for invalid CRCs
+    // re-transmissions for invalid CRCs
     fn transmit_event(&self, _crc_ok: ReturnCode) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
@@ -799,7 +512,6 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
-                        app.alarm_data.expiration = Expiration::Disabled;
                         self.sending_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
                         app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
@@ -836,19 +548,27 @@ where
         &self,
         command_num: usize,
         data: usize,
-        _: usize,
+        interval: usize,
         appid: kernel::AppId,
     ) -> ReturnCode {
         match command_num {
-            // Start periodic advertisments
+            // Start periodic advertisements
             0 => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
-                        app.process_status = Some(BLEState::AdvertisingIdle);
-                        app.random_nonce = self.alarm.now();
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
-                        self.reset_active_alarm();
-                        ReturnCode::SUCCESS
+                        let pdu_type = data as AdvPduType;
+                        match pdu_type {
+                            ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                                app.pdu_type = pdu_type;
+                                app.process_status = Some(BLEState::AdvertisingIdle);
+                                app.random_nonce = self.alarm.now();
+                                app.advertisement_interval_ms = cmp::max(20, interval as u32);
+                                app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                                self.reset_active_alarm();
+                                ReturnCode::SUCCESS
+                            }
+                            _ => ReturnCode::EINVAL,
+                        }
                     } else {
                         ReturnCode::EBUSY
                     }
@@ -880,10 +600,13 @@ where
                             && app.process_status != Some(BLEState::AdvertisingIdle)
                         {
                             match data as u8 {
-                                e @ 0...10 | e @ 0xec...0xff => {
-                                    app.tx_power = e;
-                                    // ask chip if the power level is supported
-                                    self.radio.set_tx_power(e)
+                                tx_power @ 0...10 | tx_power @ 0xec...0xff => {
+                                    // query the underlying chip if the power level is supported
+                                    let status = self.radio.set_tx_power(tx_power);
+                                    if let ReturnCode::SUCCESS = status {
+                                        app.tx_power = tx_power;
+                                    }
+                                    status
                                 }
                                 _ => ReturnCode::EINVAL,
                             }
@@ -893,33 +616,6 @@ where
                     })
                     .unwrap_or_else(|err| err.into())
             }
-
-            // Configure advertisement interval
-            // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 4.4.2.2
-            //
-            // The advertisment interval shall an integer multiple of 0.625ms in the range of
-            // 20ms to 10240 ms!
-            //
-            // data - advertisement interval in ms
-            // FIXME: add check that data is a multiple of 0.625
-            3 => self.app
-                .enter(appid, |app, _| match app.process_status {
-                    Some(BLEState::Scanning(_)) | Some(BLEState::Advertising(_)) => {
-                        ReturnCode::EBUSY
-                    }
-                    _ => {
-                        app.advertisement_interval_ms = cmp::max(20, cmp::min(10240, data as u32));
-                        ReturnCode::SUCCESS
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
-
-            // Reset payload when the kernel is not actively advertising
-            // reset_payload checks whether the current app is correct state or not
-            // i.e. if it's ok to reset the payload or not
-            4 => self.app
-                .enter(appid, |app, _| app.reset_payload())
-                .unwrap_or_else(|err| err.into()),
 
             // Passive scanning mode
             5 => self.app
@@ -935,25 +631,6 @@ where
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            // Initilize BLE Driver
-            // Allow call to allocate the advertisement buffer must be
-            // invoked before this
-            // Request advertisement address
-            6 => self.app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::Initialized) = app.process_status {
-                        let status = app.generate_random_address(appid);
-                        if status == ReturnCode::SUCCESS {
-                            app.configure_advertisement_pdu()
-                        } else {
-                            status
-                        }
-                    } else {
-                        ReturnCode::EINVAL
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
-
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -964,22 +641,25 @@ where
         allow_num: usize,
         slice: Option<kernel::AppSlice<kernel::Shared, u8>>,
     ) -> ReturnCode {
-        match AllowType::from_usize(allow_num) {
-            Some(AllowType::BLEGap(gap_type)) => self.app
+        match allow_num {
+            // Advertisement buffer
+            0 => self.app
                 .enter(appid, |app, _| {
-                    if app.process_status != Some(BLEState::NotInitialized) {
-                        app.app_write = slice;
-                        app.set_gap_data(gap_type)
+                    app.adv_data = slice;
+                    if let ReturnCode::SUCCESS = app.generate_random_address(appid) {
+                        app.process_status = Some(BLEState::Initialized);
+                        ReturnCode::SUCCESS
                     } else {
-                        ReturnCode::EINVAL
+                        ReturnCode::FAIL
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            Some(AllowType::PassiveScanning) => self.app
+            // Passive scanning buffer
+            1 => self.app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
-                        app.app_read = slice;
+                        app.scan_buffer = slice;
                         app.process_status = Some(BLEState::Initialized);
                         ReturnCode::SUCCESS
                     }
@@ -987,18 +667,7 @@ where
                 })
                 .unwrap_or_else(|err| err.into()),
 
-            Some(AllowType::InitAdvertisementBuffer) => self.app
-                .enter(appid, |app, _| {
-                    if let Some(BLEState::NotInitialized) = app.process_status {
-                        app.advertisement_buf = slice;
-                        app.process_status = Some(BLEState::Initialized);
-                        app.initialize_advertisement_buffer();
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EINVAL
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
+            // Operation not supported
             _ => ReturnCode::ENOSUPPORT,
         }
     }
