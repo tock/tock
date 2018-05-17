@@ -247,7 +247,7 @@ impl Radio {
             DelayStartPoint::PacketEndUsecDelay(_) | DelayStartPoint::PacketEndBLEStandardDelay => {
                 self.get_packet_end_time_value() + start_point.value()
             }
-            DelayStartPoint::PreviousPacketStartUsecDelay(v) => {
+            DelayStartPoint::PreviousPacketStartUsecDelay(_) => {
                 self.prev_rx_t0.get() + start_point.value()
             }
             DelayStartPoint::PacketStartUsecDelay(_) => {
@@ -266,9 +266,7 @@ impl Radio {
 
     fn schedule_tx_after_us(&self, delay: DelayStartPoint) {
         self.setup_tx();
-
-        let now = unsafe { nrf5x::timer::TIMER0.capture(4) };
-
+        
         let t0 = self.get_packet_time_value_with_delay(delay);
         let time = t0 - NRF52_DISABLE_TX_DELAY;
 

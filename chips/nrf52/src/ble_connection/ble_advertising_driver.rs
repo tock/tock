@@ -942,7 +942,6 @@ where
                             }
                         }
                         Some(AppBLEState::Connection(_)) => {
-                            let channel = app.channel.unwrap();
                             let (sn, nesn, interval_ended, interval_end_time) = if let Some(
                                 AppBLEState::Connection(ref mut conndata),
                             ) =
