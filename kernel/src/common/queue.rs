@@ -6,4 +6,7 @@ pub trait Queue<T> {
     fn len(&self) -> usize;
     fn enqueue(&mut self, val: T) -> bool;
     fn dequeue(&mut self) -> Option<T>;
+
+    /// Remove all elements from the ring buffer.
+    fn empty(&mut self);
 }
