@@ -2,11 +2,11 @@
 
 #include "tock.h"
 
-#define DRIVER_NUM_NONVOLATILE_STORAGE 0x50001
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DRIVER_NUM_NONVOLATILE_STORAGE 0x1b
 
 int nonvolatile_storage_internal_read_done_subscribe(subscribe_cb cb, void *userdata);
 int nonvolatile_storage_internal_write_done_subscribe(subscribe_cb cb, void *userdata);
