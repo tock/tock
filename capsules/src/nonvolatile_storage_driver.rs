@@ -59,7 +59,7 @@ use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x1b;
+pub const DRIVER_NUM: usize = 0x50001;
 
 pub static mut BUFFER: [u8; 512] = [0; 512];
 
