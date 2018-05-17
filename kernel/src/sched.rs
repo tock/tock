@@ -30,7 +30,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
 
     loop {
         if chip.has_pending_interrupts() || systick.overflowed()
-            || systick.value() <= MIN_QUANTA_THRESHOLD_US
+            || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
         {
             break;
         }

@@ -319,6 +319,7 @@ static mut BSCIF: *mut BscifRegisters = BSCIF_BASE as *mut BscifRegisters;
 
 /// Setup the internal 32kHz RC oscillator.
 pub unsafe fn enable_rc32k() {
+    let rc32kcr = (*BSCIF).rc32kcr.extract();
     // Unlock the BSCIF::RC32KCR register
     (*BSCIF)
         .unlock
@@ -326,7 +327,8 @@ pub unsafe fn enable_rc32k() {
     // Write the BSCIF::RC32KCR register.
     // Enable the generic clock source, the temperature compensation, and the
     // 32k output.
-    (*BSCIF).rc32kcr.modify(
+    (*BSCIF).rc32kcr.modify_no_read(
+        rc32kcr,
         RC32Control::EN32K::OutputEnable + RC32Control::TCEN::TempCompensated
             + RC32Control::EN::GclkSourceEnable,
     );

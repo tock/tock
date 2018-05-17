@@ -228,11 +228,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ///
     /// ### Command Numbers
     ///
-    ///   *   `0`: Returns non-zero to indicate the driver is present
-    ///
-    ///   *   `1`: Returns the CRC unit's version value.  This is provided
-    ///       in order to be complete, but has limited utility as no
-    ///       consistent semantics are specified.
+    ///   *   `0`: Returns non-zero to indicate the driver is present.
     ///
     ///   *   `2`: Requests that a CRC be computed over the buffer
     ///       previously provided by `allow`.  If none was provided,
@@ -290,11 +286,6 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,
-
-            // Get version of CRC unit
-            1 => ReturnCode::SuccessWithValue {
-                value: self.crc_unit.get_version() as usize,
-            },
 
             // Request a CRC computation
             2 => {

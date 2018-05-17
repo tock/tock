@@ -98,7 +98,15 @@ pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
                 HAVE_WORK.set(HAVE_WORK.get() + 1);
             }
 
-            p.tasks.enqueue(Task::FunctionCall(callback))
+            let ret = p.tasks.enqueue(Task::FunctionCall(callback));
+
+            // Make a note that we lost this callback if the enqueue function
+            // fails.
+            if ret == false {
+                p.debug.dropped_callback_count.set(p.debug.dropped_callback_count.get() + 1);
+            }
+
+            ret
         }
     }
 }
@@ -609,6 +617,10 @@ struct ProcessDebug {
 
     /// What was the most recent syscall.
     last_syscall: Cell<Option<Syscall>>,
+
+    /// How many callbacks were dropped because the queue was insufficiently
+    /// long.
+    dropped_callback_count: Cell<usize>,
 }
 
 pub struct Process<'a> {
@@ -726,7 +738,13 @@ impl<'a> Process<'a> {
         unsafe {
             HAVE_WORK.set(HAVE_WORK.get() + 1);
         }
-        self.tasks.enqueue(Task::IPC((from, cb_type)));
+        let ret = self.tasks.enqueue(Task::IPC((from, cb_type)));
+
+        // Make a note that we lost this callback if the enqueue function
+        // fails.
+        if ret == false {
+            self.debug.dropped_callback_count.set(self.debug.dropped_callback_count.get() + 1);
+        }
     }
 
     pub fn current_state(&self) -> State {
@@ -1042,6 +1060,7 @@ impl<'a> Process<'a> {
                     min_stack_pointer: load_result.initial_stack_pointer,
                     syscall_count: Cell::new(0),
                     last_syscall: Cell::new(None),
+                    dropped_callback_count: Cell::new(0),
                 };
 
                 if (init_fn & 0x1) != 1 {
@@ -1464,6 +1483,7 @@ impl<'a> Process<'a> {
         let events_queued = self.tasks.len();
         let syscall_count = self.debug.syscall_count.get();
         let last_syscall = self.debug.last_syscall.get();
+        let dropped_callback_count = self.debug.dropped_callback_count.get();
 
         // register values
         let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (self.r0(),
@@ -1478,11 +1498,12 @@ impl<'a> Process<'a> {
 
         let _ = writer.write_fmt(format_args!("\
         App: {}   -   [{:?}]\
-        \r\n Events Queued: {}   Syscall Count: {}   ",
+        \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\n ",
                                               self.package_name,
                                               self.state,
                                               events_queued,
                                               syscall_count,
+                                              dropped_callback_count,
                                               ));
 
         let _ = match last_syscall {
