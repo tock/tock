@@ -206,7 +206,8 @@ fn reverse_and_invert(n: u32) -> u32 {
 }
 
 /// Transfer width for DMA
-pub enum TrWidth {
+#[allow(dead_code)]
+enum TrWidth {
     Byte,
     HalfWord,
     Word,
@@ -252,7 +253,7 @@ impl<'a> Crccu<'a> {
     }
 
     /// Enable the CRCCU's clocks and interrupt
-    pub fn enable(&self) {
+    fn enable(&self) {
         if self.state.get() != State::Enabled {
             self.init();
             // see "10.7.4 Clock Mask"
@@ -263,7 +264,7 @@ impl<'a> Crccu<'a> {
     }
 
     /// Disable the CRCCU's clocks and interrupt
-    pub fn disable(&self) {
+    fn disable(&self) {
         if self.state.get() == State::Enabled {
             disable_clock(Clock::PBB(PBBClock::CRCCU));
             disable_clock(Clock::HSB(HSBClock::CRCCU));
@@ -277,7 +278,7 @@ impl<'a> Crccu<'a> {
     }
 
     /// Get the client currently receiving results from the CRCCU
-    pub fn get_client(&self) -> Option<&'a crc::Client> {
+    fn get_client(&self) -> Option<&'a crc::Client> {
         self.client
     }
 
