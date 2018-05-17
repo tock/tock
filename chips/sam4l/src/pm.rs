@@ -38,7 +38,7 @@ struct PmRegisters {
     imr: ReadOnly<u32, InterruptOrStatus::Register>,
     isr: ReadOnly<u32, InterruptOrStatus::Register>,
     icr: WriteOnly<u32, InterruptOrStatus::Register>,
-    sr: ReadOnly<u32, Status::Register>,
+    sr: ReadOnly<u32, InterruptOrStatus::Register>,
     _reserved6: [u32; 34],                                  // 0x100
     ppcr: ReadWrite<u32, PeripheralPowerControl::Register>, // 0x160
     _reserved7: [u32; 7],
@@ -229,14 +229,6 @@ register_bitfields![u32,
 
         /// Clock Failure Detected: (0) running correctly, (1) failure detected, reverting to RCSYS
         CFD 0
-    ],
-
-    Status [
-        WAKE OFFSET(8) NUMBITS(1) [],
-
-        CKRDY OFFSET(5) NUMBITS(1) [],
-        
-        CFD OFFSET(0) NUMBITS(1) []
     ],
 
     /// Reset Value: 0x1fe
@@ -652,7 +644,7 @@ impl PowerManager {
                 unlock(0x00000004); 
                 (*PM_REGS).cpusel.modify(CpuClockSelect::CPUDIV::SET
                     + CpuClockSelect::CPUSEL::CLEAR);
-                while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+                while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
                 flashcalw::FLASH_CONTROLLER.set_wait_state(1);
                 select_main_clock(MainClock::RC80M);
@@ -735,25 +727,25 @@ impl PowerManager {
                 unlock(0x00000004); 
                 (*PM_REGS).cpusel.modify(CpuClockSelect::CPUDIV::CLEAR
                     + CpuClockSelect::CPUSEL::CLEAR);
-                while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+                while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
                 // Stop dividing peripheral clocks
                 unlock(0x0000000C); 
                 (*PM_REGS).pbasel.modify(PeripheralBusXClockSelect::PBDIV::CLEAR
                     + PeripheralBusXClockSelect::PBSEL::CLEAR);
-                while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+                while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
                 unlock(0x00000010); 
                 (*PM_REGS).pbbsel.modify(PeripheralBusXClockSelect::PBDIV::CLEAR
                     + PeripheralBusXClockSelect::PBSEL::CLEAR);
-                while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+                while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
                 unlock(0x00000014); 
                 (*PM_REGS).pbcsel.modify(PeripheralBusXClockSelect::PBDIV::CLEAR
                     + PeripheralBusXClockSelect::PBSEL::CLEAR);
-                while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+                while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
                 unlock(0x00000018); 
                 (*PM_REGS).pbdsel.modify(PeripheralBusXClockSelect::PBDIV::CLEAR
                     + PeripheralBusXClockSelect::PBSEL::CLEAR);
-                while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+                while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
                 let clock_mask = self.system_on_clocks.get();
                 self.system_on_clocks.set(clock_mask & !(ClockMask::RC80M as u32));
@@ -869,19 +861,19 @@ unsafe fn configure_80mhz_rc() {
     unlock(0x0000000C); 
     (*PM_REGS).pbasel.modify(PeripheralBusXClockSelect::PBDIV::SET
         + PeripheralBusXClockSelect::PBSEL::CLEAR);
-    while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
     unlock(0x00000010); 
     (*PM_REGS).pbbsel.modify(PeripheralBusXClockSelect::PBDIV::SET
         + PeripheralBusXClockSelect::PBSEL::CLEAR);
-    while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
     unlock(0x00000014); 
     (*PM_REGS).pbcsel.modify(PeripheralBusXClockSelect::PBDIV::SET
         + PeripheralBusXClockSelect::PBSEL::CLEAR);
-    while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
     unlock(0x00000018); 
     (*PM_REGS).pbdsel.modify(PeripheralBusXClockSelect::PBDIV::SET
         + PeripheralBusXClockSelect::PBSEL::CLEAR);
-    while (*PM_REGS).sr.matches_all(Status::CKRDY::CLEAR) {}
+    while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
     let clock_mask = PM.system_on_clocks.get();
     PM.system_on_clocks.set(clock_mask | ClockMask::RC80M as u32);
@@ -916,9 +908,8 @@ pub fn get_system_frequency() -> u32 {
         match PM.system_clock_source.get() {
             SystemClockSource::RcsysAt115kHz => 115200,
             SystemClockSource::DfllRc32kAt48MHz => 48000000,
-            SystemClockSource::ExternalOscillator {frequency, startup_mode} => 16000000,
-            SystemClockSource::PllExternalOscillatorAt48MHz {
-                frequency, startup_mode} => 48000000,
+            SystemClockSource::ExternalOscillator {..} => 16000000,
+            SystemClockSource::PllExternalOscillatorAt48MHz {..} => 48000000,
             SystemClockSource::RC80M => 40000000,
             SystemClockSource::RCFAST{frequency} => {
                 match frequency {
