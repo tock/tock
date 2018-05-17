@@ -10,11 +10,6 @@ use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::ReturnCode;
 // other modules
 use kernel::hil;
-use kernel::hil::clock_pm::{ClockManager,ClockParams,ClockClient};
-use kernel::common::take_cell::TakeCell;
-use kernel::common::list::*;
-use clock_pm;
-use kernel::hil::uart::UART;
 // local modules
 use pm;
 
@@ -292,7 +287,7 @@ pub struct USARTRegManager<'a> {
 static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
 impl<'a> USARTRegManager<'a> {
-    fn real_new(usart: &USART) -> USARTRegManager<'a> {
+    fn real_new(usart: &USART) -> USARTRegManager {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
         }
@@ -305,11 +300,11 @@ impl<'a> USARTRegManager<'a> {
         }
     }
 
-    fn new(usart: &USART) -> USARTRegManager<'a> {
+    fn new(usart: &USART) -> USARTRegManager {
         USARTRegManager::real_new(usart)
     }
 
-    pub fn panic_new(usart: &USART) -> USARTRegManager<'a> {
+    pub fn panic_new(usart: &USART) -> USARTRegManager {
         IS_PANICING.store(true, Ordering::Relaxed);
         USARTRegManager::real_new(usart)
     }
@@ -366,7 +361,7 @@ enum UsartClient<'a> {
     SpiMaster(&'a hil::spi::SpiMasterClient),
 }
 
-pub struct USART<'a> {
+pub struct USART {
     registers: *mut UsartRegisters,
     clock: pm::Clock,
 
@@ -385,20 +380,6 @@ pub struct USART<'a> {
     client: Cell<Option<UsartClient<'static>>>,
 
     spi_chip_select: Cell<Option<&'static hil::gpio::Pin>>,
-
-    //clock change
-    cm_enabled: Cell<bool>,
-    baud_rate: Cell<u32>,
-
-    return_params: Cell<bool>,
-    clock_params: ClockParams,
-    has_lock: Cell<bool>,
-    next: ListLink<'a, ClockClient<'a>>,
-
-    callback_tx_data: TakeCell<'static, [u8]>,
-    callback_tx_len: Cell<usize>,
-    callback_rx_data: TakeCell<'static, [u8]>,
-    callback_rx_len: Cell<usize>,
 }
 
 // USART hardware peripherals on SAM4L
@@ -427,13 +408,13 @@ pub static mut USART3: USART = USART::new(
     dma::DMAPeripheral::USART3_TX,
 );
 
-impl<'a> USART<'a> {
+impl USART {
     const fn new(
         base_addr: *mut UsartRegisters,
         clock: pm::PBAClock,
         rx_dma_peripheral: dma::DMAPeripheral,
         tx_dma_peripheral: dma::DMAPeripheral,
-    ) -> USART<'a> {
+    ) -> USART {
         USART {
             registers: base_addr,
             clock: pm::Clock::PBA(clock),
@@ -456,20 +437,6 @@ impl<'a> USART<'a> {
 
             // This is only used if the USART is in SPI mode.
             spi_chip_select: Cell::new(None),
-
-            cm_enabled: Cell::new(false),
-            baud_rate: Cell::new(0),
-
-            return_params: Cell::new(false),
-            //PLL-> ExtOsc, RCFAST, RC1M
-            clock_params: ClockParams::new(0x00000020, 0, 48000000),
-            has_lock: Cell::new(false),
-            next: ListLink::empty(),
-
-            callback_tx_data: TakeCell::empty(),
-            callback_tx_len: Cell::new(0),
-            callback_rx_data: TakeCell::empty(),
-            callback_rx_len: Cell::new(0),
         }
     }
 
@@ -620,14 +587,6 @@ impl<'a> USART<'a> {
             self.disable_tx(usart);
             self.usart_tx_state.set(USARTStateTX::Idle);
 
-            self.callback_tx_len.set(0);
-            if self.cm_enabled.get() && self.has_lock.get() && self.callback_rx_len.get() == 0 {
-                self.has_lock.set(false);
-                unsafe {
-                    clock_pm::CM.unlock();
-                }
-            }
-
             // Now that we know the TX transaction is finished we can get the
             // buffer back from DMA and pass it back to the client. If we don't
             // wait until we are completely finished, then the
@@ -662,28 +621,16 @@ impl<'a> USART<'a> {
     }
 
     fn set_baud_rate(&self, usart: &USARTRegManager, baud_rate: u32) {
-        self.baud_rate.set(baud_rate);
         let system_frequency = pm::get_system_frequency();
 
         // The clock divisor is calculated differently in UART and SPI modes.
-        match self.usart_mode.get() {
-            UsartMode::Uart => {
-                let uart_baud_rate = 8*baud_rate;
-                self.clock_params.min_frequency.set(uart_baud_rate);
-
-                let cd = system_frequency / uart_baud_rate;
-                let fp = (system_frequency+baud_rate/2)/baud_rate - 8*cd;
-                usart.registers.brgr.write(BaudRate::FP.val(fp)+BaudRate::CD.val(cd));
-            }
-            UsartMode::Spi => {
-                self.clock_params.min_frequency.set(baud_rate);
-
-                let cd = system_frequency / baud_rate;
-                usart.registers.brgr.write(BaudRate::CD.val(cd));
-            }
-            _ => {},
+        let cd = match self.usart_mode.get() {
+            UsartMode::Uart => system_frequency / (8 * baud_rate),
+            UsartMode::Spi => system_frequency / baud_rate,
+            _ => 0,
         };
 
+        usart.registers.brgr.write(BaudRate::CD.val(cd));
     }
 
     /// In non-SPI mode, this drives RTS low.
@@ -737,7 +684,7 @@ impl<'a> USART<'a> {
     }
 }
 
-impl<'a> dma::DMAClient for USART<'a> {
+impl dma::DMAClient for USART {
     fn xfer_done(&self, pid: dma::DMAPeripheral) {
         let usart = &USARTRegManager::new(&self);
 
@@ -751,14 +698,6 @@ impl<'a> dma::DMAClient for USART<'a> {
                     self.disable_rx_interrupts(usart);
                     self.disable_rx(usart);
                     self.usart_rx_state.set(USARTStateRX::Idle);
-
-                    self.callback_rx_len.set(0);
-                    if self.cm_enabled.get() && self.has_lock.get() && self.callback_tx_len.get() == 0 {
-                        self.has_lock.set(false);
-                        unsafe {
-                            clock_pm::CM.unlock();
-                        }
-                    }
 
                     // get buffer
                     let buffer = self.rx_dma.get().map_or(None, |rx_dma| {
@@ -853,7 +792,7 @@ impl<'a> dma::DMAClient for USART<'a> {
 }
 
 /// Implementation of kernel::hil::UART
-impl<'a> hil::uart::UART for USART<'a> {
+impl hil::uart::UART for USART {
     fn set_client(&self, client: &'static hil::uart::Client) {
         let c = UsartClient::Uart(client);
         self.client.set(Some(c));
@@ -899,25 +838,6 @@ impl<'a> hil::uart::UART for USART<'a> {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        self.callback_tx_data.replace(tx_data);
-        self.callback_tx_len.set(tx_len);
-        if self.cm_enabled.get() && !self.has_lock.get() {
-            self.return_params.set(true);
-            unsafe {
-                if clock_pm::CM.need_clock_change(&self.clock_params){
-                    clock_pm::CM.clock_change();
-                }
-                else {
-                    self.clock_updated(false);
-                }
-            }
-        }
-        else {
-            self.transmit_callback();
-        }
-    }
-
-    fn transmit_callback(&self) {
         let usart = &USARTRegManager::new(&self);
 
         // quit current transmission if any
@@ -930,38 +850,16 @@ impl<'a> hil::uart::UART for USART<'a> {
         // set up dma transfer and start transmission
         self.tx_dma.get().map(move |dma| {
             dma.enable();
-            dma.do_xfer(self.tx_dma_peripheral, self.callback_tx_data.take().unwrap(), self.callback_tx_len.get());
-            self.tx_len.set(self.callback_tx_len.get());
+            dma.do_xfer(self.tx_dma_peripheral, tx_data, tx_len);
+            self.tx_len.set(tx_len);
         });
     }
 
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        self.callback_rx_data.replace(rx_buffer);
-        self.callback_rx_len.set(rx_len);
-        if self.cm_enabled.get() && !self.has_lock.get() {
-            self.return_params.set(true);
-            unsafe {
-                if clock_pm::CM.need_clock_change(&self.clock_params){
-                    clock_pm::CM.clock_change();
-                }
-                else {
-                    self.clock_updated(false);
-                }
-            }
-        }
-        else {
-            self.receive_callback();
-        }
-    }
-
-    fn receive_callback(&self){
         let usart = &USARTRegManager::new(&self);
 
         // quit current reception if any
         self.abort_rx(usart, hil::uart::Error::RepeatCallError);
-
-        let rx_buffer = self.callback_rx_data.take().unwrap();
-        let rx_len = self.callback_rx_len.get();
 
         // truncate rx_len if necessary
         let mut length = rx_len;
@@ -983,7 +881,7 @@ impl<'a> hil::uart::UART for USART<'a> {
     }
 }
 
-impl<'a> hil::uart::UARTAdvanced for USART<'a> {
+impl hil::uart::UARTAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
         let usart = &USARTRegManager::new(&self);
 
@@ -1032,7 +930,7 @@ impl<'a> hil::uart::UARTAdvanced for USART<'a> {
 }
 
 /// SPI
-impl<'a> hil::spi::SpiMaster for USART<'a> {
+impl hil::spi::SpiMaster for USART {
     type ChipSelect = Option<&'static hil::gpio::Pin>;
 
     fn init(&self) {
@@ -1249,49 +1147,3 @@ impl<'a> hil::spi::SpiMaster for USART<'a> {
         unimplemented!("USART: SPI: Use `read_write_bytes()` instead.");
     }
 }
-
-impl<'a> hil::clock_pm::ClockClient<'a> for USART<'a> {
-    fn enable_cm(&self) {
-        self.cm_enabled.set(true);
-    }
-
-    fn clock_updated(&self, clock_changed: bool) {
-        if clock_changed {
-            let usart = &USARTRegManager::new(&self);
-            self.reset(usart);
-            self.set_baud_rate(usart, self.baud_rate.get());
-        }
-
-        if self.return_params.get() {
-            if !self.has_lock.get() {
-                unsafe {
-                    self.has_lock.set(clock_pm::CM.lock()); 
-                }
-                if !self.has_lock.get() {
-                    return;
-                }
-            }
-            self.return_params.set(false);
-
-            if self.callback_rx_len.get() > 0 {
-                self.receive_callback();
-            }
-            if self.callback_tx_len.get() > 0 {
-                self.transmit_callback();
-            }
-        }
-
-    }
-
-    fn get_params(&self) -> Option<&ClockParams> {
-        if self.return_params.get() {
-            return Some(&self.clock_params);
-        }
-        None
-    }
-
-    fn next_link(&'a self) -> &'a ListLink<'a, ClockClient<'a> + 'a> {
-        &self.next
-    }
-}
-
