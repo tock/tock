@@ -11,6 +11,7 @@ static const int ALLOW_RX_CFG = 3;
 static const int SUBSCRIBE_RX = 0;
 static const int SUBSCRIBE_TX = 1;
 
+// COMMAND 0 is driver existence check
 static const int COMMAND_GET_IFACES = 1;
 static const int COMMAND_SEND = 2;
 
