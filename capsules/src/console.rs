@@ -391,7 +391,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
         }
     }
 
-    fn receive_complete(&self, buffer: &'static mut [u8], _rx_len: usize, error: uart::Error) {
+    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
         self.rx_buffer.replace(buffer);
         self.rx_in_progress.get().map(|appid| {
             self.rx_in_progress.set(None);
@@ -406,16 +406,16 @@ impl<'a, U: UART> Client for Console<'a, U> {
                                     Some(mut app_buffer) => {
                                         // We used UART::receive(),
                                         // so we received the requested length
-                                        let len = app.read_len;
                                         self.rx_buffer.map(|buffer| {
                                             // Copy our driver's buffer into the app's buffer
-                                            for (i, c) in
-                                                app_buffer.as_mut()[0..len].iter_mut().enumerate()
+                                            for (i, c) in app_buffer.as_mut()[0..rx_len]
+                                                .iter_mut()
+                                                .enumerate()
                                             {
                                                 *c = buffer[i]
                                             }
                                         });
-                                        (ReturnCode::SUCCESS, len)
+                                        (ReturnCode::SUCCESS, rx_len)
                                     }
                                     None => (ReturnCode::EINVAL, 0),
                                 }
