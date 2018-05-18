@@ -7,7 +7,7 @@
 // use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::take_cell::{TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ipv6::ip_utils::IPAddr;
 use net::udp::udp_send::UDPSender;
@@ -15,11 +15,12 @@ use net::udp::udp_send::UDPSender;
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
 
-const INTERFACES: [IPAddr] = [
+const INTERFACES: [IPAddr; 2] = [
     IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]),
     IPAddr([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]),
 ];
 
+#[allow(dead_code)]
 struct IPAddrPort {
     addr: IPAddr,
     port: u16,
@@ -49,6 +50,7 @@ impl Default for App {
     }
 }
 
+#[allow(dead_code)]
 pub struct UDPDriver<'a> {
     /// UDP sender
     sender: &'a UDPSender<'a>,
@@ -89,6 +91,7 @@ impl<'a> UDPDriver<'a> {
 
     /// Utility function to perform an action using an app's config buffer.
     #[inline]
+    #[allow(dead_code)]
     fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
@@ -132,6 +135,7 @@ impl<'a> UDPDriver<'a> {
     /// Utility function to perform an action using an app's RX config buffer.
     /// (quick and dirty ctrl-c, ctrl-v from above)
     #[inline]
+    #[allow(dead_code)]
     fn do_with_rx_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
@@ -154,6 +158,7 @@ impl<'a> UDPDriver<'a> {
     /// Utility function to perform a write to an app's RX config buffer.
     /// (also a quick and dirty ctrl-c)
     #[inline]
+    #[allow(dead_code)]
     fn do_with_rx_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
     where
         F: FnOnce(&mut [u8]) -> ReturnCode,
@@ -215,13 +220,13 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
         self.do_with_app(appid, |app| {
-            let dst_addr_port = match app.pending_tx.take() {
+            let _dst_addr_port = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
                     return ReturnCode::SUCCESS;
                 }
             };
-            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |_kbuf| {
                 // TODO: Prepare packet for UDP transmission
                 // `dst_addr_port` contains the destination address and port number
                 // Example from radio driver:
@@ -274,6 +279,7 @@ impl<'a> UDPDriver<'a> {
     /// Schedule the next transmission if there is one pending. Performs the
     /// transmission asynchronously, returning any errors via callbacks.
     #[inline]
+    #[allow(dead_code)]
     fn do_next_tx_async(&self) {
         self.get_next_tx_if_idle()
             .map(|appid| self.perform_tx_async(appid));
@@ -372,9 +378,12 @@ impl<'a> Driver for UDPDriver<'a> {
 
             // Returns the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
-            1 => self.do_with_cfg_mut(appid, arg1 * mem::size_of(IPAddr), |cfg| {
+            1 => self.do_with_cfg_mut(appid, arg1 * mem::size_of::<IPAddr>(), |cfg| {
                 let n_ifaces_to_copy = cmp::min(arg1, INTERFACES.len());
-                cfg.copy_from_slice(&INTERFACES[..n_ifaces_to_copy]);
+                let iface_size = mem::size_of::<IPAddr>();
+                for i in 0..n_ifaces_to_copy {
+                    cfg[i * iface_size .. (i+1) * iface_size].copy_from_slice(&INTERFACES[i].0); 
+                }
                 ReturnCode::SUCCESS
             }),
 
@@ -386,24 +395,19 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EBUSY;
                     }
                     let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
-                        if cfg.len() != 2 * mem::size_of(IPAddrPort) {
+                        if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
                             return None;
                         }
 
-                        /*
-                        let src_ip_port = cfg.as_ref()[..mem::size_of(IPAddrPort)];
-                        let (a, p) = src_ip_port.split_at_mut(mem::size_of(IPAddr));
-                        let src = IPAddrPort {
-                            addr: a,
-                            port: p,
-                        };
-                        */
+                        // Source IP and port are in the first half of `cfg`
+                        let dst_ip_port = &cfg.as_ref()[mem::size_of::<IPAddrPort>()..];
+                        let (a, p) = dst_ip_port.split_at(mem::size_of::<IPAddr>());
 
-                        let dst_ip_port = cfg.as_ref()[mem::size_of(IPAddrPort)..];
-                        let (a, p) = dst_ip_port.split_at_mut(mem::size_of(IPAddr));
+                        let mut dst_addr = IPAddr::new();
+                        dst_addr.0.copy_from_slice(a);
                         let dst = IPAddrPort {
-                            addr: a,
-                            port: p,
+                            addr: dst_addr,
+                            port: ((p[0] as u16) << 8) + (p[1] as u16),
                         };
                         
                         Some(dst)

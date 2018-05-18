@@ -17,6 +17,10 @@ extern crate sam4l;
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
+use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
+use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
+use capsules::net::udp::udp_send::UDPSendStruct;
+use capsules::net::udp::udp::UDPHeader;
 use capsules::rf233::RF233;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
@@ -86,6 +90,7 @@ struct Imix {
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<
         'static,
@@ -117,6 +122,16 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 // for reception.
 static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
+// Same as above ^^ for the UDP syscall interface
+const UDP_HDR_SIZE: usize = 8;
+const PAYLOAD_LEN: usize = 200;
+const  DEFAULT_CTX_PREFIX_LEN: u8 = 8;
+static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
+
+static mut IP_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut UDP_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
 // This buffer is used as an intermediate buffer for AES CCM encryption
 // An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
 const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
@@ -142,6 +157,7 @@ impl kernel::Platform for Imix {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -559,6 +575,66 @@ pub unsafe fn reset_handler() {
     radio_mac.set_pan(0xABCD);
     radio_mac.set_address(0x1008);
 
+    // ** UDP **
+    
+    let udp_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+    );
+    mux_mac.add_user(udp_mac);
+
+    let sixlowpan = static_init!(
+        sixlowpan_state::Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
+        sixlowpan_state::Sixlowpan::new(
+            sixlowpan_compression::Context {
+                prefix: DEFAULT_CTX_PREFIX,
+                prefix_len: DEFAULT_CTX_PREFIX_LEN,
+                id: 0,
+                compress: false,
+            },
+            &sam4l::ast::AST
+        )
+    );
+
+    let sixlowpan_state = sixlowpan as &sixlowpan_state::SixlowpanState;
+    let sixlowpan_tx = sixlowpan_state::TxState::new(sixlowpan_state);
+    // let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
+    // sixlowpan_state.add_rx_state(default_rx_state);
+    // sixlowpan_state.set_rx_client(lowpan_frag_test);
+    // radio_mac.set_receive_client(sixlowpan);
+
+    let udp_hdr = static_init!(
+        UDPHeader,
+        UDPHeader::new()
+    );
+    let tr_hdr = static_init!(
+        TransportHeader,
+        TransportHeader::UDP(*udp_hdr)
+    );
+    let ip_pyld = static_init!(
+        IPPayload<'static>,
+        IPPayload::new(*tr_hdr, &mut UDP_DGRAM)
+    );
+    let ip6_dg = static_init!(
+        IP6Packet<'static>,
+        IP6Packet::new(*ip_pyld)
+    );
+    
+    let ip_send = static_init!(
+        capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
+        capsules::net::ipv6::ipv6_send::IP6SendStruct::new(&mut ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)
+    );
+
+    let udp_send = static_init!(
+        UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>>,
+        UDPSendStruct::new(ip_send)
+    );
+
+    let udp_driver = static_init!(
+        capsules::net::udp::UDPDriver<'static>,
+        capsules::net::udp::UDPDriver::new(udp_send, kernel::Grant::create(), &mut UDP_BUF)
+    );
+
     // Configure the USB controller
     let usb_client = static_init!(
         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
@@ -616,6 +692,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
         ninedof: ninedof,
         radio_driver: radio_driver,
+        udp_driver: udp_driver,
         usb_driver: usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage: nonvolatile_storage,
