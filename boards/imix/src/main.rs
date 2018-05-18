@@ -18,7 +18,7 @@ use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
-use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
+use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::udp::udp_send::UDPSendStruct;
 use capsules::net::udp::udp::UDPHeader;
 use capsules::rf233::RF233;
@@ -603,26 +603,20 @@ pub unsafe fn reset_handler() {
     // sixlowpan_state.set_rx_client(lowpan_frag_test);
     // radio_mac.set_receive_client(sixlowpan);
 
-    let udp_hdr = static_init!(
-        UDPHeader,
-        UDPHeader::new()
-    );
-    let tr_hdr = static_init!(
-        TransportHeader,
-        TransportHeader::UDP(*udp_hdr)
-    );
-    let ip_pyld = static_init!(
-        IPPayload<'static>,
-        IPPayload::new(*tr_hdr, &mut UDP_DGRAM)
-    );
+    let udp_hdr: UDPHeader = UDPHeader::new();
+    let tr_hdr = TransportHeader::UDP(udp_hdr);
+    let ip_pyld: IPPayload = IPPayload {
+        header: tr_hdr,
+        payload: &mut UDP_DGRAM,
+    };
     let ip6_dg = static_init!(
         IP6Packet<'static>,
-        IP6Packet::new(*ip_pyld)
+        IP6Packet::new(ip_pyld)
     );
     
     let ip_send = static_init!(
         capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
-        capsules::net::ipv6::ipv6_send::IP6SendStruct::new(&mut ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)
+        capsules::net::ipv6::ipv6_send::IP6SendStruct::new(ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)
     );
 
     let udp_send = static_init!(
