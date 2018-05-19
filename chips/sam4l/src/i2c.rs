@@ -482,17 +482,6 @@ const I2C_SLAVE_BASE_ADDRS: [StaticRef<TWISRegisters>; 2] = unsafe {
     ]
 };
 
-// There are four TWIM (two wire master interface) peripherals on the SAM4L.
-// These likely won't all be used for I2C, but we let the platform decide
-// which one to use.
-#[derive(Clone, Copy)]
-pub enum Location {
-    I2C00, // TWIMS0
-    I2C01, // TWIMS1
-    I2C02, // TWIM2
-    I2C03, // TWIM3
-}
-
 // Three main I2C speeds
 #[derive(Clone, Copy)]
 pub enum Speed {
@@ -668,10 +657,6 @@ pub static mut I2C3: I2CHw = I2CHw::new(
     DMAPeripheral::TWIM3_RX,
     DMAPeripheral::TWIM3_TX,
 );
-
-pub const START: usize = 1 << 13;
-pub const STOP: usize = 1 << 14;
-pub const ACKLAST: usize = 1 << 25;
 
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
@@ -1208,7 +1193,7 @@ impl I2CHw {
     }
 
     /// Receive the bytes the I2C master is writing to us.
-    pub fn slave_write_receive(&self, buffer: &'static mut [u8], len: u8) {
+    fn slave_write_receive(&self, buffer: &'static mut [u8], len: u8) {
         self.slave_write_buffer.replace(buffer);
         self.slave_write_buffer_len.set(len);
 
@@ -1230,7 +1215,7 @@ impl I2CHw {
     }
 
     /// Prepare a buffer for the I2C master to read from after a read call.
-    pub fn slave_read_send(&self, buffer: &'static mut [u8], len: u8) {
+    fn slave_read_send(&self, buffer: &'static mut [u8], len: u8) {
         self.slave_read_buffer.replace(buffer);
         self.slave_read_buffer_len.set(len);
         self.slave_read_buffer_index.set(0);
@@ -1275,11 +1260,11 @@ impl I2CHw {
         twis.registers.idr.set(!0);
     }
 
-    pub fn slave_set_address(&self, address: u8) {
+    fn slave_set_address(&self, address: u8) {
         self.my_slave_address.set(address);
     }
 
-    pub fn slave_listen(&self) {
+    fn slave_listen(&self) {
         if self.slave_mmio_address.is_some() {
             let twis = &TWISRegisterManager::new(&self);
 
