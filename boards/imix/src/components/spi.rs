@@ -23,7 +23,7 @@ impl SpiSyscallComponent {
 impl Component for SpiSyscallComponent {
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
-    unsafe fn finalize(&mut self) -> Option<Self::Output> {
+    unsafe fn finalize(&mut self) -> Self::Output {
         let syscall_spi_device = static_init!(
                 VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
                 VirtualSpiMasterDevice::new(self.spi_mux, 3)
@@ -40,7 +40,7 @@ impl Component for SpiSyscallComponent {
         spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
         syscall_spi_device.set_client(spi_syscalls);
 
-        Some(spi_syscalls)
+        spi_syscalls
     }
 }
 
@@ -55,12 +55,12 @@ impl SpiComponent {
 impl Component for SpiComponent {
     type Output = &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>;
 
-    unsafe fn finalize(&mut self) -> Option<Self::Output> {
+    unsafe fn finalize(&mut self) -> Self::Output {
         let spi_device = static_init!(
                 VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
                 VirtualSpiMasterDevice::new(self.spi_mux, 3)
         );
 
-        Some(spi_device)
+        spi_device
     }
 }

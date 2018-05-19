@@ -11,7 +11,7 @@
 
 pub trait Component {
     type Output;
-    unsafe fn finalize(&mut self) -> Option<Self::Output>;
+    unsafe fn finalize(&mut self) -> Self::Output;
 }
 
 /// This trait allows components to set up circular references.

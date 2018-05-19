@@ -33,6 +33,7 @@ use kernel::hil::Controller;
 use kernel::component::Component;
 use components::spi::SpiSyscallComponent;
 use components::spi::SpiComponent;
+use components::isl29035::Isl29035Component;
 
 /// Support routines for debugging I/O.
 ///
@@ -305,22 +306,7 @@ pub unsafe fn reset_handler() {
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
-    // Configure the ISL29035, device address 0x44
-    let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x44));
-    let isl29035_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let isl29035 = static_init!(
-        capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::isl29035::Isl29035::new(
-            isl29035_i2c,
-            isl29035_virtual_alarm,
-            &mut capsules::isl29035::BUF
-        )
-    );
-    isl29035_i2c.set_client(isl29035);
-    isl29035_virtual_alarm.set_client(isl29035);
+    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm).finalize();
 
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
@@ -335,7 +321,7 @@ pub unsafe fn reset_handler() {
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
     
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize().unwrap();
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
     
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
@@ -363,7 +349,7 @@ pub unsafe fn reset_handler() {
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
     // Create a second virtualized SPI client, for the RF233
-    let rf233_spi = SpiComponent::new(mux_spi).finalize().unwrap();
+    let rf233_spi = SpiComponent::new(mux_spi).finalize();
 
     // Create the RF233 driver, passing its pins and SPI client
     let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
