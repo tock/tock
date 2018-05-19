@@ -154,17 +154,7 @@ impl kernel::Platform for Platform {
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    // Loads relocations and clears BSS
-    nrf52::init();
 
-    // Make non-volatile memory writable and activate the reset button (pin 21)
-    let nvmc = nrf52::nvmc::Nvmc::new();
-    let uicr = nrf52::uicr::Uicr::new();
-    nvmc.configure_writeable();
-    while !nvmc.is_ready() {}
-    uicr.set_psel0_reset_pin(BUTTON_RST_PIN);
-    while !nvmc.is_ready() {}
-    uicr.set_psel1_reset_pin(BUTTON_RST_PIN);
 
     // GPIOs
     let gpio_pins = static_init!(
@@ -188,20 +178,7 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&nrf5x::gpio::PORT[LED1_PIN]),
-        Some(&nrf5x::gpio::PORT[LED2_PIN]),
-        Some(&nrf5x::gpio::PORT[LED3_PIN]),
-    );
 
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
-    );
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
 
     // LEDs
     let led_pins = static_init!(
@@ -226,11 +203,6 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let led = static_init!(
-        capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins)
-    );
-
     let button_pins = static_init!(
         [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
         [
@@ -252,6 +224,64 @@ pub unsafe fn reset_handler() {
             ), // 16
         ]
     );
+
+
+    nrf52dk.setup_board(BUTTON_RST_PIN, gpio_pins,
+        LED1_PIN, LED2_PIN, LED3_PIN,
+        led_pins, button_pins,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE
+        );
+}
+
+/// Generic function for starting an nrf52dk board.
+pub unsafe fn setup_board(
+    button_rst_pin: usize,
+    gpio_pins: &'static mut [&'static nrf5x::gpio::GPIOPin],
+    debug_pin1_index: usize,
+    debug_pin2_index: usize,
+    debug_pin3_index: usize,
+    led_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode)],
+    button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
+    app_memory: &mut [u8],
+    process_pointers: &'static mut [core::option::Option<&'static mut kernel::Process<'static>>],
+    app_fault_response: kernel::process::FaultResponse,
+    ) {
+    // Loads relocations and clears BSS
+    nrf52::init();
+
+    // Make non-volatile memory writable and activate the reset button (pin 21)
+    let nvmc = nrf52::nvmc::Nvmc::new();
+    let uicr = nrf52::uicr::Uicr::new();
+    nvmc.configure_writeable();
+    while !nvmc.is_ready() {}
+    uicr.set_psel0_reset_pin(button_rst_pin);
+    while !nvmc.is_ready() {}
+    uicr.set_psel1_reset_pin(button_rst_pin);
+
+    // Configure kernel debug gpios as early as possible
+    kernel::debug::assign_gpios(
+        Some(&nrf5x::gpio::PORT[debug_pin1_index]),
+        Some(&nrf5x::gpio::PORT[debug_pin2_index]),
+        Some(&nrf5x::gpio::PORT[debug_pin3_index]),
+    );
+
+    let gpio = static_init!(
+        capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
+        capsules::gpio::GPIO::new(gpio_pins)
+    );
+    for pin in gpio_pins.iter() {
+        pin.set_client(gpio);
+    }
+
+    // LEDs
+    let led = static_init!(
+        capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins)
+    );
+
+    // Buttons
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Grant::create())
@@ -383,10 +413,11 @@ pub unsafe fn reset_handler() {
     }
     kernel::process::load_processes(
         &_sapps as *const u8,
-        &mut APP_MEMORY,
-        &mut PROCESSES,
-        FAULT_RESPONSE,
+        app_memory,
+        process_pointers,
+        app_fault_response,
     );
 
-    kernel::main(&platform, &mut chip, &mut PROCESSES, Some(&platform.ipc));
+    kernel::main(&platform, &mut chip, process_pointers, Some(&platform.ipc));
 }
+
