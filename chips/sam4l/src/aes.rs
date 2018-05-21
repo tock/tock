@@ -30,33 +30,33 @@ enum ConfidentialityMode {
 /// The registers used to interface with the hardware
 #[repr(C)]
 struct AesRegisters {
-    ctrl: ReadWrite<u32, Control::Register>, //   0x00
-    mode: ReadWrite<u32, Mode::Register>,    //   0x04
-    databufptr: ReadWrite<u32, DataBuf::Register>, //   0x08
-    sr: ReadOnly<u32, Status::Register>,     //   0x0c
-    ier: WriteOnly<u32, Interrupt::Register>, //   0x10
-    idr: WriteOnly<u32, Interrupt::Register>, //   0x14
-    imr: ReadOnly<u32, Interrupt::Register>, //   0x18
-    _reserved0: [u32; 1],                        //   0x1c
-    key0: WriteOnly<u32, Key::Register>,     //   0x20
-    key1: WriteOnly<u32, Key::Register>,     //   0x24
-    key2: WriteOnly<u32, Key::Register>,     //   0x28
-    key3: WriteOnly<u32, Key::Register>,     //   0x2c
-    key4: WriteOnly<u32, Key::Register>,     //   0x30
-    key5: WriteOnly<u32, Key::Register>,     //   0x34
-    key6: WriteOnly<u32, Key::Register>,     //   0x38
-    key7: WriteOnly<u32, Key::Register>,     //   0x3c
+    ctrl: ReadWrite<u32, Control::Register>,         //   0x00
+    mode: ReadWrite<u32, Mode::Register>,            //   0x04
+    databufptr: ReadWrite<u32, DataBuf::Register>,   //   0x08
+    sr: ReadOnly<u32, Status::Register>,             //   0x0c
+    ier: WriteOnly<u32, Interrupt::Register>,        //   0x10
+    idr: WriteOnly<u32, Interrupt::Register>,        //   0x14
+    imr: ReadOnly<u32, Interrupt::Register>,         //   0x18
+    _reserved0: [u32; 1],                            //   0x1c
+    key0: WriteOnly<u32, Key::Register>,             //   0x20
+    key1: WriteOnly<u32, Key::Register>,             //   0x24
+    key2: WriteOnly<u32, Key::Register>,             //   0x28
+    key3: WriteOnly<u32, Key::Register>,             //   0x2c
+    key4: WriteOnly<u32, Key::Register>,             //   0x30
+    key5: WriteOnly<u32, Key::Register>,             //   0x34
+    key6: WriteOnly<u32, Key::Register>,             //   0x38
+    key7: WriteOnly<u32, Key::Register>,             //   0x3c
     initvect0: WriteOnly<u32, InitVector::Register>, //   0x40
     initvect1: WriteOnly<u32, InitVector::Register>, //   0x44
     initvect2: WriteOnly<u32, InitVector::Register>, //   0x48
     initvect3: WriteOnly<u32, InitVector::Register>, //   0x4c
-    idata: WriteOnly<u32, Data::Register>,   //   0x50
-    _reserved1: [u32; 3],                        //          0x54 - 0x5c
-    odata: ReadOnly<u32, Data::Register>,    //   0x60
-    _reserved2: [u32; 3],                        //          0x64 - 0x6c
-    drngseed: WriteOnly<u32, DrngSeed::Register>, //   0x70
-    parameter: ReadOnly<u32, Parameter::Register>, //   0x70
-    version: ReadOnly<u32, Version::Register>, //   0x70
+    idata: WriteOnly<u32, Data::Register>,           //   0x50
+    _reserved1: [u32; 3],                            //          0x54 - 0x5c
+    odata: ReadOnly<u32, Data::Register>,            //   0x60
+    _reserved2: [u32; 3],                            //          0x64 - 0x6c
+    drngseed: WriteOnly<u32, DrngSeed::Register>,    //   0x70
+    parameter: ReadOnly<u32, Parameter::Register>,   //   0x70
+    version: ReadOnly<u32, Version::Register>,       //   0x70
 }
 
 register_bitfields![u32,

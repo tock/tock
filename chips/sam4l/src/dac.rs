@@ -15,7 +15,7 @@ use pm::{self, Clock, PBAClock};
 pub struct DacRegisters {
     // From page 905 of SAM4L manual
     cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
-    mr: ReadWrite<u32, Mode::Register>, //                Mode                          (0x04)
+    mr: ReadWrite<u32, Mode::Register>,    //                Mode                          (0x04)
     cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
     ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
     idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
