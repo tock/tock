@@ -5,9 +5,9 @@
 extern crate nrf5x;
 
 use core::cell::Cell;
+use core::cmp;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
-use kernel::common::VolatileCell;
 use kernel::hil::i2c;
 use nrf5x::gpio;
 use nrf5x::pinmux::Pinmux;
@@ -19,9 +19,9 @@ use nrf5x::pinmux::Pinmux;
 pub struct TWIM {
     registers: *const TwimRegisters,
     client: Cell<Option<&'static i2c::I2CHwMasterClient>>,
-    txlen: Cell<u8>,
-    rxlen: Cell<u8>,
-    pos: VolatileCell<usize>,
+    tx_len: Cell<u8>,
+    rx_len: Cell<u8>,
+    pos: Cell<usize>,
     buf: TakeCell<'static, [u8]>,
 }
 
@@ -30,9 +30,9 @@ impl TWIM {
         TWIM {
             registers: TWIM_BASE[instance],
             client: Cell::new(None),
-            txlen: Cell::new(0),
-            rxlen: Cell::new(0),
-            pos: VolatileCell::new(0),
+            tx_len: Cell::new(0),
+            rx_len: Cell::new(0),
+            pos: Cell::new(0),
             buf: TakeCell::empty(),
         }
     }
@@ -48,20 +48,20 @@ impl TWIM {
 
     /// Configures an already constructed `TWIM`.
     pub fn configure(&self, scl: Pinmux, sda: Pinmux) {
-        let sclix: u32 = scl.into();
-        let sdaix: u32 = sda.into();
+        let scl_idx: u32 = scl.into();
+        let sda_idx: u32 = sda.into();
 
         // configure pins as inputs with drive strength S0D1
         unsafe {
-            let sdapin = &nrf5x::gpio::PORT[sdaix as usize];
+            let sdapin = &nrf5x::gpio::PORT[sda_idx as usize];
             sdapin.write_config(gpio::PinConfig::DRIVE::S0D1);
-            let sclpin = &nrf5x::gpio::PORT[sclix as usize];
+            let sclpin = &nrf5x::gpio::PORT[scl_idx as usize];
             sclpin.write_config(gpio::PinConfig::DRIVE::S0D1);
         }
 
         let regs = self.regs();
-        regs.psel_scl.set(sclix);
-        regs.psel_sda.set(sdaix);
+        regs.psel_scl.set(scl_idx);
+        regs.psel_sda.set(sda_idx);
     }
 
     /// Sets the I2C bus speed to one of three possible values
@@ -81,12 +81,12 @@ impl TWIM {
     }
 
     fn start_read(&self) {
-        if self.rxlen.get() == 1 {
+        if self.rx_len.get() == 1 {
             self.regs().shorts.write(Shorts::BB_STOP::SET);
         } else {
             self.regs().shorts.write(Shorts::BB_SUSPEND::SET);
         }
-        self.txlen.set(0);
+        self.tx_len.set(0);
         self.pos.set(0);
         let regs = self.regs();
         regs.intenset.write(InterruptEnable::RXREADY::SET);
@@ -96,31 +96,26 @@ impl TWIM {
     }
 
     fn reply(&self, result: i2c::Error) {
-        match self.client.get() {
-            None => (),
-            Some(client) => match self.buf.take() {
-                None => (),
-                Some(buf) => {
-                    client.command_complete(buf, result);
-                }
-            },
-        }
+        self.client.get().map(|client| {
+            self.buf.take().map(|buf| {
+                client.command_complete(buf, result);
+            });
+        });
     }
 
-    // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
-    // correct handler by the service_pending_interrupts() routine in
-    // chip.rs based on which peripheral is enabled.
-
+    /// The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
+    /// correct handler by the service_pending_interrupts() routine in
+    /// chip.rs based on which peripheral is enabled.
     pub fn handle_interrupt(&self) {
         let regs = self.regs();
         if regs.events_rxdreceived.get() == 1 {
             regs.events_rxdreceived.set(0);
             let pos = self.pos.get();
             self.pos.set(pos + 1);
-            if self.pos.get() < self.rxlen.get() as usize {
+            if self.pos.get() < self.rx_len.get() as usize {
                 let v = regs.rxd.read(Data::DATA);
                 self.buf.map(|buf| buf[pos] = v as u8);
-                if pos == self.rxlen.get() as usize - 2 {
+                if pos == self.rx_len.get() as usize - 2 {
                     regs.shorts.write(Shorts::BB_STOP::SET);
                 };
                 regs.tasks_resume.write(Task::ENABLE::SET);
@@ -138,10 +133,10 @@ impl TWIM {
             regs.events_txdsent.set(0);
             let pos = self.pos.get() + 1;
             self.pos.set(pos);
-            if pos < self.txlen.get() as usize {
+            if pos < self.tx_len.get() as usize {
                 self.buf.map(|buf| regs.txd.set(buf[pos].into()));
             } else {
-                if self.rxlen.get() > 0 {
+                if self.rx_len.get() > 0 {
                     regs.intenclr.write(InterruptEnable::TXSENT::SET);
                     self.start_read();
                 } else {
@@ -184,8 +179,9 @@ impl i2c::I2CMaster for TWIM {
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
         let regs = self.regs();
-        self.txlen.set(write_len);
-        self.rxlen.set(read_len);
+        let buffer_len = cmp::min(data.len(), 255);
+        self.tx_len.set(cmp::min(write_len, buffer_len as u8));
+        self.rx_len.set(cmp::min(read_len, buffer_len as u8));
         regs.intenset.write(InterruptEnable::TXSENT::SET);
         regs.intenset.write(InterruptEnable::ERROR::SET);
         // start the transfer
@@ -203,7 +199,8 @@ impl i2c::I2CMaster for TWIM {
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
         self.regs().address.set(addr as u32);
-        self.rxlen.set(len);
+        let buffer_len = cmp::min(buffer.len(), 255);
+        self.rx_len.set(cmp::min(len, buffer_len as u8));
         self.regs().tasks_resume.write(Task::ENABLE::SET);
         self.start_read();
         self.buf.replace(buffer);
@@ -233,61 +230,62 @@ impl i2c::I2CSlave for TWIM {
 
 impl i2c::I2CMasterSlave for TWIM {}
 
-/// I2C master instace 0.
+/// I2C master instance 0.
 pub static mut TWIM0: TWIM = TWIM::new(0);
-/// I2C master instace 1.
+/// I2C master instance 1.
 pub static mut TWIM1: TWIM = TWIM::new(1);
 
-register_bitfields! [u32,
-                     /// Start task
-                     Task [
-                         ENABLE OFFSET(0) NUMBITS(1)
-                     ],
-                     /// Events
-                     Event [
-                         OCCURED OFFSET(0) NUMBITS(1) []
-                     ],
-                     /// Shortcuts
-                     Shorts [
-                         BB_SUSPEND OFFSET(0) NUMBITS(1) [],
-                         BB_STOP OFFSET(1) NUMBITS(1) []
-                     ],
-                     /// Interrupts
-                     InterruptEnable [
-                         STOPPED OFFSET(1) NUMBITS(1) [],
-                         RXREADY OFFSET(2) NUMBITS(1) [],
-                         TXSENT OFFSET(7) NUMBITS(1) [],
-                         ERROR OFFSET(9) NUMBITS(1) [],
-                         BB OFFSET(14) NUMBITS(1) []
-                     ],
-                     ErrorSrc [
-                         OVERRUN OFFSET(0) NUMBITS(1) [],
-                         ADDRESSNACK OFFSET(1) NUMBITS(1) [],
-                         DATANACK OFFSET(2) NUMBITS(1) []
-                     ],
-                     /// TWIM enable
-                     Twim [
-                         ENABLE OFFSET(0) NUMBITS(3) [
-                             ON = 5,
-                             OFF = 0
-                         ]
-                     ],
-                     Psel [
-                         PIN OFFSET(0) NUMBITS(32) []
-                     ],
-                     Data [
-                         DATA OFFSET(0) NUMBITS(8) []
-                     ],
-                     Frequency [
-                         FREQUENCY OFFSET(0) NUMBITS(32) [
-                             K100 = 0x01980000,
-                             K250 = 0x04000000,
-                             K400 = 0x06680000
-                         ]
-                     ],
-                     Address [
-                         ADDRESS OFFSET(0) NUMBITS(8) []
-                     ]
+register_bitfields! [
+    u32,
+    /// Start task
+    Task [
+        ENABLE OFFSET(0) NUMBITS(1)
+    ],
+    /// Events
+    Event [
+        OCCURED OFFSET(0) NUMBITS(1) []
+    ],
+    /// Shortcuts
+    Shorts [
+        BB_SUSPEND OFFSET(0) NUMBITS(1) [],
+        BB_STOP OFFSET(1) NUMBITS(1) []
+    ],
+    /// Interrupts
+    InterruptEnable [
+        STOPPED OFFSET(1) NUMBITS(1) [],
+        RXREADY OFFSET(2) NUMBITS(1) [],
+        TXSENT OFFSET(7) NUMBITS(1) [],
+        ERROR OFFSET(9) NUMBITS(1) [],
+        BB OFFSET(14) NUMBITS(1) []
+    ],
+    ErrorSrc [
+        OVERRUN OFFSET(0) NUMBITS(1) [],
+        ADDRESSNACK OFFSET(1) NUMBITS(1) [],
+        DATANACK OFFSET(2) NUMBITS(1) []
+    ],
+    /// TWIM enable
+    Twim [
+        ENABLE OFFSET(0) NUMBITS(3) [
+            ON = 5,
+            OFF = 0
+        ]
+    ],
+    Psel [
+        PIN OFFSET(0) NUMBITS(32) []
+    ],
+    Data [
+        DATA OFFSET(0) NUMBITS(8) []
+    ],
+    Frequency [
+        FREQUENCY OFFSET(0) NUMBITS(32) [
+            K100 = 0x01980000,
+            K250 = 0x04000000,
+            K400 = 0x06680000
+        ]
+    ],
+    Address [
+        ADDRESS OFFSET(0) NUMBITS(7) []
+    ]
 ];
 
 /// Uninitialized `TWIM` instances.
