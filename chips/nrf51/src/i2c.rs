@@ -72,7 +72,7 @@ impl TWIM {
 
     /// Enables hardware TWIM peripheral.
     pub fn enable(&self) {
-        self.regs().enable.set(5); //write(Twim::ENABLE::ON);
+        self.regs().enable.write(Twim::ENABLE::ON);
     }
 
     /// Disables hardware TWIM peripheral.
