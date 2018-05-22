@@ -9,7 +9,7 @@ use core::cell::Cell; use core::{cmp, mem};
 use kernel::common::take_cell::{TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ipv6::ip_utils::IPAddr;
-use net::udp::udp_send::UDPSender;
+use net::udp::udp_send::{UDPSendClient, UDPSender};
 use net::udp::udp_recv::{UDPRecvClient, UDPReceiver};
 
 /// Syscall number
@@ -231,52 +231,22 @@ impl<'a> UDPDriver<'a> {
                     return ReturnCode::SUCCESS;
                 }
             };
-            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |_kbuf| {
-                let _dst_addr = addr_ports[1].addr;
-                let _dst_port = addr_ports[1].port;
-                let _src_port = addr_ports[0].port; 
-
-                // TODO: Prepare packet for UDP transmission
-                // `dst_addr_port` contains the destination address and port number
-                // Example from radio driver:
-                /*
-                let pan = self.mac.get_pan();
-                let dst_addr = MacAddress::Short(dst_addr);
-                let src_addr = MacAddress::Short(self.mac.get_address());
-                let mut frame = match self.mac.prepare_data_frame(
-                    kbuf,
-                    pan,
-                    dst_addr,
-                    pan,
-                    src_addr,
-                    security_needed,
-                ) {
-                    Ok(frame) => frame,
-                    Err(kbuf) => {
-                        self.kernel_tx.replace(kbuf);
-                        return ReturnCode::FAIL;
-                    }
-                };
-                */
-
-                // TODO: append payload and send. Radio driver example:
-                /*
-                let result = app.app_write
+            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+                let dst_addr = addr_ports[1].addr;
+                let dst_port = addr_ports[1].port;
+                let src_port = addr_ports[0].port; 
+               
+                // Copy UDP payload to kernel memory 
+                app.app_write
                     .take()
                     .as_ref()
-                    .map(|payload| frame.append_payload(payload.as_ref()))
-                    .unwrap_or(ReturnCode::EINVAL);
-                if result != ReturnCode::SUCCESS {
-                    return result;
-                }
-
-                let (result, mbuf) = self.mac.transmit(frame);
-                if let Some(buf) = mbuf {
-                    self.kernel_tx.replace(buf);
-                }
+                    .map(|payload| kbuf.copy_from_slice(payload.as_ref())); // TODO: get length of payload?
+                   
+                // Send UDP packet
+                let result = self.sender.send_to(dst_addr, dst_port, src_port, kbuf);
+                
+                // Does not currently replace kbuf on failure
                 result
-                */
-                ReturnCode::SUCCESS
             });
             if result == ReturnCode::SUCCESS {
                 self.current_app.set(Some(appid));
@@ -447,12 +417,8 @@ impl<'a> Driver for UDPDriver<'a> {
     }
 }
 
-/*
-// TODO: Change send_done interface to act as TxClient for the UDP stack and send
-// the right return code to the application
-impl<'a> device::TxClient for UDPDriver<'a> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.kernel_tx.replace(spi_buf);
+impl<'a> UDPSendClient for UDPDriver<'a> {
+    fn send_done(&self, result: ReturnCode) {
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
@@ -461,10 +427,8 @@ impl<'a> device::TxClient for UDPDriver<'a> {
             });
         });
         self.current_app.set(None);
-        self.do_next_tx_async();
     }
 }
-*/
 
 // how many levels of indentation before this starts to make no sense
 impl<'a> UDPRecvClient for UDPDriver<'a> {
