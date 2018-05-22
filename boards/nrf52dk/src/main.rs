@@ -388,5 +388,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    kernel::main(&platform, &mut chip, &mut PROCESSES, &platform.ipc);
+    kernel::main(&platform, &mut chip, &mut PROCESSES, Some(&platform.ipc));
 }

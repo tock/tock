@@ -366,6 +366,6 @@ pub unsafe fn reset_handler() {
         &platform,
         &mut chip,
         &mut PROCESSES,
-        &kernel::ipc::IPC::new(),
+        Some(&kernel::ipc::IPC::new()),
     );
 }

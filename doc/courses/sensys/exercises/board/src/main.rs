@@ -488,5 +488,5 @@ pub unsafe fn reset_handler() {
     );
 
     // Begin kernel main loop
-    kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
+    kernel::main(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
 }
