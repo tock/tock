@@ -1,6 +1,5 @@
 use sam4l;
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
-//use kernel::hil::spi::SpiMaster;
 use capsules::spi::Spi;
 use kernel::component::Component;
 
