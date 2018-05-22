@@ -16,6 +16,7 @@ Tock Guides
 ### Tock Implementation
 - **[Lifetimes](Lifetimes.md)** - How Rust lifetimes are used in Tock.
 - **[Mutable References](Mutable_References.md)** - How Tock safely shares resources between components.
+- **[Soundness](Soundness.md)** - How Tock safely uses unsafe code.
 - **[Compilation](Compilation.md)** - How the kernel and applications are compiled.
 - **[Tock Binary Format](TockBinaryFormat.md)** - How Tock application binaries are specified.
 - **[Memory Layout](Memory_Layout.md)** - How the chip memory is divided for Tock.
