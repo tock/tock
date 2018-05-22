@@ -426,20 +426,13 @@ impl<'a> Driver for UDPDriver<'a> {
                         if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
                             return None;
                         }
-                       
-                        // Source address and port 
-                        let src_ip_port = &cfg.as_ref()[0..mem::size_of::<IPAddrPort>() - 1];
-                        let (a, p) = src_ip_port.split_at(mem::size_of::<IPAddr>());
 
-                        let mut src_addr = IPAddr::new();
-                        src_addr.0.copy_from_slice(a);
-
-                        let src = IPAddrPort {
-                            addr: src_addr,
-                            port: ((p[0] as u16) << 8) + (p[1] as u16),
-                        };
-
-                        self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
+                        if let (Some(dst), Some(src)) = (self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]), 
+                                                         self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()])) {
+                            Some([src, dst])
+                        } else {
+                            None
+                        }
                     });
                     if next_tx.is_none() {
                         return ReturnCode::EINVAL;
