@@ -33,7 +33,7 @@ use kernel::hil::Controller;
 use kernel::component::Component;
 use components::spi::SpiSyscallComponent;
 use components::spi::SpiComponent;
-use components::isl29035::Isl29035Component;
+use components::isl29035::AmbientLightComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -306,13 +306,7 @@ pub unsafe fn reset_handler() {
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
-    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm).finalize();
-
-    let ambient_light = static_init!(
-        capsules::ambient_light::AmbientLight<'static>,
-        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create())
-    );
-    hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
+    let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
 
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::SpiHw>,
