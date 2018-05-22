@@ -15,6 +15,7 @@ pub mod volatile_cell;
 pub mod regs;
 
 mod num_cell;
+mod optional_cell;
 
 pub use self::list::{List, ListLink, ListNode};
 pub use self::queue::Queue;
@@ -29,6 +30,7 @@ pub use self::static_ref::StaticRef;
 pub mod cells {
     pub use common::map_cell::MapCell;
     pub use common::num_cell::NumCell;
+    pub use common::optional_cell::OptionalCell;
     pub use common::take_cell::TakeCell;
     pub use common::volatile_cell::VolatileCell;
 }
