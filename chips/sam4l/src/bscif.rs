@@ -353,18 +353,20 @@ pub unsafe fn rc32k_enabled() -> bool {
 
 pub unsafe fn setup_rc_1mhz() {
     // Unlock the BSCIF::RC32KCR register
+    let rc1mcr = (*BSCIF).rc1mcr.extract();
     (*BSCIF)
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
-    (*BSCIF).rc1mcr.modify(RC1MClockConfig::CLKOEN::Output);
+    (*BSCIF).rc1mcr.modify_no_read(rc1mcr, RC1MClockConfig::CLKOEN::Output);
     while !(*BSCIF).rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
 }
 
 pub unsafe fn disable_rc_1mhz() {
     // Unlock the BSCIF::RC32KCR register
+    let rc1mcr = (*BSCIF).rc1mcr.extract();
     (*BSCIF)
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
-    (*BSCIF).rc1mcr.modify(RC1MClockConfig::CLKOEN::NotOutput);
+    (*BSCIF).rc1mcr.modify_no_read(rc1mcr, RC1MClockConfig::CLKOEN::NotOutput);
     while (*BSCIF).rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
 }

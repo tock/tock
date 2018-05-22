@@ -328,8 +328,9 @@ pub unsafe fn disable_dfll_rc32k() {
     while !(*SCIF).pclksr.is_set(Interrupt::DFLL0RDY) {}
 
     // Disable the DFLL
+    let dfll0conf = (*SCIF).dfll0conf.extract();
     unlock(Register::DFLL0CONF);
-    (*SCIF).dfll0conf.modify(Dfll::EN::CLEAR);
+    (*SCIF).dfll0conf.modify_no_read(dfll0conf, Dfll::EN::CLEAR);
 
     //Disable generic clock
     generic_clock_disable(GenericClock::GCLK0);
@@ -362,8 +363,9 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
 }
 
 pub unsafe fn disable_osc_16mhz() {
+    let oscctrl0 = (*SCIF).oscctrl0.extract();
     unlock(Register::OSCCTRL0);
-    (*SCIF).oscctrl0.modify(Oscillator::OSCEN::CLEAR);
+    (*SCIF).oscctrl0.modify_no_read(oscctrl0, Oscillator::OSCEN::CLEAR);
     while (*SCIF).oscctrl0.is_set(Oscillator::OSCEN) {}
 }
 
@@ -380,47 +382,54 @@ pub unsafe fn setup_pll_osc_48mhz() {
 }
 
 pub unsafe fn disable_pll() {
+    let pll0 = (*SCIF).pll0.extract();
     unlock(Register::PLL0);
-    (*SCIF).pll0.modify(PllControl::PLLEN::CLEAR);
+    (*SCIF).pll0.modify_no_read(pll0, PllControl::PLLEN::CLEAR);
     while (*SCIF).pll0.is_set(PllControl::PLLEN) {}
 }
 
 pub unsafe fn setup_rc_80mhz() {
+    let rc80mcr = (*SCIF).rc80mcr.extract();
     unlock(Register::RC80MCR);
-    (*SCIF).rc80mcr.modify(Rc80m::EN::SET);
+    (*SCIF).rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::SET);
     while !(*SCIF).rc80mcr.is_set(Rc80m::EN) {}
 }
 
 pub unsafe fn disable_rc_80mhz() {
+    let rc80mcr = (*SCIF).rc80mcr.extract();
     unlock(Register::RC80MCR);
-    (*SCIF).rc80mcr.modify(Rc80m::EN::CLEAR);
+    (*SCIF).rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::CLEAR);
     while (*SCIF).rc80mcr.is_set(Rc80m::EN) {}
 }
 
 pub unsafe fn setup_rcfast_4mhz() {
+    let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify(Rcfast::FRANGE::Range4MHz + Rcfast::TUNEEN::CLEAR
+    (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::FRANGE::Range4MHz + Rcfast::TUNEEN::CLEAR
             + Rcfast::EN::SET);
     while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn setup_rcfast_8mhz() {
+    let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify(Rcfast::FRANGE::Range8MHz + Rcfast::TUNEEN::CLEAR
+    (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::FRANGE::Range8MHz + Rcfast::TUNEEN::CLEAR
             + Rcfast::EN::SET);
     while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn setup_rcfast_12mhz() {
+    let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify(Rcfast::FRANGE::Range12MHz + Rcfast::TUNEEN::CLEAR
+    (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::FRANGE::Range12MHz + Rcfast::TUNEEN::CLEAR
             + Rcfast::EN::SET);
     while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn disable_rcfast() {
+    let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify(Rcfast::EN::CLEAR);
+    (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::EN::CLEAR);
     while (*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
