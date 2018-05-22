@@ -248,7 +248,7 @@ const FRAG_TIMEOUT: u32 = 60;
 /// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
 pub trait SixlowpanRxClient {
-    fn receive<'a>(&self, buf: &'a [u8], len: u16, result: ReturnCode);
+    fn receive(&self, buf: &[u8], len: usize, result: ReturnCode);
 }
 
 pub mod lowpan_frag {
@@ -758,7 +758,7 @@ impl<'a> RxState<'a> {
             // and thus the packet should always be here.
             self.packet
                 .map(|packet| {
-                    client.receive(&packet, self.dgram_size.get(), result);
+                    client.receive(&packet, self.dgram_size.get() as usize, result);
                 })
                 .expect("Error: `packet` is None in call to end_receive.");
         });

@@ -1,6 +1,6 @@
 //! This file contains the interface definition for sending an IPv6 packet.
 //! The [IP6Sender](trait.IP6Sender.html) trait provides an interface
-//! for sending IPv6 packets, while the [IP6Client](trait.IP6Client) trait
+//! for sending IPv6 packets, while the [IP6SendClient](trait.IP6SendClient) trait
 //! must be implemented by upper layers to receive the `send_done` callback
 //! when a transmission has completed.
 //!
@@ -34,7 +34,7 @@ const DST_MAC_ADDR: MacAddress = MacAddress::Short(0xf00e);
 /// the `send_done` callback when a transmission has completed. The upper
 /// layer must then call `IP6Sender.set_client` in order to receive this
 /// callback.
-pub trait IP6Client {
+pub trait IP6SendClient {
     fn send_done(&self, result: ReturnCode);
 }
 
@@ -43,13 +43,13 @@ pub trait IP6Client {
 /// setting the gateway MAC address), as well as a way to send an IPv6
 /// packet.
 pub trait IP6Sender<'a> {
-    /// This method sets the `IP6Client` for the `IP6Sender` instance, which
+    /// This method sets the `IP6SendClient` for the `IP6Sender` instance, which
     /// receives the `send_done` callback when transmission has finished.
     ///
     /// # Arguments
-    /// `client` - Client that implements the `IP6Client` trait to receive the
+    /// `client` - Client that implements the `IP6SendClient` trait to receive the
     /// `send_done` callback
-    fn set_client(&self, client: &'a IP6Client);
+    fn set_client(&self, client: &'a IP6SendClient);
 
     /// This method sets the source address for packets sent from the
     /// `IP6Sender` instance.
@@ -94,11 +94,11 @@ pub struct IP6SendStruct<'a> {
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a MacDevice<'a>,
-    client: Cell<Option<&'a IP6Client>>,
+    client: Cell<Option<&'a IP6SendClient>>,
 }
 
 impl<'a> IP6Sender<'a> for IP6SendStruct<'a> {
-    fn set_client(&self, client: &'a IP6Client) {
+    fn set_client(&self, client: &'a IP6SendClient) {
         self.client.set(Some(client));
     }
 

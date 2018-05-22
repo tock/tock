@@ -9,7 +9,7 @@ use core::cell::Cell;
 use kernel::ReturnCode;
 use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::TransportHeader;
-use net::ipv6::ipv6_send::{IP6Client, IP6Sender};
+use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use net::udp::udp::UDPHeader;
 
 /// The `send_done` function in this trait is invoked after the UDPSender
@@ -100,10 +100,10 @@ impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     }
 }
 
-/// This function implements the `IP6Client` trait for the `UDPSendStruct`,
+/// This function implements the `IP6SendClient` trait for the `UDPSendStruct`,
 /// and is necessary to receive callbacks from the lower (IP) layer. When
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
-impl<'a, T: IP6Sender<'a>> IP6Client for UDPSendStruct<'a, T> {
+impl<'a, T: IP6Sender<'a>> IP6SendClient for UDPSendStruct<'a, T> {
     fn send_done(&self, result: ReturnCode) {
         self.client.get().map(|client| client.send_done(result));
     }
