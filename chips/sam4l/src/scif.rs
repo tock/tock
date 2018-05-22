@@ -187,7 +187,7 @@ register_bitfields![u32,
         ],
         PLLEN OFFSET(0) NUMBITS(1) []
     ],
-    Rcfast [ 
+    Rcfast [
         CALIB OFFSET(16) NUMBITS(7) [],
         LOCKMARGIN OFFSET(12) NUMBITS(4) [],
         FRANGE OFFSET(8) NUMBITS(2) [
@@ -332,9 +332,10 @@ pub unsafe fn disable_dfll_rc32k() {
     unlock(Register::DFLL0CONF);
     (*SCIF).dfll0conf.modify_no_read(dfll0conf, Dfll::EN::CLEAR);
 
-    //Disable generic clock
+    // Disable generic clock
     generic_clock_disable(GenericClock::GCLK0);
 
+    // Wait for the DFLL to be disabled
     while (*SCIF).dfll0conf.is_set(Dfll::EN) {}
 }
 
@@ -363,13 +364,18 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
 }
 
 pub unsafe fn disable_osc_16mhz() {
+    // Disable the OSC0 
     let oscctrl0 = (*SCIF).oscctrl0.extract();
     unlock(Register::OSCCTRL0);
     (*SCIF).oscctrl0.modify_no_read(oscctrl0, Oscillator::OSCEN::CLEAR);
+
+    // Wait for oscillator to be disabled
     while (*SCIF).oscctrl0.is_set(Oscillator::OSCEN) {}
 }
 
 pub unsafe fn setup_pll_osc_48mhz() {
+    // Enable the PLL, use OSC0 as the reference clock and set f_PLL=((5+1)/1*f_OSC0)/2
+    // PLLCOUNT specifies the number of RCSYS clock cycles before ISR.PLLLOCKn will be set after PLLn has been written
     unlock(Register::PLL0);
     (*SCIF).pll0.write(
         PllControl::PLLCOUNT::Max + PllControl::PLLMUL.val(5) + PllControl::PLLDIV.val(1)
@@ -382,54 +388,75 @@ pub unsafe fn setup_pll_osc_48mhz() {
 }
 
 pub unsafe fn disable_pll() {
+    // Disable the PLL 
     let pll0 = (*SCIF).pll0.extract();
     unlock(Register::PLL0);
     (*SCIF).pll0.modify_no_read(pll0, PllControl::PLLEN::CLEAR);
+
+    // Wait for the PLL to be disabled
     while (*SCIF).pll0.is_set(PllControl::PLLEN) {}
 }
 
 pub unsafe fn setup_rc_80mhz() {
+    // Enable the RC80M
     let rc80mcr = (*SCIF).rc80mcr.extract();
     unlock(Register::RC80MCR);
     (*SCIF).rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::SET);
+
+    // Wait for the RC80M to be enabled
     while !(*SCIF).rc80mcr.is_set(Rc80m::EN) {}
 }
 
 pub unsafe fn disable_rc_80mhz() {
+    // Disable the RC80M
     let rc80mcr = (*SCIF).rc80mcr.extract();
     unlock(Register::RC80MCR);
     (*SCIF).rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::CLEAR);
+
+    // Wait for the RC80M to be disabled
     while (*SCIF).rc80mcr.is_set(Rc80m::EN) {}
 }
 
 pub unsafe fn setup_rcfast_4mhz() {
+    // Enable the RCFAST with frequency set to 4MHz and in open loop mode
     let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
     (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::FRANGE::Range4MHz + Rcfast::TUNEEN::CLEAR
             + Rcfast::EN::SET);
+
+    // Wait for the RCFAST to be enabled
     while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn setup_rcfast_8mhz() {
+    // Enable the RCFAST with frequency set to 8MHz and in open loop mode
     let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
     (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::FRANGE::Range8MHz + Rcfast::TUNEEN::CLEAR
             + Rcfast::EN::SET);
+
+    // Wait for the RCFAST to be enabled
     while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn setup_rcfast_12mhz() {
+    // Enable the RCFAST with frequency set to 12MHz and in open loop mode
     let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
     (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::FRANGE::Range12MHz + Rcfast::TUNEEN::CLEAR
             + Rcfast::EN::SET);
+
+    // Wait for the RCFAST to be enabled
     while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn disable_rcfast() {
+    // Disable the RCFAST
     let rcfastcfg = (*SCIF).rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
     (*SCIF).rcfastcfg.modify_no_read(rcfastcfg, Rcfast::EN::CLEAR);
+
+    // Wait for the RCFAST to be disabled
     while (*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
 }
 
