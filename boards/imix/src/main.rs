@@ -20,6 +20,7 @@ use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::udp::udp_send::UDPSendStruct;
+use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::rf233::RF233;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -603,8 +604,7 @@ pub unsafe fn reset_handler() {
     // sixlowpan_state.set_rx_client(lowpan_frag_test);
     // radio_mac.set_receive_client(sixlowpan);
 
-    let udp_hdr: UDPHeader = UDPHeader::new();
-    let tr_hdr = TransportHeader::UDP(udp_hdr);
+    let tr_hdr = TransportHeader::UDP(UDPHeader::new());
     let ip_pyld: IPPayload = IPPayload {
         header: tr_hdr,
         payload: &mut UDP_DGRAM,
@@ -624,10 +624,17 @@ pub unsafe fn reset_handler() {
         UDPSendStruct::new(ip_send)
     );
 
+    let udp_recv = static_init!(
+        UDPRecvStruct<'static>,
+        UDPRecvStruct::new()
+    );
+
     let udp_driver = static_init!(
         capsules::net::udp::UDPDriver<'static>,
-        capsules::net::udp::UDPDriver::new(udp_send, kernel::Grant::create(), &mut UDP_BUF)
+        capsules::net::udp::UDPDriver::new(udp_send, udp_recv, kernel::Grant::create(), &mut UDP_BUF)
     );
+    // udp_send.set_client(udp_driver); // TODO: make sure TX chain is hooked up
+    udp_recv.set_client(udp_driver);
 
     // Configure the USB controller
     let usb_client = static_init!(

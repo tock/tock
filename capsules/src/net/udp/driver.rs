@@ -5,12 +5,12 @@
 //! hard-coded.
 
 // use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
-use core::cell::Cell;
-use core::{cmp, mem};
+use core::cell::Cell; use core::{cmp, mem};
 use kernel::common::take_cell::{TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ipv6::ip_utils::IPAddr;
 use net::udp::udp_send::UDPSender;
+use net::udp::udp_recv::{UDPRecvClient, UDPReceiver};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
@@ -20,7 +20,7 @@ const INTERFACES: [IPAddr; 2] = [
     IPAddr([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]),
 ];
 
-#[allow(dead_code)]
+#[derive(Debug)]
 struct IPAddrPort {
     addr: IPAddr,
     port: u16,
@@ -55,6 +55,9 @@ pub struct UDPDriver<'a> {
     /// UDP sender
     sender: &'a UDPSender<'a>,
 
+    /// UDP receiver
+    receiver: &'a UDPReceiver<'a>,
+
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
@@ -67,11 +70,13 @@ pub struct UDPDriver<'a> {
 impl<'a> UDPDriver<'a> {
     pub fn new(
         sender: &'a UDPSender<'a>,
+        receiver: &'a UDPReceiver<'a>,
         grant: Grant<App>,
         kernel_tx: &'static mut [u8],
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
+            receiver: receiver,
             apps: grant,
             current_app: Cell::new(None),
             kernel_tx: TakeCell::new(kernel_tx),
@@ -303,6 +308,24 @@ impl<'a> UDPDriver<'a> {
             })
             .unwrap_or(ReturnCode::SUCCESS)
     }
+
+    #[inline]
+    fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<IPAddrPort> {
+
+        if buf.len() != 2 * mem::size_of::<IPAddrPort>() {
+            None
+        } else {
+            let (a, p) = buf.split_at(mem::size_of::<IPAddr>());
+            let mut addr = IPAddr::new();
+            addr.0.copy_from_slice(a);
+
+            let pair = IPAddrPort {
+                addr: addr,
+                port: ((p[0] as u16) << 8) + (p[1] as u16),
+            };
+            Some(pair)
+        }
+    }
 }
 
 impl<'a> Driver for UDPDriver<'a> {
@@ -400,18 +423,7 @@ impl<'a> Driver for UDPDriver<'a> {
                             return None;
                         }
 
-                        // Source IP and port are in the first half of `cfg`
-                        let dst_ip_port = &cfg.as_ref()[mem::size_of::<IPAddrPort>()..];
-                        let (a, p) = dst_ip_port.split_at(mem::size_of::<IPAddr>());
-
-                        let mut dst_addr = IPAddr::new();
-                        dst_addr.0.copy_from_slice(a);
-                        let dst = IPAddrPort {
-                            addr: dst_addr,
-                            port: ((p[0] as u16) << 8) + (p[1] as u16),
-                        };
-                        
-                        Some(dst)
+                        self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
                     });
                     if next_tx.is_none() {
                         return ReturnCode::EINVAL;
@@ -445,5 +457,36 @@ impl<'a> device::TxClient for UDPDriver<'a> {
 }
 */
 
-// TODO: UDP RX Path
+// how many levels of indentation before this starts to make no sense
+impl<'a> UDPRecvClient for UDPDriver<'a> {
+    fn receive(&self, src_addr: IPAddr, dst_addr: IPAddr, src_port: u16, dst_port: u16, payload: &[u8]) {
+        self.apps.each(|app| {
+            self.do_with_rx_cfg(app.appid(), payload.len(), |cfg| {
+                if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
+                    return ReturnCode::EINVAL;
+                }
+
+                self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()]).map(|socket_addr| {
+                    self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]).map(|requested_addr| {
+                        if socket_addr.addr == dst_addr && requested_addr.addr == src_addr &&
+                           socket_addr.port == dst_port && requested_addr.port == src_port {
+                            app.app_read.take().as_mut().map(|rbuf| {
+                                let rbuf = rbuf.as_mut();
+                                let len = payload.len();
+                                if rbuf.len() >= len { // silently ignore packets that don't fit?
+                                    rbuf[..len].copy_from_slice(&payload[..len]);
+                                    app.rx_callback
+                                        .take()
+                                        .map(|mut cb| cb.schedule(len, 0, 0));
+                                }
+                            });
+                        }
+                        ReturnCode::SUCCESS
+                    });
+                });
+                ReturnCode::EINVAL
+            });
+        });
+    }
+}
 
