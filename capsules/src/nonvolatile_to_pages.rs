@@ -33,7 +33,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{NumCell, TakeCell};
+use kernel::common::cells::{NumCell, OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -49,7 +49,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     /// The module providing a `Flash` interface.
     driver: &'a F,
     /// Callback to the user of this capsule.
-    client: Cell<Option<&'static hil::nonvolatile_storage::NonvolatileStorageClient>>,
+    client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>,
     /// Buffer correctly sized for the underlying flash page size.
     pagebuffer: TakeCell<'static, F::Page>,
     /// Current state of this capsule.
@@ -72,7 +72,7 @@ impl<'a, F: hil::flash::Flash + 'a> NonvolatileToPages<'a, F> {
     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
         NonvolatileToPages {
             driver: driver,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             pagebuffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
             buffer: TakeCell::empty(),
@@ -88,7 +88,7 @@ impl<'a, F: hil::flash::Flash + 'a> hil::nonvolatile_storage::NonvolatileStorage
     for NonvolatileToPages<'a, F>
 {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
@@ -179,7 +179,6 @@ impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages
                         self.pagebuffer.replace(pagebuffer);
                         self.state.set(State::Idle);
                         self.client
-                            .get()
                             .map(move |client| client.read_done(buffer, self.length.get()));
                     } else {
                         // More to do!
@@ -235,7 +234,6 @@ impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages
                 self.pagebuffer.replace(pagebuffer);
                 self.state.set(State::Idle);
                 self.client
-                    .get()
                     .map(move |client| client.write_done(buffer, self.length.get()));
             } else if self.remaining_length.get() >= page_size {
                 // Write an entire page!
