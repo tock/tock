@@ -222,9 +222,9 @@ pub static mut TWIM0: TWIM = TWIM::new(0);
 /// I2C master instace 1.
 pub static mut TWIM1: TWIM = TWIM::new(1);
 
-// SPI0_TWI0_Handler and SPI1_TWI1_Handler live in
-// `spi.rs`. `service_pending_interrupts` dispatches the correct
-// handler based on which peripheral is enabled.
+// The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
+// correct handler by the service_pending_interrupts() routine in
+// chip.rs based on which peripheral is enabled.
 
 mod registers {
     #![allow(dead_code)]
