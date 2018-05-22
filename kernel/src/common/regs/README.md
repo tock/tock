@@ -130,6 +130,9 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
                                                //  overwriting other fields to zero
 .modify(value: FieldValue<T, R>)               // Write the value of one or more fields,
                                                //  leaving other fields unchanged
+.modify_no_read(                               // Write the value of one or more fields,
+      original: LocalRegisterCopy<T, R>,       //  leaving other fields unchanged, but pass in
+      value: FieldValue<T, R>)                 //  the original value, instead of doing a register read
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
 .matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
@@ -188,6 +191,12 @@ regs.cr.modify(Control::EN::CLEAR + Control::RANGE::Low); // INT unchanged
 
 // Any number of non-overlapping fields can be combined:
 regs.cr.modify(Control::EN::CLEAR + Control::RANGE::High + CR::INT::SET);
+
+// In some cases (such as a protected register) .modify() may not be appropriate.
+// To enable updating a register without coupling the read and write, use
+// modify_no_read():
+let original = regs.cr.extract();
+regs.cr.modify_no_read(original, Control::EN::CLEAR);
 
 
 // -----------------------------------------------------------------------------

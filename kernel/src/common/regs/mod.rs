@@ -135,6 +135,11 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     }
 
     #[inline]
+    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
+        self.set((original.get() & !field.mask) | field.value);
+    }
+
+    #[inline]
     pub fn is_set(&self, field: Field<T, R>) -> bool {
         self.read(field) != T::zero()
     }

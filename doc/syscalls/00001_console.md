@@ -55,6 +55,20 @@ share a buffer for every write transaction, even if it's the same buffer.
     shared, or ENOMEM if the driver failed to allocate memory for the
     transaction.
 
+  * ### Command number: `3`
+
+    **Description**: Abort any ongoing read transactions.
+    Any received bytes will be delivered via callback if the process
+    has `subscribed` to read events using `subscribe number` 2.
+
+    **Argument 1**: unused
+
+    **Argument 2**: unused
+
+    **Returns**: SUCCESS if the command was successful, EBUSY if no buffer was
+    shared, or ENOMEM if the driver failed to allocate memory for the
+    transaction.
+
 ## Subscribe
 
   * ### Subscribe number: `1`

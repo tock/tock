@@ -102,13 +102,16 @@ ifneq ($(V),)
 endif
 
 .PHONY: all
-all:	target/$(TARGET)/release/$(PLATFORM).bin
+all: target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: lst
-lst:	target/$(TARGET)/release/$(PLATFORM).lst
+lst: target/$(TARGET)/release/$(PLATFORM).lst
 
 .PHONY: debug
-debug:	target/$(TARGET)/debug/$(PLATFORM).bin
+debug: target/$(TARGET)/debug/$(PLATFORM).bin
+
+.PHONY: debug-lst
+debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
 
 target:
 	@mkdir -p target
@@ -131,10 +134,12 @@ target/$(TARGET)/release/$(PLATFORM):
 target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
 	$(Q)cp target/$(TARGET)/debug/$(PLATFORM) target/$(TARGET)/debug/$(PLATFORM).elf
 
+target/$(TARGET)/debug/$(PLATFORM).lst: target/$(TARGET)/debug/$(PLATFORM).elf
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/debug/$(PLATFORM).lst
+
 .PHONY: target/$(TARGET)/debug/$(PLATFORM)
 target/$(TARGET)/debug/$(PLATFORM):
 	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build $(VERBOSE) --target=$(TARGET)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(TARGET)/debug/$(PLATFORM).lst
 	$(Q)$(SIZE) $@
 
 target/$(TARGET)/release/$(PLATFORM).hex: target/$(TARGET)/release/$(PLATFORM).elf

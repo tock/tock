@@ -1,27 +1,31 @@
 //! Support for creating and running userspace applications.
 
 use callback::AppId;
-use common::{RingBuffer, Queue, VolatileCell};
+use common::{Queue, RingBuffer, VolatileCell};
 
-use grant;
-use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::fmt::Write;
-use core::ptr::{read_volatile, write_volatile, write};
+use core::ptr::{read_volatile, write, write_volatile};
+use core::{mem, ptr, slice, str};
+use grant;
 
+use common::math;
 use platform::mpu;
 use returncode::ReturnCode;
 use syscall::Syscall;
-use common::math;
 
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
-    ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
+    ($e:expr) => {
+        ($e) + ((8 - (($e) % 8)) % 8)
+    };
 }
 
 /// Takes a value and rounds it up to be aligned % 4
 macro_rules! align4 {
-    ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
+    ($e:expr) => {
+        ($e) + ((4 - (($e) % 4)) % 4)
+    };
 }
 
 #[no_mangle]
@@ -35,9 +39,7 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
 #[allow(improper_ctypes)]
 extern "C" {
-    pub fn switch_to_user(user_stack: *const u8,
-                          process_regs: &mut [usize; 8])
-                          -> *mut u8;
+    pub fn switch_to_user(user_stack: *const u8, process_regs: &mut [usize; 8]) -> *mut u8;
 }
 
 pub static mut PROCS: &'static mut [Option<&mut Process<'static>>] = &mut [];
@@ -52,18 +54,22 @@ pub static mut PROCS: &'static mut [Option<&mut Process<'static>>] = &mut [];
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub unsafe fn load_processes(start_of_flash: *const u8,
-                             app_memory: &mut [u8],
-                             procs: &mut [Option<&mut Process<'static>>],
-                             fault_response: FaultResponse) {
+pub unsafe fn load_processes(
+    start_of_flash: *const u8,
+    app_memory: &mut [u8],
+    procs: &mut [Option<&mut Process<'static>>],
+    fault_response: FaultResponse,
+) {
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
     for i in 0..procs.len() {
-        let (process, flash_offset, memory_offset) = Process::create(apps_in_flash_ptr,
-                                                                     app_memory_ptr,
-                                                                     app_memory_size,
-                                                                     fault_response);
+        let (process, flash_offset, memory_offset) = Process::create(
+            apps_in_flash_ptr,
+            app_memory_ptr,
+            app_memory_size,
+            fault_response,
+        );
 
         if process.is_none() {
             // We did not get a valid process, but we may have gotten a disabled
@@ -103,7 +109,9 @@ pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
             // Make a note that we lost this callback if the enqueue function
             // fails.
             if ret == false {
-                p.debug.dropped_callback_count.set(p.debug.dropped_callback_count.get() + 1);
+                p.debug
+                    .dropped_callback_count
+                    .set(p.debug.dropped_callback_count.get() + 1);
             }
 
             ret
@@ -360,8 +368,7 @@ impl TbfHeader {
                 let stack_size = align8!(hd.min_stack_len);
                 align8!(data_len + stack_size) + heap_len
             }
-            TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.minimum_ram_size),
+            TbfHeader::TbfHeaderV2(hd) => hd.main.map_or(0, |m| m.minimum_ram_size),
             _ => 0,
         }
     }
@@ -371,8 +378,9 @@ impl TbfHeader {
     fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(_) => mem::size_of::<TbfHeaderV1>() as u32,
-            TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32),
+            TbfHeader::TbfHeaderV2(hd) => {
+                hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32)
+            }
             _ => 0,
         }
     }
@@ -382,8 +390,9 @@ impl TbfHeader {
     fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
-            TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32),
+            TbfHeader::TbfHeaderV2(hd) => {
+                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32)
+            }
             _ => 0,
         }
     }
@@ -391,18 +400,17 @@ impl TbfHeader {
     /// Get the name of the app.
     fn get_package_name(&self, flash_start_addr: *const u8) -> &'static str {
         match *self {
-            TbfHeader::TbfHeaderV1(hd) => {
-                unsafe {
-                    let package_name_byte_array =
-                        slice::from_raw_parts(flash_start_addr.offset(hd.pkg_name_offset as isize),
-                                              hd.pkg_name_size as usize);
-                    let mut app_name_str = "";
-                    let _ = str::from_utf8(package_name_byte_array).map(|name_str| {
-                        app_name_str = name_str;
-                    });
-                    app_name_str
-                }
-            }
+            TbfHeader::TbfHeaderV1(hd) => unsafe {
+                let package_name_byte_array = slice::from_raw_parts(
+                    flash_start_addr.offset(hd.pkg_name_offset as isize),
+                    hd.pkg_name_size as usize,
+                );
+                let mut app_name_str = "";
+                let _ = str::from_utf8(package_name_byte_array).map(|name_str| {
+                    app_name_str = name_str;
+                });
+                app_name_str
+            },
             TbfHeader::TbfHeaderV2(hd) => hd.package_name.unwrap_or(""),
             _ => "",
         }
@@ -412,9 +420,7 @@ impl TbfHeader {
     fn number_writeable_flash_regions(&self) -> usize {
         match *self {
             TbfHeader::TbfHeaderV1(_) => 0,
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.writeable_regions.map_or(0, |wr| wr.len())
-            }
+            TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or(0, |wr| wr.len()),
             _ => 0,
         }
     }
@@ -423,16 +429,16 @@ impl TbfHeader {
     fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
         match *self {
             TbfHeader::TbfHeaderV1(_) => (0, 0),
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.writeable_regions.map_or((0, 0), |wr| {
-                    if wr.len() > index {
-                        (wr[index].writeable_flash_region_offset,
-                         wr[index].writeable_flash_region_size)
-                    } else {
-                        (0, 0)
-                    }
-                })
-            }
+            TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wr| {
+                if wr.len() > index {
+                    (
+                        wr[index].writeable_flash_region_offset,
+                        wr[index].writeable_flash_region_size,
+                    )
+                } else {
+                    (0, 0)
+                }
+            }),
             _ => (0, 0),
         }
     }
@@ -450,13 +456,15 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
         1 => {
             let tbf_header = &*(address as *const TbfHeaderV1);
 
-            let checksum =
-                tbf_header.version             ^ tbf_header.total_size      ^ tbf_header.entry_offset ^
-                tbf_header.rel_data_offset     ^ tbf_header.rel_data_size   ^ tbf_header.text_offset ^
-                tbf_header.text_size           ^ tbf_header.got_offset      ^ tbf_header.got_size ^
-                tbf_header.data_offset         ^ tbf_header.data_size       ^ tbf_header.bss_mem_offset ^
-                tbf_header.bss_size            ^ tbf_header.min_stack_len   ^ tbf_header.min_app_heap_len ^
-                tbf_header.min_kernel_heap_len ^ tbf_header.pkg_name_offset ^ tbf_header.pkg_name_size;
+            let checksum = tbf_header.version ^ tbf_header.total_size ^ tbf_header.entry_offset
+                ^ tbf_header.rel_data_offset ^ tbf_header.rel_data_size
+                ^ tbf_header.text_offset ^ tbf_header.text_size
+                ^ tbf_header.got_offset ^ tbf_header.got_size
+                ^ tbf_header.data_offset ^ tbf_header.data_size
+                ^ tbf_header.bss_mem_offset ^ tbf_header.bss_size
+                ^ tbf_header.min_stack_len ^ tbf_header.min_app_heap_len
+                ^ tbf_header.min_kernel_heap_len
+                ^ tbf_header.pkg_name_offset ^ tbf_header.pkg_name_size;
 
             if checksum != tbf_header.checksum {
                 None
@@ -471,8 +479,9 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
             // Some sanity checking. Make sure the header isn't longer than the
             // total app. Make sure the total app fits inside a reasonable size
             // of flash.
-            if tbf_header_base.header_size as u32 >= tbf_header_base.total_size ||
-               tbf_header_base.total_size > 0x010000000 {
+            if tbf_header_base.header_size as u32 >= tbf_header_base.total_size
+                || tbf_header_base.total_size > 0x010000000
+            {
                 return None;
             }
 
@@ -514,14 +523,15 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                 } else {
                     None
                 }
-
             } else {
                 // This is an actual app.
 
                 // Places to save fields that we parse out of the header
                 // options.
                 let mut main_pointer: Option<&TbfHeaderV2Main> = None;
-                let mut wfr_pointer: Option<&'static [TbfHeaderV2WriteableFlashRegion]> = None;
+                let mut wfr_pointer: Option<
+                    &'static [TbfHeaderV2WriteableFlashRegion],
+                > = None;
                 let mut app_name_str = "";
 
                 // Loop through the header looking for known options.
@@ -532,7 +542,9 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                     offset += mem::size_of::<TbfHeaderTlv>() as isize;
 
                     // Only parse known TLV blocks. There is no type 0.
-                    if (tbf_tlv_header.tipe as u16) < TbfHeaderTypes::Unused as u16 && (tbf_tlv_header.tipe as u16) > 0 {
+                    if (tbf_tlv_header.tipe as u16) < TbfHeaderTypes::Unused as u16
+                        && (tbf_tlv_header.tipe as u16) > 0
+                    {
                         // This lets us skip unknown header types.
 
                         match tbf_tlv_header.tipe {
@@ -580,7 +592,7 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
             }
         }
 
-        _ => None
+        _ => None,
     }
 }
 
@@ -722,14 +734,14 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
         4 => "MemManage",
         5 => "BusFault",
         6 => "UsageFault",
-        7 ... 10 => "Reserved",
+        7...10 => "Reserved",
         11 => "SVCall",
         12 => "Reserved for Debug",
         13 => "Reserved",
         14 => "PendSV",
         15 => "SysTick",
-        16 ... 255 => "IRQn",
-        _ => "(Unknown! Illegal value?)"
+        16...255 => "IRQn",
+        _ => "(Unknown! Illegal value?)",
     }
 }
 
@@ -743,7 +755,9 @@ impl<'a> Process<'a> {
         // Make a note that we lost this callback if the enqueue function
         // fails.
         if ret == false {
-            self.debug.dropped_callback_count.set(self.debug.dropped_callback_count.get() + 1);
+            self.debug
+                .dropped_callback_count
+                .set(self.debug.dropped_callback_count.get() + 1);
         }
     }
 
@@ -771,8 +785,10 @@ impl<'a> Process<'a> {
             }
             FaultResponse::Restart => {
                 //XXX: unimplemented
-                panic!("Process {} had a fault and could not be restarted",
-                       self.package_name);
+                panic!(
+                    "Process {} had a fault and could not be restarted",
+                    self.package_name
+                );
                 /*
                 // HAVE_WORK is really screwed up in this case
                 // the tasks ring buffer needs to be cleared
@@ -844,32 +860,42 @@ impl<'a> Process<'a> {
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
 
-        match MPU::create_region(0, text_start, text_len,
-                        mpu::ExecutePermission::ExecutionPermitted,
-                        mpu::AccessPermission::ReadOnly) {
-            None =>
-                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                           text_start, text_len),
+        match MPU::create_region(
+            0,
+            text_start,
+            text_len,
+            mpu::ExecutePermission::ExecutionPermitted,
+            mpu::AccessPermission::ReadOnly,
+        ) {
+            None => panic!(
+                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                text_start, text_len
+            ),
             Some(region) => mpu.set_mpu(region),
         }
 
         let data_start = self.memory.as_ptr() as usize;
         let data_len = self.memory.len();
 
-        match MPU::create_region(1, data_start, data_len,
-                        mpu::ExecutePermission::ExecutionPermitted,
-                        mpu::AccessPermission::ReadWrite) {
-            None =>
-                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                           data_start, data_len),
-            Some(region) => mpu.set_mpu(region)
+        match MPU::create_region(
+            1,
+            data_start,
+            data_len,
+            mpu::ExecutePermission::ExecutionPermitted,
+            mpu::AccessPermission::ReadWrite,
+        ) {
+            None => panic!(
+                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                data_start, data_len
+            ),
+            Some(region) => mpu.set_mpu(region),
         }
 
         // Disallow access to grant region
         let grant_len = unsafe {
             math::PowerOfTwo::ceiling(
-                self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
-                    (self.kernel_memory_break as u32)
+                self.memory.as_ptr().offset(self.memory.len() as isize) as u32
+                    - (self.kernel_memory_break as u32),
             ).as_num::<u32>()
         };
         let grant_base = unsafe {
@@ -879,13 +905,18 @@ impl<'a> Process<'a> {
                 .offset(-(grant_len as isize))
         };
 
-        match MPU::create_region(2, grant_base as usize, grant_len as usize,
-                                 mpu::ExecutePermission::ExecutionNotPermitted,
-                                 mpu::AccessPermission::PrivilegedOnly) {
-            None =>
-                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                           grant_base as usize, grant_len),
-            Some(region) => mpu.set_mpu(region)
+        match MPU::create_region(
+            2,
+            grant_base as usize,
+            grant_len as usize,
+            mpu::ExecutePermission::ExecutionNotPermitted,
+            mpu::AccessPermission::PrivilegedOnly,
+        ) {
+            None => panic!(
+                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                grant_base as usize, grant_len
+            ),
+            Some(region) => mpu.set_mpu(region),
         }
 
         // Setup IPC MPU regions
@@ -894,17 +925,21 @@ impl<'a> Process<'a> {
                 mpu.set_mpu(mpu::Region::empty(i + 3));
                 continue;
             }
-            match MPU::create_region(i + 3,
-                                     region.get().0 as usize,
-                                     region.get().1.as_num::<u32>() as usize,
-                                     mpu::ExecutePermission::ExecutionPermitted,
-                                     mpu::AccessPermission::ReadWrite) {
-                None =>
-                    panic!("Unexpected: Infeasible MPU allocation: Num: {}, \
-                           Base: {:#x}, Length: {:#x}", i + 3,
-                               region.get().0 as usize,
-                               region.get().1.as_num::<u32>()),
-                Some(region) => mpu.set_mpu(region)
+            match MPU::create_region(
+                i + 3,
+                region.get().0 as usize,
+                region.get().1.as_num::<u32>() as usize,
+                mpu::ExecutePermission::ExecutionPermitted,
+                mpu::AccessPermission::ReadWrite,
+            ) {
+                None => panic!(
+                    "Unexpected: Infeasible MPU allocation: Num: {}, \
+                     Base: {:#x}, Length: {:#x}",
+                    i + 3,
+                    region.get().0 as usize,
+                    region.get().1.as_num::<u32>()
+                ),
+                Some(region) => mpu.set_mpu(region),
             }
         }
     }
@@ -927,11 +962,12 @@ impl<'a> Process<'a> {
         return false;
     }
 
-    pub unsafe fn create(app_flash_address: *const u8,
-                         remaining_app_memory: *mut u8,
-                         remaining_app_memory_size: usize,
-                         fault_response: FaultResponse)
-                         -> (Option<&'static mut Process<'a>>, usize, usize) {
+    pub unsafe fn create(
+        app_flash_address: *const u8,
+        remaining_app_memory: *mut u8,
+        remaining_app_memory_size: usize,
+        fault_response: FaultResponse,
+    ) -> (Option<&'static mut Process<'a>>, usize, usize) {
         if let Some(tbf_header) = parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
 
@@ -944,13 +980,12 @@ impl<'a> Process<'a> {
             // Otherwise, actually load the app.
             let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
             let package_name = tbf_header.get_package_name(app_flash_address);
-            let init_fn = app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
+            let init_fn =
+                app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
             let needs_pic_fixup = tbf_header.needs_pic_fixup();
 
             // Load the process into memory
-            if let Some(load_result) =
-                load(tbf_header, remaining_app_memory) {
-
+            if let Some(load_result) = load(tbf_header, remaining_app_memory) {
                 // First determine how much space we need in the application's
                 // memory space just for kernel and grant state. We need to make
                 // sure we allocate enough memory just for that.
@@ -970,8 +1005,11 @@ impl<'a> Process<'a> {
 
                 // Need to make sure that the amount of memory we allocate for
                 // this process at least covers this state.
-                if min_app_ram_size < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32 {
-                    min_app_ram_size = (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
+                if min_app_ram_size
+                    < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32
+                {
+                    min_app_ram_size =
+                        (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
                 }
 
                 // TODO round app_ram_size up to a closer MPU unit.
@@ -981,25 +1019,27 @@ impl<'a> Process<'a> {
 
                 // Check that we can actually give this app this much memory.
                 if app_ram_size > remaining_app_memory_size {
-                    panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
-                           package_name,
-                           app_ram_size,
-                           remaining_app_memory_size);
+                    panic!(
+                        "{:?} failed to load. Insufficient memory. Requested {} have {}",
+                        package_name, app_ram_size, remaining_app_memory_size
+                    );
                 }
 
                 let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_ram_size);
 
                 // Set up initial grant region.
-                let mut kernel_memory_break = app_memory.as_mut_ptr()
-                    .offset(app_memory.len() as isize);
+                let mut kernel_memory_break =
+                    app_memory.as_mut_ptr().offset(app_memory.len() as isize);
 
                 // Now that we know we have the space we can setup the grant
                 // pointers.
                 kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
                 // Set all pointers to null.
-                let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize,
-                                                     grant_ptrs_num);
+                let opts = slice::from_raw_parts_mut(
+                    kernel_memory_break as *mut *const usize,
+                    grant_ptrs_num,
+                );
                 for opt in opts.iter_mut() {
                     *opt = ptr::null()
                 }
@@ -1009,8 +1049,8 @@ impl<'a> Process<'a> {
                 kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
 
                 // Set up ring buffer.
-                let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
-                                                             callback_len);
+                let callback_buf =
+                    slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
                 let tasks = RingBuffer::new(callback_buf);
 
                 // Last thing is the process struct.
@@ -1046,11 +1086,13 @@ impl<'a> Process<'a> {
                 process.state = State::Yielded;
                 process.fault_response = fault_response;
 
-                process.mpu_regions = [Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                              Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                              Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                              Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                              Cell::new((ptr::null(), math::PowerOfTwo::zero()))];
+                process.mpu_regions = [
+                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                ];
                 process.tasks = tasks;
                 process.package_name = package_name;
 
@@ -1064,10 +1106,11 @@ impl<'a> Process<'a> {
                 };
 
                 if (init_fn & 0x1) != 1 {
-                    panic!("{:?} process image invalid. \
-                           init_fn address must end in 1 to be Thumb, got {:#X}",
-                           package_name,
-                           init_fn);
+                    panic!(
+                        "{:?} process image invalid. \
+                         init_fn address must end in 1 to be Thumb, got {:#X}",
+                        package_name, init_fn
+                    );
                 }
 
                 let flash_protected_size = process.header.get_protected_size() as usize;
@@ -1107,7 +1150,6 @@ impl<'a> Process<'a> {
     }
 
     pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize) -> bool {
-
         let buf_end_addr = unsafe { buf_start_addr.offset(size as isize) };
 
         buf_start_addr >= self.mem_start() && buf_end_addr <= self.mem_end()
@@ -1134,9 +1176,7 @@ impl<'a> Process<'a> {
         *self.grant_ptr(grant_num)
     }
 
-    pub unsafe fn grant_for_or_alloc<T: Default>(&mut self,
-                                                     grant_num: usize)
-                                                     -> Option<*mut T> {
+    pub unsafe fn grant_for_or_alloc<T: Default>(&mut self, grant_num: usize) -> Option<*mut T> {
         let ctr_ptr = self.grant_ptr::<T>(grant_num);
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
@@ -1154,13 +1194,13 @@ impl<'a> Process<'a> {
         }
     }
 
-
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.current_stack_pointer as *const usize;
         unsafe {
             self.yield_pc = read_volatile(pspr.offset(6));
             self.psr = read_volatile(pspr.offset(7));
-            self.current_stack_pointer = (self.current_stack_pointer as *mut usize).offset(8) as *mut u8;
+            self.current_stack_pointer =
+                (self.current_stack_pointer as *mut usize).offset(8) as *mut u8;
             if self.current_stack_pointer < self.debug.min_stack_pointer {
                 self.debug.min_stack_pointer = self.current_stack_pointer;
             }
@@ -1204,8 +1244,10 @@ impl<'a> Process<'a> {
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
         write_volatile(&mut SYSCALL_FIRED, 0);
-        let psp = switch_to_user(self.current_stack_pointer,
-                                 mem::transmute(&mut self.stored_regs));
+        let psp = switch_to_user(
+            self.current_stack_pointer,
+            mem::transmute(&mut self.stored_regs),
+        );
         self.current_stack_pointer = psp;
         if self.current_stack_pointer < self.debug.min_stack_pointer {
             self.debug.min_stack_pointer = self.current_stack_pointer;
@@ -1230,7 +1272,9 @@ impl<'a> Process<'a> {
     }
 
     pub fn incr_syscall_count(&self) {
-        self.debug.syscall_count.set(self.debug.syscall_count.get() + 1);
+        self.debug
+            .syscall_count
+            .set(self.debug.syscall_count.get() + 1);
         self.debug.last_syscall.set(self.svc_number());
     }
 
@@ -1288,7 +1332,6 @@ impl<'a> Process<'a> {
         unsafe { read_volatile(pspr.offset(7)) }
     }
 
-
     pub unsafe fn fault_str<W: Write>(&mut self, writer: &mut W) {
         let _ccr = SCB_REGISTERS[0];
         let cfsr = SCB_REGISTERS[1];
@@ -1321,119 +1364,150 @@ impl<'a> Process<'a> {
         let vecttbl = (hfsr & 0x02) == 0x02;
         let forced = (hfsr & 0x40000000) == 0x40000000;
 
-
         let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
 
         if iaccviol {
-            let _ =
-                writer.write_fmt(format_args!("Instruction Access Violation:       {}\r\n",
-                                              iaccviol));
+            let _ = writer.write_fmt(format_args!(
+                "Instruction Access Violation:       {}\r\n",
+                iaccviol
+            ));
         }
         if daccviol {
-            let _ =
-                writer.write_fmt(format_args!("Data Access Violation:              {}\r\n",
-                                              daccviol));
+            let _ = writer.write_fmt(format_args!(
+                "Data Access Violation:              {}\r\n",
+                daccviol
+            ));
         }
         if munstkerr {
-            let _ =
-                writer.write_fmt(format_args!("Memory Management Unstacking Fault: {}\r\n",
-                                              munstkerr));
+            let _ = writer.write_fmt(format_args!(
+                "Memory Management Unstacking Fault: {}\r\n",
+                munstkerr
+            ));
         }
         if mstkerr {
-            let _ = writer.write_fmt(format_args!("Memory Management Stacking Fault:   {}\r\n",
-                                                  mstkerr));
+            let _ = writer.write_fmt(format_args!(
+                "Memory Management Stacking Fault:   {}\r\n",
+                mstkerr
+            ));
         }
         if mlsperr {
-            let _ = writer.write_fmt(format_args!("Memory Management Lazy FP Fault:    {}\r\n",
-                                                  mlsperr));
+            let _ = writer.write_fmt(format_args!(
+                "Memory Management Lazy FP Fault:    {}\r\n",
+                mlsperr
+            ));
         }
 
         if ibuserr {
-            let _ = writer.write_fmt(format_args!("Instruction Bus Error:              {}\r\n",
-                                                  ibuserr));
+            let _ = writer.write_fmt(format_args!(
+                "Instruction Bus Error:              {}\r\n",
+                ibuserr
+            ));
         }
         if preciserr {
-            let _ =
-                writer.write_fmt(format_args!("Precise Data Bus Error:             {}\r\n",
-                                              preciserr));
+            let _ = writer.write_fmt(format_args!(
+                "Precise Data Bus Error:             {}\r\n",
+                preciserr
+            ));
         }
         if impreciserr {
-            let _ =
-                writer.write_fmt(format_args!("Imprecise Data Bus Error:           {}\r\n",
-                                              impreciserr));
+            let _ = writer.write_fmt(format_args!(
+                "Imprecise Data Bus Error:           {}\r\n",
+                impreciserr
+            ));
         }
         if unstkerr {
-            let _ =
-                writer.write_fmt(format_args!("Bus Unstacking Fault:               {}\r\n",
-                                              unstkerr));
+            let _ = writer.write_fmt(format_args!(
+                "Bus Unstacking Fault:               {}\r\n",
+                unstkerr
+            ));
         }
         if stkerr {
-            let _ = writer.write_fmt(format_args!("Bus Stacking Fault:                 {}\r\n",
-                                                  stkerr));
+            let _ = writer.write_fmt(format_args!(
+                "Bus Stacking Fault:                 {}\r\n",
+                stkerr
+            ));
         }
         if lsperr {
-            let _ = writer.write_fmt(format_args!("Bus Lazy FP Fault:                  {}\r\n",
-                                                  lsperr));
+            let _ = writer.write_fmt(format_args!(
+                "Bus Lazy FP Fault:                  {}\r\n",
+                lsperr
+            ));
         }
 
         if undefinstr {
-            let _ =
-                writer.write_fmt(format_args!("Undefined Instruction Usage Fault:  {}\r\n",
-                                              undefinstr));
+            let _ = writer.write_fmt(format_args!(
+                "Undefined Instruction Usage Fault:  {}\r\n",
+                undefinstr
+            ));
         }
         if invstate {
-            let _ =
-                writer.write_fmt(format_args!("Invalid State Usage Fault:          {}\r\n",
-                                              invstate));
+            let _ = writer.write_fmt(format_args!(
+                "Invalid State Usage Fault:          {}\r\n",
+                invstate
+            ));
         }
         if invpc {
-            let _ =
-                writer.write_fmt(format_args!("Invalid PC Load Usage Fault:        {}\r\n", invpc));
+            let _ = writer.write_fmt(format_args!(
+                "Invalid PC Load Usage Fault:        {}\r\n",
+                invpc
+            ));
         }
         if nocp {
-            let _ =
-                writer.write_fmt(format_args!("No Coprocessor Usage Fault:         {}\r\n", nocp));
+            let _ = writer.write_fmt(format_args!(
+                "No Coprocessor Usage Fault:         {}\r\n",
+                nocp
+            ));
         }
         if unaligned {
-            let _ =
-                writer.write_fmt(format_args!("Unaligned Access Usage Fault:       {}\r\n",
-                                              unaligned));
+            let _ = writer.write_fmt(format_args!(
+                "Unaligned Access Usage Fault:       {}\r\n",
+                unaligned
+            ));
         }
         if divbysero {
-            let _ =
-                writer.write_fmt(format_args!("Divide By Zero:                     {}\r\n",
-                                              divbysero));
+            let _ = writer.write_fmt(format_args!(
+                "Divide By Zero:                     {}\r\n",
+                divbysero
+            ));
         }
 
         if vecttbl {
-            let _ = writer.write_fmt(format_args!("Bus Fault on Vector Table Read:     {}\r\n",
-                                                  vecttbl));
+            let _ = writer.write_fmt(format_args!(
+                "Bus Fault on Vector Table Read:     {}\r\n",
+                vecttbl
+            ));
         }
         if forced {
-            let _ = writer.write_fmt(format_args!("Forced Hard Fault:                  {}\r\n",
-                                                  forced));
+            let _ = writer.write_fmt(format_args!(
+                "Forced Hard Fault:                  {}\r\n",
+                forced
+            ));
         }
 
         if mmfarvalid {
-            let _ =
-                writer.write_fmt(format_args!("Faulting Memory Address:            {:#010X}\r\n",
-                                              mmfar));
+            let _ = writer.write_fmt(format_args!(
+                "Faulting Memory Address:            {:#010X}\r\n",
+                mmfar
+            ));
         }
         if bfarvalid {
-            let _ =
-                writer.write_fmt(format_args!("Bus Fault Address:                  {:#010X}\r\n",
-                                              bfar));
+            let _ = writer.write_fmt(format_args!(
+                "Bus Fault Address:                  {:#010X}\r\n",
+                bfar
+            ));
         }
 
         if cfsr == 0 && hfsr == 0 {
             let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
         } else {
-            let _ =
-                writer.write_fmt(format_args!("Fault Status Register (CFSR):       {:#010X}\r\n",
-                                              cfsr));
-            let _ =
-                writer.write_fmt(format_args!("Hard Fault Status Register (HFSR):  {:#010X}\r\n",
-                                              hfsr));
+            let _ = writer.write_fmt(format_args!(
+                "Fault Status Register (CFSR):       {:#010X}\r\n",
+                cfsr
+            ));
+            let _ = writer.write_fmt(format_args!(
+                "Hard Fault Status Register (HFSR):  {:#010X}\r\n",
+                hfsr
+            ));
         }
     }
 
@@ -1486,25 +1560,24 @@ impl<'a> Process<'a> {
         let dropped_callback_count = self.debug.dropped_callback_count.get();
 
         // register values
-        let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (self.r0(),
-                                                       self.r1(),
-                                                       self.r2(),
-                                                       self.r3(),
-                                                       self.r12(),
-                                                       self.sp(),
-                                                       self.lr(),
-                                                       self.pc(),
-                                                       self.xpsr());
+        let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (
+            self.r0(),
+            self.r1(),
+            self.r2(),
+            self.r3(),
+            self.r12(),
+            self.sp(),
+            self.lr(),
+            self.pc(),
+            self.xpsr(),
+        );
 
-        let _ = writer.write_fmt(format_args!("\
-        App: {}   -   [{:?}]\
-        \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\n ",
-                                              self.package_name,
-                                              self.state,
-                                              events_queued,
-                                              syscall_count,
-                                              dropped_callback_count,
-                                              ));
+        let _ = writer.write_fmt(format_args!(
+            "\
+             App: {}   -   [{:?}]\
+             \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\n ",
+            self.package_name, self.state, events_queued, syscall_count, dropped_callback_count,
+        ));
 
         let _ = match last_syscall {
             Some(syscall) => writer.write_fmt(format_args!("Last Syscall: {:?}", syscall)),
@@ -1575,35 +1648,47 @@ impl<'a> Process<'a> {
   pc,
   self.yield_pc,
   ));
-        let _ = writer.write_fmt(format_args!("\
-        \r\n APSR: N {} Z {} C {} V {} Q {}\
-        \r\n       GE {} {} {} {}",
-        (xpsr >> 31) & 0x1,
-        (xpsr >> 30) & 0x1,
-        (xpsr >> 29) & 0x1,
-        (xpsr >> 28) & 0x1,
-        (xpsr >> 27) & 0x1,
-        (xpsr >> 19) & 0x1,
-        (xpsr >> 18) & 0x1,
-        (xpsr >> 17) & 0x1,
-        (xpsr >> 16) & 0x1,
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n APSR: N {} Z {} C {} V {} Q {}\
+             \r\n       GE {} {} {} {}",
+            (xpsr >> 31) & 0x1,
+            (xpsr >> 30) & 0x1,
+            (xpsr >> 29) & 0x1,
+            (xpsr >> 28) & 0x1,
+            (xpsr >> 27) & 0x1,
+            (xpsr >> 19) & 0x1,
+            (xpsr >> 18) & 0x1,
+            (xpsr >> 17) & 0x1,
+            (xpsr >> 16) & 0x1,
         ));
-        let _ = writer.write_fmt(format_args!("\
-        \r\n IPSR: Exception Type - {}",
-        ipsr_isr_number_to_str(xpsr & 0x1ff)
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n IPSR: Exception Type - {}",
+            ipsr_isr_number_to_str(xpsr & 0x1ff)
         ));
         let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
         let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
-        let _ = writer.write_fmt(format_args!("\
-        \r\n EPSR: ICI.IT {:#04x}\
-        \r\n       ThumbBit {} {}",
-        ici_it,
-        thumb_bit,
-        if thumb_bit { "" } else { "!!ERROR - Cortex M Thumb only!" },
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n EPSR: ICI.IT {:#04x}\
+             \r\n       ThumbBit {} {}",
+            ici_it,
+            thumb_bit,
+            if thumb_bit {
+                ""
+            } else {
+                "!!ERROR - Cortex M Thumb only!"
+            },
         ));
         let _ = writer.write_fmt(format_args!("\r\n To debug, run "));
-        let _ = writer.write_fmt(format_args!("`make debug RAM_START={:#x} FLASH_INIT={:#x}`", sram_start, flash_init_fn));
-        let _ = writer.write_fmt(format_args!("\r\n in the app's folder and open the .lst file.\r\n\r\n"));
+        let _ = writer.write_fmt(format_args!(
+            "`make debug RAM_START={:#x} FLASH_INIT={:#x}`",
+            sram_start, flash_init_fn
+        ));
+        let _ = writer.write_fmt(format_args!(
+            "\r\n in the app's folder and open the .lst file.\r\n\r\n"
+        ));
     }
 }
 
@@ -1637,13 +1722,13 @@ struct LoadResult {
 ///
 /// The function returns a `LoadResult` containing metadata about the loaded
 /// process or None if loading failed.
-unsafe fn load(tbf_header: TbfHeader,
-               mem_base: *mut u8)
-               -> Option<LoadResult> {
+unsafe fn load(tbf_header: TbfHeader, mem_base: *mut u8) -> Option<LoadResult> {
     if tbf_header.needs_pic_fixup() {
-        unimplemented!("Kernel PIC fixup has been deprecated and removed. See \
-                       https://github.com/tock/tock/pull/714 for \
-                       more information");
+        unimplemented!(
+            "Kernel PIC fixup has been deprecated and removed. See \
+             https://github.com/tock/tock/pull/714 for \
+             more information"
+        );
     } else {
         // No PIC fixup requested from the kernel. We only need to set an
         // initial stack pointer and sbrk size. The app will do the rest on its
