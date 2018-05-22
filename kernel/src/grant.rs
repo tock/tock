@@ -34,12 +34,21 @@ impl<T> AppliedGrant<T> {
         F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
         R: Copy,
     {
-        let mut allocator = Allocator {
-            app: unsafe { process::PROCS[self.appid].as_mut() },
-            app_id: self.appid,
-        };
-        let mut root = unsafe { Owned::new(self.grant, self.appid) };
-        fun(&mut root, &mut allocator)
+        if AppId::is_kernel_idx(self.appid) {
+            let mut allocator = Allocator {
+                app: None,
+                app_id: self.appid,
+            };
+            let mut root = unsafe { Owned::new(self.grant, self.appid) };
+            fun(&mut root, &mut allocator)
+        } else {
+            let mut allocator = Allocator {
+                app: unsafe { process::PROCS[self.appid].as_mut() },
+                app_id: self.appid,
+            };
+            let mut root = unsafe { Owned::new(self.grant, self.appid) };
+            fun(&mut root, &mut allocator)
+        }
     }
 }
 
