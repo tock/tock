@@ -282,6 +282,15 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
                 return res;
             }
         }
+        // After running through all real apps, pass the debug app (idx 255) to
+        // the grant iterator in case it has state the capsule needs to process.
+        if self.index == self.len {
+            self.index += 1;
+            let res = self.grant.grant(AppId::new(debug::APPID_IDX));
+            if res.is_some() {
+                return res;
+            }
+        }
         None
     }
 }
