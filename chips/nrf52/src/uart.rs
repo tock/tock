@@ -157,6 +157,7 @@ pub struct Uarte {
     tx_remaining_bytes: Cell<usize>,
     rx_buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
     rx_remaining_bytes: Cell<usize>,
+    rx_abort_in_progress: Cell<bool>,
     offset: Cell<usize>,
 }
 
@@ -179,6 +180,7 @@ impl Uarte {
             tx_remaining_bytes: Cell::new(0),
             rx_buffer: kernel::common::take_cell::TakeCell::empty(),
             rx_remaining_bytes: Cell::new(0),
+            rx_abort_in_progress: Cell::new(false),
             offset: Cell::new(0),
         }
     }
@@ -257,10 +259,9 @@ impl Uarte {
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         let regs = unsafe { &*self.regs };
-        // disable interrupts
-        self.disable_tx_interrupts();
 
         if self.tx_ready() {
+            self.disable_tx_interrupts();
             let regs = unsafe { &*self.regs };
             regs.event_endtx.write(Event::READY::CLEAR);
             let tx_bytes = regs.txd_amount.get() as usize;
@@ -303,30 +304,56 @@ impl Uarte {
 
         if self.rx_ready() {
             self.disable_rx_interrupts();
+
+            // Clear the ENDRX event
             regs.event_endrx.write(Event::READY::CLEAR);
-            //Get the number of bytes in the buffer
+
+            // Get the number of bytes in the buffer that was received this time
             let rx_bytes = regs.rxd_amount.get() as usize;
-            let rem = self.rx_remaining_bytes.get();
-            //should check if rx_bytes > 0 (because we'll flush the FIFO and it will flag
-            //ENDRX even if it's empty)
-            if rx_bytes > 0 {
-                self.rx_remaining_bytes.set(rem.saturating_sub(rx_bytes));
-                //check if we're waiting for more (i.e. are we done listening?)
-                if self.rx_remaining_bytes.get() == 0 {
+
+            // Check if this ENDRX is due to an abort. If so, we want to
+            // do the receive callback immediately.
+            if self.rx_abort_in_progress.get() {
+                self.rx_abort_in_progress.set(false);
+                self.client.get().map(|client| {
+                    self.rx_buffer.take().map(|rx_buffer| {
+                        client.receive_complete(
+                            rx_buffer,
+                            self.offset.get() + rx_bytes,
+                            kernel::hil::uart::Error::CommandComplete,
+                        );
+                    });
+                });
+            } else {
+                // In the normal case, we need to either pass call the callback
+                // or do another read to get more bytes.
+
+                // Update how many bytes we still need to receive and
+                // where we are storing in the buffer.
+                self.rx_remaining_bytes
+                    .set(self.rx_remaining_bytes.get().saturating_sub(rx_bytes));
+                self.offset.set(self.offset.get() + rx_bytes);
+
+                let rem = self.rx_remaining_bytes.get();
+                if rem == 0 {
                     // Signal client that the read is done
                     self.client.get().map(|client| {
                         self.rx_buffer.take().map(|rx_buffer| {
                             client.receive_complete(
                                 rx_buffer,
-                                rx_bytes,
+                                self.offset.get(),
                                 kernel::hil::uart::Error::CommandComplete,
                             );
                         });
                     });
                 } else {
+                    // Setup how much we can read. We already made sure that
+                    // this will fit in the buffer.
+                    let to_read = core::cmp::min(rem, 255);
+                    regs.rxd_maxcnt.write(Counter::COUNTER.val(to_read as u32));
+
+                    // Actually do the receive.
                     self.set_rx_dma_pointer_to_buffer();
-                    //Flush the fifo, as per the datasheet recommendations
-                    regs.task_flush_rx.write(Task::ENABLE::SET);
                     regs.task_startrx.write(Task::ENABLE::SET);
                     self.enable_rx_interrupts();
                 }
@@ -426,5 +453,12 @@ impl kernel::hil::uart::UART for Uarte {
         regs.task_startrx.write(Task::ENABLE::SET);
 
         self.enable_rx_interrupts();
+    }
+
+    fn abort_receive(&self) {
+        // Trigger the STOPRX event to cancel the current receive call.
+        let regs = unsafe { &*self.regs };
+        self.rx_abort_in_progress.set(true);
+        regs.task_stoprx.write(Task::ENABLE::SET);
     }
 }

@@ -225,4 +225,8 @@ impl uart::UART for UART {
             i += 1;
         }
     }
+
+    fn abort_receive(&self) {
+        unimplemented!()
+    }
 }
