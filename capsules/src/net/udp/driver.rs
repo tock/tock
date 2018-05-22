@@ -33,7 +33,7 @@ pub struct App {
     app_write: Option<AppSlice<Shared, u8>>,
     app_cfg: Option<AppSlice<Shared, u8>>,
     app_rx_cfg: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<IPAddrPort>,
+    pending_tx: Option<[IPAddrPort; 2]>,
 }
 
 impl Default for App {
@@ -225,13 +225,17 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
         self.do_with_app(appid, |app| {
-            let _dst_addr_port = match app.pending_tx.take() {
+            let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
                     return ReturnCode::SUCCESS;
                 }
             };
             let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |_kbuf| {
+                let _dst_addr = addr_ports[1].addr;
+                let _dst_port = addr_ports[1].port;
+                let _src_port = addr_ports[0].port; 
+
                 // TODO: Prepare packet for UDP transmission
                 // `dst_addr_port` contains the destination address and port number
                 // Example from radio driver:
@@ -422,6 +426,18 @@ impl<'a> Driver for UDPDriver<'a> {
                         if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
                             return None;
                         }
+                       
+                        // Source address and port 
+                        let src_ip_port = &cfg.as_ref()[0..mem::size_of::<IPAddrPort>() - 1];
+                        let (a, p) = src_ip_port.split_at(mem::size_of::<IPAddr>());
+
+                        let mut src_addr = IPAddr::new();
+                        src_addr.0.copy_from_slice(a);
+
+                        let src = IPAddrPort {
+                            addr: src_addr,
+                            port: ((p[0] as u16) << 8) + (p[1] as u16),
+                        };
 
                         self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
                     });
