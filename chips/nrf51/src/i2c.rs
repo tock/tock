@@ -2,15 +2,12 @@
 //!
 //! This module supports nRF51's two I2C master (`TWIM`) peripherals.
 
-extern crate nrf5x;
-
 use core::cell::Cell;
 use core::cmp;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
-use nrf5x::gpio;
-use nrf5x::pinmux::Pinmux;
+use {nrf5x, nrf5x::gpio, nrf5x::pinmux::Pinmux};
 
 /// An I2C master device.
 ///
