@@ -99,7 +99,12 @@ pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     match procs[idx] {
         None => false,
         Some(ref mut p) => {
-            // TODO(alevy): validate appid liveness
+            // If this app is in the `Fault` state then we shouldn't schedule
+            // any work for it.
+            if p.current_state() == State::Fault {
+                return false;
+            }
+
             unsafe {
                 HAVE_WORK.set(HAVE_WORK.get() + 1);
             }
@@ -132,7 +137,6 @@ pub fn get_editable_flash_range(app_idx: usize) -> (usize, usize) {
     match procs[app_idx] {
         None => (0, 0),
         Some(ref mut p) => {
-            // TODO(alevy): validate appid liveness
             let start = p.flash_non_protected_start() as usize;
             let end = p.flash_end() as usize;
             (start, end)
