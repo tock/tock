@@ -2,7 +2,7 @@
 //!
 //! <http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html>
 
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 #[repr(C)]
 struct ScbRegisters {

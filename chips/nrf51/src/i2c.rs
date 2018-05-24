@@ -4,8 +4,8 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::common::cells::TakeCell;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 use {nrf5x, nrf5x::gpio, nrf5x::pinmux::Pinmux};
 

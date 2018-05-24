@@ -3,7 +3,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice, SpiSlaveClient, SpiSlaveDevice};

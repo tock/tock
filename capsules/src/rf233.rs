@@ -18,7 +18,7 @@
 #![allow(unused_parens)]
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;

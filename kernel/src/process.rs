@@ -1,7 +1,8 @@
 //! Support for creating and running userspace applications.
 
 use callback::AppId;
-use common::{Queue, RingBuffer, VolatileCell};
+use common::cells::VolatileCell;
+use common::{Queue, RingBuffer};
 
 use core::cell::Cell;
 use core::fmt::Write;

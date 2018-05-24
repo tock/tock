@@ -28,7 +28,7 @@
 
 use core::cell::Cell;
 use ieee802154::{device, framer};
-use kernel::common::take_cell::MapCell;
+use kernel::common::cells::MapCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::ReturnCode;
 use net::ieee802154::*;

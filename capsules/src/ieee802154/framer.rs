@@ -72,7 +72,7 @@
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, RxClient, TxClient};
 use ieee802154::mac::Mac;
-use kernel::common::take_cell::MapCell;
+use kernel::common::cells::MapCell;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use kernel::ReturnCode;

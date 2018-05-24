@@ -24,8 +24,8 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use helpers::{DeferredCall, Task};
+use kernel::common::cells::TakeCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm;

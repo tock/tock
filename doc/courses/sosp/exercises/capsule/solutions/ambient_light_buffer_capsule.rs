@@ -9,7 +9,7 @@
 extern crate kernel;
 
 use core::cell::Cell;
-use kernel::common::take_cell::MapCell;
+use kernel::common::cells::MapCell;
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::hil::gpio;

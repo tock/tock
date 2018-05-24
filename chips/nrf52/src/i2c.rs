@@ -8,7 +8,7 @@
 //! - Date: Nov 4, 2017
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use nrf5x::pinmux::Pinmux;
 
@@ -229,7 +229,7 @@ pub static mut TWIM1: TWIM = TWIM::new(1);
 mod registers {
     #![allow(dead_code)]
 
-    use kernel::common::VolatileCell;
+    use kernel::common::cells::VolatileCell;
     use kernel::hil;
     use nrf5x::pinmux::Pinmux;
 

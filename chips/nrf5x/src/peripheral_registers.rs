@@ -1,4 +1,4 @@
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 pub const RTC1_BASE: usize = 0x40011000;
 #[repr(C)]
