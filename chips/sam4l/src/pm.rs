@@ -656,10 +656,11 @@ impl PowerManager {
 
                 // If the 80MHz RC is used as the main clock source, it must be divided by
                 //  at least 2 before being used as CPU's clock source
+                let cpusel = (*PM_REGS).cpusel.extract();
                 unlock(0x00000004);
                 (*PM_REGS)
                     .cpusel
-                    .modify(CpuClockSelect::CPUDIV::SET + CpuClockSelect::CPUSEL::CLEAR);
+                    .modify_no_read(cpusel, CpuClockSelect::CPUDIV::SET + CpuClockSelect::CPUSEL::CLEAR);
                 while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
                 // Set Flash wait state to 1 for > 24MHz in PS2
@@ -757,33 +758,41 @@ impl PowerManager {
                 scif::disable_rc_80mhz();
 
                 // Stop dividing the main clock
+                let cpusel = (*PM_REGS).cpusel.extract();
                 unlock(0x00000004);
                 (*PM_REGS)
                     .cpusel
-                    .modify(CpuClockSelect::CPUDIV::CLEAR + CpuClockSelect::CPUSEL::CLEAR);
+                    .modify_no_read(cpusel, CpuClockSelect::CPUDIV::CLEAR + CpuClockSelect::CPUSEL::CLEAR);
                 while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
                 // Stop dividing peripheral clocks
+                let pbasel = (*PM_REGS).pbasel.extract();
                 unlock(0x0000000C);
-                (*PM_REGS).pbasel.modify(
+                (*PM_REGS).pbasel.modify_no_read(pbasel,
                     PeripheralBusXClockSelect::PBDIV::CLEAR
                         + PeripheralBusXClockSelect::PBSEL::CLEAR,
                 );
                 while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+
+                let pbbsel = (*PM_REGS).pbbsel.extract();
                 unlock(0x00000010);
-                (*PM_REGS).pbbsel.modify(
+                (*PM_REGS).pbbsel.modify_no_read(pbbsel,
                     PeripheralBusXClockSelect::PBDIV::CLEAR
                         + PeripheralBusXClockSelect::PBSEL::CLEAR,
                 );
                 while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+
+                let pbcsel = (*PM_REGS).pbcsel.extract();
                 unlock(0x00000014);
-                (*PM_REGS).pbcsel.modify(
+                (*PM_REGS).pbcsel.modify_no_read(pbcsel,
                     PeripheralBusXClockSelect::PBDIV::CLEAR
                         + PeripheralBusXClockSelect::PBSEL::CLEAR,
                 );
                 while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+
+                let pbdsel = (*PM_REGS).pbdsel.extract();
                 unlock(0x00000018);
-                (*PM_REGS).pbdsel.modify(
+                (*PM_REGS).pbdsel.modify_no_read(pbdsel,
                     PeripheralBusXClockSelect::PBDIV::CLEAR
                         + PeripheralBusXClockSelect::PBSEL::CLEAR,
                 );
@@ -909,25 +918,36 @@ unsafe fn configure_80mhz_rc() {
     scif::setup_rc_80mhz();
 
     // Divide peripheral clocks so that fCPU >= fAPBx
+    let pbasel = (*PM_REGS).pbasel.extract();
     unlock(0x0000000C);
     (*PM_REGS)
         .pbasel
-        .modify(PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
+        .modify_no_read(pbasel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
     while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+
+    let pbbsel = (*PM_REGS).pbbsel.extract();
     unlock(0x00000010);
     (*PM_REGS)
         .pbbsel
-        .modify(PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
+        .modify_no_read(pbbsel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
     while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+
+    let pbcsel = (*PM_REGS).pbcsel.extract();
     unlock(0x00000014);
     (*PM_REGS)
         .pbcsel
-        .modify(PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
+        .modify_no_read(pbcsel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
     while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
+
+    let pbdsel = (*PM_REGS).pbdsel.extract();
     unlock(0x00000018);
     (*PM_REGS)
         .pbdsel
-        .modify(PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
+        .modify_no_read(pbdsel,
+            PeripheralBusXClockSelect::PBDIV::SET + PeripheralBusXClockSelect::PBSEL::CLEAR);
     while (*PM_REGS).sr.matches_all(InterruptOrStatus::CKRDY::CLEAR) {}
 
     let clock_mask = PM.system_on_clocks.get();
