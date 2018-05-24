@@ -773,7 +773,7 @@ impl hil::adc::Adc for Adc {
             // stop DMA transfer if going. This should safely return a None if
             // the DMA was not being used
             let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
-                let dma_buf = rx_dma.abort_xfer();
+                let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
             });
@@ -901,7 +901,7 @@ impl hil::adc::AdcHighSpeed for Adc {
                 self.dma_running.set(true);
                 dma.enable();
                 self.rx_length.set(dma_len);
-                dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
+                dma.do_transfer(self.rx_dma_peripheral, dma_buf, dma_len);
             });
 
             // start timer
@@ -969,7 +969,7 @@ impl dma::DMAClient for Adc {
     /// Handler for DMA transfer completion.
     ///
     /// - `pid`: the DMA peripheral that is complete
-    fn xfer_done(&self, pid: dma::DMAPeripheral) {
+    fn transfer_done(&self, pid: dma::DMAPeripheral) {
         // check if this was an RX transfer
         if pid == self.rx_dma_peripheral {
             // RX transfer was completed
@@ -977,7 +977,7 @@ impl dma::DMAClient for Adc {
             // get buffer filled with samples from DMA
             let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
                 self.dma_running.set(false);
-                let dma_buf = rx_dma.abort_xfer();
+                let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
             });
@@ -1014,7 +1014,7 @@ impl dma::DMAClient for Adc {
                         self.dma_running.set(true);
                         dma.enable();
                         self.rx_length.set(dma_len);
-                        dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
+                        dma.do_transfer(self.rx_dma_peripheral, dma_buf, dma_len);
                     });
                 } else {
                     // if length was zero, just keep the buffer in the takecell
