@@ -130,7 +130,7 @@ buffer in the current transaction from the TakeCell with a
 call to `take`:
 
 ```rust
-pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
+pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
     let registers: &DMARegisters = unsafe { &*self.registers };
     registers.interrupt_disable.set(!0);
     // Reset counter
