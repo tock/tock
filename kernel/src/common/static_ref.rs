@@ -1,3 +1,5 @@
+//! Wrapper type for safe pointers to static memory.
+
 use core::ops::Deref;
 
 /// A pointer to statically allocated mutable data such as memory mapped I/O
@@ -6,7 +8,7 @@ use core::ops::Deref;
 /// This is a simple wrapper around a raw pointer that encapsulates an unsafe
 /// dereference in a safe manner. It serve the role of creating a `&'static T`
 /// given a raw address and acts similarly to `extern` definitions, except
-/// `StaticRef` is subject to module and crate bounderies, while `extern`
+/// `StaticRef` is subject to module and crate boundaries, while `extern`
 /// definitions can be imported anywhere.
 #[derive(Debug)]
 pub struct StaticRef<T> {
