@@ -21,19 +21,9 @@ include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 # variable which selects one and we include the appropriate Makefile-app from
 # within the Tock base directory.
 TOCK_BOARD ?= hail
-TOCK_KERNEL_ROOT ?= $(TOCK_USERLAND_BASE_DIR)/..
 
-# Include platform app makefile if one exists.
-#  - Chooses an appropriate TOCK_ARCH for the platform and uses those bin files
-#  - Adds rules for loading applications onto this board
-# Conditionally included in case it doesn't exist for a board. In that case,
-# the generic "Program.mk" is used instead which defines `program` and `flash`
-# using Tockloader.
-ifneq ("$(wildcard $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app)","")
-include $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app
-else
+# Include the makefile that has the programming functions for each board.
 include $(TOCK_USERLAND_BASE_DIR)/Program.mk
-endif
 
 # Single-arch libraries, to be phased out
 LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
