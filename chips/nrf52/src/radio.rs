@@ -43,7 +43,7 @@ use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
-const RADIO_BASE: usize = 0x40001000;
+pub const RADIO_BASE: usize = 0x40001000;
 
 #[repr(C)]
 pub struct RadioRegisters {

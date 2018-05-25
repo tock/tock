@@ -113,9 +113,9 @@ static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS]
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static nrf52::ble::ble_advertising_driver::BLE<
         'static,
-        nrf52::radio::Radio,
+        nrf52::ble::radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
@@ -311,24 +311,28 @@ pub unsafe fn reset_handler() {
     kernel::debug::assign_console_driver(Some(console), kc);
 
     let ble_radio = static_init!(
-        capsules::ble_advertising_driver::BLE<
+        nrf52::ble::ble_advertising_driver::BLE<
             'static,
-            nrf52::radio::Radio,
+            nrf52::ble::radio::Radio,
             VirtualMuxAlarm<'static, Rtc>,
         >,
-        capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::radio::RADIO,
+        nrf52::ble::ble_advertising_driver::BLE::new(
+            &mut nrf52::ble::radio::RADIO,
             kernel::Grant::create(),
-            &mut capsules::ble_advertising_driver::BUF,
+            &mut nrf52::ble::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
     );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::radio::RADIO,
+    nrf52::ble::ble_advertising_hil::BleAdvertisementDriver::set_receive_client(
+        &nrf52::ble::radio::RADIO,
         ble_radio,
     );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::radio::RADIO,
+    nrf52::ble::ble_advertising_hil::BleAdvertisementDriver::set_transmit_client(
+        &nrf52::ble::radio::RADIO,
+        ble_radio,
+    );
+    nrf52::ble::ble_advertising_hil::BleAdvertisementDriver::set_advertisement_client(
+        &nrf52::ble::radio::RADIO,
         ble_radio,
     );
     ble_radio_virtual_alarm.set_client(ble_radio);
