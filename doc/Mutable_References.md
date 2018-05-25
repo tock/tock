@@ -6,6 +6,23 @@ a heap (no dynamic allocation). Tock uses memory containers
 such as the TakeCell abstraction to allow simple code to keep
 the safety properties Rust provides.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Mutable_References.md -->
+
+<!-- toc -->
+
+- [Brief Overview of Borrowing in Rust](#brief-overview-of-borrowing-in-rust)
+- [Issues with Borrowing in Event-Driven code](#issues-with-borrowing-in-event-driven-code)
+- [`Cell`s in Tock](#cells-in-tock)
+- [The `TakeCell` abstraction](#the-takecell-abstraction)
+  * [Example use of `take` and `replace`](#example-use-of-take-and-replace)
+  * [Example use of `map`](#example-use-of-map)
+    + [`map` variants](#map-variants)
+- [`MapCell`](#mapcell)
+- [`NumCell`](#numcell)
+- [`OptionalCell`](#optionalcell)
+
+<!-- tocstop -->
+
 ## Brief Overview of Borrowing in Rust
 
 Ownership and Borrowing are two design features in Rust which
@@ -77,7 +94,21 @@ of each callback requires its own writeable reference to the
 application. Rust's rules, however, do not allow multiple mutable
 references.
 
-## The TakeCell abstraction
+## `Cell`s in Tock
+
+Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for various
+different data types that need to be held by capsules and chip drivers. This
+table summarizes the various types, and more detail is included below.
+
+| Cell Type      | Best Used For       | Example                                    | Common Uses                                                                                           |
+|----------------|---------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `Cell`         | Primitive types     | `Cell<bool>`                               | Keeping track of which state a capsule is in (holding an `enum`) or for holding a true/false flag.    |
+| `TakeCell`     | Static buffers      | `TakeCell<'static, [u8]>`                  | Holding static buffers that will be receive or send data.                                             |
+| `MapCell`      |                     |                                            |                                                                                                       |
+| `NumCell`      | Integers            | `NumCell<usize>`                           | Keeping state like buffer index pointers that needs to be preserved over multiple asynchronous calls. |
+| `OptionalCell` | Optional parameters | `OptionalCell<&'static hil::uart::Client>` | Keeping state that can be uninitialized, like a Client before one is set.                             |
+
+## The `TakeCell` abstraction
 
 Tock solves this issue of uniquely sharing memory with a memory
 container abstraction, TakeCell.
@@ -247,5 +278,27 @@ Not in both the `.map_or()` and `.map_or_else()` cases, the first argument
 corresponds to when the `TakeCell` is empty.
 
 
-## `MapCell` Version
+## `MapCell`
 
+
+## `NumCell`
+
+[`NumCell`](https://github.com/tock/tock/blob/master/kernel/src/common/num_cell.rs)
+is just like a normal `Cell` but can only contain numbers, and provides some
+convenient functions (`add()` and `subtract()`, for example). `NumCell` makes
+for cleaner code when storing numbers that are increased or decreased. For
+example, with a typical `Cell`, adding one to the stored value looks like:
+`my_cell.set(my_cell.get() + 1)`. With a `NumCell` it is a little easier to
+understand: `my_cell.increment()` (or `my_cell.add(1)`).
+
+## `OptionalCell`
+
+[`OptionalCell`](https://github.com/tock/tock/blob/master/kernel/src/common/optional_cell.rs)
+is effectively a wrapper for a `Cell` that contains an `Option`, like:
+`Cell<Option<T>>`. This to an extent mirrors the `TakeCell` interface, where the
+`Option` is hidden from the user. So instead of `my_optional_cell.get().map(||
+{})`, the code can be: `my_optional_cell.map(|| {})`.
+
+`OptionalCell` can hold the same values that `Cell` can, but can also be just
+`None` if the value is effectively unset. Using an `OptionalCell` (like a
+`NumCell`) makes the code clearer and hides extra tedious function calls.
