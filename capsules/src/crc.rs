@@ -68,7 +68,6 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::process::Error;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
@@ -329,13 +328,9 @@ impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                         callback.schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
                     }
                     app.waiting = None;
+                    ReturnCode::SUCCESS
                 })
-                .unwrap_or_else(|err| match err {
-                    Error::OutOfMemory => {}
-                    Error::AddressOutOfBounds => {}
-                    Error::NoSuchApp => {}
-                });
-
+                .unwrap_or_else(|err| err.into());
             self.serving_app.set(None);
             self.serve_waiting_apps();
         } else {

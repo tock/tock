@@ -38,7 +38,6 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
-use kernel::process::Error;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
@@ -255,25 +254,13 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                 self.apps.enter(app_id, |app, _| {
                     app.write_callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr done */ => {
                 self.apps.enter(app_id, |app, _| {
                     app.read_callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             _ => ReturnCode::ENOSUPPORT
         }
@@ -297,25 +284,13 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.send_new(appid, app, len)
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr */ => {
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.receive_new(appid, app, len)
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             3 /* abort rx */ => {
                 self.uart.abort_receive();
