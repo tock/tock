@@ -23,14 +23,14 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
     [None, None, None, None];
 
 /// A structure representing this platform that holds references to all
@@ -198,7 +198,7 @@ pub unsafe fn reset_handler() {
         /// This symbol is defined in the linker script.
         static _sapps: u8;
     }
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

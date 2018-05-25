@@ -17,7 +17,6 @@ pub mod common;
 pub mod debug;
 pub mod hil;
 pub mod ipc;
-pub mod process;
 
 mod callback;
 mod driver;
@@ -25,6 +24,7 @@ mod grant;
 mod mem;
 mod memop;
 mod platform;
+mod process;
 mod returncode;
 mod sched;
 mod syscall;
@@ -36,8 +36,15 @@ pub use mem::{AppPtr, AppSlice, Private, Shared};
 pub use platform::systick::SysTick;
 pub use platform::{mpu, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
-pub use process::{Process, State};
 pub use returncode::ReturnCode;
+
+// Export only select items from the process module. To remove the name conflict
+// this cannot be called `process`, so we use a shortened version. These
+// functions and types are used by board files to setup the platform and setup
+// processes.
+pub mod procs {
+    pub use process::{load_processes, FaultResponse, Process};
+}
 
 /// Main loop.
 pub fn main<P: Platform, C: Chip>(
