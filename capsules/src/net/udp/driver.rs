@@ -238,7 +238,7 @@ impl<'a> UDPDriver<'a> {
                
                 // Copy UDP payload to kernel memory 
                 // TODO: handle if too big
-                let result = app.app_write.map_or(ReturnCode::ENOMEM, move |payload| {
+                let result = app.app_write.as_ref().map_or(ReturnCode::ENOMEM, move |payload| {
                         kbuf[..payload.len()].copy_from_slice(payload.as_ref());
                         self.sender.send_to(dst_addr, dst_port, src_port, &kbuf[..payload.len()])
                     }
