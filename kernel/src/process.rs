@@ -351,16 +351,6 @@ impl TbfHeader {
         }
     }
 
-    /// Return whether we want the kernel to do PIC fixup for this app. If
-    /// we ever add more than one kernel PIC fixup method this would have to
-    /// get extended to support that.
-    fn needs_pic_fixup(&self) -> bool {
-        match *self {
-            TbfHeader::TbfHeaderV1(_) => true,
-            _ => false,
-        }
-    }
-
     /// Add up all of the relevant fields in header version 1, or just used the
     /// app provided value in version 2 to get the total amount of RAM that is
     /// needed for this app.
@@ -986,152 +976,145 @@ impl<'a> Process<'a> {
             let package_name = tbf_header.get_package_name(app_flash_address);
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
-            let needs_pic_fixup = tbf_header.needs_pic_fixup();
 
-            // Load the process into memory
-            if let Some(load_result) = load(tbf_header, remaining_app_memory) {
-                // First determine how much space we need in the application's
-                // memory space just for kernel and grant state. We need to make
-                // sure we allocate enough memory just for that.
+            // Set the initial process stack and memory to 128 bytes.
+            let initial_stack_pointer = remaining_app_memory.offset(128);
+            let initial_sbrk_pointer = remaining_app_memory.offset(128);
 
-                // Make room for grant pointers.
-                let grant_ptr_size = mem::size_of::<*const usize>();
-                let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
-                let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+            // First determine how much space we need in the application's
+            // memory space just for kernel and grant state. We need to make
+            // sure we allocate enough memory just for that.
 
-                // Allocate memory for callback ring buffer.
-                let callback_size = mem::size_of::<Task>();
-                let callback_len = 10;
-                let callbacks_offset = callback_len * callback_size;
+            // Make room for grant pointers.
+            let grant_ptr_size = mem::size_of::<*const usize>();
+            let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+            let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
-                // Make room to store this process's metadata.
-                let process_struct_offset = mem::size_of::<Process>();
+            // Allocate memory for callback ring buffer.
+            let callback_size = mem::size_of::<Task>();
+            let callback_len = 10;
+            let callbacks_offset = callback_len * callback_size;
 
-                // Need to make sure that the amount of memory we allocate for
-                // this process at least covers this state.
-                if min_app_ram_size
-                    < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32
-                {
-                    min_app_ram_size =
-                        (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
-                }
+            // Make room to store this process's metadata.
+            let process_struct_offset = mem::size_of::<Process>();
 
-                // TODO round app_ram_size up to a closer MPU unit.
-                // This is a very conservative approach that rounds up to power of
-                // two. We should be able to make this closer to what we actually need.
-                let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
-
-                // Check that we can actually give this app this much memory.
-                if app_ram_size > remaining_app_memory_size {
-                    panic!(
-                        "{:?} failed to load. Insufficient memory. Requested {} have {}",
-                        package_name, app_ram_size, remaining_app_memory_size
-                    );
-                }
-
-                let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_ram_size);
-
-                // Set up initial grant region.
-                let mut kernel_memory_break =
-                    app_memory.as_mut_ptr().offset(app_memory.len() as isize);
-
-                // Now that we know we have the space we can setup the grant
-                // pointers.
-                kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
-
-                // Set all pointers to null.
-                let opts = slice::from_raw_parts_mut(
-                    kernel_memory_break as *mut *const usize,
-                    grant_ptrs_num,
-                );
-                for opt in opts.iter_mut() {
-                    *opt = ptr::null()
-                }
-
-                // Now that we know we have the space we can setup the memory
-                // for the callbacks.
-                kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
-
-                // Set up ring buffer.
-                let callback_buf =
-                    slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
-                let tasks = RingBuffer::new(callback_buf);
-
-                // Last thing is the process struct.
-                kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
-                let process_struct_memory_location = kernel_memory_break;
-
-                // Determine the debug information to the best of our
-                // understanding. If the app is doing all of the PIC fixup and
-                // memory management we don't know much.
-                let mut app_heap_start_pointer = None;
-                let mut app_stack_start_pointer = None;
-                if needs_pic_fixup {
-                    app_heap_start_pointer = Some(load_result.initial_sbrk_pointer);
-                    app_stack_start_pointer = Some(load_result.initial_stack_pointer);
-                }
-
-                // Create the Process struct in the app grant region.
-                let mut process: &mut Process = mem::transmute(process_struct_memory_location);
-
-                process.memory = app_memory;
-                process.header = load_result.header;
-                process.kernel_memory_break = kernel_memory_break;
-                process.app_break = load_result.initial_sbrk_pointer;
-                process.current_stack_pointer = load_result.initial_stack_pointer;
-
-                process.text = slice::from_raw_parts(app_flash_address, app_flash_size);
-
-                process.stored_regs = Default::default();
-                process.yield_pc = init_fn;
-                // Set the Thumb bit and clear everything else
-                process.psr = 0x01000000;
-
-                process.state = State::Yielded;
-                process.fault_response = fault_response;
-
-                process.mpu_regions = [
-                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                    Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                ];
-                process.tasks = tasks;
-                process.package_name = package_name;
-
-                process.debug = ProcessDebug {
-                    app_heap_start_pointer: app_heap_start_pointer,
-                    app_stack_start_pointer: app_stack_start_pointer,
-                    min_stack_pointer: load_result.initial_stack_pointer,
-                    syscall_count: Cell::new(0),
-                    last_syscall: Cell::new(None),
-                    dropped_callback_count: Cell::new(0),
-                };
-
-                if (init_fn & 0x1) != 1 {
-                    panic!(
-                        "{:?} process image invalid. \
-                         init_fn address must end in 1 to be Thumb, got {:#X}",
-                        package_name, init_fn
-                    );
-                }
-
-                let flash_protected_size = process.header.get_protected_size() as usize;
-                let flash_app_start = app_flash_address as usize + flash_protected_size;
-
-                process.tasks.enqueue(Task::FunctionCall(FunctionCall {
-                    pc: init_fn,
-                    r0: flash_app_start,
-                    r1: process.memory.as_ptr() as usize,
-                    r2: process.memory.len() as usize,
-                    r3: process.app_break as usize,
-                }));
-
-                HAVE_WORK.set(HAVE_WORK.get() + 1);
-
-                return (Some(process), app_flash_size, app_ram_size);
+            // Need to make sure that the amount of memory we allocate for
+            // this process at least covers this state.
+            if min_app_ram_size
+                < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32
+            {
+                min_app_ram_size =
+                    (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
             }
+
+            // TODO round app_ram_size up to a closer MPU unit.
+            // This is a very conservative approach that rounds up to power of
+            // two. We should be able to make this closer to what we actually need.
+            let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
+
+            // Check that we can actually give this app this much memory.
+            if app_ram_size > remaining_app_memory_size {
+                panic!(
+                    "{:?} failed to load. Insufficient memory. Requested {} have {}",
+                    package_name, app_ram_size, remaining_app_memory_size
+                );
+            }
+
+            let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_ram_size);
+
+            // Set up initial grant region.
+            let mut kernel_memory_break = app_memory.as_mut_ptr().offset(app_memory.len() as isize);
+
+            // Now that we know we have the space we can setup the grant
+            // pointers.
+            kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
+
+            // Set all pointers to null.
+            let opts =
+                slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, grant_ptrs_num);
+            for opt in opts.iter_mut() {
+                *opt = ptr::null()
+            }
+
+            // Now that we know we have the space we can setup the memory
+            // for the callbacks.
+            kernel_memory_break = kernel_memory_break.offset(-(callbacks_offset as isize));
+
+            // Set up ring buffer.
+            let callback_buf =
+                slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
+            let tasks = RingBuffer::new(callback_buf);
+
+            // Last thing is the process struct.
+            kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
+            let process_struct_memory_location = kernel_memory_break;
+
+            // Determine the debug information to the best of our
+            // understanding. If the app is doing all of the PIC fixup and
+            // memory management we don't know much.
+            let mut app_heap_start_pointer = None;
+            let mut app_stack_start_pointer = None;
+
+            // Create the Process struct in the app grant region.
+            let mut process: &mut Process = mem::transmute(process_struct_memory_location);
+
+            process.memory = app_memory;
+            process.header = tbf_header;
+            process.kernel_memory_break = kernel_memory_break;
+            process.app_break = initial_sbrk_pointer;
+            process.current_stack_pointer = initial_stack_pointer;
+
+            process.text = slice::from_raw_parts(app_flash_address, app_flash_size);
+
+            process.stored_regs = Default::default();
+            process.yield_pc = init_fn;
+            // Set the Thumb bit and clear everything else
+            process.psr = 0x01000000;
+
+            process.state = State::Yielded;
+            process.fault_response = fault_response;
+
+            process.mpu_regions = [
+                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+            ];
+            process.tasks = tasks;
+            process.package_name = package_name;
+
+            process.debug = ProcessDebug {
+                app_heap_start_pointer: app_heap_start_pointer,
+                app_stack_start_pointer: app_stack_start_pointer,
+                min_stack_pointer: initial_stack_pointer,
+                syscall_count: Cell::new(0),
+                last_syscall: Cell::new(None),
+                dropped_callback_count: Cell::new(0),
+            };
+
+            if (init_fn & 0x1) != 1 {
+                panic!(
+                    "{:?} process image invalid. \
+                     init_fn address must end in 1 to be Thumb, got {:#X}",
+                    package_name, init_fn
+                );
+            }
+
+            let flash_protected_size = process.header.get_protected_size() as usize;
+            let flash_app_start = app_flash_address as usize + flash_protected_size;
+
+            process.tasks.enqueue(Task::FunctionCall(FunctionCall {
+                pc: init_fn,
+                r0: flash_app_start,
+                r1: process.memory.as_ptr() as usize,
+                r2: process.memory.len() as usize,
+                r3: process.app_break as usize,
+            }));
+
+            HAVE_WORK.set(HAVE_WORK.get() + 1);
+
+            return (Some(process), app_flash_size, app_ram_size);
         }
         (None, 0, 0)
     }
@@ -1693,57 +1676,5 @@ impl<'a> Process<'a> {
         let _ = writer.write_fmt(format_args!(
             "\r\n in the app's folder and open the .lst file.\r\n\r\n"
         ));
-    }
-}
-
-#[derive(Debug)]
-struct LoadResult {
-    /// Where the stack pointer was initially set.
-    initial_stack_pointer: *const u8,
-
-    /// Where the sbrk initial end of process memory is set.
-    initial_sbrk_pointer: *const u8,
-
-    // Pass the header back to the caller.
-    header: TbfHeader,
-}
-
-/// Loads the process into memory
-///
-/// Loads the process whos binary starts at `flash_start_addr` into the memory
-/// region beginning at `mem_base`. The process binary must fit within
-/// `mem_size` bytes.
-///
-/// This function will optionally copy the GOT and data segment into memory as
-/// well as zero out the BSS section. It also optionally performs relocation on
-/// the GOT and on variables named in the relocation section of the binary.
-///
-/// Note: If we are doing the relocation, we place the stack at the bottom of
-/// the memory space so that a stack overflow will trigger an MPU violation
-/// rather than overwriting GOT/BSS/.data sections. The stack is not included in
-/// the flash data, however, which means that the offset values for everything
-/// above the stack in the elf header need to have the stack offset added.
-///
-/// The function returns a `LoadResult` containing metadata about the loaded
-/// process or None if loading failed.
-unsafe fn load(tbf_header: TbfHeader, mem_base: *mut u8) -> Option<LoadResult> {
-    if tbf_header.needs_pic_fixup() {
-        unimplemented!(
-            "Kernel PIC fixup has been deprecated and removed. See \
-             https://github.com/tock/tock/pull/714 for \
-             more information"
-        );
-    } else {
-        // No PIC fixup requested from the kernel. We only need to set an
-        // initial stack pointer and sbrk size. The app will do the rest on its
-        // own.
-        let load_result = LoadResult {
-            // Set the initial stack and process memory size to 64 bytes.
-            initial_stack_pointer: mem_base.offset(128),
-            initial_sbrk_pointer: mem_base.offset(128),
-            header: tbf_header,
-        };
-
-        Some(load_result)
     }
 }
