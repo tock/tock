@@ -82,10 +82,8 @@ The members of the core team are:
  * Hudson Ayers - [hudson-ayers](https://github.com/hudson-ayers)
  * Brad Campbell - [bradjc](https://github.com/bradjc)
  * Branden Ghena - [brghena](https://github.com/brghena)
- * Daniel Giffin - [daniel-scs](https://github.com/daniel-scs)
  * Philip Levis - [phil-levis](https://github.com/phil-levis)
  * Amit Levy - [alevy](https://github.com/alevy)
- * Olaf Landsiedel - [olafland](https://github.com/olafland)
  * Pat Pannuto - [ppannuto](https://github.com/ppannuto)
 
 ## 4. Release process
