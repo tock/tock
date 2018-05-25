@@ -1,6 +1,7 @@
 //! Common operations in the Tock OS.
 
 pub mod list;
+pub mod map_cell;
 pub mod math;
 pub mod peripherals;
 pub mod queue;
@@ -17,4 +18,14 @@ pub use self::list::{List, ListLink, ListNode};
 pub use self::queue::Queue;
 pub use self::ring_buffer::RingBuffer;
 pub use self::static_ref::StaticRef;
-pub use self::volatile_cell::VolatileCell;
+
+/// Create a "fake" module inside of `commmon` for all of the Tock `Cell` types.
+///
+/// To use `TakeCell`, for example, users should use:
+///
+///     use kernel::common::cells::TakeCell;
+pub mod cells {
+    pub use common::map_cell::MapCell;
+    pub use common::take_cell::TakeCell;
+    pub use common::volatile_cell::VolatileCell;
+}

@@ -9,8 +9,8 @@
 //! > view.
 
 use core::cell::Cell;
+use kernel::common::cells::TakeCell;
 use kernel::common::math::{get_errno, sqrtf32};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};

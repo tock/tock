@@ -54,7 +54,7 @@
 //! `mcp23008` object is created.
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::ReturnCode;
 

@@ -18,9 +18,9 @@
 use core::cell::Cell;
 use core::{cmp, mem, slice};
 use dma;
+use kernel::common::cells::TakeCell;
 use kernel::common::math;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};

@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil;
 use sysctl;
 

@@ -2,9 +2,9 @@
 
 use core::cell::Cell;
 use core::{cmp, intrinsics};
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
-use kernel::common::VolatileCell;
 use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.

@@ -1,6 +1,6 @@
 //! Interface to USB controller hardware
 
-use common::VolatileCell;
+use common::cells::VolatileCell;
 
 /// USB controller interface
 pub trait UsbController {

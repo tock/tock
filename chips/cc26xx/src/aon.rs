@@ -5,7 +5,7 @@
 //! The current configuration disables all wake-up selectors, since the
 //! MCU never go to sleep and is always active.
 
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 #[repr(C)]
 pub struct AonEventRegisters {

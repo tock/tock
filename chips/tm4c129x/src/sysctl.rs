@@ -1,7 +1,7 @@
 //! Implementation of the System Control peripheral.
 
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Clock {

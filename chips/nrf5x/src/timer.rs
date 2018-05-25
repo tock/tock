@@ -24,7 +24,7 @@
 
 use core::cell::Cell;
 use core::mem;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil;
 use peripheral_registers;
 

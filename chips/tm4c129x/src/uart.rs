@@ -1,8 +1,8 @@
 use core::cell::Cell;
 use gpio;
 use kernel;
-use kernel::common::take_cell::TakeCell;
-use kernel::common::VolatileCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil;
 use sysctl;
 
