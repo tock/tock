@@ -19,7 +19,8 @@ use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
-use capsules::net::udp::udp_send::UDPSendStruct;
+use capsules::net::ipv6::ipv6_send::IP6Sender;
+use capsules::net::udp::udp_send::{UDPSender, UDPSendStruct};
 use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::rf233::RF233;
@@ -618,11 +619,13 @@ pub unsafe fn reset_handler() {
         capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
         capsules::net::ipv6::ipv6_send::IP6SendStruct::new(ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)
     );
+    udp_mac.set_transmit_client(ip_send);
 
     let udp_send = static_init!(
         UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>>,
         UDPSendStruct::new(ip_send)
     );
+    ip_send.set_client(udp_send);
 
     let udp_recv = static_init!(
         UDPRecvStruct<'static>,
@@ -633,8 +636,8 @@ pub unsafe fn reset_handler() {
         capsules::net::udp::UDPDriver<'static>,
         capsules::net::udp::UDPDriver::new(udp_send, udp_recv, kernel::Grant::create(), &mut UDP_BUF)
     );
-    // udp_send.set_client(udp_driver); // TODO: make sure TX chain is hooked up
-    udp_recv.set_client(udp_driver);
+    udp_send.set_client(udp_driver);
+    // udp_recv.set_client(udp_driver);
 
     // Configure the USB controller
     let usb_client = static_init!(

@@ -240,10 +240,12 @@ impl<'a> UDPDriver<'a> {
                 app.app_write
                     .take()
                     .as_ref()
-                    .map(|payload| kbuf.copy_from_slice(payload.as_ref())); // TODO: get length of payload?
+                    .map(|payload| kbuf[..payload.len()].copy_from_slice(payload.as_ref()));
+                debug!("got to line 244");
                    
                 // Send UDP packet
                 let result = self.sender.send_to(dst_addr, dst_port, src_port, kbuf);
+                debug!("got to line 248");
                 
                 // Does not currently replace kbuf on failure
                 result
@@ -286,7 +288,8 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<IPAddrPort> {
 
-        if buf.len() != 2 * mem::size_of::<IPAddrPort>() {
+        if buf.len() != mem::size_of::<IPAddrPort>() {
+            debug!("[parse] len is {:?}, not {:?} as expected", buf.len(), mem::size_of::<IPAddrPort>());
             None
         } else {
             let (a, p) = buf.split_at(mem::size_of::<IPAddr>());
@@ -394,8 +397,11 @@ impl<'a> Driver for UDPDriver<'a> {
                     }
                     let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
                         if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
+                            // debug!("cfg len is {:?}, needed at least {:?}", cfg.len(), 2 * mem::size_of::<IPAddrPort>());
                             return None;
                         }
+
+                        debug!("{:?}", self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]));
 
                         if let (Some(dst), Some(src)) = (self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]), 
                                                          self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()])) {
@@ -405,6 +411,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         }
                     });
                     if next_tx.is_none() {
+                        debug!("TX IS NONE");
                         return ReturnCode::EINVAL;
                     }
                     app.pending_tx = next_tx;

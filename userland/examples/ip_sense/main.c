@@ -7,6 +7,15 @@
 #include <timer.h>
 
 #include <ieee802154.h>
+#include <udp.h>
+
+void print_ipv6(ipv6_addr_t *);
+
+void print_ipv6(ipv6_addr_t *ipv6_addr) {
+    for(int j = 0; j < 14; j+=2)
+        printf("%02x%02x:", ipv6_addr->addr[j], ipv6_addr->addr[j+1]);
+    printf("%02x%02x", ipv6_addr->addr[14], ipv6_addr->addr[15]);
+}
 
 int main(void) {
   printf("[Sensors] Starting Sensors App.\n");
@@ -14,17 +23,42 @@ int main(void) {
 
   unsigned int humi;
   int temp, lux;
+char packet[64];
 
-  char packet[64];
-
-  /* { IEEE802.15.4 configuration... temporary until we have full IP */
+  /* { IEEE802.15.4 configuration... temporary until we have full IP
   ieee802154_set_address(0x1540);
   ieee802154_set_pan(0xABCD);
   ieee802154_config_commit();
   ieee802154_up();
-  /* } IEEE802.15.4 configuration */
+     } IEEE802.15.4 configuration */
 
-  while (1) {
+  ipv6_addr_t ifaces[10];
+  udp_list_ifaces(ifaces, 10);
+  /*
+  printf("Listed %d out of 10 possible interfaces.\n", n);
+  for(int i = 0; i < n; i++) {
+    printf("Interface %d: ", i);
+    print_ipv6(&ifaces[i]);
+    printf("\n");
+  }
+  */
+
+  sock_handle_t handle;
+  sock_addr_t addr = {
+    ifaces[0],
+    15123
+  };
+  printf("Opening socket on ");
+  print_ipv6(&ifaces[0]);
+  printf(" : %d\n", addr.port);
+  udp_socket(&handle, &addr);
+
+  sock_addr_t destination = {
+    ifaces[1],
+    16123
+  };
+
+  // while (1) {
     temperature_read_sync(&temp);
     humidity_read_sync(&humi);
     ambient_light_read_intensity_sync(&lux);
@@ -32,12 +66,25 @@ int main(void) {
     int len = snprintf(packet, sizeof(packet), "%d deg C; %d%%; %d lux;\n",
                        temp, humi, lux);
 
+    /*
     int err = ieee802154_send(0x0802, // destination address (short MAC address)
                               SEC_LEVEL_NONE, // No encryption
                               0, // unused since SEC_LEVEL_NONE
                               NULL, // unused since SEC_LEVEL_NONE
                               packet,
                               len);
+    */
+    printf("Sending packet (length %d) --> ", len);
+    print_ipv6(&(destination.addr));
+    printf(" : %d\n", destination.port);
+    ssize_t bytes_sent = udp_send_to(&handle, packet, len, &destination);
+    if (bytes_sent < 0) {
+        printf("    UDP TX ERROR: %d\n", bytes_sent);
+    } else {
+        printf("    bytes sent: %d\n", bytes_sent);
+    }
+
+    /*
     switch (err) {
       case TOCK_SUCCESS:
         printf("Sent and acknowledged\n");
@@ -48,7 +95,10 @@ int main(void) {
       default:
         printf("Error sending packet %d\n", err);
     }
+    */
 
     delay_ms(1000);
-  }
+  // }
+
+  udp_close(&handle);
 }
