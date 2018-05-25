@@ -585,7 +585,7 @@ impl FLASHCALW {
     }
 
     /// FLASHC Control
-    fn set_wait_state(&self, wait_state: u32) {
+    pub fn set_wait_state(&self, wait_state: u32) {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         regs.fcr.modify(FlashControl::FWS.val(wait_state));
     }
