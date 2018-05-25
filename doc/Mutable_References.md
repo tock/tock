@@ -100,13 +100,13 @@ Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for various
 different data types that need to be held by capsules and chip drivers. This
 table summarizes the various types, and more detail is included below.
 
-| Cell Type      | Best Used For       | Example                                    | Common Uses                                                                                           |
-|----------------|---------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `Cell`         | Primitive types     | `Cell<bool>`                               | Keeping track of which state a capsule is in (holding an `enum`) or for holding a true/false flag.    |
-| `TakeCell`     | Static buffers      | `TakeCell<'static, [u8]>`                  | Holding static buffers that will be receive or send data.                                             |
-| `MapCell`      |                     |                                            |                                                                                                       |
-| `NumCell`      | Integers            | `NumCell<usize>`                           | Keeping state like buffer index pointers that needs to be preserved over multiple asynchronous calls. |
-| `OptionalCell` | Optional parameters | `OptionalCell<&'static hil::uart::Client>` | Keeping state that can be uninitialized, like a Client before one is set.                             |
+| Cell Type      | Best Used For        | Example                                    | Common Uses                                                                                           |
+|----------------|----------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `Cell`         | Primitive types      | `Cell<bool>`                               | Keeping track of which state a capsule is in (holding an `enum`) or for holding a true/false flag.    |
+| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`                  | Holding static buffers that will receive or send data.                                             |
+| `MapCell`      | Large static buffers | `MapCell<'static, [u8;256]>`               | Delegating reference to large buffers (e.g. crypto operations).                                       |
+| `NumCell`      | Integers             | `NumCell<usize>`                           | Keeping state like buffer index pointers that needs to be preserved over multiple asynchronous calls. |
+| `OptionalCell` | Optional parameters  | `OptionalCell<&'static hil::uart::Client>` | Keeping state that can be uninitialized, like a Client before one is set.                             |
 
 ## The `TakeCell` abstraction
 
@@ -177,8 +177,8 @@ Although the contents of a TakeCell can be directly accessed through
 a combination of `take` and `replace`, Tock code typically uses
 `TakeCell.map()`, which wraps the provided closure between a
 `TakeCell.take()` and `TakeCell.replace()`. This approach has the
-advantage that a bug in control flow can't that doesn't correctly
-`replace` won't accidentally leave the TakeCell empty.
+advantage that a bug in control flow that doesn't correctly `replace`
+won't accidentally leave the TakeCell empty.
 
 Here is a simple use of `map`, taken from `chips/sam4l/src/dma.rs`:
 
@@ -279,6 +279,22 @@ corresponds to when the `TakeCell` is empty.
 
 
 ## `MapCell`
+
+A `MapCell` is very similar to a `TakeCell` in its purpose and interface.
+What differs is the underlying implementation. In a `TakeCell`, when
+something `take()`s the contents of the cell, the memory inside is actually
+moved. This is a performance problem if the data in a `TakeCell` is
+large, but saves both cycles and memory if the data is small (like a
+pointer or slice) because the internal `Option` can be optimized in many cases
+and the code operates on registers as opposed to memory. On the flip side,
+`MapCell`s introduce some accounting overhead for small types and require a
+minimum number of cycles to access.
+
+The [commit that introduced `MapCell`][mapcell] includes some performance
+benchmarks, but exact performance will vary based on the usage scenario.
+Generally speaking, medium to large sized buffers should prefer `MapCell`s.
+
+[mapcell]: https://github.com/tock/tock/commit/5f7246d4af139864f567cebf15bfc0b49e17b787)
 
 
 ## `NumCell`
