@@ -237,17 +237,12 @@ impl<'a> UDPDriver<'a> {
                 let src_port = addr_ports[0].port; 
                
                 // Copy UDP payload to kernel memory 
-                app.app_write
-                    .take()
-                    .as_ref()
-                    .map(|payload| kbuf[..payload.len()].copy_from_slice(payload.as_ref()));
-                debug!("got to line 244");
-                   
-                // Send UDP packet
-                let result = self.sender.send_to(dst_addr, dst_port, src_port, kbuf);
-                debug!("got to line 248");
-                
-                // Does not currently replace kbuf on failure
+                // TODO: handle if too big
+                let result = app.app_write.map_or(ReturnCode::ENOMEM, move |payload| {
+                        kbuf[..payload.len()].copy_from_slice(payload.as_ref());
+                        self.sender.send_to(dst_addr, dst_port, src_port, &kbuf[..payload.len()])
+                    }
+                );
                 result
             });
             if result == ReturnCode::SUCCESS {
