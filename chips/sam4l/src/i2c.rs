@@ -14,8 +14,9 @@ use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use kernel::common::cells::TakeCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::{ClockInterface, StaticRef};
+use kernel::ClockInterface;
 use pm;
 
 // Listing of all registers related to the TWIM peripheral.

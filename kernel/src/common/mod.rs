@@ -1,22 +1,27 @@
-//! Common operations in the Tock OS.
+//! Common operations and types in Tock.
+//!
+//! These are data types and access mechanisms that are used throughout the Tock
+//! kernel. Mostly they simplify common operations and enable the other parts of
+//! the kernel (chips and capsules) to be intuitive, valid Rust. In some cases
+//! they provide safe wrappers around unsafe interface so that other kernel
+//! crates do not need to use unsafe code.
 
 pub mod deferred_call;
 pub mod list;
-pub mod map_cell;
 pub mod math;
 pub mod peripherals;
-pub mod queue;
-pub mod ring_buffer;
-pub mod static_ref;
-pub mod take_cell;
-pub mod utils;
-pub mod volatile_cell;
-
 #[macro_use]
 pub mod regs;
+pub mod utils;
 
+mod map_cell;
 mod num_cell;
 mod optional_cell;
+mod queue;
+mod ring_buffer;
+mod static_ref;
+mod take_cell;
+mod volatile_cell;
 
 pub use self::list::{List, ListLink, ListNode};
 pub use self::queue::Queue;

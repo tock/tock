@@ -2,7 +2,7 @@
 
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite};
-use kernel::StaticRef;
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct SystickRegisters {

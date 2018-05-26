@@ -7,7 +7,8 @@ use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::{ClockInterface, StaticRef};
+use kernel::common::StaticRef;
+use kernel::ClockInterface;
 use scif;
 
 /// §10.7 PM::UserInterface from SAM4L Datasheet.

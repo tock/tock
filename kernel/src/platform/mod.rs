@@ -1,3 +1,5 @@
+//! Interface for chips and boards.
+
 use driver::Driver;
 
 pub mod mpu;

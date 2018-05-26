@@ -6,9 +6,12 @@
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x00010000;
 
+use callback::{AppId, Callback};
+use driver::Driver;
+use grant::Grant;
+use mem::{AppSlice, Shared};
 use process;
 use returncode::ReturnCode;
-use {AppId, AppSlice, Callback, Driver, Grant, Shared};
 
 struct IPCData {
     shared_memory: [Option<AppSlice<Shared, u8>>; 8],
