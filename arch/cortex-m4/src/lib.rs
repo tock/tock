@@ -171,3 +171,25 @@ pub unsafe extern "C" fn switch_to_user(
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
 }
+
+// Table 2.5
+// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
+pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
+    match isr_number {
+        0 => "Thread Mode",
+        1 => "Reserved",
+        2 => "NMI",
+        3 => "HardFault",
+        4 => "MemManage",
+        5 => "BusFault",
+        6 => "UsageFault",
+        7...10 => "Reserved",
+        11 => "SVCall",
+        12 => "Reserved for Debug",
+        13 => "Reserved",
+        14 => "PendSV",
+        15 => "SysTick",
+        16...255 => "IRQn",
+        _ => "(Unknown! Illegal value?)",
+    }
+}
