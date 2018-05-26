@@ -16,13 +16,13 @@ extern crate nrf52;
 extern crate nrf52dk_base;
 extern crate nrf5x;
 
-// The nRF52 DK LEDs (see back of board)
+// The nRF52840DK LEDs (see back of board)
 const LED1_PIN: usize = 13;
 const LED2_PIN: usize = 14;
 const LED3_PIN: usize = 15;
 const LED4_PIN: usize = 16;
 
-// The nRF52 DK buttons (see back of board)
+// The nRF52840DK buttons (see back of board)
 const BUTTON1_PIN: usize = 11;
 const BUTTON2_PIN: usize = 12;
 const BUTTON3_PIN: usize = 24;

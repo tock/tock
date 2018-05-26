@@ -38,7 +38,7 @@ impl Write for Writer {
 #[lang = "panic_fmt"]
 /// Panic handler
 pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
-    // The nRF52 DK LEDs (see back of board)
+    // The nRF52840DK LEDs (see back of board)
     const LED1_PIN: usize = 13;
     let led = &mut led::LedLow::new(&mut nrf5x::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
