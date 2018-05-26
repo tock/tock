@@ -7,9 +7,6 @@
 extern crate cortexm4;
 extern crate nrf5x;
 
-#[macro_use]
-extern crate bitfield;
-
 #[allow(unused)]
 #[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
