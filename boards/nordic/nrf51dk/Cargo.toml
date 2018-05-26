@@ -1,5 +1,5 @@
 [package]
-name = "nrf52dk"
+name = "nrf51dk"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
@@ -17,8 +17,8 @@ opt-level = "z"
 debug = true
 
 [dependencies]
-cortexm4 = { path = "../../arch/cortex-m4" }
-capsules = { path = "../../capsules" }
-kernel = { path = "../../kernel" }
-nrf52 = { path = "../../chips/nrf52" }
-nrf5x = { path = "../../chips/nrf5x" }
+cortexm0 = { path = "../../../arch/cortex-m0" }
+capsules = { path = "../../../capsules" }
+kernel = { path = "../../../kernel" }
+nrf51 = { path = "../../../chips/nrf51" }
+nrf5x = { path = "../../../chips/nrf5x" }

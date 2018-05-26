@@ -15,7 +15,13 @@ while getopts "h?1" opt; do
     esac
 done
 
-boards=`ls -l boards | egrep '^d' | awk '{print $9}'`
+# Find boards based on folders with Makefiles
+boards=""
+for b in $(find boards | egrep 'Makefile$'); do
+    b1=${b#boards/}
+    b2=${b1%/*}
+    boards+="$b2 "
+done
 
 if [ $oneline -eq 1 ]; then
     for board in $boards; do
@@ -29,4 +35,3 @@ echo ""
 echo To build the kernel for a particular board, change to that direcotry
 echo "    cd boards/hail"
 echo "    make"
-
