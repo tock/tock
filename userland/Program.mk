@@ -15,34 +15,34 @@ endif
 # Setup specific commands for each board.
 #
 ifeq ("$(TOCK_BOARD)","hail")
-PROGRAM = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install
-FLASH = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install --jtag
+PROGRAM = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install $<
+FLASH = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install --jtag $<
 
 else ifeq ("$(TOCK_BOARD)","imix")
 # Change program region offset
 TOCKLOADER_INSTALL_FLAGS += --app-address 0x40000
-PROGRAM = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install $(TOCKLOADER_INSTALL_FLAGS)
-FLASH = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install $(TOCKLOADER_INSTALL_FLAGS) --jtag
+PROGRAM = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install $(TOCKLOADER_INSTALL_FLAGS) $<
+FLASH = $(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install $(TOCKLOADER_INSTALL_FLAGS) --jtag $<
 
 else ifeq ("$(TOCK_BOARD)","ek-tm4c1294xl")
 FLASH = $(OPENOCD) -c "source [find board/ek-tm4c1294xl.cfg]; init; reset halt; flash write_image erase $< 0x00020000 bin; reset; shutdown"
 
 else ifeq ("$(TOCK_BOARD)","nrf51dk")
-FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
+FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py $<
 
 else ifeq ("$(TOCK_BOARD)","nrf52dk")
-FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf52dk.py
+FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf52dk.py $<
 
 endif
 
-PROGRAM ?= echo "Cannot program over serial "
-FLASH ?= echo "Cannot flash "
+PROGRAM ?= @(echo "Cannot program over serial $<"; exit 1)
+FLASH ?= @(echo "Cannot flash $<"; exit 1)
 
 .PHONY: program
 program: $(BUILDDIR)/$(PACKAGE_NAME).tab
-	$(PROGRAM) $<
+	$(PROGRAM)
 
 # Upload programs over JTAG
 .PHONY: flash
 flash: $(BUILDDIR)/$(PACKAGE_NAME).tab
-	$(FLASH) $<
+	$(FLASH)
