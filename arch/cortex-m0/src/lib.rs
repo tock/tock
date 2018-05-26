@@ -1,9 +1,14 @@
 #![feature(asm, const_fn, naked_functions)]
 #![no_std]
 
+extern crate cortexm;
 extern crate kernel;
 
 pub mod nvic;
+
+pub mod support {
+    pub use cortexm::support::*;
+}
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn generic_isr() {}

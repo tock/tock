@@ -12,7 +12,6 @@ use flashcalw;
 use gpio;
 use i2c;
 use kernel::common::deferred_call;
-use kernel::support;
 use kernel::Chip;
 use pm;
 use spi;
@@ -175,7 +174,14 @@ impl Chip for Sam4l {
         }
 
         unsafe {
-            support::wfi();
+            cortexm4::support::wfi();
         }
+    }
+
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm4::support::atomic(f)
     }
 }

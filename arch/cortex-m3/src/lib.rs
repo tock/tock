@@ -3,11 +3,16 @@
 
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
+extern crate cortexm;
 extern crate kernel;
 
 pub mod nvic;
 pub mod scb;
 pub mod systick;
+
+pub mod support {
+    pub use cortexm::support::*;
+}
 
 #[no_mangle]
 #[naked]

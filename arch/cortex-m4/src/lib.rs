@@ -8,11 +8,18 @@
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
+extern crate cortexm;
 
 pub mod mpu;
 pub mod nvic;
 pub mod scb;
 pub mod systick;
+
+// Re-export the base generic cortex-m functions here as they are
+// valid on cortex-m4.
+pub mod support {
+    pub use cortexm::support::*;
+}
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}
