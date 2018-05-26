@@ -1,7 +1,7 @@
+use cortexm0;
 use cortexm0::nvic;
 use i2c;
 use kernel;
-use kernel::support;
 use nrf5x;
 use nrf5x::peripheral_interrupts::*;
 use radio;
@@ -88,7 +88,14 @@ impl kernel::Chip for NRF51 {
 
     fn sleep(&self) {
         unsafe {
-            support::wfi();
+            cortexm0::support::wfi();
         }
+    }
+
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm0::support::atomic(f)
     }
 }

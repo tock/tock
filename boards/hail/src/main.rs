@@ -12,6 +12,7 @@ extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate sam4l;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -466,7 +467,7 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PA[17].clear();
     // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
     for _ in 0..10 {
-        kernel::support::nop();
+        cortexm4::support::nop();
     }
     sam4l::gpio::PA[17].set();
 

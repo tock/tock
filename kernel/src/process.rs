@@ -729,28 +729,6 @@ pub fn processes_blocked() -> bool {
     unsafe { HAVE_WORK.get() == 0 }
 }
 
-// Table 2.5
-// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
-pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
-    match isr_number {
-        0 => "Thread Mode",
-        1 => "Reserved",
-        2 => "NMI",
-        3 => "HardFault",
-        4 => "MemManage",
-        5 => "BusFault",
-        6 => "UsageFault",
-        7...10 => "Reserved",
-        11 => "SVCall",
-        12 => "Reserved for Debug",
-        13 => "Reserved",
-        14 => "PendSV",
-        15 => "SysTick",
-        16...255 => "IRQn",
-        _ => "(Unknown! Illegal value?)",
-    }
-}
-
 impl<'a> Process<'a> {
     pub fn schedule_ipc(&mut self, from: AppId, cb_type: IPCType) {
         unsafe {
@@ -1724,11 +1702,6 @@ impl<'a> Process<'a> {
             (xpsr >> 18) & 0x1,
             (xpsr >> 17) & 0x1,
             (xpsr >> 16) & 0x1,
-        ));
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n IPSR: Exception Type - {}",
-            ipsr_isr_number_to_str(xpsr & 0x1ff)
         ));
         let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
         let thumb_bit = ((xpsr >> 24) & 0x1) == 1;

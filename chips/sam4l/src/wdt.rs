@@ -1,10 +1,10 @@
 //! Implementation of the SAM4L hardware watchdog timer.
 
 use core::cell::Cell;
+use cortexm4::support;
 use kernel::common::math::log_base_two_u64;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
-use kernel::support;
 use kernel::StaticRef;
 use pm::{self, Clock, PBDClock};
 
