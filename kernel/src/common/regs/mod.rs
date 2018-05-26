@@ -94,7 +94,6 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     associated_register: PhantomData<R>,
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     pub const fn new(value: T) -> Self {
         ReadWrite {
@@ -155,7 +154,6 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     }
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     pub const fn new(value: T) -> Self {
         ReadOnly {
@@ -195,7 +193,6 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     }
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     pub const fn new(value: T) -> Self {
         WriteOnly {
@@ -228,7 +225,6 @@ pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
     associated_register: PhantomData<R>,
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {

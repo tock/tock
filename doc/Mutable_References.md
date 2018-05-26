@@ -20,6 +20,7 @@ the safety properties Rust provides.
 - [`MapCell`](#mapcell)
 - [`NumCell`](#numcell)
 - [`OptionalCell`](#optionalcell)
+- [`VolatileCell`](#volatilecell)
 
 <!-- tocstop -->
 
@@ -103,10 +104,11 @@ table summarizes the various types, and more detail is included below.
 | Cell Type      | Best Used For        | Example                                    | Common Uses                                                                                           |
 |----------------|----------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | `Cell`         | Primitive types      | `Cell<bool>`                               | Keeping track of which state a capsule is in (holding an `enum`) or for holding a true/false flag.    |
-| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`                  | Holding static buffers that will receive or send data.                                             |
+| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`                  | Holding static buffers that will receive or send data.                                                |
 | `MapCell`      | Large static buffers | `MapCell<'static, [u8;256]>`               | Delegating reference to large buffers (e.g. crypto operations).                                       |
 | `NumCell`      | Integers             | `NumCell<usize>`                           | Keeping state like buffer index pointers that needs to be preserved over multiple asynchronous calls. |
 | `OptionalCell` | Optional parameters  | `OptionalCell<&'static hil::uart::Client>` | Keeping state that can be uninitialized, like a Client before one is set.                             |
+| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers for a microcontroller.                                                       |
 
 ## The `TakeCell` abstraction
 
@@ -318,3 +320,10 @@ is effectively a wrapper for a `Cell` that contains an `Option`, like:
 `OptionalCell` can hold the same values that `Cell` can, but can also be just
 `None` if the value is effectively unset. Using an `OptionalCell` (like a
 `NumCell`) makes the code clearer and hides extra tedious function calls.
+
+## `VolatileCell`
+
+A `VolatileCell` is just a helper type for doing volatile reads and writes to a
+value. This is mostly used for accessing memory-mapped I/O registers. The
+`get()` and `set()` functions are wrappers around `core::ptr::read_volatile()`
+and `core::ptr::write_volatile()`.
