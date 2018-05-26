@@ -93,8 +93,8 @@ $$($(LIBNAME)_BUILDDIR)/$(1):
 
 $$($(LIBNAME)_BUILDDIR)/$(1)/%.o: %.c | $$($(LIBNAME)_BUILDDIR)/$(1)
 	$$(TRACE_CC)
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$($(LIBNAME)_BUILDDIR)/$(1)/%.o: %.S | $$($(LIBNAME)_BUILDDIR)/$(1)
 	$$(TRACE_AS)
