@@ -25,31 +25,3 @@ pub struct RTC1 {
     _reserved6: [u32; 13],
     pub cc: [VolatileCell<u32>; 4],
 }
-
-// FIXME: check registers and add TIMER3 and TIMER4
-pub const TIMER_SIZE: usize = 0x1000;
-pub const TIMER_BASE: usize = 0x40008000;
-#[repr(C)]
-pub struct TIMER {
-    pub task_start: VolatileCell<u32>,
-    pub task_stop: VolatileCell<u32>,
-    pub task_count: VolatileCell<u32>,
-    pub task_clear: VolatileCell<u32>,
-    pub task_shutdown: VolatileCell<u32>,
-    _reserved0: [VolatileCell<u32>; 11],
-    pub task_capture: [VolatileCell<u32>; 4], // 0x40
-    _reserved1: [VolatileCell<u32>; 60],      // 0x140
-    pub event_compare: [VolatileCell<u32>; 4],
-    _reserved2: [VolatileCell<u32>; 44],  // 0x150
-    pub shorts: VolatileCell<u32>,        // 0x200
-    _reserved3: [VolatileCell<u32>; 64],  // 0x204
-    pub intenset: VolatileCell<u32>,      // 0x304
-    pub intenclr: VolatileCell<u32>,      // 0x308
-    _reserved4: [VolatileCell<u32>; 126], // 0x30C
-    pub mode: VolatileCell<u32>,          // 0x504
-    pub bitmode: VolatileCell<u32>,       // 0x508
-    _reserved5: VolatileCell<u32>,
-    pub prescaler: VolatileCell<u32>,    // 0x510
-    _reserved6: [VolatileCell<u32>; 11], // 0x514
-    pub cc: [VolatileCell<u32>; 4],      // 0x540
-}
