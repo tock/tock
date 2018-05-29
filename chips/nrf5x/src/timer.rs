@@ -25,12 +25,15 @@
 use core::cell::Cell;
 use kernel::common::regs::{self, ReadWrite, WriteOnly};
 use kernel::hil;
+use kernel::StaticRef;
 
-const INSTANCES: [*const TimerRegisters; 3] = [
-    0x40008000 as *const TimerRegisters,
-    0x40009000 as *const TimerRegisters,
-    0x4000A000 as *const TimerRegisters,
-];
+const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
+    [
+        StaticRef::new(0x40008000 as *const TimerRegisters),
+        StaticRef::new(0x40009000 as *const TimerRegisters),
+        StaticRef::new(0x4000A000 as *const TimerRegisters),
+    ]
+};
 
 #[repr(C)]
 struct TimerRegisters {
@@ -209,7 +212,7 @@ pub trait CompareClient {
 }
 
 pub struct Timer {
-    registers: *const TimerRegisters,
+    registers: StaticRef<TimerRegisters>,
     client: Cell<Option<&'static CompareClient>>,
 }
 
@@ -219,10 +222,6 @@ impl Timer {
             registers: INSTANCES[instance],
             client: Cell::new(None),
         }
-    }
-
-    fn regs(&self) -> &TimerRegisters {
-        unsafe { &*self.registers }
     }
 
     pub fn set_client(&self, client: &'static CompareClient) {
@@ -239,9 +238,9 @@ impl Timer {
             // For each of 4 possible compare events, if it's happened,
             // clear it and store its bit in val to pass in callback.
             for i in 0..4 {
-                if self.regs().events_compare[i].is_set(Event::READY) {
+                if self.registers.events_compare[i].is_set(Event::READY) {
                     val = val | 1 << i;
-                    self.regs().events_compare[i].write(Event::READY::CLEAR);
+                    self.registers.events_compare[i].write(Event::READY::CLEAR);
                     // Disable corresponding interrupt
                     let interrupt_bit = match i {
                         0 => Inte::COMPARE0::SET,
@@ -251,7 +250,7 @@ impl Timer {
                         4 => Inte::COMPARE4::SET,
                         _ => Inte::COMPARE5::SET,
                     };
-                    self.regs().intenclr.write(interrupt_bit);
+                    self.registers.intenclr.write(interrupt_bit);
                 }
             }
             client.compare(val as u8);
@@ -260,7 +259,7 @@ impl Timer {
 }
 
 pub struct TimerAlarm {
-    registers: *const TimerRegisters,
+    registers: StaticRef<TimerRegisters>,
     client: Cell<Option<&'static hil::time::Client>>,
 }
 
@@ -272,19 +271,15 @@ const ALARM_INTERRUPT_BIT: regs::Field<u32, Inte::Register> = Inte::COMPARE1;
 const ALARM_INTERRUPT_BIT_SET: regs::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
 impl TimerAlarm {
-    pub const fn new(instance: usize) -> TimerAlarm {
+    const fn new(instance: usize) -> TimerAlarm {
         TimerAlarm {
             registers: INSTANCES[instance],
             client: Cell::new(None),
         }
     }
 
-    fn regs(&self) -> &TimerRegisters {
-        unsafe { &*self.registers }
-    }
-
     fn clear_alarm(&self) {
-        self.regs().events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
+        self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
         self.disable_interrupts();
     }
 
@@ -303,20 +298,20 @@ impl TimerAlarm {
     // for the 4 compare interrupts. These functions shift
     // those bits to the correct place in the register.
     fn enable_interrupts(&self) {
-        self.regs().intenset.write(ALARM_INTERRUPT_BIT_SET);
+        self.registers.intenset.write(ALARM_INTERRUPT_BIT_SET);
     }
 
     fn disable_interrupts(&self) {
-        self.regs().intenclr.write(ALARM_INTERRUPT_BIT_SET);
+        self.registers.intenclr.write(ALARM_INTERRUPT_BIT_SET);
     }
 
     fn interrupts_enabled(&self) -> bool {
-        self.regs().intenset.is_set(ALARM_INTERRUPT_BIT)
+        self.registers.intenset.is_set(ALARM_INTERRUPT_BIT)
     }
 
     fn value(&self) -> u32 {
-        self.regs().tasks_capture[ALARM_CAPTURE].write(Task::ENABLE::SET);
-        self.regs().cc[ALARM_CAPTURE].get()
+        self.registers.tasks_capture[ALARM_CAPTURE].write(Task::ENABLE::SET);
+        self.registers.cc[ALARM_CAPTURE].get()
     }
 }
 
@@ -339,12 +334,12 @@ impl hil::time::Alarm for TimerAlarm {
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
-        self.regs().cc[ALARM_COMPARE].write(CC::CC.val(tics));
+        self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
         self.clear_alarm();
         self.enable_interrupts();
     }
 
     fn get_alarm(&self) -> u32 {
-        self.regs().cc[ALARM_COMPARE].read(CC::CC)
+        self.registers.cc[ALARM_COMPARE].read(CC::CC)
     }
 }
