@@ -624,13 +624,23 @@ impl USART {
         let system_frequency = pm::get_system_frequency();
 
         // The clock divisor is calculated differently in UART and SPI modes.
-        let cd = match self.usart_mode.get() {
-            UsartMode::Uart => system_frequency / (8 * baud_rate),
-            UsartMode::Spi => system_frequency / baud_rate,
-            _ => 0,
+        match self.usart_mode.get() {
+            UsartMode::Uart => {
+                let uart_baud_rate = 8 * baud_rate;
+                let cd = system_frequency / uart_baud_rate;
+                //Generate fractional part
+                let fp = (system_frequency + baud_rate / 2) / baud_rate - 8 * cd;
+                usart
+                    .registers
+                    .brgr
+                    .write(BaudRate::FP.val(fp) + BaudRate::CD.val(cd));
+            }
+            UsartMode::Spi => {
+                let cd = system_frequency / baud_rate;
+                usart.registers.brgr.write(BaudRate::CD.val(cd));
+            }
+            _ => {}
         };
-
-        usart.registers.brgr.write(BaudRate::CD.val(cd));
     }
 
     /// In non-SPI mode, this drives RTS low.
