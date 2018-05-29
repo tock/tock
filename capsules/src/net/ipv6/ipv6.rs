@@ -301,7 +301,7 @@ impl<'a> IPPayload<'a> {
         if self.payload.len() < payload.len() {
             // TODO: Error
         }
-        self.payload.copy_from_slice(&payload);
+        self.payload[..payload.len()].copy_from_slice(&payload);
         match transport_header {
             TransportHeader::UDP(mut udp_header) => {
                 let length = (payload.len() + udp_header.get_hdr_size()) as u16;

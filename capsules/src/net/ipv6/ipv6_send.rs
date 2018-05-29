@@ -194,19 +194,6 @@ impl<'a> TxClient for IP6SendStruct<'a> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
         debug!("sendDone return code is: {:?}, acked: {}", result, acked);
-        //The below code introduces a delay between frames to prevent
-        // a race condition on the receiver
-        //it is sorta complicated bc I was having some trouble with dead code eliminationa
-        //TODO: Remove this one link layer is fixed
-        let mut i = 0;
-        let mut array: [u8; 100] = [0x0; 100]; //used in introducing delay between frames
-        while i < 1000000 {
-            array[i % 100] = (i % 100) as u8;
-            i = i + 1;
-            if i % 100000 == 0 {
-                debug!("Delay, step {:?}", i / 100000);
-            }
-        }
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
             self.send_completed(result);
