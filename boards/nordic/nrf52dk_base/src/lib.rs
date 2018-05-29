@@ -10,6 +10,8 @@ extern crate nrf52;
 extern crate nrf5x;
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules::virtual_spi::MuxSpiMaster;
+use kernel::hil;
 use nrf5x::rtc::Rtc;
 
 /// Supported drivers by the platform
@@ -30,6 +32,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
     >,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -46,6 +49,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -194,6 +198,80 @@ pub unsafe fn setup_board(
     );
     nrf5x::trng::TRNG.set_client(rng);
 
+    // SPI
+    let mux_spi = static_init!(
+        MuxSpiMaster<'static, nrf52::spi::SPIM>,
+        MuxSpiMaster::new(&nrf52::spi::SPIM0)
+    );
+    // nrf52::spi::SPIM0.set_client(mux_spi);
+    hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
+    hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
+    nrf52::spi::SPIM0.configure(
+        nrf5x::pinmux::Pinmux::new(20), // MOSI
+        nrf5x::pinmux::Pinmux::new(21), // MISO
+        nrf5x::pinmux::Pinmux::new(19), // CLK
+    );
+
+    // Create a SPI device for this chip.
+    let mx25r6435f_spi = static_init!(
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+        capsules::virtual_spi::VirtualSpiMasterDevice::new(mux_spi, &nrf5x::gpio::PORT[17])
+    );
+    // Create an alarm for this chip.
+    let mx25r6435f_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    // Setup the actual MX25R6435F driver.
+    let mx25r6435f = static_init!(
+        capsules::mx25r6435f::MX25R6435F<
+            'static,
+            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+            nrf5x::gpio::GPIOPin,
+            VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+        >,
+        capsules::mx25r6435f::MX25R6435F::new(
+            mx25r6435f_spi,
+            mx25r6435f_virtual_alarm,
+            &mut capsules::mx25r6435f::TXBUFFER,
+            &mut capsules::mx25r6435f::RXBUFFER,
+            Some(&nrf5x::gpio::PORT[22]),
+            Some(&nrf5x::gpio::PORT[23])
+        )
+    );
+    mx25r6435f_spi.set_client(mx25r6435f);
+    mx25r6435f_virtual_alarm.set_client(mx25r6435f);
+
+    pub static mut FLASH_PAGEBUFFER: capsules::mx25r6435f::Mx25r6435fSector =
+        capsules::mx25r6435f::Mx25r6435fSector::new();
+    let nv_to_page = static_init!(
+        capsules::nonvolatile_to_pages::NonvolatileToPages<
+            'static,
+            capsules::mx25r6435f::MX25R6435F<
+                'static,
+                capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
+                nrf5x::gpio::GPIOPin,
+                VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+            >,
+        >,
+        capsules::nonvolatile_to_pages::NonvolatileToPages::new(mx25r6435f, &mut FLASH_PAGEBUFFER)
+    );
+    hil::flash::HasClient::set_client(mx25r6435f, nv_to_page);
+
+    let nonvolatile_storage = static_init!(
+        capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+        capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
+            nv_to_page,
+            kernel::Grant::create(),
+            0x60000, // Start address for userspace accessible region
+            0x20000, // Length of userspace accessible region
+            0,       // Start address of kernel accessible region
+            0x60000, // Length of kernel accessible region
+            &mut capsules::nonvolatile_storage_driver::BUFFER
+        )
+    );
+    hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52::clock::CLOCK.low_stop();
@@ -215,6 +293,7 @@ pub unsafe fn setup_board(
         rng: rng,
         temp: temp,
         alarm: alarm,
+        nonvolatile_storage: nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(),
     };
 
