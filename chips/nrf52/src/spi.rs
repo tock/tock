@@ -37,6 +37,7 @@ use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::hil;
 use kernel::ReturnCode;
+use kernel::StaticRef;
 use nrf5x::pinmux::Pinmux;
 
 /// SPI master instance 0.
@@ -46,11 +47,13 @@ pub static mut SPIM1: SPIM = SPIM::new(1);
 /// SPI master instance 2.
 pub static mut SPIM2: SPIM = SPIM::new(2);
 
-const INSTANCES: [*const SpimRegisters; 3] = [
-    0x40003000 as *const SpimRegisters,
-    0x40004000 as *const SpimRegisters,
-    0x40023000 as *const SpimRegisters,
-];
+const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
+    [
+        StaticRef::new(0x40003000 as *const SpimRegisters),
+        StaticRef::new(0x40004000 as *const SpimRegisters),
+        StaticRef::new(0x40023000 as *const SpimRegisters),
+    ]
+};
 
 #[repr(C)]
 struct SpimRegisters {
@@ -228,7 +231,7 @@ impl From<u32> for Frequency {
 /// A `SPIM` instance wraps a `registers::spim::SPIM` together with
 /// addition data necessary to implement an asynchronous interface.
 pub struct SPIM {
-    registers: *const SpimRegisters,
+    registers: StaticRef<SpimRegisters>,
     client: Cell<Option<&'static hil::spi::SpiMasterClient>>,
     chip_select: Cell<Option<&'static hil::gpio::Pin>>,
     initialized: Cell<bool>,
@@ -252,13 +255,9 @@ impl SPIM {
         }
     }
 
-    fn regs(&self) -> &SpimRegisters {
-        unsafe { &*self.registers }
-    }
-
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-        if self.regs().events_end.is_set(EVENT::EVENT) {
+        if self.registers.events_end.is_set(EVENT::EVENT) {
             // End of RXD buffer and TXD buffer reached
             match self.chip_select.get() {
                 Some(cs) => cs.set(),
@@ -267,7 +266,7 @@ impl SPIM {
                     return;
                 }
             }
-            self.regs().events_end.write(EVENT::EVENT::CLEAR);
+            self.registers.events_end.write(EVENT::EVENT::CLEAR);
 
             match self.client.get() {
                 None => (),
@@ -286,48 +285,47 @@ impl SPIM {
         // above 'end' event, the other event fields also get set by
         // the chip. Let's clear those flags.
 
-        if self.regs().events_stopped.is_set(EVENT::EVENT) {
+        if self.registers.events_stopped.is_set(EVENT::EVENT) {
             // SPI transaction has stopped
-            self.regs().events_stopped.write(EVENT::EVENT::CLEAR);
+            self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
         }
 
-        if self.regs().events_endrx.is_set(EVENT::EVENT) {
+        if self.registers.events_endrx.is_set(EVENT::EVENT) {
             // End of RXD buffer reached
-            self.regs().events_endrx.write(EVENT::EVENT::CLEAR);
+            self.registers.events_endrx.write(EVENT::EVENT::CLEAR);
         }
 
-        if self.regs().events_endtx.is_set(EVENT::EVENT) {
+        if self.registers.events_endtx.is_set(EVENT::EVENT) {
             // End of TXD buffer reached
-            self.regs().events_endtx.write(EVENT::EVENT::CLEAR);
+            self.registers.events_endtx.write(EVENT::EVENT::CLEAR);
         }
 
-        if self.regs().events_started.is_set(EVENT::EVENT) {
+        if self.registers.events_started.is_set(EVENT::EVENT) {
             // Transaction started
-            self.regs().events_started.write(EVENT::EVENT::CLEAR);
+            self.registers.events_started.write(EVENT::EVENT::CLEAR);
         }
     }
 
     /// Configures an already constructed `SPIM`.
     pub fn configure(&self, mosi: Pinmux, miso: Pinmux, sck: Pinmux) {
-        let regs = self.regs();
-        regs.psel_mosi.set(mosi);
-        regs.psel_miso.set(miso);
-        regs.psel_sck.set(sck);
+        self.registers.psel_mosi.set(mosi);
+        self.registers.psel_miso.set(miso);
+        self.registers.psel_sck.set(sck);
         self.enable();
     }
 
     /// Enables `SPIM` peripheral.
     pub fn enable(&self) {
-        self.regs().enable.write(ENABLE::ENABLE::Enable);
+        self.registers.enable.write(ENABLE::ENABLE::Enable);
     }
 
     /// Disables `SPIM` peripheral.
     pub fn disable(&self) {
-        self.regs().enable.write(ENABLE::ENABLE::Disable);
+        self.registers.enable.write(ENABLE::ENABLE::Disable);
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.regs().enable.matches_all(ENABLE::ENABLE::Enable)
+        self.registers.enable.matches_all(ENABLE::ENABLE::Enable)
     }
 }
 
@@ -339,7 +337,7 @@ impl hil::spi::SpiMaster for SPIM {
     }
 
     fn init(&self) {
-        self.regs().intenset.write(INTE::END::Enable);
+        self.registers.intenset.write(INTE::END::Enable);
         self.initialized.set(true);
     }
 
@@ -366,22 +364,22 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Setup transmit data registers
         let tx_len: u32 = cmp::min(len, tx_buf.len()) as u32;
-        self.regs().txd_ptr.set(tx_buf.as_ptr());
-        self.regs().txd_maxcnt.write(MAXCNT::MAXCNT.val(tx_len));
+        self.registers.txd_ptr.set(tx_buf.as_ptr());
+        self.registers.txd_maxcnt.write(MAXCNT::MAXCNT.val(tx_len));
         self.tx_buf.replace(tx_buf);
 
         // Setup receive data registers
         match rx_buf {
             None => {
-                self.regs().rxd_ptr.set(ptr::null_mut());
-                self.regs().rxd_maxcnt.write(MAXCNT::MAXCNT.val(0));
+                self.registers.rxd_ptr.set(ptr::null_mut());
+                self.registers.rxd_maxcnt.write(MAXCNT::MAXCNT.val(0));
                 self.transfer_len.set(tx_len as usize);
                 self.rx_buf.put(None);
             }
             Some(buf) => {
-                self.regs().rxd_ptr.set(buf.as_mut_ptr());
+                self.registers.rxd_ptr.set(buf.as_mut_ptr());
                 let rx_len: u32 = cmp::min(len, buf.len()) as u32;
-                self.regs().rxd_maxcnt.write(MAXCNT::MAXCNT.val(rx_len));
+                self.registers.rxd_maxcnt.write(MAXCNT::MAXCNT.val(rx_len));
                 self.transfer_len.set(cmp::min(tx_len, rx_len) as usize);
                 self.rx_buf.put(Some(buf));
             }
@@ -389,7 +387,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Start the transfer
         self.busy.set(true);
-        self.regs().tasks_start.write(TASK::TASK::SET);
+        self.registers.tasks_start.write(TASK::TASK::SET);
         ReturnCode::SUCCESS
     }
 
@@ -421,13 +419,13 @@ impl hil::spi::SpiMaster for SPIM {
     fn set_rate(&self, rate: u32) -> u32 {
         debug_assert!(self.initialized.get());
         let f = Frequency::from(rate);
-        self.regs().frequency.set(f as u32);
+        self.registers.frequency.set(f as u32);
         f.into()
     }
 
     fn get_rate(&self) -> u32 {
         debug_assert!(self.initialized.get());
-        self.regs().frequency.get().into()
+        self.registers.frequency.get().into()
     }
 
     fn set_clock(&self, polarity: hil::spi::ClockPolarity) {
@@ -437,12 +435,12 @@ impl hil::spi::SpiMaster for SPIM {
             hil::spi::ClockPolarity::IdleLow => CONFIG::CPOL::ActiveHigh,
             hil::spi::ClockPolarity::IdleHigh => CONFIG::CPOL::ActiveLow,
         };
-        self.regs().config.modify(new_polarity);
+        self.registers.config.modify(new_polarity);
     }
 
     fn get_clock(&self) -> hil::spi::ClockPolarity {
         debug_assert!(self.initialized.get());
-        match self.regs().config.read(CONFIG::CPOL) {
+        match self.registers.config.read(CONFIG::CPOL) {
             0 => hil::spi::ClockPolarity::IdleLow,
             1 => hil::spi::ClockPolarity::IdleHigh,
             _ => unreachable!(),
@@ -455,12 +453,12 @@ impl hil::spi::SpiMaster for SPIM {
             hil::spi::ClockPhase::SampleLeading => CONFIG::CPHA::SampleOnLeadingEdge,
             hil::spi::ClockPhase::SampleTrailing => CONFIG::CPHA::SampleOnTrailingEdge,
         };
-        self.regs().config.modify(new_phase);
+        self.registers.config.modify(new_phase);
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {
         debug_assert!(self.initialized.get());
-        match self.regs().config.read(CONFIG::CPHA) {
+        match self.registers.config.read(CONFIG::CPHA) {
             0 => hil::spi::ClockPhase::SampleLeading,
             1 => hil::spi::ClockPhase::SampleTrailing,
             _ => unreachable!(),
