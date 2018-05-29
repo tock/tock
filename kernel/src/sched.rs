@@ -21,7 +21,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
     chip: &mut C,
     process: &mut Process,
     appid: ::AppId,
-    ipc: &::ipc::IPC,
+    ipc: Option<&::ipc::IPC>,
 ) {
     let systick = chip.systick();
     systick.reset();
@@ -52,7 +52,17 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                             process.push_function_call(ccb);
                         }
                         Task::IPC((otherapp, ipc_type)) => {
-                            ipc.schedule_callback(appid, otherapp, ipc_type);
+                            ipc.map_or_else(
+                                || {
+                                    assert!(
+                                        false,
+                                        "Kernel consistency error: IPC Task with no IPC"
+                                    );
+                                },
+                                |ipc| {
+                                    ipc.schedule_callback(appid, otherapp, ipc_type);
+                                },
+                            );
                         }
                     }
                     continue;

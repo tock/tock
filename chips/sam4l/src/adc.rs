@@ -18,9 +18,9 @@
 use core::cell::Cell;
 use core::{cmp, mem, slice};
 use dma;
+use kernel::common::cells::TakeCell;
 use kernel::common::math;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
@@ -132,22 +132,22 @@ pub struct Adc {
 #[repr(C)]
 pub struct AdcRegisters {
     // From page 1005 of SAM4L manual
-    pub cr: WriteOnly<u32, Control::Register>,
-    pub cfg: ReadWrite<u32, Configuration::Register>,
-    pub sr: ReadOnly<u32, Status::Register>,
-    pub scr: WriteOnly<u32, Interrupt::Register>,
-    pub _reserved0: u32,
-    pub seqcfg: ReadWrite<u32, SequencerConfig::Register>,
-    pub cdma: WriteOnly<u32>,
-    pub tim: ReadWrite<u32, TimingConfiguration::Register>,
-    pub itimer: ReadWrite<u32, InternalTimer::Register>,
-    pub wcfg: ReadWrite<u32, WindowMonitorConfiguration::Register>,
-    pub wth: ReadWrite<u32, WindowMonitorThresholdConfiguration::Register>,
-    pub lcv: ReadOnly<u32, SequencerLastConvertedValue::Register>,
-    pub ier: WriteOnly<u32, Interrupt::Register>,
-    pub idr: WriteOnly<u32, Interrupt::Register>,
-    pub imr: ReadOnly<u32, Interrupt::Register>,
-    pub calib: ReadWrite<u32>,
+    cr: WriteOnly<u32, Control::Register>,
+    cfg: ReadWrite<u32, Configuration::Register>,
+    sr: ReadOnly<u32, Status::Register>,
+    scr: WriteOnly<u32, Interrupt::Register>,
+    _reserved0: u32,
+    seqcfg: ReadWrite<u32, SequencerConfig::Register>,
+    cdma: WriteOnly<u32>,
+    tim: ReadWrite<u32, TimingConfiguration::Register>,
+    itimer: ReadWrite<u32, InternalTimer::Register>,
+    wcfg: ReadWrite<u32, WindowMonitorConfiguration::Register>,
+    wth: ReadWrite<u32, WindowMonitorThresholdConfiguration::Register>,
+    lcv: ReadOnly<u32, SequencerLastConvertedValue::Register>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    calib: ReadWrite<u32>,
 }
 
 register_bitfields![u32,
@@ -773,7 +773,7 @@ impl hil::adc::Adc for Adc {
             // stop DMA transfer if going. This should safely return a None if
             // the DMA was not being used
             let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
-                let dma_buf = rx_dma.abort_xfer();
+                let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
             });
@@ -901,7 +901,7 @@ impl hil::adc::AdcHighSpeed for Adc {
                 self.dma_running.set(true);
                 dma.enable();
                 self.rx_length.set(dma_len);
-                dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
+                dma.do_transfer(self.rx_dma_peripheral, dma_buf, dma_len);
             });
 
             // start timer
@@ -969,7 +969,7 @@ impl dma::DMAClient for Adc {
     /// Handler for DMA transfer completion.
     ///
     /// - `pid`: the DMA peripheral that is complete
-    fn xfer_done(&self, pid: dma::DMAPeripheral) {
+    fn transfer_done(&self, pid: dma::DMAPeripheral) {
         // check if this was an RX transfer
         if pid == self.rx_dma_peripheral {
             // RX transfer was completed
@@ -977,7 +977,7 @@ impl dma::DMAClient for Adc {
             // get buffer filled with samples from DMA
             let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
                 self.dma_running.set(false);
-                let dma_buf = rx_dma.abort_xfer();
+                let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
             });
@@ -1014,7 +1014,7 @@ impl dma::DMAClient for Adc {
                         self.dma_running.set(true);
                         dma.enable();
                         self.rx_length.set(dma_len);
-                        dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
+                        dma.do_transfer(self.rx_dma_peripheral, dma_buf, dma_len);
                     });
                 } else {
                     // if length was zero, just keep the buffer in the takecell

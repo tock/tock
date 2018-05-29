@@ -13,7 +13,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::ReturnCode;

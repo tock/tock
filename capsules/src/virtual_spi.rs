@@ -1,7 +1,7 @@
 //! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::ReturnCode;

@@ -60,7 +60,7 @@ register_bitfields! [u32,
         WEN OFFSET(0) NUMBITS(2) [
             /// Read only access
             REN = 0,
-            /// Write Enabled 
+            /// Write Enabled
             WEN = 1,
             /// Erase enabled
             EEN = 2
@@ -85,7 +85,7 @@ register_bitfields! [u32,
     ],
     /// Register for erasing User Information Configuration Registers
     EraseUicr [
-        /// Register starting erase of all User Information Configuratio Registers. 
+        /// Register starting erase of all User Information Configuratio Registers.
         /// Note that code erase has to be enabled by CONFIG.EEN before the UICR can be erased
         ERASEUICR OFFSET(0) NUMBITS(1) [
             /// No operation
@@ -94,7 +94,7 @@ register_bitfields! [u32,
             ERASE = 1
         ]
     ],
-    /// I-Code cache configuration register 
+    /// I-Code cache configuration register
     CacheConfiguration [
         /// Cache enabled
         CACHEEN OFFSET(0) NUMBITS(1) [
@@ -103,7 +103,7 @@ register_bitfields! [u32,
             /// Enable cache
             ENABLED = 1
         ],
-        /// Cache profiling enable 
+        /// Cache profiling enable
         CACHEPROFEN OFFSET(8) NUMBITS(1) [
             /// Disable cache profiling
             DISABLED = 0,
@@ -111,7 +111,7 @@ register_bitfields! [u32,
             ENABLED = 1
         ]
     ],
-    /// I-Code cache hit counter 
+    /// I-Code cache hit counter
     CacheHit [
         /// Number of cache hits
         HITS OFFSET(0) NUMBITS(32) []
@@ -136,7 +136,20 @@ impl Nvmc {
 
     pub fn configure_writeable(&self) {
         let regs = unsafe { &*self.regs };
-        regs.config.set(1);
+        regs.config.write(Configuration::WEN::WEN);
+    }
+
+    pub fn configure_eraseable(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.config.write(Configuration::WEN::EEN);
+    }
+
+    pub fn erase_uicr(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.config.write(Configuration::WEN::EEN);
+        while !self.is_ready() {}
+        regs.erasepage.write(ErasePage::ERASEPAGE.val(0x10001000));
+        while !self.is_ready() {}
     }
 
     pub fn is_ready(&self) -> bool {

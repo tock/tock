@@ -14,8 +14,7 @@ extern crate cortexm4;
 #[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
-#[macro_use]
-mod helpers;
+mod deferred_call_tasks;
 
 pub mod adc;
 pub mod aes;
@@ -255,7 +254,7 @@ unsafe extern "C" fn hard_fault_handler() {
             ici_it,
             thumb_bit,
             exception_number,
-            kernel::process::ipsr_isr_number_to_str(exception_number),
+            cortexm4::ipsr_isr_number_to_str(exception_number),
             faulting_stack as u32,
             (_estack as *const ()) as u32,
             (&_ezero as *const u32) as u32,

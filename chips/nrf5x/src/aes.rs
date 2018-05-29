@@ -32,8 +32,8 @@
 
 use core::cell::Cell;
 use kernel;
+use kernel::common::cells::TakeCell;
 use kernel::common::regs::{ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
 use kernel::ReturnCode;
 
@@ -59,32 +59,32 @@ const AESECB_BASE: usize = 0x4000E000;
 #[repr(C)]
 struct AesEcbRegisters {
     /// Start ECB block encrypt
-    /// Address 0x000 - 0x004
-    pub task_startecb: WriteOnly<u32, Task::Register>,
+    /// - Address 0x000 - 0x004
+    task_startecb: WriteOnly<u32, Task::Register>,
     /// Abort a possible executing ECB operation
-    /// Address: 0x004 - 0x008
-    pub task_stopecb: WriteOnly<u32, Task::Register>,
+    /// - Address: 0x004 - 0x008
+    task_stopecb: WriteOnly<u32, Task::Register>,
     /// Reserved
-    pub _reserved1: [u32; 62],
+    _reserved1: [u32; 62],
     /// ECB block encrypt complete
-    /// Address: 0x100 - 0x104
-    pub event_endecb: ReadWrite<u32, Event::Register>,
+    /// - Address: 0x100 - 0x104
+    event_endecb: ReadWrite<u32, Event::Register>,
     /// ECB block encrypt aborted because of a STOPECB task or due to an error
-    /// Address: 0x104 - 0x108
-    pub event_errorecb: ReadWrite<u32, Event::Register>,
+    /// - Address: 0x104 - 0x108
+    event_errorecb: ReadWrite<u32, Event::Register>,
     /// Reserved
-    pub _reserved2: [u32; 127],
+    _reserved2: [u32; 127],
     /// Enable interrupt
-    /// Address: 0x304 - 0x308
-    pub intenset: ReadWrite<u32, Intenset::Register>,
+    /// - Address: 0x304 - 0x308
+    intenset: ReadWrite<u32, Intenset::Register>,
     /// Disable interrupt
-    /// Address: 0x308 - 0x30c
-    pub intenclr: ReadWrite<u32, Intenclr::Register>,
+    /// - Address: 0x308 - 0x30c
+    intenclr: ReadWrite<u32, Intenclr::Register>,
     /// Reserved
-    pub _reserved3: [u32; 126],
+    _reserved3: [u32; 126],
     /// ECB block encrypt memory pointers
-    /// Address: 0x504 - 0x508
-    pub ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
+    /// - Address: 0x504 - 0x508
+    ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
 }
 
 register_bitfields! [u32,

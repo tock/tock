@@ -36,9 +36,8 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
-use kernel::process::Error;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
@@ -255,25 +254,13 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                 self.apps.enter(app_id, |app, _| {
                     app.write_callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr done */ => {
                 self.apps.enter(app_id, |app, _| {
                     app.read_callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             _ => ReturnCode::ENOSUPPORT
         }
@@ -288,6 +275,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     ///        passed in `arg1`
     /// - `2`: Receives into a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
+    /// - `3`: Cancel any in progress receives and return (via callback)
+    ///        what has been received so far.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -295,26 +284,18 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.send_new(appid, app, len)
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr */ => {
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.receive_new(appid, app, len)
-                }).unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    }
-                })
+                }).unwrap_or_else(|err| err.into())
             },
+            3 /* abort rx */ => {
+                self.uart.abort_receive();
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::ENOSUPPORT
         }
     }
@@ -385,7 +366,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
         }
     }
 
-    fn receive_complete(&self, buffer: &'static mut [u8], _rx_len: usize, error: uart::Error) {
+    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
         self.rx_buffer.replace(buffer);
         self.rx_in_progress.get().map(|appid| {
             self.rx_in_progress.set(None);
@@ -400,16 +381,16 @@ impl<'a, U: UART> Client for Console<'a, U> {
                                     Some(mut app_buffer) => {
                                         // We used UART::receive(),
                                         // so we received the requested length
-                                        let len = app.read_len;
                                         self.rx_buffer.map(|buffer| {
                                             // Copy our driver's buffer into the app's buffer
-                                            for (i, c) in
-                                                app_buffer.as_mut()[0..len].iter_mut().enumerate()
+                                            for (i, c) in app_buffer.as_mut()[0..rx_len]
+                                                .iter_mut()
+                                                .enumerate()
                                             {
                                                 *c = buffer[i]
                                             }
                                         });
-                                        (ReturnCode::SUCCESS, len)
+                                        (ReturnCode::SUCCESS, rx_len)
                                     }
                                     None => (ReturnCode::EINVAL, 0),
                                 }

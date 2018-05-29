@@ -37,7 +37,7 @@
 //! verify its correctness.
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
                                         AES128_KEY_SIZE, CCM_NONCE_LENGTH};

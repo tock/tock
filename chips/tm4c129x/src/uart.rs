@@ -1,8 +1,8 @@
 use core::cell::Cell;
 use gpio;
 use kernel;
-use kernel::common::take_cell::TakeCell;
-use kernel::common::VolatileCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil;
 use sysctl;
 
@@ -185,6 +185,10 @@ impl hil::uart::UART for UART {
     }
 
     fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {
+        unimplemented!()
+    }
+
+    fn abort_receive(&self) {
         unimplemented!()
     }
 }

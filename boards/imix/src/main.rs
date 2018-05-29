@@ -12,6 +12,7 @@ extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate sam4l;
 
 mod components;
@@ -331,14 +332,12 @@ pub unsafe fn reset_handler() {
     si7021_alarm.set_client(si7021);
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create()),
-        96 / 8
+        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create())
     );
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create()),
-        96 / 8
+        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create())
     );
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
@@ -593,7 +592,7 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PB[07].clear();
     // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
     for _ in 0..10 {
-        kernel::support::nop();
+        cortexm4::support::nop();
     }
     sam4l::gpio::PB[07].set();
 
@@ -616,5 +615,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
+    kernel::main(&imix, &mut chip, &mut PROCESSES, Some(&imix.ipc));
 }

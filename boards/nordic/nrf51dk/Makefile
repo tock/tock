@@ -4,7 +4,7 @@ TOCK_ARCH=cortex-m0
 TARGET=thumbv6m-none-eabi
 PLATFORM=nrf51dk
 
-include ../Makefile.common
+include ../../Makefile.common
 
 .PHONY: apps/$(APP)/build/$(TOCK_ARCH)/app.bin
 apps/$(APP)/build/$(TOCK_ARCH)/app.bin:

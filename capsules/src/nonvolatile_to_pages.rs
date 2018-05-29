@@ -33,7 +33,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::{NumCell, OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -49,7 +49,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     /// The module providing a `Flash` interface.
     driver: &'a F,
     /// Callback to the user of this capsule.
-    client: Cell<Option<&'static hil::nonvolatile_storage::NonvolatileStorageClient>>,
+    client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>,
     /// Buffer correctly sized for the underlying flash page size.
     pagebuffer: TakeCell<'static, F::Page>,
     /// Current state of this capsule.
@@ -58,12 +58,12 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     buffer: TakeCell<'static, [u8]>,
     /// Absolute address of where we are reading or writing. This gets updated
     /// as the operation proceeds across pages.
-    address: Cell<usize>,
+    address: NumCell<usize>,
     /// Total length to read or write. We need to store this to return it to the
     /// client.
     length: Cell<usize>,
     /// How many bytes are left to read or write.
-    remaining_length: Cell<usize>,
+    remaining_length: NumCell<usize>,
     /// Where we are in the user buffer.
     buffer_index: Cell<usize>,
 }
@@ -72,13 +72,13 @@ impl<'a, F: hil::flash::Flash + 'a> NonvolatileToPages<'a, F> {
     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
         NonvolatileToPages {
             driver: driver,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             pagebuffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
             buffer: TakeCell::empty(),
-            address: Cell::new(0),
+            address: NumCell::new(0),
             length: Cell::new(0),
-            remaining_length: Cell::new(0),
+            remaining_length: NumCell::new(0),
             buffer_index: Cell::new(0),
         }
     }
@@ -88,7 +88,7 @@ impl<'a, F: hil::flash::Flash + 'a> hil::nonvolatile_storage::NonvolatileStorage
     for NonvolatileToPages<'a, F>
 {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
@@ -179,14 +179,13 @@ impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages
                         self.pagebuffer.replace(pagebuffer);
                         self.state.set(State::Idle);
                         self.client
-                            .get()
                             .map(move |client| client.read_done(buffer, self.length.get()));
                     } else {
                         // More to do!
                         self.buffer.replace(buffer);
                         // Increment all buffer pointers and state.
-                        self.remaining_length.set(self.remaining_length.get() - len);
-                        self.address.set(self.address.get() + len);
+                        self.remaining_length.subtract(len);
+                        self.address.add(len);
                         self.buffer_index.set(buffer_index + len);
                         self.driver
                             .read_page(self.address.get() / page_size, pagebuffer);
@@ -214,8 +213,8 @@ impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages
 
                     // Do the write.
                     self.buffer.replace(buffer);
-                    self.remaining_length.set(self.remaining_length.get() - len);
-                    self.address.set(self.address.get() + len);
+                    self.remaining_length.subtract(len);
+                    self.address.add(len);
                     self.buffer_index.set(buffer_index + len);
                     self.driver.write_page(page_number, pagebuffer);
                 });
@@ -235,7 +234,6 @@ impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages
                 self.pagebuffer.replace(pagebuffer);
                 self.state.set(State::Idle);
                 self.client
-                    .get()
                     .map(move |client| client.write_done(buffer, self.length.get()));
             } else if self.remaining_length.get() >= page_size {
                 // Write an entire page!
@@ -248,9 +246,8 @@ impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages
                 }
 
                 self.buffer.replace(buffer);
-                self.remaining_length
-                    .set(self.remaining_length.get() - page_size);
-                self.address.set(self.address.get() + page_size);
+                self.remaining_length.subtract(page_size);
+                self.address.add(page_size);
                 self.buffer_index.set(buffer_index + page_size);
                 self.driver.write_page(page_number, pagebuffer);
             } else {

@@ -22,7 +22,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 

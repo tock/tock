@@ -11,9 +11,9 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use kernel::common::cells::TakeCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::{ClockInterface, StaticRef};
 use pm;
@@ -482,17 +482,6 @@ const I2C_SLAVE_BASE_ADDRS: [StaticRef<TWISRegisters>; 2] = unsafe {
     ]
 };
 
-// There are four TWIM (two wire master interface) peripherals on the SAM4L.
-// These likely won't all be used for I2C, but we let the platform decide
-// which one to use.
-#[derive(Clone, Copy)]
-pub enum Location {
-    I2C00, // TWIMS0
-    I2C01, // TWIMS1
-    I2C02, // TWIM2
-    I2C03, // TWIM3
-}
-
 // Three main I2C speeds
 #[derive(Clone, Copy)]
 pub enum Speed {
@@ -669,10 +658,6 @@ pub static mut I2C3: I2CHw = I2CHw::new(
     DMAPeripheral::TWIM3_TX,
 );
 
-pub const START: usize = 1 << 13;
-pub const STOP: usize = 1 << 14;
-pub const ACKLAST: usize = 1 << 25;
-
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
 impl I2CHw {
@@ -802,7 +787,7 @@ impl I2CHw {
                     self.master_client.get().map(|client| {
                         let buf = match self.dma.get() {
                             Some(dma) => {
-                                let b = dma.abort_xfer();
+                                let b = dma.abort_transfer();
                                 self.dma.set(Some(dma));
                                 b
                             }
@@ -844,7 +829,7 @@ impl I2CHw {
                         self.master_client.get().map(|client| {
                             let buf = match self.dma.get() {
                                 Some(dma) => {
-                                    let b = dma.abort_xfer();
+                                    let b = dma.abort_transfer();
                                     self.dma.set(Some(dma));
                                     b
                                 }
@@ -867,16 +852,16 @@ impl I2CHw {
                         );
                     }
                     self.dma.get().map(|dma| {
-                        let buf = dma.abort_xfer().unwrap();
-                        dma.prepare_xfer(dma_periph, buf, len);
-                        dma.start_xfer();
+                        let buf = dma.abort_transfer().unwrap();
+                        dma.prepare_transfer(dma_periph, buf, len);
+                        dma.start_transfer();
                     });
                 }
             }
         }
     }
 
-    fn setup_xfer(
+    fn setup_transfer(
         &self,
         twim: &TWIMRegisterManager,
         chip: u8,
@@ -936,10 +921,10 @@ impl I2CHw {
         let twim = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.1, data, len as usize);
-            self.setup_xfer(twim, chip, flags, Command::READ::Transmit, len);
+            dma.prepare_transfer(self.dma_pids.1, data, len as usize);
+            self.setup_transfer(twim, chip, flags, Command::READ::Transmit, len);
             self.master_enable(twim);
-            dma.start_xfer();
+            dma.start_transfer();
         });
     }
 
@@ -953,10 +938,10 @@ impl I2CHw {
         let twim = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.0, data, len as usize);
-            self.setup_xfer(twim, chip, flags, Command::READ::Receive, len);
+            dma.prepare_transfer(self.dma_pids.0, data, len as usize);
+            self.setup_transfer(twim, chip, flags, Command::READ::Receive, len);
             self.master_enable(twim);
-            dma.start_xfer();
+            dma.start_transfer();
         });
     }
 
@@ -964,8 +949,8 @@ impl I2CHw {
         let twim = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.1, data, split as usize);
-            self.setup_xfer(
+            dma.prepare_transfer(self.dma_pids.1, data, split as usize);
+            self.setup_transfer(
                 twim,
                 chip,
                 Command::START::StartCondition,
@@ -980,7 +965,7 @@ impl I2CHw {
                 read_len,
             );
             self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
-            dma.start_xfer();
+            dma.start_transfer();
         });
     }
 
@@ -1208,7 +1193,7 @@ impl I2CHw {
     }
 
     /// Receive the bytes the I2C master is writing to us.
-    pub fn slave_write_receive(&self, buffer: &'static mut [u8], len: u8) {
+    fn slave_write_receive(&self, buffer: &'static mut [u8], len: u8) {
         self.slave_write_buffer.replace(buffer);
         self.slave_write_buffer_len.set(len);
 
@@ -1230,7 +1215,7 @@ impl I2CHw {
     }
 
     /// Prepare a buffer for the I2C master to read from after a read call.
-    pub fn slave_read_send(&self, buffer: &'static mut [u8], len: u8) {
+    fn slave_read_send(&self, buffer: &'static mut [u8], len: u8) {
         self.slave_read_buffer.replace(buffer);
         self.slave_read_buffer_len.set(len);
         self.slave_read_buffer_index.set(0);
@@ -1275,11 +1260,11 @@ impl I2CHw {
         twis.registers.idr.set(!0);
     }
 
-    pub fn slave_set_address(&self, address: u8) {
+    fn slave_set_address(&self, address: u8) {
         self.my_slave_address.set(address);
     }
 
-    pub fn slave_listen(&self) {
+    fn slave_listen(&self) {
         if self.slave_mmio_address.is_some() {
             let twis = &TWISRegisterManager::new(&self);
 
@@ -1297,7 +1282,7 @@ impl I2CHw {
 }
 
 impl DMAClient for I2CHw {
-    fn xfer_done(&self, _pid: DMAPeripheral) {}
+    fn transfer_done(&self, _pid: DMAPeripheral) {}
 }
 
 impl hil::i2c::I2CMaster for I2CHw {

@@ -473,7 +473,7 @@ impl USART {
             let mut length = 0;
             let buffer = self.rx_dma.get().map_or(None, |rx_dma| {
                 length = self.rx_len.get() - rx_dma.transfer_counter();
-                let buf = rx_dma.abort_xfer();
+                let buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 buf
             });
@@ -501,7 +501,7 @@ impl USART {
             let mut length = 0;
             let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
                 length = self.tx_len.get() - tx_dma.transfer_counter();
-                let buf = tx_dma.abort_xfer();
+                let buf = tx_dma.abort_transfer();
                 tx_dma.disable();
                 buf
             });
@@ -594,7 +594,7 @@ impl USART {
             // state machine, and clients cannot issue other USART calls from
             // the callback.
             let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
-                let buf = tx_dma.abort_xfer();
+                let buf = tx_dma.abort_transfer();
                 tx_dma.disable();
                 buf
             });
@@ -685,7 +685,7 @@ impl USART {
 }
 
 impl dma::DMAClient for USART {
-    fn xfer_done(&self, pid: dma::DMAPeripheral) {
+    fn transfer_done(&self, pid: dma::DMAPeripheral) {
         let usart = &USARTRegManager::new(&self);
 
         match self.usart_mode.get() {
@@ -701,7 +701,7 @@ impl dma::DMAClient for USART {
 
                     // get buffer
                     let buffer = self.rx_dma.get().map_or(None, |rx_dma| {
-                        let buf = rx_dma.abort_xfer();
+                        let buf = rx_dma.abort_transfer();
                         rx_dma.disable();
                         buf
                     });
@@ -760,13 +760,13 @@ impl dma::DMAClient for USART {
 
                     // get buffer
                     let txbuf = self.tx_dma.get().map_or(None, |dma| {
-                        let buf = dma.abort_xfer();
+                        let buf = dma.abort_transfer();
                         dma.disable();
                         buf
                     });
 
                     let rxbuf = self.rx_dma.get().map_or(None, |dma| {
-                        let buf = dma.abort_xfer();
+                        let buf = dma.abort_transfer();
                         dma.disable();
                         buf
                     });
@@ -850,7 +850,7 @@ impl hil::uart::UART for USART {
         // set up dma transfer and start transmission
         self.tx_dma.get().map(move |dma| {
             dma.enable();
-            dma.do_xfer(self.tx_dma_peripheral, tx_data, tx_len);
+            dma.do_transfer(self.tx_dma_peripheral, tx_data, tx_len);
             self.tx_len.set(tx_len);
         });
     }
@@ -875,9 +875,15 @@ impl hil::uart::UART for USART {
         // set up dma transfer and start reception
         self.rx_dma.get().map(move |dma| {
             dma.enable();
-            dma.do_xfer(self.rx_dma_peripheral, rx_buffer, length);
+            dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
             self.rx_len.set(rx_len);
         });
+    }
+
+    fn abort_receive(&self) {
+        let usart = &USARTRegManager::new(&self);
+        self.disable_rx_timeout(usart);
+        self.abort_rx(usart, hil::uart::Error::CommandComplete);
     }
 }
 
@@ -900,7 +906,7 @@ impl hil::uart::UARTAdvanced for USART {
         self.rx_dma.get().map(move |dma| {
             dma.enable();
             let length = rx_buffer.len();
-            dma.do_xfer(self.rx_dma_peripheral, rx_buffer, length);
+            dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
             self.rx_len.set(length);
         });
     }
@@ -923,7 +929,7 @@ impl hil::uart::UARTAdvanced for USART {
         self.rx_dma.get().map(move |dma| {
             dma.enable();
             let length = rx_buffer.len();
-            dma.do_xfer(self.rx_dma_peripheral, rx_buffer, length);
+            dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
             self.rx_len.set(length);
         });
     }
@@ -1004,12 +1010,12 @@ impl hil::spi::SpiMaster for USART {
                         self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
                         self.usart_rx_state.set(USARTStateRX::Idle);
                         dma.enable();
-                        dma.do_xfer(self.tx_dma_peripheral, write_buffer, count);
+                        dma.do_transfer(self.tx_dma_peripheral, write_buffer, count);
 
                         // Start the read transaction.
                         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
                         read.enable();
-                        read.do_xfer(self.rx_dma_peripheral, rbuf, count);
+                        read.do_transfer(self.rx_dma_peripheral, rbuf, count);
                     });
                 });
             });
@@ -1019,7 +1025,7 @@ impl hil::spi::SpiMaster for USART {
                 self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
                 self.usart_rx_state.set(USARTStateRX::Idle);
                 dma.enable();
-                dma.do_xfer(self.tx_dma_peripheral, write_buffer, count);
+                dma.do_transfer(self.tx_dma_peripheral, write_buffer, count);
             });
         }
 

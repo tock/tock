@@ -12,7 +12,7 @@
 //! * Date: August 18, 2016
 
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 pub static mut CLOCK: Clock = Clock::new();
 

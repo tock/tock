@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::cmp::min;
 use ieee802154::{device, framer};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
 use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};

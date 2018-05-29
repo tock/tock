@@ -144,3 +144,7 @@ int getch(void) {
 
   return (r == TOCK_SUCCESS) ? buf[0] : TOCK_FAIL;
 }
+
+int getnstr_abort(void) {
+  return command(DRIVER_NUM_CONSOLE, 3, 0, 0);
+}

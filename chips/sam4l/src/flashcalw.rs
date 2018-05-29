@@ -23,9 +23,10 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use helpers::{DeferredCall, Task};
+use deferred_call_tasks::Task;
+use kernel::common::cells::TakeCell;
+use kernel::common::deferred_call::DeferredCall;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm;
@@ -315,13 +316,14 @@ enum RegKey {
     GPFRLO,
 }
 
-static DEFERRED_CALL: DeferredCall = unsafe { DeferredCall::new(Task::Flashcalw) };
+static DEFERRED_CALL: DeferredCall<Task> = unsafe { DeferredCall::new(Task::Flashcalw) };
 
 /// There are 18 recognized commands for the flash. These are "bare-bones"
 /// commands and values that are written to the Flash's command register to
 /// inform the flash what to do. Table 14-5.
 #[derive(Clone, Copy, PartialEq)]
-pub enum FlashCMD {
+#[allow(dead_code)]
+enum FlashCMD {
     NOP,
     WP,
     EP,
@@ -342,24 +344,17 @@ pub enum FlashCMD {
     HSDIS,
 }
 
-/// The two Flash speeds.
-#[derive(Clone, Copy)]
-pub enum Speed {
-    Standard,
-    HighSpeed,
-}
-
 /// FlashState is used to track the current state and command of the flash.
 #[derive(Clone, Copy, PartialEq)]
-pub enum FlashState {
-    Unconfigured,                 //                 Flash is unconfigured, call configure().
-    Ready,                        //                        Flash is ready to complete a command.
-    Read,                         //                         Performing a read operation.
+enum FlashState {
+    Unconfigured,                 // Flash is unconfigured, call configure().
+    Ready,                        // Flash is ready to complete a command.
+    Read,                         // Performing a read operation.
     WriteUnlocking { page: i32 }, // Started a write operation.
-    WriteErasing { page: i32 },   //   Waiting on the page to erase.
-    WriteWriting,                 //                 Waiting on the page to actually be written.
+    WriteErasing { page: i32 },   // Waiting on the page to erase.
+    WriteWriting,                 // Waiting on the page to actually be written.
     EraseUnlocking { page: i32 }, // Started an erase operation.
-    EraseErasing,                 //                 Waiting on the erase to finish.
+    EraseErasing,                 // Waiting on the erase to finish.
 }
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
@@ -424,7 +419,6 @@ pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(
 
 // Few constants relating to module configuration.
 const PAGE_SIZE: u32 = 512;
-const NB_OF_REGIONS: u32 = 16;
 
 #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FREQ_PS1_FWS_1_FWU_MAX_FREQ: u32 = 12000000;
@@ -437,13 +431,6 @@ const FREQ_PS1_FWS_0_MAX_FREQ: u32 = 8000000;
 
 #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
-
-// Macros for getting the i-th bit.
-macro_rules! bit {
-    ($w:expr) => {
-        0x1u32 << $w
-    };
-}
 
 impl FLASHCALW {
     const fn new(
@@ -471,7 +458,7 @@ impl FLASHCALW {
         regs.maint0.write(PicoCacheMaintenance0::INVALL::SET);
     }
 
-    pub fn enable_picocache(&self, enable: bool) {
+    fn enable_picocache(&self, enable: bool) {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             regs.ctrl.write(PicoCacheControl::CEN::Enable);
@@ -491,7 +478,7 @@ impl FLASHCALW {
         while !self.pico_enabled() {}
     }
 
-    pub fn pico_enabled(&self) -> bool {
+    fn pico_enabled(&self) -> bool {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         regs.sr.is_set(PicoCacheStatus::CSTS)
     }
@@ -589,7 +576,7 @@ impl FLASHCALW {
     }
 
     /// FLASH properties.
-    pub fn get_flash_size(&self) -> u32 {
+    fn get_flash_size(&self) -> u32 {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         let flash_sizes = [
             4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048,
@@ -598,28 +585,8 @@ impl FLASHCALW {
         flash_sizes[regs.fpr.read(FlashParameter::FSZ) as usize] << 10
     }
 
-    pub fn get_page_count(&self) -> u32 {
-        self.get_flash_size() / PAGE_SIZE
-    }
-
-    pub fn get_page_count_per_region(&self) -> u32 {
-        self.get_page_count() / NB_OF_REGIONS
-    }
-
-    pub fn get_page_region(&self, page_number: i32) -> u32 {
-        (if page_number >= 0 {
-            page_number as u32
-        } else {
-            self.get_page_number()
-        } / self.get_page_count_per_region())
-    }
-
-    pub fn get_region_first_page_number(&self, region: u32) -> u32 {
-        region * self.get_page_count_per_region()
-    }
-
     /// FLASHC Control
-    fn set_wait_state(&self, wait_state: u32) {
+    pub fn set_wait_state(&self, wait_state: u32) {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         regs.fcr.modify(FlashControl::FWS.val(wait_state));
     }
@@ -704,13 +671,6 @@ impl FLASHCALW {
     }
 
     /// Flashcalw status
-
-    pub fn is_ready(&self) -> bool {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
-        pm::enable_clock(self.pb_clock);
-        regs.fsr.is_set(FlashStatus::FRDY)
-    }
-
     fn is_error(&self) -> bool {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         pm::enable_clock(self.pb_clock);
@@ -718,12 +678,7 @@ impl FLASHCALW {
     }
 
     /// Flashcalw command control
-    fn get_page_number(&self) -> u32 {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
-        regs.fcmd.read(FlashCommand::PAGEN)
-    }
-
-    pub fn issue_command(&self, command: FlashCMD, page_number: i32) {
+    fn issue_command(&self, command: FlashCMD, page_number: i32) {
         let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         pm::enable_clock(self.pb_clock);
         // For most commands we wait for the interrupt, for some certain
@@ -759,25 +714,7 @@ impl FLASHCALW {
     }
 
     /// Flashcalw global commands
-    pub fn no_operation(&self) {
-        self.issue_command(FlashCMD::NOP, -1);
-    }
-
-    pub fn erase_all(&self) {
-        self.issue_command(FlashCMD::EA, -1);
-    }
-
-    /// FLASHCALW Protection Mechanisms
-    pub fn is_page_region_locked(&self, page_number: u32) -> bool {
-        self.is_region_locked(self.get_page_region(page_number as i32))
-    }
-
-    pub fn is_region_locked(&self, region: u32) -> bool {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
-        (regs.fsr.get() & bit!(region + 16)) != 0
-    }
-
-    pub fn lock_page_region(&self, page_number: i32, lock: bool) {
+    fn lock_page_region(&self, page_number: i32, lock: bool) {
         if lock {
             self.issue_command(FlashCMD::LP, page_number);
         } else {
@@ -887,18 +824,8 @@ impl FLASHCALW {
         self.current_state.set(FlashState::Ready);
     }
 
-    pub fn get_page_size(&self) -> u32 {
-        PAGE_SIZE
-    }
-
-    pub fn get_number_pages(&self) -> u32 {
-        // Check clock and enable just in case.
-        pm::enable_clock(self.pb_clock);
-        self.get_page_count()
-    }
-
     // Address is some raw address in flash that you want to read.
-    pub fn read_range(
+    fn read_range(
         &self,
         address: usize,
         size: usize,
@@ -941,7 +868,7 @@ impl FLASHCALW {
         ReturnCode::SUCCESS
     }
 
-    pub fn write_page(&self, page_num: i32, data: &'static mut Sam4lPage) -> ReturnCode {
+    fn write_page(&self, page_num: i32, data: &'static mut Sam4lPage) -> ReturnCode {
         // Enable clock in case it's off.
         pm::enable_clock(self.ahb_clock);
 
@@ -961,7 +888,7 @@ impl FLASHCALW {
         ReturnCode::SUCCESS
     }
 
-    pub fn erase_page(&self, page_num: i32) -> ReturnCode {
+    fn erase_page(&self, page_num: i32) -> ReturnCode {
         // Enable AHB clock (in case it was off).
         pm::enable_clock(self.ahb_clock);
         if self.current_state.get() != FlashState::Ready {

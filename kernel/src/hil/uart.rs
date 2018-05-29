@@ -58,6 +58,10 @@ pub trait UART {
 
     /// Receive data until buffer is full.
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+
+    /// Abort any ongoing receive transfers and return what is in the
+    /// receive buffer with the `receive_complete` callback.
+    fn abort_receive(&self);
 }
 
 pub trait UARTAdvanced: UART {

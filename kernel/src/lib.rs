@@ -30,9 +30,6 @@ pub mod component;
 // It's a little sad that we have to skip the whole module, but that's
 // better than the unmaintainable pile 'o strings IMO
 #[cfg_attr(rustfmt, rustfmt_skip)]
-pub mod process;
-
-pub mod support;
 
 mod sched;
 
@@ -55,7 +52,7 @@ pub fn main<P: Platform, C: Chip>(
     platform: &P,
     chip: &mut C,
     processes: &'static mut [Option<&mut process::Process<'static>>],
-    ipc: &ipc::IPC,
+    ipc: Option<&ipc::IPC>,
 ) {
     let processes = unsafe {
         process::PROCS = processes;
@@ -75,7 +72,7 @@ pub fn main<P: Platform, C: Chip>(
                 }
             }
 
-            support::atomic(|| {
+            chip.atomic(|| {
                 if !chip.has_pending_interrupts() && process::processes_blocked() {
                     chip.sleep();
                 }

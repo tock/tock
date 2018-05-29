@@ -153,13 +153,11 @@ pub unsafe fn reset_handler() {
                 &nrf5x::gpio::PORT[LED4_PIN],
                 capsules::led::ActivationMode::ActiveLow
             ), // 24
-        ],
-        256 / 8
+        ]
     );
     let led = static_init!(
         capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins),
-        64 / 8
+        capsules::led::LED::new(led_pins)
     );
 
     let button_pins = static_init!(
@@ -181,13 +179,11 @@ pub unsafe fn reset_handler() {
                 &nrf5x::gpio::PORT[BUTTON4_PIN],
                 capsules::button::GpioMode::LowWhenPressed
             ), // 20
-        ],
-        4 * 4
+        ]
     );
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create()),
-        96 / 8
+        capsules::button::Button::new(button_pins, kernel::Grant::create())
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -209,8 +205,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[14], //
             &nrf5x::gpio::PORT[13], //
             &nrf5x::gpio::PORT[12], //
-        ],
-        4 * 11
+        ]
     );
 
     // Configure kernel debug gpios as early as possible
@@ -222,8 +217,7 @@ pub unsafe fn reset_handler() {
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins),
-        224 / 8
+        capsules::gpio::GPIO::new(gpio_pins)
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -243,41 +237,33 @@ pub unsafe fn reset_handler() {
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             kernel::Grant::create()
-        ),
-        224 / 8
+        )
     );
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
 
     // Attach the kernel debug interface to this console
-    let kc = static_init!(
-        capsules::console::App,
-        capsules::console::App::default(),
-        480 / 8
-    );
+    let kc = static_init!(capsules::console::App, capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(console), kc);
 
     let rtc = &nrf5x::rtc::RTC;
     rtc.start();
-    let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
+    let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC));
     rtc.set_client(mux_alarm);
 
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
-        VirtualMuxAlarm::new(mux_alarm),
-        24
+        VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
         AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        AlarmDriver::new(virtual_alarm1, kernel::Grant::create()),
-        12
+        AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
     );
     virtual_alarm1.set_client(alarm);
 
     let ble_radio_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
-        VirtualMuxAlarm::new(mux_alarm),
-        192 / 8
+        VirtualMuxAlarm::new(mux_alarm)
     );
 
     let temp = static_init!(
@@ -285,15 +271,13 @@ pub unsafe fn reset_handler() {
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
             kernel::Grant::create()
-        ),
-        96 / 8
+        )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create()),
-        96 / 8
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create())
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -308,8 +292,7 @@ pub unsafe fn reset_handler() {
             kernel::Grant::create(),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
-        ),
-        256 / 8
+        )
     );
     kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
         &nrf51::radio::RADIO,
@@ -366,6 +349,6 @@ pub unsafe fn reset_handler() {
         &platform,
         &mut chip,
         &mut PROCESSES,
-        &kernel::ipc::IPC::new(),
+        Some(&kernel::ipc::IPC::new()),
     );
 }

@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, nvic, svc_handler, systick_handler};
+use cortexm4::{generic_isr, ipsr_isr_number_to_str, nvic, svc_handler, systick_handler};
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -40,7 +40,7 @@ unsafe extern "C" fn unhandled_interrupt() {
 }
 
 unsafe extern "C" fn hard_fault_handler() {
-    use {core, core::intrinsics::offset, kernel};
+    use {core, core::intrinsics::offset};
 
     let faulting_stack: *mut u32;
     let kernel_stack: bool;
@@ -166,7 +166,7 @@ unsafe extern "C" fn hard_fault_handler() {
             ici_it,
             thumb_bit,
             exception_number,
-            kernel::process::ipsr_isr_number_to_str(exception_number),
+            ipsr_isr_number_to_str(exception_number),
             faulting_stack as u32,
             (_estack as *const ()) as u32,
             (&_ezero as *const u32) as u32,

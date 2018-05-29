@@ -1,7 +1,7 @@
 //! Test the AES CCM implementation on top of AES hardware.
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::symmetric_encryption::{AES128CCM, AES128_KEY_SIZE, CCMClient, CCM_NONCE_LENGTH};
 use kernel::ReturnCode;
 

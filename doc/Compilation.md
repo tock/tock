@@ -64,17 +64,16 @@ simply type `make` from the proper directory in `boards/` to build the kernel
 for that platform.
 
 Internally, the Makefile is simply invoking Cargo to handle the build. For
-example, `make` on the Imix platform translates to:
+example, `make` on the imix platform translates to:
 
 ```bash
-$ cargo build --release --target=sam4l.json
+$ cargo build --release --target=thumbv7em-none-eabi
 ```
 
 The `--release` argument tells Cargo to invoke the Rust compiler with
 optimizations turned on. `--target` points Cargo to the target specification
-which includes the LLVM data-layout definition, architecture definitions for
-the compiler, arguments to pass to the linker and compilation options such as
-floating-point support.
+which includes the LLVM data-layout definition and architecture definitions for
+the compiler.
 
 
 ### Life of a Tock compilation

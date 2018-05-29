@@ -234,12 +234,7 @@ depending on operating system.
 
 This is generally done with `make program` and `make flash`, but is board
 specific. To learn how to program your specific hardware, please see
-the board specific READMEs:
-
-* [imix](../boards/imix/README.md)
-* [Hail](../boards/hail/README.md)
-* [nRF51-DK](../boards/nrf51dk/README.md)
-* [nRF52-DK](../boards/nrf52dk/README.md)
+the [board specific](../boards/README.md) READMEs.
 
 
 ## Formatting Rust source code

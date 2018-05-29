@@ -1,8 +1,8 @@
 //! Implementation of the ARM memory protection unit.
 
 use kernel;
+use kernel::common::cells::VolatileCell;
 use kernel::common::math::PowerOfTwo;
-use kernel::common::VolatileCell;
 
 /// Indicates whether the MPU is present and, if so, how many regions it
 /// supports.

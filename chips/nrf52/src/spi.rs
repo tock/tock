@@ -32,7 +32,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::ptr;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
@@ -48,7 +48,7 @@ mod registers {
     pub mod spim {
         //! NRF52 `SPIM` registers and utility types.
         #![allow(dead_code)]
-        use kernel::common::VolatileCell;
+        use kernel::common::cells::VolatileCell;
         use nrf5x::pinmux::Pinmux;
 
         /// Uninitialized `SPIM` instances.

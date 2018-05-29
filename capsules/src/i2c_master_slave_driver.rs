@@ -13,7 +13,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, AppSlice, Callback, Driver, Shared};
@@ -87,6 +87,7 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
             hil::i2c::Error::AddressNak => -1,
             hil::i2c::Error::DataNak => -2,
             hil::i2c::Error::ArbitrationLost => -3,
+            hil::i2c::Error::Overrun => -4,
             hil::i2c::Error::CommandComplete => 0,
         };
 

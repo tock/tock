@@ -4,7 +4,7 @@
 
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil;
 use kernel::hil::usb::*;
 use usb::*;

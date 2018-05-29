@@ -472,7 +472,7 @@ impl SpiHw {
                 .set(self.transfers_in_progress.get() + 1);
             self.dma_write.get().map(move |write| {
                 write.enable();
-                write.do_xfer(DMAPeripheral::SPI_TX, wbuf, count);
+                write.do_transfer(DMAPeripheral::SPI_TX, wbuf, count);
             });
         });
 
@@ -483,7 +483,7 @@ impl SpiHw {
                 .set(self.transfers_in_progress.get() + 1);
             self.dma_read.get().map(move |read| {
                 read.enable();
-                read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
+                read.do_transfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
         });
 
@@ -658,7 +658,7 @@ impl spi::SpiSlave for SpiHw {
 }
 
 impl DMAClient for SpiHw {
-    fn xfer_done(&self, _pid: DMAPeripheral) {
+    fn transfer_done(&self, _pid: DMAPeripheral) {
         // Only callback that the transfer is done if either:
         // 1) The transfer was TX only and TX finished
         // 2) The transfer was TX and RX, in that case wait for both of them to complete. Although
@@ -672,13 +672,13 @@ impl DMAClient for SpiHw {
         if self.transfers_in_progress.get() == 0 {
             self.disable();
             let txbuf = self.dma_write.get().map_or(None, |dma| {
-                let buf = dma.abort_xfer();
+                let buf = dma.abort_transfer();
                 dma.disable();
                 buf
             });
 
             let rxbuf = self.dma_read.get().map_or(None, |dma| {
-                let buf = dma.abort_xfer();
+                let buf = dma.abort_transfer();
                 dma.disable();
                 buf
             });

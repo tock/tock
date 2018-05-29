@@ -78,7 +78,7 @@
 
 use core::cell::Cell;
 use ieee802154::mac::Mac;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::radio;
 use kernel::hil::rng::{self, RNG};
 use kernel::hil::time::{self, Alarm, Frequency, Time};

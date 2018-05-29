@@ -6,7 +6,8 @@
 
 use core::{cell::Cell,
            ops::{Index, IndexMut}};
-use kernel::{common::regs::ReadWrite, hil};
+use kernel::{common::regs::{FieldValue, ReadWrite},
+             hil};
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
@@ -26,37 +27,37 @@ struct GpioteRegisters {
     /// Task for writing to pin specified in CONFIG[n].PSEL.
     /// Action on pin is configured in CONFIG[n].POLARITY
     ///
-    /// Address: 0x000 - 0x010 (nRF51)
-    /// Address: 0x000 - 0x020 (nRF52)
+    /// - Address: 0x000 - 0x010 (nRF51)
+    /// - Address: 0x000 - 0x020 (nRF52)
     task_out: [ReadWrite<u32, TasksOut::Register>; NUM_GPIOTE],
     /// Reserved
     // task_set and task_clear are not used on nRF52
     _reserved0: [u8; 0x100 - (0x0 + NUM_GPIOTE * 4)],
     /// Event generated from pin specified in CONFIG[n].PSEL
     ///
-    /// Address: 0x100 - 0x110 (nRF51)
-    /// Address: 0x100 - 0x120 (nRF52)
+    /// - Address: 0x100 - 0x110 (nRF51)
+    /// - Address: 0x100 - 0x120 (nRF52)
     event_in: [ReadWrite<u32, EventsIn::Register>; NUM_GPIOTE],
     /// Reserved
     _reserved1: [u8; 0x17C - (0x100 + NUM_GPIOTE * 4)],
     /// Event generated from multiple input GPIO pins
-    /// Address: 0x17C - 0x180
+    /// - Address: 0x17C - 0x180
     event_port: ReadWrite<u32, EventsPort::Register>,
     /// Reserved
     // inten on nRF51 is ignored because intenset and intenclr provides the same functionality
     _reserved2: [u8; 0x184],
     /// Enable interrupt
-    /// Address: 0x304 - 0x308
+    /// - Address: 0x304 - 0x308
     intenset: ReadWrite<u32, Intenset::Register>,
     /// Disable interrupt
-    /// Address: 0x308 - 0x30C
+    /// - Address: 0x308 - 0x30C
     intenclr: ReadWrite<u32, Intenclr::Register>,
     /// Reserved
     _reserved3: [u8; 0x204],
     /// Configuration for OUT[n], SET[n] and CLR[n] tasks and IN[n] event
     ///
-    /// Adress: 0x510 - 0x520 (nRF51)
-    /// Adress: 0x510 - 0x530 (nRF52)
+    /// - Adress: 0x510 - 0x520 (nRF51)
+    /// - Adress: 0x510 - 0x530 (nRF52)
     // Note, only IN[n] and OUT[n] are used in Tock
     config: [ReadWrite<u32, Config::Register>; NUM_GPIOTE],
 }
@@ -66,25 +67,25 @@ struct GpioRegisters {
     /// Reserved
     _reserved1: [u32; 321],
     /// Write GPIO port
-    /// Address: 0x504 - 0x508
+    /// - Address: 0x504 - 0x508
     out: ReadWrite<u32, Out::Register>,
     /// Set individual bits in GPIO port
-    /// Address: 0x508 - 0x50C
+    /// - Address: 0x508 - 0x50C
     outset: ReadWrite<u32, OutSet::Register>,
     /// Clear individual bits in GPIO port
-    /// Address: 0x50C - 0x510
+    /// - Address: 0x50C - 0x510
     outclr: ReadWrite<u32, OutClr::Register>,
     /// Read GPIO Port
-    /// Address: 0x510 - 0x514
+    /// - Address: 0x510 - 0x514
     in_: ReadWrite<u32, In::Register>,
     /// Direction of GPIO pins
-    /// Address: 0x514 - 0x518
+    /// - Address: 0x514 - 0x518
     dir: ReadWrite<u32, Dir::Register>,
     /// DIR set register
-    /// Address: 0x518 - 0x51C
+    /// - Address: 0x518 - 0x51C
     dirset: ReadWrite<u32, DirSet::Register>,
     /// DIR clear register
-    /// Address: 0x51C - 0x520
+    /// - Address: 0x51C - 0x520
     dirclr: ReadWrite<u32, DirClr::Register>,
     #[cfg(feature = "nrf51")]
     /// Reserved
@@ -92,16 +93,17 @@ struct GpioRegisters {
     #[cfg(feature = "nrf52")]
     /// Latch register indicating what GPIO pins that have met the criteria set in the
     /// PIN_CNF[n].SENSE
-    /// Address: 0x520 - 0x524
+    /// - Address: 0x520 - 0x524
     #[cfg(feature = "nrf52")]
     latch: ReadWrite<u32, Latch::Register>,
     /// Select between default DETECT signal behaviour and LDETECT mode
-    /// Address: 0x524 - 0x528
+    /// - Address: 0x524 - 0x528
     #[cfg(feature = "nrf52")]
     detect_mode: ReadWrite<u32, DetectMode::Register>,
     #[cfg(feature = "nrf52")]
     /// Reserved
     _reserved2: [u32; 118],
+    /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
 }
 
@@ -342,6 +344,11 @@ impl GPIOPin {
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
+
+    pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
+        let gpio_regs = unsafe { &*self.gpio_register };
+        gpio_regs.pin_cnf[self.pin as usize].write(config);
+    }
 }
 
 impl hil::gpio::PinCtl for GPIOPin {
@@ -351,8 +358,7 @@ impl hil::gpio::PinCtl for GPIOPin {
             hil::gpio::InputMode::PullDown => PinConfig::PULL::Pulldown,
             hil::gpio::InputMode::PullNone => PinConfig::PULL::Disabled,
         };
-        let gpio_regs = unsafe { &*self.gpio_register };
-        gpio_regs.pin_cnf[self.pin as usize].write(pin_config);
+        self.write_config(pin_config);
     }
 }
 

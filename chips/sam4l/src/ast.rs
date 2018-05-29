@@ -189,7 +189,8 @@ impl<'a> Controller for Ast<'a> {
 }
 
 #[repr(usize)]
-pub enum Clock {
+#[allow(dead_code)]
+enum Clock {
     ClockRCSys = 0,
     ClockOsc32 = 1,
     ClockAPB = 2,
@@ -212,7 +213,7 @@ impl<'a> Ast<'a> {
 
     /// Clears the alarm bit in the status register (indicating the alarm value
     /// has been reached).
-    pub fn clear_alarm(&self) {
+    fn clear_alarm(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).scr.write(Interrupt::ALARM0::SET);
@@ -241,7 +242,7 @@ impl<'a> Ast<'a> {
     }
 
     /// Enables the AST registers
-    pub fn enable(&self) {
+    fn enable(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).cr.modify(Control::EN::SET);
@@ -250,7 +251,7 @@ impl<'a> Ast<'a> {
     }
 
     /// Disable the AST registers
-    pub fn disable(&self) {
+    fn disable(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).cr.modify(Control::EN::CLEAR);
@@ -259,7 +260,7 @@ impl<'a> Ast<'a> {
     }
 
     /// Returns if an alarm is currently set
-    pub fn is_alarm_enabled(&self) -> bool {
+    fn is_alarm_enabled(&self) -> bool {
         while self.busy() {}
         unsafe { (*self.regs).sr.is_set(Status::ALARM0) }
     }
@@ -284,7 +285,7 @@ impl<'a> Ast<'a> {
         }
     }
 
-    pub fn enable_alarm_wake(&self) {
+    fn enable_alarm_wake(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).wer.modify(Event::ALARM0::SET);
@@ -292,17 +293,9 @@ impl<'a> Ast<'a> {
         while self.busy() {}
     }
 
-    pub fn get_counter(&self) -> u32 {
+    fn get_counter(&self) -> u32 {
         while self.busy() {}
         unsafe { (*self.regs).cv.read(Value::VALUE) }
-    }
-
-    pub fn set_counter(&self, value: u32) {
-        while self.busy() {}
-        unsafe {
-            (*self.regs).cv.write(Value::VALUE.val(value));
-        }
-        while self.busy() {}
     }
 
     pub fn handle_interrupt(&mut self) {
