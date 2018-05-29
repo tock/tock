@@ -12,20 +12,23 @@ use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::hil;
+use kernel::StaticRef;
 use nrf5x::pinmux::Pinmux;
 
 /// Uninitialized `TWIM` instances.
-const INSTANCES: [*const TwimRegisters; 2] = [
-    0x40003000 as *const TwimRegisters,
-    0x40004000 as *const TwimRegisters,
-];
+const INSTANCES: [StaticRef<TwimRegisters>; 2] = unsafe {
+    [
+        StaticRef::new(0x40003000 as *const TwimRegisters),
+        StaticRef::new(0x40004000 as *const TwimRegisters),
+    ]
+};
 
 /// An I2C master device.
 ///
 /// A `TWIM` instance wraps a `registers::TWIM` together with
 /// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
-    registers: *const TwimRegisters,
+    registers: StaticRef<TwimRegisters>,
     client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     buf: TakeCell<'static, [u8]>,
 }
@@ -39,9 +42,9 @@ pub enum Speed {
 }
 
 impl TWIM {
-    const fn new(instance: usize) -> TWIM {
+    const fn new(registers: StaticRef<TwimRegisters>) -> TWIM {
         TWIM {
-            registers: INSTANCES[instance],
+            registers: registers,
             client: Cell::new(None),
             buf: TakeCell::empty(),
         }
@@ -52,37 +55,31 @@ impl TWIM {
         self.client.set(Some(client));
     }
 
-    fn regs(&self) -> &TwimRegisters {
-        unsafe { &*self.registers }
-    }
-
     /// Configures an already constructed `TWIM`.
     pub fn configure(&self, scl: Pinmux, sda: Pinmux) {
-        let regs = self.regs();
-        regs.psel_scl.set(scl);
-        regs.psel_sda.set(sda);
+        self.registers.psel_scl.set(scl);
+        self.registers.psel_sda.set(sda);
     }
 
     /// Sets the I2C bus speed to one of three possible values
     /// enumerated in `Speed`.
     pub fn set_speed(&self, speed: Speed) {
-        let regs = self.regs();
-        regs.frequency.set(speed as u32);
+        self.registers.frequency.set(speed as u32);
     }
 
     /// Enables hardware TWIM peripheral.
     pub fn enable(&self) {
-        self.regs().enable.write(ENABLE::ENABLE::Enable);
+        self.registers.enable.write(ENABLE::ENABLE::Enable);
     }
 
     /// Disables hardware TWIM peripheral.
     pub fn disable(&self) {
-        self.regs().enable.write(ENABLE::ENABLE::Disable);
+        self.registers.enable.write(ENABLE::ENABLE::Disable);
     }
 
     pub fn handle_interrupt(&self) {
-        if self.regs().events_stopped.is_set(EVENT::EVENT) {
-            self.regs().events_stopped.write(EVENT::EVENT::CLEAR);
+        if self.registers.events_stopped.is_set(EVENT::EVENT) {
+            self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
             match self.client.get() {
                 None => (),
                 Some(client) => match self.buf.take() {
@@ -94,10 +91,10 @@ impl TWIM {
             };
         }
 
-        if self.regs().events_error.is_set(EVENT::EVENT) {
-            self.regs().events_error.write(EVENT::EVENT::CLEAR);
-            let errorsrc = self.regs().errorsrc.extract();
-            self.regs()
+        if self.registers.events_error.is_set(EVENT::EVENT) {
+            self.registers.events_error.write(EVENT::EVENT::CLEAR);
+            let errorsrc = self.registers.errorsrc.extract();
+            self.registers
                 .errorsrc
                 .write(ERRORSRC::ANACK::ErrorDidNotOccur + ERRORSRC::DNACK::ErrorDidNotOccur);
             match self.client.get() {
@@ -119,14 +116,14 @@ impl TWIM {
         }
 
         // We can blindly clear the following events since we're not using them.
-        self.regs().events_suspended.write(EVENT::EVENT::CLEAR);
-        self.regs().events_rxstarted.write(EVENT::EVENT::CLEAR);
-        self.regs().events_lastrx.write(EVENT::EVENT::CLEAR);
-        self.regs().events_lasttx.write(EVENT::EVENT::CLEAR);
+        self.registers.events_suspended.write(EVENT::EVENT::CLEAR);
+        self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
+        self.registers.events_lastrx.write(EVENT::EVENT::CLEAR);
+        self.registers.events_lasttx.write(EVENT::EVENT::CLEAR);
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.regs().enable.matches_all(ENABLE::ENABLE::Enable)
+        self.registers.enable.matches_all(ENABLE::ENABLE::Enable)
     }
 }
 
@@ -140,67 +137,71 @@ impl hil::i2c::I2CMaster for TWIM {
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.regs()
+        self.registers
             .address
             .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
-        self.regs().txd_ptr.set(data.as_mut_ptr());
-        self.regs()
+        self.registers.txd_ptr.set(data.as_mut_ptr());
+        self.registers
             .txd_maxcnt
             .write(MAXCNT::MAXCNT.val(write_len as u32));
-        self.regs().rxd_ptr.set(data.as_mut_ptr());
-        self.regs()
+        self.registers.rxd_ptr.set(data.as_mut_ptr());
+        self.registers
             .rxd_maxcnt
             .write(MAXCNT::MAXCNT.val(read_len as u32));
         // Use the NRF52 shortcut register to configure the peripheral to
         // switch to RX after TX is complete, and then to switch to the STOP
         // state once RX is done. This avoids us having to juggle tasks in
         // the interrupt handler.
-        self.regs()
+        self.registers
             .shorts
             .write(SHORTS::LASTTX_STARTRX::EnableShortcut + SHORTS::LASTRX_STOP::EnableShortcut);
-        self.regs()
+        self.registers
             .intenset
             .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
         // start the transfer
-        self.regs().tasks_starttx.write(TASK::TASK::SET);
+        self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        self.regs()
+        self.registers
             .address
             .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
-        self.regs().txd_ptr.set(data.as_mut_ptr());
-        self.regs().txd_maxcnt.write(MAXCNT::MAXCNT.val(len as u32));
+        self.registers.txd_ptr.set(data.as_mut_ptr());
+        self.registers
+            .txd_maxcnt
+            .write(MAXCNT::MAXCNT.val(len as u32));
         // Use the NRF52 shortcut register to switch to the STOP state once
         // the TX is complete.
-        self.regs()
+        self.registers
             .shorts
             .write(SHORTS::LASTTX_STOP::EnableShortcut);
-        self.regs()
+        self.registers
             .intenset
             .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
         // start the transfer
-        self.regs().tasks_starttx.write(TASK::TASK::SET);
+        self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        self.regs()
+        self.registers
             .address
             .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
-        self.regs().rxd_ptr.set(buffer.as_mut_ptr());
-        self.regs().rxd_maxcnt.write(MAXCNT::MAXCNT.val(len as u32));
+        self.registers.rxd_ptr.set(buffer.as_mut_ptr());
+        self.registers
+            .rxd_maxcnt
+            .write(MAXCNT::MAXCNT.val(len as u32));
         // Use the NRF52 shortcut register to switch to the STOP state once
         // the RX is complete.
-        self.regs()
+        self.registers
             .shorts
             .write(SHORTS::LASTRX_STOP::EnableShortcut);
-        self.regs()
+        self.registers
             .intenset
             .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
         // start the transfer
-        self.regs().tasks_startrx.write(TASK::TASK::SET);
+        self.registers.tasks_startrx.write(TASK::TASK::SET);
         self.buf.replace(buffer);
     }
 }
@@ -229,9 +230,9 @@ impl hil::i2c::I2CSlave for TWIM {
 impl hil::i2c::I2CMasterSlave for TWIM {}
 
 /// I2C master instace 0.
-pub static mut TWIM0: TWIM = TWIM::new(0);
+pub static mut TWIM0: TWIM = TWIM::new(INSTANCES[0]);
 /// I2C master instace 1.
-pub static mut TWIM1: TWIM = TWIM::new(1);
+pub static mut TWIM1: TWIM = TWIM::new(INSTANCES[1]);
 
 // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
 // correct handler by the service_pending_interrupts() routine in
