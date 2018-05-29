@@ -473,6 +473,22 @@ impl SpiHw {
         // depending on the presence of the read/write below
         self.transfers_in_progress.set(0);
 
+        // Only setup the RX channel if we were passed a read_buffer inside
+        // of the option. `map()` checks this for us.
+        // The read DMA transfer has to be set up before the write because
+        // otherwise when the CPU speed is not significantly faster than the
+        // SPI's baud rate, transfer_done does not capture the interrupt
+        // signaling the RX is done - may be due to missing the first read
+        // byte when you start read after write.
+        read_buffer.map(|rbuf| {
+            self.transfers_in_progress
+                .set(self.transfers_in_progress.get() + 1);
+            self.dma_read.get().map(move |read| {
+                read.enable();
+                read.do_transfer(DMAPeripheral::SPI_RX, rbuf, count);
+            });
+        });
+
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
@@ -482,17 +498,6 @@ impl SpiHw {
             self.dma_write.get().map(move |write| {
                 write.enable();
                 write.do_transfer(DMAPeripheral::SPI_TX, wbuf, count);
-            });
-        });
-
-        // Only setup the RX channel if we were passed a read_buffer inside
-        // of the option. `map()` checks this for us.
-        read_buffer.map(|rbuf| {
-            self.transfers_in_progress
-                .set(self.transfers_in_progress.get() + 1);
-            self.dma_read.get().map(move |read| {
-                read.enable();
-                read.do_transfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
         });
 
