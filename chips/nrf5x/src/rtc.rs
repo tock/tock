@@ -1,6 +1,5 @@
 //! RTC driver, nRF5X-family
 
-use core::mem;
 use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
@@ -34,14 +33,15 @@ struct RtcRegisters {
     _reserved3: [u8; 52],
     /// Configures event enable routing to PPI for each RTC event.
     evten: ReadWrite<u32, Inte::Register>,
-    /// Enable events routing to PPI. The reading of this register gives the value of EV
+    /// Enable events routing to PPI.
     evtenset: ReadWrite<u32, Inte::Register>,
-    /// Disable events routing to PPI. The reading of this register gives the value of E
+    /// Disable events routing to PPI.
     evtenclr: ReadWrite<u32, Inte::Register>,
     _reserved4: [u8; 440],
     /// Current COUNTER value.
     counter: ReadOnly<u32>,
-    /// 12-bit prescaler for COUNTER frequency (32768/(PRESCALER+1)). Must be written wh
+    /// 12-bit prescaler for COUNTER frequency (32768/(PRESCALER+1)).
+    /// Must be written when RTC is stopped.
     prescaler: ReadWrite<u32, Prescaler::Register>,
     _reserved5: [u8; 52],
     /// Capture/compare registers.
@@ -80,15 +80,13 @@ register_bitfields![u32,
     ]
 ];
 
-fn rtc1() -> &'static RtcRegisters {
-    unsafe { mem::transmute(RTC1_BASE as usize) }
-}
-
 pub struct Rtc {
+    regs: *const RtcRegisters,
     callback: OptionalCell<&'static time::Client>,
 }
 
 pub static mut RTC: Rtc = Rtc {
+    regs: RTC1_BASE as *const RtcRegisters,
     callback: OptionalCell::empty(),
 };
 
@@ -106,25 +104,29 @@ impl Controller for Rtc {
 }
 
 impl Rtc {
+    fn regs(&self) -> &'static RtcRegisters {
+        unsafe { &*self.regs }
+    }
+
     pub fn start(&self) {
         // This function takes a nontrivial amount of time
         // So it should only be called during initialization, not each tick
-        rtc1().prescaler.write(Prescaler::PRESCALER.val(0));
-        rtc1().tasks_start.write(Task::ENABLE::SET);
+        self.regs().prescaler.write(Prescaler::PRESCALER.val(0));
+        self.regs().tasks_start.write(Task::ENABLE::SET);
     }
 
     pub fn stop(&self) {
-        rtc1().cc[0].write(CC::CC.val(0));
-        rtc1().tasks_stop.write(Task::ENABLE::SET);
+        self.regs().cc[0].write(CC::CC.val(0));
+        self.regs().tasks_stop.write(Task::ENABLE::SET);
     }
 
     fn is_running(&self) -> bool {
-        rtc1().evten.is_set(Inte::COMPARE0)
+        self.regs().evten.is_set(Inte::COMPARE0)
     }
 
     pub fn handle_interrupt(&self) {
-        rtc1().events_compare[0].write(Event::READY::CLEAR);
-        rtc1().intenclr.write(Inte::COMPARE0::SET);
+        self.regs().events_compare[0].write(Event::READY::CLEAR);
+        self.regs().intenclr.write(Inte::COMPARE0::SET);
         self.callback.map(|cb| {
             cb.fired();
         });
@@ -139,7 +141,7 @@ impl Time for Rtc {
     type Frequency = Freq32KHz;
 
     fn disable(&self) {
-        rtc1().intenclr.write(Inte::COMPARE0::SET);
+        self.regs().intenclr.write(Inte::COMPARE0::SET);
     }
 
     fn is_armed(&self) -> bool {
@@ -149,17 +151,17 @@ impl Time for Rtc {
 
 impl Alarm for Rtc {
     fn now(&self) -> u32 {
-        rtc1().counter.get()
+        self.regs().counter.get()
     }
 
     fn set_alarm(&self, tics: u32) {
         // Similarly to the disable function, here we don't restart the timer
         // Instead, we just listen for it again
-        rtc1().cc[0].write(CC::CC.val(tics));
-        rtc1().intenset.write(Inte::COMPARE0::SET);
+        self.regs().cc[0].write(CC::CC.val(tics));
+        self.regs().intenset.write(Inte::COMPARE0::SET);
     }
 
     fn get_alarm(&self) -> u32 {
-        rtc1().cc[0].read(CC::CC)
+        self.regs().cc[0].read(CC::CC)
     }
 }
