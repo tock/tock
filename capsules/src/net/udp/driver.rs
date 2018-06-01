@@ -231,14 +231,14 @@ impl<'a> UDPDriver<'a> {
                     return ReturnCode::SUCCESS;
                 }
             };
-            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+            let result = self.kernel_tx.map_or(ReturnCode::ENOMEM, |kbuf| {
                 let dst_addr = addr_ports[1].addr;
                 let dst_port = addr_ports[1].port;
                 let src_port = addr_ports[0].port; 
                
                 // Copy UDP payload to kernel memory 
                 // TODO: handle if too big
-                let result = app.app_write.as_ref().map_or(ReturnCode::ENOMEM, move |payload| {
+                let result = app.app_write.as_ref().map_or(ReturnCode::ENOMEM, |payload| {
                         kbuf[..payload.len()].copy_from_slice(payload.as_ref());
                         self.sender.send_to(dst_addr, dst_port, src_port, &kbuf[..payload.len()])
                     }
