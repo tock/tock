@@ -30,13 +30,14 @@ int udp_socket(sock_handle_t *handle, sock_addr_t *addr);
 int udp_close(sock_handle_t *handle);
 
 // Sends data on a socket.
-// Returns number of bytes sent, negative on failure.
+// Returns 0 on success, negative on failure.
 ssize_t udp_send_to(sock_handle_t *handle, void *buf, size_t len,
                     sock_addr_t *dst_addr);
 
-// Receives message from a socket asynchronously. To receive more, subscribe
-// again after processing a message.
-// Returns number of bytes received, negative on failure.
+// Receives message from a socket asynchronously. The number of bytes 
+// received will be passed to the first argument of the supplied callback. 
+// To receive more messages, subscribe again after processing a message.
+// Returns 0 on success, negative on failure.
 ssize_t udp_recv_from(subscribe_cb callback, sock_handle_t *handle, void *buf,
                       size_t len, sock_addr_t *dst_addr);
 

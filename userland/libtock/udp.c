@@ -23,7 +23,7 @@ int udp_socket(sock_handle_t *handle, sock_addr_t *addr) {
   return TOCK_SUCCESS;
 }
 
-int udp_close(sock_handle_t *handle) {
+int udp_close(__attribute__ ((unused)) sock_handle_t *handle) {
   return TOCK_SUCCESS;
 }
 
@@ -61,10 +61,12 @@ ssize_t udp_send_to(sock_handle_t *handle, void *buf, size_t len,
   return tx_result;
 }
 
-static void rx_done_callback(__attribute__ ((unused)) int arg1,
+static int rx_result;
+static void rx_done_callback(int result,
                              __attribute__ ((unused)) int arg2,
                              __attribute__ ((unused)) int arg3,
                              void *ud) {
+  rx_result = result;
   *((bool *) ud) = true;
 }
 
@@ -86,7 +88,7 @@ ssize_t udp_recv_from_sync(sock_handle_t *handle, void *buf, size_t len,
   if (err < 0) return err;
 
   yield_for(&rx_done);
-  return TOCK_SUCCESS;
+  return rx_result; 
 }
 
 ssize_t udp_recv_from(subscribe_cb callback, sock_handle_t *handle, void *buf,
