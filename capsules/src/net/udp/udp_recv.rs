@@ -32,6 +32,7 @@ impl<'a> UDPRecvStruct<'a> {
 
 impl<'a> IP6RecvClient for UDPRecvStruct<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
+        debug!("[UDP_RecvClient] received something");
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
                 let len = udp_header.get_len() as usize;

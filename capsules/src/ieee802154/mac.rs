@@ -173,11 +173,13 @@ impl<'a, R: radio::Radio + 'a> radio::RxClient for AwakeMac<'a, R> {
             }
         }
 
+        addr_match = true;
         if addr_match {
             self.rx_client.get().map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
             });
         } else {
+            debug!("[AwakeMAC] Received a packet, but not addressed to us");
             self.radio.set_receive_buffer(buf);
         }
     }

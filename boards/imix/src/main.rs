@@ -20,6 +20,7 @@ use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::IP6Sender;
+use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::udp::udp_send::{UDPSender, UDPSendStruct};
 use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
 use capsules::net::udp::udp::UDPHeader;
@@ -133,6 +134,7 @@ static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 static mut IP_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut UDP_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+static mut SIXLOWPAN_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
 // This buffer is used as an intermediate buffer for AES CCM encryption
 // An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
@@ -600,10 +602,11 @@ pub unsafe fn reset_handler() {
 
     let sixlowpan_state = sixlowpan as &sixlowpan_state::SixlowpanState;
     let sixlowpan_tx = sixlowpan_state::TxState::new(sixlowpan_state);
-    // let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
-    // sixlowpan_state.add_rx_state(default_rx_state);
-    // sixlowpan_state.set_rx_client(lowpan_frag_test);
-    // radio_mac.set_receive_client(sixlowpan);
+    let default_rx_state = static_init!(
+        sixlowpan_state::RxState<'static>, sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
+    );
+    sixlowpan_state.add_rx_state(default_rx_state);
+    udp_mac.set_receive_client(sixlowpan);
 
     let tr_hdr = TransportHeader::UDP(UDPHeader::new());
     let ip_pyld: IPPayload = IPPayload {
@@ -627,17 +630,24 @@ pub unsafe fn reset_handler() {
     );
     ip_send.set_client(udp_send);
 
+    let ip_receive = static_init!(
+        capsules::net::ipv6::ipv6_recv::IP6RecvStruct<'static>,
+        capsules::net::ipv6::ipv6_recv::IP6RecvStruct::new()
+    );
+    sixlowpan_state.set_rx_client(ip_receive);
+
     let udp_recv = static_init!(
         UDPRecvStruct<'static>,
         UDPRecvStruct::new()
     );
+    ip_receive.set_client(udp_recv);
 
     let udp_driver = static_init!(
         capsules::net::udp::UDPDriver<'static>,
         capsules::net::udp::UDPDriver::new(udp_send, udp_recv, kernel::Grant::create(), &mut UDP_BUF)
     );
     udp_send.set_client(udp_driver);
-    // udp_recv.set_client(udp_driver);
+    udp_recv.set_client(udp_driver);
 
     // Configure the USB controller
     let usb_client = static_init!(
