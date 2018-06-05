@@ -64,6 +64,9 @@ override CPPFLAGS += \
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
+# Work around https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85606
+override CPPFLAGS_cortex-m0 += -march=armv6s-m
+
 # This allows Tock to add additional warnings for functions that frequently cause problems.
 # See the included header for more details.
 override CPPFLAGS += -include $(TOCK_USERLAND_BASE_DIR)/support/warning_header.h
