@@ -628,6 +628,10 @@ struct ProcessDebug {
     /// How many callbacks were dropped because the queue was insufficiently
     /// long.
     dropped_callback_count: Cell<usize>,
+
+    /// How many times this process has entered into a fault condition and the
+    /// kernel has restarted it.
+    restart_count: Cell<usize>,
 }
 
 pub struct Process<'a> {
@@ -660,11 +664,18 @@ pub struct Process<'a> {
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: *const u8,
 
+    /// Copy of where the kernel memory break is when the app is first started.
+    /// This is handy if the app is restarted so we know where to reset
+    /// the kernel_memory break to without having to recalculate it.
+    original_kernel_memory_break: *const u8,
+
     /// Pointer to the end of process RAM that has been sbrk'd to the process.
     app_break: *const u8,
+    original_app_break: *const u8,
 
     /// Saved when the app switches to the kernel.
     current_stack_pointer: *const u8,
+    original_stack_pointer: *const u8,
 
     /// Process text segment
     text: &'static [u8],
@@ -718,28 +729,6 @@ pub fn processes_blocked() -> bool {
     unsafe { HAVE_WORK.get() == 0 }
 }
 
-// Table 2.5
-// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
-pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
-    match isr_number {
-        0 => "Thread Mode",
-        1 => "Reserved",
-        2 => "NMI",
-        3 => "HardFault",
-        4 => "MemManage",
-        5 => "BusFault",
-        6 => "UsageFault",
-        7...10 => "Reserved",
-        11 => "SVCall",
-        12 => "Reserved for Debug",
-        13 => "Reserved",
-        14 => "PendSV",
-        15 => "SysTick",
-        16...255 => "IRQn",
-        _ => "(Unknown! Illegal value?)",
-    }
-}
-
 impl<'a> Process<'a> {
     pub fn schedule_ipc(&mut self, from: AppId, cb_type: IPCType) {
         unsafe {
@@ -779,16 +768,59 @@ impl<'a> Process<'a> {
                 panic!("Process {} had a fault", self.package_name);
             }
             FaultResponse::Restart => {
-                //XXX: unimplemented
-                panic!(
-                    "Process {} had a fault and could not be restarted",
-                    self.package_name
-                );
-                /*
-                // HAVE_WORK is really screwed up in this case
-                // the tasks ring buffer needs to be cleared
-                // need to re-load() the app
-                 */
+                // Remove the tasks that were scheduled for the app from the
+                // amount of work queue.
+                if HAVE_WORK.get() < self.tasks.len() {
+                    // This case should never happen.
+                    HAVE_WORK.set(0);
+                } else {
+                    HAVE_WORK.set(HAVE_WORK.get() - self.tasks.len());
+                }
+
+                // And remove those tasks
+                self.tasks.empty();
+
+                // Mark that we restarted this process.
+                self.debug
+                    .restart_count
+                    .set(self.debug.restart_count.get() + 1);
+
+                // Reset some state for the process.
+                self.debug.syscall_count.set(0);
+                self.debug.last_syscall.set(None);
+                self.debug.dropped_callback_count.set(0);
+
+                // We are going to start this process over again, so need
+                // the init_fn location.
+                let app_flash_address = self.flash_start();
+                let init_fn = app_flash_address
+                    .offset(self.header.get_init_function_offset() as isize)
+                    as usize;
+                self.yield_pc = init_fn;
+                self.psr = 0x01000000;
+                self.state = State::Yielded;
+
+                // Need to reset the grant region.
+                self.grant_ptrs_reset();
+                self.kernel_memory_break = self.original_kernel_memory_break;
+
+                // Reset other memory pointers.
+                self.app_break = self.original_app_break;
+                self.current_stack_pointer = self.original_stack_pointer;
+
+                // And queue up this app to be restarted.
+                let flash_protected_size = self.header.get_protected_size() as usize;
+                let flash_app_start = app_flash_address as usize + flash_protected_size;
+
+                self.tasks.enqueue(Task::FunctionCall(FunctionCall {
+                    pc: init_fn,
+                    r0: flash_app_start,
+                    r1: self.memory.as_ptr() as usize,
+                    r2: self.memory.len() as usize,
+                    r3: self.app_break as usize,
+                }));
+
+                HAVE_WORK.set(HAVE_WORK.get() + 1);
             }
         }
     }
@@ -1062,8 +1094,11 @@ impl<'a> Process<'a> {
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = kernel_memory_break;
+            process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = initial_sbrk_pointer;
+            process.original_app_break = initial_sbrk_pointer;
             process.current_stack_pointer = initial_stack_pointer;
+            process.original_stack_pointer = initial_stack_pointer;
 
             process.text = slice::from_raw_parts(app_flash_address, app_flash_size);
 
@@ -1092,6 +1127,7 @@ impl<'a> Process<'a> {
                 syscall_count: Cell::new(0),
                 last_syscall: Cell::new(None),
                 dropped_callback_count: Cell::new(0),
+                restart_count: Cell::new(0),
             };
 
             if (init_fn & 0x1) != 1 {
@@ -1158,6 +1194,16 @@ impl<'a> Process<'a> {
     unsafe fn grant_ptr<T>(&self, grant_num: usize) -> *mut *mut T {
         let grant_num = grant_num as isize;
         (self.mem_end() as *mut *mut T).offset(-(grant_num + 1))
+    }
+
+    /// Reset all `grant_ptr`s to NULL.
+    unsafe fn grant_ptrs_reset(&self) {
+        let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+        for grant_num in 0..grant_ptrs_num {
+            let grant_num = grant_num as isize;
+            let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
+            write_volatile(ctr_ptr, 0 as *mut usize);
+        }
     }
 
     pub unsafe fn grant_for<T>(&mut self, grant_num: usize) -> *mut T {
@@ -1546,6 +1592,7 @@ impl<'a> Process<'a> {
         let syscall_count = self.debug.syscall_count.get();
         let last_syscall = self.debug.last_syscall.get();
         let dropped_callback_count = self.debug.dropped_callback_count.get();
+        let restart_count = self.debug.restart_count.get();
 
         // register values
         let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (
@@ -1563,13 +1610,19 @@ impl<'a> Process<'a> {
         let _ = writer.write_fmt(format_args!(
             "\
              App: {}   -   [{:?}]\
-             \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\n ",
-            self.package_name, self.state, events_queued, syscall_count, dropped_callback_count,
+             \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\
+             \n Restart Count: {}\n",
+            self.package_name,
+            self.state,
+            events_queued,
+            syscall_count,
+            dropped_callback_count,
+            restart_count,
         ));
 
         let _ = match last_syscall {
-            Some(syscall) => writer.write_fmt(format_args!("Last Syscall: {:?}", syscall)),
-            None => writer.write_fmt(format_args!("Last Syscall: None")),
+            Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}", syscall)),
+            None => writer.write_fmt(format_args!(" Last Syscall: None")),
         };
 
         let _ = writer.write_fmt(format_args!("\
@@ -1649,11 +1702,6 @@ impl<'a> Process<'a> {
             (xpsr >> 18) & 0x1,
             (xpsr >> 17) & 0x1,
             (xpsr >> 16) & 0x1,
-        ));
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n IPSR: Exception Type - {}",
-            ipsr_isr_number_to_str(xpsr & 0x1ff)
         ));
         let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
         let thumb_bit = ((xpsr >> 24) & 0x1) == 1;

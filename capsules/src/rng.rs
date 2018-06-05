@@ -16,7 +16,6 @@
 
 use core::cell::Cell;
 use kernel::hil::rng;
-use kernel::process::Error;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
@@ -190,13 +189,7 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                             ReturnCode::ERESERVE
                         }
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

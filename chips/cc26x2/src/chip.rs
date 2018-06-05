@@ -6,7 +6,6 @@ use cc26xx::rtc;
 use cc26xx::uart;
 use cortexm4::{self, nvic};
 use kernel;
-use kernel::support;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -60,7 +59,14 @@ impl kernel::Chip for Cc26X2 {
 
     fn sleep(&self) {
         unsafe {
-            support::wfi();
+            cortexm4::support::wfi();
         }
+    }
+
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm4::support::atomic(f)
     }
 }

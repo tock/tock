@@ -3,7 +3,6 @@ use deferred_call_tasks::DeferredCallTask;
 use i2c;
 use kernel;
 use kernel::common::deferred_call;
-use kernel::support;
 use nrf5x;
 use nrf5x::peripheral_interrupts::*;
 use nvmc;
@@ -105,7 +104,14 @@ impl kernel::Chip for NRF52 {
 
     fn sleep(&self) {
         unsafe {
-            support::wfi();
+            cortexm4::support::wfi();
         }
+    }
+
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm4::support::atomic(f)
     }
 }

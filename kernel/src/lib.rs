@@ -26,8 +26,6 @@ pub mod memop;
 pub mod process;
 pub mod returncode;
 
-pub mod support;
-
 mod sched;
 
 mod platform;
@@ -69,7 +67,7 @@ pub fn main<P: Platform, C: Chip>(
                 }
             }
 
-            support::atomic(|| {
+            chip.atomic(|| {
                 if !chip.has_pending_interrupts() && process::processes_blocked() {
                     chip.sleep();
                 }
