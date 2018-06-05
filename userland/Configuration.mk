@@ -32,8 +32,12 @@ PACKAGE_NAME ?= $(shell basename "$(shell pwd)")
 # Tock supported architectures
 TOCK_ARCHS ?= cortex-m0 cortex-m3 cortex-m4
 
-# This could be replaced with an installed version of `elf2tab`
-ELF2TAB ?= cargo run --manifest-path $(TOCK_USERLAND_BASE_DIR)/tools/elf2tab/Cargo.toml --
+# Check if elf2tab exists, if not, install it using cargo.
+ELF2TAB ?= elf2tab
+ELF2TAB_EXISTS := $(shell $(ELF2TAB) -o k --stack 1 --app-heap 1 --kernel-heap 1 2> /dev/null)
+ifndef ELF2TAB_EXISTS
+  $(shell cargo install elf2tab)
+endif
 ELF2TAB_ARGS += -n $(PACKAGE_NAME)
 ELF2TAB_ARGS += --stack $(STACK_SIZE) --app-heap $(APP_HEAP_SIZE) --kernel-heap $(KERNEL_HEAP_SIZE)
 
