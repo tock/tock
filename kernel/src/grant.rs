@@ -21,6 +21,11 @@ pub struct AppliedGrant<T> {
     _phantom: PhantomData<T>,
 }
 
+/// This function contains the mapping of kernel "app" numbers to their
+/// functions for getting a pointer to their grant region. Normal apps are
+/// stored in a processes array, and finding apps is a matter of iterating that
+/// array. Kernel "apps" currently (June 2018) have no such structure, so
+/// finding them is a bit more ad-hoc.
 pub unsafe fn kernel_grant_for<T>(app_id: usize) -> *mut T {
     match app_id {
         debug::APPID_IDX => debug::get_grant(),
@@ -249,6 +254,12 @@ impl<T: Default> Grant<T> {
                     let mut root = Owned::new(root_ptr, app_id);
                     fun(&mut root);
                 }
+            }
+            // After iterating all possible normal apps, try the debug app.
+            let root_ptr = kernel_grant_for::<T>(debug::APPID_IDX);
+            if !root_ptr.is_null() {
+                let mut root = Owned::new(root_ptr, debug::APPID_IDX);
+                fun(&mut root);
             }
         }
     }
