@@ -435,7 +435,8 @@ impl SpiHw {
 
     /// Asynchronous buffer read/write of SPI.
     /// returns `SUCCESS` if operation starts (will receive callback through SpiMasterClient),
-    /// returns `EBUSY` if the operation does not start.
+    /// returns `EBUSY` if the operation does not start,
+    /// returns `EINVAL` if no buffers were passed in,
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -444,20 +445,25 @@ impl SpiHw {
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) -> ReturnCode {
-        self.enable();
-
         if write_buffer.is_none() && read_buffer.is_none() {
-            return ReturnCode::SUCCESS;
+            return ReturnCode::EINVAL;
         }
 
-        let mut opt_len = None;
-        write_buffer.as_ref().map(|buf| opt_len = Some(buf.len()));
-        read_buffer.as_ref().map(|buf| {
-            let min_len = opt_len.map_or(buf.len(), |old_len| cmp::min(old_len, buf.len()));
-            opt_len = Some(min_len);
-        });
+        // Start by enabling the SPI driver.
+        self.enable();
 
-        let count = cmp::min(opt_len.unwrap_or(0), len);
+        // Determine how many bytes to move based on the shortest of the
+        // write_buffer length, the read_buffer length, and the user requested
+        // len.
+        let mut count: usize = len;
+        write_buffer
+            .as_ref()
+            .map(|buf| count = cmp::min(count, buf.len()));
+        read_buffer
+            .as_ref()
+            .map(|buf| count = cmp::min(count, buf.len()));
+
+        // Configure DMA to transfer that many bytes.
         self.dma_length.set(count);
 
         // Reset the number of transfers in progress. This is incremented
