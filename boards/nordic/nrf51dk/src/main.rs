@@ -82,7 +82,7 @@ const BUTTON4_PIN: usize = 20;
 // State for loading and holding applications.
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 1;
@@ -90,7 +90,7 @@ const NUM_PROCS: usize = 1;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [None];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -338,7 +338,7 @@ pub unsafe fn reset_handler() {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

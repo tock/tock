@@ -62,8 +62,10 @@ pub unsafe fn setup_board(
     led_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode)],
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
-    process_pointers: &'static mut [core::option::Option<&'static mut kernel::Process<'static>>],
-    app_fault_response: kernel::process::FaultResponse,
+    process_pointers: &'static mut [core::option::Option<
+        &'static mut kernel::procs::Process<'static>,
+    >],
+    app_fault_response: kernel::procs::FaultResponse,
 ) {
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52::uicr::Uicr::new();
@@ -225,7 +227,7 @@ pub unsafe fn setup_board(
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         app_memory,
         process_pointers,

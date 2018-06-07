@@ -101,7 +101,7 @@ use kernel;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::Frequency;
-use kernel::returncode::ReturnCode;
+use kernel::ReturnCode;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;

@@ -18,11 +18,12 @@ use cc26xx::prcm;
 pub mod io;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
+    [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -216,7 +217,7 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

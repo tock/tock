@@ -13,34 +13,38 @@
 
 #[macro_use]
 pub mod common;
-
-pub mod callback;
-pub mod grant;
 #[macro_use]
 pub mod debug;
-pub mod driver;
 pub mod hil;
 pub mod ipc;
-pub mod mem;
-pub mod memop;
-pub mod process;
-pub mod returncode;
 
-mod sched;
-
+mod callback;
+mod driver;
+mod grant;
+mod mem;
+mod memop;
 mod platform;
+mod process;
+mod returncode;
+mod sched;
 mod syscall;
 
 pub use callback::{AppId, Callback};
-pub use common::StaticRef;
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};
 pub use platform::systick::SysTick;
-pub use platform::{mpu, systick, Chip, Platform};
+pub use platform::{mpu, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
-pub use process::{Process, State};
 pub use returncode::ReturnCode;
+
+// Export only select items from the process module. To remove the name conflict
+// this cannot be called `process`, so we use a shortened version. These
+// functions and types are used by board files to setup the platform and setup
+// processes.
+pub mod procs {
+    pub use process::{load_processes, FaultResponse, Process};
+}
 
 /// Main loop.
 pub fn main<P: Platform, C: Chip>(
@@ -60,7 +64,7 @@ pub fn main<P: Platform, C: Chip>(
 
             for (i, p) in processes.iter_mut().enumerate() {
                 p.as_mut().map(|process| {
-                    sched::do_process(platform, chip, process, AppId::new(i), ipc);
+                    sched::do_process(platform, chip, process, callback::AppId::new(i), ipc);
                 });
                 if chip.has_pending_interrupts() {
                     break;

@@ -4,8 +4,9 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::Unique;
 use core::slice;
+
+use callback::AppId;
 use process;
-use AppId;
 
 #[derive(Debug)]
 pub struct Private;
