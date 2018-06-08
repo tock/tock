@@ -64,19 +64,30 @@ pub trait UART {
     fn abort_receive(&self);
 }
 
-pub trait UARTAdvanced: UART {
+/// Trait that isn't required for basic UART operation, but provides useful
+/// abstractions that capsules may want to be able to leverage.
+///
+/// The interfaces are included here because some hardware platforms may be able
+/// to directly implement them, while others platforms may need to emulate them
+/// in software. The ones that can implement them in hardware should be able to
+/// leverage that efficiency, and by placing the interfaces here in the HIL they
+/// can do that.
+///
+/// Other interface ideas that have been discussed, but are not included due to
+/// the lack of a clear use case, but are noted here in case they might help
+/// someone in the future:
+/// - `receive_until_terminator`: This would read in bytes until a specified
+///   byte is received (or the buffer is full) and then return to the client.
+/// - `receive_len_then_message`: This would do a one byte read to get a length
+///   byte and then read that many more bytes from UART before returning to the
+///   client.
+pub trait UARTReceiveAdvanced: UART {
     /// Receive data until `interbyte_timeout` bit periods have passed since the
     /// last byte or buffer is full. Does not timeout until at least one byte
     /// has been received.
     ///
     /// * `interbyte_timeout`: number of bit periods since last data received.
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8);
-
-    /// Receive data until `terminator` data byte has been received or buffer
-    /// is full
-    ///
-    /// * `terminator`: data byte terminating a reception.
-    fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8);
 }
 
 /// Implement Client to receive callbacks from UART.
