@@ -1,4 +1,6 @@
-#![feature(asm, concat_idents, const_fn, const_cell_new, try_from, core_intrinsics)]
+#![feature(
+    asm, concat_idents, const_fn, const_cell_new, try_from, core_intrinsics, iterator_step_by
+)]
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
@@ -7,9 +9,6 @@
 extern crate cortexm4;
 extern crate nrf5x;
 
-#[macro_use]
-extern crate bitfield;
-
 #[allow(unused)]
 #[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
@@ -17,6 +16,7 @@ extern crate kernel;
 pub mod chip;
 pub mod clock;
 pub mod crt1;
+mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;
 pub mod nvmc;

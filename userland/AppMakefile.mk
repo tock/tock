@@ -21,19 +21,9 @@ include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 # variable which selects one and we include the appropriate Makefile-app from
 # within the Tock base directory.
 TOCK_BOARD ?= hail
-TOCK_KERNEL_ROOT ?= $(TOCK_USERLAND_BASE_DIR)/..
 
-# Include platform app makefile if one exists.
-#  - Chooses an appropriate TOCK_ARCH for the platform and uses those bin files
-#  - Adds rules for loading applications onto this board
-# Conditionally included in case it doesn't exist for a board. In that case,
-# the generic "Program.mk" is used instead which defines `program` and `flash`
-# using Tockloader.
-ifneq ("$(wildcard $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app)","")
-include $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app
-else
+# Include the makefile that has the programming functions for each board.
 include $(TOCK_USERLAND_BASE_DIR)/Program.mk
-endif
 
 # Single-arch libraries, to be phased out
 LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
@@ -110,23 +100,23 @@ $$(BUILDDIR)/$(1):
 # More info on our approach here: http://stackoverflow.com/questions/97338
 $$(BUILDDIR)/$(1)/%.o: %.c | $$(BUILDDIR)/$(1)
 	$$(TRACE_CC)
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cc | $$(BUILDDIR)/$(1)
 	$$(TRACE_CXX)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1)
 	$$(TRACE_CXX)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cxx | $$(BUILDDIR)/$(1)
 	$$(TRACE_CXX)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 OBJS_$(1) += $$(patsubst %.c,$$(BUILDDIR)/$(1)/%.o,$$(C_SRCS))
 OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)))
@@ -136,7 +126,7 @@ OBJS_$(1) += $$(patsubst %.cxx,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$(CXX_SRC
 # Collect all desired built output.
 $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
 	$$(TRACE_LD)
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1))\
 	    --entry=_start\
 	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
 	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\

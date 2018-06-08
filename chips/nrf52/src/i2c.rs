@@ -9,15 +9,26 @@
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
+use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::hil;
+use kernel::StaticRef;
 use nrf5x::pinmux::Pinmux;
+
+/// Uninitialized `TWIM` instances.
+const INSTANCES: [StaticRef<TwimRegisters>; 2] = unsafe {
+    [
+        StaticRef::new(0x40003000 as *const TwimRegisters),
+        StaticRef::new(0x40004000 as *const TwimRegisters),
+    ]
+};
 
 /// An I2C master device.
 ///
 /// A `TWIM` instance wraps a `registers::TWIM` together with
 /// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
-    registers: *const registers::TWIM,
+    registers: StaticRef<TwimRegisters>,
     client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     buf: TakeCell<'static, [u8]>,
 }
@@ -31,9 +42,9 @@ pub enum Speed {
 }
 
 impl TWIM {
-    const fn new(instance: usize) -> TWIM {
+    const fn new(registers: StaticRef<TwimRegisters>) -> TWIM {
         TWIM {
-            registers: registers::INSTANCES[instance],
+            registers: registers,
             client: Cell::new(None),
             buf: TakeCell::empty(),
         }
@@ -44,37 +55,31 @@ impl TWIM {
         self.client.set(Some(client));
     }
 
-    fn regs(&self) -> &registers::TWIM {
-        unsafe { &*self.registers }
-    }
-
     /// Configures an already constructed `TWIM`.
     pub fn configure(&self, scl: Pinmux, sda: Pinmux) {
-        let regs = self.regs();
-        regs.psel_scl.set(scl);
-        regs.psel_sda.set(sda);
+        self.registers.psel_scl.set(scl);
+        self.registers.psel_sda.set(sda);
     }
 
     /// Sets the I2C bus speed to one of three possible values
     /// enumerated in `Speed`.
     pub fn set_speed(&self, speed: Speed) {
-        let regs = self.regs();
-        regs.frequency.set(speed as u32);
+        self.registers.frequency.set(speed as u32);
     }
 
     /// Enables hardware TWIM peripheral.
     pub fn enable(&self) {
-        self.regs().enable.set(6);
+        self.registers.enable.write(ENABLE::ENABLE::Enable);
     }
 
     /// Disables hardware TWIM peripheral.
     pub fn disable(&self) {
-        self.regs().enable.set(0);
+        self.registers.enable.write(ENABLE::ENABLE::Disable);
     }
 
     pub fn handle_interrupt(&self) {
-        if self.regs().events_stopped.get() == 1 {
-            self.regs().events_stopped.set(0);
+        if self.registers.events_stopped.is_set(EVENT::EVENT) {
+            self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
             match self.client.get() {
                 None => (),
                 Some(client) => match self.buf.take() {
@@ -86,30 +91,39 @@ impl TWIM {
             };
         }
 
-        if self.regs().events_error.get() == 1 {
-            self.regs().events_error.set(0);
-            let errorsrc = self.regs().errorsrc.get();
-            self.regs().errorsrc.set(registers::ErrorSrc::None);
+        if self.registers.events_error.is_set(EVENT::EVENT) {
+            self.registers.events_error.write(EVENT::EVENT::CLEAR);
+            let errorsrc = self.registers.errorsrc.extract();
+            self.registers
+                .errorsrc
+                .write(ERRORSRC::ANACK::ErrorDidNotOccur + ERRORSRC::DNACK::ErrorDidNotOccur);
             match self.client.get() {
                 None => (),
                 Some(client) => match self.buf.take() {
                     None => (),
                     Some(buf) => {
-                        client.command_complete(buf, errorsrc.into());
+                        let i2c_error = if errorsrc.is_set(ERRORSRC::ANACK) {
+                            hil::i2c::Error::AddressNak
+                        } else if errorsrc.is_set(ERRORSRC::DNACK) {
+                            hil::i2c::Error::DataNak
+                        } else {
+                            hil::i2c::Error::CommandComplete
+                        };
+                        client.command_complete(buf, i2c_error);
                     }
                 },
             };
         }
 
         // We can blindly clear the following events since we're not using them.
-        self.regs().events_suspended.set(0);
-        self.regs().events_rxstarted.set(0);
-        self.regs().events_lastrx.set(0);
-        self.regs().events_lasttx.set(0);
+        self.registers.events_suspended.write(EVENT::EVENT::CLEAR);
+        self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
+        self.registers.events_lastrx.write(EVENT::EVENT::CLEAR);
+        self.registers.events_lasttx.write(EVENT::EVENT::CLEAR);
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.regs().enable.get() == 6
+        self.registers.enable.matches_all(ENABLE::ENABLE::Enable)
     }
 }
 
@@ -123,73 +137,71 @@ impl hil::i2c::I2CMaster for TWIM {
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.regs().address.set((addr >> 1) as u32);
-        self.regs().txd_ptr.set(data.as_mut_ptr());
-        self.regs().txd_maxcnt.set(write_len as u32);
-        self.regs().rxd_ptr.set(data.as_mut_ptr());
-        self.regs().rxd_maxcnt.set(read_len as u32);
-        self.regs().shorts.set({
-            let mut shorts = registers::Shorts(0);
-            // Use the NRF52 shortcut register to configure the peripheral to
-            // switch to RX after TX is complete, and then to switch to the STOP
-            // state once TX is done. This avoids us having to juggle tasks in
-            // the interrupt handler.
-            shorts.set_lasttx_startrx(1);
-            shorts.set_lastrx_stop(1);
-            shorts
-        });
-        self.regs().intenset.set({
-            let mut intenset = registers::InterruptEnable(0);
-            intenset.set_stopped(1);
-            intenset.set_error(1);
-            intenset
-        });
+        self.registers
+            .address
+            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+        self.registers.txd_ptr.set(data.as_mut_ptr());
+        self.registers
+            .txd_maxcnt
+            .write(MAXCNT::MAXCNT.val(write_len as u32));
+        self.registers.rxd_ptr.set(data.as_mut_ptr());
+        self.registers
+            .rxd_maxcnt
+            .write(MAXCNT::MAXCNT.val(read_len as u32));
+        // Use the NRF52 shortcut register to configure the peripheral to
+        // switch to RX after TX is complete, and then to switch to the STOP
+        // state once RX is done. This avoids us having to juggle tasks in
+        // the interrupt handler.
+        self.registers
+            .shorts
+            .write(SHORTS::LASTTX_STARTRX::EnableShortcut + SHORTS::LASTRX_STOP::EnableShortcut);
+        self.registers
+            .intenset
+            .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
         // start the transfer
-        self.regs().tasks_starttx.set(1);
+        self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        self.regs().address.set((addr >> 1) as u32);
-        self.regs().txd_ptr.set(data.as_mut_ptr());
-        self.regs().txd_maxcnt.set(len as u32);
-        self.regs().shorts.set({
-            let mut shorts = registers::Shorts(0);
-            // Use the NRF52 shortcut register to switch to the STOP state once
-            // the TX is complete.
-            shorts.set_lasttx_stop(1);
-            shorts
-        });
-        self.regs().intenset.set({
-            let mut intenset = registers::InterruptEnable(0);
-            intenset.set_stopped(1);
-            intenset.set_error(1);
-            intenset
-        });
+        self.registers
+            .address
+            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+        self.registers.txd_ptr.set(data.as_mut_ptr());
+        self.registers
+            .txd_maxcnt
+            .write(MAXCNT::MAXCNT.val(len as u32));
+        // Use the NRF52 shortcut register to switch to the STOP state once
+        // the TX is complete.
+        self.registers
+            .shorts
+            .write(SHORTS::LASTTX_STOP::EnableShortcut);
+        self.registers
+            .intenset
+            .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
         // start the transfer
-        self.regs().tasks_starttx.set(1);
+        self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        self.regs().address.set((addr >> 1) as u32);
-        self.regs().rxd_ptr.set(buffer.as_mut_ptr());
-        self.regs().rxd_maxcnt.set(len as u32);
-        self.regs().shorts.set({
-            let mut shorts = registers::Shorts(0);
-            // Use the NRF52 shortcut register to switch to the STOP state once
-            // the RX is complete.
-            shorts.set_lastrx_stop(1);
-            shorts
-        });
-        self.regs().intenset.set({
-            let mut intenset = registers::InterruptEnable(0);
-            intenset.set_stopped(1);
-            intenset.set_error(1);
-            intenset
-        });
+        self.registers
+            .address
+            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+        self.registers.rxd_ptr.set(buffer.as_mut_ptr());
+        self.registers
+            .rxd_maxcnt
+            .write(MAXCNT::MAXCNT.val(len as u32));
+        // Use the NRF52 shortcut register to switch to the STOP state once
+        // the RX is complete.
+        self.registers
+            .shorts
+            .write(SHORTS::LASTRX_STOP::EnableShortcut);
+        self.registers
+            .intenset
+            .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
         // start the transfer
-        self.regs().tasks_startrx.set(1);
+        self.registers.tasks_startrx.write(TASK::TASK::SET);
         self.buf.replace(buffer);
     }
 }
@@ -218,205 +230,211 @@ impl hil::i2c::I2CSlave for TWIM {
 impl hil::i2c::I2CMasterSlave for TWIM {}
 
 /// I2C master instace 0.
-pub static mut TWIM0: TWIM = TWIM::new(0);
+pub static mut TWIM0: TWIM = TWIM::new(INSTANCES[0]);
 /// I2C master instace 1.
-pub static mut TWIM1: TWIM = TWIM::new(1);
+pub static mut TWIM1: TWIM = TWIM::new(INSTANCES[1]);
 
 // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
 // correct handler by the service_pending_interrupts() routine in
 // chip.rs based on which peripheral is enabled.
 
-mod registers {
-    #![allow(dead_code)]
-
-    use kernel::common::cells::VolatileCell;
-    use kernel::hil;
-    use nrf5x::pinmux::Pinmux;
-
-    /// Represents allowable values of `errorsrc` register.
-    #[repr(u32)]
-    #[derive(Debug, Copy, Clone)]
-    pub enum ErrorSrc {
-        None = 0,
-        AddressNack = 1 << 1,
-        DataNack = 1 << 2,
-    }
-
-    impl From<ErrorSrc> for hil::i2c::Error {
-        fn from(errorsrc: ErrorSrc) -> hil::i2c::Error {
-            match errorsrc {
-                ErrorSrc::None => hil::i2c::Error::CommandComplete,
-                ErrorSrc::AddressNack => hil::i2c::Error::AddressNak,
-                ErrorSrc::DataNack => hil::i2c::Error::DataNak,
-            }
-        }
-    }
-
-    bitfield!{
-        /// Represents bitfields in `shorts` register.
-        #[derive(Copy, Clone)]
-        pub struct Shorts(u32);
-        impl Debug;
-        pub lasttx_startrx, set_lasttx_startrx:  7,  7;
-        pub lasttx_suspend, set_lasttx_suspend:  8,  8;
-        pub lasttx_stop,    set_lasttx_stop:     9,  9;
-        pub lastrx_starttx, set_lastrx_starttx: 10, 10;
-        pub lastrx_stop,    set_lastrx_stop:    12, 12;
-    }
-
-    bitfield!{
-        /// Represents bitfields in `intenset` and `intenclr` registers.
-        #[derive(Copy, Clone)]
-        pub struct InterruptEnable(u32);
-        impl Debug;
-        pub stopped,   set_stopped:    1,  1;
-        pub error,     set_error:      9,  9;
-        pub suspended, set_suspended: 18, 18;
-        pub rxstarted, set_rxstarted: 19, 19;
-        pub txstarted, set_txstarted: 20, 20;
-        pub lastrx,    set_lastrx:    23, 23;
-        pub lasttx,    set_lasttx:    24, 24;
-    }
-
-    /// Uninitialized `TWIM` instances.
-    pub const INSTANCES: [*const TWIM; 2] = [0x40003000 as *const TWIM, 0x40004000 as *const TWIM];
-
-    pub struct TWIM {
-        /// Start TWI receive sequence
-        ///
-        /// addr = base + 0x000
-        pub tasks_startrx: VolatileCell<u32>,
-        _reserved_0: [u32; 1],
-        /// Start TWI transmit sequence
-        ///
-        /// addr = base + 0x008
-        pub tasks_starttx: VolatileCell<u32>,
-        _reserved_1: [u32; 2],
-        /// Stop TWI transaction_ Must be issued while the TWI master is not suspended_
-        ///
-        /// addr = base + 0x014
-        pub tasks_stop: VolatileCell<u32>,
-        _reserved_2: [u32; 1],
-        /// Suspend TWI transaction
-        ///
-        /// addr = base + 0x01C
-        pub tasks_suspend: VolatileCell<u32>,
-        /// Resume TWI transaction
-        ///
-        /// addr = base + 0x020
-        pub tasks_resume: VolatileCell<u32>,
-        _reserved_3: [u32; 56],
-        /// TWI stopped
-        ///
-        /// addr = base + 0x104
-        pub events_stopped: VolatileCell<u32>,
-        _reserved_4: [u32; 7],
-        /// TWI error
-        ///
-        /// addr = base + 0x124
-        pub events_error: VolatileCell<u32>,
-        _reserved_5: [u32; 8],
-        /// Last byte has been sent out after the SUSPEND task has
-        /// been issued, TWI traffic is now suspended
-        ///
-        /// addr = base + 0x148
-        pub events_suspended: VolatileCell<u32>,
-        /// Receive sequence started
-        ///
-        /// addr = base + 0x14C
-        pub events_rxstarted: VolatileCell<u32>,
-        /// Transmit sequence started
-        ///
-        /// addr = base + 0x150
-        pub events_txstarted: VolatileCell<u32>,
-        _reserved_6: [u32; 2],
-        /// Byte boundary, starting to receive the last byte
-        ///
-        /// addr = base + 0x15C
-        pub events_lastrx: VolatileCell<u32>,
-        /// Byte boundary, starting to transmit the last byte
-        ///
-        /// addr = base + 0x160
-        pub events_lasttx: VolatileCell<u32>,
-        _reserved_7: [u32; 39],
-        /// Shortcut register
-        ///
-        /// addr = base + 0x200
-        pub shorts: VolatileCell<Shorts>,
-        _reserved_8: [u32; 63],
-        /// Enable or disable interrupt
-        ///
-        /// addr = base + 0x300
-        pub inten: VolatileCell<InterruptEnable>,
-        /// Enable interrupt
-        ///
-        /// addr = base + 0x304
-        pub intenset: VolatileCell<InterruptEnable>,
-        /// Disable interrupt
-        ///
-        /// addr = base + 0x308
-        pub intenclr: VolatileCell<InterruptEnable>,
-        _reserved_9: [u32; 110],
-        /// Error source
-        ///
-        /// addr = base + 0x4C4
-        pub errorsrc: VolatileCell<ErrorSrc>,
-        _reserved_10: [u32; 14],
-        /// Enable TWIM
-        ///
-        /// addr = base + 0x500
-        pub enable: VolatileCell<u32>,
-        _reserved_11: [u32; 1],
-        /// Pin select for SCL signal
-        ///
-        /// addr = base + 0x508
-        pub psel_scl: VolatileCell<Pinmux>,
-        /// Pin select for SDA signal
-        ///
-        /// addr = base + 0x50C
-        pub psel_sda: VolatileCell<Pinmux>,
-        _reserved_12: [u32; 5],
-        /// TWI frequency
-        ///
-        /// addr = base + 0x524
-        pub frequency: VolatileCell<u32>,
-        _reserved_13: [u32; 3],
-        /// Data pointer
-        ///
-        /// addr = base + 0x534
-        pub rxd_ptr: VolatileCell<*mut u8>,
-        /// Maximum number of bytes in receive buffer
-        ///
-        /// addr = base + 0x538
-        pub rxd_maxcnt: VolatileCell<u32>,
-        /// Number of bytes transferred in the last transaction
-        ///
-        /// addr = base + 0x53C
-        pub rxd_amount: VolatileCell<u32>,
-        /// EasyDMA list type
-        ///
-        /// addr = base + 0x540
-        pub rxd_list: VolatileCell<u32>,
-        /// Data pointer
-        ///
-        /// addr = base + 0x544
-        pub txd_ptr: VolatileCell<*mut u8>,
-        /// Maximum number of bytes in transmit buffer
-        ///
-        /// addr = base + 0x548
-        pub txd_maxcnt: VolatileCell<u32>,
-        /// Number of bytes transferred in the last transaction
-        ///
-        /// addr = base + 0x54C
-        pub txd_amount: VolatileCell<u32>,
-        /// EasyDMA list type
-        ///
-        /// addr = base + 0x550
-        pub txd_list: VolatileCell<u32>,
-        _reserved_14: [u32; 13],
-        /// Address used in the TWI transfer
-        ///
-        /// addr = base + 0x588
-        pub address: VolatileCell<u32>,
-    }
+#[repr(C)]
+struct TwimRegisters {
+    /// Start TWI receive sequence
+    tasks_startrx: WriteOnly<u32, TASK::Register>,
+    _reserved0: [u8; 4],
+    /// Start TWI transmit sequence
+    tasks_starttx: WriteOnly<u32, TASK::Register>,
+    _reserved1: [u8; 8],
+    /// Stop TWI transaction
+    tasks_stop: WriteOnly<u32, TASK::Register>,
+    _reserved2: [u8; 4],
+    /// Suspend TWI transaction
+    tasks_suspend: WriteOnly<u32, TASK::Register>,
+    /// Resume TWI transaction
+    tasks_resume: WriteOnly<u32, TASK::Register>,
+    _reserved3: [u8; 224],
+    /// TWI stopped
+    events_stopped: ReadWrite<u32, EVENT::Register>,
+    _reserved4: [u8; 28],
+    /// TWI error
+    events_error: ReadWrite<u32, EVENT::Register>,
+    _reserved5: [u8; 32],
+    /// Last byte has been sent out after the SUSPEND task has been issued, TWI
+    /// traffic is now suspended.
+    events_suspended: ReadWrite<u32, EVENT::Register>,
+    /// Receive sequence started
+    events_rxstarted: ReadWrite<u32, EVENT::Register>,
+    /// Transmit sequence started
+    events_txstarted: ReadWrite<u32, EVENT::Register>,
+    _reserved6: [u8; 8],
+    /// Byte boundary, starting to receive the last byte
+    events_lastrx: ReadWrite<u32, EVENT::Register>,
+    /// Byte boundary, starting to transmit the last byte
+    events_lasttx: ReadWrite<u32, EVENT::Register>,
+    _reserved7: [u8; 156],
+    /// Shortcut register
+    shorts: ReadWrite<u32, SHORTS::Register>,
+    _reserved8: [u8; 252],
+    /// Enable or disable interrupt
+    inten: ReadWrite<u32, INTE::Register>,
+    /// Enable interrupt
+    intenset: ReadWrite<u32, INTE::Register>,
+    /// Disable interrupt
+    intenclr: ReadWrite<u32, INTE::Register>,
+    _reserved9: [u8; 440],
+    /// Error source
+    errorsrc: ReadWrite<u32, ERRORSRC::Register>,
+    _reserved10: [u8; 56],
+    /// Enable TWIM
+    enable: ReadWrite<u32, ENABLE::Register>,
+    _reserved11: [u8; 4],
+    /// Pin select for SCL signal
+    psel_scl: VolatileCell<Pinmux>,
+    /// Pin select for SDA signal
+    psel_sda: VolatileCell<Pinmux>,
+    _reserved_12: [u8; 20],
+    /// TWI frequency
+    frequency: ReadWrite<u32>,
+    _reserved13: [u8; 12],
+    /// Data pointer
+    rxd_ptr: VolatileCell<*mut u8>,
+    /// Maximum number of bytes in receive buffer
+    rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>,
+    /// Number of bytes transferred in the last transaction
+    rxd_amount: ReadWrite<u32>,
+    /// EasyDMA list type
+    rxd_list: ReadWrite<u32>,
+    /// Data pointer
+    txd_ptr: VolatileCell<*mut u8>,
+    /// Maximum number of bytes in transmit buffer
+    txd_maxcnt: ReadWrite<u32, MAXCNT::Register>,
+    /// Number of bytes transferred in the last transaction
+    txd_amount: ReadWrite<u32>,
+    /// EasyDMA list type
+    txd_list: ReadWrite<u32>,
+    _reserved_14: [u8; 52],
+    /// Address used in the TWI transfer
+    address: ReadWrite<u32, ADDRESS::Register>,
 }
+
+register_bitfields![u32,
+    SHORTS [
+        /// Shortcut between EVENTS_LASTTX event and TASKS_STARTRX task
+        LASTTX_STARTRX OFFSET(7) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_LASTTX event and TASKS_SUSPEND task
+        LASTTX_SUSPEND OFFSET(8) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_LASTTX event and TASKS_STOP task
+        LASTTX_STOP OFFSET(9) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_LASTRX event and TASKS_STARTTX task
+        LASTRX_STARTTX OFFSET(10) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_LASTRX event and TASKS_STOP task
+        LASTRX_STOP OFFSET(12) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ]
+    ],
+    INTE [
+        /// Enable or disable interrupt on EVENTS_STOPPED event
+        STOPPED OFFSET(1) NUMBITS(1) [
+            /// Disable
+            Disable = 0,
+            /// Enable
+            Enable = 1
+        ],
+        /// Enable or disable interrupt on EVENTS_ERROR event
+        ERROR OFFSET(9) NUMBITS(1) [
+            /// Disable
+            Disable = 0,
+            /// Enable
+            Enable = 1
+        ],
+        /// Enable or disable interrupt on EVENTS_RXSTARTED event
+        RXSTARTED OFFSET(19) NUMBITS(1) [
+            /// Disable
+            Disable = 0,
+            /// Enable
+            Enable = 1
+        ],
+        /// Enable or disable interrupt on EVENTS_TXSTARTED event
+        TXSTARTED OFFSET(20) NUMBITS(1) [
+            /// Disable
+            Disable = 0,
+            /// Enable
+            Enable = 1
+        ],
+        /// Enable or disable interrupt on EVENTS_LASTRX event
+        LASTRX OFFSET(23) NUMBITS(1) [
+            /// Disable
+            Disable = 0,
+            /// Enable
+            Enable = 1
+        ],
+        /// Enable or disable interrupt on EVENTS_LASTTX event
+        LASTTX OFFSET(24) NUMBITS(1) [
+            /// Disable
+            Disable = 0,
+            /// Enable
+            Enable = 1
+        ]
+    ],
+    ERRORSRC [
+        /// NACK received after sending the address (write '1' to clear)
+        ANACK OFFSET(1) NUMBITS(1) [
+            /// Error did not occur
+            ErrorDidNotOccur = 0,
+            /// Error occurred
+            ErrorOccurred = 1
+        ],
+        /// NACK received after sending a data byte (write '1' to clear)
+        DNACK OFFSET(2) NUMBITS(1) [
+            /// Error did not occur
+            ErrorDidNotOccur = 0,
+            /// Error occurred
+            ErrorOccurred = 1
+        ]
+    ],
+    EVENT [
+        EVENT 0
+    ],
+    TASK [
+        TASK 0
+    ],
+    ENABLE [
+        /// Enable or disable TWIM
+        ENABLE OFFSET(0) NUMBITS(4) [
+            Disable = 0,
+            Enable = 6
+        ]
+    ],
+    MAXCNT [
+        /// Maximum number of bytes in buffer
+        MAXCNT OFFSET(0) NUMBITS(16)
+    ],
+    ADDRESS [
+        /// Address used in the TWI transfer
+        ADDRESS OFFSET(0) NUMBITS(7)
+    ]
+];

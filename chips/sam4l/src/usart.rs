@@ -665,11 +665,6 @@ impl USART {
         usart.registers.idr.write(Interrupt::TIMEOUT::SET);
     }
 
-    fn enable_rx_terminator(&self, _regs_manage: &USARTRegManager, _terminator: u8) {
-        // XXX: implement me
-        panic!("didn't write terminator stuff yet");
-    }
-
     // for use by panic in io.rs
     pub fn send_byte(&self, usart: &USARTRegManager, byte: u8) {
         usart
@@ -887,7 +882,7 @@ impl hil::uart::UART for USART {
     }
 }
 
-impl hil::uart::UARTAdvanced for USART {
+impl hil::uart::UARTReceiveAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
         let usart = &USARTRegManager::new(&self);
 
@@ -901,29 +896,6 @@ impl hil::uart::UARTAdvanced for USART {
 
         // enable receive timeout
         self.enable_rx_timeout(usart, interbyte_timeout);
-
-        // set up dma transfer and start reception
-        self.rx_dma.get().map(move |dma| {
-            dma.enable();
-            let length = rx_buffer.len();
-            dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
-            self.rx_len.set(length);
-        });
-    }
-
-    fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8) {
-        let usart = &USARTRegManager::new(&self);
-
-        // quit current reception if any
-        self.abort_rx(usart, hil::uart::Error::RepeatCallError);
-
-        // enable RX
-        self.enable_rx(usart);
-        self.enable_rx_error_interrupts(usart);
-        self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
-
-        // enable receive terminator
-        self.enable_rx_terminator(usart, terminator);
 
         // set up dma transfer and start reception
         self.rx_dma.get().map(move |dma| {

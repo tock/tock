@@ -201,10 +201,10 @@ static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
     grant: None,
     output_buffer: [0; BUF_SIZE],
-    output_head: 0,       // ........ first valid index in output_buffer
-    output_tail: 0,       // ........ one past last valid index (wraps to 0)
-    output_active_len: 0, //... how big is the current transaction?
-    count: 0,             // .............. how many debug! calls
+    output_head: 0,       // first valid index in output_buffer
+    output_tail: 0,       // one past last valid index (wraps to 0)
+    output_active_len: 0, // how big is the current transaction?
+    count: 0,             // how many debug! calls
 };
 
 pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, grant: &mut T) {

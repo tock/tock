@@ -62,17 +62,18 @@ pub unsafe fn setup_board(
     led_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode)],
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
-    process_pointers: &'static mut [core::option::Option<&'static mut kernel::Process<'static>>],
-    app_fault_response: kernel::process::FaultResponse,
+    process_pointers: &'static mut [core::option::Option<
+        &'static mut kernel::procs::Process<'static>,
+    >],
+    app_fault_response: kernel::procs::FaultResponse,
 ) {
     // Make non-volatile memory writable and activate the reset button
-    let nvmc = nrf52::nvmc::Nvmc::new();
     let uicr = nrf52::uicr::Uicr::new();
-    nvmc.erase_uicr();
-    nvmc.configure_writeable();
-    while !nvmc.is_ready() {}
+    nrf52::nvmc::NVMC.erase_uicr();
+    nrf52::nvmc::NVMC.configure_writeable();
+    while !nrf52::nvmc::NVMC.is_ready() {}
     uicr.set_psel0_reset_pin(button_rst_pin);
-    while !nvmc.is_ready() {}
+    while !nrf52::nvmc::NVMC.is_ready() {}
     uicr.set_psel1_reset_pin(button_rst_pin);
 
     // Configure kernel debug gpios as early as possible
@@ -226,7 +227,7 @@ pub unsafe fn setup_board(
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         app_memory,
         process_pointers,
