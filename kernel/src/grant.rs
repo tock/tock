@@ -21,6 +21,11 @@ pub struct AppliedGrant<T> {
     _phantom: PhantomData<T>,
 }
 
+/// This function contains the mapping of kernel "app" numbers to their
+/// functions for getting a pointer to their grant region. Normal apps are
+/// stored in a processes array, and finding apps is a matter of iterating that
+/// array. Kernel "apps" currently (June 2018) have no such structure, so
+/// finding them is a bit more ad-hoc.
 pub unsafe fn kernel_grant_for<T>(app_id: usize) -> *mut T {
     match app_id {
         debug::APPID_IDX => debug::get_grant(),
@@ -34,12 +39,21 @@ impl<T> AppliedGrant<T> {
         F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
         R: Copy,
     {
-        let mut allocator = Allocator {
-            app: unsafe { process::PROCS[self.appid].as_mut() },
-            app_id: self.appid,
-        };
-        let mut root = unsafe { Owned::new(self.grant, self.appid) };
-        fun(&mut root, &mut allocator)
+        if AppId::is_kernel_idx(self.appid) {
+            let mut allocator = Allocator {
+                app: None,
+                app_id: self.appid,
+            };
+            let mut root = unsafe { Owned::new(self.grant, self.appid) };
+            fun(&mut root, &mut allocator)
+        } else {
+            let mut allocator = Allocator {
+                app: unsafe { process::PROCS[self.appid].as_mut() },
+                app_id: self.appid,
+            };
+            let mut root = unsafe { Owned::new(self.grant, self.appid) };
+            fun(&mut root, &mut allocator)
+        }
     }
 }
 
@@ -241,6 +255,12 @@ impl<T: Default> Grant<T> {
                     fun(&mut root);
                 }
             }
+            // After iterating all possible normal apps, try the debug app.
+            let root_ptr = kernel_grant_for::<T>(debug::APPID_IDX);
+            if !root_ptr.is_null() {
+                let mut root = Owned::new(root_ptr, debug::APPID_IDX);
+                fun(&mut root);
+            }
         }
     }
 
@@ -269,6 +289,15 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
             let idx = self.index;
             self.index += 1;
             let res = self.grant.grant(AppId::new(idx));
+            if res.is_some() {
+                return res;
+            }
+        }
+        // After running through all real apps, pass the debug app (idx 255) to
+        // the grant iterator in case it has state the capsule needs to process.
+        if self.index == self.len {
+            self.index += 1;
+            let res = self.grant.grant(AppId::new(debug::APPID_IDX));
             if res.is_some() {
                 return res;
             }
