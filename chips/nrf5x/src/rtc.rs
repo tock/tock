@@ -2,9 +2,9 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 use kernel::hil::Controller;
-use kernel::StaticRef;
 
 const RTC1_BASE: *const RtcRegisters = 0x40011000 as *const RtcRegisters;
 

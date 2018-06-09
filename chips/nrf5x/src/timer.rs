@@ -24,8 +24,8 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{self, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::StaticRef;
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [
