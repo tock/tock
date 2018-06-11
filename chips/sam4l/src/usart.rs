@@ -566,23 +566,13 @@ impl USART {
     pub fn handle_interrupt(&self) {
         let usart = &USARTRegManager::new(&self);
 
-        // TODO: Ideally we would read the actual registers once and let the
-        // compiler sort out a switch tree basd on the if/else chain. The
-        // underlying volatile reads makes this code as-written inefficient.
-        // However, doing so with the current registers interface doesn't
-        // really work.
-        //
-        //let status = usart.registers.csr.get();
-        //let mask = usart.registers.imr.get();
+        let status = usart.registers.csr.extract();
+        let mask = usart.registers.imr.extract();
 
-        if usart.registers.csr.is_set(ChannelStatus::TIMEOUT)
-            && usart.registers.imr.is_set(Interrupt::TIMEOUT)
-        {
+        if status.is_set(ChannelStatus::TIMEOUT) && mask.is_set(Interrupt::TIMEOUT) {
             self.disable_rx_timeout(usart);
             self.abort_rx(usart, hil::uart::Error::CommandComplete);
-        } else if usart.registers.csr.is_set(ChannelStatus::TXEMPTY)
-            && usart.registers.imr.is_set(Interrupt::TXEMPTY)
-        {
+        } else if status.is_set(ChannelStatus::TXEMPTY) && mask.is_set(Interrupt::TXEMPTY) {
             self.disable_tx_empty_interrupt(usart);
             self.disable_tx(usart);
             self.usart_tx_state.set(USARTStateTX::Idle);
@@ -637,11 +627,11 @@ impl USART {
                     }
                 });
             });
-        } else if usart.registers.csr.is_set(ChannelStatus::PARE) {
+        } else if status.is_set(ChannelStatus::PARE) {
             self.abort_rx(usart, hil::uart::Error::ParityError);
-        } else if usart.registers.csr.is_set(ChannelStatus::FRAME) {
+        } else if status.is_set(ChannelStatus::FRAME) {
             self.abort_rx(usart, hil::uart::Error::FramingError);
-        } else if usart.registers.csr.is_set(ChannelStatus::OVRE) {
+        } else if status.is_set(ChannelStatus::OVRE) {
             self.abort_rx(usart, hil::uart::Error::OverrunError);
         }
 
