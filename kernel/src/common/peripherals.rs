@@ -114,6 +114,12 @@ where
     /// Currently used primarily for power management to check whether the
     /// peripheral can be powered off.
     fn after_peripheral_access(&self, &C, &Self::RegisterType);
+
+    /// Has `before_peripheral_access` been called without a subsequent
+    /// call to `after_peripheral_access`?
+    fn is_accessing(&self) -> bool {
+        false
+    }
 }
 
 /// Structures encapsulating periphal hardware (those implementing the
@@ -132,6 +138,7 @@ where
     pub registers: &'a H::RegisterType,
     peripheral_hardware: &'a H,
     clock: &'a C,
+    is_outermost: bool,
 }
 
 impl<'a, H, C> PeripheralManager<'a, H, C>
@@ -142,11 +149,17 @@ where
     pub fn new(peripheral_hardware: &'a H) -> PeripheralManager<'a, H, C> {
         let registers = peripheral_hardware.get_registers();
         let clock = peripheral_hardware.get_clock();
-        peripheral_hardware.before_peripheral_access(clock, registers);
+
+        let is_outermost = !peripheral_hardware.is_accessing();
+        if is_outermost {
+            peripheral_hardware.before_peripheral_access(clock, registers);
+        }
+
         PeripheralManager {
             registers,
             peripheral_hardware,
             clock,
+            is_outermost,
         }
     }
 }
@@ -157,7 +170,9 @@ where
     C: 'a + ClockInterface,
 {
     fn drop(&mut self) {
-        self.peripheral_hardware
-            .after_peripheral_access(self.clock, self.registers);
+        if self.is_outermost {
+            self.peripheral_hardware
+                .after_peripheral_access(self.clock, self.registers);
+        }
     }
 }
