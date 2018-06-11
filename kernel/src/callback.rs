@@ -14,11 +14,11 @@ pub struct AppId {
 const KERNEL_APPID_BOUNDARY: usize = 100;
 
 impl AppId {
-    pub fn new(idx: usize) -> AppId {
+    pub(crate) fn new(idx: usize) -> AppId {
         AppId { idx: idx }
     }
 
-    pub const fn kernel_new(idx: usize) -> AppId {
+    pub(crate) const fn kernel_new(idx: usize) -> AppId {
         AppId { idx: idx }
     }
 
@@ -58,7 +58,7 @@ pub struct Callback {
 }
 
 impl Callback {
-    pub fn new(appid: AppId, appdata: usize, fn_ptr: NonNull<*mut ()>) -> Callback {
+    pub(crate) fn new(appid: AppId, appdata: usize, fn_ptr: NonNull<*mut ()>) -> Callback {
         Callback {
             app_id: appid,
             appdata: appdata,
@@ -66,7 +66,10 @@ impl Callback {
         }
     }
 
-    pub const fn kernel_new(appid: AppId, fn_ptr: fn(usize, usize, usize, usize)) -> Callback {
+    pub(crate) const fn kernel_new(
+        appid: AppId,
+        fn_ptr: fn(usize, usize, usize, usize),
+    ) -> Callback {
         Callback {
             app_id: appid,
             appdata: 0,

@@ -62,10 +62,12 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    pub unsafe fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
-        AppSlice {
-            ptr: AppPtr::new(ptr, appid),
-            len: len,
+    pub(crate) fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
+        unsafe {
+            AppSlice {
+                ptr: AppPtr::new(ptr, appid),
+                len: len,
+            }
         }
     }
 
