@@ -65,8 +65,6 @@ versions packaged with a newlib version earlier than 2.3, as they will run into
 problems with missing ARM intrinsics (e.g., `__aeabi_memclr`). Tock does not
 support these versions.
 
-##### Compiled Binaries
-
 Pre-compiled binaries are available [from
 ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
 The recommendations below will set up your operating system's package manager
@@ -135,6 +133,23 @@ Alternatively, if you would like simulator mode in `arm-none-eabi-gdb`,
 you can use the build scripts in the `tools` directory, in this order:
 `build-arm-binutils` then `build-arm-gcc` then `build-arm-gdb`.
 
+#### Tockloader
+
+`tockloader` programs the kernel and applications on to boards, and also has
+features that are generally useful to all Tock boards, such as easy to manage
+serial connections, and the ability to list, add, replace, and remove
+applications over JTAG (or USB if a bootloader is installed).
+
+1. [tockloader](https://github.com/tock/tockloader) (version >= 1.0)
+
+Tockloader is a Python application and can be installed with the Python
+package manager (pip).
+
+```bash
+(Linux): sudo pip3 install tockloader
+(MacOS): pip3 install tockloader
+```
+
 ## Compiling the Kernel
 
 Tock builds a unique kernel for every _board_ it supports. Boards include
@@ -175,30 +190,24 @@ binaries for all supported architectures.
 
 ## Loading the kernel and applications onto a board
 
+To load a kernel onto a board using a serial bootloader, run
+
+    $ make program
+
+in the board's directory. To load the kernel using JTAG, run
+
+    $ make flash
+
+Tockloader can help with installing a test app. For example, to install
+the `blink` app, simply run:
+
+    $ tockloader install blink
+
+This will fetch it from the TockOS app repository and load it to the board.
+
 ### Optional Requirements
 
-For some boards, currently `Hail` and `imix`, you will need `tockloader`.
-`tockloader` also has features that are generally useful to all Tock boards,
-such as easy to manage serial connections, and the ability to list, add,
-replace, and remove applications over JTAG (or USB if a bootloader is
-installed).
-
-1. [tockloader](https://github.com/tock/tockloader) (version >= 0.8)
-
-Installing applications over JTAG, depending on your JTAG Debugger, you will
-need one of:
-
-1. [openocd](http://openocd.org/) (version >= 0.8.0)
-2. [JLinkExe](https://www.segger.com/downloads/jlink) (version >= 5.0)
-
-#### `tockloader`
-
-Tock requires `tockloader`. To install:
-
-```bash
-(Linux): sudo pip3 install tockloader
-(MacOS): pip3 install tockloader
-```
+Some boards in Tock support other tools to load code and debug.
 
 #### `openocd`
 
@@ -235,10 +244,6 @@ code. Simply run:
     $ make format
 
 from the root of the repository to format all rust code in the repository.
-To format all code (rust and c), run:
-
-    $ make formatall
-
 
 ## Keeping build tools up to date
 
@@ -247,5 +252,3 @@ automatically checks whether the versions of `rustc` and `rustup` are correct
 for the build requirements, and updates them when necessary. After initial
 installation of the initial four requirements, you shouldn't have to worry
 about keeping them up to date.
-
-
