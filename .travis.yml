@@ -5,7 +5,6 @@ cache:
   cargo: true
   directories:
     - $HOME/gcc-arm-none-eabi-6_2-2016q4
-    - $HOME/local_cargo
 
 os:
   - linux
@@ -20,7 +19,6 @@ before_install:
   - export PATH="$PATH:$HOME/gcc-arm-none-eabi-6_2-2016q4/bin"
 
 before_script:
-  - tools/install_cargo_fmt.sh
   - npm install -g markdown-toc
 
 script:
