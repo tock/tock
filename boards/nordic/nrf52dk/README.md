@@ -24,14 +24,14 @@ You can program an application via JTAG and there are two ways to do so:
  1. via `tockloader`:
 
     ```bash
-    $ cd userland/examples/<app>
+    $ cd libtock-c/examples/<app>
     $ make
     $ tockloader install --jtag --board nrf52dk --arch cortex-m4 --app-address 0x20000 --jtag-device nrf52
     ```
 
  2. Alternatively, via `flash`.
     ```bash
-    $ cd userland/examples/<app>
+    $ cd libtock-c/examples/<app>
     $ make TOCK_BOARD=nrf52dk flash
     ```
 
