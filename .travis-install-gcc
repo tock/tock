@@ -10,15 +10,3 @@ if [ ! -x gcc-arm-none-eabi-6_2-2016q4/bin/arm-none-eabi-gcc ]; then
   tar -xjf gcc.tar.bz2
 fi
 
-# Also install uncrustify
-
-if [ ! -x uncrustify-uncrustify-0.65/build/uncrustify ]; then
-  wget https://github.com/uncrustify/uncrustify/archive/uncrustify-0.65.tar.gz
-  tar -xzf uncrustify-0.65.tar.gz
-  cd uncrustify-uncrustify-0.65
-  mkdir build
-  cd build
-  cmake ..
-  cmake --build .
-fi
-
