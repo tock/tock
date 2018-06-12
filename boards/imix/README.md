@@ -25,32 +25,23 @@ $ make flash
 
 ## Flashing apps
 
-All user-level code lives in the `userland` subdirectory. This includes a
-specially compiled version of newlib, a user-level library for talking to the
-kernel and specific drivers and a variety of example applications.
-
 To compile an app, `cd` to the desired app and `make`. For example:
 
 ```bash
-$ cd userland/examples/blink/
+$ git clone https://github.com/tock/libtock-c.git
+$ cd libtock-c/examples/blink/
 $ make TOCK_BOARD=imix
 ```
 
 This will build the app and generate a binary in Tock Binary Format and create a
 TAB (Tock Application Bundle) using the `elf2tab` utility:
-`userland/examples/blink/build/blink.tab`.
-
-Apps can be built and automatically uploaded from the root directory of Tock:
-
-```bash
-$ make TOCK_BOARD=imix examples/blink
-```
+`blink/build/blink.tab`.
 
 Apps can be uploaded with `make program` (to use the serial bootloader), but
 the tock board being programmed must be specified:
 
 ```bash
-$ cd userland/examples/blink/
+$ cd examples/blink/
 $ make TOCK_BOARD=imix program
 ```
 

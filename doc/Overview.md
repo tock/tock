@@ -110,10 +110,5 @@ and arch are were where all core kernel code reside.
 code maintenance, such as checking code formatting, converting binaries,
 and build scripts.
 
-- **userland**: contains process code, including example
-applications, userland drivers, and the userland system call functions
-that translate friendly API calls such as `led_on(int led_num)` into
-underlying system calls such as `command(DRIVER_NUM_LEDS, 0, led_num)`.
-
 - **vagrant**: contains information on how to get Tock running in a
 virtual machine-esque environment.

@@ -156,10 +156,10 @@ The READMEs in each board provide more details for each platform.
 
 ## Compiling applications
 
-All user-level code lives in the `userland` subdirectory. This
-includes a specially compiled version of newlib, a user-level library
-for talking to the kernel and specific drivers and a variety of
-example applications.
+All user-level code lives in separate repositories:
+
+- [libtock-c](https://github.com/tock/libtock-c): C and C++ apps.
+- [libtock-rs](https://github.com/tock/libtock-rs): Rust apps.
 
 Compiled applications are architecture-specific (e.g. `cortex-m4`,
 `cortex-m0`) since the compiler emits slightly different instructions
@@ -168,20 +168,10 @@ drivers, which not all boards provide; if you load an application onto
 a board that does not support every driver/system call it uses, some
 system calls with return error codes (`ENODEVICE` or `ENOSUPPORT`).
 
-Applications are built for all architectures Tock supports, currently
-`cortex-m0` and `cortex-m4`. Boards select an appropriate architecture when
-uploading code (e.g. `cortex-m4` for the SAM4L on the `imix` board).
-
-To compile an app, `cd` to the desired app and `make`. For example:
-
-```bash
-$ cd userland/examples/blink/
-$ make
-```
-
-This will build the app and generate a binary in Tock Binary Format
-(using the `elf2tab` utility):
-`userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
+Applications are built for all architectures Tock supports. Boards select an
+appropriate architecture when uploading code (e.g. `cortex-m4` for the SAM4L on
+the `imix` board). Apps are packaged into .tab files that contain compiled
+binaries for all supported architectures.
 
 ## Loading the kernel and applications onto a board
 
