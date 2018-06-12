@@ -45,7 +45,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// let cell = TakeCell::new(1234);
+    /// use kernel::common::cells::TakeCell;
+    /// let mut value = 1234;
+    /// let cell = TakeCell::new(&mut value);
     /// let x = &cell;
     /// let y = &cell;
     ///
@@ -86,18 +88,20 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// let cell = TakeCell::new(1234);
+    /// use kernel::common::cells::TakeCell;
+    /// let mut value = 1234;
+    /// let cell = TakeCell::new(&mut value);
     /// let x = &cell;
     /// let y = &cell;
     ///
     /// x.map(|value| {
     ///     // We have mutable access to the value while in the closure
-    ///     value += 1;
+    ///     *value += 1;
     /// });
     ///
     /// // After the closure completes, the mutable memory is still in the cell,
     /// // but potentially changed.
-    /// assert_eq!(y.take(), Some(1235));
+    /// assert_eq!(y.take(), Some(&mut 1235));
     /// ```
     pub fn map<F, R>(&self, closure: F) -> Option<R>
     where
