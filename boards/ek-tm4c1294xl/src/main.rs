@@ -2,7 +2,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items)]
+#![feature(asm, const_fn, lang_items, panic_implementation)]
 
 extern crate capsules;
 #[allow(unused_imports)]
