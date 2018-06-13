@@ -5,12 +5,12 @@
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
-use dma;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::ReturnCode;
-// other modules
+use kernel::common::StaticRef;
 use kernel::hil;
-// local modules
+use kernel::ReturnCode;
+
+use dma;
 use pm;
 
 // Register map for SAM4L USART
@@ -270,12 +270,14 @@ register_bitfields![u32,
     ]
 ];
 
-const USART_BASE_ADDRS: [*mut UsartRegisters; 4] = [
-    0x40024000 as *mut UsartRegisters,
-    0x40028000 as *mut UsartRegisters,
-    0x4002C000 as *mut UsartRegisters,
-    0x40030000 as *mut UsartRegisters,
-];
+const USART_BASE_ADDRS: [StaticRef<UsartRegisters>; 4] = unsafe {
+    [
+        StaticRef::new(0x40024000 as *const UsartRegisters),
+        StaticRef::new(0x40028000 as *const UsartRegisters),
+        StaticRef::new(0x4002C000 as *const UsartRegisters),
+        StaticRef::new(0x40030000 as *const UsartRegisters),
+    ]
+};
 
 pub struct USARTRegManager<'a> {
     registers: &'a UsartRegisters,
@@ -291,7 +293,7 @@ impl<'a> USARTRegManager<'a> {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
         }
-        let regs: &UsartRegisters = unsafe { &*usart.registers };
+        let regs: &UsartRegisters = &*usart.registers;
         USARTRegManager {
             registers: regs,
             clock: usart.clock,
@@ -362,7 +364,7 @@ enum UsartClient<'a> {
 }
 
 pub struct USART {
-    registers: *mut UsartRegisters,
+    registers: StaticRef<UsartRegisters>,
     clock: pm::Clock,
 
     usart_mode: Cell<UsartMode>,
@@ -410,7 +412,7 @@ pub static mut USART3: USART = USART::new(
 
 impl USART {
     const fn new(
-        base_addr: *mut UsartRegisters,
+        base_addr: StaticRef<UsartRegisters>,
         clock: pm::PBAClock,
         rx_dma_peripheral: dma::DMAPeripheral,
         tx_dma_peripheral: dma::DMAPeripheral,
