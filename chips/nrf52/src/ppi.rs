@@ -34,11 +34,13 @@
 //! * Date: May 04, 2018
 
 use kernel::common::regs::{FieldValue, ReadWrite};
+use kernel::common::StaticRef;
 
-const PPI_BASE: usize = 0x4001F000;
+const PPI_BASE: StaticRef<PpiRegisters> =
+    unsafe { StaticRef::new(0x4001F000 as *const PpiRegisters) };
 
 #[repr(C)]
-struct PPIRegs {
+struct PpiRegisters {
     tasks_chg0_en: ReadWrite<u32, Control::Register>,
     tasks_chg0_dis: ReadWrite<u32, Control::Register>,
     tasks_chg1_en: ReadWrite<u32, Control::Register>,
@@ -147,26 +149,26 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct PPIStruct {
-    regs: *const PPIRegs,
+pub struct Ppi {
+    registers: StaticRef<PpiRegisters>,
 }
 
-pub static mut PPI: PPIStruct = PPIStruct::new();
+pub static mut PPI: Ppi = Ppi::new();
 
-impl PPIStruct {
-    pub const fn new() -> PPIStruct {
-        PPIStruct {
-            regs: PPI_BASE as *const PPIRegs,
+impl Ppi {
+    pub const fn new() -> Ppi {
+        Ppi {
+            registers: PPI_BASE,
         }
     }
 
     pub fn enable(&self, channels: FieldValue<u32, Channel::Register>) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.chenset.write(channels);
     }
 
     pub fn disable(&self, channels: FieldValue<u32, Channel::Register>) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.chenclr.write(channels);
     }
 }
