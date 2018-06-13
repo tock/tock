@@ -20,7 +20,7 @@ attending the morning Intermediate Rust training is highly encouraged.
 ## Pre-requisites
 
 We will go over setting up a development environment during the training.
-However, because the WiFi might not be provide fastest Internet connection in
+However, because the WiFi might not provide the fastest Internet connection in
 the world, it would be useful to set up the following dependencies ahead of
 time:
 
