@@ -7,6 +7,7 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
@@ -112,17 +113,18 @@ register_bitfields![u32,
 ];
 
 // Page 59 of SAM4L data sheet
-const BASE_ADDRESS: *mut DacRegisters = 0x4003C000 as *mut DacRegisters;
+const DAC_BASE: StaticRef<DacRegisters> =
+    unsafe { StaticRef::new(0x4003C000 as *const DacRegisters) };
 
 pub struct Dac {
-    registers: *mut DacRegisters,
+    registers: StaticRef<DacRegisters>,
     enabled: Cell<bool>,
 }
 
-pub static mut DAC: Dac = Dac::new(BASE_ADDRESS);
+pub static mut DAC: Dac = Dac::new(DAC_BASE);
 
 impl Dac {
-    const fn new(base_address: *mut DacRegisters) -> Dac {
+    const fn new(base_address: StaticRef<DacRegisters>) -> Dac {
         Dac {
             registers: base_address,
             enabled: Cell::new(false),
@@ -135,7 +137,7 @@ impl Dac {
 
 impl hil::dac::DacChannel for Dac {
     fn initialize(&self) -> ReturnCode {
-        let regs: &DacRegisters = unsafe { &*self.registers };
+        let regs: &DacRegisters = &*self.registers;
         if !self.enabled.get() {
             self.enabled.set(true);
 
@@ -159,7 +161,7 @@ impl hil::dac::DacChannel for Dac {
     }
 
     fn set_value(&self, value: usize) -> ReturnCode {
-        let regs: &DacRegisters = unsafe { &*self.registers };
+        let regs: &DacRegisters = &*self.registers;
         if !self.enabled.get() {
             ReturnCode::EOFF
         } else {
