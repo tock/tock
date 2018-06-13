@@ -27,6 +27,7 @@ use deferred_call_tasks::Task;
 use kernel::common::cells::TakeCell;
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm;
@@ -303,7 +304,8 @@ register_bitfields![u32,
     ]
 ];
 
-const FLASHCALW_BASE_ADDRS: usize = 0x400A0000;
+const FLASHCALW_ADDRESS: StaticRef<FlashcalwRegisters> =
+    unsafe { StaticRef::new(0x400A0000 as *const FlashcalwRegisters) };
 
 #[allow(dead_code)]
 enum RegKey {
@@ -400,7 +402,7 @@ impl AsMut<[u8]> for Sam4lPage {
 
 // The FLASHCALW controller
 pub struct FLASHCALW {
-    registers: *mut FlashcalwRegisters,
+    registers: StaticRef<FlashcalwRegisters>,
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
@@ -411,7 +413,7 @@ pub struct FLASHCALW {
 
 // static instance for the board. Only one FLASHCALW on chip.
 pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(
-    FLASHCALW_BASE_ADDRS,
+    FLASHCALW_ADDRESS,
     pm::HSBClock::FLASHCALW,
     pm::HSBClock::FLASHCALWP,
     pm::PBBClock::FLASHCALW,
@@ -434,13 +436,13 @@ const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
 impl FLASHCALW {
     const fn new(
-        base_addr: usize,
+        registers: StaticRef<FlashcalwRegisters>,
         ahb_clk: pm::HSBClock,
         hramc1_clk: pm::HSBClock,
         pb_clk: pm::PBBClock,
     ) -> FLASHCALW {
         FLASHCALW {
-            registers: base_addr as *mut FlashcalwRegisters,
+            registers: registers,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
             pb_clock: pm::Clock::PBB(pb_clk),
@@ -454,12 +456,12 @@ impl FLASHCALW {
 
     //  Flush the cache. Should be called after every write!
     fn invalidate_cache(&self) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         regs.maint0.write(PicoCacheMaintenance0::INVALL::SET);
     }
 
     fn enable_picocache(&self, enable: bool) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         if enable {
             regs.ctrl.write(PicoCacheControl::CEN::Enable);
         } else {
@@ -479,12 +481,12 @@ impl FLASHCALW {
     }
 
     fn pico_enabled(&self) -> bool {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         regs.sr.is_set(PicoCacheStatus::CSTS)
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
 
         // Disable the interrupt line for flash
         regs.fcr.modify(FlashControl::FRDY::CLEAR);
@@ -577,7 +579,7 @@ impl FLASHCALW {
 
     /// FLASH properties.
     fn get_flash_size(&self) -> u32 {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         let flash_sizes = [
             4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048,
         ];
@@ -587,12 +589,12 @@ impl FLASHCALW {
 
     /// FLASHC Control
     pub fn set_wait_state(&self, wait_state: u32) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         regs.fcr.modify(FlashControl::FWS.val(wait_state));
     }
 
-    fn enable_ws1_read_opt(&mut self, enable: bool) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+    fn enable_ws1_read_opt(&self, enable: bool) {
+        let regs: &FlashcalwRegisters = &*self.registers;
         if enable {
             regs.fcr.modify(FlashControl::WS1OPT::Optimize);
         } else {
@@ -603,12 +605,7 @@ impl FLASHCALW {
     //  By default, we are going with High Speed Enable (based on our device running
     //  in PS2).
     #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
-    fn set_flash_waitstate_and_readmode(
-        &mut self,
-        cpu_freq: u32,
-        _ps_val: u32,
-        _is_fwu_enabled: bool,
-    ) {
+    fn set_flash_waitstate_and_readmode(&self, cpu_freq: u32, _ps_val: u32, _is_fwu_enabled: bool) {
         // ps_val and is_fwu_enabled not used in this implementation.
         if cpu_freq > FREQ_PS2_FWS_0_MAX_FREQ {
             self.set_wait_state(1);
@@ -656,7 +653,7 @@ impl FLASHCALW {
 
     /// Configure high-speed flash mode. This is taken from the ASF code
     pub fn enable_high_speed_flash(&self) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
 
         // Since we are running at a fast speed we have to set a clock delay
         // for flash, as well as enable fast flash mode.
@@ -672,14 +669,14 @@ impl FLASHCALW {
 
     /// Flashcalw status
     fn is_error(&self) -> bool {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         pm::enable_clock(self.pb_clock);
         regs.fsr.is_set(FlashStatus::LOCKE) | regs.fsr.is_set(FlashStatus::PROGE)
     }
 
     /// Flashcalw command control
     fn issue_command(&self, command: FlashCMD, page_number: i32) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         pm::enable_clock(self.pb_clock);
         // For most commands we wait for the interrupt, for some certain
         // fast/rarely used commands or commands that don't generate interrupts
@@ -728,7 +725,7 @@ impl FLASHCALW {
     }
 
     fn is_page_erased(&self) -> bool {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
         regs.fsr.is_set(FlashStatus::QPRR)
     }
 
@@ -797,7 +794,7 @@ impl FLASHCALW {
 // Implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
     pub fn configure(&mut self) {
-        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
+        let regs: &FlashcalwRegisters = &*self.registers;
 
         // Enable all clocks (if they aren't on already...).
         pm::enable_clock(self.ahb_clock);
