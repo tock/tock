@@ -37,13 +37,15 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
 
-const RADIO_BASE: usize = 0x40001000;
+const RADIO_BASE: StaticRef<RadioRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
 
 #[repr(C)]
 struct RadioRegisters {
@@ -528,7 +530,7 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
-    regs: *const RadioRegisters,
+    registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
     rx_client: Cell<Option<&'static ble_advertising::RxClient>>,
     tx_client: Cell<Option<&'static ble_advertising::TxClient>>,
@@ -539,7 +541,7 @@ pub static mut RADIO: Radio = Radio::new();
 impl Radio {
     pub const fn new() -> Radio {
         Radio {
-            regs: RADIO_BASE as *const RadioRegisters,
+            registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
@@ -547,46 +549,46 @@ impl Radio {
     }
 
     fn tx(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
         regs.task_txen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
         regs.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn set_rx_address(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.rxaddresses.write(ReceiveAddresses::ADDRESS.val(1));
     }
 
     fn set_tx_address(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.txaddress.write(TransmitAddress::ADDRESS.val(0));
     }
 
     fn radio_on(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         // reset and enable power
         regs.power.write(Task::ENABLE::CLEAR);
         regs.power.write(Task::ENABLE::SET);
     }
 
     fn radio_off(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.power.write(Task::ENABLE::CLEAR);
     }
 
     fn set_tx_power(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.txpower.set(self.tx_power.get() as u32);
     }
 
     fn set_dma_ptr(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         unsafe {
             regs.packetptr.set(PAYLOAD.as_ptr() as u32);
         }
@@ -594,7 +596,7 @@ impl Radio {
 
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         self.disable_all_interrupts();
 
         if regs.event_ready.is_set(Event::READY) {
@@ -652,7 +654,7 @@ impl Radio {
     }
 
     pub fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.write(
             Interrupt::READY::SET + Interrupt::ADDRESS::SET + Interrupt::PAYLOAD::SET
                 + Interrupt::END::SET,
@@ -660,17 +662,17 @@ impl Radio {
     }
 
     pub fn enable_interrupt(&self, intr: u32) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.set(intr);
     }
 
     pub fn clear_interrupt(&self, intr: u32) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.set(intr);
     }
 
     pub fn disable_all_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         // disable all possible interrupts
         regs.intenclr.set(0xffffffff);
     }
@@ -708,7 +710,7 @@ impl Radio {
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
     fn ble_set_crc_config(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.crccnf
             .write(CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE);
         regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
@@ -718,7 +720,7 @@ impl Radio {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1.2 Access Address
     // Set access address to 0x8E89BED6
     fn ble_set_advertising_access_address(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.prefix0.set(0x0000008e);
         regs.base0.set(0x89bed600);
     }
@@ -733,7 +735,7 @@ impl Radio {
     // +----------+   +----------------+   +---------------+   +------------+
     //
     fn ble_set_packet_config(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
@@ -755,14 +757,14 @@ impl Radio {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
     // Bit Rate = 1 Mb/s ±1 ppm
     fn ble_set_channel_rate(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.mode.write(Mode::MODE::BLE_1MBIT);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.2 Data Whitening
     // Configure channel index to the LFSR and the hardware solves the rest
     fn ble_set_data_whitening(&self, channel: RadioChannel) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.datawhiteiv.set(channel.get_channel_index());
     }
 
@@ -771,7 +773,7 @@ impl Radio {
     // Data:            0 - 36
     // Advertising:     37, 38, 39
     fn ble_set_channel_freq(&self, channel: RadioChannel) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
