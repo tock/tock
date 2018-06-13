@@ -29,24 +29,23 @@ pub unsafe extern "C" fn systick_handler() {}
 pub unsafe extern "C" fn systick_handler() {
     asm!(
         "
-        /* Skip saving process state if not coming from user-space */
-        cmp lr, #0xfffffffd
-        bne _systick_handler_no_stacking
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _systick_handler_no_stacking
 
-        /* We need the most recent kernel's version of r1, which points */
-        /* to the Process struct's stored registers field. The kernel's r1 */
-        /* lives in the second word of the hardware stacked registers on MSP */
-        mov r1, sp
-        ldr r1, [r1, #4]
-        stmia r1, {r4-r11}
-    _systick_handler_no_stacking:
-        /* Set thread mode to privileged */
-        mov r0, #0
-        msr CONTROL, r0
+    /* We need the most recent kernel's version of r1, which points */
+    /* to the Process struct's stored registers field. The kernel's r1 */
+    /* lives in the second word of the hardware stacked registers on MSP */
+    mov r1, sp
+    ldr r1, [r1, #4]
+    stmia r1, {r4-r11}
+  _systick_handler_no_stacking:
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
 
-        movw LR, #0xFFF9
-        movt LR, #0xFFFF
-         "
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF"
     );
 }
 
@@ -76,7 +75,7 @@ pub unsafe extern "C" fn generic_isr() {
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-_ggeneric_isr_no_stacking:
+  _ggeneric_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
@@ -87,12 +86,12 @@ _ggeneric_isr_no_stacking:
      * High level:
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
-	lsrs	r2, r0, #5 /* r2 = r0 / 32 */
+    lsrs r2, r0, #5 /* r2 = r0 / 32 */
 
     /* r0 = 1 << (r0 & 31) */
-	movs r3, #1        /* r3 = 1 */
-	and	r0, r0, #31    /* r0 = r0 & 31 */
-	lsl	r0, r3, r0     /* r0 = r3 << r0 */
+    movs r3, #1        /* r3 = 1 */
+    and r0, r0, #31    /* r0 = r0 & 31 */
+    lsl r0, r3, r0     /* r0 = r3 << r0 */
 
     /* r3 = &NVIC.ICER */
     mov r3, #0xe180
@@ -109,7 +108,7 @@ _ggeneric_isr_no_stacking:
      *  `*(r3 + r2 * 4) = r0`
      *
      *  */
-	str	r0, [r3, r2, lsl #2]"
+    str r0, [r3, r2, lsl #2]"
     );
 }
 
@@ -121,27 +120,27 @@ pub unsafe extern "C" fn svc_handler() {}
 pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
-  cmp lr, #0xfffffff9
-  bne to_kernel
+    cmp lr, #0xfffffff9
+    bne to_kernel
 
-  /* Set thread mode to unprivileged */
-  mov r0, #1
-  msr CONTROL, r0
+    /* Set thread mode to unprivileged */
+    mov r0, #1
+    msr CONTROL, r0
 
-  movw lr, #0xfffd
-  movt lr, #0xffff
-  bx lr
-to_kernel:
-  ldr r0, =SYSCALL_FIRED
-  mov r1, #1
-  str r1, [r0, #0]
+    movw lr, #0xfffd
+    movt lr, #0xffff
+    bx lr
+  to_kernel:
+    ldr r0, =SYSCALL_FIRED
+    mov r1, #1
+    str r1, [r0, #0]
 
-  /* Set thread mode to privileged */
-  mov r0, #0
-  msr CONTROL, r0
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
 
-  movw LR, #0xFFF9
-  movt LR, #0xFFFF"
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF"
     );
 }
 
