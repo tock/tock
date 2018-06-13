@@ -90,3 +90,61 @@ int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) 
   ret = command(DRIVER_NUM_CONSOLE, 1, len, 0);
   return ret;
 }
+
+int getnstr_async(char *str, size_t len, subscribe_cb cb, void* userdata) {
+  int ret;
+
+  ret = allow(DRIVER_NUM_CONSOLE, 2, str, len);
+  if (ret < 0) return ret;
+
+  ret = subscribe(DRIVER_NUM_CONSOLE, 2, cb, userdata);
+  if (ret < 0) return ret;
+
+  ret = command(DRIVER_NUM_CONSOLE, 2, len, 0);
+  return ret;
+}
+
+typedef struct getnstr_data {
+  bool called;
+  int result;
+} getnstr_data_t;
+
+static getnstr_data_t getnstr_data = { true, 0 };
+
+static void getnstr_cb(int result,
+                       int _y __attribute__ ((unused)),
+                       int _z __attribute__ ((unused)),
+                       void* ud __attribute__ ((unused))) {
+  getnstr_data.result = result;
+  getnstr_data.called = true;
+}
+
+int getnstr(char *str, size_t len) {
+  int ret;
+
+  if (!getnstr_data.called) {
+    // A call is already in progress
+    return TOCK_EALREADY;
+  }
+  getnstr_data.called = false;
+
+  ret = getnstr_async(str, len, getnstr_cb, NULL);
+  if (ret < 0) return ret;
+
+  yield_for(&getnstr_data.called);
+
+  return getnstr_data.result;
+}
+
+int getch(void) {
+  int r;
+  char buf[1];
+
+  r = getnstr(buf, 1);
+
+  return (r == TOCK_SUCCESS) ? buf[0] : TOCK_FAIL;
+}
+
+int getnstr_abort(void) {
+  return command(DRIVER_NUM_CONSOLE, 3, 0, 0);
+}

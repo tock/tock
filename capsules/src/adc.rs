@@ -3,9 +3,9 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000005;
@@ -296,9 +296,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
                 self.using_app_buf1.set(true);
                 self.samples_remaining.set(request_len - len1 - len2);
                 self.samples_outstanding.set(len1 + len2);
-                let (rc, retbuf1, retbuf2) =
-                    self.adc
-                        .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                let (rc, retbuf1, retbuf2) = self.adc
+                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
                     retbuf1.map(|buf| {
@@ -403,9 +402,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
 
                 // begin sampling
                 self.using_app_buf1.set(true);
-                let (rc, retbuf1, retbuf2) =
-                    self.adc
-                        .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                let (rc, retbuf1, retbuf2) = self.adc
+                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
                     retbuf1.map(|buf| {

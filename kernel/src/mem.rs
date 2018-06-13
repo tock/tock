@@ -1,10 +1,11 @@
 //! Data structure for passing application memory to the kernel.
 
-use AppId;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::Unique;
 use core::slice;
+
+use callback::AppId;
 use process;
 
 #[derive(Debug)]

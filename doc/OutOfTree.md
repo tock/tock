@@ -18,7 +18,7 @@ abreast of Tock development:
     Any major Tock changes will be announced via this list. The list
     also support general Tock development, however it is relatively low
     traffic (<1 email/day on average).
-  - [Tock GitHub](https://github.com/helena-project/tock/): All Tock
+  - [Tock GitHub](https://github.com/tock/tock/): All Tock
     changes go through Pull Requests. Non-trivial changes will generally
     wait at least one week to merge to allow for feedback.
 
@@ -42,7 +42,6 @@ something like:
     │   └── my_board
     │       ├── Cargo.toml
     │       ├── Makefile
-    │       ├── Xargo.toml
     │       └── src
     │           └── main.rs
     ├── my_drivers
@@ -104,11 +103,6 @@ to elements of Tock.
   kernel = { path = "../../tock/kernel" }
   my_drivers = { path = "../../my_drivers" }
   ```
-
-
-Finally, you will need a Xargo.toml. We recommend simply copying
-Xargo.toml from any existing board. You should not need to customize
-this file.
 
 
 

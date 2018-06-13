@@ -13,7 +13,7 @@
 //! Then, connect the device to a host machine's USB port and run this
 //! program.
 //!
-//! The expected output of this program is:
+//! The expected output of this program (after listing USB devices) is:
 //!
 //!     Received [10, 11, 12]
 //!     Wrote [13, 14, 15]
@@ -32,14 +32,35 @@ const PRODUCT_ID: u16 = 0xabcd;
 const EXPECT_BYTES: &'static [u8] = &[10, 11, 12];
 
 fn main() {
-    let context = Context::new().unwrap();
+    let context = Context::new().expect("Creating context");
 
-    let mut dh = context
-        .open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID)
+    println!("Searching for device ...");
+    let device_list = context.devices().expect("Getting device list");
+    let mut dev = None;
+    for d in device_list.iter() {
+        let descr = d.device_descriptor().expect("Getting device descriptor");
+        let matches = descr.vendor_id() == VENDOR_ID && descr.product_id() == PRODUCT_ID;
+        println!(
+            "{} {:02}:{:02} Vendor:{:04x} Product:{:04x}",
+            if matches { "->" } else { "  " },
+            d.bus_number(),
+            d.address(),
+            descr.vendor_id(),
+            descr.product_id()
+        );
+
+        if matches {
+            dev = Some(d);
+        }
+    }
+
+    let mut dh = dev.expect("Matching device not found")
+        .open()
         .expect("Opening device");
 
     dh.set_active_configuration(0)
         .expect("Setting active configuration");
+
     dh.claim_interface(0).expect("Claiming interface");
 
     {

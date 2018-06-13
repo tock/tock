@@ -50,9 +50,9 @@
 //!   of the button.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000003;

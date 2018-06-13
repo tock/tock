@@ -66,10 +66,9 @@
 //! the SAM4L.
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
-use kernel::process::Error;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x40002;
@@ -228,11 +227,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ///
     /// ### Command Numbers
     ///
-    ///   *   `0`: Returns non-zero to indicate the driver is present
-    ///
-    ///   *   `1`: Returns the CRC unit's version value.  This is provided
-    ///       in order to be complete, but has limited utility as no
-    ///       consistent semantics are specified.
+    ///   *   `0`: Returns non-zero to indicate the driver is present.
     ///
     ///   *   `2`: Requests that a CRC be computed over the buffer
     ///       previously provided by `allow`.  If none was provided,
@@ -291,11 +286,6 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
             // This driver is present
             0 => ReturnCode::SUCCESS,
 
-            // Get version of CRC unit
-            1 => ReturnCode::SuccessWithValue {
-                value: self.crc_unit.get_version() as usize,
-            },
-
             // Request a CRC computation
             2 => {
                 let result = if let Some(alg) = alg_from_user_int(algorithm) {
@@ -338,13 +328,9 @@ impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                         callback.schedule(From::from(ReturnCode::SUCCESS), result as usize, 0);
                     }
                     app.waiting = None;
+                    ReturnCode::SUCCESS
                 })
-                .unwrap_or_else(|err| match err {
-                    Error::OutOfMemory => {}
-                    Error::AddressOutOfBounds => {}
-                    Error::NoSuchApp => {}
-                });
-
+                .unwrap_or_else(|err| err.into());
             self.serving_app.set(None);
             self.serve_waiting_apps();
         } else {

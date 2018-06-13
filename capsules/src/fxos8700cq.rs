@@ -20,11 +20,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
+use kernel::ReturnCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
 

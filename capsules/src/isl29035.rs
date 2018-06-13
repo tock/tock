@@ -26,11 +26,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Frequency};
+use kernel::ReturnCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];
 

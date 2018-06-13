@@ -24,9 +24,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
-use kernel::ReturnCode;
 use kernel::hil;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x80003;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port + 'a> {
     ports: &'a [&'a Port],

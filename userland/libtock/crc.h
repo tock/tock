@@ -39,9 +39,6 @@ int crc_exists(void);
 // Returns ESIZE if the buffer is too big for the unit.
 int crc_compute(const void *buf, size_t buflen, enum crc_alg, uint32_t *result);
 
-// Get the version of the CRC firmware
-uint32_t crc_version(void);
-
 // Register a callback to receive CRC results
 //
 // The callback will receive these parameters, in order:

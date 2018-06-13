@@ -69,4 +69,9 @@ impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
             None
         }
     }
+
+    fn empty(&mut self) {
+        self.head = 0;
+        self.tail = 0;
+    }
 }

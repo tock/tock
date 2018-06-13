@@ -21,19 +21,9 @@ include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 # variable which selects one and we include the appropriate Makefile-app from
 # within the Tock base directory.
 TOCK_BOARD ?= hail
-TOCK_KERNEL_ROOT ?= $(TOCK_USERLAND_BASE_DIR)/..
 
-# Include platform app makefile if one exists.
-#  - Chooses an appropriate TOCK_ARCH for the platform and uses those bin files
-#  - Adds rules for loading applications onto this board
-# Conditionally included in case it doesn't exist for a board. In that case,
-# the generic "Program.mk" is used instead which defines `program` and `flash`
-# using Tockloader.
-ifneq ("$(wildcard $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app)","")
-include $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app
-else
+# Include the makefile that has the programming functions for each board.
 include $(TOCK_USERLAND_BASE_DIR)/Program.mk
-endif
 
 # Single-arch libraries, to be phased out
 LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
@@ -110,23 +100,23 @@ $$(BUILDDIR)/$(1):
 # More info on our approach here: http://stackoverflow.com/questions/97338
 $$(BUILDDIR)/$(1)/%.o: %.c | $$(BUILDDIR)/$(1)
 	$$(TRACE_CC)
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cc | $$(BUILDDIR)/$(1)
 	$$(TRACE_CXX)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1)
 	$$(TRACE_CXX)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 $$(BUILDDIR)/$(1)/%.o: %.cxx | $$(BUILDDIR)/$(1)
 	$$(TRACE_CXX)
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
-	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1)) -c -o $$@ $$<
 
 OBJS_$(1) += $$(patsubst %.c,$$(BUILDDIR)/$(1)/%.o,$$(C_SRCS))
 OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)))
@@ -136,7 +126,7 @@ OBJS_$(1) += $$(patsubst %.cxx,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$(CXX_SRC
 # Collect all desired built output.
 $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
 	$$(TRACE_LD)
-	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) $$(CPPFLAGS_$(1))\
 	    --entry=_start\
 	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
 	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\
@@ -146,10 +136,6 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
-
-$$(BUILDDIR)/$(1)/$(1).bin: $$(BUILDDIR)/$(1)/$(1).elf | $$(BUILDDIR)/$(1) validate_gcc_flags
-	$$(TRACE_BIN)
-	$$(Q)$$(ELF2TBF) $$(ELF2TBF_ARGS) -o $$@ $$<
 
 # NOTE: This rule creates an lst file for the elf as flashed on the board
 #       (i.e. at address 0x80000000). This is not likely what you want.
@@ -249,14 +235,14 @@ $(foreach arch, $(TOCK_ARCHS), $(eval $(call BUILD_RULES,$(arch))))
 
 
 # TAB file generation. Used for Tockloader
-$(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).bin)
-	$(TOCK_USERLAND_BASE_DIR)/tools/tab/create_tab.py $@ $(PACKAGE_NAME) $^
+$(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).elf)
+	$(Q)$(ELF2TAB) $(ELF2TAB_ARGS) -o $@ $^
 
 
 
 # Rules for building apps
 .PHONY:	all
-all:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).bin) $(BUILDDIR)/$(PACKAGE_NAME).tab size
+all:	$(BUILDDIR)/$(PACKAGE_NAME).tab size
 
 .PHONY: size
 size:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).elf)
@@ -295,6 +281,10 @@ $(BUILDDIR)/format/%.uncrustify: %.cxx | _format_check_unstaged
 	$(Q)$(UNCRUSTIFY) -f $< -o $@
 	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
 
+
+# Rules to help validate build configuration
+fmt format::
+	$(Q)$(TOCK_USERLAND_BASE_DIR)/tools/check_override.sh
 
 
 #########################################################################################

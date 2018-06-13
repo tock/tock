@@ -17,10 +17,13 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x70004;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 5] = [0; 5];
@@ -188,6 +191,7 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
                 self.i2c.write(buffer, 2);
+                self.interrupt_pin.disable_interrupt();
                 self.state.set(State::Done);
             }
             State::Done => {

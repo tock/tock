@@ -34,10 +34,10 @@
 //! ```
 
 use callback::{AppId, Callback};
-use core::{slice, str};
 use core::cmp::min;
 use core::fmt::{write, Arguments, Result, Write};
 use core::ptr::{read_volatile, write_volatile};
+use core::{slice, str};
 use driver::Driver;
 use hil;
 use mem::AppSlice;
@@ -173,10 +173,12 @@ pub unsafe fn assign_gpios(
 /// In-kernel gpio debugging, accepts any GPIO HIL method
 #[macro_export]
 macro_rules! debug_gpio {
-    ($i:tt, $method:ident) => ({
+    ($i:tt, $method:ident) => {{
         #[allow(unused_unsafe)]
-        unsafe { $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method()); }
-    });
+        unsafe {
+            $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
+        }
+    }};
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -199,10 +201,10 @@ static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
     grant: None,
     output_buffer: [0; BUF_SIZE],
-    output_head: 0,       // ........ first valid index in output_buffer
-    output_tail: 0,       // ........ one past last valid index (wraps to 0)
-    output_active_len: 0, //... how big is the current transaction?
-    count: 0,             // .............. how many debug! calls
+    output_head: 0,       // first valid index in output_buffer
+    output_tail: 0,       // one past last valid index (wraps to 0)
+    output_active_len: 0, // how big is the current transaction?
+    count: 0,             // how many debug! calls
 };
 
 pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, grant: &mut T) {

@@ -13,10 +13,11 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
+use kernel::common::cells::VolatileCell;
+use kernel::hil::ble_advertising;
+use kernel::hil::ble_advertising::RadioChannel;
 use kernel::ReturnCode;
-use kernel::common::VolatileCell;
 use nrf5x;
-use nrf5x::ble_advertising_hil::RadioChannel;
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: usize = 0x40001000;
@@ -114,8 +115,8 @@ pub struct RadioRegisters {
 pub struct Radio {
     regs: *const RadioRegisters,
     tx_power: Cell<TxPower>,
-    rx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
-    tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
+    rx_client: Cell<Option<&'static ble_advertising::RxClient>>,
+    tx_client: Cell<Option<&'static ble_advertising::TxClient>>,
 }
 
 impl Radio {
@@ -304,7 +305,10 @@ impl Radio {
                     self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
+                            // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                            // And because the length field is directly read from the packet
+                            // We need to add 2 to length to get the total length
+                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 2, result)
                         });
                     }
                 }
@@ -341,7 +345,7 @@ impl Radio {
     }
 }
 
-impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
+impl ble_advertising::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(
         &self,
         buf: &'static mut [u8],
@@ -361,16 +365,16 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         self.enable_interrupts();
     }
 
-    fn set_receive_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
+    fn set_receive_client(&self, client: &'static ble_advertising::RxClient) {
         self.rx_client.set(Some(client));
     }
 
-    fn set_transmit_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
+    fn set_transmit_client(&self, client: &'static ble_advertising::TxClient) {
         self.tx_client.set(Some(client));
     }
 }
 
-impl nrf5x::ble_advertising_hil::BleConfig for Radio {
+impl ble_advertising::BleConfig for Radio {
     // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
     // underlying chip must validate if the current `tx_power` is supported as well
     fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {

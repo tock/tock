@@ -31,7 +31,9 @@ register_bitfields![
             PullNone = 0b11
         ],
         PORT_ID     OFFSET(0) NUMBITS(6) [
-            GPIO = 0x00
+            GPIO = 0x00,
+            UART_RX = 0xF,
+            UART_TX = 0x10
             // Add more as needed from datasheet p.1028
         ]
     ]
@@ -101,6 +103,26 @@ impl IocfgPin {
         let regs: &IocRegisters = unsafe { &*IOC_BASE };
         let pin_ioc = &regs.iocfg[self.pin];
         pin_ioc.modify(IoConfiguration::EDGE_IRQ_EN::CLEAR);
+    }
+
+    /// Configures pin for UART receive (RX).
+    pub fn enable_uart_rx(&self) {
+        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let pin_ioc = &regs.iocfg[self.pin];
+
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART_RX);
+        self.set_input_mode(hil::gpio::InputMode::PullNone);
+        self.enable_input();
+    }
+
+    /// Configures pin for UART transmit (TX).
+    pub fn enable_uart_tx(&self) {
+        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let pin_ioc = &regs.iocfg[self.pin];
+
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART_TX);
+        self.set_input_mode(hil::gpio::InputMode::PullNone);
+        self.enable_output();
     }
 }
 

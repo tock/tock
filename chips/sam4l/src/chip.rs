@@ -6,11 +6,12 @@ use ast;
 use cortexm4;
 use crccu;
 use dac;
+use deferred_call_tasks::Task;
 use dma;
 use flashcalw;
 use gpio;
-use helpers::{DeferredCall, Task};
 use i2c;
+use kernel::common::deferred_call;
 use kernel::Chip;
 use pm;
 use spi;
@@ -73,7 +74,7 @@ impl Chip for Sam4l {
 
         unsafe {
             loop {
-                if let Some(task) = DeferredCall::next_pending() {
+                if let Some(task) = deferred_call::DeferredCall::next_pending() {
                     match task {
                         Task::Flashcalw => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
                     }
@@ -150,7 +151,7 @@ impl Chip for Sam4l {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || DeferredCall::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
@@ -161,7 +162,7 @@ impl Chip for Sam4l {
         &self.systick
     }
 
-    fn prepare_for_sleep(&self) {
+    fn sleep(&self) {
         if pm::deep_sleep_ready() {
             unsafe {
                 cortexm4::scb::set_sleepdeep();
@@ -171,5 +172,16 @@ impl Chip for Sam4l {
                 cortexm4::scb::unset_sleepdeep();
             }
         }
+
+        unsafe {
+            cortexm4::support::wfi();
+        }
+    }
+
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm4::support::atomic(f)
     }
 }

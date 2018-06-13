@@ -37,19 +37,21 @@
 #[macro_use]
 pub mod macros;
 
+use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
 
 /// IntLike properties needed to read/write/modify a register.
-pub trait IntLike
-    : BitAnd<Output = Self>
+pub trait IntLike:
+    BitAnd<Output = Self>
     + BitOr<Output = Self>
     + Not<Output = Self>
     + Eq
     + Shr<u32, Output = Self>
     + Shl<u32, Output = Self>
     + Copy
-    + Clone {
+    + Clone
+{
     fn zero() -> Self;
 }
 
@@ -92,7 +94,6 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     associated_register: PhantomData<R>,
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     pub const fn new(value: T) -> Self {
         ReadWrite {
@@ -117,6 +118,11 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     }
 
     #[inline]
+    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
+        LocalRegisterCopy::new(self.get())
+    }
+
+    #[inline]
     pub fn write(&self, field: FieldValue<T, R>) {
         self.set(field.value);
     }
@@ -128,17 +134,26 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     }
 
     #[inline]
+    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
+        self.set((original.get() & !field.mask) | field.value);
+    }
+
+    #[inline]
     pub fn is_set(&self, field: Field<T, R>) -> bool {
         self.read(field) != T::zero()
     }
 
     #[inline]
-    pub fn matches(&self, field: FieldValue<T, R>) -> bool {
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
     }
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     pub const fn new(value: T) -> Self {
         ReadOnly {
@@ -158,17 +173,26 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     }
 
     #[inline]
+    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
+        LocalRegisterCopy::new(self.get())
+    }
+
+    #[inline]
     pub fn is_set(&self, field: Field<T, R>) -> bool {
         self.read(field) != T::zero()
     }
 
     #[inline]
-    pub fn matches(&self, field: FieldValue<T, R>) -> bool {
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
         self.get() & field.mask == field.value
     }
 }
 
-#[allow(dead_code)]
 impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     pub const fn new(value: T) -> Self {
         WriteOnly {
@@ -185,6 +209,84 @@ impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
     #[inline]
     pub fn write(&self, field: FieldValue<T, R>) {
         self.set(field.value);
+    }
+}
+
+/// This behaves very similarly to a read-only register, but instead of doing a
+/// volatile read to MMIO to get the value for each function call, a copy of the
+/// register contents are stored locally in memory. This allows a peripheral
+/// to do a single read on a register, and then check which bits are set without
+/// having to do a full MMIO read each time. It also allows the value of the
+/// register to be "cached" in case the peripheral driver needs to clear the
+/// register in hardware yet still be able to check the bits.
+#[derive(Copy, Clone)]
+pub struct LocalRegisterCopy<T: IntLike, R: RegisterLongName = ()> {
+    value: T,
+    associated_register: PhantomData<R>,
+}
+
+impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
+    pub const fn new(value: T) -> Self {
+        LocalRegisterCopy {
+            value: value,
+            associated_register: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn get(&self) -> T {
+        self.value
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<T, R>) -> T {
+        (self.value & (field.mask << field.shift)) >> field.shift
+    }
+
+    #[inline]
+    pub fn is_set(&self, field: Field<T, R>) -> bool {
+        self.read(field) != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.value & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
+        self.value & field.mask == field.value
+    }
+
+    /// Do a bitwise AND operation of the stored value and the passed in value
+    /// and return a new LocalRegisterCopy.
+    #[inline]
+    pub fn bitand(&self, rhs: T) -> LocalRegisterCopy<T, R> {
+        LocalRegisterCopy::new(self.value & rhs)
+    }
+}
+
+impl<T: IntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.value)
+    }
+}
+
+impl<R: RegisterLongName> From<LocalRegisterCopy<u8, R>> for u8 {
+    fn from(r: LocalRegisterCopy<u8, R>) -> u8 {
+        r.value
+    }
+}
+
+impl<R: RegisterLongName> From<LocalRegisterCopy<u16, R>> for u16 {
+    fn from(r: LocalRegisterCopy<u16, R>) -> u16 {
+        r.value
+    }
+}
+
+impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
+    fn from(r: LocalRegisterCopy<u32, R>) -> u32 {
+        r.value
     }
 }
 
@@ -240,7 +342,8 @@ impl<R: RegisterLongName> Field<u32, R> {
 }
 
 /// Values for the specific register fields.
-// For the FieldValue, the masks and values are shifted into their actual location in the register
+// For the FieldValue, the masks and values are shifted into their actual
+// location in the register.
 #[derive(Copy, Clone)]
 pub struct FieldValue<T: IntLike, R: RegisterLongName> {
     mask: T,
@@ -248,8 +351,8 @@ pub struct FieldValue<T: IntLike, R: RegisterLongName> {
     associated_register: PhantomData<R>,
 }
 
-// Necessary to split the implementation of u8 and u32 out because the bitwise math isn't treated
-// as const when the type is generic
+// Necessary to split the implementation of u8 and u32 out because the bitwise
+// math isn't treated as const when the type is generic.
 impl<R: RegisterLongName> FieldValue<u8, R> {
     pub const fn new(mask: u8, shift: u32, value: u8) -> Self {
         FieldValue {
@@ -257,6 +360,11 @@ impl<R: RegisterLongName> FieldValue<u8, R> {
             value: (value << shift) & (mask << shift),
             associated_register: PhantomData,
         }
+    }
+
+    /// Get the raw bitmask represented by this FieldValue.
+    pub fn mask(self) -> u8 {
+        self.mask as u8
     }
 }
 
@@ -289,6 +397,11 @@ impl<R: RegisterLongName> FieldValue<u32, R> {
             value: (value << shift) & (mask << shift),
             associated_register: PhantomData,
         }
+    }
+
+    /// Get the raw bitmask represented by this FieldValue.
+    pub fn mask(self) -> u32 {
+        self.mask as u32
     }
 }
 

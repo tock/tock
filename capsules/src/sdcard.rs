@@ -39,10 +39,13 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x50002;
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:

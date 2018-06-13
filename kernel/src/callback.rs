@@ -1,6 +1,6 @@
 //! Data structure for storing a callback to userspace or kernelspace.
 
-use core::nonzero::NonZero;
+use core::ptr::NonNull;
 use process;
 
 /// Userspace app identifier.
@@ -42,7 +42,7 @@ impl AppId {
 #[derive(Clone, Copy, Debug)]
 pub enum RustOrRawFnPtr {
     Raw {
-        ptr: NonZero<*mut ()>,
+        ptr: NonNull<*mut ()>,
     },
     Rust {
         func: fn(usize, usize, usize, usize),
@@ -58,7 +58,7 @@ pub struct Callback {
 }
 
 impl Callback {
-    pub fn new(appid: AppId, appdata: usize, fn_ptr: NonZero<*mut ()>) -> Callback {
+    pub fn new(appid: AppId, appdata: usize, fn_ptr: NonNull<*mut ()>) -> Callback {
         Callback {
             app_id: appid,
             appdata: appdata,
@@ -97,7 +97,7 @@ impl Callback {
                     r1: r1,
                     r2: r2,
                     r3: self.appdata,
-                    pc: fn_ptr.get() as usize,
+                    pc: fn_ptr.as_ptr() as usize,
                 },
                 self.app_id,
             )

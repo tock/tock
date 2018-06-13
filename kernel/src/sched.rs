@@ -1,11 +1,14 @@
 //! Tock core scheduler.
 
-use core::nonzero::NonZero;
 use core::ptr;
+use core::ptr::NonNull;
+
+use callback::{AppId, Callback};
+use mem::AppSlice;
 use memop;
-use platform::{Chip, Platform};
 use platform::mpu::MPU;
 use platform::systick::SysTick;
+use platform::{Chip, Platform};
 use process;
 use process::{Process, Task};
 use returncode::ReturnCode;
@@ -20,8 +23,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
     platform: &P,
     chip: &mut C,
     process: &mut Process,
-    appid: ::AppId,
-    ipc: &::ipc::IPC,
+    appid: AppId,
+    ipc: Option<&::ipc::IPC>,
 ) {
     let systick = chip.systick();
     systick.reset();
@@ -30,7 +33,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
 
     loop {
         if chip.has_pending_interrupts() || systick.overflowed()
-            || systick.value() <= MIN_QUANTA_THRESHOLD_US
+            || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
         {
             break;
         }
@@ -52,7 +55,17 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                             process.push_function_call(ccb);
                         }
                         Task::IPC((otherapp, ipc_type)) => {
-                            ipc.schedule_callback(appid, otherapp, ipc_type);
+                            ipc.map_or_else(
+                                || {
+                                    assert!(
+                                        false,
+                                        "Kernel consistency error: IPC Task with no IPC"
+                                    );
+                                },
+                                |ipc| {
+                                    ipc.schedule_callback(appid, otherapp, ipc_type);
+                                },
+                            );
                         }
                     }
                     continue;
@@ -95,8 +108,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                 let callback_ptr_raw = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let callback_ptr = NonZero::new(callback_ptr_raw);
-                let callback = callback_ptr.map(|ptr| ::Callback::new(appid, appdata, ptr));
+                let callback_ptr = NonNull::new(callback_ptr_raw);
+                let callback = callback_ptr.map(|ptr| Callback::new(appid, appdata, ptr.cast()));
 
                 let res = platform.with_driver(driver_num, |driver| match driver {
                     Some(d) => d.subscribe(subdriver_num, callback, appid),
@@ -119,7 +132,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                             if start_addr != ptr::null_mut() {
                                 let size = process.r3();
                                 if process.in_exposed_bounds(start_addr, size) {
-                                    let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
+                                    let slice = AppSlice::new(start_addr as *mut u8, size, appid);
                                     d.allow(appid, process.r1(), Some(slice))
                                 } else {
                                     ReturnCode::EINVAL /* memory not allocated to process */

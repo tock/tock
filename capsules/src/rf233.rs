@@ -15,15 +15,14 @@
 // Date: Jan 12 2017
 //
 
-// I like them sometimes, for formatting -pal
 #![allow(unused_parens)]
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
+use kernel::ReturnCode;
 use rf233_const::*;
 
 const INTERRUPT_ID: usize = 0x2154;
@@ -773,12 +772,19 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::TX_RETURN_TO_RX => {
                 let ack: bool = (result & TRX_TRAC_MASK) == 0;
                 if status == ExternalState::RX_AACK_ON as u8 {
+                    let return_code = if (result & TRX_TRAC_MASK) == TRX_TRAC_CHANNEL_ACCESS_FAILURE
+                    {
+                        ReturnCode::FAIL
+                    } else {
+                        ReturnCode::SUCCESS
+                    };
+
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
                     self.tx_client.get().map(|c| {
-                        c.send_done(buf.unwrap(), ack, ReturnCode::SUCCESS);
+                        c.send_done(buf.unwrap(), ack, return_code);
                     });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);

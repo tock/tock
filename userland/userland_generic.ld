@@ -20,13 +20,14 @@ MEMORY {
 }
 
 SECTIONS {
-    /* Text section, Code! */
-    .text :
+    /* Section for just the app crt0 header.
+     * This must be first so that the app can find it.
+     */
+    .crt0_header :
     {
-        _text = .;
+        _beginning = .; /* Start of the app in flash. */
         /**
          * Populate the header expected by `crt0`:
-         *
          *
          *  struct hdr {
          *    uint32_t got_sym_start;
@@ -38,16 +39,17 @@ SECTIONS {
          *    uint32_t bss_start;
          *    uint32_t bss_size;
          *    uint32_t reldata_start;
+         *    uint32_t stack_size;
          *  };
          */
         /* Offset of GOT symbols in flash */
-        LONG(LOADADDR(.got) - _text);
+        LONG(LOADADDR(.got) - _beginning);
         /* Offset of GOT section in memory */
         LONG(_got);
         /* Size of GOT section */
         LONG(SIZEOF(.got));
         /* Offset of data symbols in flash */
-        LONG(LOADADDR(.data) - _text);
+        LONG(LOADADDR(.data) - _beginning);
         /* Offset of data section in memory */
         LONG(_data);
         /* Size of data section */
@@ -56,10 +58,28 @@ SECTIONS {
         LONG(_bss);
         /* Size of BSS section */
         LONG(SIZEOF(.bss));
-        /* First address offset after program flash, where elf2tbf places
+        /* First address offset after program flash, where elf2tab places
          * .rel.data section */
-        LONG(LOADADDR(.endsec) - _text);
+        LONG(LOADADDR(.endflash) - _beginning);
+        /* The size of the stack requested by this application */
+        LONG(STACK_SIZE);
+    } > FLASH =0xFF
 
+    /* App state section. Used for persistent app data.
+     * We put this first so that if the app code changes but the persistent
+     * data doesn't, the app_state can be preserved.
+     */
+    .wfr.app_state :
+    {
+        KEEP (*(.app_state))
+        . = ALIGN(4); /* Make sure we're word-aligned here */
+    } > FLASH =0xFF
+
+    /* Text section, Code! */
+    .text :
+    {
+        . = ALIGN(4);
+        _text = .;
         KEEP (*(.start))
         *(.text*)
         *(.rodata*)
@@ -69,19 +89,14 @@ SECTIONS {
         . = ALIGN(4); /* Make sure we're word-aligned here */
     } > FLASH =0xFF
 
-
-    /* App state section. Used for persistent app data. */
-    .app_state :
-    {
-        KEEP (*(.app_state))
-    } > FLASH =0xFF
-
     /* Global Offset Table */
     .got :
     {
+        . = ALIGN(4); /* Make sure we're word-aligned here */
         _got = .;
         *(.got*)
         *(.got.plt*)
+        . = ALIGN(4);
     } > SRAM AT > FLASH
 
     /* Data section, static initialized variables
@@ -90,39 +105,24 @@ SECTIONS {
      */
     .data :
     {
+        . = ALIGN(4); /* Make sure we're word-aligned here */
         _data = .;
         KEEP(*(.data*))
+        . = ALIGN(4); /* Make sure we're word-aligned at the end of flash */
     } > SRAM AT > FLASH
 
     /* BSS section, static uninitialized variables */
     .bss :
     {
+        . = ALIGN(4); /* Make sure we're word-aligned here */
         _bss = .;
         KEEP(*(.bss*))
         *(COMMON)
+        . = ALIGN(4);
     } > SRAM
 
-    /*
-     * __NOTE__: The following symbols are used only to hint to elf2tbf how much
-     * total memory to request from the OS.
-     */
-    .stack :
-    {
-        . += STACK_SIZE;
-    } > SRAM
-
-    .app_heap :
-    {
-        . += APP_HEAP_SIZE;
-    } > SRAM
-
-    .kernel_heap :
-    {
-        . += KERNEL_HEAP_SIZE;
-    } > SRAM
-
-    _sram_end = .;
-    .endsec :
+    /* End of flash. */
+    .endflash :
     {
     } > FLASH
 
@@ -146,5 +146,4 @@ SECTIONS {
       *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
-
 }

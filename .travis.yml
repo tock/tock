@@ -1,9 +1,6 @@
 sudo: false
 language: rust
 
-env:
-  - RUSTUP_TOOLCHAIN=nightly-2018-01-05
-
 cache:
   cargo: true
   directories:
@@ -17,7 +14,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2018-01-05
+  - nightly-2018-04-19
 
 before_install:
   - ./.travis-install-gcc
@@ -25,7 +22,6 @@ before_install:
   - export PATH="$PATH:$HOME/uncrustify-uncrustify-0.65/build"
 
 before_script:
-  - (cargo install xargo || true)
   - tools/install_cargo_fmt.sh
   - npm install -g markdown-toc
 

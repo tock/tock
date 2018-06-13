@@ -86,7 +86,7 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
                 debug!("Activating Sensor...");
                 buffer[0] = 0x2A as u8; // CTRL_REG1
                 buffer[1] = 1; // Bit 1 sets `active`
-                dev.write(0x1e, i2c::START | i2c::STOP, buffer, 2);
+                dev.write(0x1e, buffer, 2);
                 self.state.set(Activating);
             }
             Activating => {
@@ -210,6 +210,6 @@ pub fn i2c_li_test() {
     buf[0] = 0;
     buf[1] = 0b10100000;
     buf[2] = 0b00000000;
-    dev.write(0x44, i2c::START | i2c::STOP, buf, 3);
+    dev.write(0x44, buf, 3);
     i2c_client.state.set(LiClientState::Enabling);
 }

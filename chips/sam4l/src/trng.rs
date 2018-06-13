@@ -71,9 +71,7 @@ impl<'a> Trng<'a> {
                 // disable controller
                 regs.cr
                     .write(Control::KEY.val(KEY) + Control::ENABLE::Disable);
-                unsafe {
-                    pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
-                }
+                pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
             } else {
                 regs.ier.write(Interrupt::DATRDY::SET);
             }
@@ -103,9 +101,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
 impl<'a> rng::RNG for Trng<'a> {
     fn get(&self) {
         let regs = unsafe { &*self.regs };
-        unsafe {
-            pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
-        }
+        pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
         regs.cr
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);

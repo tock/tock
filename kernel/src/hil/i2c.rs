@@ -2,7 +2,7 @@
 
 use core::fmt::{Display, Formatter, Result};
 
-/// The type of error encoutered during an I2C command transmission.
+/// The type of error encoutered during I2C communication.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     /// The slave did not acknowledge the chip address. Most likely the address
@@ -17,6 +17,10 @@ pub enum Error {
     /// higher-priority transmission is in progress by a different master.
     ArbitrationLost,
 
+    /// A start condition was received before received data has been read
+    /// from the receive register.
+    Overrun,
+
     /// No error occured and the command completed successfully.
     CommandComplete,
 }
@@ -27,6 +31,7 @@ impl Display for Error {
             Error::AddressNak => "I2C Address Not Acknowledged",
             Error::DataNak => "I2C Data Not Acknowledged",
             Error::ArbitrationLost => "I2C Bus Arbitration Lost",
+            Error::Overrun => "I2C receive overrun",
             Error::CommandComplete => "I2C Command Completed",
         };
         write!(fmt, "{}", display_str)

@@ -6,8 +6,8 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::hil::Controller;
 use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
+use kernel::hil::Controller;
 use pm::{self, PBDClock};
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
@@ -178,19 +178,19 @@ impl<'a> Controller for Ast<'a> {
     fn configure(&self, client: &'a time::Client) {
         self.callback.set(Some(client));
 
-        unsafe {
-            pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
-        }
+        pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
         self.select_clock(Clock::ClockOsc32);
+        self.disable();
+        self.disable_alarm_irq();
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();
         self.clear_alarm();
-        self.enable();
     }
 }
 
 #[repr(usize)]
-pub enum Clock {
+#[allow(dead_code)]
+enum Clock {
     ClockRCSys = 0,
     ClockOsc32 = 1,
     ClockAPB = 2,
@@ -199,7 +199,7 @@ pub enum Clock {
 }
 
 impl<'a> Ast<'a> {
-    pub fn clock_busy(&self) -> bool {
+    fn clock_busy(&self) -> bool {
         unsafe { (*self.regs).sr.is_set(Status::CLKBUSY) }
     }
 
@@ -207,29 +207,22 @@ impl<'a> Ast<'a> {
         self.callback.set(Some(client));
     }
 
-    pub fn busy(&self) -> bool {
+    fn busy(&self) -> bool {
         unsafe { (*self.regs).sr.is_set(Status::BUSY) }
     }
 
-    // Clears the alarm bit in the status register (indicating the alarm value
-    // has been reached).
-    pub fn clear_alarm(&self) {
+    /// Clears the alarm bit in the status register (indicating the alarm value
+    /// has been reached).
+    fn clear_alarm(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).scr.write(Interrupt::ALARM0::SET);
         }
-    }
-
-    // Clears the per0 bit in the status register (indicating the alarm value
-    // has been reached).
-    pub fn clear_periodic(&mut self) {
         while self.busy() {}
-        unsafe {
-            (*self.regs).scr.write(Interrupt::PER0::SET);
-        }
     }
 
-    pub fn select_clock(&self, clock: Clock) {
+    // Configure the clock to use to drive the AST
+    fn select_clock(&self, clock: Clock) {
         unsafe {
             // Disable clock by setting first bit to zero
             while self.clock_busy() {}
@@ -244,97 +237,65 @@ impl<'a> Ast<'a> {
 
             // Re-enable clock
             (*self.regs).clock.modify(ClockControl::CEN::SET);
+            while self.clock_busy() {}
         }
     }
 
-    pub fn enable(&self) {
+    /// Enables the AST registers
+    fn enable(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).cr.modify(Control::EN::SET);
         }
-    }
-
-    pub fn is_enabled(&self) -> bool {
         while self.busy() {}
-        unsafe { (*self.regs).cr.is_set(Control::EN) }
     }
 
-    pub fn disable(&self) {
+    /// Disable the AST registers
+    fn disable(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).cr.modify(Control::EN::CLEAR);
         }
+        while self.busy() {}
     }
 
-    pub fn set_prescalar(&self, val: u8) {
+    /// Returns if an alarm is currently set
+    fn is_alarm_enabled(&self) -> bool {
+        while self.busy() {}
+        unsafe { (*self.regs).sr.is_set(Status::ALARM0) }
+    }
+
+    fn set_prescalar(&self, val: u8) {
         while self.busy() {}
         unsafe {
             (*self.regs).cr.modify(Control::PSEL.val(val as u32));
         }
+        while self.busy() {}
     }
 
-    pub fn enable_alarm_irq(&self) {
+    fn enable_alarm_irq(&self) {
         unsafe {
             (*self.regs).ier.write(Interrupt::ALARM0::SET);
         }
     }
 
-    pub fn disable_alarm_irq(&self) {
+    fn disable_alarm_irq(&self) {
         unsafe {
             (*self.regs).idr.write(Interrupt::ALARM0::SET);
         }
     }
 
-    pub fn enable_ovf_irq(&mut self) {
-        unsafe {
-            (*self.regs).ier.write(Interrupt::OVF::SET);
-        }
-    }
-
-    pub fn disable_ovf_irq(&mut self) {
-        unsafe {
-            (*self.regs).idr.write(Interrupt::OVF::SET);
-        }
-    }
-
-    pub fn enable_periodic_irq(&mut self) {
-        unsafe {
-            (*self.regs).ier.write(Interrupt::PER0::SET);
-        }
-    }
-
-    pub fn disable_periodic_irq(&mut self) {
-        unsafe {
-            (*self.regs).idr.write(Interrupt::PER0::SET);
-        }
-    }
-
-    pub fn enable_alarm_wake(&self) {
+    fn enable_alarm_wake(&self) {
         while self.busy() {}
         unsafe {
             (*self.regs).wer.modify(Event::ALARM0::SET);
         }
-    }
-
-    pub fn set_periodic_interval(&mut self, interval: u32) {
         while self.busy() {}
-        unsafe {
-            (*self.regs)
-                .pir0
-                .write(PeriodicInterval::INSEL.val(interval));
-        }
     }
 
-    pub fn get_counter(&self) -> u32 {
+    fn get_counter(&self) -> u32 {
         while self.busy() {}
         unsafe { (*self.regs).cv.read(Value::VALUE) }
-    }
-
-    pub fn set_counter(&self, value: u32) {
-        while self.busy() {}
-        unsafe {
-            (*self.regs).cv.write(Value::VALUE.val(value));
-        }
     }
 
     pub fn handle_interrupt(&mut self) {
@@ -350,30 +311,32 @@ impl<'a> Time for Ast<'a> {
 
     fn disable(&self) {
         self.disable_alarm_irq();
+        self.clear_alarm();
     }
 
     fn is_armed(&self) -> bool {
-        self.is_enabled()
+        self.is_alarm_enabled()
     }
 }
 
 impl<'a> Alarm for Ast<'a> {
     fn now(&self) -> u32 {
-        while self.busy() {}
-        unsafe { (*self.regs).cv.read(Value::VALUE) }
+        self.get_counter()
     }
 
     fn set_alarm(&self, mut tics: u32) {
+        let now = self.get_counter();
+        if tics.wrapping_sub(now) <= ALARM0_SYNC_TICS {
+            tics = now.wrapping_add(ALARM0_SYNC_TICS);
+        }
+
         while self.busy() {}
         unsafe {
-            let now = (*self.regs).cv.read(Value::VALUE);
-            if tics.wrapping_sub(now) <= ALARM0_SYNC_TICS {
-                tics = now.wrapping_add(ALARM0_SYNC_TICS);
-            }
             (*self.regs).ar0.write(Value::VALUE.val(tics));
         }
-        self.clear_alarm();
+        while self.busy() {}
         self.enable_alarm_irq();
+        self.enable();
     }
 
     fn get_alarm(&self) -> u32 {

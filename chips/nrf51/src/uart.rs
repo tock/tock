@@ -1,6 +1,6 @@
 use core::cell::Cell;
-use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::hil::uart;
 use nrf5x::pinmux::Pinmux;
 
@@ -224,5 +224,9 @@ impl uart::UART for UART {
             rx_buffer[i] = regs.rxd.get() as u8;
             i += 1;
         }
+    }
+
+    fn abort_receive(&self) {
+        unimplemented!()
     }
 }

@@ -15,14 +15,14 @@
 //! - Author: Philip Levis <pal@cs.stanford.edu>, Branden Ghena <brghena@umich.edu>
 //! - Updated: May 1, 2017
 
-use core::{cmp, mem, slice};
 use core::cell::Cell;
+use core::{cmp, mem, slice};
 use dma;
-use kernel::ReturnCode;
+use kernel::common::cells::TakeCell;
 use kernel::common::math;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
 use scif;
 
@@ -132,22 +132,22 @@ pub struct Adc {
 #[repr(C)]
 pub struct AdcRegisters {
     // From page 1005 of SAM4L manual
-    pub cr: WriteOnly<u32, Control::Register>,
-    pub cfg: ReadWrite<u32, Configuration::Register>,
-    pub sr: ReadOnly<u32, Status::Register>,
-    pub scr: WriteOnly<u32, Interrupt::Register>,
-    pub _reserved0: u32,
-    pub seqcfg: ReadWrite<u32, SequencerConfig::Register>,
-    pub cdma: WriteOnly<u32>,
-    pub tim: ReadWrite<u32, TimingConfiguration::Register>,
-    pub itimer: ReadWrite<u32, InternalTimer::Register>,
-    pub wcfg: ReadWrite<u32, WindowMonitorConfiguration::Register>,
-    pub wth: ReadWrite<u32, WindowMonitorThresholdConfiguration::Register>,
-    pub lcv: ReadOnly<u32, SequencerLastConvertedValue::Register>,
-    pub ier: WriteOnly<u32, Interrupt::Register>,
-    pub idr: WriteOnly<u32, Interrupt::Register>,
-    pub imr: ReadOnly<u32, Interrupt::Register>,
-    pub calib: ReadWrite<u32>,
+    cr: WriteOnly<u32, Control::Register>,
+    cfg: ReadWrite<u32, Configuration::Register>,
+    sr: ReadOnly<u32, Status::Register>,
+    scr: WriteOnly<u32, Interrupt::Register>,
+    _reserved0: u32,
+    seqcfg: ReadWrite<u32, SequencerConfig::Register>,
+    cdma: WriteOnly<u32>,
+    tim: ReadWrite<u32, TimingConfiguration::Register>,
+    itimer: ReadWrite<u32, InternalTimer::Register>,
+    wcfg: ReadWrite<u32, WindowMonitorConfiguration::Register>,
+    wth: ReadWrite<u32, WindowMonitorThresholdConfiguration::Register>,
+    lcv: ReadOnly<u32, SequencerLastConvertedValue::Register>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    calib: ReadWrite<u32>,
 }
 
 register_bitfields![u32,
@@ -482,57 +482,53 @@ impl Adc {
             // First, enable the clocks
             // Both the ADCIFE clock and GCLK10 are needed
             let mut clock_divisor;
-            unsafe {
-                // turn on ADCIFE bus clock. Already set to the same frequency
-                // as the CPU clock
-                pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
-                // the maximum sampling frequency with the RC clocks is 1/32th of their clock
-                // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
-                // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
-                if frequency <= 113600 / 32 {
-                    // RC oscillator
-                    self.cpu_clock.set(false);
-                    let max_freq: u32;
-                    if frequency <= 32000 / 32 {
-                        // frequency of the RC32K is 32KHz.
-                        scif::generic_clock_enable(
-                            scif::GenericClock::GCLK10,
-                            scif::ClockSource::RC32K,
-                        );
-                        max_freq = 32000 / 32;
-                    } else {
-                        // frequency of the RCSYS is 115KHz.
-                        scif::generic_clock_enable(
-                            scif::GenericClock::GCLK10,
-                            scif::ClockSource::RCSYS,
-                        );
-                        max_freq = 113600 / 32;
-                    }
-                    let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
-                    clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
-                    clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                    self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
-                } else {
-                    // CPU clock
-                    self.cpu_clock.set(true);
+
+            // turn on ADCIFE bus clock. Already set to the same frequency
+            // as the CPU clock
+            pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
+            // the maximum sampling frequency with the RC clocks is 1/32th of their clock
+            // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
+            // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
+            if frequency <= 113600 / 32 {
+                // RC oscillator
+                self.cpu_clock.set(false);
+                let max_freq: u32;
+                if frequency <= 32000 / 32 {
+                    // frequency of the RC32K is 32KHz.
                     scif::generic_clock_enable(
                         scif::GenericClock::GCLK10,
-                        scif::ClockSource::CLK_CPU,
+                        scif::ClockSource::RC32K,
                     );
-                    // determine clock divider
-                    // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
-                    // so we need to find the PRESCAL value that will make this
-                    // happen.
-                    // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
-                    // and we solve for N
-                    // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
-                    let cpu_frequency = pm::get_system_frequency();
-                    let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
-                    clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
-                    clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                    self.adc_clk_freq
-                        .set(cpu_frequency / (1 << (clock_divisor + 2)));
+                    max_freq = 32000 / 32;
+                } else {
+                    // frequency of the RCSYS is 115KHz.
+                    scif::generic_clock_enable(
+                        scif::GenericClock::GCLK10,
+                        scif::ClockSource::RCSYS,
+                    );
+                    max_freq = 113600 / 32;
                 }
+                let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
+                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
+                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
+            } else {
+                // CPU clock
+                self.cpu_clock.set(true);
+                scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::CLK_CPU);
+                // determine clock divider
+                // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
+                // so we need to find the PRESCAL value that will make this
+                // happen.
+                // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
+                // and we solve for N
+                // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
+                let cpu_frequency = pm::get_system_frequency();
+                let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
+                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
+                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                self.adc_clk_freq
+                    .set(cpu_frequency / (1 << (clock_divisor + 2)));
             }
 
             // configure the ADC
@@ -577,7 +573,7 @@ impl Adc {
             // wait until buffers are enabled
             timeout = 100000;
             while !regs.sr
-                .matches(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
+                .matches_all(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
             {
                 timeout -= 1;
                 if timeout == 0 {
@@ -777,7 +773,7 @@ impl hil::adc::Adc for Adc {
             // stop DMA transfer if going. This should safely return a None if
             // the DMA was not being used
             let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
-                let dma_buf = rx_dma.abort_xfer();
+                let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
             });
@@ -905,7 +901,7 @@ impl hil::adc::AdcHighSpeed for Adc {
                 self.dma_running.set(true);
                 dma.enable();
                 self.rx_length.set(dma_len);
-                dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
+                dma.do_transfer(self.rx_dma_peripheral, dma_buf, dma_len);
             });
 
             // start timer
@@ -973,7 +969,7 @@ impl dma::DMAClient for Adc {
     /// Handler for DMA transfer completion.
     ///
     /// - `pid`: the DMA peripheral that is complete
-    fn xfer_done(&self, pid: dma::DMAPeripheral) {
+    fn transfer_done(&self, pid: dma::DMAPeripheral) {
         // check if this was an RX transfer
         if pid == self.rx_dma_peripheral {
             // RX transfer was completed
@@ -981,7 +977,7 @@ impl dma::DMAClient for Adc {
             // get buffer filled with samples from DMA
             let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
                 self.dma_running.set(false);
-                let dma_buf = rx_dma.abort_xfer();
+                let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
             });
@@ -1018,7 +1014,7 @@ impl dma::DMAClient for Adc {
                         self.dma_running.set(true);
                         dma.enable();
                         self.rx_length.set(dma_len);
-                        dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
+                        dma.do_transfer(self.rx_dma_peripheral, dma_buf, dma_len);
                     });
                 } else {
                     // if length was zero, just keep the buffer in the takecell

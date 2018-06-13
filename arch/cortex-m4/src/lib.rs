@@ -6,13 +6,20 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio)]
+#[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
+extern crate cortexm;
 
 pub mod mpu;
 pub mod nvic;
-pub mod systick;
 pub mod scb;
+pub mod systick;
+
+// Re-export the base generic cortex-m functions here as they are
+// valid on cortex-m4.
+pub mod support {
+    pub use cortexm::support::*;
+}
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}
@@ -107,13 +114,11 @@ _ggeneric_isr_no_stacking:
 }
 
 #[cfg(not(target_os = "none"))]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {}
+pub unsafe extern "C" fn svc_handler() {}
 
 #[cfg(target_os = "none")]
 #[naked]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {
+pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
   cmp lr, #0xfffffff9
@@ -172,4 +177,26 @@ pub unsafe extern "C" fn switch_to_user(
     : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
+}
+
+// Table 2.5
+// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
+pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
+    match isr_number {
+        0 => "Thread Mode",
+        1 => "Reserved",
+        2 => "NMI",
+        3 => "HardFault",
+        4 => "MemManage",
+        5 => "BusFault",
+        6 => "UsageFault",
+        7...10 => "Reserved",
+        11 => "SVCall",
+        12 => "Reserved for Debug",
+        13 => "Reserved",
+        14 => "PendSV",
+        15 => "SysTick",
+        16...255 => "IRQn",
+        _ => "(Unknown! Illegal value?)",
+    }
 }

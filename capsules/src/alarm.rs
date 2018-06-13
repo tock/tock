@@ -1,14 +1,13 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::process::Error;
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000000;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum Expiration {
     Disabled,
     Abs(u32),
@@ -16,7 +15,6 @@ enum Expiration {
 
 #[derive(Copy, Clone)]
 pub struct AlarmData {
-    t0: u32,
     expiration: Expiration,
     callback: Option<Callback>,
 }
@@ -24,7 +22,6 @@ pub struct AlarmData {
 impl Default for AlarmData {
     fn default() -> AlarmData {
         AlarmData {
-            t0: 0,
             expiration: Expiration::Disabled,
             callback: None,
         }
@@ -35,6 +32,7 @@ pub struct AlarmDriver<'a, A: Alarm + 'a> {
     alarm: &'a A,
     num_armed: Cell<usize>,
     app_alarm: Grant<AlarmData>,
+    prev: Cell<u32>,
 }
 
 impl<'a, A: Alarm> AlarmDriver<'a, A> {
@@ -43,11 +41,12 @@ impl<'a, A: Alarm> AlarmDriver<'a, A> {
             alarm: alarm,
             num_armed: Cell::new(0),
             app_alarm: grant,
+            prev: Cell::new(0),
         }
     }
 
-    fn reset_active_alarm(&self) {
-        let now = self.alarm.now();
+    fn reset_active_alarm(&self, now: u32) -> Option<u32> {
+        self.prev.set(now);
         let mut next_alarm = u32::max_value();
         let mut next_dist = u32::max_value();
         for alarm in self.app_alarm.iter() {
@@ -64,6 +63,9 @@ impl<'a, A: Alarm> AlarmDriver<'a, A> {
         }
         if next_alarm != u32::max_value() {
             self.alarm.set_alarm(next_alarm);
+            Some(next_alarm)
+        } else {
+            None
         }
     }
 }
@@ -103,17 +105,17 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
         // disabling the underlying alarm anyway, if the underlying alarm is
         // currently disabled and we're enabling the first alarm, or on an error
         // (i.e. no change to the alarms).
-        let (return_code, reset) = self.app_alarm
+        self.app_alarm
             .enter(caller_id, |td, _alloc| {
-                match cmd_type {
+                let now = self.alarm.now();
+                let (return_code, reset) = match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
                     1 /* Get clock frequency */ => {
                         let freq = <A::Frequency>::frequency() as usize;
-                        (ReturnCode::SuccessWithValue { value: freq }, true)
+                        (ReturnCode::SuccessWithValue { value: freq }, false)
                     },
                     2 /* capture time */ => {
-                        let curr_time: u32 = self.alarm.now();
-                        (ReturnCode::SuccessWithValue { value: curr_time as usize },
+                        (ReturnCode::SuccessWithValue { value: now as usize },
                          false)
                     },
                     3 /* Stop */ => {
@@ -129,15 +131,9 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
                             },
                             _ => {
                                 td.expiration = Expiration::Disabled;
-                                td.t0 = 0;
                                 let new_num_armed = self.num_armed.get() - 1;
                                 self.num_armed.set(new_num_armed);
-                                if new_num_armed == 0 {
-                                    self.alarm.disable();
-                                    (ReturnCode::SUCCESS, false)
-                                } else {
-                                    (ReturnCode::SUCCESS, true)
-                                }
+                                (ReturnCode::SUCCESS, true)
                             }
                         }
                     },
@@ -147,44 +143,30 @@ impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
                         if let Expiration::Disabled = td.expiration {
                             self.num_armed.set(self.num_armed.get() + 1);
                         }
-
-
-                        let now = self.alarm.now();
-                        td.t0 = now;
                         td.expiration = Expiration::Abs(time as u32);
-
-                        if self.alarm.is_armed() {
-                            (ReturnCode::SuccessWithValue { value: time }, true)
-                        } else {
-                            self.alarm.set_alarm(time as u32);
-                            (ReturnCode::SuccessWithValue { value: time}, false)
-                        }
+                        (ReturnCode::SuccessWithValue { value: time }, true)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
-                }
-            })
-            .unwrap_or_else(|err| {
-                let e = match err {
-                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                    Error::NoSuchApp => ReturnCode::EINVAL,
                 };
-                (e, false)
-            });
-        if reset {
-            self.reset_active_alarm();
-        }
-        return_code
+                if reset {
+                    self.reset_active_alarm(now);
+                }
+                return_code
+            })
+            .unwrap_or_else(|err| err.into())
     }
+}
+
+fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
+    now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
 impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
-
         self.app_alarm.each(|alarm| {
             if let Expiration::Abs(exp) = alarm.expiration {
-                let expired = now.wrapping_sub(alarm.t0) >= exp.wrapping_sub(alarm.t0);
+                let expired = has_expired(exp, now, self.prev.get());
                 if expired {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
@@ -197,8 +179,13 @@ impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
 
         // If there are armed alarms left, reset the underlying alarm to the
         // nearest interval.  Otherwise, disable the underlying alarm.
-        if self.num_armed.get() > 0 {
-            self.reset_active_alarm();
+        if self.num_armed.get() == 0 {
+            self.alarm.disable();
+        } else if let Some(next_alarm) = self.reset_active_alarm(now) {
+            let new_now = self.alarm.now();
+            if has_expired(next_alarm, new_now, now) {
+                self.fired();
+            }
         } else {
             self.alarm.disable();
         }

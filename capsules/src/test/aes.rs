@@ -1,11 +1,11 @@
 //! Test the AES hardware
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
                                         AES128_KEY_SIZE};
+use kernel::ReturnCode;
 
 pub struct TestAes128Ctr<'a, A: 'a> {
     aes: &'a A,

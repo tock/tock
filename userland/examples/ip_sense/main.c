@@ -38,8 +38,15 @@ int main(void) {
                               NULL, // unused since SEC_LEVEL_NONE
                               packet,
                               len);
-    if (err != TOCK_SUCCESS) {
-      printf("Error sending packet %d\n", err);
+    switch (err) {
+      case TOCK_SUCCESS:
+        printf("Sent and acknowledged\n");
+        break;
+      case TOCK_ENOACK:
+        printf("Sent but not acknowledged\n");
+        break;
+      default:
+        printf("Error sending packet %d\n", err);
     }
 
     delay_ms(1000);

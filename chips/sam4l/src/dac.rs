@@ -6,26 +6,26 @@
 //! - Date: May 26th, 2017
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil;
+use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
 
 #[repr(C)]
 pub struct DacRegisters {
     // From page 905 of SAM4L manual
-    pub cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
-    pub mr: ReadWrite<u32, Mode::Register>, //                Mode                          (0x04)
-    pub cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
-    pub ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
-    pub idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
-    pub imr: ReadOnly<u32, InterruptMask::Register>, //       Interrupt Mask Register       (0x14)
-    pub isr: ReadOnly<u32, InterruptStatus::Register>, //     Interrupt Status Register     (0x18)
+    cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
+    mr: ReadWrite<u32, Mode::Register>,    //                Mode                          (0x04)
+    cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
+    ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
+    idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
+    imr: ReadOnly<u32, InterruptMask::Register>, //       Interrupt Mask Register       (0x14)
+    isr: ReadOnly<u32, InterruptStatus::Register>, //     Interrupt Status Register     (0x18)
     _reserved0: [u32; 50], //                                                               (0x1c - 0xe0)
-    pub wpmr: ReadWrite<u32, WriteProtectMode::Register>, //  Write Protect Mode Register   (0xe4)
-    pub wpsr: ReadOnly<u32, WriteProtectStatus::Register>, // Write Protect Status Register (0xe8)
+    wpmr: ReadWrite<u32, WriteProtectMode::Register>, //  Write Protect Mode Register   (0xe4)
+    wpsr: ReadOnly<u32, WriteProtectStatus::Register>, // Write Protect Status Register (0xe8)
     _reserved1: [u32; 4], //                                                                (0xec - 0xf8)
-    pub version: ReadOnly<u32, Version::Register>, //         Version Register              (0xfc)
+    version: ReadOnly<u32, Version::Register>, //         Version Register              (0xfc)
 }
 
 register_bitfields![u32,
@@ -140,9 +140,7 @@ impl hil::dac::DacChannel for Dac {
             self.enabled.set(true);
 
             // Start the APB clock (CLK_DACC)
-            unsafe {
-                pm::enable_clock(Clock::PBA(PBAClock::DACC));
-            }
+            pm::enable_clock(Clock::PBA(PBAClock::DACC));
 
             // Reset DACC
             regs.cr.write(Control::SWRST::SET);

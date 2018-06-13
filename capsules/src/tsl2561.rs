@@ -14,10 +14,13 @@
 //! > using an empirical formula to approximate the human eye response.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x70000;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 4] = [0; 4];

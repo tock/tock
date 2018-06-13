@@ -47,8 +47,8 @@
 pub const DRIVER_NUM: usize = 0x00000004;
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 pub struct GPIO<'a, G: Pin + 'a> {
     pins: &'a [&'a G],
@@ -113,12 +113,9 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
         let pin_state = pins[pin_num].read();
 
         // schedule callback with the pin number and value
-        if self.callback.get().is_some() {
-            self.callback
-                .get()
-                .unwrap()
-                .schedule(pin_num, pin_state as usize, 0);
-        }
+        self.callback
+            .get()
+            .map(|mut cb| cb.schedule(pin_num, pin_state as usize, 0));
     }
 }
 

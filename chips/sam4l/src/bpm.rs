@@ -77,7 +77,7 @@ register_bitfields![u32,
         /// bit 3 ('PSCM' bit) of the PMCON register, which is *blank* (not a '-')
         /// in the datasheet with supporting comments that this allows a change
         /// 'without CPU halt'
-        PSCM OFFSET(4) NUMBITS(1) [
+        PSCM OFFSET(3) NUMBITS(1) [
             WithCpuHalt = 0,
             WithoutCpuHalt = 1
         ],
@@ -166,10 +166,11 @@ pub enum CK32Source {
 
 #[inline(never)]
 pub unsafe fn set_ck32source(source: CK32Source) {
+    let control = (*BPM).pmcon.extract();
     unlock_register(0x1c); // Control
     (*BPM)
         .pmcon
-        .modify(PowerModeControl::CK32S.val(source as u32));
+        .modify_no_read(control, PowerModeControl::CK32S.val(source as u32));
 }
 
 unsafe fn unlock_register(register_offset: u32) {
@@ -188,11 +189,14 @@ pub unsafe fn set_power_scaling(ps_value: PowerScaling) {
     // doesn't as far as I can tell, but it seems like a good idea
     while !power_scaling_ok() {}
 
+    let control = (*BPM).pmcon.extract();
+
     // Unlock PMCON register
     unlock_register(0x1c); // Control
 
     // Actually change power scaling
-    (*BPM).pmcon.modify(
+    (*BPM).pmcon.modify_no_read(
+        control,
         PowerModeControl::PS.val(ps_value as u32) + PowerModeControl::PSCM::WithoutCpuHalt
             + PowerModeControl::PSCREQ::PowerScalingRequested,
     );

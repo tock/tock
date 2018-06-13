@@ -1,6 +1,6 @@
 #include "advertisement.h"
 #include "advertisement_list.h"
-#include <simple_ble.h>
+#include <ble.h>
 #include <stdio.h>
 
 /*

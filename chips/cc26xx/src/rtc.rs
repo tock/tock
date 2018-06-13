@@ -2,7 +2,7 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite};
-use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
+use kernel::hil::time::{self, Alarm, Frequency, Time};
 
 #[repr(C)]
 pub struct RtcRegisters {
@@ -129,8 +129,19 @@ impl Rtc {
     }
 }
 
+pub struct RtcFreq(());
+
+impl Frequency for RtcFreq {
+    // The RTC Frequency is tuned, as there is exactly 0xFFFF (64kHz)
+    // subsec increments to reach a second, this yields the correct
+    // `tics` to set the comparator correctly.
+    fn frequency() -> u32 {
+        0xFFFF
+    }
+}
+
 impl Time for Rtc {
-    type Frequency = Freq32KHz;
+    type Frequency = RtcFreq;
 
     fn disable(&self) {
         let regs: &RtcRegisters = unsafe { &*self.regs };
@@ -162,6 +173,7 @@ impl Alarm for Rtc {
     }
 
     fn get_alarm(&self) -> u32 {
-        self.read_counter()
+        let regs: &RtcRegisters = unsafe { &*self.regs };
+        regs.channel1_cmp.get()
     }
 }

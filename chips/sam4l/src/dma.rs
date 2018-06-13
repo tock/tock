@@ -1,10 +1,10 @@
 //! Implementation of the PDCA DMA peripheral.
 
-use core::{cmp, intrinsics};
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use core::{cmp, intrinsics};
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
 use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
@@ -200,7 +200,7 @@ pub struct DMAChannel {
 }
 
 pub trait DMAClient {
-    fn xfer_done(&self, pid: DMAPeripheral);
+    fn transfer_done(&self, pid: DMAPeripheral);
 }
 
 impl DMAChannel {
@@ -220,10 +220,9 @@ impl DMAChannel {
     }
 
     pub fn enable(&self) {
-        unsafe {
-            pm::enable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
-            pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
-        }
+        pm::enable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
+        pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
+
         if !self.enabled.get() {
             unsafe {
                 let num_enabled = intrinsics::atomic_xadd(&mut NUM_ENABLED, 1);
@@ -257,6 +256,10 @@ impl DMAChannel {
         }
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
+    }
+
     pub fn handle_interrupt(&mut self) {
         let registers: &DMARegisters = unsafe { &*self.registers };
         registers
@@ -265,16 +268,16 @@ impl DMAChannel {
         let channel = registers.psr.get();
 
         self.client.get().as_mut().map(|client| {
-            client.xfer_done(channel);
+            client.transfer_done(channel);
         });
     }
 
-    pub fn start_xfer(&self) {
+    pub fn start_transfer(&self) {
         let registers: &DMARegisters = unsafe { &*self.registers };
         registers.cr.write(Control::TEN::SET);
     }
 
-    pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
+    pub fn prepare_transfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
 
         let registers: &DMARegisters = unsafe { &*self.registers };
@@ -300,14 +303,14 @@ impl DMAChannel {
         self.buffer.replace(buf);
     }
 
-    pub fn do_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], len: usize) {
-        self.prepare_xfer(pid, buf, len);
-        self.start_xfer();
+    pub fn do_transfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], len: usize) {
+        self.prepare_transfer(pid, buf, len);
+        self.start_transfer();
     }
 
     /// Aborts any current transactions and returns the buffer used in the
     /// transaction.
-    pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
+    pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
         let registers: &DMARegisters = unsafe { &*self.registers };
         registers
             .idr

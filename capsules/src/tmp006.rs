@@ -9,11 +9,14 @@
 //! > view.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::common::cells::TakeCell;
 use kernel::common::math::{get_errno, sqrtf32};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x70001;
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
 

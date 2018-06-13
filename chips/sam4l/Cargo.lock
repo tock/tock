@@ -1,19 +1,24 @@
-[root]
-name = "sam4l"
+[[package]]
+name = "cortexm"
 version = "0.1.0"
-dependencies = [
- "cortexm4 0.1.0",
- "kernel 0.1.0",
-]
 
 [[package]]
 name = "cortexm4"
 version = "0.1.0"
 dependencies = [
+ "cortexm 0.1.0",
  "kernel 0.1.0",
 ]
 
 [[package]]
 name = "kernel"
 version = "0.1.0"
+
+[[package]]
+name = "sam4l"
+version = "0.1.0"
+dependencies = [
+ "cortexm4 0.1.0",
+ "kernel 0.1.0",
+]
 

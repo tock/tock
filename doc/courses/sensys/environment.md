@@ -39,7 +39,7 @@ Tock includes three architectural components:
   - _Processes_, which use the MPU for protection at runtime.
 
 Read the Tock documentation for more details on its
-[design](https://github.com/helena-project/tock/blob/master/doc/Design.md).
+[design](https://github.com/tock/tock/blob/master/doc/Design.md).
 
 [_Presentation slides are available here._](presentation/presentation.pdf)
 

@@ -58,9 +58,9 @@
 //      if either of the dataset tlvs are sent?
 
 use core::mem;
+use net::stream::SResult;
 use net::stream::{decode_bytes_be, decode_u16, decode_u32, decode_u8};
 use net::stream::{encode_bytes, encode_bytes_be, encode_u16, encode_u32, encode_u8};
-use net::stream::SResult;
 
 const TL_WIDTH: usize = 2; // Type and length fields of TLV are each one byte.
 const MAX_VALUE_FIELD_LENGTH: usize = 128; // Assume a TLV value will be no longer than 128 bytes.

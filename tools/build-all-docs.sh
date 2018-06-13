@@ -21,7 +21,7 @@ function add_board {
 	popd > /dev/null
 
 	EXISTING_CRATES=$(get_known_crates doc/rustdoc/search-index.js)
-	BUILT_CRATES=$(get_known_crates boards/$BOARD/target/thumb*-none-eabi/doc/search-index.js)
+	BUILT_CRATES=$(get_known_crates boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js)
 
 	# Get any new crates.
 	NEW_CRATES=" ${BUILT_CRATES[*]} "
@@ -31,10 +31,10 @@ function add_board {
 
 	# Copy those crates over.
 	for item in ${NEW_CRATES[@]}; do
-		cp -r boards/$BOARD/target/thumb*-none-eabi/doc/$item doc/rustdoc/
+		cp -r boards/$BOARD/target/thumb*-none-eabi*/doc/$item doc/rustdoc/
 
 		# Add the line to the search-index.js file.
-		SEARCHINDEX=`grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/thumb*-none-eabi/doc/search-index.js`
+		SEARCHINDEX=`grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js`
 
 		# nothing in-place is x-platform bsd/gnu (os x defaults...)
 		/usr/bin/awk -v var="$SEARCHINDEX" "/initSearch/{print var}1" doc/rustdoc/search-index.js > doc/rustdoc/search-index-new.js
@@ -54,9 +54,11 @@ cp -r boards/hail/target/thumbv7em-none-eabi/doc doc/rustdoc
 
 # Now can do all the rest.
 add_board imix
-add_board nrf51dk
-add_board nrf52dk
+add_board nordic/nrf51dk
+add_board nordic/nrf52dk
+add_board nordic/nrf52840dk
 add_board launchxl
+add_board ek-tm4c1294xl
 
 # Temporary redirect rule
 # https://www.netlify.com/docs/redirects/

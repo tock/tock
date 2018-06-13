@@ -72,13 +72,13 @@
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, RxClient, TxClient};
 use ieee802154::mac::Mac;
-use kernel::ReturnCode;
-use kernel::common::take_cell::MapCell;
+use kernel::common::cells::MapCell;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
+use kernel::ReturnCode;
 use net::ieee802154::*;
-use net::stream::{encode_bytes, encode_u32, encode_u8};
 use net::stream::SResult;
+use net::stream::{encode_bytes, encode_u32, encode_u8};
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for

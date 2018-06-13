@@ -49,78 +49,94 @@
 // - Support continuous-mode CRC
 
 use core::cell::Cell;
-use kernel::ReturnCode;
+use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::crc::{self, CrcAlg};
+use kernel::ReturnCode;
 use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 
-// A memory-mapped register
-struct Reg(*mut u32);
-
-impl Reg {
-    fn read(self) -> u32 {
-        unsafe { ::core::ptr::read_volatile(self.0) }
-    }
-
-    fn write(self, n: u32) {
-        unsafe {
-            ::core::ptr::write_volatile(self.0, n);
-        }
-    }
-}
-
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
-const CRCCU_BASE: u32 = 0x400A4000;
+const BASE_ADDRESS: *mut CrccuRegisters = 0x400A4000 as *mut CrccuRegisters;
 
-// The following macro expands a list of expressions like this:
-//
-//    { 0x00, "Descriptor Base Register", DSCR, "RW" },
-//
-// into a series of items like this:
-//
-//    #[allow(dead_code)]
-//    const DSCR: Reg = Reg((CRCCU_BASE + 0x00) as *mut u32);
-
-macro_rules! registers {
-    [ $( { $offset:expr, $description:expr, $name:ident, $access:expr } ),* ] => {
-        $( #[allow(dead_code)]
-           const $name: Reg = Reg((CRCCU_BASE + $offset) as *mut u32); )*
-    };
+#[repr(C)]
+struct CrccuRegisters {
+    // From page 1005 of SAM4L manual
+    dscr: ReadWrite<u32, DescriptorBaseAddress::Register>,
+    _reserved0: u32,
+    dmaen: WriteOnly<u32, DmaEnable::Register>,
+    dmadis: WriteOnly<u32, DmaDisable::Register>,
+    dmasr: ReadOnly<u32, DmaStatus::Register>,
+    dmaier: WriteOnly<u32, DmaInterrupt::Register>,
+    dmaidr: WriteOnly<u32, DmaInterrupt::Register>,
+    dmaimr: ReadOnly<u32, DmaInterrupt::Register>,
+    dmaisr: ReadOnly<u32, DmaInterrupt::Register>,
+    _reserved1: [u32; 4],
+    cr: WriteOnly<u32, Control::Register>,
+    mr: ReadWrite<u32, Mode::Register>,
+    sr: ReadOnly<u32, Status::Register>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    isr: ReadOnly<u32, Interrupt::Register>,
 }
 
-// CRCCU Registers (from Table 41.1 in Section 41.6):
-registers![
-    // Address of descriptor (512-byte aligned)
-    { 0x00, "Descriptor Base Register", DSCR, "RW" },
-    // Write a one to enable DMA channel
-    { 0x08, "DMA Enable Register", DMAEN, "W" },
-    // Write a one to disable DMA channel
-    { 0x0C, "DMA Disable Register", DMADIS, "W" },
-    // DMA channel enabled?
-    { 0x10, "DMA Status Register", DMASR, "R" },
-    // Write a one to enable DMA interrupt
-    { 0x14, "DMA Interrupt Enable Register", DMAIER, "W" },
-    // Write a one to disable DMA interrupt
-    { 0x18, "DMA Interrupt Disable Register", DMAIDR, "W" },
-    // DMA interrupt enabled?
-    { 0x1C, "DMA Interrupt Mask Register", DMAIMR, "R" },
-    // DMA transfer completed? (cleared when read)
-    { 0x20, "DMA Interrupt Status Register", DMAISR, "R" },
-    // Write a one to reset SR
-    { 0x34, "Control Register", CR, "W" },
-    // Bandwidth divider, Polynomial type, Compare?, Enable?
-    { 0x38, "Mode Register", MR, "RW" },
-    // CRC result (unreadable if MR.COMPARE=1)
-    { 0x3C, "Status Register", SR, "R" },
-    // Write one to set IMR.ERR bit (zero no effect)
-    { 0x40, "Interrupt Enable Register", IER, "W" },
-    // Write zero to clear IMR.ERR bit (one no effect)
-    { 0x44, "Interrupt Disable Register", IDR, "W" },
-    // If IMR.ERR bit is set, error-interrupt (for compare) is enabled
-    { 0x48, "Interrupt Mask Register", IMR, "R" },
-    // CRC error (for compare)? (cleared when read)
-    { 0x4C, "Interrupt Status Register", ISR, "R" },
-    // 12 low-order bits: version of this module.  = 0x00000202
-    { 0xFC, "Version Register", VERSION, "R" }
+register_bitfields![u32,
+    DescriptorBaseAddress [
+        /// Description Base Address
+        DSCR OFFSET(9) NUMBITS(23) []
+    ],
+
+    DmaEnable [
+        /// DMA Enable
+        DMAEN 0
+    ],
+
+    DmaDisable [
+        /// DMA Disable
+        DMADIS 0
+    ],
+
+    DmaStatus [
+        /// DMA Channel Status
+        DMASR 0
+    ],
+
+    DmaInterrupt [
+        /// DMA Interrupt
+        DMA 0
+    ],
+
+    Control [
+        /// Reset CRC Computation
+        RESET 0
+    ],
+
+    Mode [
+        /// Bandwidth Divider
+        DIVIDER OFFSET(4) NUMBITS(4) [],
+        /// Polynomial Type
+        PTYPE OFFSET(2) NUMBITS(2) [
+            Ccit8023 = 0,
+            Castagnoli = 1,
+            Ccit16 = 2
+        ],
+        /// CRC Compare
+        COMPARE OFFSET(1) NUMBITS(1) [],
+        /// CRC Computation Enable
+        ENABLE OFFSET(0) NUMBITS(1) [
+            Enabled = 1,
+            Disabled = 0
+        ]
+    ],
+
+    Status [
+        /// Cyclic Redundancy Check Value
+        CRC OFFSET(0) NUMBITS(32)
+    ],
+
+    Interrupt [
+        /// CRC Error Interrupt Status
+        ERR 0
+    ]
 ];
 
 // CRCCU Descriptor (from Table 41.2 in Section 41.6):
@@ -156,20 +172,13 @@ impl TCR {
     }
 }
 
-#[derive(Copy, Clone)]
-enum Polynomial {
-    CCIT8023,   // Polynomial 0x04C11DB7
-    CASTAGNOLI, // Polynomial 0x1EDC6F41
-    CCIT16,     // Polynomial 0x1021
-}
-
-fn poly_for_alg(alg: CrcAlg) -> Polynomial {
+fn poly_for_alg(alg: CrcAlg) -> FieldValue<u32, Mode::Register> {
     match alg {
-        CrcAlg::Crc32 => Polynomial::CCIT8023,
-        CrcAlg::Crc32C => Polynomial::CASTAGNOLI,
-        CrcAlg::Sam4L16 => Polynomial::CCIT16,
-        CrcAlg::Sam4L32 => Polynomial::CCIT8023,
-        CrcAlg::Sam4L32C => Polynomial::CASTAGNOLI,
+        CrcAlg::Crc32 => Mode::PTYPE::Ccit8023,
+        CrcAlg::Crc32C => Mode::PTYPE::Castagnoli,
+        CrcAlg::Sam4L16 => Mode::PTYPE::Ccit16,
+        CrcAlg::Sam4L32 => Mode::PTYPE::Ccit8023,
+        CrcAlg::Sam4L32C => Mode::PTYPE::Castagnoli,
     }
 }
 
@@ -193,31 +202,15 @@ fn reverse_and_invert(n: u32) -> u32 {
     }
 
     // Bit-invert
-    out ^= 0xffffffff;
-
-    out
+    out ^ 0xffffffff
 }
 
 /// Transfer width for DMA
-pub enum TrWidth {
+#[allow(dead_code)]
+enum TrWidth {
     Byte,
     HalfWord,
     Word,
-}
-
-// Mode Register (see Section 41.6.10)
-struct Mode(u32);
-
-impl Mode {
-    fn new(divider: u8, ptype: Polynomial, compare: bool, enable: bool) -> Self {
-        Mode(
-            (((divider & 0x0f) as u32) << 4) | (ptype as u32) << 2 | (compare as u32) << 1
-                | (enable as u32),
-        )
-    }
-    fn disabled() -> Self {
-        Mode::new(0, Polynomial::CCIT8023, false, false)
-    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -229,6 +222,7 @@ enum State {
 
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
+    registers: *mut CrccuRegisters,
     client: Option<&'a crc::Client>,
     state: Cell<State>,
     alg: Cell<CrcAlg>,
@@ -241,8 +235,9 @@ pub struct Crccu<'a> {
 const DSCR_RESERVE: usize = 512 + 5 * 4;
 
 impl<'a> Crccu<'a> {
-    const fn new() -> Self {
+    const fn new(base_address: *mut CrccuRegisters) -> Self {
         Crccu {
+            registers: base_address,
             client: None,
             state: Cell::new(State::Invalid),
             alg: Cell::new(CrcAlg::Crc32C),
@@ -258,25 +253,21 @@ impl<'a> Crccu<'a> {
     }
 
     /// Enable the CRCCU's clocks and interrupt
-    pub fn enable(&self) {
+    fn enable(&self) {
         if self.state.get() != State::Enabled {
             self.init();
-            unsafe {
-                // see "10.7.4 Clock Mask"
-                enable_clock(Clock::HSB(HSBClock::CRCCU));
-                enable_clock(Clock::PBB(PBBClock::CRCCU));
-            }
+            // see "10.7.4 Clock Mask"
+            enable_clock(Clock::HSB(HSBClock::CRCCU));
+            enable_clock(Clock::PBB(PBBClock::CRCCU));
             self.state.set(State::Enabled);
         }
     }
 
     /// Disable the CRCCU's clocks and interrupt
-    pub fn disable(&self) {
+    fn disable(&self) {
         if self.state.get() == State::Enabled {
-            unsafe {
-                disable_clock(Clock::PBB(PBBClock::CRCCU));
-                disable_clock(Clock::HSB(HSBClock::CRCCU));
-            }
+            disable_clock(Clock::PBB(PBBClock::CRCCU));
+            disable_clock(Clock::HSB(HSBClock::CRCCU));
             self.state.set(State::Initialized);
         }
     }
@@ -287,7 +278,7 @@ impl<'a> Crccu<'a> {
     }
 
     /// Get the client currently receiving results from the CRCCU
-    pub fn get_client(&self) -> Option<&'a crc::Client> {
+    fn get_client(&self) -> Option<&'a crc::Client> {
         self.client
     }
 
@@ -314,30 +305,32 @@ impl<'a> Crccu<'a> {
 
     /// Handle an interrupt from the CRCCU
     pub fn handle_interrupt(&mut self) {
-        if ISR.read() & 1 == 1 {
+        let regs: &CrccuRegisters = unsafe { &*self.registers };
+
+        if regs.isr.is_set(Interrupt::ERR) {
             // A CRC error has occurred
         }
 
-        if DMAISR.read() & 1 == 1 {
+        if regs.dmaisr.is_set(DmaInterrupt::DMA) {
             // A DMA transfer has completed
 
             if self.get_tcr().interrupt_enabled() {
                 if let Some(client) = self.get_client() {
-                    let result = post_process(SR.read(), self.alg.get());
+                    let result = post_process(regs.sr.read(Status::CRC), self.alg.get());
                     client.receive_result(result);
                 }
 
                 // Disable the unit
-                MR.write(Mode::disabled().0);
+                regs.mr.write(Mode::ENABLE::Disabled);
 
                 // Reset CTRL.IEN (for our own statekeeping)
                 self.set_descriptor(0, TCR::default(), 0);
 
                 // Disable DMA interrupt
-                DMAIDR.write(1);
+                regs.dmaidr.write(DmaInterrupt::DMA::SET);
 
                 // Disable DMA channel
-                DMADIS.write(1);
+                regs.dmadis.write(DmaDisable::DMADIS::SET);
             }
         }
     }
@@ -345,11 +338,9 @@ impl<'a> Crccu<'a> {
 
 // Implement the generic CRC interface with the CRCCU
 impl<'a> crc::CRC for Crccu<'a> {
-    fn get_version(&self) -> u32 {
-        VERSION.read()
-    }
-
     fn compute(&self, data: &[u8], alg: CrcAlg) -> ReturnCode {
+        let regs: &CrccuRegisters = unsafe { &*self.registers };
+
         self.init();
 
         if self.get_tcr().interrupt_enabled() {
@@ -366,13 +357,13 @@ impl<'a> crc::CRC for Crccu<'a> {
         self.enable();
 
         // Enable DMA interrupt
-        DMAIER.write(1);
+        regs.dmaier.write(DmaInterrupt::DMA::SET);
 
         // Enable error interrupt
-        IER.write(1);
+        regs.ier.write(Interrupt::ERR::SET);
 
         // Reset intermediate CRC value
-        CR.write(1);
+        regs.cr.write(Control::RESET::SET);
 
         // Configure the data transfer
         let addr = data.as_ptr() as u32;
@@ -387,20 +378,18 @@ impl<'a> crc::CRC for Crccu<'a> {
         let ctrl = TCR::new(true, tr_width, len);
         let crc = 0;
         self.set_descriptor(addr, ctrl, crc);
-        DSCR.write(self.descriptor() as u32);
+        regs.dscr.set(self.descriptor() as u32);
 
         // Record what algorithm was requested
         self.alg.set(alg);
 
         // Configure the unit to compute a checksum
-        let divider = 0;
-        let compare = false;
-        let enable = true;
-        let mode = Mode::new(divider, poly_for_alg(alg), compare, enable);
-        MR.write(mode.0);
+        regs.mr.write(
+            Mode::DIVIDER.val(0) + poly_for_alg(alg) + Mode::COMPARE::CLEAR + Mode::ENABLE::Enabled,
+        );
 
         // Enable DMA channel
-        DMAEN.write(1);
+        regs.dmaen.write(DmaEnable::DMAEN::SET);
 
         return ReturnCode::SUCCESS;
     }
@@ -411,4 +400,4 @@ impl<'a> crc::CRC for Crccu<'a> {
 }
 
 /// Static state to manage the CRCCU
-pub static mut CRCCU: Crccu<'static> = Crccu::new();
+pub static mut CRCCU: Crccu<'static> = Crccu::new(BASE_ADDRESS);

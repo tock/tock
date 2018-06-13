@@ -1,31 +1,26 @@
-#include <simple_ble.h>
+#include <ble.h>
+#include <gap.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <tock.h>
 
-// Sizes in bytes
-#define DEVICE_NAME_SIZE 7
-
 int main(void) {
-  int err;
+  static uint8_t adv_data_buf[ADV_DATA_MAX_SIZE];
+  AdvData_t adv_data = gap_adv_data_new(adv_data_buf, sizeof(adv_data_buf));
 
+  // declarations of variables to be used in this BLE example application
   uint16_t advertising_interval_ms = 20;
-  uint8_t device_name[]            = "TockOS3";
+  uint8_t device_name[]            = "Advertiser3";
 
-  // configure LE only and discoverable
-  printf(" - Initializing BLE... %s\n", device_name);
-  err = ble_initialize(advertising_interval_ms, true);
-  if (err < TOCK_SUCCESS)
-    printf("ble_initialize, error: %s\r\n", tock_strerror(err));
-
+  // configure device name as Advertiser3
   printf(" - Setting the device name... %s\n", device_name);
-  err = ble_advertise_name(device_name, DEVICE_NAME_SIZE);
+  int err = gap_add_device_name(&adv_data, device_name, sizeof(device_name)-1);
   if (err < TOCK_SUCCESS)
     printf("ble_advertise_name, error: %s\r\n", tock_strerror(err));
 
   // start advertising
   printf(" - Begin advertising! %s\n", device_name);
-  err = ble_start_advertising();
+  err = ble_start_advertising(ADV_NON_CONN_IND, adv_data.buf, adv_data.offset, advertising_interval_ms);
   if (err < TOCK_SUCCESS)
     printf("ble_start_advertising, error: %s\r\n", tock_strerror(err));
 

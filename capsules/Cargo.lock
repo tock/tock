@@ -1,4 +1,4 @@
-[root]
+[[package]]
 name = "capsules"
 version = "0.1.0"
 dependencies = [

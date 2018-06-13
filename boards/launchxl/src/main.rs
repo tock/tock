@@ -1,9 +1,8 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib, asm)]
+#![feature(lang_items, asm)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 
 extern crate cc26x2;
 extern crate cc26xx;
@@ -19,12 +18,12 @@ use cc26xx::prcm;
 pub mod io;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-//
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
+    [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -33,11 +32,13 @@ static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc26xx::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc26xx::gpio::GPIOPin>,
+    console: &'static capsules::console::Console<'static, cc26xx::uart::UART>,
     button: &'static capsules::button::Button<'static, cc26xx::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
     >,
+    rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
 }
 
 impl kernel::Platform for Platform {
@@ -46,10 +47,12 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -85,7 +88,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc26xx::gpio::PORT[7],
                 capsules::led::ActivationMode::ActiveHigh
-            ) // Green
+            ), // Green
         ]
     );
     let led = static_init!(
@@ -93,7 +96,7 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins)
     );
 
-    // BUTTONs
+    // BUTTONS
     let button_pins = static_init!(
         [(&'static cc26xx::gpio::GPIOPin, capsules::button::GpioMode); 2],
         [
@@ -104,7 +107,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc26xx::gpio::PORT[14],
                 capsules::button::GpioMode::LowWhenPressed
-            ) // Button 1
+            ), // Button 1
         ]
     );
     let button = static_init!(
@@ -114,6 +117,25 @@ pub unsafe fn reset_handler() {
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
     }
+
+    // UART
+    cc26xx::uart::UART0.set_pins(3, 2);
+    let console = static_init!(
+        capsules::console::Console<cc26xx::uart::UART>,
+        capsules::console::Console::new(
+            &cc26xx::uart::UART0,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            kernel::Grant::create()
+        )
+    );
+    kernel::hil::uart::UART::set_client(&cc26xx::uart::UART0, console);
+    console.initialize();
+
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(capsules::console::App, capsules::console::App::default());
+    kernel::debug::assign_console_driver(Some(console), kc);
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
@@ -140,7 +162,7 @@ pub unsafe fn reset_handler() {
             &cc26xx::gpio::PORT[26],
             &cc26xx::gpio::PORT[27],
             &cc26xx::gpio::PORT[30],
-            &cc26xx::gpio::PORT[31]
+            &cc26xx::gpio::PORT[31],
         ]
     );
     let gpio = static_init!(
@@ -173,11 +195,19 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm1.set_client(alarm);
 
+    let rng = static_init!(
+        capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
+        capsules::rng::SimpleRng::new(&cc26xx::trng::TRNG, kernel::Grant::create())
+    );
+    cc26xx::trng::TRNG.set_client(rng);
+
     let launchxl = Platform {
+        console,
         gpio,
         led,
         button,
         alarm,
+        rng,
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();
@@ -187,7 +217,7 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -198,6 +228,6 @@ pub unsafe fn reset_handler() {
         &launchxl,
         &mut chip,
         &mut PROCESSES,
-        &kernel::ipc::IPC::new(),
+        Some(&kernel::ipc::IPC::new()),
     );
 }

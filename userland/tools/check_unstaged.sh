@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # This script checks whether there are any unstaged changes. If clean,
 # return zero, otherwise warn the user that there are unstaged changes

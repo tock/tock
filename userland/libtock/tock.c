@@ -209,3 +209,12 @@ const char* tock_strerror(int tock_errno) {
   }
   return "Invalid error number";
 }
+
+void tock_expect(int expected, int actual, const char* file, unsigned line) {
+  if (expected != actual) {
+    printf("Expectation failure in \"%s\" at line %u\n", file, line);
+    printf("Expected value: %d\n", expected);
+    printf(" But got value: %d (possible error: %s)\n", actual, tock_strerror(actual));
+    exit(-1);
+  }
+}

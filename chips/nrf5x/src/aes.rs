@@ -1,6 +1,6 @@
-//! aes128 driver, nRF5X-family
+//! AES128 driver, nRF5X-family
 //!
-//! Provides a simple driver for userspace applications to encrypt and decrypt
+//! Provides a simple driverto encrypt and decrypt
 //! messages using aes128-ctr mode on top of aes128-ecb.
 //!
 //! Roughly, the module three buffers with the following content:
@@ -32,10 +32,10 @@
 
 use core::cell::Cell;
 use kernel;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::hil::symmetric_encryption;
-use peripheral_registers;
+use kernel::ReturnCode;
 
 // DMA buffer that the aes chip will mutate during encryption
 // Byte 0-15   - Key
@@ -47,22 +47,77 @@ static mut ECB_DATA: [u8; 48] = [0; 48];
 const KEY_START: usize = 0;
 #[allow(dead_code)]
 const KEY_END: usize = 15;
-#[allow(dead_code)]
 const PLAINTEXT_START: usize = 16;
-#[allow(dead_code)]
 const PLAINTEXT_END: usize = 32;
 #[allow(dead_code)]
 const CIPHERTEXT_START: usize = 33;
 #[allow(dead_code)]
 const CIPHERTEXT_END: usize = 47;
-#[allow(dead_code)]
 const MAX_LENGTH: usize = 128;
+const AESECB_BASE: usize = 0x4000E000;
 
-const NRF_INTR_ENDECB: u32 = 0;
-const NRF_INTR_ERRORECB: u32 = 1;
+#[repr(C)]
+struct AesEcbRegisters {
+    /// Start ECB block encrypt
+    /// - Address 0x000 - 0x004
+    task_startecb: WriteOnly<u32, Task::Register>,
+    /// Abort a possible executing ECB operation
+    /// - Address: 0x004 - 0x008
+    task_stopecb: WriteOnly<u32, Task::Register>,
+    /// Reserved
+    _reserved1: [u32; 62],
+    /// ECB block encrypt complete
+    /// - Address: 0x100 - 0x104
+    event_endecb: ReadWrite<u32, Event::Register>,
+    /// ECB block encrypt aborted because of a STOPECB task or due to an error
+    /// - Address: 0x104 - 0x108
+    event_errorecb: ReadWrite<u32, Event::Register>,
+    /// Reserved
+    _reserved2: [u32; 127],
+    /// Enable interrupt
+    /// - Address: 0x304 - 0x308
+    intenset: ReadWrite<u32, Intenset::Register>,
+    /// Disable interrupt
+    /// - Address: 0x308 - 0x30c
+    intenclr: ReadWrite<u32, Intenclr::Register>,
+    /// Reserved
+    _reserved3: [u32; 126],
+    /// ECB block encrypt memory pointers
+    /// - Address: 0x504 - 0x508
+    ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
+}
+
+register_bitfields! [u32,
+    /// Start task
+    Task [
+        ENABLE OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Read event
+    Event [
+        READY OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Enabled interrupt
+    Intenset [
+        ENDECB OFFSET(0) NUMBITS(1),
+        ERRORECB OFFSET(1) NUMBITS(1)
+    ],
+
+    /// Disable interrupt
+    Intenclr [
+        ENDECB OFFSET(0) NUMBITS(1),
+        ERRORECB OFFSET(1) NUMBITS(1)
+    ],
+
+    /// ECB block encrypt memory pointers
+    EcbDataPointer [
+        POINTER OFFSET(0) NUMBITS(32)
+    ]
+];
 
 pub struct AesECB<'a> {
-    regs: *const peripheral_registers::AESECB_REGS,
+    regs: *const AesEcbRegisters,
     client: Cell<Option<&'a kernel::hil::symmetric_encryption::Client<'a>>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'a, [u8]>,
@@ -79,7 +134,7 @@ pub static mut AESECB: AesECB = AesECB::new();
 impl<'a> AesECB<'a> {
     const fn new() -> AesECB<'a> {
         AesECB {
-            regs: peripheral_registers::AESECB_BASE as *const peripheral_registers::AESECB_REGS,
+            regs: AESECB_BASE as *const AesEcbRegisters,
             client: Cell::new(None),
             input: TakeCell::empty(),
             output: TakeCell::empty(),
@@ -90,10 +145,10 @@ impl<'a> AesECB<'a> {
         }
     }
 
-    fn init_dma(&self) {
+    fn set_dma(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.ecbdataptr.set((&ECB_DATA as *const u8) as u32);
+            regs.ecbdataptr.set(ECB_DATA.as_ptr() as u32);
         }
     }
 
@@ -113,12 +168,13 @@ impl<'a> AesECB<'a> {
     fn crypt(&self) {
         let regs = unsafe { &*self.regs };
 
-        regs.event_endecb.set(0);
+        regs.event_endecb.write(Event::READY::CLEAR);
         regs.task_startecb.set(1);
 
         self.enable_interrupts();
     }
 
+    /// AesEcb Interrupt handler
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
 
@@ -129,7 +185,7 @@ impl<'a> AesECB<'a> {
             let current_idx = self.current_idx.get();
             let end_idx = self.end_idx.get();
 
-            // get number of bytes to be used in the keystream/block
+            // Get the number of bytes to be used in the keystream/block
             let take = match end_idx.checked_sub(current_idx) {
                 Some(v) if v > symmetric_encryption::AES128_BLOCK_SIZE => {
                     symmetric_encryption::AES128_BLOCK_SIZE
@@ -182,25 +238,26 @@ impl<'a> AesECB<'a> {
     }
 
     fn enable_interrupts(&self) {
-        // set ENDECB bit and ERROR bit
         let regs = unsafe { &*self.regs };
-        regs.intenset.set(NRF_INTR_ENDECB | NRF_INTR_ERRORECB);
+        regs.intenset
+            .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
     }
 
     fn disable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenclr.set(NRF_INTR_ENDECB | NRF_INTR_ERRORECB);
+        regs.intenclr
+            .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
     }
 }
 
 impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     fn enable(&self) {
-        self.init_dma();
+        self.set_dma();
     }
 
     fn disable(&self) {
         let regs = unsafe { &*self.regs };
-        regs.task_stopecb.set(1);
+        regs.task_stopecb.write(Task::ENABLE::CLEAR);
         self.disable_interrupts();
     }
 

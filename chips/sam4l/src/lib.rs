@@ -4,41 +4,40 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(repr_align, attr_literals, const_cell_new)]
+#![feature(attr_literals, const_cell_new)]
 #![feature(const_atomic_usize_new, const_ptr_null_mut, integer_atomics, try_from)]
 #![feature(asm, core_intrinsics, concat_idents, const_fn)]
 #![no_std]
 
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(debug, static_init, register_bitfields, register_bitmasks)]
+#[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
-#[macro_use]
-mod helpers;
+mod deferred_call_tasks;
 
-pub mod chip;
+pub mod adc;
+pub mod aes;
 pub mod ast;
 pub mod bpm;
 pub mod bscif;
-pub mod dma;
-pub mod i2c;
-pub mod spi;
-pub mod nvic;
-pub mod pm;
-pub mod gpio;
-pub mod usart;
-pub mod scif;
-pub mod adc;
-pub mod flashcalw;
-pub mod wdt;
-pub mod trng;
+pub mod chip;
 pub mod crccu;
 pub mod dac;
-pub mod aes;
+pub mod dma;
+pub mod flashcalw;
+pub mod gpio;
+pub mod i2c;
+pub mod nvic;
+pub mod pm;
+pub mod scif;
+pub mod spi;
+pub mod trng;
+pub mod usart;
 pub mod usbc;
+pub mod wdt;
 
-use cortexm4::{generic_isr, systick_handler, SVC_Handler};
+use cortexm4::{generic_isr, svc_handler, systick_handler};
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -72,24 +71,26 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[link_section=".vectors"]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[link_section = ".vectors"]
 // no_mangle Ensures that the symbol is kept until the final binary
 #[no_mangle]
-pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
-    _estack, reset_handler,
-    /* NMI */           unhandled_interrupt,
-    /* Hard Fault */    hard_fault_handler,
-    /* MemManage */     unhandled_interrupt,
-    /* BusFault */      unhandled_interrupt,
-    /* UsageFault*/     unhandled_interrupt,
-    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    reset_handler,
+    unhandled_interrupt, // NMI
+    hard_fault_handler,  // Hard Fault
+    unhandled_interrupt, // MemManage
+    unhandled_interrupt, // BusFault
+    unhandled_interrupt, // UsageFault
     unhandled_interrupt,
-    /* SVC */           SVC_Handler,
-    /* DebugMon */      unhandled_interrupt,
     unhandled_interrupt,
-    /* PendSV */        unhandled_interrupt,
-    /* SysTick */       systick_handler
+    unhandled_interrupt,
+    unhandled_interrupt,
+    svc_handler,         // SVC
+    unhandled_interrupt, // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt, // PendSV
+    systick_handler,     // SysTick
 ];
 
 #[link_section = ".vectors"]
@@ -253,7 +254,7 @@ unsafe extern "C" fn hard_fault_handler() {
             ici_it,
             thumb_bit,
             exception_number,
-            kernel::process::ipsr_isr_number_to_str(exception_number),
+            cortexm4::ipsr_isr_number_to_str(exception_number),
             faulting_stack as u32,
             (_estack as *const ()) as u32,
             (&_ezero as *const u32) as u32,

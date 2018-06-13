@@ -3,6 +3,7 @@
 use cc26xx::gpio;
 use cc26xx::peripheral_interrupts::*;
 use cc26xx::rtc;
+use cc26xx::uart;
 use cortexm4::{self, nvic};
 use kernel;
 
@@ -39,6 +40,7 @@ impl kernel::Chip for Cc26X2 {
                 match interrupt {
                     GPIO => gpio::PORT.handle_interrupt(),
                     AON_RTC => rtc::RTC.handle_interrupt(),
+                    UART0 => uart::UART0.handle_interrupt(),
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     AON_PROG => (),
@@ -53,5 +55,18 @@ impl kernel::Chip for Cc26X2 {
 
     fn has_pending_interrupts(&self) -> bool {
         unsafe { nvic::has_pending() }
+    }
+
+    fn sleep(&self) {
+        unsafe {
+            cortexm4::support::wfi();
+        }
+    }
+
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm4::support::atomic(f)
     }
 }

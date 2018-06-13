@@ -6,7 +6,7 @@ build = "build.rs"
 
 [profile.dev]
 panic = "abort"
-lto = true
+lto = false
 opt-level = "z"
 debug = true
 

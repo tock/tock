@@ -2,16 +2,19 @@
 #![no_std]
 #![crate_name = "nrf51"]
 #![crate_type = "rlib"]
+
 extern crate cortexm0;
-#[allow(unused_imports)]
-#[macro_use(debug)]
-extern crate kernel;
 extern crate nrf5x;
 
-pub mod clock;
+#[allow(unused_imports)]
+#[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
+extern crate kernel;
+
 pub mod chip;
+pub mod clock;
 pub mod crt1;
-pub mod uart;
+pub mod i2c;
 pub mod radio;
+pub mod uart;
 
 pub use crt1::init;

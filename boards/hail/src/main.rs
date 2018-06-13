@@ -1,27 +1,27 @@
 //! Board file for Hail development platform.
 //!
-//! - <https://github.com/helena-project/tock/tree/master/boards/hail>
+//! - <https://github.com/tock/tock/tree/master/boards/hail>
 //! - <https://github.com/lab11/hail>
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items, compiler_builtins_lib)]
+#![feature(asm, const_fn, lang_items)]
 #![deny(missing_docs)]
 
 extern crate capsules;
-extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate sam4l;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use kernel::Platform;
 use kernel::hil;
-use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::Controller;
+use kernel::Platform;
 
 /// Support routines for debugging I/O.
 ///
@@ -37,17 +37,20 @@ static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 // State for loading and holding applications.
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 20;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None,
+];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -62,7 +65,7 @@ struct Hail {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<
         'static,
         sam4l::usart::USART,
@@ -111,8 +114,8 @@ impl Platform for Hail {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::{PA, PB};
     use sam4l::gpio::PeripheralFunction::{A, B};
+    use sam4l::gpio::{PA, PB};
 
     PA[04].configure(Some(A)); // A0 - ADC0
     PA[05].configure(Some(A)); // A1 - ADC1
@@ -175,7 +178,7 @@ pub unsafe fn reset_handler() {
 
     sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
         frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
-        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
+        startup_mode: sam4l::pm::OscillatorStartup::SlowStart,
     });
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
@@ -198,6 +201,7 @@ pub unsafe fn reset_handler() {
             &sam4l::usart::USART0,
             115200,
             &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
@@ -248,15 +252,13 @@ pub unsafe fn reset_handler() {
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create()),
-        96 / 8
+        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create())
     );
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create()),
-        96 / 8
+        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create())
     );
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
@@ -316,24 +318,23 @@ pub unsafe fn reset_handler() {
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
         MuxSpiMaster::new(&sam4l::spi::SPI)
     );
 
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
-    sam4l::spi::SPI.enable();
 
     // Create a virtualized client for SPI system call interface
     // CS line is CS0
     let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
         VirtualSpiMasterDevice::new(mux_spi, 0)
     );
 
     // Create the SPI system call capsule, passing the client
     let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
         capsules::spi::Spi::new(syscall_spi_device)
     );
 
@@ -355,7 +356,7 @@ pub unsafe fn reset_handler() {
             (
                 &sam4l::gpio::PA[14],
                 capsules::led::ActivationMode::ActiveLow
-            )
+            ),
         ]
     ); // Blue
     let led = static_init!(
@@ -366,12 +367,10 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button_pins = static_init!(
         [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
-        [
-            (
-                &sam4l::gpio::PA[16],
-                capsules::button::GpioMode::LowWhenPressed
-            )
-        ]
+        [(
+            &sam4l::gpio::PA[16],
+            capsules::button::GpioMode::LowWhenPressed
+        )]
     );
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -390,7 +389,7 @@ pub unsafe fn reset_handler() {
             &sam4l::adc::CHANNEL_AD3, // A2
             &sam4l::adc::CHANNEL_AD4, // A3
             &sam4l::adc::CHANNEL_AD5, // A4
-            &sam4l::adc::CHANNEL_AD6  // A5
+            &sam4l::adc::CHANNEL_AD6, // A5
         ]
     );
     let adc = static_init!(
@@ -419,7 +418,7 @@ pub unsafe fn reset_handler() {
             &sam4l::gpio::PB[14], // D0
             &sam4l::gpio::PB[15], // D1
             &sam4l::gpio::PB[11], // D6
-            &sam4l::gpio::PB[12]
+            &sam4l::gpio::PB[12],
         ]
     ); // D7
     let gpio = static_init!(
@@ -468,7 +467,7 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PA[17].clear();
     // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
     for _ in 0..10 {
-        kernel::support::nop();
+        cortexm4::support::nop();
     }
     sam4l::gpio::PA[17].set();
 
@@ -490,11 +489,12 @@ pub unsafe fn reset_handler() {
         /// This symbol is defined in the linker script.
         static _sapps: u8;
     }
-    kernel::process::load_processes(
+
+    kernel::procs::load_processes(
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
+    kernel::main(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
 }

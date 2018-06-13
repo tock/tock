@@ -2,8 +2,6 @@
 
 set -e
 
-export RUSTUP_TOOLCHAIN=nightly-2018-01-05
-
 # Verify that we're running in the base directory
 if [ ! -x tools/run_cargo_fmt.sh ]; then
 	echo ERROR: $0 must be run from the tock repository root.
@@ -15,12 +13,7 @@ fi
 #
 # Note: We install a local copy of rustfmt so as not to interfere with any
 # other use of rustfmt on the machine
-RUSTFMT_VERSION=0.3.4
-
-if [[ $(rustc --version) != "rustc 1.24.0-nightly (8e7a609e6 2018-01-04)" ]]; then
-	rustup install $RUSTUP_TOOLCHAIN || (echo "Failed to install rustc. Please read doc/Getting_Started.md"; exit 1)
-fi
-
+RUSTFMT_VERSION=0.6.0
 
 # For CI, want to install to a cached travis directory
 if [[ "$CI" == "true" ]]; then
@@ -31,12 +24,11 @@ fi
 
 mkdir -p $LOCAL_CARGO
 
-
 # Check if we actually need to do anything
 needs_install=false
 if [[ ! -x $LOCAL_CARGO/bin/rustfmt ]]; then
 	needs_install=true
-elif [[ $($LOCAL_CARGO/bin/rustfmt --version | cut -d'-' -f1) != "$RUSTFMT_VERSION" ]]; then
+elif [[ $($LOCAL_CARGO/bin/rustfmt --version | perl -pe '($_)=/([0-9]+([.][0-9]+)+)/') != "$RUSTFMT_VERSION" ]]; then
 	needs_install=true
 fi
 
