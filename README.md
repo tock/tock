@@ -23,7 +23,7 @@ How would you like to get started?
 ### Learn How Tock Works 
 
 Tock is documented in the [doc](doc) folder. Read through the guides there to
-learn about the overview and design of Tock, its implementation and much
+learn about the overview and design of Tock, its implementation, and much
 more.
 
 

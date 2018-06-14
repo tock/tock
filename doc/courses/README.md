@@ -2,7 +2,7 @@ Tock courses
 ==================
 
 Courses are a great way to start learning Tock. They take you to the entire
-process of getting started, writing an application and adding a capsule to the
+process of getting started, writing an application, and adding a capsule to the
 kernel. There are currently three different courses available, corresponding to
 the three conferences we've given workshops at:
 
