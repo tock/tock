@@ -1,9 +1,8 @@
-Memory Layout and Isolation
+Memory Layout
 =============
 
 This document describes how the memory in Tock is structured and used for the
-kernel, applications, and supporting state.  It also describes how memory is
-isolated, meaning the access permissions of the kernel and processes.
+kernel, applications, and supporting state. 
 
 <!-- npm i -g markdown-toc; markdown-toc -i Memory_Layout.md -->
 
@@ -30,16 +29,13 @@ Most boards simply define the beginning and end of flash and SRAM in their
 `layout.ld` file and then include the [generic Tock memory
 map](../boards/kernel_layout.ld).
 
-The kernel has the highest privileges and thus also full control, meaning the
-ability to access all parts of code. Processes on the other hand have specific
-access permissions depending on the memory type.
 
-# Flash
+## Flash
 
-The nonvolatile flash memory hold the kernel code and a linked-list of sorts of
-process code.
+The nonvolatile flash memory holds the kernel code and a linked-list of sorts
+of [process code](TockBinaryFormat.md).
 
-## Kernel code
+### Kernel code
 
 The kernel code is split into two major regions. The first is `.text`, which
 holds the vector table, program code, initialization routines, and other
@@ -50,9 +46,7 @@ region.  It holds values that need to exist in SRAM, but have non-zero initial
 values that Tock copies from flash to SRAM as part of its initialization (see
 [Startup](Startup.md)).
 
-The kernel code in flash is not accessible by any process.
-
-## Process code
+### Process code
 
 Processes are placed in flash starting at a known address which can be
 retrieved in the kernel using the symbol `_sapps`. Each process starts with a
@@ -63,23 +57,18 @@ structure that the kernel uses to traverse apps. The end of the valid processes
 are denoted by an invalid TBF header. Typically the flash page after the last
 valid process is set to all 0x00 or 0xFF.
 
-Processes have read-only access to their own memory in flash, but can not read
-other processes' code. 
-
-# RAM
+## RAM
 
 The RAM holds the data currently being used by both the kernel and processes. 
 
-## Kernel RAM
+### Kernel RAM
 The kernel RAM contains three major regions:
 
 1. Kernel stack.
 2. Kernel data: initialized memory, copied from flash at boot.
 3. Kernel BSS: uninitialized memory, zeroed at boot.
 
-Kernel RAM is not accessible by any process.
-
-## Process RAM
+### Process RAM
 The process RAM is memory space divided between all running apps.
 
 A process's RAM contains four major regions:
@@ -89,15 +78,9 @@ A process's RAM contains four major regions:
 3. Process heap
 4. Grant
 
+The figure below shows the memory space of one process.
+
 ![Process' RAM](processram.png)
-
-A process has full access to its own stack, data and heap. However, it has no
-access to its grant region: this is only accessible by the kernel. 
-
-Processes can communicate with each other through an inter-process
-communication (IPC) mechanism. If this is enabled, processes can read/write
-specific parts of other processes. Otherwise, a process is never able to
-read/write other processes' RAM.
 
 ## Hardware Implementations
 
