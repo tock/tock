@@ -1,4 +1,4 @@
-//! Cortex-M4 NVIC
+//! Cortex-M NVIC
 
 use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;

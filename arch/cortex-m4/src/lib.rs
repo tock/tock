@@ -11,15 +11,16 @@ extern crate kernel;
 extern crate cortexm;
 
 pub mod mpu;
-pub mod nvic;
-pub mod scb;
-pub mod systick;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m4.
 pub mod support {
     pub use cortexm::support::*;
 }
+
+pub use cortexm::nvic;
+pub use cortexm::scb;
+pub use cortexm::systick;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}
