@@ -496,5 +496,5 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::main(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
+    kernel::kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
 }

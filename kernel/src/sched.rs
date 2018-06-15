@@ -3,7 +3,9 @@
 use core::ptr;
 use core::ptr::NonNull;
 
+use callback;
 use callback::{AppId, Callback};
+use ipc;
 use mem::AppSlice;
 use memop;
 use platform::mpu::MPU;
@@ -19,7 +21,41 @@ const KERNEL_TICK_DURATION_US: u32 = 10000;
 /// Skip re-scheduling a process if its quanta is nearly exhausted
 const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
-pub unsafe fn do_process<P: Platform, C: Chip>(
+/// Main loop.
+pub fn kernel_loop<P: Platform, C: Chip>(
+    platform: &P,
+    chip: &mut C,
+    processes: &'static mut [Option<&mut process::Process<'static>>],
+    ipc: Option<&ipc::IPC>,
+) {
+    let processes = unsafe {
+        process::PROCS = processes;
+        &mut process::PROCS
+    };
+
+    loop {
+        unsafe {
+            chip.service_pending_interrupts();
+
+            for (i, p) in processes.iter_mut().enumerate() {
+                p.as_mut().map(|process| {
+                    do_process(platform, chip, process, callback::AppId::new(i), ipc);
+                });
+                if chip.has_pending_interrupts() {
+                    break;
+                }
+            }
+
+            chip.atomic(|| {
+                if !chip.has_pending_interrupts() && process::processes_blocked() {
+                    chip.sleep();
+                }
+            });
+        };
+    }
+}
+
+unsafe fn do_process<P: Platform, C: Chip>(
     platform: &P,
     chip: &mut C,
     process: &mut Process,

@@ -204,5 +204,5 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::main(&tm4c1294, &mut chip, &mut PROCESSES, Some(&tm4c1294.ipc));
+    kernel::kernel_loop(&tm4c1294, &mut chip, &mut PROCESSES, Some(&tm4c1294.ipc));
 }

@@ -652,5 +652,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    kernel::main(&imix, &mut chip, &mut PROCESSES, Some(&imix.ipc));
+    kernel::kernel_loop(&imix, &mut chip, &mut PROCESSES, Some(&imix.ipc));
 }
