@@ -110,7 +110,7 @@ pub unsafe fn panic_banner<W: Write>(
 pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
     // Print fault status once
     let procs = &mut process::PROCS;
-    if procs.len() > 0 {
+    if !procs.is_empty() {
         procs[0].as_mut().map(|process| {
             process.fault_str(writer);
         });
@@ -118,7 +118,6 @@ pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
 
     // print data about each process
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-    let procs = &mut process::PROCS;
     for idx in 0..procs.len() {
         procs[idx].as_mut().map(|process| {
             process.statistics_str(writer);
@@ -208,14 +207,14 @@ static mut DEBUG_WRITER: DebugWriter = DebugWriter {
 };
 
 pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, grant: &mut T) {
-    let ptr: *mut u8 = ::core::mem::transmute(grant);
+    let ptr: *mut u8 = grant as *mut T as *mut u8;
     DEBUG_WRITER.driver = driver;
     DEBUG_WRITER.grant = Some(ptr);
 }
 
 pub unsafe fn get_grant<T>() -> *mut T {
     match DEBUG_WRITER.grant {
-        Some(grant) => ::core::mem::transmute(grant),
+        Some(grant) => grant as *mut T,
         None => panic!("Request for unallocated kernel grant"),
     }
 }
@@ -246,13 +245,6 @@ impl DebugWriter {
 
             match self.driver {
                 Some(driver) => {
-                    /*
-                    let s = match str::from_utf8(&DEBUG_WRITER.output_buffer) {
-                        Ok(v) => v,
-                        Err(e) => panic!("Not uf8 {}", e),
-                    };
-                    panic!("s: {}", s);
-                    */
                     let head = read_volatile(&self.output_head);
                     let tail = read_volatile(&self.output_tail);
                     let len = self.output_buffer.len();
@@ -395,10 +387,7 @@ impl Write for DebugWriter {
             if head == len {
                 head = 0;
             }
-
-            let remaining_bytes = &bytes[written..];
-
-            remaining_bytes
+            &bytes[written..]
         } else {
             s.as_bytes()
         };
