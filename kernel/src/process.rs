@@ -489,11 +489,12 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
             // Calculate checksum. The checksum is the XOR of each 4 byte word
             // in the header.
             let mut chunks = tbf_header_base.header_size as usize / 4;
-            let mut leftover_bytes = 0;
-            if chunks * 4 != tbf_header_base.header_size as usize {
+            let leftover_bytes = if chunks * 4 != tbf_header_base.header_size as usize {
                 chunks += 1;
-                leftover_bytes = tbf_header_base.header_size as usize - (chunks * 4);
-            }
+                tbf_header_base.header_size as usize - (chunks * 4)
+            } else {
+                0
+            };
             let mut checksum: u32 = 0;
             let header = slice::from_raw_parts(address as *const u32, chunks);
             for (i, chunk) in header.iter().enumerate() {
@@ -954,7 +955,7 @@ impl<'a> Process<'a> {
 
         // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
-            if region.get().0 == ptr::null() {
+            if region.get().0.is_null() {
                 mpu.set_mpu(mpu::Region::empty(i + 3));
                 continue;
             }
@@ -1095,7 +1096,8 @@ impl<'a> Process<'a> {
             let mut app_stack_start_pointer = None;
 
             // Create the Process struct in the app grant region.
-            let mut process: &mut Process = mem::transmute(process_struct_memory_location);
+            let mut process: &mut Process =
+                &mut *(process_struct_memory_location as *mut Process<'static>);
 
             process.memory = app_memory;
             process.header = tbf_header;
@@ -1208,7 +1210,7 @@ impl<'a> Process<'a> {
         for grant_num in 0..grant_ptrs_num {
             let grant_num = grant_num as isize;
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
-            write_volatile(ctr_ptr, 0 as *mut usize);
+            write_volatile(ctr_ptr, ptr::null_mut());
         }
     }
 
@@ -1286,7 +1288,7 @@ impl<'a> Process<'a> {
         write_volatile(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(
             self.current_stack_pointer,
-            mem::transmute(&mut self.stored_regs),
+            &mut *(&mut self.stored_regs as *mut StoredRegs as *mut [usize; 8]),
         );
         self.current_stack_pointer = psp;
         if self.current_stack_pointer < self.debug.min_stack_pointer {
