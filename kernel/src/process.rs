@@ -489,7 +489,7 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
             // Calculate checksum. The checksum is the XOR of each 4 byte word
             // in the header.
             let mut chunks = tbf_header_base.header_size as usize / 4;
-            let mut leftover_bytes = if chunks * 4 != tbf_header_base.header_size as usize {
+            let leftover_bytes = if chunks * 4 != tbf_header_base.header_size as usize {
                 chunks += 1;
                 tbf_header_base.header_size as usize - (chunks * 4)
             } else {
