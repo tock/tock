@@ -30,7 +30,7 @@ These implement a driver to setup and read various physical sensors.
 
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
-- **[LPS29035](src/isl29035.rs)**: Pressure sensor.
+- **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[TMP006](src/tmp006.rs)**: Infrared temperature sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.

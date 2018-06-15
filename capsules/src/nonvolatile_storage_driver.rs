@@ -41,7 +41,7 @@
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
 //!         fm25cl,                      // The underlying storage driver.
-//!         kernel::Grant::create(), // Storage for app-specific state.
+//!         kernel::Grant::create(),     // Storage for app-specific state.
 //!         3000,                        // The byte start address for the userspace
 //!                                      // accessible memory region.
 //!         2000,                        // The length of the userspace region.
