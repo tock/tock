@@ -4,18 +4,22 @@
 //! * Philip Levis <pal@cs.stanford.edu>
 //! * Date: August 18, 2016
 
-use core::{cell::Cell,
-           ops::{Index, IndexMut}};
-use kernel::{common::regs::{FieldValue, ReadWrite},
-             hil};
+use core::cell::Cell;
+use core::ops::{Index, IndexMut};
+use kernel::common::regs::{FieldValue, ReadWrite};
+use kernel::common::StaticRef;
+use kernel::hil;
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
 
-const GPIOTE_BASE: usize = 0x40006000;
-const GPIO_BASE: usize = 0x50000000;
+const GPIOTE_BASE: StaticRef<GpioteRegisters> =
+    unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
+
+const GPIO_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x50000000 as *const GpioRegisters) };
 
 /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
 /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
@@ -326,8 +330,8 @@ pub struct GPIOPin {
     pin: u8,
     client_data: Cell<usize>,
     client: Cell<Option<&'static hil::gpio::Client>>,
-    gpiote_register: *const GpioteRegisters,
-    gpio_register: *const GpioRegisters,
+    gpiote_registers: StaticRef<GpioteRegisters>,
+    gpio_registers: StaticRef<GpioRegisters>,
 }
 
 impl GPIOPin {
@@ -336,8 +340,8 @@ impl GPIOPin {
             pin: pin,
             client_data: Cell::new(0),
             client: Cell::new(None),
-            gpio_register: GPIO_BASE as *const GpioRegisters,
-            gpiote_register: GPIOTE_BASE as *const GpioteRegisters,
+            gpio_registers: GPIO_BASE,
+            gpiote_registers: GPIOTE_BASE,
         }
     }
 
@@ -346,7 +350,7 @@ impl GPIOPin {
     }
 
     pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
-        let gpio_regs = unsafe { &*self.gpio_register };
+        let gpio_regs = &*self.gpio_registers;
         gpio_regs.pin_cnf[self.pin as usize].write(config);
     }
 }
@@ -364,13 +368,15 @@ impl hil::gpio::PinCtl for GPIOPin {
 
 impl hil::gpio::Pin for GPIOPin {
     fn make_output(&self) {
-        unsafe { (&*self.gpio_register).dirset.set(1 << self.pin) };
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.dirset.set(1 << self.pin);
     }
 
     // Configuration constants stolen from
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn make_input(&self) {
-        unsafe { (&*self.gpio_register).dirclr.set(1 << self.pin) };
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.dirclr.set(1 << self.pin);
     }
 
     // Not clk
@@ -379,20 +385,22 @@ impl hil::gpio::Pin for GPIOPin {
     }
 
     fn set(&self) {
-        unsafe { (&*self.gpio_register).outset.set(1 << self.pin) };
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.outset.set(1 << self.pin);
     }
 
     fn clear(&self) {
-        unsafe { (&*self.gpio_register).outclr.set(1 << self.pin) };
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.outclr.set(1 << self.pin);
     }
 
     fn toggle(&self) {
-        let gpio_regs = unsafe { &*self.gpio_register };
+        let gpio_regs = &*self.gpio_registers;
         gpio_regs.out.set((1 << self.pin) ^ gpio_regs.out.get());
     }
 
     fn read(&self) -> bool {
-        let gpio_regs = unsafe { &*self.gpio_register };
+        let gpio_regs = &*self.gpio_registers;
         gpio_regs.in_.get() & (1 << self.pin) != 0
     }
 
@@ -404,7 +412,7 @@ impl hil::gpio::Pin for GPIOPin {
                 hil::gpio::InterruptMode::RisingEdge => Config::POLARITY::LoToHi,
                 hil::gpio::InterruptMode::FallingEdge => Config::POLARITY::HiToLo,
             };
-            let regs = unsafe { &*self.gpiote_register };
+            let regs = &*self.gpiote_registers;
             regs.config[channel]
                 .write(Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity);
             regs.intenset.set(1 << channel);
@@ -415,7 +423,7 @@ impl hil::gpio::Pin for GPIOPin {
 
     fn disable_interrupt(&self) {
         if let Ok(channel) = self.find_channel(self.pin) {
-            let regs = unsafe { &*self.gpiote_register };
+            let regs = &*self.gpiote_registers;
             regs.config[channel]
                 .write(Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR);
             regs.intenclr.set(1 << channel);
@@ -427,7 +435,7 @@ impl GPIOPin {
     /// Allocate a GPIOTE channel
     /// If the channel couldn't be allocated return error instead
     fn allocate_channel(&self) -> Result<usize, ()> {
-        let regs = unsafe { &*self.gpiote_register };
+        let regs = &*self.gpiote_registers;
         for (i, ch) in regs.config.iter().enumerate() {
             if ch.matches_all(Config::MODE::Disabled) {
                 return Ok(i);
@@ -439,7 +447,7 @@ impl GPIOPin {
     /// Return which channel is allocated to a pin,
     /// If the channel is not found return an error instead
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
-        let regs = unsafe { &*self.gpiote_register };
+        let regs = &*self.gpiote_registers;
         for (i, ch) in regs.config.iter().enumerate() {
             if ch.matches_all(Config::PSEL.val(pin as u32)) {
                 return Ok(i);
@@ -479,7 +487,7 @@ impl Port {
     pub fn handle_interrupt(&self) {
         // do this just to get a pointer the memory map
         // doesn't matter which pin is used because it is the same
-        let regs = unsafe { &*self.pins[0].gpiote_register };
+        let regs = &*self.pins[0].gpiote_registers;
 
         for (i, ev) in regs.event_in.iter().enumerate() {
             if ev.matches_any(EventsIn::EVENT::Ready) {

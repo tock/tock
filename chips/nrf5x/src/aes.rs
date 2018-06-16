@@ -34,6 +34,7 @@ use core::cell::Cell;
 use kernel;
 use kernel::common::cells::TakeCell;
 use kernel::common::regs::{ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
 use kernel::ReturnCode;
 
@@ -54,7 +55,9 @@ const CIPHERTEXT_START: usize = 33;
 #[allow(dead_code)]
 const CIPHERTEXT_END: usize = 47;
 const MAX_LENGTH: usize = 128;
-const AESECB_BASE: usize = 0x4000E000;
+
+const AESECB_BASE: StaticRef<AesEcbRegisters> =
+    unsafe { StaticRef::new(0x4000E000 as *const AesEcbRegisters) };
 
 #[repr(C)]
 struct AesEcbRegisters {
@@ -117,7 +120,7 @@ register_bitfields! [u32,
 ];
 
 pub struct AesECB<'a> {
-    regs: *const AesEcbRegisters,
+    registers: StaticRef<AesEcbRegisters>,
     client: Cell<Option<&'a kernel::hil::symmetric_encryption::Client<'a>>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'a, [u8]>,
@@ -134,7 +137,7 @@ pub static mut AESECB: AesECB = AesECB::new();
 impl<'a> AesECB<'a> {
     const fn new() -> AesECB<'a> {
         AesECB {
-            regs: AESECB_BASE as *const AesEcbRegisters,
+            registers: AESECB_BASE,
             client: Cell::new(None),
             input: TakeCell::empty(),
             output: TakeCell::empty(),
@@ -146,7 +149,7 @@ impl<'a> AesECB<'a> {
     }
 
     fn set_dma(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         unsafe {
             regs.ecbdataptr.set(ECB_DATA.as_ptr() as u32);
         }
@@ -166,7 +169,7 @@ impl<'a> AesECB<'a> {
     }
 
     fn crypt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         regs.event_endecb.write(Event::READY::CLEAR);
         regs.task_startecb.set(1);
@@ -176,7 +179,7 @@ impl<'a> AesECB<'a> {
 
     /// AesEcb Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // disable interrupts
         self.disable_interrupts();
@@ -238,13 +241,13 @@ impl<'a> AesECB<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset
             .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr
             .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
     }
@@ -256,7 +259,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     fn disable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.task_stopecb.write(Task::ENABLE::CLEAR);
         self.disable_interrupts();
     }

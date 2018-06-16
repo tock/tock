@@ -18,6 +18,7 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct ClockRegisters {
@@ -116,7 +117,8 @@ register_bitfields! [u32,
     ]
 ];
 
-const CLOCK_BASE: usize = 0x40000000;
+const CLOCK_BASE: StaticRef<ClockRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const ClockRegisters) };
 
 /// Interrupt sources
 pub enum InterruptField {
@@ -142,7 +144,7 @@ pub enum HighClockSource {
 
 /// Clock struct
 pub struct Clock {
-    registers: *const ClockRegisters,
+    registers: StaticRef<ClockRegisters>,
     client: Cell<Option<&'static ClockClient>>,
 }
 
@@ -160,7 +162,7 @@ impl Clock {
     /// Constructor
     pub const fn new() -> Clock {
         Clock {
-            registers: CLOCK_BASE as *const ClockRegisters,
+            registers: CLOCK_BASE,
             client: Cell::new(None),
         }
     }
@@ -172,7 +174,7 @@ impl Clock {
 
     /// Enable interrupt
     pub fn interrupt_enable(&self, interrupt: InterruptField) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         // this is a little too verbose
         match interrupt {
             InterruptField::CTTO => regs.intenset.write(Interrupt::CTTO::SET),
@@ -184,7 +186,7 @@ impl Clock {
 
     /// Disable interrupt
     pub fn interrupt_disable(&self, interrupt: InterruptField) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         // this is a little too verbose
         match interrupt {
             InterruptField::CTTO => regs.intenset.write(Interrupt::CTTO::SET),
@@ -196,25 +198,25 @@ impl Clock {
 
     /// Start the high frequency clock
     pub fn high_start(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_hfclkstart.write(Control::ENABLE::SET);
     }
 
     /// Stop the high frequency clock
     pub fn high_stop(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_hfclkstop.write(Control::ENABLE::SET);
     }
 
     /// Check if the high frequency clock has started
     pub fn high_started(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.events_hfclkstarted.matches_all(Status::READY.val(1))
     }
 
     /// Read clock source from the high frequency clock
     pub fn high_source(&self) -> HighClockSource {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.hfclkstat.read(HfClkStat::SRC) {
             0 => HighClockSource::RC,
             _ => HighClockSource::XTAL,
@@ -223,31 +225,31 @@ impl Clock {
 
     /// Check if the high frequency clock is running
     pub fn high_running(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.hfclkstat.matches_all(HfClkStat::STATE::RUNNING)
     }
 
     /// Start the low frequency clock
     pub fn low_start(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_lfclkstart.write(Control::ENABLE::SET);
     }
 
     /// Stop the low frequency clock
     pub fn low_stop(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_lfclkstop.write(Control::ENABLE::SET);
     }
 
     /// Check if the low frequency clock has started
     pub fn low_started(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.events_lfclkstarted.matches_all(Status::READY::SET)
     }
 
     /// Read clock source from the low frequency clock
     pub fn low_source(&self) -> LowClockSource {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.lfclkstat.read(LfClkStat::SRC) {
             0b1 => LowClockSource::XTAL,
             0b10 => LowClockSource::SYNTH,
@@ -257,19 +259,19 @@ impl Clock {
 
     /// Check if the low frequency clock is running
     pub fn low_running(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.lfclkstat.matches_all(LfClkStat::STATE::RUNNING)
     }
 
     /// Set low frequency clock source
     pub fn low_set_source(&self, clock_source: LowClockSource) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.lfclksrc.write(LfClkSrc::SRC.val(clock_source as u32));
     }
 
     /// Set high frequency clock source
     pub fn high_set_source(&self, clock_source: HighClockSource) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.hfclkstat
             .write(HfClkStat::SRC.val(clock_source as u32));
     }

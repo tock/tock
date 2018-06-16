@@ -4,8 +4,10 @@
 //! nRF52-DK.
 
 use kernel::common::regs::ReadWrite;
+use kernel::common::StaticRef;
 
-const UICR_BASE: usize = 0x10001200;
+const UICR_BASE: StaticRef<UicrRegisters> =
+    unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
 
 #[repr(C)]
 struct UicrRegisters {
@@ -58,22 +60,22 @@ register_bitfields! [u32,
 ];
 
 pub struct Uicr {
-    regs: *const UicrRegisters,
+    registers: StaticRef<UicrRegisters>,
 }
 
 impl Uicr {
     pub const fn new() -> Uicr {
         Uicr {
-            regs: UICR_BASE as *const UicrRegisters,
+            registers: UICR_BASE,
         }
     }
 
     pub fn set_psel0_reset_pin(&self, pin: usize) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.pselreset0.set(pin as u32);
     }
     pub fn set_psel1_reset_pin(&self, pin: usize) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.pselreset1.set(pin as u32);
     }
 }
