@@ -566,23 +566,13 @@ impl USART {
     pub fn handle_interrupt(&self) {
         let usart = &USARTRegManager::new(&self);
 
-        // TODO: Ideally we would read the actual registers once and let the
-        // compiler sort out a switch tree basd on the if/else chain. The
-        // underlying volatile reads makes this code as-written inefficient.
-        // However, doing so with the current registers interface doesn't
-        // really work.
-        //
-        //let status = usart.registers.csr.get();
-        //let mask = usart.registers.imr.get();
+        let status = usart.registers.csr.extract();
+        let mask = usart.registers.imr.extract();
 
-        if usart.registers.csr.is_set(ChannelStatus::TIMEOUT)
-            && usart.registers.imr.is_set(Interrupt::TIMEOUT)
-        {
+        if status.is_set(ChannelStatus::TIMEOUT) && mask.is_set(Interrupt::TIMEOUT) {
             self.disable_rx_timeout(usart);
             self.abort_rx(usart, hil::uart::Error::CommandComplete);
-        } else if usart.registers.csr.is_set(ChannelStatus::TXEMPTY)
-            && usart.registers.imr.is_set(Interrupt::TXEMPTY)
-        {
+        } else if status.is_set(ChannelStatus::TXEMPTY) && mask.is_set(Interrupt::TXEMPTY) {
             self.disable_tx_empty_interrupt(usart);
             self.disable_tx(usart);
             self.usart_tx_state.set(USARTStateTX::Idle);
@@ -593,7 +583,7 @@ impl USART {
             // `transmit_complete` callback is in a "bad" part of the USART
             // state machine, and clients cannot issue other USART calls from
             // the callback.
-            let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
+            let txbuffer = self.tx_dma.get().map_or(None, |tx_dma| {
                 let buf = tx_dma.abort_transfer();
                 tx_dma.disable();
                 buf
@@ -601,18 +591,47 @@ impl USART {
 
             // alert client
             self.client.get().map(|usartclient| {
-                buffer.map(|buf| match usartclient {
+                txbuffer.map(|tbuf| match usartclient {
                     UsartClient::Uart(client) => {
-                        client.transmit_complete(buf, hil::uart::Error::CommandComplete);
+                        client.transmit_complete(tbuf, hil::uart::Error::CommandComplete);
                     }
-                    UsartClient::SpiMaster(_) => {}
+                    UsartClient::SpiMaster(client) => {
+                        // For the SPI case it is a little more complicated.
+
+                        // First, it is now a valid time to de-assert the CS
+                        // line because we know the write and/or read is done.
+                        self.spi_chip_select.get().map_or_else(
+                            || {
+                                // Do "else" case first. Thanks, rust.
+                                self.rts_disable_spi_deassert_cs(usart);
+                            },
+                            |cs| {
+                                cs.set();
+                            },
+                        );
+
+                        // Get the RX buffer, and it is ok if we didn't use one,
+                        // we can just return None.
+                        let rxbuf = self.rx_dma.get().map_or(None, |dma| {
+                            let buf = dma.abort_transfer();
+                            dma.disable();
+                            buf
+                        });
+
+                        // And now it is safe to notify the client because TX is
+                        // in its Idle state rather than its transfer completing
+                        // state.
+                        let len = self.tx_len.get();
+                        client.read_write_done(tbuf, rxbuf, len);
+                        self.tx_len.set(0);
+                    }
                 });
             });
-        } else if usart.registers.csr.is_set(ChannelStatus::PARE) {
+        } else if status.is_set(ChannelStatus::PARE) {
             self.abort_rx(usart, hil::uart::Error::ParityError);
-        } else if usart.registers.csr.is_set(ChannelStatus::FRAME) {
+        } else if status.is_set(ChannelStatus::FRAME) {
             self.abort_rx(usart, hil::uart::Error::FramingError);
-        } else if usart.registers.csr.is_set(ChannelStatus::OVRE) {
+        } else if status.is_set(ChannelStatus::OVRE) {
             self.abort_rx(usart, hil::uart::Error::OverrunError);
         }
 
@@ -744,50 +763,20 @@ impl dma::DMAClient for USART {
                     && pid == self.tx_dma_peripheral)
                     || pid == self.rx_dma_peripheral
                 {
-                    // SPI transfer was completed
+                    // SPI transfer was completed. Either we didn't do a read,
+                    // so the only event we expect is a TX DMA done, OR, we did
+                    // a read so we ignore the TX DMA done event and wait for
+                    // the RX DMA done event.
 
-                    self.spi_chip_select.get().map_or_else(
-                        || {
-                            // Do "else" case first. Thanks, rust.
-                            self.rts_disable_spi_deassert_cs(usart);
-                        },
-                        |cs| {
-                            cs.set();
-                        },
-                    );
-
-                    // note that the DMA has finished but TX cannot be disabled yet
+                    // Note that the DMA has finished but TX cannot be disabled
+                    // yet.
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
                     self.enable_tx_empty_interrupt(usart);
 
+                    // The RX is either already idle and disabled (we didn't
+                    // do a read) or it is now safe to do this.
                     self.usart_rx_state.set(USARTStateRX::Idle);
                     self.disable_rx(usart);
-
-                    // get buffer
-                    let txbuf = self.tx_dma.get().map_or(None, |dma| {
-                        let buf = dma.abort_transfer();
-                        dma.disable();
-                        buf
-                    });
-
-                    let rxbuf = self.rx_dma.get().map_or(None, |dma| {
-                        let buf = dma.abort_transfer();
-                        dma.disable();
-                        buf
-                    });
-
-                    let len = self.tx_len.get();
-
-                    // alert client
-                    self.client.get().map(|usartclient| {
-                        txbuf.map(|tbuf| match usartclient {
-                            UsartClient::Uart(_) => {}
-                            UsartClient::SpiMaster(client) => {
-                                client.read_write_done(tbuf, rxbuf, len);
-                            }
-                        });
-                    });
-                    self.tx_len.set(0);
                 }
             }
 
