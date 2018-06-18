@@ -114,7 +114,7 @@ table summarizes the various types, and more detail is included below.
 
 Tock solves this issue of uniquely sharing memory with a memory
 container abstraction, TakeCell.
-From `tock/kernel/src/common/take_cell.rs`:
+From `tock/libraries/tock-cells/src/take_cell.rs`:
 
 > A `TakeCell` is a potential reference to mutable memory. Borrow rules are
 > enforced by forcing clients to either move the memory out of the cell or
@@ -301,7 +301,7 @@ Generally speaking, medium to large sized buffers should prefer `MapCell`s.
 
 ## `NumCell`
 
-[`NumCell`](https://github.com/tock/tock/blob/master/kernel/src/common/num_cell.rs)
+[`NumCell`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/num_cell.rs)
 is just like a normal `Cell` but can only contain numbers, and provides some
 convenient functions (`add()` and `subtract()`, for example). `NumCell` makes
 for cleaner code when storing numbers that are increased or decreased. For
@@ -311,7 +311,7 @@ understand: `my_cell.increment()` (or `my_cell.add(1)`).
 
 ## `OptionalCell`
 
-[`OptionalCell`](https://github.com/tock/tock/blob/master/kernel/src/common/optional_cell.rs)
+[`OptionalCell`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/optional_cell.rs)
 is effectively a wrapper for a `Cell` that contains an `Option`, like:
 `Cell<Option<T>>`. This to an extent mirrors the `TakeCell` interface, where the
 `Option` is hidden from the user. So instead of `my_optional_cell.get().map(||

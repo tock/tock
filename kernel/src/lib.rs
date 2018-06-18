@@ -12,6 +12,7 @@
 #![feature(use_extern_macros)]
 #![no_std]
 
+extern crate tock_cells;
 extern crate tock_regs;
 
 pub use tock_regs::{register_bitfields, register_bitmasks};
