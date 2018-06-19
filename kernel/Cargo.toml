@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 [dependencies]
-tock-regs = { path = "../tools/tock-register-interface" }
+tock-regs = { path = "../libraries/tock-register-interface" }
