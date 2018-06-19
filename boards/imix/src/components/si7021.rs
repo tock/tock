@@ -26,6 +26,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use sam4l;
 
@@ -89,9 +90,11 @@ impl Component for TemperatureComponent {
     type Output = &'static TemperatureSensor<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let temp = static_init!(
             TemperatureSensor<'static>,
-            TemperatureSensor::new(self.si7021, self.board_kernel.create_grant())
+            TemperatureSensor::new(self.si7021, self.board_kernel.create_grant(&grant_cap))
         );
 
         hil::sensors::TemperatureDriver::set_client(self.si7021, temp);
@@ -120,9 +123,11 @@ impl Component for HumidityComponent {
     type Output = &'static HumiditySensor<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let hum = static_init!(
             HumiditySensor<'static>,
-            HumiditySensor::new(self.si7021, self.board_kernel.create_grant())
+            HumiditySensor::new(self.si7021, self.board_kernel.create_grant(&grant_cap))
         );
 
         hil::sensors::HumidityDriver::set_client(self.si7021, hum);

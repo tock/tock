@@ -17,6 +17,7 @@
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use sam4l;
 
@@ -41,13 +42,15 @@ impl Component for AlarmDriverComponent {
     type Output = &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let virtual_alarm1 = static_init!(
             VirtualMuxAlarm<'static, sam4l::ast::Ast>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
         let alarm = static_init!(
             AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            AlarmDriver::new(virtual_alarm1, self.board_kernel.create_grant())
+            AlarmDriver::new(virtual_alarm1, self.board_kernel.create_grant(&grant_cap))
         );
 
         virtual_alarm1.set_client(alarm);
