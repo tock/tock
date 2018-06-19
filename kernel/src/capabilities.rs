@@ -48,3 +48,11 @@
 /// various functions related to creating, restarting, and otherwise managing
 /// processes.
 pub unsafe trait ProcessManagementCapability {}
+
+/// The `MainLoopCapability` capability allows the holder to start executing
+/// the main scheduler loop in Tock.
+pub unsafe trait MainLoopCapability {}
+
+/// The `MemoryAllocationCapability` capability allows the holder to allocate
+/// memory, for example by creating grants.
+pub unsafe trait MemoryAllocationCapability {}

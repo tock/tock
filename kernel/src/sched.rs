@@ -6,6 +6,7 @@ use core::ptr::NonNull;
 
 use callback;
 use callback::{AppId, Callback};
+use capabilities;
 use common::cells::NumericCellExt;
 use grant::Grant;
 use ipc;
@@ -132,7 +133,14 @@ impl Kernel {
     /// Processes use the number of grants that have been allocated to correctly
     /// initialize the process's memory with a pointer for each grant. If a
     /// grant is created after processes are initialized this will panic.
-    pub fn create_grant<T: Default>(&'static self) -> Grant<T> {
+    ///
+    /// Calling this function is restricted to only certain users, and to
+    /// enforce this calling this function requires the
+    /// `MemoryAllocationCapability` capability.
+    pub fn create_grant<T: Default>(
+        &'static self,
+        _capability: &capabilities::MemoryAllocationCapability,
+    ) -> Grant<T> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }
@@ -161,6 +169,7 @@ impl Kernel {
         platform: &P,
         chip: &mut C,
         ipc: Option<&ipc::IPC>,
+        _capability: &capabilities::MainLoopCapability,
     ) {
         loop {
             unsafe {
