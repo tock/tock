@@ -5,6 +5,7 @@ use core::{cmp, intrinsics};
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
@@ -192,7 +193,7 @@ pub static mut DMA_CHANNELS: [DMAChannel; 16] = [
 ];
 
 pub struct DMAChannel {
-    registers: *mut DMARegisters,
+    registers: StaticRef<DMARegisters>,
     client: Cell<Option<&'static DMAClient>>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
@@ -206,7 +207,11 @@ pub trait DMAClient {
 impl DMAChannel {
     const fn new(channel: DMAChannelNum) -> DMAChannel {
         DMAChannel {
-            registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *mut DMARegisters,
+            registers: unsafe {
+                StaticRef::new(
+                    (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *const DMARegisters,
+                )
+            },
             client: Cell::new(None),
             width: Cell::new(DMAWidth::Width8Bit),
             enabled: Cell::new(false),
@@ -231,7 +236,7 @@ impl DMAChannel {
                     pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers: &DMARegisters = unsafe { &*self.registers };
+            let registers: &DMARegisters = &*self.registers;
             // Disable all interrupts
             registers
                 .idr
@@ -250,7 +255,7 @@ impl DMAChannel {
                     pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers: &DMARegisters = unsafe { &*self.registers };
+            let registers: &DMARegisters = &*self.registers;
             registers.cr.write(Control::TDIS::SET);
             self.enabled.set(false);
         }
@@ -261,7 +266,7 @@ impl DMAChannel {
     }
 
     pub fn handle_interrupt(&mut self) {
-        let registers: &DMARegisters = unsafe { &*self.registers };
+        let registers: &DMARegisters = &*self.registers;
         registers
             .idr
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
@@ -273,14 +278,14 @@ impl DMAChannel {
     }
 
     pub fn start_transfer(&self) {
-        let registers: &DMARegisters = unsafe { &*self.registers };
+        let registers: &DMARegisters = &*self.registers;
         registers.cr.write(Control::TEN::SET);
     }
 
     pub fn prepare_transfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
 
-        let registers: &DMARegisters = unsafe { &*self.registers };
+        let registers: &DMARegisters = &*self.registers;
 
         let maxlen = buf.len() / match self.width.get() {
                 DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
@@ -311,7 +316,7 @@ impl DMAChannel {
     /// Aborts any current transactions and returns the buffer used in the
     /// transaction.
     pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
-        let registers: &DMARegisters = unsafe { &*self.registers };
+        let registers: &DMARegisters = &*self.registers;
         registers
             .idr
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
@@ -323,7 +328,7 @@ impl DMAChannel {
     }
 
     pub fn transfer_counter(&self) -> usize {
-        let registers: &DMARegisters = unsafe { &*self.registers };
+        let registers: &DMARegisters = &*self.registers;
         registers.tcr.read(TransferCounter::TCV) as usize
     }
 }

@@ -50,12 +50,14 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
 use kernel::ReturnCode;
 use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
-const BASE_ADDRESS: *mut CrccuRegisters = 0x400A4000 as *mut CrccuRegisters;
+const BASE_ADDRESS: StaticRef<CrccuRegisters> =
+    unsafe { StaticRef::new(0x400A4000 as *const CrccuRegisters) };
 
 #[repr(C)]
 struct CrccuRegisters {
@@ -222,7 +224,7 @@ enum State {
 
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
-    registers: *mut CrccuRegisters,
+    registers: StaticRef<CrccuRegisters>,
     client: Option<&'a crc::Client>,
     state: Cell<State>,
     alg: Cell<CrcAlg>,
@@ -235,7 +237,7 @@ pub struct Crccu<'a> {
 const DSCR_RESERVE: usize = 512 + 5 * 4;
 
 impl<'a> Crccu<'a> {
-    const fn new(base_address: *mut CrccuRegisters) -> Self {
+    const fn new(base_address: StaticRef<CrccuRegisters>) -> Self {
         Crccu {
             registers: base_address,
             client: None,
@@ -305,7 +307,7 @@ impl<'a> Crccu<'a> {
 
     /// Handle an interrupt from the CRCCU
     pub fn handle_interrupt(&mut self) {
-        let regs: &CrccuRegisters = unsafe { &*self.registers };
+        let regs: &CrccuRegisters = &*self.registers;
 
         if regs.isr.is_set(Interrupt::ERR) {
             // A CRC error has occurred
@@ -339,7 +341,7 @@ impl<'a> Crccu<'a> {
 // Implement the generic CRC interface with the CRCCU
 impl<'a> crc::CRC for Crccu<'a> {
     fn compute(&self, data: &[u8], alg: CrcAlg) -> ReturnCode {
-        let regs: &CrccuRegisters = unsafe { &*self.registers };
+        let regs: &CrccuRegisters = &*self.registers;
 
         self.init();
 

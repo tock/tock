@@ -11,6 +11,7 @@
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::ReturnCode;
@@ -137,10 +138,11 @@ register_bitfields![u32,
 ];
 
 // Section 7.1 of datasheet
-const AES_BASE: *mut AesRegisters = 0x400B0000 as *mut AesRegisters;
+const AES_BASE: StaticRef<AesRegisters> =
+    unsafe { StaticRef::new(0x400B0000 as *const AesRegisters) };
 
 pub struct Aes<'a> {
-    registers: *mut AesRegisters,
+    registers: StaticRef<AesRegisters>,
 
     client: Cell<Option<&'a hil::symmetric_encryption::Client<'a>>>,
     source: TakeCell<'a, [u8]>,
@@ -186,32 +188,32 @@ impl<'a> Aes<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         regs.ier
             .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_interrupts(&self) {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         regs.idr
             .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_input_interrupt(&self) {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         // Tell the AESA not to send an interrupt looking for more input
         regs.idr.write(Interrupt::IBUFRDY.val(1));
     }
 
     fn busy(&self) -> bool {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         // Are any interrupts set, meaning an encryption operation
         // is in progress?
         (regs.imr.read(Interrupt::IBUFRDY) | regs.imr.read(Interrupt::ODATARDY)) != 0
     }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
         regs.mode.write(
@@ -222,12 +224,12 @@ impl<'a> Aes<'a> {
     }
 
     fn input_buffer_ready(&self) -> bool {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         regs.sr.read(Status::IBUFRDY) != 0
     }
 
     fn output_data_ready(&self) -> bool {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         regs.sr.read(Status::ODATARDY) != 0
     }
 
@@ -272,7 +274,7 @@ impl<'a> Aes<'a> {
     // if there is a block left in the buffer.  Either way, this function
     // returns true if more blocks remain to send.
     fn write_block(&self) -> bool {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         self.source.map_or_else(
             || {
                 // The source and destination are the same buffer
@@ -330,7 +332,7 @@ impl<'a> Aes<'a> {
     // if there is any room left.  Return true if we are still waiting for more
     // blocks after this
     fn read_block(&self) -> bool {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         self.dest.map_or_else(
             || {
                 debug!("Called read_block() with no data");
@@ -398,13 +400,13 @@ impl<'a> Aes<'a> {
 
 impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         self.enable_clock();
         regs.ctrl.write(Control::ENABLE.val(1));
     }
 
     fn disable(&self) {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         regs.ctrl.set(0);
         self.disable_clock();
     }
@@ -414,7 +416,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         if key.len() != AES128_KEY_SIZE {
             return ReturnCode::EINVAL;
         }
@@ -437,7 +439,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_iv(&self, iv: &[u8]) -> ReturnCode {
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         if iv.len() != AES128_BLOCK_SIZE {
             return ReturnCode::EINVAL;
         }
@@ -464,7 +466,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         if self.busy() {
             return;
         }
-        let regs: &AesRegisters = unsafe { &*self.registers };
+        let regs: &AesRegisters = &*self.registers;
         regs.ctrl
             .write(Control::NEWMSG.val(1) + Control::ENABLE.val(1));
     }
