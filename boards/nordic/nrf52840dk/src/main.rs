@@ -46,6 +46,11 @@ static mut APP_MEMORY: [u8; 245760] = [0; 245760];
 static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
 
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
 pub unsafe fn reset_handler() {
