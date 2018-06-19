@@ -9,7 +9,7 @@ TOOLCHAIN ?= arm-none-eabi
 
 CARGO ?= cargo
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
-RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
+RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-Tlayout.ld -C linker=lld -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic"
 
 CC        := $(TOOLCHAIN)-gcc
 SIZE      ?= $(TOOLCHAIN)-size
