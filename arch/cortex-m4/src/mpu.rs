@@ -3,6 +3,7 @@
 use kernel;
 use kernel::common::cells::VolatileCell;
 use kernel::common::math::PowerOfTwo;
+use kernel::common::StaticRef;
 
 /// Indicates whether the MPU is present and, if so, how many regions it
 /// supports.
@@ -28,7 +29,7 @@ pub struct MpuType {
 ///
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
-pub struct Registers {
+pub struct MpuRegisters {
     pub mpu_type: VolatileCell<MpuType>,
 
     /// The control register:
@@ -103,10 +104,11 @@ pub struct Registers {
     pub region_attributes_and_size: VolatileCell<u32>,
 }
 
-const MPU_BASE_ADDRESS: *const Registers = 0xE000ED90 as *const Registers;
+const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
+    unsafe { StaticRef::new(0xE000ED90 as *const MpuRegisters) };
 
 /// Constructor field is private to limit who can create a new MPU
-pub struct MPU(*const Registers);
+pub struct MPU(StaticRef<MpuRegisters>);
 
 impl MPU {
     pub const unsafe fn new() -> MPU {
@@ -118,7 +120,7 @@ type Region = kernel::mpu::Region;
 
 impl kernel::mpu::MPU for MPU {
     fn enable_mpu(&self) {
-        let regs = unsafe { &*self.0 };
+        let regs = &*self.0;
 
         // Enable the MPU, disable it during HardFault/NMI handlers, allow
         // privileged code access to all unprotected memory.
@@ -135,7 +137,7 @@ impl kernel::mpu::MPU for MPU {
     }
 
     fn disable_mpu(&self) {
-        let regs = unsafe { &*self.0 };
+        let regs = &*self.0;
         regs.control.set(0b0);
     }
 
@@ -261,7 +263,7 @@ impl kernel::mpu::MPU for MPU {
     }
 
     fn set_mpu(&self, region: Region) {
-        let regs = unsafe { &*self.0 };
+        let regs = &*self.0;
 
         regs.region_base_address.set(region.base_address());
 
