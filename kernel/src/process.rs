@@ -684,8 +684,9 @@ pub struct Process<'a> {
     current_stack_pointer: *const u8,
     original_stack_pointer: *const u8,
 
-    /// Process text segment
-    text: &'static [u8],
+    /// Process flash segment. This is the region of nonvolatile flash that
+    /// the process occupies.
+    flash: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
     header: TbfHeader,
@@ -850,15 +851,15 @@ impl<'a> Process<'a> {
     }
 
     pub fn flash_start(&self) -> *const u8 {
-        self.text.as_ptr()
+        self.flash.as_ptr()
     }
 
     pub fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.text.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
     }
 
     pub fn flash_end(&self) -> *const u8 {
-        unsafe { self.text.as_ptr().offset(self.text.len() as isize) }
+        unsafe { self.flash.as_ptr().offset(self.flash.len() as isize) }
     }
 
     pub fn kernel_memory_break(&self) -> *const u8 {
@@ -890,20 +891,20 @@ impl<'a> Process<'a> {
     }
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
-        // Text segment read/execute (no write)
-        let text_start = self.text.as_ptr() as usize;
-        let text_len = self.text.len();
+        // Flash segment read/execute (no write)
+        let flash_start = self.flash.as_ptr() as usize;
+        let flash_len = self.flash.len();
 
         match MPU::create_region(
             0,
-            text_start,
-            text_len,
+            flash_start,
+            flash_len,
             mpu::ExecutePermission::ExecutionPermitted,
             mpu::AccessPermission::ReadOnly,
         ) {
             None => panic!(
                 "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                text_start, text_len
+                flash_start, flash_len
             ),
             Some(region) => mpu.set_mpu(region),
         }
@@ -1108,7 +1109,7 @@ impl<'a> Process<'a> {
             process.current_stack_pointer = initial_stack_pointer;
             process.original_stack_pointer = initial_stack_pointer;
 
-            process.text = slice::from_raw_parts(app_flash_address, app_flash_size);
+            process.flash = slice::from_raw_parts(app_flash_address, app_flash_size);
 
             process.stored_regs = Default::default();
             process.yield_pc = init_fn;
@@ -1555,8 +1556,8 @@ impl<'a> Process<'a> {
 
     pub unsafe fn statistics_str<W: Write>(&mut self, writer: &mut W) {
         // Flash
-        let flash_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
-        let flash_start = self.text.as_ptr() as usize;
+        let flash_end = self.flash.as_ptr().offset(self.flash.len() as isize) as usize;
+        let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
