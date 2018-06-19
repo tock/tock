@@ -1,6 +1,10 @@
 Platform-Specific Instructions: nRF51-DK
 ===================================
 
+**Not recommended for new projects.** The nRF51 is based on the Cortex-M0 and
+does not have full MPU support. To best use Tock features, please use the
+nRF52 based boards instead.
+
 The [nRF51 Development
 Kit](https://www.nordicsemi.com/eng/Products/nRF51-DK) is a platform
 based around the nRF51422, an SoC with an ARM Cortex-M0 and a BLE
