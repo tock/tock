@@ -3,8 +3,8 @@
 
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
-extern crate cortexm;
 extern crate kernel;
+extern crate cortexm;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m3.
