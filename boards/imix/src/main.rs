@@ -23,6 +23,7 @@ use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
@@ -30,7 +31,6 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 use kernel::hil::Controller;
-use kernel::component::Component;
 
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
@@ -39,9 +39,8 @@ use components::isl29035::AmbientLightComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::rf233::RF233Component;
-use components::si7021::{HumidityComponent,SI7021Component,TemperatureComponent};
-use components::spi::{SpiComponent,SpiSyscallComponent};
-
+use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
+use components::spi::{SpiComponent, SpiSyscallComponent};
 
 /// Support routines for debugging I/O.
 ///
@@ -261,8 +260,7 @@ pub unsafe fn reset_handler() {
 
     let console = ConsoleComponent::new(&sam4l::usart::USART3, 115200).finalize();
 
-    // Allow processes to communicate over BLE through the nRF51822, connected
-    // on USART2.
+    // Allow processes to communicate over BLE through the nRF51822
     let nrf_serialization = Nrf51822Component::new(&sam4l::usart::USART2).finalize();
 
     // # TIMER
@@ -295,11 +293,13 @@ pub unsafe fn reset_handler() {
 
     let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
     let rf233_spi = SpiComponent::new(mux_spi).finalize();
-    let rf233 = RF233Component::new(rf233_spi,
-                                    &sam4l::gpio::PA[09], // reset
-                                    &sam4l::gpio::PA[10], // sleep
-                                    &sam4l::gpio::PA[08], // irq
-                                    &sam4l::gpio::PA[08]).finalize();
+    let rf233 = RF233Component::new(
+        rf233_spi,
+        &sam4l::gpio::PA[09], // reset
+        &sam4l::gpio::PA[10], // sleep
+        &sam4l::gpio::PA[08], // irq
+        &sam4l::gpio::PA[08],
+    ).finalize();
 
     // Clear sensors enable pin to enable sensor rail
     // sam4l::gpio::PC[16].enable_output();

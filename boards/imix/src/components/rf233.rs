@@ -15,7 +15,6 @@
 
 // Author: Philip Levis <pal@cs.stanford.edu>
 
-
 use capsules::rf233::RF233;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use hil;
@@ -31,17 +30,19 @@ pub struct RF233Component {
 }
 
 impl RF233Component {
-    pub fn new(spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-               reset: &'static hil::gpio::Pin,
-               sleep: &'static hil::gpio::Pin,
-               irq: &'static hil::gpio::Pin,
-               ctl: &'static sam4l::gpio::GPIOPin) -> RF233Component {
+    pub fn new(
+        spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        reset: &'static hil::gpio::Pin,
+        sleep: &'static hil::gpio::Pin,
+        irq: &'static hil::gpio::Pin,
+        ctl: &'static sam4l::gpio::GPIOPin,
+    ) -> RF233Component {
         RF233Component {
             spi: spi,
             reset: reset,
             sleep: sleep,
             irq: irq,
-            ctl: ctl
+            ctl: ctl,
         }
     }
 }
@@ -52,13 +53,7 @@ impl Component for RF233Component {
     unsafe fn finalize(&mut self) -> Self::Output {
         let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
             RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-            RF233::new(
-                self.spi,
-                self.reset,
-                self.sleep,
-                self.irq,
-                self.ctl,
-            )
+            RF233::new(self.spi, self.reset, self.sleep, self.irq, self.ctl,)
         );
         self.ctl.set_client(rf233);
         rf233

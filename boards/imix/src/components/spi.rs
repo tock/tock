@@ -18,10 +18,10 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use sam4l;
-use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
 use capsules::spi::Spi;
+use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
+use sam4l;
 
 pub struct SpiSyscallComponent {
     spi_mux: &'static MuxSpiMaster<'static, sam4l::spi::SpiHw>,
@@ -33,9 +33,7 @@ pub struct SpiComponent {
 
 impl SpiSyscallComponent {
     pub fn new(mux: &'static MuxSpiMaster<'static, sam4l::spi::SpiHw>) -> Self {
-        SpiSyscallComponent {
-            spi_mux: mux
-        }
+        SpiSyscallComponent { spi_mux: mux }
     }
 }
 
@@ -44,13 +42,13 @@ impl Component for SpiSyscallComponent {
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let syscall_spi_device = static_init!(
-                VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-                VirtualSpiMasterDevice::new(self.spi_mux, 3)
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+            VirtualSpiMasterDevice::new(self.spi_mux, 3)
         );
 
         let spi_syscalls = static_init!(
-                Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-                Spi::new(syscall_spi_device)
+            Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+            Spi::new(syscall_spi_device)
         );
 
         static mut SPI_READ_BUF: [u8; 1024] = [0; 1024];
@@ -65,9 +63,7 @@ impl Component for SpiSyscallComponent {
 
 impl SpiComponent {
     pub fn new(mux: &'static MuxSpiMaster<'static, sam4l::spi::SpiHw>) -> Self {
-        SpiComponent {
-            spi_mux: mux
-        }
+        SpiComponent { spi_mux: mux }
     }
 }
 
@@ -76,8 +72,8 @@ impl Component for SpiComponent {
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let spi_device = static_init!(
-                VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-                VirtualSpiMasterDevice::new(self.spi_mux, 3)
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+            VirtualSpiMasterDevice::new(self.spi_mux, 3)
         );
 
         spi_device

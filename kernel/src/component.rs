@@ -1,9 +1,9 @@
-/// A Component extends the functionality of the Tock kernel. 
+/// A Component extends the functionality of the Tock kernel.
 /// This abstraction is intended to make the kernel boot sequence simpler:
-/// without it, the reset_handler involves lots of driver-specific 
-/// initialization. The Component trait encapsulates all of the 
+/// without it, the reset_handler involves lots of driver-specific
+/// initialization. The Component trait encapsulates all of the
 /// initialziation and configuration of a kernel extension inside
-/// the finalize function call. 
+/// the finalize function call.
 ///
 /// Note that instantiating a component does not necessarily instantiate
 /// the underlying Output type; this can be instantiated when finalize()
@@ -24,5 +24,7 @@ pub trait Component {
 /// the boot sequence can call finalize() on both of them.
 
 pub trait ComponentWithDependency<D>: Component {
-    fn dependency(&mut self, _dep: D) -> &mut Self { self }
+    fn dependency(&mut self, _dep: D) -> &mut Self {
+        self
+    }
 }

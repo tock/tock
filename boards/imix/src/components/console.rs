@@ -56,8 +56,7 @@ impl Component for ConsoleComponent {
         console.initialize();
 
         // Attach the kernel debug interface to this console
-        let kc = static_init!(console::App,
-                              console::App::default());
+        let kc = static_init!(console::App, console::App::default());
         kernel::debug::assign_console_driver(Some(console), kc);
 
         console

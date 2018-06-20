@@ -25,14 +25,13 @@ pub struct Nrf51822Component {
 
 impl Nrf51822Component {
     pub fn new(uart: &'static sam4l::usart::USART) -> Nrf51822Component {
-        Nrf51822Component {
-            uart: uart,
-        }
+        Nrf51822Component { uart: uart }
     }
 }
 
 impl Component for Nrf51822Component {
-    type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>;
+    type Output =
+        &'static nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let nrf_serialization = static_init!(

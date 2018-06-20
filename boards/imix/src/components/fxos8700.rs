@@ -22,13 +22,13 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 #![allow(unused_imports)] // I2CDevice
 
-use sam4l;
 use capsules::fxos8700cq;
 use capsules::ninedof::NineDof;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
 use kernel::component::Component;
 use kernel::Grant;
+use sam4l;
 
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,
@@ -36,7 +36,10 @@ pub struct Fxos8700Component {
 }
 
 impl Fxos8700Component {
-    pub fn new(i2c: &'static MuxI2C<'static>, gpio: &'static sam4l::gpio::GPIOPin) -> Fxos8700Component {
+    pub fn new(
+        i2c: &'static MuxI2C<'static>,
+        gpio: &'static sam4l::gpio::GPIOPin,
+    ) -> Fxos8700Component {
         Fxos8700Component {
             i2c_mux: i2c,
             gpio: gpio,
@@ -51,11 +54,7 @@ impl Component for Fxos8700Component {
         let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x1e));
         let fxos8700 = static_init!(
             fxos8700cq::Fxos8700cq<'static>,
-            fxos8700cq::Fxos8700cq::new(
-                fxos8700_i2c,
-                self.gpio,
-                &mut fxos8700cq::BUF
-            )
+            fxos8700cq::Fxos8700cq::new(fxos8700_i2c, self.gpio, &mut fxos8700cq::BUF)
         );
         fxos8700_i2c.set_client(fxos8700);
         self.gpio.set_client(fxos8700);
@@ -69,7 +68,10 @@ pub struct NineDofComponent {
 }
 
 impl NineDofComponent {
-    pub fn new(i2c: &'static MuxI2C<'static>, gpio: &'static sam4l::gpio::GPIOPin) -> NineDofComponent {
+    pub fn new(
+        i2c: &'static MuxI2C<'static>,
+        gpio: &'static sam4l::gpio::GPIOPin,
+    ) -> NineDofComponent {
         NineDofComponent {
             i2c_mux: i2c,
             gpio: gpio,
@@ -84,19 +86,12 @@ impl Component for NineDofComponent {
         let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x1e));
         let fxos8700 = static_init!(
             fxos8700cq::Fxos8700cq<'static>,
-            fxos8700cq::Fxos8700cq::new(
-                fxos8700_i2c,
-                self.gpio,
-                &mut fxos8700cq::BUF
-            )
+            fxos8700cq::Fxos8700cq::new(fxos8700_i2c, self.gpio, &mut fxos8700cq::BUF)
         );
         fxos8700_i2c.set_client(fxos8700);
         self.gpio.set_client(fxos8700);
 
-        let ninedof = static_init!(
-            NineDof<'static>,
-            NineDof::new(fxos8700, Grant::create())
-        );
+        let ninedof = static_init!(NineDof<'static>, NineDof::new(fxos8700, Grant::create()));
         hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
         ninedof

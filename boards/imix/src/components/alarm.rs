@@ -14,11 +14,11 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use sam4l;
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
 use kernel::component::Component;
+use sam4l;
 
 pub struct AlarmDriverComponent {
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -26,9 +26,7 @@ pub struct AlarmDriverComponent {
 
 impl AlarmDriverComponent {
     pub fn new(mux: &'static MuxAlarm<'static, sam4l::ast::Ast>) -> AlarmDriverComponent {
-        AlarmDriverComponent {
-            alarm_mux: mux
-        }
+        AlarmDriverComponent { alarm_mux: mux }
     }
 }
 

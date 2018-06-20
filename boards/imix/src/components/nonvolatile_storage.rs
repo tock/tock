@@ -15,13 +15,13 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use sam4l;
 use capsules;
 use capsules::nonvolatile_storage_driver::NonvolatileStorage;
 use capsules::nonvolatile_to_pages::NonvolatileToPages;
 use kernel;
 use kernel::component::Component;
 use kernel::hil;
+use sam4l;
 
 pub struct NonvolatileStorageComponent;
 
@@ -64,10 +64,10 @@ impl Component for NonvolatileStorageComponent {
             NonvolatileStorage::new(
                 nv_to_page,
                 kernel::Grant::create(),
-                0x60000, // Start address for userspace accessible region
-                0x20000, // Length of userspace accessible region
+                0x60000,      // Start address for userspace accessible region
+                0x20000,      // Length of userspace accessible region
                 kernel_start, // Start address of kernel region
-                kernel_len, // Length of kernel region
+                kernel_len,   // Length of kernel region
                 &mut capsules::nonvolatile_storage_driver::BUFFER
             )
         );

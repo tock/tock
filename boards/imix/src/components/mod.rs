@@ -15,6 +15,6 @@ pub use self::isl29035::Isl29035Component;
 pub use self::nonvolatile_storage::NonvolatileStorageComponent;
 pub use self::nrf51822::Nrf51822Component;
 pub use self::rf233::RF233Component;
-pub use self::si7021::{HumidityComponent,SI7021Component,TemperatureComponent};
+pub use self::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 pub use self::spi::SpiComponent;
 pub use self::spi::SpiSyscallComponent;
