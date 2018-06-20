@@ -54,3 +54,13 @@ pub unsafe fn reset() {
     let reset = (0x5FA << 16) | (aircr & (0x7 << 8)) | (1 << 2);
     SCB.aircr.set(reset);
 }
+
+/// Enables Floating Point Unit. Section 4.6.6.
+/// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BEHBJHIG.html
+/// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0298a/CEGJEIGH.html
+pub unsafe fn enable_fpu() {
+    let cpacr = (*SCB).cpacr.get();
+
+    // Enable coprocessors CP10 and CP11 thus enabling FPU
+    (*SCB).cpacr.set(cpacr | (3u32 << 10 * 2) | (3u32 << 11 * 2));
+}
