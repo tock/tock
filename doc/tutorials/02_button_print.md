@@ -129,28 +129,11 @@ kernel how many there are. This is done by calling `button_count()`.
     }
     ```
 
-5. **Run the application**. To try this tutorial application, you can find
-it in the [tutorials app folder](../../userland/examples/tutorials/02_button_print).
-See the [getting started README](../Getting_Started.md) for how applications are
-installed on your board.
-In that directory:
+5. **Run the application**. To try this tutorial application, you can find it in
+   the [tutorials app
+   folder](https://github.com/tock/libtock-c/tree/master/examples/tutorials/02_button_print).
+   See the first tutorial for details on how to compile and install a C
+   application.
 
-    ```bash
-    make program  # Load code via bootloader
-      -- or --    # Check the README in your board folder
-    make flash    # Load code via jtag
-    ```
-
-    Ensure there is already a kernel flashed onto the target board.
-    See the [blink tutorial](01_running_blink.md) for instructions
-    on how to compile and load a Tock kernel.
-
-    Then, make sure you have a terminal listening for the UART print messages
-    from the board. You can do this with `tockloader`:
-
-    ```bash
-    $ tockloader listen
-    ```
-
-    Now, when you press the button, you should see "Hello!" printed
+    Once installed, when you press the button, you should see "Hello!" printed
     to the terminal!
