@@ -32,9 +32,10 @@ use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 use kernel::hil::Controller;
 use kernel::component::Component;
+use components::isl29035::AmbientLightComponent;
+use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::spi::SpiSyscallComponent;
 use components::spi::SpiComponent;
-use components::isl29035::AmbientLightComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -310,15 +311,6 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
 
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
-    );
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-    
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
-    
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -342,22 +334,6 @@ pub unsafe fn reset_handler() {
     );
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
-    // Create a second virtualized SPI client, for the RF233
-    let rf233_spi = SpiComponent::new(mux_spi).finalize();
-
-    // Create the RF233 driver, passing its pins and SPI client
-    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
-        RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        RF233::new(
-            rf233_spi,
-            &sam4l::gpio::PA[09], // reset
-            &sam4l::gpio::PA[10], // sleep
-            &sam4l::gpio::PA[08], // irq
-            &sam4l::gpio::PA[08]
-        )
-    ); //  irq_ctl
-    sam4l::gpio::PA[08].set_client(rf233);
-
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e));
     let fxos8700 = static_init!(
@@ -375,6 +351,30 @@ pub unsafe fn reset_handler() {
         capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create())
     );
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
+
+    // Create a SPI mux, then the SPI syscall driver and driver for RF233
+    let mux_spi = static_init!(
+        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
+        MuxSpiMaster::new(&sam4l::spi::SPI)
+    );
+    sam4l::spi::SPI.set_client(mux_spi);
+    sam4l::spi::SPI.init();
+    
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
+    let rf233_spi = SpiComponent::new(mux_spi).finalize();
+
+    // Create the RF233 driver, passing its pins and SPI client
+    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
+        RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+        RF233::new(
+            rf233_spi,
+            &sam4l::gpio::PA[09], // reset
+            &sam4l::gpio::PA[10], // sleep
+            &sam4l::gpio::PA[08], // irq
+            &sam4l::gpio::PA[08]
+        )
+    ); //  irq_ctl
+    sam4l::gpio::PA[08].set_client(rf233);
 
     // Clear sensors enable pin to enable sensor rail
     // sam4l::gpio::PC[16].enable_output();
@@ -539,31 +539,7 @@ pub unsafe fn reset_handler() {
         capsules::usb_user::UsbSyscallDriver::new(usb_client, kernel::Grant::create())
     );
 
-    sam4l::flashcalw::FLASH_CONTROLLER.configure();
-    pub static mut FLASH_PAGEBUFFER: sam4l::flashcalw::Sam4lPage =
-        sam4l::flashcalw::Sam4lPage::new();
-    let nv_to_page = static_init!(
-        capsules::nonvolatile_to_pages::NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
-        capsules::nonvolatile_to_pages::NonvolatileToPages::new(
-            &mut sam4l::flashcalw::FLASH_CONTROLLER,
-            &mut FLASH_PAGEBUFFER
-        )
-    );
-    hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
-
-    let nonvolatile_storage = static_init!(
-        capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-        capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
-            nv_to_page,
-            kernel::Grant::create(),
-            0x60000, // Start address for userspace accessible region
-            0x20000, // Length of userspace accessible region
-            0,       // Start address of kernel accessible region
-            0,       // Length of kernel accessible region
-            &mut capsules::nonvolatile_storage_driver::BUFFER
-        )
-    );
-    hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
+    let nonvolatile_storage = NonvolatileStorageComponent::new().finalize();
 
     let imix = Imix {
         console: console,

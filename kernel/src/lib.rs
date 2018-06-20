@@ -13,6 +13,7 @@
 
 #[macro_use]
 pub mod common;
+pub mod component;
 #[macro_use]
 pub mod debug;
 pub mod hil;
