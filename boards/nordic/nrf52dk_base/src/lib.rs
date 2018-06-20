@@ -234,5 +234,5 @@ pub unsafe fn setup_board(
         app_fault_response,
     );
 
-    kernel::main(&platform, &mut chip, process_pointers, Some(&platform.ipc));
+    kernel::kernel_loop(&platform, &mut chip, process_pointers, Some(&platform.ipc));
 }

@@ -3,18 +3,18 @@
 
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
-extern crate cortexm;
 extern crate kernel;
-
-pub mod nvic;
-pub mod scb;
-pub mod systick;
+extern crate cortexm;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m3.
 pub mod support {
     pub use cortexm::support::*;
 }
+
+pub use cortexm::nvic;
+pub use cortexm::scb;
+pub use cortexm::systick;
 
 #[no_mangle]
 #[naked]

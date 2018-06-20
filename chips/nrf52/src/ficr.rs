@@ -9,8 +9,10 @@
 
 use core::fmt;
 use kernel::common::regs::ReadOnly;
+use kernel::common::StaticRef;
 
-const FICR_BASE_ADDRESS: usize = 0x10000000;
+const FICR_BASE: StaticRef<FicrRegisters> =
+    unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };
 
 /// Struct of the FICR registers
 ///
@@ -248,18 +250,18 @@ enum Flash {
 }
 
 pub struct Ficr {
-    registers: *const FicrRegisters,
+    registers: StaticRef<FicrRegisters>,
 }
 
 impl Ficr {
-    const fn new(base_addr: usize) -> Ficr {
+    const fn new() -> Ficr {
         Ficr {
-            registers: base_addr as *const FicrRegisters,
+            registers: FICR_BASE,
         }
     }
 
     fn part(&self) -> Part {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.info_part.get() {
             0x52832 => Part::N52832,
             _ => Part::Unspecified,
@@ -267,7 +269,7 @@ impl Ficr {
     }
 
     fn variant(&self) -> Variant {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.info_variant.get() {
             0x41414141 => Variant::AAAA,
             0x41414142 => Variant::AAAB,
@@ -280,7 +282,7 @@ impl Ficr {
     }
 
     fn package(&self) -> Package {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.info_package.get() {
             0x2000 => Package::QF,
             0x2001 => Package::CH,
@@ -291,7 +293,7 @@ impl Ficr {
     }
 
     fn ram(&self) -> Ram {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.info_ram.get() {
             0x10 => Ram::K16,
             0x20 => Ram::K32,
@@ -301,7 +303,7 @@ impl Ficr {
     }
 
     fn flash(&self) -> Flash {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.info_flash.get() {
             0x80 => Flash::K128,
             0x100 => Flash::K256,
@@ -326,4 +328,4 @@ impl fmt::Display for Ficr {
 }
 
 /// Static instance for the board. Only one (read-only) set of factory registers.
-pub static mut FICR_INSTANCE: Ficr = Ficr::new(FICR_BASE_ADDRESS);
+pub static mut FICR_INSTANCE: Ficr = Ficr::new();

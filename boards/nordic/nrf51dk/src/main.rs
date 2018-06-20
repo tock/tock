@@ -345,7 +345,7 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    kernel::main(
+    kernel::kernel_loop(
         &platform,
         &mut chip,
         &mut PROCESSES,

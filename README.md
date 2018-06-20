@@ -20,14 +20,21 @@ Learn More
 
 How would you like to get started?
 
+### Learn How Tock Works 
+
+Tock is documented in the [doc](doc) folder. Read through the guides there to
+learn about the overview and design of Tock, its implementation, and much
+more.
+
+
 ### Use Tock
 
-First, follow our [getting started guide](doc/Getting_Started.md) to setup
-your system to compile Tock and Tock applications.
+Follow our [getting started guide](doc/Getting_Started.md) to set up your
+system to compile Tock and Tock applications.
 
-Then head to the [hardware page](https://www.tockos.org/hardware/)
+Head to the [hardware page](https://www.tockos.org/hardware/)
 to learn about the hardware platforms Tock supports. Also check out the
-[tutorials](doc/tutorials) to get started running apps with TockOS.
+[workshop-style courses](doc/courses) to get started running apps with TockOS.
 
 
 ### Develop Tock
@@ -37,13 +44,6 @@ version of the Rust compiler, then look through the `/kernel`, `/capsules`,
 `/chips`, and `/boards` directories.
 
 We're happy to accept pull requests and look forward to seeing how Tock grows.
-
-
-### Learn How Tock Works
-
-Both the design and implementation of Tock are documented in the
-[docs](doc) folder. Read through the guides there to learn about the kernel,
-Tock's use of Rust, the build system, and applications.
 
 
 ### Keep Up To Date

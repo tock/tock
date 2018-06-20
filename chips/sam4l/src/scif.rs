@@ -9,6 +9,7 @@
 
 use bscif;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 pub enum Register {
     IER = 0x00,
@@ -206,8 +207,8 @@ register_bitfields![u32,
     ]
 ];
 
-const SCIF_BASE: usize = 0x400E0800;
-static mut SCIF: *mut ScifRegisters = SCIF_BASE as *mut ScifRegisters;
+const SCIF: StaticRef<ScifRegisters> =
+    unsafe { StaticRef::new(0x400E0800 as *const ScifRegisters) };
 
 #[repr(usize)]
 pub enum Clock {
@@ -219,11 +220,8 @@ pub enum Clock {
 }
 
 pub fn unlock(register: Register) {
-    unsafe {
-        (*SCIF)
-            .unlock
-            .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(register as u32));
-    }
+    SCIF.unlock
+        .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(register as u32));
 }
 
 pub fn oscillator_enable(internal: bool) {
@@ -233,25 +231,21 @@ pub fn oscillator_enable(internal: bool) {
         Oscillator::MODE::External
     };
     unlock(Register::OSCCTRL0);
-    unsafe {
-        (*SCIF).oscctrl0.write(Oscillator::OSCEN::SET + mode);
-    }
+    SCIF.oscctrl0.write(Oscillator::OSCEN::SET + mode);
 }
 
 pub fn oscillator_disable() {
     unlock(Register::OSCCTRL0);
-    unsafe {
-        (*SCIF).oscctrl0.write(Oscillator::OSCEN::CLEAR);
-    }
+    SCIF.oscctrl0.write(Oscillator::OSCEN::CLEAR);
 }
 
-pub unsafe fn setup_dfll_rc32k_48mhz() {
-    unsafe fn wait_dfll0_ready() {
-        while !(*SCIF).pclksr.is_set(Interrupt::DFLL0RDY) {}
+pub fn setup_dfll_rc32k_48mhz() {
+    fn wait_dfll0_ready() {
+        while !SCIF.pclksr.is_set(Interrupt::DFLL0RDY) {}
     }
 
     // Check to see if the DFLL is already setup or is not locked
-    if !(*SCIF).dfll0conf.is_set(Dfll::EN) || !(*SCIF).pclksr.is_set(Interrupt::DFLL0LOCKF) {
+    if !SCIF.dfll0conf.is_set(Dfll::EN) || !SCIF.pclksr.is_set(Interrupt::DFLL0LOCKF) {
         // Enable the GENCLK_SRC_RC32K
         if !bscif::rc32k_enabled() {
             bscif::enable_rc32k();
@@ -263,12 +257,12 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
         // 13.7.16: "To be able to read the current value of DFLLxVAL or DFLLxRATIO, this bit must
         //    be written to one. The updated value are available in DFLLxVAL or DFLLxRATIO when
         //    PCLKSR.DFLL0RDY is set."
-        (*SCIF).dfll0sync.set(0x01);
+        SCIF.dfll0sync.set(0x01);
         wait_dfll0_ready();
 
         // TODO: if already in closed mode, only turn on gclk and enable dfll
         // Read the current DFLL settings
-        let scif_dfll0conf = (*SCIF).dfll0conf.get();
+        let scif_dfll0conf = SCIF.dfll0conf.get();
         // Compute some new configuration field values
         let new_config_fields = Dfll::EN::SET + Dfll::MODE::ClosedLoop + Dfll::RANGE.val(2);
         // Apply the new field values to the current config value,
@@ -276,7 +270,7 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
         let scif_dfll0conf_new = new_config_fields.modify(scif_dfll0conf);
 
         // Enable the generic clock with RC32K and no divider
-        (*SCIF).gcctrl0.write(
+        SCIF.gcctrl0.write(
             GenericClockControl::CEN::SET
                 + GenericClockControl::OCSEL.val(ClockSource::RC32K as u32)
                 + GenericClockControl::DIVEN::CLEAR + GenericClockControl::DIV.val(0),
@@ -286,184 +280,180 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
         //
         // First, enable dfll
         unlock(Register::DFLL0CONF);
-        (*SCIF).dfll0conf.write(Dfll::EN::SET);
+        SCIF.dfll0conf.write(Dfll::EN::SET);
         wait_dfll0_ready();
 
         // Set step values
         unlock(Register::DFLL0STEP);
-        (*SCIF)
-            .dfll0step
+        SCIF.dfll0step
             .write(DfllStep::FSTEP.val(4) + DfllStep::CSTEP.val(4));
         wait_dfll0_ready();
 
         // Set multiply value
         unlock(Register::DFLL0MUL);
         // 1464 = 48000000 / 32768
-        (*SCIF).dfll0mul.set(1464);
+        SCIF.dfll0mul.set(1464);
         wait_dfll0_ready();
 
         // Set SSG value
         unlock(Register::DFLL0SSG);
         // just set to zero to disable
-        (*SCIF).dfll0ssg.set(0);
+        SCIF.dfll0ssg.set(0);
         wait_dfll0_ready();
 
         // Set actual configuration
         unlock(Register::DFLL0CONF);
         // we already prepared this value
-        (*SCIF).dfll0conf.set(scif_dfll0conf_new);
+        SCIF.dfll0conf.set(scif_dfll0conf_new);
 
         // Now wait for the DFLL to become locked
-        while !(*SCIF).pclksr.is_set(Interrupt::DFLL0LOCKF) {}
+        while !SCIF.pclksr.is_set(Interrupt::DFLL0LOCKF) {}
     }
 }
 
 pub unsafe fn disable_dfll_rc32k() {
     // Must do a SCIF sync
-    (*SCIF).dfll0sync.set(0x01);
-    while !(*SCIF).pclksr.is_set(Interrupt::DFLL0RDY) {}
+    SCIF.dfll0sync.set(0x01);
+    while !SCIF.pclksr.is_set(Interrupt::DFLL0RDY) {}
 
     // Disable the DFLL
-    let dfll0conf = (*SCIF).dfll0conf.extract();
+    let dfll0conf = SCIF.dfll0conf.extract();
     unlock(Register::DFLL0CONF);
-    (*SCIF).dfll0conf.modify_no_read(dfll0conf, Dfll::EN::CLEAR);
+    SCIF.dfll0conf.modify_no_read(dfll0conf, Dfll::EN::CLEAR);
 
     // Disable generic clock
     generic_clock_disable(GenericClock::GCLK0);
 
     // Wait for the DFLL to be disabled
-    while (*SCIF).dfll0conf.is_set(Dfll::EN) {}
+    while SCIF.dfll0conf.is_set(Dfll::EN) {}
 }
 
 pub unsafe fn setup_osc_16mhz_fast_startup() {
     // Enable the OSC0 with ~557us startup time
     unlock(Register::OSCCTRL0);
-    (*SCIF).oscctrl0.write(
+    SCIF.oscctrl0.write(
         Oscillator::OSCEN::SET + Oscillator::STARTUP::Cycles64 + Oscillator::GAIN::G4
             + Oscillator::MODE::Crystal,
     );
 
     // Wait for oscillator to be ready
-    while !(*SCIF).pclksr.is_set(Interrupt::OSC0RDY) {}
+    while !SCIF.pclksr.is_set(Interrupt::OSC0RDY) {}
 }
 
 pub unsafe fn setup_osc_16mhz_slow_startup() {
     // Enable the OSC0 with ~8.9ms startup time
     unlock(Register::OSCCTRL0);
-    (*SCIF).oscctrl0.write(
+    SCIF.oscctrl0.write(
         Oscillator::OSCEN::SET + Oscillator::STARTUP::Cycles1024 + Oscillator::GAIN::G4
             + Oscillator::MODE::Crystal,
     );
 
     // Wait for oscillator to be ready
-    while !(*SCIF).pclksr.is_set(Interrupt::OSC0RDY) {}
+    while !SCIF.pclksr.is_set(Interrupt::OSC0RDY) {}
 }
 
 pub unsafe fn disable_osc_16mhz() {
     // Disable the OSC0
-    let oscctrl0 = (*SCIF).oscctrl0.extract();
+    let oscctrl0 = SCIF.oscctrl0.extract();
     unlock(Register::OSCCTRL0);
-    (*SCIF)
-        .oscctrl0
+    SCIF.oscctrl0
         .modify_no_read(oscctrl0, Oscillator::OSCEN::CLEAR);
 
     // Wait for oscillator to be disabled
-    while (*SCIF).oscctrl0.is_set(Oscillator::OSCEN) {}
+    while SCIF.oscctrl0.is_set(Oscillator::OSCEN) {}
 }
 
 pub unsafe fn setup_pll_osc_48mhz() {
     // Enable the PLL, use OSC0 as the reference clock and set f_PLL=((5+1)/1*f_OSC0)/2
     // PLLCOUNT specifies the number of RCSYS clock cycles before ISR.PLLLOCKn will be set after PLLn has been written
     unlock(Register::PLL0);
-    (*SCIF).pll0.write(
+    SCIF.pll0.write(
         PllControl::PLLCOUNT::Max + PllControl::PLLMUL.val(5) + PllControl::PLLDIV.val(1)
             + PllControl::PLLOPT::DivideBy2 + PllControl::PLLOSC::OSC0
             + PllControl::PLLEN::SET,
     );
 
     // Wait for the PLL to become locked
-    while !(*SCIF).pclksr.is_set(Interrupt::PLL0LOCK) {}
+    while !SCIF.pclksr.is_set(Interrupt::PLL0LOCK) {}
 }
 
 pub unsafe fn disable_pll() {
     // Disable the PLL
-    let pll0 = (*SCIF).pll0.extract();
+    let pll0 = SCIF.pll0.extract();
     unlock(Register::PLL0);
-    (*SCIF).pll0.modify_no_read(pll0, PllControl::PLLEN::CLEAR);
+    SCIF.pll0.modify_no_read(pll0, PllControl::PLLEN::CLEAR);
 
     // Wait for the PLL to be disabled
-    while (*SCIF).pll0.is_set(PllControl::PLLEN) {}
+    while SCIF.pll0.is_set(PllControl::PLLEN) {}
 }
 
 pub unsafe fn setup_rc_80mhz() {
     // Enable the RC80M
-    let rc80mcr = (*SCIF).rc80mcr.extract();
+    let rc80mcr = SCIF.rc80mcr.extract();
     unlock(Register::RC80MCR);
-    (*SCIF).rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::SET);
+    SCIF.rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::SET);
 
     // Wait for the RC80M to be enabled
-    while !(*SCIF).rc80mcr.is_set(Rc80m::EN) {}
+    while !SCIF.rc80mcr.is_set(Rc80m::EN) {}
 }
 
 pub unsafe fn disable_rc_80mhz() {
     // Disable the RC80M
-    let rc80mcr = (*SCIF).rc80mcr.extract();
+    let rc80mcr = SCIF.rc80mcr.extract();
     unlock(Register::RC80MCR);
-    (*SCIF).rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::CLEAR);
+    SCIF.rc80mcr.modify_no_read(rc80mcr, Rc80m::EN::CLEAR);
 
     // Wait for the RC80M to be disabled
-    while (*SCIF).rc80mcr.is_set(Rc80m::EN) {}
+    while SCIF.rc80mcr.is_set(Rc80m::EN) {}
 }
 
 pub unsafe fn setup_rcfast_4mhz() {
     // Enable the RCFAST with frequency set to 4MHz and in open loop mode
-    let rcfastcfg = (*SCIF).rcfastcfg.extract();
+    let rcfastcfg = SCIF.rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify_no_read(
+    SCIF.rcfastcfg.modify_no_read(
         rcfastcfg,
         Rcfast::FRANGE::Range4MHz + Rcfast::TUNEEN::CLEAR + Rcfast::EN::SET,
     );
 
     // Wait for the RCFAST to be enabled
-    while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
+    while !SCIF.rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn setup_rcfast_8mhz() {
     // Enable the RCFAST with frequency set to 8MHz and in open loop mode
-    let rcfastcfg = (*SCIF).rcfastcfg.extract();
+    let rcfastcfg = SCIF.rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify_no_read(
+    SCIF.rcfastcfg.modify_no_read(
         rcfastcfg,
         Rcfast::FRANGE::Range8MHz + Rcfast::TUNEEN::CLEAR + Rcfast::EN::SET,
     );
 
     // Wait for the RCFAST to be enabled
-    while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
+    while !SCIF.rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn setup_rcfast_12mhz() {
     // Enable the RCFAST with frequency set to 12MHz and in open loop mode
-    let rcfastcfg = (*SCIF).rcfastcfg.extract();
+    let rcfastcfg = SCIF.rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF).rcfastcfg.modify_no_read(
+    SCIF.rcfastcfg.modify_no_read(
         rcfastcfg,
         Rcfast::FRANGE::Range12MHz + Rcfast::TUNEEN::CLEAR + Rcfast::EN::SET,
     );
 
     // Wait for the RCFAST to be enabled
-    while !(*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
+    while !SCIF.rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub unsafe fn disable_rcfast() {
     // Disable the RCFAST
-    let rcfastcfg = (*SCIF).rcfastcfg.extract();
+    let rcfastcfg = SCIF.rcfastcfg.extract();
     unlock(Register::RCFASTCFG);
-    (*SCIF)
-        .rcfastcfg
-        .modify_no_read(rcfastcfg, Rcfast::EN::CLEAR);
+    SCIF.rcfastcfg.modify_no_read(rcfastcfg, Rcfast::EN::CLEAR);
 
     // Wait for the RCFAST to be disabled
-    while (*SCIF).rcfastcfg.is_set(Rcfast::EN) {}
+    while SCIF.rcfastcfg.is_set(Rcfast::EN) {}
 }
 
 pub fn generic_clock_disable(clock: GenericClock) {
@@ -491,20 +481,18 @@ fn generic_clock_control_write(
     clock: GenericClock,
     val: FieldValue<u32, GenericClockControl::Register>,
 ) {
-    unsafe {
-        match clock {
-            GenericClock::GCLK0 => (*SCIF).gcctrl0.write(val),
-            GenericClock::GCLK1 => (*SCIF).gcctrl1.write(val),
-            GenericClock::GCLK2 => (*SCIF).gcctrl2.write(val),
-            GenericClock::GCLK3 => (*SCIF).gcctrl3.write(val),
-            GenericClock::GCLK4 => (*SCIF).gcctrl4.write(val),
-            GenericClock::GCLK5 => (*SCIF).gcctrl5.write(val),
-            GenericClock::GCLK6 => (*SCIF).gcctrl6.write(val),
-            GenericClock::GCLK7 => (*SCIF).gcctrl7.write(val),
-            GenericClock::GCLK8 => (*SCIF).gcctrl8.write(val),
-            GenericClock::GCLK9 => (*SCIF).gcctrl9.write(val),
-            GenericClock::GCLK10 => (*SCIF).gcctrl10.write(val),
-            GenericClock::GCLK11 => (*SCIF).gcctrl11.write(val),
-        };
-    }
+    match clock {
+        GenericClock::GCLK0 => SCIF.gcctrl0.write(val),
+        GenericClock::GCLK1 => SCIF.gcctrl1.write(val),
+        GenericClock::GCLK2 => SCIF.gcctrl2.write(val),
+        GenericClock::GCLK3 => SCIF.gcctrl3.write(val),
+        GenericClock::GCLK4 => SCIF.gcctrl4.write(val),
+        GenericClock::GCLK5 => SCIF.gcctrl5.write(val),
+        GenericClock::GCLK6 => SCIF.gcctrl6.write(val),
+        GenericClock::GCLK7 => SCIF.gcctrl7.write(val),
+        GenericClock::GCLK8 => SCIF.gcctrl8.write(val),
+        GenericClock::GCLK9 => SCIF.gcctrl9.write(val),
+        GenericClock::GCLK10 => SCIF.gcctrl10.write(val),
+        GenericClock::GCLK11 => SCIF.gcctrl11.write(val),
+    };
 }

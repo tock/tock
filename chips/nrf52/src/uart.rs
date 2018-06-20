@@ -11,12 +11,15 @@ use core::cell::Cell;
 use core::cmp::min;
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use nrf5x::pinmux;
 
-const UARTE_BASE: u32 = 0x40002000;
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
 
 static mut BYTE: u8 = 0;
+
+const UARTE_BASE: StaticRef<UarteRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
 
 #[repr(C)]
 struct UarteRegisters {
@@ -151,7 +154,7 @@ register_bitfields! [u32,
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
 pub struct Uarte {
-    regs: *const UarteRegisters,
+    registers: StaticRef<UarteRegisters>,
     client: Cell<Option<&'static kernel::hil::uart::Client>>,
     tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
     tx_remaining_bytes: Cell<usize>,
@@ -174,7 +177,7 @@ impl Uarte {
     /// Constructor
     pub const fn new() -> Uarte {
         Uarte {
-            regs: UARTE_BASE as *const UarteRegisters,
+            registers: UARTE_BASE,
             client: Cell::new(None),
             tx_buffer: kernel::common::cells::TakeCell::empty(),
             tx_remaining_bytes: Cell::new(0),
@@ -193,7 +196,7 @@ impl Uarte {
         cts: pinmux::Pinmux,
         rts: pinmux::Pinmux,
     ) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.pseltxd.write(Psel::PIN.val(txd.into()));
         regs.pselrxd.write(Psel::PIN.val(rxd.into()));
         regs.pselcts.write(Psel::PIN.val(cts.into()));
@@ -201,7 +204,7 @@ impl Uarte {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         match baud_rate {
             1200 => regs.baudrate.set(0x0004F000),
             2400 => regs.baudrate.set(0x0009D000),
@@ -225,44 +228,44 @@ impl Uarte {
 
     // Enable UART peripheral, this need to disabled for low power applications
     fn enable_uart(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.enable.write(Uart::ENABLE::ON);
     }
 
     #[allow(dead_code)]
     fn disable_uart(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.enable.write(Uart::ENABLE::OFF);
     }
 
     fn enable_rx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.write(Interrupt::ENDRX::SET);
     }
 
     fn enable_tx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.write(Interrupt::ENDTX::SET);
     }
 
     fn disable_rx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.write(Interrupt::ENDRX::SET);
     }
 
     fn disable_tx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.write(Interrupt::ENDTX::SET);
     }
 
     /// UART interrupt handler that listens for both tx_end and rx_end events
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         if self.tx_ready() {
             self.disable_tx_interrupts();
-            let regs = unsafe { &*self.regs };
+            let regs = &*self.registers;
             regs.event_endtx.write(Event::READY::CLEAR);
             let tx_bytes = regs.txd_amount.get() as usize;
 
@@ -364,7 +367,7 @@ impl Uarte {
     /// Transmit one byte at the time and the client is responsible for polling
     /// This is used by the panic handler
     pub unsafe fn send_byte(&self, byte: u8) {
-        let regs = &*self.regs;
+        let regs = &*self.registers;
 
         self.tx_remaining_bytes.set(1);
         regs.event_endtx.write(Event::READY::CLEAR);
@@ -377,18 +380,18 @@ impl Uarte {
 
     /// Check if the UART transmission is done
     pub fn tx_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.event_endtx.is_set(Event::READY)
     }
 
     /// Check if either the rx_buffer is full or the UART has timed out
     pub fn rx_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.event_endrx.is_set(Event::READY)
     }
 
     fn set_tx_dma_pointer_to_buffer(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         self.tx_buffer.map(|tx_buffer| {
             regs.txd_ptr
                 .set(tx_buffer[self.offset.get()..].as_ptr() as u32);
@@ -396,7 +399,7 @@ impl Uarte {
     }
 
     fn set_rx_dma_pointer_to_buffer(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         self.rx_buffer.map(|rx_buffer| {
             regs.rxd_ptr
                 .set(rx_buffer[self.offset.get()..].as_ptr() as u32);
@@ -426,7 +429,7 @@ impl kernel::hil::uart::UART for Uarte {
         self.tx_buffer.replace(tx_data);
         self.set_tx_dma_pointer_to_buffer();
 
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.txd_maxcnt
             .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
         regs.task_starttx.write(Task::ENABLE::SET);
@@ -435,7 +438,7 @@ impl kernel::hil::uart::UART for Uarte {
     }
 
     fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
@@ -457,7 +460,7 @@ impl kernel::hil::uart::UART for Uarte {
 
     fn abort_receive(&self) {
         // Trigger the STOPRX event to cancel the current receive call.
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         self.rx_abort_in_progress.set(true);
         regs.task_stoprx.write(Task::ENABLE::SET);
     }

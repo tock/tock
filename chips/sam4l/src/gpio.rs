@@ -5,6 +5,7 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
 
 #[repr(C)]
@@ -24,7 +25,7 @@ struct RegisterRC {
 }
 
 #[repr(C)]
-struct Registers {
+struct GpioRegisters {
     gper: Register,
     pmr0: Register,
     pmr1: Register,
@@ -132,7 +133,7 @@ pub enum Pin {
 /// [^1]: SAM4L datasheet section 23.8 (page 573): "Module Configuration" for
 ///       GPIO
 pub struct Port {
-    port: *mut Registers,
+    port: StaticRef<GpioRegisters>,
     pins: [GPIOPin; 32],
 }
 
@@ -152,7 +153,7 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
 
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
         // are enabled in Interrupt Enabled Register (IER).
@@ -176,7 +177,7 @@ impl Port {
 
 /// Port A
 pub static mut PA: Port = Port {
-    port: (BASE_ADDRESS + 0 * SIZE) as *mut Registers,
+    port: unsafe { StaticRef::new((BASE_ADDRESS + 0 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PA00),
         GPIOPin::new(PA01),
@@ -215,7 +216,7 @@ pub static mut PA: Port = Port {
 
 /// Port B
 pub static mut PB: Port = Port {
-    port: (BASE_ADDRESS + 1 * SIZE) as *mut Registers,
+    port: unsafe { StaticRef::new((BASE_ADDRESS + 1 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PB00),
         GPIOPin::new(PB01),
@@ -254,7 +255,7 @@ pub static mut PB: Port = Port {
 
 /// Port C
 pub static mut PC: Port = Port {
-    port: (BASE_ADDRESS + 2 * SIZE) as *mut Registers,
+    port: unsafe { StaticRef::new((BASE_ADDRESS + 2 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PC00),
         GPIOPin::new(PC01),
@@ -291,7 +292,7 @@ pub static mut PC: Port = Port {
     ],
 };
 pub struct GPIOPin {
-    port: *mut Registers,
+    port: StaticRef<GpioRegisters>,
     pin_mask: u32,
     client_data: Cell<usize>,
     client: Cell<Option<&'static hil::gpio::Client>>,
@@ -300,7 +301,11 @@ pub struct GPIOPin {
 impl GPIOPin {
     const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
-            port: (BASE_ADDRESS + ((pin as usize) / 32) * SIZE) as *mut Registers,
+            port: unsafe {
+                StaticRef::new(
+                    (BASE_ADDRESS + ((pin as usize) / 32) * SIZE) as *const GpioRegisters,
+                )
+            },
             pin_mask: 1 << ((pin as u32) % 32),
             client_data: Cell::new(0),
             client: Cell::new(None),
@@ -314,7 +319,7 @@ impl GPIOPin {
     pub fn select_peripheral(&self, function: PeripheralFunction) {
         let f = function as u32;
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
 
         // clear GPIO enable for pin
         port.gper.clear.set(self.pin_mask);
@@ -338,42 +343,42 @@ impl GPIOPin {
     }
 
     pub fn enable(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.gper.set.set(self.pin_mask);
     }
 
     pub fn disable(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.gper.clear.set(self.pin_mask);
     }
 
     pub fn enable_output(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.oder.set.set(self.pin_mask);
     }
 
     pub fn disable_output(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.oder.clear.set(self.pin_mask);
     }
 
     pub fn enable_pull_down(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.pder.set.set(self.pin_mask);
     }
 
     pub fn disable_pull_down(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.pder.clear.set(self.pin_mask);
     }
 
     pub fn enable_pull_up(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.puer.set.set(self.pin_mask);
     }
 
     pub fn disable_pull_up(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.puer.clear.set(self.pin_mask);
     }
 
@@ -390,7 +395,7 @@ impl GPIOPin {
     /// | 0b10         | Falling edge   |
     ///
     pub fn set_interrupt_mode(&self, mode: u8) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         if mode & 0b01 != 0 {
             port.imr0.set.set(self.pin_mask);
         } else {
@@ -405,7 +410,7 @@ impl GPIOPin {
     }
 
     pub fn enable_interrupt(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         if port.ier.val.get() & self.pin_mask == 0 {
             INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed);
             port.ier.set.set(self.pin_mask);
@@ -413,7 +418,7 @@ impl GPIOPin {
     }
 
     pub fn disable_interrupt(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         if port.ier.val.get() & self.pin_mask != 0 {
             INTERRUPT_COUNT.fetch_sub(1, Ordering::Relaxed);
             port.ier.clear.set(self.pin_mask);
@@ -427,32 +432,32 @@ impl GPIOPin {
     }
 
     pub fn disable_schmidtt_trigger(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.ster.clear.set(self.pin_mask);
     }
 
     pub fn enable_schmidtt_trigger(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.ster.set.set(self.pin_mask);
     }
 
     pub fn read(&self) -> bool {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         (port.pvr.get() & self.pin_mask) > 0
     }
 
     pub fn toggle(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.ovr.toggle.set(self.pin_mask);
     }
 
     pub fn set(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.ovr.set.set(self.pin_mask);
     }
 
     pub fn clear(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let port: &GpioRegisters = &*self.port;
         port.ovr.clear.set(self.pin_mask);
     }
 }
