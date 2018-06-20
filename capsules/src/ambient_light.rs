@@ -1,7 +1,7 @@
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ```rust
-//! let ninedof = static_init!(
+//! let light = static_init!(
 //!     capsules::sensors::AmbientLight<'static>,
 //!     capsules::sensors::AmbientLight::new(isl29035,
 //!         kernel::Grant::create()));
@@ -15,7 +15,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60002;
 
-/// Per-process metdata
+/// Per-process metadata
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
