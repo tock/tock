@@ -43,7 +43,6 @@ impl SI7021Component {
     }
 }
 
-
 static mut I2C_BUF: [u8; 14] = [0; 14];
 
 impl Component for SI7021Component {

@@ -20,9 +20,8 @@ mod components;
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
-use capsules::rf233::RF233;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::hil;
 use kernel::hil::radio;
@@ -35,8 +34,11 @@ use kernel::component::Component;
 
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
+use components::fxos8700::NineDofComponent;
 use components::isl29035::AmbientLightComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
+use components::nrf51822::Nrf51822Component;
+use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent,SI7021Component,TemperatureComponent};
 use components::spi::{SpiComponent,SpiSyscallComponent};
 
@@ -257,64 +259,33 @@ pub unsafe fn reset_handler() {
         trng: true,
     });
 
-    // # CONSOLE
     let console = ConsoleComponent::new(&sam4l::usart::USART3, 115200).finalize();
 
-    // Create the Nrf51822Serialization driver for passing BLE commands
-    // over UART to the nRF51822 radio.
-    let nrf_serialization = static_init!(
-        capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
-        capsules::nrf51822_serialization::Nrf51822Serialization::new(
-            &sam4l::usart::USART2,
-            &mut capsules::nrf51822_serialization::WRITE_BUF,
-            &mut capsules::nrf51822_serialization::READ_BUF
-        )
-    );
-    hil::uart::UART::set_client(&sam4l::usart::USART2, nrf_serialization);
+    // Allow processes to communicate over BLE through the nRF51822, connected
+    // on USART2.
+    let nrf_serialization = Nrf51822Component::new(&sam4l::usart::USART2).finalize();
 
     // # TIMER
-
     let ast = &sam4l::ast::AST;
     let mux_alarm = static_init!(
         MuxAlarm<'static, sam4l::ast::Ast>,
         MuxAlarm::new(&sam4l::ast::AST)
     );
     ast.configure(mux_alarm);
-
     let alarm = AlarmDriverComponent::new(mux_alarm).finalize();
 
-    // # I2C Sensors
-
+    // # I2C and I2C Sensors
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
     let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
-
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
     let temp = TemperatureComponent::new(si7021).finalize();
     let humidity = HumidityComponent::new(si7021).finalize();
 
+    let ninedof = NineDofComponent::new(mux_i2c, &sam4l::gpio::PC[13]).finalize();
 
-
-    // FXOS8700CQ accelerometer, device address 0x1e
-    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e));
-    let fxos8700 = static_init!(
-        capsules::fxos8700cq::Fxos8700cq<'static>,
-        capsules::fxos8700cq::Fxos8700cq::new(
-            fxos8700_i2c,
-            &sam4l::gpio::PC[13],
-            &mut capsules::fxos8700cq::BUF
-        )
-    );
-    fxos8700_i2c.set_client(fxos8700);
-    sam4l::gpio::PC[13].set_client(fxos8700);
-    let ninedof = static_init!(
-        capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create())
-    );
-    hil::sensors::NineDof::set_client(fxos8700, ninedof);
-
-    // Create a SPI mux, then the SPI syscall driver and driver for RF233
+    // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::SpiHw>,
         MuxSpiMaster::new(&sam4l::spi::SPI)
@@ -324,19 +295,11 @@ pub unsafe fn reset_handler() {
 
     let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
     let rf233_spi = SpiComponent::new(mux_spi).finalize();
-
-    // Create the RF233 driver, passing its pins and SPI client
-    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
-        RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        RF233::new(
-            rf233_spi,
-            &sam4l::gpio::PA[09], // reset
-            &sam4l::gpio::PA[10], // sleep
-            &sam4l::gpio::PA[08], // irq
-            &sam4l::gpio::PA[08]
-        )
-    ); //  irq_ctl
-    sam4l::gpio::PA[08].set_client(rf233);
+    let rf233 = RF233Component::new(rf233_spi,
+                                    &sam4l::gpio::PA[09], // reset
+                                    &sam4l::gpio::PA[10], // sleep
+                                    &sam4l::gpio::PA[08], // irq
+                                    &sam4l::gpio::PA[08]).finalize();
 
     // Clear sensors enable pin to enable sensor rail
     // sam4l::gpio::PC[16].enable_output();

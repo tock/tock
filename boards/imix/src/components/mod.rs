@@ -1,14 +1,20 @@
 pub mod alarm;
 pub mod console;
+pub mod fxos8700;
 pub mod isl29035;
 pub mod nonvolatile_storage;
+pub mod nrf51822;
+pub mod rf233;
 pub mod si7021;
 pub mod spi;
 
 pub use self::alarm::AlarmDriverComponent;
 pub use self::console::ConsoleComponent;
+pub use self::fxos8700::NineDofComponent;
 pub use self::isl29035::Isl29035Component;
 pub use self::nonvolatile_storage::NonvolatileStorageComponent;
+pub use self::nrf51822::Nrf51822Component;
+pub use self::rf233::RF233Component;
 pub use self::si7021::{HumidityComponent,SI7021Component,TemperatureComponent};
 pub use self::spi::SpiComponent;
 pub use self::spi::SpiSyscallComponent;
