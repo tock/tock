@@ -34,6 +34,7 @@ use kernel::hil::Controller;
 use kernel::component::Component;
 
 use components::alarm::AlarmDriverComponent;
+use components::console::ConsoleComponent;
 use components::isl29035::AmbientLightComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::si7021::{HumidityComponent,SI7021Component,TemperatureComponent};
@@ -257,23 +258,7 @@ pub unsafe fn reset_handler() {
     });
 
     // # CONSOLE
-
-    let console = static_init!(
-        capsules::console::Console<sam4l::usart::USART>,
-        capsules::console::Console::new(
-            &sam4l::usart::USART3,
-            115200,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
-        )
-    );
-    hil::uart::UART::set_client(&sam4l::usart::USART3, console);
-    console.initialize();
-
-    // Attach the kernel debug interface to this console
-    let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    kernel::debug::assign_console_driver(Some(console), kc);
+    let console = ConsoleComponent::new(&sam4l::usart::USART3, 115200).finalize();
 
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
