@@ -59,8 +59,8 @@ pub unsafe fn reset() {
 /// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BEHBJHIG.html
 /// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0298a/CEGJEIGH.html
 pub unsafe fn enable_fpu() {
-    let cpacr = (*SCB).cpacr.get();
+    let cpacr = SCB.cpacr.get();
 
     // Enable coprocessors CP10 and CP11 thus enabling FPU
-    (*SCB).cpacr.set(cpacr | (3u32 << 10 * 2) | (3u32 << 11 * 2));
+    SCB.cpacr.set(cpacr | (3u32 << 10 * 2) | (3u32 << 11 * 2));
 }
