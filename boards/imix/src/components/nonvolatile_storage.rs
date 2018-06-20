@@ -1,3 +1,20 @@
+//! Component for non-volatile storage Drivers on the imix board.
+//!
+//! This provides one component, NonvolatileStorageComponent, which provides
+//! a system call inteface to non-volatile storage. For imix, this is on-chip
+//! flash.
+//!
+//! Usage
+//! -----
+//! ```rust
+//! let nonvolatile_storage = NonvolatileStorageComponent::new().finalize();
+//! ```
+
+// Author: Philip Levis <pal@cs.stanford.edu>
+// Last modified: 6/20/2018
+
+#![allow(dead_code)] // Components are intended to be conditionally included
+
 use sam4l;
 use capsules;
 use capsules::nonvolatile_storage_driver::NonvolatileStorage;

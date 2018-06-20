@@ -1,3 +1,24 @@
+//! Components for the ISL29035 on the imix board.
+//!
+//! This provides two Components, Isl29035Component, which provides
+//! direct access to the ISL29035 within the kernel, and
+//! AmbientLightComponent, which provides the ambient light system
+//! call interface to the ISL29035. Note that only one of these
+//! Components should be instantiated, as AmbientLightComponent itself
+//! creates an Isl29035Component, which depends on a static buffer: if you
+//! allocate both, then the two instances of Isl29035Component will conflict
+//! on the buffer.
+//!
+//! Usage
+//! -----
+//! ```rust
+//! let isl = Isl29035Component::new(mux_i2c, mux_alarm).finalize();
+//! let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
+//! ```
+
+// Author: Philip Levis <pal@cs.stanford.edu>
+// Last modified: 6/20/2018
+
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use sam4l;
@@ -27,7 +48,7 @@ impl Isl29035Component {
 // an Isl29035 component or an AmbientLight component, but not both,
 // such that trying to take the buffer out of an empty option leads to
 // a panic explaining why. Right now it's possible for a board to make
-// both components, which will conflict on the buffer.
+// both components, which will conflict on the buffer. -pal
 
 static mut I2C_BUF: [u8; 3] = [0; 3];
 

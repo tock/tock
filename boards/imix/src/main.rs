@@ -32,10 +32,13 @@ use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 use kernel::hil::Controller;
 use kernel::component::Component;
+
+use components::alarm::AlarmDriverComponent;
 use components::isl29035::AmbientLightComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
-use components::spi::SpiSyscallComponent;
-use components::spi::SpiComponent;
+use components::si7021::{HumidityComponent,SI7021Component,TemperatureComponent};
+use components::spi::{SpiComponent,SpiSyscallComponent};
+
 
 /// Support routines for debugging I/O.
 ///
@@ -287,22 +290,13 @@ pub unsafe fn reset_handler() {
     // # TIMER
 
     let ast = &sam4l::ast::AST;
-
     let mux_alarm = static_init!(
         MuxAlarm<'static, sam4l::ast::Ast>,
         MuxAlarm::new(&sam4l::ast::AST)
     );
     ast.configure(mux_alarm);
 
-    let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let alarm = static_init!(
-        AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
-    );
-    virtual_alarm1.set_client(alarm);
+    let alarm = AlarmDriverComponent::new(mux_alarm).finalize();
 
     // # I2C Sensors
 
@@ -311,28 +305,11 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
 
-    // Configure the SI7021, device address 0x40
-    let si7021_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40));
-    let si7021 = static_init!(
-        capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-        capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER)
-    );
-    si7021_i2c.set_client(si7021);
-    si7021_alarm.set_client(si7021);
-    let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create())
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
-    let humidity = static_init!(
-        capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create())
-    );
-    kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
+    let temp = TemperatureComponent::new(si7021).finalize();
+    let humidity = HumidityComponent::new(si7021).finalize();
+
+
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e));
@@ -359,7 +336,7 @@ pub unsafe fn reset_handler() {
     );
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
-    
+
     let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
     let rf233_spi = SpiComponent::new(mux_spi).finalize();
 

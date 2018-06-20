@@ -1,3 +1,23 @@
+//! Components for SPI on the imix board.
+//!
+//! This provides two Components. SpiSyscallComponent provides a
+//! system call interace to SPI, while SpiComponent provides a
+//! virtualized client to the SPI bus. SpiSyscallComponent is used for
+//! processes, while SpiComponent is used for kernel capsules that need
+//! access to the SPI bus.
+//!
+//! Usage
+//! -----
+//! ```rust
+//! let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
+//! let rf233_spi = SpiComponent::new(mux_spi).finalize();
+//! ```
+
+// Author: Philip Levis <pal@cs.stanford.edu>
+// Last modified: 6/20/2018
+
+#![allow(dead_code)] // Components are intended to be conditionally included
+
 use sam4l;
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
 use capsules::spi::Spi;
