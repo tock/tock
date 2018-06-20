@@ -2,11 +2,12 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 use pm;
 
 #[repr(C)]
-struct Registers {
+struct TrngRegisters {
     cr: WriteOnly<u32, Control::Register>,
     _reserved0: [u32; 3],
     ier: WriteOnly<u32, Interrupt::Register>,
@@ -39,10 +40,11 @@ register_bitfields![u32,
     ]
 ];
 
-const BASE_ADDRESS: *const Registers = 0x40068000 as *const Registers;
+const BASE_ADDRESS: StaticRef<TrngRegisters> =
+    unsafe { StaticRef::new(0x40068000 as *const TrngRegisters) };
 
 pub struct Trng<'a> {
-    regs: *const Registers,
+    regs: StaticRef<TrngRegisters>,
     client: Cell<Option<&'a rng::Client>>,
 }
 
@@ -58,7 +60,7 @@ impl<'a> Trng<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.regs;
 
         if !regs.imr.is_set(Interrupt::DATRDY) {
             return;
@@ -89,7 +91,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        let regs = unsafe { &*self.0.regs };
+        let regs = &*self.0.regs;
         if regs.isr.is_set(Interrupt::DATRDY) {
             Some(regs.odata.read(OutputData::ODATA))
         } else {
@@ -100,7 +102,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
 
 impl<'a> rng::RNG for Trng<'a> {
     fn get(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
         regs.cr

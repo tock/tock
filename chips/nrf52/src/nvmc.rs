@@ -4,16 +4,19 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::regs::{ReadOnly, ReadWrite};
-use kernel::common::take_cell::TakeCell;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
 use deferred_call_tasks::DeferredCallTask;
 
-pub const NVMC_BASE: usize = 0x4001E400;
+const NVMC_BASE: StaticRef<NvmcRegisters> =
+    unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
+
 #[repr(C)]
 struct NvmcRegisters {
     /// Ready flag
@@ -192,7 +195,7 @@ pub enum FlashState {
 pub static mut NVMC: Nvmc = Nvmc::new();
 
 pub struct Nvmc {
-    regs: *const NvmcRegisters,
+    registers: StaticRef<NvmcRegisters>,
     client: Cell<Option<&'static hil::flash::Client<Nvmc>>>,
     buffer: TakeCell<'static, NrfPage>,
     state: Cell<FlashState>,
@@ -201,7 +204,7 @@ pub struct Nvmc {
 impl Nvmc {
     pub const fn new() -> Nvmc {
         Nvmc {
-            regs: NVMC_BASE as *const NvmcRegisters,
+            registers: NVMC_BASE,
             client: Cell::new(None),
             buffer: TakeCell::empty(),
             state: Cell::new(FlashState::Ready),
@@ -210,17 +213,17 @@ impl Nvmc {
 
     /// Configure the NVMC to allow writes to flash.
     pub fn configure_writeable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.config.write(Configuration::WEN::Wen);
     }
 
     pub fn configure_eraseable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.config.write(Configuration::WEN::Een);
     }
 
     pub fn erase_uicr(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.config.write(Configuration::WEN::Een);
         while !self.is_ready() {}
         regs.erasepage.write(ErasePage::ERASEPAGE.val(0x10001000));
@@ -229,7 +232,7 @@ impl Nvmc {
 
     /// Check if there is an ongoing operation with the NVMC peripheral.
     pub fn is_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.ready.is_set(Ready::READY)
     }
 
@@ -262,7 +265,7 @@ impl Nvmc {
     }
 
     fn erase_page_helper(&self, page_number: usize) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // Put the NVMC in erase mode.
         regs.config.write(Configuration::WEN::Een);
@@ -299,7 +302,7 @@ impl Nvmc {
     }
 
     fn write_page(&self, page_number: usize, data: &'static mut NrfPage) -> ReturnCode {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // Need to erase the page first.
         self.erase_page_helper(page_number);

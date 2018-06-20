@@ -2,7 +2,8 @@
 //!
 //! <http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html>
 
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct ScbRegisters {
@@ -29,29 +30,27 @@ struct ScbRegisters {
     cpacr: VolatileCell<u32>,
 }
 
-const SCB_BASE: usize = 0xE000ED00;
-
-static mut SCB: *mut ScbRegisters = SCB_BASE as *mut ScbRegisters;
+const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *const ScbRegisters) };
 
 /// Allow the core to go into deep sleep on WFI.
 ///
 /// The specific definition of "deep sleep" is chip specific.
 pub unsafe fn set_sleepdeep() {
-    let scr = (*SCB).scr.get();
-    (*SCB).scr.set(scr | 1 << 2);
+    let scr = SCB.scr.get();
+    SCB.scr.set(scr | 1 << 2);
 }
 
 /// Do not allow the core to go into deep sleep on WFI.
 ///
 /// The specific definition of "deep sleep" is chip specific.
 pub unsafe fn unset_sleepdeep() {
-    let scr = (*SCB).scr.get();
-    (*SCB).scr.set(scr & !(1 << 2));
+    let scr = SCB.scr.get();
+    SCB.scr.set(scr & !(1 << 2));
 }
 
 /// Software reset using the ARM System Control Block
 pub unsafe fn reset() {
-    let aircr = (*SCB).aircr.get();
+    let aircr = SCB.aircr.get();
     let reset = (0x5FA << 16) | (aircr & (0x7 << 8)) | (1 << 2);
-    (*SCB).aircr.set(reset);
+    SCB.aircr.set(reset);
 }

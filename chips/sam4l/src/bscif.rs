@@ -1,6 +1,7 @@
 //! Implementation of the Backup System Control Interface (BSCIF) peripheral.
 
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct BscifRegisters {
@@ -314,69 +315,69 @@ register_bitfields![u32,
     ]
 ];
 
-const BSCIF_BASE: usize = 0x400F0400;
-static mut BSCIF: *mut BscifRegisters = BSCIF_BASE as *mut BscifRegisters;
+const BSCIF: StaticRef<BscifRegisters> =
+    unsafe { StaticRef::new(0x400F0400 as *const BscifRegisters) };
 
 /// Setup the internal 32kHz RC oscillator.
-pub unsafe fn enable_rc32k() {
-    let rc32kcr = (*BSCIF).rc32kcr.extract();
+pub fn enable_rc32k() {
+    let rc32kcr = BSCIF.rc32kcr.extract();
     // Unlock the BSCIF::RC32KCR register
-    (*BSCIF)
+    BSCIF
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x24));
     // Write the BSCIF::RC32KCR register.
     // Enable the generic clock source, the temperature compensation, and the
     // 32k output.
-    (*BSCIF).rc32kcr.modify_no_read(
+    BSCIF.rc32kcr.modify_no_read(
         rc32kcr,
         RC32Control::EN32K::OutputEnable + RC32Control::TCEN::TempCompensated
             + RC32Control::EN::GclkSourceEnable,
     );
     // Wait for it to be ready, although it feels like this won't do anything
-    while !(*BSCIF).rc32kcr.is_set(RC32Control::EN) {}
+    while !BSCIF.rc32kcr.is_set(RC32Control::EN) {}
 
     // Load magic calibration value for the 32KHz RC oscillator
     //
     // Unlock the BSCIF::RC32KTUNE register
-    (*BSCIF)
+    BSCIF
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x28));
     // Write the BSCIF::RC32KTUNE register
-    (*BSCIF)
+    BSCIF
         .rc32ktune
         .write(RC32kTuning::COARSE.val(0x1d) + RC32kTuning::FINE.val(0x15));
 }
 
-pub unsafe fn rc32k_enabled() -> bool {
-    return (*BSCIF).rc32kcr.is_set(RC32Control::EN);
+pub fn rc32k_enabled() -> bool {
+    return BSCIF.rc32kcr.is_set(RC32Control::EN);
 }
 
-pub unsafe fn setup_rc_1mhz() {
-    let rc1mcr = (*BSCIF).rc1mcr.extract();
+pub fn setup_rc_1mhz() {
+    let rc1mcr = BSCIF.rc1mcr.extract();
     // Unlock the BSCIF::RC32KCR register
-    (*BSCIF)
+    BSCIF
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
     // Enable the RC1M
-    (*BSCIF)
+    BSCIF
         .rc1mcr
         .modify_no_read(rc1mcr, RC1MClockConfig::CLKOEN::Output);
 
     // Wait for the RC1M to be enabled
-    while !(*BSCIF).rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
+    while !BSCIF.rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
 }
 
 pub unsafe fn disable_rc_1mhz() {
-    let rc1mcr = (*BSCIF).rc1mcr.extract();
+    let rc1mcr = BSCIF.rc1mcr.extract();
     // Unlock the BSCIF::RC32KCR register
-    (*BSCIF)
+    BSCIF
         .unlock
         .write(Unlock::KEY.val(0xAA) + Unlock::ADDR.val(0x58));
     // Disable the RC1M
-    (*BSCIF)
+    BSCIF
         .rc1mcr
         .modify_no_read(rc1mcr, RC1MClockConfig::CLKOEN::NotOutput);
 
     // Wait for the RC1M to be disabled
-    while (*BSCIF).rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
+    while BSCIF.rc1mcr.is_set(RC1MClockConfig::CLKOEN) {}
 }

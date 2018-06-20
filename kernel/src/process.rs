@@ -489,11 +489,12 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
             // Calculate checksum. The checksum is the XOR of each 4 byte word
             // in the header.
             let mut chunks = tbf_header_base.header_size as usize / 4;
-            let mut leftover_bytes = 0;
-            if chunks * 4 != tbf_header_base.header_size as usize {
+            let leftover_bytes = if chunks * 4 != tbf_header_base.header_size as usize {
                 chunks += 1;
-                leftover_bytes = tbf_header_base.header_size as usize - (chunks * 4);
-            }
+                tbf_header_base.header_size as usize - (chunks * 4)
+            } else {
+                0
+            };
             let mut checksum: u32 = 0;
             let header = slice::from_raw_parts(address as *const u32, chunks);
             for (i, chunk) in header.iter().enumerate() {
@@ -683,8 +684,9 @@ pub struct Process<'a> {
     current_stack_pointer: *const u8,
     original_stack_pointer: *const u8,
 
-    /// Process text segment
-    text: &'static [u8],
+    /// Process flash segment. This is the region of nonvolatile flash that
+    /// the process occupies.
+    flash: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
     header: TbfHeader,
@@ -849,15 +851,15 @@ impl<'a> Process<'a> {
     }
 
     pub fn flash_start(&self) -> *const u8 {
-        self.text.as_ptr()
+        self.flash.as_ptr()
     }
 
     pub fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.text.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
     }
 
     pub fn flash_end(&self) -> *const u8 {
-        unsafe { self.text.as_ptr().offset(self.text.len() as isize) }
+        unsafe { self.flash.as_ptr().offset(self.flash.len() as isize) }
     }
 
     pub fn kernel_memory_break(&self) -> *const u8 {
@@ -889,20 +891,20 @@ impl<'a> Process<'a> {
     }
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
-        // Text segment read/execute (no write)
-        let text_start = self.text.as_ptr() as usize;
-        let text_len = self.text.len();
+        // Flash segment read/execute (no write)
+        let flash_start = self.flash.as_ptr() as usize;
+        let flash_len = self.flash.len();
 
         match MPU::create_region(
             0,
-            text_start,
-            text_len,
+            flash_start,
+            flash_len,
             mpu::ExecutePermission::ExecutionPermitted,
             mpu::AccessPermission::ReadOnly,
         ) {
             None => panic!(
                 "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                text_start, text_len
+                flash_start, flash_len
             ),
             Some(region) => mpu.set_mpu(region),
         }
@@ -954,7 +956,7 @@ impl<'a> Process<'a> {
 
         // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
-            if region.get().0 == ptr::null() {
+            if region.get().0.is_null() {
                 mpu.set_mpu(mpu::Region::empty(i + 3));
                 continue;
             }
@@ -1095,7 +1097,8 @@ impl<'a> Process<'a> {
             let mut app_stack_start_pointer = None;
 
             // Create the Process struct in the app grant region.
-            let mut process: &mut Process = mem::transmute(process_struct_memory_location);
+            let mut process: &mut Process =
+                &mut *(process_struct_memory_location as *mut Process<'static>);
 
             process.memory = app_memory;
             process.header = tbf_header;
@@ -1106,7 +1109,7 @@ impl<'a> Process<'a> {
             process.current_stack_pointer = initial_stack_pointer;
             process.original_stack_pointer = initial_stack_pointer;
 
-            process.text = slice::from_raw_parts(app_flash_address, app_flash_size);
+            process.flash = slice::from_raw_parts(app_flash_address, app_flash_size);
 
             process.stored_regs = Default::default();
             process.yield_pc = init_fn;
@@ -1208,7 +1211,7 @@ impl<'a> Process<'a> {
         for grant_num in 0..grant_ptrs_num {
             let grant_num = grant_num as isize;
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
-            write_volatile(ctr_ptr, 0 as *mut usize);
+            write_volatile(ctr_ptr, ptr::null_mut());
         }
     }
 
@@ -1286,7 +1289,7 @@ impl<'a> Process<'a> {
         write_volatile(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(
             self.current_stack_pointer,
-            mem::transmute(&mut self.stored_regs),
+            &mut *(&mut self.stored_regs as *mut StoredRegs as *mut [usize; 8]),
         );
         self.current_stack_pointer = psp;
         if self.current_stack_pointer < self.debug.min_stack_pointer {
@@ -1553,8 +1556,8 @@ impl<'a> Process<'a> {
 
     pub unsafe fn statistics_str<W: Write>(&mut self, writer: &mut W) {
         // Flash
-        let flash_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
-        let flash_start = self.text.as_ptr() as usize;
+        let flash_end = self.flash.as_ptr().offset(self.flash.len() as isize) as usize;
+        let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;

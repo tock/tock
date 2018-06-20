@@ -33,7 +33,9 @@ use core::cell::Cell;
 use core::{cmp, ptr};
 use kernel::common::cells::{TakeCell, VolatileCell};
 use kernel::common::regs::{ReadWrite, WriteOnly};
-use kernel::{hil, ReturnCode, StaticRef};
+use kernel::common::StaticRef;
+use kernel::hil;
+use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
 
 /// SPI master instance 0.

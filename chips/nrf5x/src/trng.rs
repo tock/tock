@@ -22,9 +22,11 @@
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 
-const RNG_BASE: usize = 0x4000D000;
+const RNG_BASE: StaticRef<RngRegisters> =
+    unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
 
 #[repr(C)]
 pub struct RngRegisters {
@@ -101,7 +103,7 @@ register_bitfields! [u32,
 ];
 
 pub struct Trng<'a> {
-    regs: *const RngRegisters,
+    registers: StaticRef<RngRegisters>,
     client: Cell<Option<&'a rng::Client>>,
     index: Cell<usize>,
     randomness: Cell<u32>,
@@ -112,7 +114,7 @@ pub static mut TRNG: Trng<'static> = Trng::new();
 impl<'a> Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
-            regs: RNG_BASE as *const RngRegisters,
+            registers: RNG_BASE,
             client: Cell::new(None),
             index: Cell::new(0),
             randomness: Cell::new(0),
@@ -121,7 +123,7 @@ impl<'a> Trng<'a> {
 
     /// RNG Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         self.disable_interrupts();
 
@@ -167,17 +169,17 @@ impl<'a> Trng<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.write(Intenset::VALRDY::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.write(Intenclr::VALRDY::SET);
     }
 
     fn start_rng(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // Reset `valrdy`
         regs.event_valrdy.write(Event::READY::CLEAR);

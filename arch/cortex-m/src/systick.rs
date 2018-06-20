@@ -1,4 +1,4 @@
-//! ARM Cortex-M4 SysTick peripheral.
+//! ARM Cortex-M SysTick peripheral.
 
 use kernel;
 use kernel::common::regs::{ReadOnly, ReadWrite};
@@ -49,10 +49,9 @@ register_bitfields![u32,
     ]
 ];
 
-/// The ARM Cortex-M4 SysTick peripheral
+/// The ARM Cortex-M SysTick peripheral
 ///
-/// Documented in the Cortex-M4 Devices Generic User Guide, Chapter 4.4 (pagees
-/// 249-252)
+/// Documented in the Cortex-MX Devices Generic User Guide, Chapter 4.4
 pub struct SysTick {
     hertz: u32,
 }

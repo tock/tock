@@ -2,11 +2,12 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 use kernel::hil::Controller;
-use kernel::StaticRef;
 
-const RTC1_BASE: *const RtcRegisters = 0x40011000 as *const RtcRegisters;
+const RTC1_BASE: StaticRef<RtcRegisters> =
+    unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
 
 #[repr(C)]
 struct RtcRegisters {
@@ -87,7 +88,7 @@ pub struct Rtc {
 }
 
 pub static mut RTC: Rtc = Rtc {
-    registers: unsafe { StaticRef::new(RTC1_BASE) },
+    registers: RTC1_BASE,
     callback: OptionalCell::empty(),
 };
 

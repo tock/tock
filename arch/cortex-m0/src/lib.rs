@@ -4,13 +4,13 @@
 extern crate cortexm;
 extern crate kernel;
 
-pub mod nvic;
-
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
 pub mod support {
     pub use cortexm::support::*;
 }
+
+pub use cortexm::nvic;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn generic_isr() {}
