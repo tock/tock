@@ -56,6 +56,7 @@ impl Component for RF233Component {
             RF233::new(self.spi, self.reset, self.sleep, self.irq, self.ctl,)
         );
         self.ctl.set_client(rf233);
+        self.spi.set_client(rf233);
         rf233
     }
 }
