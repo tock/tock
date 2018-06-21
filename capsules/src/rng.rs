@@ -40,13 +40,13 @@ impl Default for App {
     }
 }
 
-pub struct SimpleRng<'a, RNG: rng::RNG + 'a> {
+pub struct SimpleRng<'a, RNG: rng::RNG<'a> + 'a> {
     rng: &'a RNG,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
 
-impl<'a, RNG: rng::RNG> SimpleRng<'a, RNG> {
+impl<'a, RNG: rng::RNG<'a>> SimpleRng<'a, RNG> {
     pub fn new(rng: &'a RNG, grant: Grant<App>) -> SimpleRng<'a, RNG> {
         SimpleRng {
             rng: rng,
@@ -56,7 +56,7 @@ impl<'a, RNG: rng::RNG> SimpleRng<'a, RNG> {
     }
 }
 
-impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
+impl<'a, RNG: rng::RNG<'a>> rng::Client for SimpleRng<'a, RNG> {
     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
@@ -130,7 +130,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
     }
 }
 
-impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
+impl<'a, RNG: rng::RNG<'a>> Driver for SimpleRng<'a, RNG> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         // pass buffer in from application
         match allow_num {

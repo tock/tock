@@ -105,7 +105,7 @@ impl kernel::SysTick for SysTick {
             value / (hertz / 1_000_000)
         } else {
             // Using the previous branch would divide by zero
-            (value / hertz) / 1_000_000
+            (value * 1_000_00) / hertz 
         }
     }
 

@@ -153,7 +153,7 @@ pub struct XMacHeaderInfo {
 pub struct XMac<'a, R: radio::Radio + 'a, A: Alarm + 'a> {
     radio: &'a R,
     alarm: &'a A,
-    rng: &'a RNG,
+    rng: &'a RNG<'a>,
     tx_client: Cell<Option<&'static radio::TxClient>>,
     rx_client: Cell<Option<&'static radio::RxClient>>,
     state: Cell<XMacState>,
@@ -171,7 +171,7 @@ pub struct XMac<'a, R: radio::Radio + 'a, A: Alarm + 'a> {
 }
 
 impl<'a, R: radio::Radio + 'a, A: Alarm + 'a> XMac<'a, R, A> {
-    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a RNG) -> XMac<'a, R, A> {
+    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a RNG<'a>) -> XMac<'a, R, A> {
         XMac {
             radio: radio,
             alarm: alarm,
