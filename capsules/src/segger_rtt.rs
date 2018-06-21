@@ -26,6 +26,11 @@
 //! if there is support for software interrupts or deferred calls in capsules,
 //! this timer should be removed.
 //!
+//! Todo
+//! ----
+//!
+//! - Implement receive functionality.
+//!
 //! Usage
 //! -----
 //!
@@ -62,7 +67,9 @@ pub static mut UP_BUFFER: [u8; 1024] = [0; 1024];
 /// Buffer for receiving messages from the host.
 pub static mut DOWN_BUFFER: [u8; 32] = [0; 32];
 
-/// This structure is defined by the segger RTT protocol.
+/// This structure is defined by the segger RTT protocol. It must exist in
+/// memory in exactly this form so that the segger JTAG tool can find it in the
+/// chip's memory and read and write messages to the appropriate buffers.
 #[repr(C)]
 pub struct SeggerRttMemory {
     id: [u8; 16],
@@ -91,9 +98,7 @@ impl SeggerRttMemory {
     ) -> SeggerRttMemory {
         SeggerRttMemory {
             // Must be "SEGGER RTT".
-            id: [
-                0x53, 0x45, 0x47, 0x47, 0x45, 0x52, 0x20, 0x52, 0x54, 0x54, 0, 0, 0, 0, 0, 0,
-            ],
+            id: *b"SEGGER RTT\0\0\0\0\0\0",
             number_up_buffers: 1,
             number_down_buffers: 1,
             up_buffer: SeggerRttBuffer {
