@@ -33,6 +33,10 @@
 //!     ]
 //! ];
 //! ```
+//!
+//! Author
+//! ------
+//! - Shane Leonard <shanel@stanford.edu>
 
 use core::fmt;
 use core::marker::PhantomData;
