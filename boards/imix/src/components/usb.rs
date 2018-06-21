@@ -21,7 +21,10 @@ use sam4l;
 
 pub struct UsbComponent {}
 
-type UsbDevice =  capsules::usb_user::UsbSyscallDriver<'static, capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>;
+type UsbDevice = capsules::usb_user::UsbSyscallDriver<
+    'static,
+    capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+>;
 
 impl UsbComponent {
     pub fn new() -> UsbComponent {
@@ -44,7 +47,7 @@ impl Component for UsbComponent {
         let usb_driver = static_init!(
             capsules::usb_user::UsbSyscallDriver<
                 'static,
-            capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+                capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
             >,
             capsules::usb_user::UsbSyscallDriver::new(usb_client, kernel::Grant::create())
         );

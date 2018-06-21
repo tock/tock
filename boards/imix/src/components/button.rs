@@ -34,10 +34,7 @@ impl Component for ButtonComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let button_pins = static_init!(
             [(&'static sam4l::gpio::GPIOPin, button::GpioMode); 1],
-            [(
-                &sam4l::gpio::PC[24],
-                button::GpioMode::LowWhenPressed
-            )]
+            [(&sam4l::gpio::PC[24], button::GpioMode::LowWhenPressed)]
         );
 
         let button = static_init!(

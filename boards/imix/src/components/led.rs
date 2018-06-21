@@ -33,14 +33,8 @@ impl Component for LedComponent {
         let led_pins = static_init!(
             [(&'static sam4l::gpio::GPIOPin, led::ActivationMode); 2],
             [
-                (
-                    &sam4l::gpio::PC[22],
-                    led::ActivationMode::ActiveHigh
-                ),
-                (
-                    &sam4l::gpio::PC[10],
-                    led::ActivationMode::ActiveHigh
-                ),
+                (&sam4l::gpio::PC[22], led::ActivationMode::ActiveHigh),
+                (&sam4l::gpio::PC[10], led::ActivationMode::ActiveHigh),
             ]
         );
         let led = static_init!(

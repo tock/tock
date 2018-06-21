@@ -33,14 +33,12 @@ type RF233Device =
     capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 pub struct RadioComponent {
-    rf233:  &'static RF233Device,
+    rf233: &'static RF233Device,
 }
 
 impl RadioComponent {
     pub fn new(rf233: &'static RF233Device) -> RadioComponent {
-        RadioComponent {
-            rf233: rf233
-        }
+        RadioComponent { rf233: rf233 }
     }
 }
 // The RF233 system call interface ("radio") requires one buffer, which it
@@ -55,9 +53,6 @@ static mut RF233_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE]
 // An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
 const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
-
-
-
 
 impl Component for RadioComponent {
     type Output = &'static capsules::ieee802154::RadioDriver<'static>;
@@ -79,8 +74,8 @@ impl Component for RadioComponent {
         let mac_device = static_init!(
             capsules::ieee802154::framer::Framer<
                 'static,
-            AwakeMac<'static, RF233Device>,
-            capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+                AwakeMac<'static, RF233Device>,
+                capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
             >,
             capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
         );
@@ -104,7 +99,11 @@ impl Component for RadioComponent {
 
         let radio_driver = static_init!(
             capsules::ieee802154::RadioDriver<'static>,
-            capsules::ieee802154::RadioDriver::new(radio_mac, kernel::Grant::create(), &mut RADIO_BUF)
+            capsules::ieee802154::RadioDriver::new(
+                radio_mac,
+                kernel::Grant::create(),
+                &mut RADIO_BUF
+            )
         );
 
         mac_device.set_key_procedure(radio_driver);
