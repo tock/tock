@@ -13,14 +13,16 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, Shared};
-use kernel::ReturnCode;
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
+use kernel::ReturnCode;
+use kernel::{AppId, AppSlice, Callback, Driver, Shared};
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
 pub static mut BUFFER3: [u8; 256] = [0; 256];
+
+pub const DRIVER_NUM: usize = 0x80020006;
 
 pub struct App {
     callback: Option<Callback>,
@@ -85,6 +87,7 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
             hil::i2c::Error::AddressNak => -1,
             hil::i2c::Error::DataNak => -2,
             hil::i2c::Error::ArbitrationLost => -3,
+            hil::i2c::Error::Overrun => -4,
             hil::i2c::Error::CommandComplete => 0,
         };
 
@@ -216,34 +219,39 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
 }
 
 impl<'a> Driver for I2CMasterSlaveDriver<'a> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
             // I2C device.
             0 => {
                 self.app.map(|app| {
-                    app.master_tx_buffer = Some(slice);
+                    app.master_tx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for doing a read from another I2C device.
             1 => {
                 self.app.map(|app| {
-                    app.master_rx_buffer = Some(slice);
+                    app.master_rx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a read issued by another I2C master.
             2 => {
                 self.app.map(|app| {
-                    app.slave_tx_buffer = Some(slice);
+                    app.slave_tx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a write issued by another I2C master.
             3 => {
                 self.app.map(|app| {
-                    app.slave_rx_buffer = Some(slice);
+                    app.slave_rx_buffer = slice;
                 });
                 ReturnCode::SUCCESS
             }
@@ -251,11 +259,16 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.app.map(|app| {
-                    app.callback = Some(callback);
+                    app.callback = callback;
                 });
                 ReturnCode::SUCCESS
             }

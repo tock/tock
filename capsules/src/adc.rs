@@ -3,9 +3,9 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000005;
@@ -296,9 +296,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
                 self.using_app_buf1.set(true);
                 self.samples_remaining.set(request_len - len1 - len2);
                 self.samples_outstanding.set(len1 + len2);
-                let (rc, retbuf1, retbuf2) =
-                    self.adc
-                        .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                let (rc, retbuf1, retbuf2) = self.adc
+                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
                     retbuf1.map(|buf| {
@@ -403,9 +402,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
 
                 // begin sampling
                 self.using_app_buf1.set(true);
-                let (rc, retbuf1, retbuf2) =
-                    self.adc
-                        .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                let (rc, retbuf1, retbuf2) = self.adc
+                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
                     retbuf1.map(|buf| {
@@ -772,13 +770,18 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// _appid - application identifier, unused
     /// allow_num - which allow call this is
     /// slice - representation of application memory to copy data into
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass buffer for samples to go into
             0 => {
                 // set first buffer
                 self.app.map(|state| {
-                    state.app_buf1 = Some(slice);
+                    state.app_buf1 = slice;
                 });
 
                 ReturnCode::SUCCESS
@@ -788,7 +791,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
             1 => {
                 // set second buffer
                 self.app.map(|state| {
-                    state.app_buf2 = Some(slice);
+                    state.app_buf2 = slice;
                 });
 
                 ReturnCode::SUCCESS
@@ -804,12 +807,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// subscribe_num - which subscribe call this is
     /// callback - callback object which can be scheduled to signal the
     ///            application
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {
                 // set callback
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

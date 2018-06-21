@@ -1,6 +1,6 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
-[![Build Status](https://travis-ci.org/helena-project/tock.svg?branch=master)](https://travis-ci.org/helena-project/tock)
+[![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
 [![irc](https://img.shields.io/badge/irc-%23tock-lightgrey.svg)](https://kiwiirc.com/client/irc.freenode.net/tock)
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
@@ -20,14 +20,21 @@ Learn More
 
 How would you like to get started?
 
+### Learn How Tock Works 
+
+Tock is documented in the [doc](doc) folder. Read through the guides there to
+learn about the overview and design of Tock, its implementation, and much
+more.
+
+
 ### Use Tock
 
-First, follow our [getting started guide](doc/Getting_Started.md) to setup
-your system to compile Tock and Tock applications.
+Follow our [getting started guide](doc/Getting_Started.md) to set up your
+system to compile Tock and Tock applications.
 
-Then head to the [hardware page](https://www.tockos.org/hardware/)
+Head to the [hardware page](https://www.tockos.org/hardware/)
 to learn about the hardware platforms Tock supports. Also check out the
-[tutorials](doc/tutorials) to get started running apps with TockOS.
+[workshop-style courses](doc/courses) to get started running apps with TockOS.
 
 
 ### Develop Tock
@@ -39,16 +46,9 @@ version of the Rust compiler, then look through the `/kernel`, `/capsules`,
 We're happy to accept pull requests and look forward to seeing how Tock grows.
 
 
-### Learn How Tock Works
-
-Both the design and implementation of Tock are documented in the
-[docs](doc) folder. Read through the guides there to learn about the kernel,
-Tock's use of Rust, the build system, and applications.
-
-
 ### Keep Up To Date
 
-Check out the [blog](http://www.tockos.org/blog/) where the **Talking Tock**
+Check out the [blog](https://www.tockos.org/blog/) where the **Talking Tock**
 post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 

@@ -110,7 +110,7 @@ until the delay is complete.
 
 Now that we have the ability to write applications, let's do something a little
 more complex. The development board you are using has several sensors on it,
-[as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
+[as shown here](https://github.com/tock/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
 for the Hail board. These sensors include a light sensor, a humidity sensor, and
 a temperature sensor. Each sensing medium can be accessed separately via the
 Tock user library. We'll just be using the light, temperature, and humidity

@@ -1,25 +1,35 @@
 //! Interface to USB controller hardware
 
-use common::VolatileCell;
-use core::default::Default;
+use common::cells::VolatileCell;
 
 /// USB controller interface
 pub trait UsbController {
-    type EndpointState: Default;
+    // Should be called before `enable_as_device()`
+    fn endpoint_set_buffer(&self, endpoint: usize, buf: &[VolatileCell<u8>]);
 
-    fn enable_device(&self, full_speed: bool);
+    // Must be called before `attach()`
+    fn enable_as_device(&self, speed: DeviceSpeed);
 
     fn attach(&self);
 
-    fn endpoint_configure(&self, &'static Self::EndpointState, index: u32);
-
-    fn endpoint_set_buffer(&self, e: u32, buf: &[VolatileCell<u8>]);
-
-    fn endpoint_ctrl_out_enable(&self, e: u32);
+    fn detach(&self);
 
     fn set_address(&self, addr: u16);
 
     fn enable_address(&self);
+
+    fn endpoint_ctrl_out_enable(&self, endpoint: usize);
+
+    fn endpoint_bulk_in_enable(&self, endpoint: usize);
+
+    fn endpoint_bulk_out_enable(&self, endpoint: usize);
+
+    fn endpoint_bulk_resume(&self, endpoint: usize);
+}
+
+pub enum DeviceSpeed {
+    Full,
+    Low,
 }
 
 /// USB controller client interface
@@ -28,11 +38,14 @@ pub trait Client {
     fn attach(&self);
     fn bus_reset(&self);
 
-    fn ctrl_setup(&self) -> CtrlSetupResult;
-    fn ctrl_in(&self) -> CtrlInResult;
-    fn ctrl_out(&self, packet_bytes: u32) -> CtrlOutResult;
-    fn ctrl_status(&self);
-    fn ctrl_status_complete(&self);
+    fn ctrl_setup(&self, endpoint: usize) -> CtrlSetupResult;
+    fn ctrl_in(&self, endpoint: usize) -> CtrlInResult;
+    fn ctrl_out(&self, endpoint: usize, packet_bytes: u32) -> CtrlOutResult;
+    fn ctrl_status(&self, endpoint: usize);
+    fn ctrl_status_complete(&self, endpoint: usize);
+
+    fn bulk_in(&self, endpoint: usize) -> BulkInResult;
+    fn bulk_out(&self, endpoint: usize, packet_bytes: u32) -> BulkOutResult;
 }
 
 #[derive(Debug)]
@@ -75,4 +88,32 @@ pub enum CtrlOutResult {
 
     /// In halt state (send STALL)
     Halted,
+}
+
+pub enum BulkInResult {
+    /// A packet of the given size was written into the endpoint buffer
+    Packet(usize),
+
+    /// The client is not yet able to provide data to the host, but may
+    /// be able to in the future.  This result causes the controller
+    /// to send a NAK token to the host.
+    Delay,
+
+    /// The client does not support the request.  This result causes the
+    /// controller to send a STALL token to the host.
+    Error,
+}
+
+pub enum BulkOutResult {
+    /// The OUT packet was consumed
+    Ok,
+
+    /// The client is not yet able to consume data from the host, but may
+    /// be able to in the future.  This result causes the controller
+    /// to send a NAK token to the host.
+    Delay,
+
+    /// The client does not support the request.  This result causes the
+    /// controller to send a STALL token to the host.
+    Error,
 }

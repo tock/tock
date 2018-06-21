@@ -12,7 +12,7 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/rustconf/README.md>
+<https://github.com/tock/tock/tree/master/doc/courses/rustconf/README.md>
 
 <https://goo.gl/jjba3S>
 
@@ -117,11 +117,9 @@ Maybe...
 
 ## Tools
 
-  * `make` (just instrumenting `xargo`)
+  * `make` (just instrumenting `cargo`)
 
   * Rust (nightly for `asm!`, compiling `core`, etc)
-
-  * `xargo` to automate compiling base libraries
 
   * `arm-none-eabi` GCC/LD to link binaries
 

@@ -24,9 +24,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
-use kernel::ReturnCode;
 use kernel::hil;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x80003;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port + 'a> {
     ports: &'a [&'a Port],
@@ -93,17 +96,22 @@ impl<'a, Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     /// - `1`: Setup a callback for when a **GPIO interrupt** occurs. This
     ///   callback will be called with two arguments, the first being the port
     ///   number of the interrupting pin, and the second being the pin number.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set callback for `done()` events
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 
             // Set callback for pin interrupts
             1 => {
-                self.interrupt_callback.set(Some(callback));
+                self.interrupt_callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

@@ -1,6 +1,6 @@
 //! Driver for the Maxim MAX17205 fuel gauge.
 //!
-//! https://www.maximintegrated.com/en/products/power/battery-management/MAX17205.html
+//! <https://www.maximintegrated.com/en/products/power/battery-management/MAX17205.html>
 //!
 //! > The MAX1720x/MAX1721x are ultra-low power stand-alone fuel gauge ICs that
 //! > implement the Maxim ModelGauge™ m5 algorithm without requiring host
@@ -13,7 +13,6 @@
 //! -----
 //!
 //! ```rust
-//!
 //! // Two i2c addresses are necessary.
 //! // Registers 0x000-0x0FF are accessed by address 0x36.
 //! // Registers 0x100-0x1FF are accessed by address 0x0B.
@@ -37,9 +36,12 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x80001;
 
 pub static mut BUFFER: [u8; 8] = [0; 8];
 
@@ -415,10 +417,15 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup a callback for when all events complete or data is ready.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 

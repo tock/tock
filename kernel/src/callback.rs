@@ -1,6 +1,6 @@
 //! Data structure for storing a callback to userspace or kernelspace.
 
-use core::nonzero::NonZero;
+use core::ptr::NonNull;
 use process;
 
 /// Userspace app identifier.
@@ -14,11 +14,11 @@ pub struct AppId {
 const KERNEL_APPID_BOUNDARY: usize = 100;
 
 impl AppId {
-    pub fn new(idx: usize) -> AppId {
+    pub(crate) fn new(idx: usize) -> AppId {
         AppId { idx: idx }
     }
 
-    pub const fn kernel_new(idx: usize) -> AppId {
+    pub(crate) const fn kernel_new(idx: usize) -> AppId {
         AppId { idx: idx }
     }
 
@@ -42,7 +42,7 @@ impl AppId {
 #[derive(Clone, Copy, Debug)]
 pub enum RustOrRawFnPtr {
     Raw {
-        ptr: NonZero<*mut ()>,
+        ptr: NonNull<*mut ()>,
     },
     Rust {
         func: fn(usize, usize, usize, usize),
@@ -58,7 +58,7 @@ pub struct Callback {
 }
 
 impl Callback {
-    pub fn new(appid: AppId, appdata: usize, fn_ptr: NonZero<*mut ()>) -> Callback {
+    pub(crate) fn new(appid: AppId, appdata: usize, fn_ptr: NonNull<*mut ()>) -> Callback {
         Callback {
             app_id: appid,
             appdata: appdata,
@@ -66,7 +66,10 @@ impl Callback {
         }
     }
 
-    pub const fn kernel_new(appid: AppId, fn_ptr: fn(usize, usize, usize, usize)) -> Callback {
+    pub(crate) const fn kernel_new(
+        appid: AppId,
+        fn_ptr: fn(usize, usize, usize, usize),
+    ) -> Callback {
         Callback {
             app_id: appid,
             appdata: 0,
@@ -97,14 +100,10 @@ impl Callback {
                     r1: r1,
                     r2: r2,
                     r3: self.appdata,
-                    pc: fn_ptr.get() as usize,
+                    pc: fn_ptr.as_ptr() as usize,
                 },
                 self.app_id,
             )
         }
-    }
-
-    pub fn app_id(&self) -> AppId {
-        self.app_id
     }
 }

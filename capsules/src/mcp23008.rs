@@ -1,6 +1,6 @@
 //! Driver for the Microchip MCP23008 I2C GPIO extender.
 //!
-//! http://www.microchip.com/wwwproducts/en/MCP23008
+//! <http://www.microchip.com/wwwproducts/en/MCP23008>
 //!
 //! Paraphrased from the website:
 //!
@@ -54,9 +54,9 @@
 //! `mcp23008` object is created.
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 7] = [0; 7];

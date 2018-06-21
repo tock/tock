@@ -38,7 +38,7 @@
 //!
 //! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
-//! ``rust
+//! ```rust
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,
@@ -47,9 +47,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant};
-use kernel::ReturnCode;
 use kernel::hil;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60001;
@@ -102,10 +102,10 @@ impl<'a> HumiditySensor<'a> {
         }
     }
 
-    fn configure_callback(&self, callback: Callback) -> ReturnCode {
+    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         self.apps
-            .enter(callback.app_id(), |app, _| {
-                app.callback = Some(callback);
+            .enter(app_id, |app, _| {
+                app.callback = callback;
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|err| err.into())
@@ -127,10 +127,15 @@ impl<'a> hil::sensors::HumidityClient for HumiditySensor<'a> {
 }
 
 impl<'a> Driver for HumiditySensor<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // subscribe to temperature reading with callback
-            0 => self.configure_callback(callback),
+            0 => self.configure_callback(callback, app_id),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

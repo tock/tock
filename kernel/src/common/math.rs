@@ -8,14 +8,7 @@ use core::intrinsics as int;
 //      https://doc.rust-lang.org/core/intrinsics/
 //  add additional wrappers as needed
 
-pub fn powf32(base: f32, exponent: f32) -> f32 {
-    unsafe { int::powf32(base, exponent) }
-}
-
-pub fn powif32(base: f32, exponent: i32) -> f32 {
-    unsafe { int::powif32(base, exponent) }
-}
-
+/// Provide `sqrtf32` with the unsafe hidden.
 pub fn sqrtf32(num: f32) -> f32 {
     unsafe { int::sqrtf32(num) }
 }
@@ -26,7 +19,7 @@ extern "C" {
     fn __errno() -> &'static mut i32;
 }
 
-// return errno value and zero it out
+/// Return errno value and zero it out.
 pub fn get_errno() -> i32 {
     unsafe {
         let errnoaddr = __errno();
@@ -36,9 +29,7 @@ pub fn get_errno() -> i32 {
     }
 }
 
-// other math functions that are generally useful
-
-// get closest power of two greater than the given number
+/// Get closest power of two greater than the given number.
 pub fn closest_power_of_two(mut num: u32) -> u32 {
     num -= 1;
     num |= num >> 1;
@@ -85,13 +76,22 @@ impl PowerOfTwo {
     }
 }
 
-// get log base 2 of a number
-// Note: this is the floor of the result. Also, an input of 0 results in an
-// output of 0
+/// Get log base 2 of a number.
+/// Note: this is the floor of the result. Also, an input of 0 results in an
+/// output of 0
 pub fn log_base_two(num: u32) -> u32 {
     if num == 0 {
         0
     } else {
         31 - num.leading_zeros()
+    }
+}
+
+/// Log base 2 of 64 bit unsigned integers.
+pub fn log_base_two_u64(num: u64) -> u32 {
+    if num == 0 {
+        0
+    } else {
+        63 - num.leading_zeros()
     }
 }

@@ -1,6 +1,6 @@
 //! Driver for the TI TMP006 infrared thermopile contactless temperature sensor.
 //!
-//! http://www.ti.com/product/TMP006
+//! <http://www.ti.com/product/TMP006>
 //!
 //! > The TMP006 and TMP006B are fully integrated MEMs thermopile sensors that
 //! > measure the temperature of an object without having to be in direct
@@ -9,11 +9,14 @@
 //! > view.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::common::cells::TakeCell;
 use kernel::common::math::{get_errno, sqrtf32};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x70001;
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
 
@@ -269,7 +272,12 @@ impl<'a> Client for TMP006<'a> {
 }
 
 impl<'a> Driver for TMP006<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // single temperature reading with callback
             0 => {
@@ -277,7 +285,7 @@ impl<'a> Driver for TMP006<'a> {
                 self.repeated_mode.set(false);
 
                 // set callback function
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
 
                 // enable sensor
                 //  turn up the sampling rate so we get the sample faster
@@ -292,7 +300,7 @@ impl<'a> Driver for TMP006<'a> {
                 self.repeated_mode.set(true);
 
                 // set callback function
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
 
                 // enable temperature sensor
                 self.enable_sensor(self.sampling_period.get());

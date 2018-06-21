@@ -25,8 +25,8 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x20005;
@@ -102,12 +102,17 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client,
 {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
             0 => self.apps
-                .enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

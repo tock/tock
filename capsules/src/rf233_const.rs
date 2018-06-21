@@ -1,4 +1,4 @@
-//! Support for the RF233 capsule.
+//! Support for the RF233 capsule
 
 #![allow(non_camel_case_types)]
 
@@ -94,7 +94,8 @@ pub const XAH_CTRL_0: u8 = 0;
 pub const CSMA_SEED_1: u8 = AACK_FVN_MODE;
 pub const TRX_RPC: u8 = 0xFF;
 pub const TRX_TRAC_MASK: u8 = 0xE0;
-pub const TRX_TRAC_SUCCESS_DATA_PENDING: u8 = 1;
+pub const TRX_TRAC_SUCCESS_DATA_PENDING: u8 = 1 << 5;
+pub const TRX_TRAC_CHANNEL_ACCESS_FAILURE: u8 = 3 << 5;
 
 // Default address settings.
 pub const PAN_ID_0: u8 = 0x22;

@@ -1,10 +1,11 @@
 //! Data structure for passing application memory to the kernel.
 
-use AppId;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::Unique;
 use core::slice;
+
+use callback::AppId;
 use process;
 
 #[derive(Debug)]
@@ -19,7 +20,7 @@ pub struct AppPtr<L, T> {
 }
 
 impl<L, T> AppPtr<L, T> {
-    pub unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
+    unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
         AppPtr {
             ptr: Unique::new_unchecked(ptr),
             process: appid,
@@ -61,10 +62,12 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    pub unsafe fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
-        AppSlice {
-            ptr: AppPtr::new(ptr, appid),
-            len: len,
+    pub(crate) fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
+        unsafe {
+            AppSlice {
+                ptr: AppPtr::new(ptr, appid),
+                len: len,
+            }
         }
     }
 

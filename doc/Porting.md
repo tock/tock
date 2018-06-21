@@ -114,9 +114,7 @@ include ../Makefile.common      # ../ assumes board lives in $(TOCK)/boards/<boa
 ```
 
 Tock provides `boards/Makefile.common` that drives most of the build system.
-This Makefile handles things such as automatically selecting the correct Rust
-nightly and driving [Xargo](https://github.com/japaric/xargo), a tool to build
-sysroots for non-standard architectures. In general, you should not need to
+In general, you should not need to
 dig into this Makefile -- if something doesn't seem to be working, hop on IRC
 and ask.
 
@@ -148,7 +146,7 @@ that explains how to program the board:
 ### Loading Apps
 
 You can create a custom
-[Makefile-app](https://github.com/helena-project/tock/blob/master/boards/imix/Makefile-app)
+[Makefile-app](https://github.com/tock/tock/blob/master/boards/imix/Makefile-app)
 and include the commands needed to program an app and kernels on your board.
 
 ### Common Pitfalls

@@ -10,8 +10,8 @@
 //! through each frame for transmission.
 
 use core::cell::Cell;
-use kernel::ReturnCode;
 use kernel::hil::radio;
+use kernel::ReturnCode;
 use net::ieee802154::{Header, MacAddress};
 
 pub trait Mac {

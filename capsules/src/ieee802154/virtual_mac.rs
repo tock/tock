@@ -28,9 +28,9 @@
 
 use core::cell::Cell;
 use ieee802154::{device, framer};
-use kernel::ReturnCode;
+use kernel::common::cells::MapCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::common::take_cell::MapCell;
+use kernel::ReturnCode;
 use net::ieee802154::*;
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences

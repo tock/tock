@@ -38,6 +38,8 @@
 //! While drivers do not handle the `yield` system call, it is important to
 //! understand its function and how it interacts with `subscribe`.
 
+use callback::{AppId, Callback};
+use mem::{AppSlice, Shared};
 use returncode::ReturnCode;
 
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
@@ -70,7 +72,7 @@ pub trait Driver {
     /// the magnitude of the return value of can signify extra information such
     /// as error type.
     #[allow(unused_variables)]
-    fn subscribe(&self, minor_num: usize, callback: ::Callback) -> ReturnCode {
+    fn subscribe(&self, minor_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 
@@ -90,7 +92,7 @@ pub trait Driver {
     /// side effects. This convention ensures that applications can query the
     /// kernel for supported drivers on a given platform.
     #[allow(unused_variables)]
-    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: ::AppId) -> ReturnCode {
+    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 
@@ -101,7 +103,12 @@ pub trait Driver {
     /// driver should not rely on the contents of the buffer to remain
     /// unchanged.
     #[allow(unused_variables)]
-    fn allow(&self, app: ::AppId, minor_num: usize, slice: ::AppSlice<::Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        app: AppId,
+        minor_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 }

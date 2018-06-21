@@ -1,43 +1,49 @@
-/// Implements AES-CCM* encryption/decryption/authentication using an underlying
-/// AES-CBC and AES-CTR implementation.
-// IEEE 802.15.4-2015: Appendix B.4.1, CCM* transformations. CCM* is
-// defined so that both encryption and decryption can be done by preparing two
-// fields: the AuthData and either the PlaintextData or the CiphertextData.
-// Then, two passes of AES are performed with one block of overlap.
+//! Implements AES-CCM* encryption/decryption/authentication using an underlying
+//! AES-CBC and AES-CTR implementation.
+//!
+//! IEEE 802.15.4-2015: Appendix B.4.1, CCM* transformations. CCM* is
+//! defined so that both encryption and decryption can be done by preparing two
+//! fields: the AuthData and either the PlaintextData or the CiphertextData.
+//! Then, two passes of AES are performed with one block of overlap.
+//!
+//! ```text
+//! crypt_buf: [ -------- AuthData -------- | -------- PData/CData -------- ]
+//! aes_cbc:    \__________________________/
+//! aes_ctr:                        \ 1 blk | _____________________________/
+//! ```
+//!
+//! The overlapping block is then the encrypted authentication tag U. For
+//! encryption, we append U to the data as a message integrity code (MIC).
+//! For decryption, we compare U with the provided MIC.
 //
-// crypt_buf: [ -------- AuthData -------- | -------- PData/CData -------- ]
-// aes_cbc:    \__________________________/
-// aes_ctr:                        \ 1 blk | _____________________________/
-//
-// The overlapping block is then the encrypted authentication tag U. For
-// encryption, we append U to the data as a message integrity code (MIC).
-// For decryption, we compare U with the provided MIC.
-//
-// This is true only if data confidentiality is not needed. If it is, then
-// the AuthData includes the PlaintextData. At encryption, we perform CBC over
-// both fields, then copy the last block to just before the PData. Then,
-// CTR mode is performed over the same overlapping region, forming the encrypted
-// authentication tag U.
-//
-// crypt_buf: [ -------- AuthData -------- | -------- PData/CData -------- ]
-// aes_cbc:    \__________________________________________________________/
-// aes_ctr:                        \ 1 blk | _____________________________/
-//
-// At decryption, there is no choice but the reverse the order of operations.
-// First, we zero out the overlapping block and perform ctr over it and the
-// PlaintextData. This produces Enc(Key, A_i), which we save in saved_tag.
-// Then, we restore the previous value of the last block of AuthData and re-pad
-// PlaintextData before running CBC over both fields. The last step is to
-// combine saved_tag and the unencrypted tag to form the encrypted tag and
-// verify its correctness.
+//! This is true only if data confidentiality is not needed. If it is, then
+//! the AuthData includes the PlaintextData. At encryption, we perform CBC over
+//! both fields, then copy the last block to just before the PData. Then,
+//! CTR mode is performed over the same overlapping region, forming the encrypted
+//! authentication tag U.
+//!
+//! ```text
+//! crypt_buf: [ -------- AuthData -------- | -------- PData/CData -------- ]
+//! aes_cbc:    \__________________________________________________________/
+//! aes_ctr:                        \ 1 blk | _____________________________/
+//! ```
+//!
+//! At decryption, there is no choice but the reverse the order of operations.
+//! First, we zero out the overlapping block and perform ctr over it and the
+//! PlaintextData. This produces Enc(Key, A_i), which we save in saved_tag.
+//! Then, we restore the previous value of the last block of AuthData and re-pad
+//! PlaintextData before running CBC over both fields. The last step is to
+//! combine saved_tag and the unencrypted tag to form the encrypted tag and
+//! verify its correctness.
+
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr};
-use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, CCM_NONCE_LENGTH};
-use net::stream::{encode_bytes, encode_u16};
+use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
+                                        AES128_KEY_SIZE, CCM_NONCE_LENGTH};
+use kernel::ReturnCode;
 use net::stream::SResult;
+use net::stream::{encode_bytes, encode_u16};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CCMState {
@@ -59,7 +65,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
 
     buf: TakeCell<'static, [u8]>,
     pos: Cell<(usize, usize, usize, usize)>,
-    key: Cell<[u8; AES128_BLOCK_SIZE]>,
+    key: Cell<[u8; AES128_KEY_SIZE]>,
     nonce: Cell<[u8; CCM_NONCE_LENGTH]>,
     saved_tag: Cell<[u8; AES128_BLOCK_SIZE]>,
 }
@@ -119,7 +125,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         })
     }
 
-    /// This function encudes AuthData (a_data) and PData/CData (m_data) into a
+    /// This function encodes AuthData (a_data) and PData/CData (m_data) into a
     /// buffer, along with the prerequisite metadata/padding bytes. On success,
     /// `auth_len` (the length of the AuthData field) and `enc_len` (the
     /// combined length of AuthData and PData/CData) are returned. `auth_len` is
@@ -393,16 +399,17 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES128CCM<'a>
-    for AES128CCM<'a, A> {
+    for AES128CCM<'a, A>
+{
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
         self.crypt_client.set(Some(client));
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        if key.len() < AES128_BLOCK_SIZE {
+        if key.len() < AES128_KEY_SIZE {
             ReturnCode::EINVAL
         } else {
-            let mut new_key = [0u8; AES128_BLOCK_SIZE];
+            let mut new_key = [0u8; AES128_KEY_SIZE];
             new_key.copy_from_slice(key);
             self.key.set(new_key);
             ReturnCode::SUCCESS
@@ -470,7 +477,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
-    for AES128CCM<'a, A> {
+    for AES128CCM<'a, A>
+{
     fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {

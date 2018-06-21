@@ -1,6 +1,6 @@
 //! Driver for the FM25CL FRAM chip.
 //!
-//! http://www.cypress.com/part/fm25cl64b-dg
+//! <http://www.cypress.com/part/fm25cl64b-dg>
 //!
 //! From the FM25CL website:
 //!
@@ -29,6 +29,7 @@
 //! ```
 //!
 //! This capsule provides two interfaces:
+//!
 //! - `hil::nonvolatile_storage::NonvolatileStorage`
 //! - `FM25CLCustom`
 //!
@@ -39,9 +40,9 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
 pub static mut RXBUFFER: [u8; 512] = [0; 512];
@@ -291,7 +292,8 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLCustom for FM25CL<'a, S> {
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::nonvolatile_storage::NonvolatileStorage
-    for FM25CL<'a, S> {
+    for FM25CL<'a, S>
+{
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(Some(client));
     }

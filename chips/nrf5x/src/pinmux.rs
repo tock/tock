@@ -5,7 +5,7 @@
 //! configuration should create `Pinmux`s and pass them into controller drivers
 //! during initialization.
 
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 // Keep track of which pins has a `Pinmux` been created for.
 static mut USED_PINS: VolatileCell<u32> = VolatileCell::new(0);
@@ -30,5 +30,11 @@ impl Pinmux {
             USED_PINS.set(used_pins | 1 << pin);
             Pinmux(pin)
         }
+    }
+}
+
+impl Into<u32> for Pinmux {
+    fn into(self) -> u32 {
+        self.0
     }
 }

@@ -1,31 +1,24 @@
-[root]
-name = "sam4l"
+[[package]]
+name = "cortexm"
 version = "0.1.0"
-dependencies = [
- "cortexm4 0.1.0",
- "kernel 0.1.0",
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "cortexm4"
 version = "0.1.0"
 dependencies = [
+ "cortexm 0.1.0",
  "kernel 0.1.0",
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "kernel"
 version = "0.1.0"
-dependencies = [
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
-name = "rust-libcore"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+name = "sam4l"
+version = "0.1.0"
+dependencies = [
+ "cortexm4 0.1.0",
+ "kernel 0.1.0",
+]
 
-[metadata]
-"checksum rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ae7a33830cc02d03ae1e50057d0e4e4b1a84be09bfb158bf95e9c3f3373aa453"

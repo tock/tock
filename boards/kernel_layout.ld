@@ -27,10 +27,21 @@
  *    The `_sapps` symbol marks the beginning of application memory in flash.
  */
 
+
+/*
+ * CCFG - Customer Configuration
+ *
+ * Chip specific to TI family chips. It is a configuration area
+ * needed to validate the image - otherwise it is not possible to boot.
+ */
+CCFG_ORIGIN = DEFINED(CCFG_ORIGIN) ? CCFG_ORIGIN : 0;
+CCFG_LENGTH = DEFINED(CCFG_LENGTH) ? CCFG_LENGTH : 0;
+
 MEMORY
 {
   rom (rx)  : ORIGIN =  ROM_ORIGIN, LENGTH =  ROM_LENGTH
   prog (rx) : ORIGIN = PROG_ORIGIN, LENGTH = PROG_LENGTH
+  ccfg (rx) : ORIGIN = CCFG_ORIGIN, LENGTH = CCFG_LENGTH
   ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
 }
 
@@ -146,6 +157,7 @@ SECTIONS
       _sstorage = .;
       *(.storage* storage*)
       _estorage = .;
+      . = ALIGN(512);
     } > rom
     . = ALIGN(512);
 
@@ -155,7 +167,13 @@ SECTIONS
     _textend = .;   /* alias for _etext expected by some MS toolchains */
 
 
-
+    /* Customer configuration is most often located
+     * at the end of the rom. It is conditional, and won't
+     * be written if not specified in the board specific linker
+     * file. */
+    .ccfg : {
+        KEEP(*(.ccfg))
+    } > ccfg
 
 
     /* STATIC ELEMENTS FOR TOCK APPLICATIONS */
@@ -172,34 +190,13 @@ SECTIONS
 
 
 
-    /* Kernel data that must be relocated. This is program data that is
-     * exepected to live in SRAM, but is initialized with a value. This data is
-     * physically placed into flash and is copied into SRAM by Tock. The
-     * symbols here will be defined with addresses in SRAM.
-     *
-     * Tock assumes the relocation section follows all static elements and will
-     * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
-     */
-    .relocate : AT (_etext)
-    {
-        . = ALIGN(4);
-        _srelocate = .;
-        *(.ramfunc .ramfunc.*);
-        *(.data .data.*);
-
-        . = ALIGN(4);
-        _erelocate = .;
-    } > ram
-
-
-
-
-    .sram (NOLOAD) :
+    .stack (NOLOAD) :
     {
         /* Kernel stack.
          *
-         * To keep all kernel memory contiguous (eases MPU protection of kernel
-         * data), Tock next places its own stack into SRAM.
+         * Tock places the kernel stack at the bottom of SRAM so that the
+         * kernel will trigger memory fault if it exceeds its stack depth,
+         * rather than silently overwriting valuable data.
          */
         . = ALIGN(8);
          _sstack = .;
@@ -208,9 +205,34 @@ SECTIONS
 
         . = ALIGN(8);
         _estack = .;
+    } > ram
 
 
 
+    /* Kernel data that must be relocated. This is program data that is
+     * expected to live in SRAM, but is initialized with a value. This data is
+     * physically placed into flash and is copied into SRAM by Tock. The
+     * symbols here will be defined with addresses in SRAM.
+     *
+     * Tock assumes the relocation section follows all static elements and will
+     * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
+     */
+    .relocate :
+    {
+        . = ALIGN(4);
+        _srelocate = .;
+        *(.ramfunc .ramfunc.*);
+        *(.data .data.*);
+
+        . = ALIGN(4);
+        _erelocate = .;
+    } > ram AT > rom
+
+
+
+
+    .sram (NOLOAD) :
+    {
         /* Kernel BSS section. Memory that is expected to be initialized to
          * zero.
          *

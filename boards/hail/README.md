@@ -17,7 +17,8 @@ Getting Started with Hail
 In addition to the Hail hardware, you will need a Micro USB Cable to power the
 Hail. Any cable will do ([here's what's on my desk](https://www.amazon.com/StarTech-com-Inch-Micro-USB-Cable/dp/B003YKX6WM/)).
 
-Hail should come with the Tock kernel and [the Hail test app](../../userland/examples/tests/hail/)
+Hail should come with the Tock kernel and
+[the Hail test app](https://github.com/tock/libtock-c/tree/master/examples/tests/hail)
 pre-loaded. When you plug in Hail, the blue LED should blink slowly (about once
 per second). Pressing the User Button&mdash;just to the right of the USB
 plug&mdash;should turn on the green LED.
@@ -76,27 +77,22 @@ step).
 
 Let's replace the `hail` test app with the basic `blink` application:
 
-1. Head over to the [blink folder](../../userland/examples/blink/)
-
-    `$ cd tock/userland/examples/blink`
-
 2. Start with a clean slate
 
     `$ tockloader erase-apps`
 
-3. Build blink
+3. Use tockloader to load a compiled version of the blink app
 
-    `$ make`
-
-4. Install the blink app
-
-    `$ tockloader install`
+    `$ tockloader install blink`
 
 The `blink` app will detect that Hail has three LED channels and rotate through
 all eight colors.
 
 
 ### Modifying Blink
+
+The source to blink is in the
+[libtock-c](https://github.com/tock/libtock-c/tree/master/examples/blink) repo.
 
 The stock blink app cycles a little fast for my taste. It also doesn't print
 anything about what it's doing. Let's fix that. Open `main.c` and:
@@ -105,17 +101,19 @@ anything about what it's doing. Let's fix that. Open `main.c` and:
   * Add a `printf("Hello from the Blink app!\n");` to the beginning of the
     program (also `#include <stdio.h>`)
 
-Now run `make program`. This convenience target will automatically rebuild your
-application and then call `tockloader install` to install it on Hail.
+Now run `make` and `tockloader install --make`. This will automatically rebuild
+your application and then install it on Hail.
 
 
 ### Loading another application
 
 One of the big advantages of Tock over traditional embedded operating systems is
-that it can run multiple applications concurrently. Let's head back down into the
-examples directory and install (`make && tockloader install`) the
-[c_hello](../../userland/examples/c_hello) application. While we're at it,
-let's install [cxx_hello](../../userland/examples/cxx_hello) as well.
+that it can run multiple applications concurrently. Let's head back down into
+the examples directory and install (`make && tockloader install`) the
+[c_hello](https://github.com/tock/libtock-c/tree/master/examples/c_hello)
+application. While we're at it, let's install
+[cxx_hello](https://github.com/tock/libtock-c/tree/master/examples/cxx_hello) as
+well.
 
 Now try running `tockloader listen` &ndash; three apps running at once, cool!
 
@@ -124,13 +122,15 @@ Now try running `tockloader listen` &ndash; three apps running at once, cool!
 
 There are a few more advanced sample applications that are worth checking out:
 
-  * [accel-leds](../../userland/examples/accel-leds) changes LED color based on
-    the board's orientation
-  * [ble-env-sense](../../userland/examples/ble-env-sense) shows how to
-    integrate with the onboard Bluetooth to act as an environmental sensor
-  * [find_north](../../userland/examples/find-north) acts as a simple compass,
-    turning the LED on when the board is pointed north (the magnetometer tends
-    to get confused in large buildings, best tried outdoors)
+  * [accel-leds](https://github.com/tock/libtock-c/tree/master/examples/accel-leds)
+    changes LED color based on the board's orientation
+  * [ble-env-sense](https://github.com/tock/libtock-c/tree/master/examples/services/ble-env-sense)
+    shows how to integrate with the onboard Bluetooth to act as an environmental
+    sensor
+  * [find_north](https://github.com/tock/libtock-c/tree/master/examples/find_north)
+    acts as a simple compass, turning the LED on when the board is pointed north
+    (the magnetometer tends to get confused in large buildings, best tried
+    outdoors)
 
 
 ### Writing a new app
@@ -159,6 +159,14 @@ cd tock/boards/hail
 make program
 ```
 
+### Debugging the Kernel
+
+You can use gdb to debug a running kernel. The `jlink/` folder has some scripts
+designed to work with the [J-Link Debugger](https://www.segger.com/products/debug-probes/j-link/).
+In one terminal run `jlink_gdbserver.sh`, and in another terminal `./gdb_session.sh`.
+
+You may also find the `make lst` target helpful. It will generate a listings file
+with disassembly of the kernel image at `target/thumbv7em-none-eabi/release/hail.lst`.
 
 
-[tockloader]: https://github.com/helena-project/tockloader
+[tockloader]: https://github.com/tock/tockloader

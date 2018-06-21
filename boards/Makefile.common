@@ -5,14 +5,11 @@ MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-export RUSTUP_TOOLCHAIN ?= nightly-2018-01-05
-
 TOOLCHAIN ?= arm-none-eabi
 
-XARGO ?= xargo
-MINIMUM_XARGO_VERSION ?= 0.3.8
+CARGO ?= cargo
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
-RUSTFLAGS_FOR_XARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
+RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
 
 CC        := $(TOOLCHAIN)-gcc
 SIZE      ?= $(TOOLCHAIN)-size
@@ -20,9 +17,22 @@ OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
 OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
-ifndef PLATFORM
-$(error Required make vairable PLATFORM is not defined)
-endif
+# http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
+# Check that given variables are set and all have non-empty values,
+# die with an error otherwise.
+#
+# Params:
+#   1. Variable name(s) to test.
+#   2. (optional) Error message to print.
+check_defined = \
+    $(strip $(foreach 1,$1, \
+        $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+      $(error Undefined $1$(if $2, ($2))))
+
+
+$(call check_defined, PLATFORM)
 
 # If environment variable V is non-empty, be verbose
 ifneq ($(V),)
@@ -54,41 +64,21 @@ else
   endif
 endif
 
-
-# Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.24.0-nightly (8e7a609e6 2018-01-04)
-ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
-  DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
-  ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
-    $(warning You do not have the correct version of `rustc` configured, and `rustup` is not installed.)
-    $(warning Expected `rustc` version "$(RUSTC_VERSION_STRING)" but got "$(shell rustc --version)")
-    $(warning You may experience unexpected compilation warnings or errors)
-    $(warning To fix, install `rustup` from https://rustup.rs/, then run: `rustup install $(RUSTUP_TOOLCHAIN)`)
-  endif
+# Validate that rustup is new enough
+MINIMUM_RUSTUP_VERSION := 1.11.0
+RUSTUP_VERSION := $(strip $(word 2, $(shell rustup --version)))
+ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+  $(warning Required tool `rustup` is out-of-date.)
+  $(warning Running `rustup update` in 3 seconds (ctrl-c to cancel))
+  $(shell sleep 3s)
+  DUMMY := $(shell rustup update)
 endif
 
-ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component list | grep rust-src),rust-src (installed))
-  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component add rust-src)
+ifneq ($(shell rustup component list | grep rust-src),rust-src (installed))
+  $(shell rustup component add rust-src)
 endif
-
-# Check that xargo is installed and up-to-date
-XARGO_CALL := $(shell $(XARGO) --version 2>&1)
-XARGO_NAME := $(strip $(firstword $(XARGO_CALL)))
-XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
-ifneq ($(XARGO_NAME), xargo)
-  $(warning Required tool `xargo` not installed.)
-  $(warning Running `cargo install xargo` in 3 seconds (ctrl-c to cancel))
-  $(shell sleep 3s)
-  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install xargo)
-  XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
-else ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(XARGO_VERSION) \< $(MINIMUM_XARGO_VERSION)), true)
-  $(warning Required tool `xargo` is out-of-date.)
-  $(warning Running `cargo install cargo-update` and `cargo install-update xargo` in 3 seconds (ctrl-c to cancel))
-  $(shell sleep 3s)
-  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install cargo-update)
-  XARGO_UPDATE_RESULT := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install-update xargo))
-  $(info $(XARGO_UPDATE_RESULT))
-  XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
+ifneq ($(shell rustup target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
+  $(shell rustup target add $(TARGET))
 endif
 
 # Dump configuration for verbose builds
@@ -101,8 +91,6 @@ ifneq ($(V),)
   $(info MAKEFLAGS=$(MAKEFLAGS))
   $(info OBJCOPY=$(OBJCOPY))
   $(info PLATFORM=$(PLATFORM))
-  $(info RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN))
-  $(info XARGO_VERSION=$(XARGO_VERSION))
   $(info TARGET=$(TARGET))
   $(info TOCK_KERNEL_VERSION=$(TOCK_KERNEL_VERSION))
   $(info TOOLCHAIN=$(TOOLCHAIN))
@@ -114,24 +102,23 @@ ifneq ($(V),)
 endif
 
 .PHONY: all
-all:	target/$(TARGET)/release/$(PLATFORM).bin
+all: target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: lst
-lst:	target/$(TARGET)/release/$(PLATFORM).lst
+lst: target/$(TARGET)/release/$(PLATFORM).lst
 
 .PHONY: debug
-debug:	target/$(TARGET)/debug/$(PLATFORM).bin
+debug: target/$(TARGET)/debug/$(PLATFORM).bin
+
+.PHONY: debug-lst
+debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
 
 target:
 	@mkdir -p target
 
 .PHONY: doc
 doc: | target
-	@# Need to make a wrapper script so we can pass flags to `rustdoc`.
-	@# This allows us to tell rustdoc to document internal functions and fields.
-	$(Q)printf '#!/bin/bash\nexec rustdoc $$@ --no-defaults --passes "collapse-docs" --passes "unindent-comments"\n' > target/rustdoc
-	$(Q)chmod +x target/rustdoc
-	$(Q)RUSTDOC=target/rustdoc $(XARGO) doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
 target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
 	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
@@ -141,16 +128,18 @@ target/$(TARGET)/release/$(PLATFORM).lst: target/$(TARGET)/release/$(PLATFORM).e
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) build --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
 
 target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
 	$(Q)cp target/$(TARGET)/debug/$(PLATFORM) target/$(TARGET)/debug/$(PLATFORM).elf
 
+target/$(TARGET)/debug/$(PLATFORM).lst: target/$(TARGET)/debug/$(PLATFORM).elf
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/debug/$(PLATFORM).lst
+
 .PHONY: target/$(TARGET)/debug/$(PLATFORM)
 target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) build $(VERBOSE) --target=$(TARGET)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(TARGET)/debug/$(PLATFORM).lst
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build $(VERBOSE) --target=$(TARGET)
 	$(Q)$(SIZE) $@
 
 target/$(TARGET)/release/$(PLATFORM).hex: target/$(TARGET)/release/$(PLATFORM).elf
@@ -169,11 +158,11 @@ target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) check --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
 
 .PHONY: clean
 clean::
-	$(Q)$(XARGO) clean $(VERBOSE)
+	$(Q)$(CARGO) clean $(VERBOSE)
 
 .PHONY: debug
 debug: target/$(TARGET)/debug/$(PLATFORM).elf

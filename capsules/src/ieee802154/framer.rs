@@ -27,6 +27,7 @@
 //!
 //! The `mac_device` device is now set up. Users of the MAC device can now
 //! configure the underlying radio, prepare and send frames:
+//!
 //! ```rust
 //! mac_device.set_pan(0xABCD);
 //! mac_device.set_address(0x1008);
@@ -51,6 +52,7 @@
 //!
 //! You should also be able to set up the userspace driver for receiving/sending
 //! 802.15.4 frames:
+//!
 //! ```rust
 //! let radio_capsule = static_init!(
 //!     capsules::ieee802154::RadioDriver<'static>,
@@ -70,13 +72,13 @@
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, RxClient, TxClient};
 use ieee802154::mac::Mac;
-use kernel::ReturnCode;
-use kernel::common::take_cell::MapCell;
+use kernel::common::cells::MapCell;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
+use kernel::ReturnCode;
 use net::ieee802154::*;
-use net::stream::{encode_bytes, encode_u32, encode_u8};
 use net::stream::SResult;
+use net::stream::{encode_bytes, encode_u32, encode_u8};
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for
@@ -89,8 +91,10 @@ pub struct Frame {
 }
 
 /// This contains just enough information about a frame to determine
+///
 /// 1. How to encode it once its payload has been finalized
 /// 2. The sizes of the mac header, payload and MIC tag length to be added
+///
 /// These offsets are relative to the PSDU or `buf[radio::PSDU_OFFSET..]` so
 /// that the mac frame length is `data_offset + data_len`
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -207,6 +211,7 @@ fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel
 
 /// The needed buffer size might be bigger than an MTU, because
 /// the CCM* authentication procedure
+///
 /// - adds an extra 16-byte block in front of the a and m data
 /// - prefixes the a data with a length encoding and pads the result
 /// - pads the m data to 16-byte blocks
@@ -240,10 +245,11 @@ pub trait DeviceProcedure {
 /// Conditionally-present state is also included as fields in the enum variants.
 /// We can view the transmission process as a state machine driven by the
 /// following events:
+///
 /// - calls to `Mac#transmit`
 /// - `send_done` callbacks from the underlying radio
 /// - `config_done` callbacks from the underlying radio (if, for example,
-/// configuration was in progress when a transmission was requested)
+///   configuration was in progress when a transmission was requested)
 #[derive(Eq, PartialEq, Debug)]
 enum TxState {
     /// There is no frame to be transmitted.
@@ -727,7 +733,7 @@ impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a> for Framer<'a, M, A> 
             frame_pending: false,
             // Unicast data frames request acknowledgement
             ack_requested: true,
-            version: FrameVersion::V2015,
+            version: FrameVersion::V2006,
             seq: Some(self.data_sequence.get()),
             dst_pan: Some(dst_pan),
             dst_addr: Some(dst_addr),

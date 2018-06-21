@@ -1,10 +1,11 @@
 //! Test the AES hardware
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
-use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
+                                        AES128_KEY_SIZE};
+use kernel::ReturnCode;
 
 pub struct TestAes128Ctr<'a, A: 'a> {
     aes: &'a A,
@@ -325,7 +326,7 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-const KEY: [u8; AES128_BLOCK_SIZE] = [
+const KEY: [u8; AES128_KEY_SIZE] = [
     0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
     0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
 ];

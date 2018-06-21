@@ -4,8 +4,8 @@
 //! users. `I2CDevice` provides access to a specific I2C address.
 
 use core::cell::Cell;
+use kernel::common::cells::TakeCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
 
 pub struct MuxI2C<'a> {

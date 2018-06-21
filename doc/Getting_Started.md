@@ -6,16 +6,38 @@ developing Tock.
 
 ## Requirements
 
-1. [Rust](http://www.rust-lang.org/) (install `rustup` so Tock will choose the right version automatically)
-2. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
+1. [Rust](http://www.rust-lang.org/)
+2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
 3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 4. Command line utilities: wget, sed, make, cmake
 
+### Super Quick Setup
+
+MacOS:
+```
+$ curl https://sh.rustup.rs -sSf | sh
+$ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
+$ pip3 install tockloader
+```
+
+Ubuntu:
+```
+$ curl https://sh.rustup.rs -sSf | sh
+$ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
+$ pip3 install tockloader --user
+$ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
+```
+
+Then build the kernel by running `make` in the `boards/<platform>` directory.
+
 ### Installing Requirements
+
+These steps go into a little more depth. Note that the build system is capable
+of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `rustc 1.24.0-nightly (8e7a609e6 2018-01-04)`. We recommend
+We are using `nightly-2018-04-19`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -30,17 +52,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2018-01-05
-```
-
-#### Xargo
-
-Rust core libraries for ARM Cortex-M target do not come with `rustup` by
-default, so we use [`xargo`](https://github.com/japaric/xargo), a wrapper
-around `cargo`, which compiles these libraries.
-
-```bash
-$ cargo install xargo
+$ rustup install nightly-2018-04-19
 ```
 
 #### `arm-none-eabi` toolchain
@@ -52,8 +64,6 @@ There are known issues with arm-none-eabi-gcc version 5.1 and older, or other
 versions packaged with a newlib version earlier than 2.3, as they will run into
 problems with missing ARM intrinsics (e.g., `__aeabi_memclr`). Tock does not
 support these versions.
-
-##### Compiled Binaries
 
 Pre-compiled binaries are available [from
 ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
@@ -123,6 +133,23 @@ Alternatively, if you would like simulator mode in `arm-none-eabi-gdb`,
 you can use the build scripts in the `tools` directory, in this order:
 `build-arm-binutils` then `build-arm-gcc` then `build-arm-gdb`.
 
+#### Tockloader
+
+`tockloader` programs the kernel and applications on to boards, and also has
+features that are generally useful to all Tock boards, such as easy to manage
+serial connections, and the ability to list, add, replace, and remove
+applications over JTAG (or USB if a bootloader is installed).
+
+1. [tockloader](https://github.com/tock/tockloader) (version >= 1.0)
+
+Tockloader is a Python application and can be installed with the Python
+package manager (pip).
+
+```bash
+(Linux): sudo pip3 install tockloader
+(MacOS): pip3 install tockloader
+```
+
 ## Compiling the Kernel
 
 Tock builds a unique kernel for every _board_ it supports. Boards include
@@ -144,10 +171,10 @@ The READMEs in each board provide more details for each platform.
 
 ## Compiling applications
 
-All user-level code lives in the `userland` subdirectory. This
-includes a specially compiled version of newlib, a user-level library
-for talking to the kernel and specific drivers and a variety of
-example applications.
+All user-level code lives in separate repositories:
+
+- [libtock-c](https://github.com/tock/libtock-c): C and C++ apps.
+- [libtock-rs](https://github.com/tock/libtock-rs): Rust apps.
 
 Compiled applications are architecture-specific (e.g. `cortex-m4`,
 `cortex-m0`) since the compiler emits slightly different instructions
@@ -156,47 +183,31 @@ drivers, which not all boards provide; if you load an application onto
 a board that does not support every driver/system call it uses, some
 system calls with return error codes (`ENODEVICE` or `ENOSUPPORT`).
 
-Applications are built for all architectures Tock supports, currently
-`cortex-m0` and `cortex-m4`. Boards select an appropriate architecture when
-uploading code (e.g. `cortex-m4` for the SAM4L on the `imix` board).
-
-To compile an app, `cd` to the desired app and `make`. For example:
-
-```bash
-$ cd userland/examples/blink/
-$ make
-```
-
-This will build the app and generate a binary in Tock Binary Format
-(using the `elf2tbf` utility):
-`userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
+Applications are built for all architectures Tock supports. Boards select an
+appropriate architecture when uploading code (e.g. `cortex-m4` for the SAM4L on
+the `imix` board). Apps are packaged into .tab files that contain compiled
+binaries for all supported architectures.
 
 ## Loading the kernel and applications onto a board
 
+To load a kernel onto a board using a serial bootloader, run
+
+    $ make program
+
+in the board's directory. To load the kernel using JTAG, run
+
+    $ make flash
+
+Tockloader can help with installing a test app. For example, to install
+the `blink` app, simply run:
+
+    $ tockloader install blink
+
+This will fetch it from the TockOS app repository and load it to the board.
+
 ### Optional Requirements
 
-For some boards, currently `Hail` and `imix`, you will need `tockloader`.
-`tockloader` also has features that are generally useful to all Tock boards,
-such as easy to manage serial connections, and the ability to list, add,
-replace, and remove applications over JTAG (or USB if a bootloader is
-installed).
-
-1. [tockloader](https://github.com/helena-project/tockloader) (version >= 0.8)
-
-Installing applications over JTAG, depending on your JTAG Debugger, you will
-need one of:
-
-1. [openocd](http://openocd.org/) (version >= 0.8.0)
-2. [JLinkExe](https://www.segger.com/downloads/jlink) (version >= 5.0)
-
-#### `tockloader`
-
-Tock requires `tockloader`. To install:
-
-```bash
-(Linux): sudo pip3 install tockloader
-(MacOS): pip3 install tockloader
-```
+Some boards in Tock support other tools to load code and debug.
 
 #### `openocd`
 
@@ -222,23 +233,22 @@ depending on operating system.
 
 This is generally done with `make program` and `make flash`, but is board
 specific. To learn how to program your specific hardware, please see
-the board specific READMEs:
-
-* [imix](../boards/imix/README.md)
-* [Hail](../boards/hail/README.md)
-* [nRF51-DK](../boards/nrf51dk/README.md)
-* [nRF52-DK](../boards/nrf52dk/README.md)
+the [board specific](../boards/README.md) READMEs.
 
 
-## Formatting Rust Source Code
+## Formatting Rust source code
 
 Rust includes a tool for automatically formatting Rust source
-code. This requires a `cargo` tool:
-
-    $ cargo install rustfmt
-
-Then run:
+code. Simply run:
 
     $ make format
 
-to format the repository.
+from the root of the repository to format all rust code in the repository.
+
+## Keeping build tools up to date
+
+Occasionally, Tock updates to a new nightly version of Rust. The build system
+automatically checks whether the versions of `rustc` and `rustup` are correct
+for the build requirements, and updates them when necessary. After initial
+installation of the initial four requirements, you shouldn't have to worry
+about keeping them up to date.

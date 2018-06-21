@@ -6,13 +6,21 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio)]
+#[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
+extern crate cortexm;
 
 pub mod mpu;
-pub mod nvic;
-pub mod systick;
-pub mod scb;
+
+// Re-export the base generic cortex-m functions here as they are
+// valid on cortex-m4.
+pub mod support {
+    pub use cortexm::support::*;
+}
+
+pub use cortexm::nvic;
+pub use cortexm::scb;
+pub use cortexm::systick;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}
@@ -22,24 +30,23 @@ pub unsafe extern "C" fn systick_handler() {}
 pub unsafe extern "C" fn systick_handler() {
     asm!(
         "
-        /* Skip saving process state if not coming from user-space */
-        cmp lr, #0xfffffffd
-        bne _systick_handler_no_stacking
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _systick_handler_no_stacking
 
-        /* We need the most recent kernel's version of r1, which points */
-        /* to the Process struct's stored registers field. The kernel's r1 */
-        /* lives in the second word of the hardware stacked registers on MSP */
-        mov r1, sp
-        ldr r1, [r1, #4]
-        stmia r1, {r4-r11}
-    _systick_handler_no_stacking:
-        /* Set thread mode to privileged */
-        mov r0, #0
-        msr CONTROL, r0
+    /* We need the most recent kernel's version of r1, which points */
+    /* to the Process struct's stored registers field. The kernel's r1 */
+    /* lives in the second word of the hardware stacked registers on MSP */
+    mov r1, sp
+    ldr r1, [r1, #4]
+    stmia r1, {r4-r11}
+  _systick_handler_no_stacking:
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
 
-        movw LR, #0xFFF9
-        movt LR, #0xFFFF
-         "
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF"
     );
 }
 
@@ -69,7 +76,7 @@ pub unsafe extern "C" fn generic_isr() {
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-_ggeneric_isr_no_stacking:
+  _ggeneric_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
@@ -80,12 +87,12 @@ _ggeneric_isr_no_stacking:
      * High level:
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
-	lsrs	r2, r0, #5 /* r2 = r0 / 32 */
+    lsrs r2, r0, #5 /* r2 = r0 / 32 */
 
     /* r0 = 1 << (r0 & 31) */
-	movs r3, #1        /* r3 = 1 */
-	and	r0, r0, #31    /* r0 = r0 & 31 */
-	lsl	r0, r3, r0     /* r0 = r3 << r0 */
+    movs r3, #1        /* r3 = 1 */
+    and r0, r0, #31    /* r0 = r0 & 31 */
+    lsl r0, r3, r0     /* r0 = r3 << r0 */
 
     /* r3 = &NVIC.ICER */
     mov r3, #0xe180
@@ -102,41 +109,39 @@ _ggeneric_isr_no_stacking:
      *  `*(r3 + r2 * 4) = r0`
      *
      *  */
-	str	r0, [r3, r2, lsl #2]"
+    str r0, [r3, r2, lsl #2]"
     );
 }
 
 #[cfg(not(target_os = "none"))]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {}
+pub unsafe extern "C" fn svc_handler() {}
 
 #[cfg(target_os = "none")]
 #[naked]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {
+pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
-  cmp lr, #0xfffffff9
-  bne to_kernel
+    cmp lr, #0xfffffff9
+    bne to_kernel
 
-  /* Set thread mode to unprivileged */
-  mov r0, #1
-  msr CONTROL, r0
+    /* Set thread mode to unprivileged */
+    mov r0, #1
+    msr CONTROL, r0
 
-  movw lr, #0xfffd
-  movt lr, #0xffff
-  bx lr
-to_kernel:
-  ldr r0, =SYSCALL_FIRED
-  mov r1, #1
-  str r1, [r0, #0]
+    movw lr, #0xfffd
+    movt lr, #0xffff
+    bx lr
+  to_kernel:
+    ldr r0, =SYSCALL_FIRED
+    mov r1, #1
+    str r1, [r0, #0]
 
-  /* Set thread mode to privileged */
-  mov r0, #0
-  msr CONTROL, r0
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
 
-  movw LR, #0xFFF9
-  movt LR, #0xFFFF"
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF"
     );
 }
 
@@ -172,4 +177,26 @@ pub unsafe extern "C" fn switch_to_user(
     : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
+}
+
+// Table 2.5
+// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
+pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
+    match isr_number {
+        0 => "Thread Mode",
+        1 => "Reserved",
+        2 => "NMI",
+        3 => "HardFault",
+        4 => "MemManage",
+        5 => "BusFault",
+        6 => "UsageFault",
+        7...10 => "Reserved",
+        11 => "SVCall",
+        12 => "Reserved for Debug",
+        13 => "Reserved",
+        14 => "PendSV",
+        15 => "SysTick",
+        16...255 => "IRQn",
+        _ => "(Unknown! Illegal value?)",
+    }
 }

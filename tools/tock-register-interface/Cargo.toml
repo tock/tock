@@ -1,0 +1,7 @@
+[package]
+name = "tock-regs"
+version = "0.1.0"
+description = "Register interface used for Tock"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]

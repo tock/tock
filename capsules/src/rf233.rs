@@ -15,15 +15,14 @@
 // Date: Jan 12 2017
 //
 
-// I like them sometimes, for formatting -pal
 #![allow(unused_parens)]
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
+use kernel::ReturnCode;
 use rf233_const::*;
 
 const INTERRUPT_ID: usize = 0x2154;
@@ -124,12 +123,15 @@ enum InternalState {
     // received but not the rest of the packet yet.
     RX,
     // The packet has been successfully received
+    RX_TURNING_OFF,       // Disabling packet reception
+    RX_READY_TO_READ,     // Reception disabled, handle interrupt and start reading
     RX_START_READING,     // Starting to read a packet out of the radio
     RX_READING_FRAME_LEN, // We've read the length of the frame
     RX_READING_FRAME_LEN_DONE,
     RX_READING_FRAME,      // Reading the packet out of the radio
     RX_READING_FRAME_DONE, // Now read a register to verify FCS
     RX_READING_FRAME_FCS_DONE,
+    RX_ENABLING_RECEPTION, // Re-enabling reception
 }
 
 // There are two tricky parts to this capsule: buffer management
@@ -180,6 +182,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     transmitting: Cell<bool>,
     receiving: Cell<bool>,
     spi_busy: Cell<bool>,
+    crc_valid: Cell<bool>,
     interrupt_handling: Cell<bool>,
     interrupt_pending: Cell<bool>,
     config_pending: Cell<bool>,
@@ -265,6 +268,9 @@ fn interrupt_included(mask: u8, interrupt: u8) -> bool {
 }
 
 impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
+    // This function is a bit confusing because the order of the logic in the
+    // function is different than the order of operations during transmission
+    // and reception.
     fn read_write_done(
         &self,
         mut _write: &'static mut [u8],
@@ -310,12 +316,14 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             self.spi_tx.replace(_write);
         }
 
+        let state = self.state.get();
+
         // This case is when the SPI operation is reading the IRQ_STATUS
         // register from handling an interrupt. Note that we're done handling
         // the interrupt and continue with the state machine.
         if handling {
             self.interrupt_handling.set(false);
-            let state = self.state.get();
+
             let interrupt = result;
 
             // If we're going to sleep, ignore the interrupt and continue
@@ -335,7 +343,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                     self.state.set(InternalState::RX);
                 }
 
-                // We've received  an entire frame into the frame buffer.
+                // We've received  an entire frame into the frame buffer. This should be
+                // in the InternalState::RX_READY_TO_READ state.
                 // There are three cases:
                 //   1. we have a receive buffer: copy it out
                 //   2. no receive buffer, but transmission pending: send
@@ -378,8 +387,10 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
         // receiving a frame.
         if self.interrupt_pending.get() {
             match self.state.get() {
-                InternalState::RX_READING_FRAME_DONE | InternalState::RX_READING_FRAME_FCS_DONE => {
-                }
+                InternalState::RX_TURNING_OFF
+                | InternalState::RX_START_READING
+                | InternalState::RX_READING_FRAME_DONE
+                | InternalState::RX_READING_FRAME_FCS_DONE => {}
                 _ => {
                     self.interrupt_pending.set(false);
                     self.handle_interrupt();
@@ -387,7 +398,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 }
             }
         }
-
         // Similarly, if a configuration is pending, we only start the
         // configuration process when we are in a state where it is legal to
         // start the configuration process.
@@ -762,12 +772,19 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::TX_RETURN_TO_RX => {
                 let ack: bool = (result & TRX_TRAC_MASK) == 0;
                 if status == ExternalState::RX_AACK_ON as u8 {
+                    let return_code = if (result & TRX_TRAC_MASK) == TRX_TRAC_CHANNEL_ACCESS_FAILURE
+                    {
+                        ReturnCode::FAIL
+                    } else {
+                        ReturnCode::SUCCESS
+                    };
+
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
                     self.tx_client.get().map(|c| {
-                        c.send_done(buf.unwrap(), ack, ReturnCode::SUCCESS);
+                        c.send_done(buf.unwrap(), ack, return_code);
                     });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
@@ -784,6 +801,21 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             // No operations in the RX state, an SFD interrupt should
             // take us out of it.
             InternalState::RX => {}
+            InternalState::RX_TURNING_OFF => {
+                // This is the case when the driver turns off reception in
+                // response to receiving a frame, to make sure it is not
+                // overwritten. Now we are reading to handle the interrupt and
+                // start reading out the frame.
+                self.state_transition_read(
+                    RF233Register::IRQ_STATUS,
+                    InternalState::RX_READY_TO_READ,
+                );
+                self.interrupt_handling.set(true);
+            }
+            // This state is when the driver handles the pending TRX_END interrupt
+            // on reception, so is handled above in the interrupt logic.
+            // the pending interrupt will be handled
+            InternalState::RX_READY_TO_READ => {}
 
             // Read the length out
             InternalState::RX_START_READING => {
@@ -831,7 +863,15 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::RX_READING_FRAME_FCS_DONE => {
-                let crc_valid = result & PHY_RSSI_RX_CRC_VALID != 0;
+                // Store whether the CRC was valid, then turn the radio back on.
+                self.crc_valid.set((result & PHY_RSSI_RX_CRC_VALID) != 0);
+                self.state_transition_write(
+                    RF233Register::TRX_STATE,
+                    RF233TrxCmd::RX_AACK_ON as u8,
+                    InternalState::RX_ENABLING_RECEPTION,
+                );
+            }
+            InternalState::RX_ENABLING_RECEPTION => {
                 self.receiving.set(false);
 
                 // Stay awake if we receive a packet, another call to stop()
@@ -854,7 +894,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 self.rx_client.get().map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
                     let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
-                    client.receive(rbuf, frame_len, crc_valid, ReturnCode::SUCCESS);
+                    client.receive(rbuf, frame_len, self.crc_valid.get(), ReturnCode::SUCCESS);
                 });
             }
 
@@ -988,6 +1028,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             transmitting: Cell::new(false),
             receiving: Cell::new(false),
             spi_busy: Cell::new(false),
+            crc_valid: Cell::new(false),
             state: Cell::new(InternalState::START),
             interrupt_handling: Cell::new(false),
             interrupt_pending: Cell::new(false),
@@ -1014,12 +1055,31 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
     }
 
     fn handle_interrupt(&self) {
-        // Because the first thing we do on handling an interrupt is
-        // read the IRQ status, we defer handling the state transition
-        // to the SPI handler
+        // In most cases, the first thing the driver does on handling an interrupt is
+        // read the IRQ status; this pushes most logic to the SPI handler.
+        // The one exception is when the radio receives a packet; to prevent this
+        // packet from being overwritten before reading it from the radio,
+        // the driver needs to disable reception. This has to be done in the first
+        // SPI operation.
         if self.spi_busy.get() == false {
-            self.interrupt_handling.set(true);
-            self.register_read(RF233Register::IRQ_STATUS);
+            if self.state.get() == InternalState::RX {
+                // We've received a complete frame; need to disable
+                // reception until we've read it out from RAM,
+                // otherwise subsequent packets may corrupt it.
+                // Dynamic Frame Buffer protection (RF233 manual, Sec
+                // 11.8) is insufficient because we perform multiple
+                // SPI operations to read a frame, and the RF233
+                // releases its protection after the first SPI
+                // operation.
+                self.state_transition_write(
+                    RF233Register::TRX_STATE,
+                    RF233TrxCmd::PLL_ON as u8,
+                    InternalState::RX_TURNING_OFF,
+                );
+            } else {
+                self.interrupt_handling.set(true);
+                self.register_read(RF233Register::IRQ_STATUS);
+            }
         } else {
             self.interrupt_pending.set(true);
         }

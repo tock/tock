@@ -1,6 +1,6 @@
 //! Driver for the ST LPS25HB pressure sensor.
 //!
-//! http://www.st.com/en/mems-and-sensors/lps25hb.html
+//! <http://www.st.com/en/mems-and-sensors/lps25hb.html>
 //!
 //! Usage
 //! -----
@@ -17,10 +17,13 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::{AppId, Callback, Driver, ReturnCode};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x70004;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 5] = [0; 5];
@@ -188,6 +191,7 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
                 self.i2c.write(buffer, 2);
+                self.interrupt_pin.disable_interrupt();
                 self.state.set(State::Done);
             }
             State::Done => {
@@ -215,12 +219,17 @@ impl<'a> gpio::Client for LPS25HB<'a> {
 }
 
 impl<'a> Driver for LPS25HB<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set a callback
             0 => {
                 // Set callback function
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
             // default

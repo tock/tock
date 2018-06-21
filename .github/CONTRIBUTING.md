@@ -21,10 +21,9 @@ Conduct][coc].
 
 ## What Goes Where?
 
-This repository contains the core Tock kernel, the main userland library and
-the officially supported hardware platforms. Drivers useful for these platforms,
-improvements to the core kernel, or changes to the main userland libraries live
-here.
+This repository contains the core Tock kernel and the officially supported
+hardware platforms. Drivers useful for these platforms and improvements to the
+core kernel live here.
 
 If you are porting Tock to a different hardware platform or building an
 application for an existing platform, that code should go in a [separate
@@ -45,13 +44,13 @@ what we don't know, so please report liberally. If you're not sure if something
 is a bug or not, feel free to file a bug anyway.
 
 If you have the chance, before reporting a bug, please [search existing
-issues](https://github.com/helena-project/tock/search?q=&type=Issues),
+issues](https://github.com/tock/tock/search?q=&type=Issues),
 as it's possible that someone else has already reported your error. This doesn't
 always work, and sometimes it's hard to know what to search for, so consider this
 extra credit. We won't mind if you accidentally file a duplicate report.
 
 Opening an issue is as easy as following [this
-link](https://github.com/helena-project/tock/issues/new) and filling out the
+link](https://github.com/tock/tock/issues/new) and filling out the
 fields.  Here's a template that you can use to file a bug, though it's not
 necessary to use it exactly:
 
@@ -80,13 +79,13 @@ error message. Including this error message in its entirety can be very helpful.
 
 ### Step 1: Fork
 
-Fork the project [on GitHub](https://github.com/helena-project/tock) and check
+Fork the project [on GitHub](https://github.com/tock/tock) and check
 out your copy locally.
 
 ```text
 $ git clone git@github.com:username/tock.git
 $ cd tock
-$ git remote add upstream git://github.com/helena-project/tock.git
+$ git remote add upstream git://github.com/tock/tock.git
 ```
 
 ### Step 2: Branch
@@ -170,7 +169,7 @@ $ git rebase upstream/master
 $ git push origin my-branch
 ```
 
-Go to https://github.com/yourusername/tock and select your branch.
+Go to https://github.com/<yourusername>/tock and select your branch.
 Click the 'Pull Request' button and fill out the form.
 
 ### Step 6: Discuss and update
@@ -204,13 +203,10 @@ commits (see notes about [rewriting-history](#rewriting-history)).
 ### Step 7: Style
 
 Mainline Tock uses [rustfmt](https://github.com/rust-lang-nursery/rustfmt) to
-format code, using mostly the default style options (see [rustfmt.toml](rustfmt.toml)
+format code, using mostly the default style options (see [rustfmt.toml](../rustfmt.toml)
 for details. As rustfmt is under development, Tock pegs a specific version for
 use in formatting. The build system will automatically use (and install if needed)
 the correct rustfmt version when you invoke `make format`.
-
-For userland C/C++ code, Tock uses [uncrustify](https://github.com/uncrustify/uncrustify).
-Style configuration can be found in [userland/tools/uncrustify/](userland/tools/uncrustify/uncrustify.cfg).
 
 The target `make formatall` in the root will automatically run all style checks
 and make any required changes. PRs must pass the formatting checks before landing.
@@ -233,7 +229,7 @@ still valid. Load up an older issue, double check that it's still true, and
 leave a comment letting us know if it is or is not. The [least recently
 updated sort][lru] is good for finding issues like this.
 
-[lru]: https://github.com/helena-project/tock/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-asc
+[lru]: https://github.com/tock/tock/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-asc
 
 ## Notes
 

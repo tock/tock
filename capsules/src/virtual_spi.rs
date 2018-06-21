@@ -1,10 +1,10 @@
 //! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
-use kernel::ReturnCode;
+use kernel::common::cells::TakeCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
@@ -137,7 +137,8 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMaste
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
-    for VirtualSpiMasterDevice<'a, Spi> {
+    for VirtualSpiMasterDevice<'a, Spi>
+{
     fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
         &self.next
     }

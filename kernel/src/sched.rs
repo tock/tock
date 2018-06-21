@@ -1,10 +1,16 @@
 //! Tock core scheduler.
 
-use core::nonzero::NonZero;
+use core::ptr;
+use core::ptr::NonNull;
+
+use callback;
+use callback::{AppId, Callback};
+use ipc;
+use mem::AppSlice;
 use memop;
-use platform::{Chip, Platform};
 use platform::mpu::MPU;
 use platform::systick::SysTick;
+use platform::{Chip, Platform};
 use process;
 use process::{Process, Task};
 use returncode::ReturnCode;
@@ -15,12 +21,46 @@ const KERNEL_TICK_DURATION_US: u32 = 10000;
 /// Skip re-scheduling a process if its quanta is nearly exhausted
 const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
-pub unsafe fn do_process<P: Platform, C: Chip>(
+/// Main loop.
+pub fn kernel_loop<P: Platform, C: Chip>(
+    platform: &P,
+    chip: &mut C,
+    processes: &'static mut [Option<&mut process::Process<'static>>],
+    ipc: Option<&ipc::IPC>,
+) {
+    let processes = unsafe {
+        process::PROCS = processes;
+        &mut process::PROCS
+    };
+
+    loop {
+        unsafe {
+            chip.service_pending_interrupts();
+
+            for (i, p) in processes.iter_mut().enumerate() {
+                p.as_mut().map(|process| {
+                    do_process(platform, chip, process, callback::AppId::new(i), ipc);
+                });
+                if chip.has_pending_interrupts() {
+                    break;
+                }
+            }
+
+            chip.atomic(|| {
+                if !chip.has_pending_interrupts() && process::processes_blocked() {
+                    chip.sleep();
+                }
+            });
+        };
+    }
+}
+
+unsafe fn do_process<P: Platform, C: Chip>(
     platform: &P,
     chip: &mut C,
     process: &mut Process,
-    appid: ::AppId,
-    ipc: &::ipc::IPC,
+    appid: AppId,
+    ipc: Option<&::ipc::IPC>,
 ) {
     let systick = chip.systick();
     systick.reset();
@@ -29,7 +69,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
 
     loop {
         if chip.has_pending_interrupts() || systick.overflowed()
-            || systick.value() <= MIN_QUANTA_THRESHOLD_US
+            || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
         {
             break;
         }
@@ -51,7 +91,17 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                             process.push_function_call(ccb);
                         }
                         Task::IPC((otherapp, ipc_type)) => {
-                            ipc.schedule_callback(appid, otherapp, ipc_type);
+                            ipc.map_or_else(
+                                || {
+                                    assert!(
+                                        false,
+                                        "Kernel consistency error: IPC Task with no IPC"
+                                    );
+                                },
+                                |ipc| {
+                                    ipc.schedule_callback(appid, otherapp, ipc_type);
+                                },
+                            );
                         }
                     }
                     continue;
@@ -94,17 +144,13 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                 let callback_ptr_raw = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let res = if callback_ptr_raw as usize == 0 {
-                    ReturnCode::EINVAL
-                } else {
-                    let callback_ptr = NonZero::new_unchecked(callback_ptr_raw);
+                let callback_ptr = NonNull::new(callback_ptr_raw);
+                let callback = callback_ptr.map(|ptr| Callback::new(appid, appdata, ptr.cast()));
 
-                    let callback = ::Callback::new(appid, appdata, callback_ptr);
-                    platform.with_driver(driver_num, |driver| match driver {
-                        Some(d) => d.subscribe(subdriver_num, callback),
-                        None => ReturnCode::ENODEVICE,
-                    })
-                };
+                let res = platform.with_driver(driver_num, |driver| match driver {
+                    Some(d) => d.subscribe(subdriver_num, callback, appid),
+                    None => ReturnCode::ENODEVICE,
+                });
                 process.set_return_code(res);
             }
             Some(Syscall::COMMAND) => {
@@ -119,12 +165,16 @@ pub unsafe fn do_process<P: Platform, C: Chip>(
                     match driver {
                         Some(d) => {
                             let start_addr = process.r2() as *mut u8;
-                            let size = process.r3();
-                            if process.in_exposed_bounds(start_addr, size) {
-                                let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
-                                d.allow(appid, process.r1(), slice)
+                            if start_addr != ptr::null_mut() {
+                                let size = process.r3();
+                                if process.in_exposed_bounds(start_addr, size) {
+                                    let slice = AppSlice::new(start_addr as *mut u8, size, appid);
+                                    d.allow(appid, process.r1(), Some(slice))
+                                } else {
+                                    ReturnCode::EINVAL /* memory not allocated to process */
+                                }
                             } else {
-                                ReturnCode::EINVAL /* memory not allocated to process */
+                                d.allow(appid, process.r1(), None)
                             }
                         }
                         None => ReturnCode::ENODEVICE,

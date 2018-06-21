@@ -5,7 +5,7 @@
 //!
 //! You need a device that provides the `hil::sensors::NineDof` trait.
 //!
-//! ``rust
+//! ```rust
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
 //!     capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create()));
@@ -13,9 +13,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant};
-use kernel::ReturnCode;
 use kernel::hil;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60004;
@@ -142,11 +142,16 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
 }
 
 impl<'a> Driver for NineDof<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => self.apps
-                .enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),

@@ -52,7 +52,8 @@ Support for wireless radios.
 - **[nRF51822 Serialization](src/nrf51822_serialization.rs)**: Kernel support
   for using the nRF51 serialization library.
 - **[RF233](src/rf233.rs)**: Driver for RF233 radio.
-
+- **[BLE Advertising](src/ble_advertising_driver.rs)**: Driver for sending BLE
+  advertisements.
 
 ### Libraries
 
@@ -74,7 +75,6 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[I2C](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI](src/spi.rs)**: SPI master and slave.
-- **[Symmetric Encryption](src/symmetric_encryption.rs)**: AES encryption.
 
 
 ### Helpful Userspace Capsules
@@ -99,7 +99,7 @@ simultaneously) support for generic sensor interfaces.
 - **[Asynchronous GPIO](src/gpio_async.rs)**: GPIO pins accessed by split-phase
   calls.
 - **[9DOF](src/ninedof.rs)**: 9DOF sensors (acceleration, magnetometer, gyroscope).
-- **[Nonvolatile Storage](src/nonvolatile_storage.rs)**: Persistent storage for
+- **[Nonvolatile Storage](src/nonvolatile_storage_driver.rs)**: Persistent storage for
   userspace.
 
 
@@ -119,3 +119,4 @@ Other capsules that implement reusable logic.
 
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
+- **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.

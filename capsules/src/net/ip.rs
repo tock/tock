@@ -1,6 +1,6 @@
+use net::stream::SResult;
 use net::stream::{decode_bytes, decode_u16, decode_u8};
 use net::stream::{encode_bytes, encode_u16, encode_u8};
-use net::stream::SResult;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum MacAddr {

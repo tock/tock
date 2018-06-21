@@ -47,8 +47,8 @@
 pub const DRIVER_NUM: usize = 0x00000004;
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 pub struct GPIO<'a, G: Pin + 'a> {
     pins: &'a [&'a G],
@@ -113,12 +113,9 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
         let pin_state = pins[pin_num].read();
 
         // schedule callback with the pin number and value
-        if self.callback.get().is_some() {
-            self.callback
-                .get()
-                .unwrap()
-                .schedule(pin_num, pin_state as usize, 0);
-        }
+        self.callback
+            .get()
+            .map(|mut cb| cb.schedule(pin_num, pin_state as usize, 0));
     }
 }
 
@@ -129,12 +126,17 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     ///
     /// - `0`: Subscribe to interrupts from all pins with interrupts enabled.
     ///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // subscribe to all pin interrupts (no affect or reliance on
             // individual pins being configured as interrupts)
             0 => {
-                self.callback.set(Some(callback));
+                self.callback.set(callback);
                 ReturnCode::SUCCESS
             }
 
@@ -151,6 +153,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// If the higher order bytes are not used, they must be set to `0`.
     ///
     /// Other data bytes:
+    ///
     ///   - `pin_config`: An internal resistor setting.
     ///                   Set to `0` for a pull-up resistor.
     ///                   Set to `1` for a pull-down resistor.

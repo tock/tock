@@ -18,7 +18,7 @@ usage:
 	@echo "  allboards: Compiles Tock for all supported boards"
 	@echo "     alldoc: Builds Tock documentation for all boards"
 	@echo "     format: Runs the rustfmt tool on all kernel sources"
-	@echo "  formatall: Runs formatting tools over kernel and userland sources"
+	@echo "  formatall: Runs all formatting tools"
 	@echo "       list: Lists available boards"
 	@echo
 	@echo "$$(tput bold)Happy Hacking!$$(tput sgr0)"
@@ -26,18 +26,15 @@ usage:
 .PHONY: allboards
 allboards:
 	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Build $$f"; $(MAKE) -C "boards/$$f" || exit 1; done
+	@echo "$$(tput bold)Build course/sensys"; $(MAKE) -C "doc/courses/sensys/exercises/board" || exit 1;
 
 .PHONY: alldoc
 alldoc:
 	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Documenting $$f"; $(MAKE) -C "boards/$$f" doc || exit 1; done
 
-.PHONY: fmt format
-fmt format:
+.PHONY: fmt format formatall
+fmt format formatall:
 	@./tools/run_cargo_fmt.sh
-
-.PHONY: formatall
-formatall: format
-	@cd userland/examples && ./format_all.sh
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:

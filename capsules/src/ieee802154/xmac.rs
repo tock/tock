@@ -2,7 +2,7 @@
 //! to manage an Atmel RF233 radio.
 //!
 //! Original X-MAC paper, on which this implementation is heavily based:
-//!     http://www.cs.cmu.edu/~andersoe/papers/xmac-sensys.pdf
+//!     <http://www.cs.cmu.edu/~andersoe/papers/xmac-sensys.pdf>
 //!
 //! Nodes using this layer place their radios to sleep for the vast majority of
 //! the time, thereby reducing power consumption. Transmitters wake and send a
@@ -28,17 +28,9 @@
 //! can be used as the backend for a `capsules::ieee802154::device::MacDevice`,
 //! which should fully encode frames before passing it to this layer.
 //!
-//! For imix, I've uploaded a sample main.rs/Xcargo.toml config in a gist that
-//! you can find [here](https://gist.github.com/jlwatson/a3ceff5f7c7dffe41cca71e70c5de30d)
-//! (current as of 01/28/18). In general, given a radio driver `RF233Device`,
+//! In general, given a radio driver `RF233Device`,
 //! a `kernel::hil::time::Alarm`, and a `kernel::hil::rng::RNG` device, the
 //! necessary modifications to the board configuration are shown below for `imix`s:
-//!
-//! ```rust
-//! // Xargo.toml
-//! ...
-//! features = ["c", "mem"]
-//! ```
 //!
 //! ```rust
 //! // main.rs
@@ -86,11 +78,11 @@
 
 use core::cell::Cell;
 use ieee802154::mac::Mac;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::radio;
 use kernel::hil::rng::{self, RNG};
 use kernel::hil::time::{self, Alarm, Frequency, Time};
+use kernel::ReturnCode;
 use net::ieee802154::*;
 
 // Time the radio will remain awake listening for packets before sleeping.
@@ -238,7 +230,7 @@ impl<'a, R: radio::Radio + 'a, A: Alarm + 'a> XMac<'a, R, A> {
                 frame_type: FrameType::Multipurpose,
                 frame_pending: false,
                 ack_requested: true,
-                version: FrameVersion::V2015,
+                version: FrameVersion::V2006,
                 seq: Some(self.tx_preamble_seq_num.get()),
                 dst_pan: tx_header.dst_pan,
                 dst_addr: tx_header.dst_addr,

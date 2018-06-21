@@ -71,7 +71,9 @@ macro_rules! stream_done {
 #[macro_export]
 macro_rules! stream_len_cond {
     ($buf:expr, $bytes:expr) => {
-        if $buf.len() < $bytes { return SResult::Needed($bytes); }
+        if $buf.len() < $bytes {
+            return SResult::Needed($bytes);
+        }
     };
 }
 
@@ -90,7 +92,9 @@ macro_rules! stream_err {
 #[macro_export]
 macro_rules! stream_cond {
     ($cond:expr, $err:expr) => {
-        if !$cond { return SResult::Error($err); }
+        if !$cond {
+            return SResult::Error($err);
+        }
     };
     ($cond:expr) => {
         stream_cond!($cond, ());
@@ -144,6 +148,7 @@ macro_rules! stream_from_option {
 /// ```
 ///
 /// Then, using an encoder can be done simply by:
+///
 /// ```
 /// match encoder(&mut buf) {
 ///     SResult::Done(off, out) => { /* celebrate */ }

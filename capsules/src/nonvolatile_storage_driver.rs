@@ -14,6 +14,7 @@
 //! interfaces between components. This capsule provides both a kernel and
 //! userspace interface.
 //!
+//! ```text
 //! +--------------------------------------------+     +--------------+
 //! |                                            |     |              |
 //! |                  kernel                    |     |  userspace   |
@@ -31,8 +32,10 @@
 //! |               Physical nonvolatile storage driver               |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
+//! ```
 //!
 //! Example instantiation:
+//!
 //! ```rust
 //! let nonvolatile_storage = static_init!(
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
@@ -51,9 +54,12 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x50001;
 
 pub static mut BUFFER: [u8; 512] = [0; 512];
 
@@ -465,12 +471,17 @@ impl<'a> Driver for NonvolatileStorage<'a> {
     ///
     /// - `0`: Setup a buffer to read from the nonvolatile storage into.
     /// - `1`: Setup a buffer to write bytes to the nonvolatile storage.
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
                 match allow_num {
-                    0 => app.buffer_read = Some(slice),
-                    1 => app.buffer_write = Some(slice),
+                    0 => app.buffer_read = slice,
+                    1 => app.buffer_write = slice,
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
@@ -484,12 +495,17 @@ impl<'a> Driver for NonvolatileStorage<'a> {
     ///
     /// - `0`: Setup a read done callback.
     /// - `1`: Setup a write done callback.
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         self.apps
-            .enter(callback.app_id(), |app, _| {
+            .enter(app_id, |app, _| {
                 match subscribe_num {
-                    0 => app.callback_read = Some(callback),
-                    1 => app.callback_write = Some(callback),
+                    0 => app.callback_read = callback,
+                    1 => app.callback_write = callback,
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS

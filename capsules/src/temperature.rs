@@ -38,7 +38,7 @@
 //!
 //! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
-//! ``rust
+//! ```rust
 //! let temp = static_init!(
 //!        capsules::temperature::TemperatureSensor<'static>,
 //!        capsules::temperature::TemperatureSensor::new(si7021,
@@ -47,9 +47,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, Grant};
-use kernel::ReturnCode;
 use kernel::hil;
+use kernel::ReturnCode;
+use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60000;
@@ -92,10 +92,10 @@ impl<'a> TemperatureSensor<'a> {
             .unwrap_or_else(|err| err.into())
     }
 
-    fn configure_callback(&self, callback: Callback) -> ReturnCode {
+    fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         self.apps
-            .enter(callback.app_id(), |app, _| {
-                app.callback = Some(callback);
+            .enter(app_id, |app, _| {
+                app.callback = callback;
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|err| err.into())
@@ -117,10 +117,15 @@ impl<'a> hil::sensors::TemperatureClient for TemperatureSensor<'a> {
 }
 
 impl<'a> Driver for TemperatureSensor<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // subscribe to temperature reading with callback
-            0 => self.configure_callback(callback),
+            0 => self.configure_callback(callback, app_id),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

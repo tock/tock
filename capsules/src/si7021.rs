@@ -1,6 +1,6 @@
 //! Driver for the Silicon Labs SI7021 temperature/humidity sensor.
 //!
-//! https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx
+//! <https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx>
 //!
 //! > The Si7006/13/20/21/34 devices are Silicon Labs’ latest generation I2C
 //! > relative humidity and temperature sensors. All members of this device
@@ -35,11 +35,11 @@
 
 use core::cell::Cell;
 use kernel;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil::i2c;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 14] = [0; 14];

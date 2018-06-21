@@ -1,31 +1,55 @@
 //! Implementation of the SAM4L TRNG.
 
 use core::cell::Cell;
-use kernel::common::VolatileCell;
+use kernel::common::regs::{ReadOnly, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 use pm;
 
 #[repr(C)]
-struct Registers {
-    control: VolatileCell<u32>,
+struct TrngRegisters {
+    cr: WriteOnly<u32, Control::Register>,
     _reserved0: [u32; 3],
-    interrupt_enable: VolatileCell<u32>,
-    interrupt_disable: VolatileCell<u32>,
-    interrupt_mask: VolatileCell<u32>,
-    interrupt_status: VolatileCell<u32>,
+    ier: WriteOnly<u32, Interrupt::Register>,
+    idr: WriteOnly<u32, Interrupt::Register>,
+    imr: ReadOnly<u32, Interrupt::Register>,
+    isr: ReadOnly<u32, Interrupt::Register>,
     _reserved1: [u32; 12],
-    data: VolatileCell<u32>,
+    odata: ReadOnly<u32, OutputData::Register>,
 }
 
-const BASE_ADDRESS: *const Registers = 0x40068000 as *const Registers;
+register_bitfields![u32,
+    Control [
+        /// Security Key
+        KEY OFFSET(8) NUMBITS(24) [],
+        /// Enables the TRNG to provide random values
+        ENABLE OFFSET(0) NUMBITS(1) [
+            Disable = 0,
+            Enable = 1
+        ]
+    ],
+
+    Interrupt [
+        /// Data Ready
+        DATRDY 0
+    ],
+
+    OutputData [
+        /// Output Data
+        ODATA OFFSET(0) NUMBITS(32) []
+    ]
+];
+
+const BASE_ADDRESS: StaticRef<TrngRegisters> =
+    unsafe { StaticRef::new(0x40068000 as *const TrngRegisters) };
 
 pub struct Trng<'a> {
-    regs: *const Registers,
+    regs: StaticRef<TrngRegisters>,
     client: Cell<Option<&'a rng::Client>>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
-const KEY: u32 = 0x524e4700;
+const KEY: u32 = 0x524e47;
 
 impl<'a> Trng<'a> {
     const fn new() -> Trng<'a> {
@@ -36,30 +60,26 @@ impl<'a> Trng<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.regs;
 
-        if regs.interrupt_mask.get() == 0 {
+        if !regs.imr.is_set(Interrupt::DATRDY) {
             return;
         }
-        regs.interrupt_disable.set(1);
+        regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.get().map(|client| {
             let result = client.randomness_available(&mut TrngIter(self));
             if let Continue::Done = result {
                 // disable controller
-                regs.control.set(KEY | 0);
-                unsafe {
-                    pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
-                }
+                regs.cr
+                    .write(Control::KEY.val(KEY) + Control::ENABLE::Disable);
+                pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
             } else {
-                regs.interrupt_enable.set(1);
+                regs.ier.write(Interrupt::DATRDY::SET);
             }
         });
     }
 
-    pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(Some(client));
-    }
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
@@ -68,23 +88,29 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        let regs = unsafe { &*self.0.regs };
-        if regs.interrupt_status.get() != 0 {
-            Some(regs.data.get())
+        let regs = &*self.0.regs;
+        if regs.isr.is_set(Interrupt::DATRDY) {
+            Some(regs.odata.read(OutputData::ODATA))
         } else {
             None
         }
     }
 }
 
-impl<'a> rng::RNG for Trng<'a> {
-    fn get(&self) {
-        let regs = unsafe { &*self.regs };
-        unsafe {
-            pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
-        }
+impl<'a> rng::RNG<'a> for Trng<'a> {
 
-        regs.control.set(KEY | 1);
-        regs.interrupt_enable.set(1);
+    fn init(&self) {}
+
+    fn get(&self) {
+        let regs = &*self.regs;
+        pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
+
+        regs.cr
+            .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
+        regs.ier.write(Interrupt::DATRDY::SET);
+    }
+
+    fn set_client(&self, client: &'a rng::Client) {
+        self.client.set(Some(client));
     }
 }

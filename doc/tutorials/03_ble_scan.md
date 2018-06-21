@@ -37,7 +37,7 @@ BLE devices and not learning the entire spec.
     // These are some basic settings for BLE devices. However, since we are
     // only interesting in scanning, these are not particularly relevant.
     simple_ble_config_t ble_config = {
-      .platform_id       = 0x00, // used as 4th octect in device BLE address
+      .platform_id       = 0x00, // used as 4th octet in device BLE address
       .device_id         = DEVICE_ID_DEFAULT,
       .adv_name          = "Tock",
       .adv_interval      = MSEC_TO_UNITS(500, UNIT_0_625_MS),

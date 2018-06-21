@@ -1,6 +1,6 @@
 //! Driver for the FXOS8700CQ accelerometer.
 //!
-//! http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf
+//! <http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf>
 //!
 //! The driver provides x, y, and z acceleration data to a callback function.
 //! It implements the `hil::sensors::NineDof` trait.
@@ -20,11 +20,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ReturnCode;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
+use kernel::ReturnCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
 

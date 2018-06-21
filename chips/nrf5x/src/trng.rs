@@ -21,11 +21,89 @@
 //! * Date: March 01, 2017
 
 use core::cell::Cell;
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
-use peripheral_registers::{RNG_BASE, RNG_REGS};
+
+const RNG_BASE: StaticRef<RngRegisters> =
+    unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
+
+#[repr(C)]
+pub struct RngRegisters {
+    /// Task starting the random number generator
+    /// Address: 0x000 - 0x004
+    pub task_start: WriteOnly<u32, Task::Register>,
+    /// Task stopping the random number generator
+    /// Address: 0x004 - 0x008
+    pub task_stop: WriteOnly<u32, Task::Register>,
+    /// Reserved
+    pub _reserved1: [u32; 62],
+    /// Event being generated for every new random number written to the VALUE register
+    /// Address: 0x100 - 0x104
+    pub event_valrdy: ReadWrite<u32, Event::Register>,
+    /// Reserved
+    pub _reserved2: [u32; 63],
+    /// Shortcut register
+    /// Address: 0x200 - 0x204
+    pub shorts: ReadWrite<u32, Shorts::Register>,
+    pub _reserved3: [u32; 64],
+    /// Enable interrupt
+    /// Address: 0x304 - 0x308
+    pub intenset: ReadWrite<u32, Intenset::Register>,
+    /// Disable interrupt
+    /// Address: 0x308 - 0x30c
+    pub intenclr: ReadWrite<u32, Intenclr::Register>,
+    pub _reserved4: [u32; 126],
+    /// Configuration register
+    /// Address: 0x504 - 0x508
+    pub config: ReadWrite<u32, Config::Register>,
+    /// Output random number
+    /// Address: 0x508 - 0x50c
+    pub value: ReadOnly<u32, Value::Register>,
+}
+
+register_bitfields! [u32,
+    /// Start task
+    Task [
+        ENABLE OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Ready event
+    Event [
+        READY OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Shortcut register
+    Shorts [
+        /// Shortcut between VALRDY event and STOP task
+        VALRDY_STOP OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Enable interrupt
+    Intenset [
+        VALRDY OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Disable interrupt
+    Intenclr [
+        VALRDY OFFSET(0) NUMBITS(1)
+    ],
+
+    /// Configuration register
+    Config [
+        /// Bias correction
+        DERCEN OFFSET(0) NUMBITS(32)
+    ],
+
+    /// Output random number
+    Value [
+        /// Generated random number
+        VALUE OFFSET(0) NUMBITS(8)
+    ]
+];
 
 pub struct Trng<'a> {
-    regs: *const RNG_REGS,
+    registers: StaticRef<RngRegisters>,
     client: Cell<Option<&'a rng::Client>>,
     index: Cell<usize>,
     randomness: Cell<u32>,
@@ -36,17 +114,17 @@ pub static mut TRNG: Trng<'static> = Trng::new();
 impl<'a> Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
-            regs: RNG_BASE as *const RNG_REGS,
+            registers: RNG_BASE,
             client: Cell::new(None),
             index: Cell::new(0),
             randomness: Cell::new(0),
         }
     }
 
-    // only VALRDY register can trigger the interrupt
+    /// RNG Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
-        // disable interrupts
+        let regs = &*self.registers;
+
         self.disable_interrupts();
 
         match self.index.get() {
@@ -66,7 +144,7 @@ impl<'a> Trng<'a> {
                 self.index.set(e + 1);
                 self.start_rng()
             }
-            // fetched 4 bytes of data send to the capsule
+            // fetched 4 bytes of data generated, then notify the capsule
             4 => {
                 self.client.get().map(|client| {
                     let result = client.randomness_available(&mut TrngIter(self));
@@ -77,7 +155,7 @@ impl<'a> Trng<'a> {
                 });
             }
             // This should never happen if the logic is correct
-            // Restart randomness generation if the condition occurs
+            // Restart randomness generation if this condition occurs
             _ => {
                 self.index.set(0);
                 self.randomness.set(0);
@@ -85,33 +163,32 @@ impl<'a> Trng<'a> {
         }
     }
 
+    /// Configure client
     pub fn set_client(&self, client: &'a rng::Client) {
         self.client.set(Some(client));
     }
 
     fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
-        regs.inten.set(1);
-        regs.intenset.set(1);
+        let regs = &*self.registers;
+        regs.intenset.write(Intenset::VALRDY::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
-        regs.intenclr.set(1);
-        regs.inten.set(0);
+        let regs = &*self.registers;
+        regs.intenclr.write(Intenclr::VALRDY::SET);
     }
 
     fn start_rng(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
-        // clear registers
-        regs.event_valrdy.set(0);
+        // Reset `valrdy`
+        regs.event_valrdy.write(Event::READY::CLEAR);
 
-        // enable interrupts
+        // Enable interrupts
         self.enable_interrupts();
 
-        // start rng
-        regs.task_start.set(1);
+        // Start rng
+        regs.task_start.write(Task::ENABLE::SET);
     }
 }
 

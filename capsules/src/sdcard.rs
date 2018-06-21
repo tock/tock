@@ -39,13 +39,17 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x50002;
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:
+///
 ///  * RXBUFFER must be greater than or equal to TXBUFFER in length
 ///  * Both RXBUFFER and TXBUFFER must be longer  than the SD card's block size
 pub static mut TXBUFFER: [u8; 515] = [0; 515];
@@ -1492,17 +1496,22 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
 
 /// Connections to userspace syscalls
 impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(
+        &self,
+        _appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             // Pass read buffer in from application
             0 => {
-                self.app.map(|app| app.read_buffer = Some(slice));
+                self.app.map(|app| app.read_buffer = slice);
                 ReturnCode::SUCCESS
             }
 
             // Pass write buffer in from application
             1 => {
-                self.app.map(|app| app.write_buffer = Some(slice));
+                self.app.map(|app| app.write_buffer = slice);
                 ReturnCode::SUCCESS
             }
 
@@ -1510,11 +1519,16 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        _app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             // Set callback
             0 => {
-                self.app.map(|app| app.callback = Some(callback));
+                self.app.map(|app| app.callback = callback);
                 ReturnCode::SUCCESS
             }
 

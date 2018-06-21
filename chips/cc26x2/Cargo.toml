@@ -1,0 +1,9 @@
+[package]
+name = "cc26x2"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+cortexm4 = { path = "../../arch/cortex-m4" }
+kernel = { path = "../../kernel" }
+cc26xx = { path = "../cc26xx" }

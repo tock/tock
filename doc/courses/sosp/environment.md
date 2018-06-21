@@ -39,7 +39,7 @@ Tock includes three architectural components:
   - _Processes_, which use the MPU for protection at runtime.
 
 Read the Tock documentation for more details on its
-[design](https://github.com/helena-project/tock/blob/master/doc/Design.md).
+[design](https://github.com/tock/tock/blob/master/doc/Design.md).
 
 [_Presentation slides are availble here._](presentation/presentation.pdf)
 
@@ -165,7 +165,7 @@ nothing installed. Compile and re-flash the Hail test app:
 The `tockloader` tool is a useful and versatile tool for managing and installing
 applications on Tock. It supports a number of commands, and a more complete
 list can be found in the tockloader repository, located at
-https://github.com/helena-project/tockloader. Below is a list of the more useful
+https://github.com/tock/tockloader. Below is a list of the more useful
 and important commands for programming and querying a board.
 
 ### `tockloader install`

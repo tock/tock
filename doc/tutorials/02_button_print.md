@@ -131,7 +131,8 @@ kernel how many there are. This is done by calling `button_count()`.
 
 5. **Run the application**. To try this tutorial application, you can find
 it in the [tutorials app folder](../../userland/examples/tutorials/02_button_print).
-See the [getting started README](../Getting_Started.md) how applications are installed on your board.
+See the [getting started README](../Getting_Started.md) for how applications are
+installed on your board.
 In that directory:
 
     ```bash

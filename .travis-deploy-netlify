@@ -4,13 +4,14 @@
 # https://therocketeers.github.io/blog/using-travis-ci-to-deploy-jekyll-on-netlify/
 
 set -e
+set -u
 set -x
 
-./tools/build_all_docs.sh
+./tools/build-all-docs.sh
 
 pushd doc
 
-zip -r website.zip rustdoc/
+zip -q -r website.zip rustdoc/
 
 # NETLIFYKEY is secret. Set in travis web config.
 NETLIFY_SITE_NAME=docs-tockosorg.netlify.com

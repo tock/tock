@@ -25,10 +25,10 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::ReturnCode;
+use kernel::common::cells::TakeCell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::ReturnCode;
 
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests. After each completed request the list is checked to see if there
@@ -147,7 +147,8 @@ impl<'a, F: hil::flash::Flash + 'a> FlashUser<'a, F> {
 }
 
 impl<'a, F: hil::flash::Flash + 'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
-    for FlashUser<'a, F> {
+    for FlashUser<'a, F>
+{
     fn set_client(&'a self, client: &'a C) {
         self.mux.users.push_head(self);
         self.client.set(Some(client));
