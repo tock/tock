@@ -12,46 +12,47 @@
 //! be enabled before usage.
 
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct PrcmRegisters {
     _reserved0: [ReadOnly<u8>; 0x28],
 
     // Write 1 in order to load settings
-    pub clk_load_ctl: ReadWrite<u32, ClockLoad::Register>,
+    clk_load_ctl: ReadWrite<u32, ClockLoad::Register>,
 
     _reserved1: [ReadOnly<u8>; 0x10],
 
     // TRNG, Crypto, and UDMA
-    pub sec_dma_clk_run: ReadWrite<u32, SECDMAClockGate::Register>,
-    pub sec_dma_clk_sleep: ReadWrite<u32, SECDMAClockGate::Register>,
-    pub sec_dma_clk_deep_sleep: ReadWrite<u32, SECDMAClockGate::Register>,
+    sec_dma_clk_run: ReadWrite<u32, SECDMAClockGate::Register>,
+    sec_dma_clk_sleep: ReadWrite<u32, SECDMAClockGate::Register>,
+    sec_dma_clk_deep_sleep: ReadWrite<u32, SECDMAClockGate::Register>,
 
-    pub gpio_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
-    pub gpio_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
-    pub gpio_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
+    gpio_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
+    gpio_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
+    gpio_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
     _reserved3: [ReadOnly<u8>; 0x18],
 
-    pub uart_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
-    pub uart_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
-    pub uart_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
+    uart_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
+    uart_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
+    uart_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
     _reserved4: [ReadOnly<u8>; 0xB4],
 
     // Power domain control 0
-    pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>,
-    pub pd_ctl0_rfc: WriteOnly<u32, PowerDomainSingle::Register>,
-    pub pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
-    pub pd_ctl0_peripheral: WriteOnly<u32, PowerDomainSingle::Register>,
+    pd_ctl0: ReadWrite<u32, PowerDomain0::Register>,
+    pd_ctl0_rfc: WriteOnly<u32, PowerDomainSingle::Register>,
+    pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
+    pd_ctl0_peripheral: WriteOnly<u32, PowerDomainSingle::Register>,
 
     _reserved5: [ReadOnly<u8>; 0x04],
 
     // Power domain status 0
-    pub pd_stat0: ReadOnly<u32, PowerDomainStatus0::Register>,
-    pub pd_stat0_rfc: ReadOnly<u32, PowerDomainSingle::Register>,
-    pub pd_stat0_serial: ReadOnly<u32, PowerDomainSingle::Register>,
-    pub pd_stat0_periph: ReadOnly<u32, PowerDomainSingle::Register>,
+    pd_stat0: ReadOnly<u32, PowerDomainStatus0::Register>,
+    pd_stat0_rfc: ReadOnly<u32, PowerDomainSingle::Register>,
+    pd_stat0_serial: ReadOnly<u32, PowerDomainSingle::Register>,
+    pd_stat0_periph: ReadOnly<u32, PowerDomainSingle::Register>,
 }
 
 register_bitfields![
@@ -83,14 +84,12 @@ register_bitfields![
     ]
 ];
 
-const PRCM_BASE: *mut PrcmRegisters = 0x4008_2000 as *mut PrcmRegisters;
+const PRCM_BASE: StaticRef<PrcmRegisters> =
+    unsafe { StaticRef::new(0x40082000 as *const PrcmRegisters) };
 
-/*
-    In order to save changes to the PRCM, we need to
-    trigger
-*/
+// To save changes to the PRCM, we need to trigger.
 fn prcm_commit() {
-    let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+    let regs = PRCM_BASE;
     regs.clk_load_ctl.write(ClockLoad::LOAD::SET);
     // Wait for the settings to take effect
     while !regs.clk_load_ctl.is_set(ClockLoad::LOAD_DONE) {}
@@ -109,7 +108,7 @@ pub struct Power(());
 
 impl Power {
     pub fn enable_domain(domain: PowerDomain) {
-        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        let regs = PRCM_BASE;
 
         match domain {
             PowerDomain::Peripherals => {
@@ -125,7 +124,7 @@ impl Power {
     }
 
     pub fn is_enabled(domain: PowerDomain) -> bool {
-        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        let regs = PRCM_BASE;
         match domain {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
@@ -138,7 +137,7 @@ pub struct Clock(());
 
 impl Clock {
     pub fn enable_gpio() {
-        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        let regs = PRCM_BASE;
         regs.gpio_clk_gate_run.write(ClockGate::CLK_EN::SET);
         regs.gpio_clk_gate_sleep.write(ClockGate::CLK_EN::SET);
         regs.gpio_clk_gate_deep_sleep.write(ClockGate::CLK_EN::SET);
@@ -147,7 +146,7 @@ impl Clock {
     }
 
     pub fn enable_trng() {
-        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        let regs = PRCM_BASE;
         regs.sec_dma_clk_run
             .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
         regs.sec_dma_clk_sleep
@@ -160,7 +159,7 @@ impl Clock {
 
     /// Enables UART clocks for run, sleep and deep sleep mode.
     pub fn enable_uart() {
-        let regs: &PrcmRegisters = unsafe { &*PRCM_BASE };
+        let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate::CLK_EN::SET);
         regs.uart_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
         regs.uart_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
