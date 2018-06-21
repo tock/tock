@@ -1,11 +1,11 @@
-# Register/Bitfield Interface for Tock
+# Tock Register Interface
 
-This module provides an interface for defining and manipulating memory mapped
+This crate provides an interface for defining and manipulating memory mapped
 registers and bitfields.
 
 ## Defining registers
 
-The module provides three types for working with memory mapped registers:
+The crate provides three types for working with memory mapped registers:
 `ReadWrite`, `ReadOnly`, and `WriteOnly`, providing read-write, read-only, and
 write-only functionality, respectively.
 
@@ -13,7 +13,7 @@ Defining the registers is similar to the C-style approach, where each register
 is a field in a packed struct:
 
 ```rust
-use common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use tock_regs::regs::{ReadOnly, ReadWrite, WriteOnly};
 
 #[repr(C)]
 struct Registers {
@@ -253,8 +253,6 @@ fields simultaneously.
 
 ## Performance
 
-TODO: specific study
-
 Examining the binaries while testing this interface, everything compiles
 down to the optimal inclined bit twiddling instructions--in other words, there is
 zero runtime cost, as far as my informal preliminary study has found. I will
@@ -285,7 +283,7 @@ There are several related names in the register definitions. Below is a
 description of the naming convention for each:
 
 ```rust
-use common::regs::ReadWrite;
+use tock_regs::regs::ReadWrite;
 
 #[repr(C)]
 struct Registers {

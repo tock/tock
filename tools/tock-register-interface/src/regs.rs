@@ -26,16 +26,17 @@
 //!         MODE        OFFSET(4) NUMBITS(3) [
 //!             FullDuplex = 0,
 //!             HalfDuplex = 1,
-//!         Loopback = 2,
+//!             Loopback = 2,
 //!             Disabled = 3
 //!         ],
 //!         ERRORCOUNT OFFSET(6) NUMBITS(3) []
 //!     ]
 //! ];
 //! ```
-
-#[macro_use]
-pub mod macros;
+//!
+//! Author
+//! ------
+//! - Shane Leonard <shanel@stanford.edu>
 
 use core::fmt;
 use core::marker::PhantomData;
@@ -293,8 +294,8 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
 /// Specific section of a register.
 #[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
-    mask: T,
-    shift: u32,
+    pub mask: T,
+    pub shift: u32,
     associated_register: PhantomData<R>,
 }
 
@@ -346,8 +347,8 @@ impl<R: RegisterLongName> Field<u32, R> {
 // location in the register.
 #[derive(Copy, Clone)]
 pub struct FieldValue<T: IntLike, R: RegisterLongName> {
-    mask: T,
-    value: T,
+    pub mask: T,
+    pub value: T,
     associated_register: PhantomData<R>,
 }
 

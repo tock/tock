@@ -23,6 +23,9 @@ dependencies = [
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "tock-regs 0.1.0",
+]
 
 [[package]]
 name = "nrf52"
@@ -62,4 +65,8 @@ version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "tock-regs"
+version = "0.1.0"
 
