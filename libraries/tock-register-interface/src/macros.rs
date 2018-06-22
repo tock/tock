@@ -105,7 +105,7 @@ macro_rules! register_bitmasks {
                             x if x == Value::$valname as $valtype => Some(Value::$valname),
                     	)*
 
-                    	_ => None
+                    	_ => Option::None
                     }
                 }
             }
