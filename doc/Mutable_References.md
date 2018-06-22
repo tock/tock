@@ -276,7 +276,7 @@ txbuf.map_or_else(|| {
 });
 ```
 
-Not in both the `.map_or()` and `.map_or_else()` cases, the first argument
+Note, in both the `.map_or()` and `.map_or_else()` cases, the first argument
 corresponds to when the `TakeCell` is empty.
 
 
