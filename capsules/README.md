@@ -61,6 +61,8 @@ Protocol stacks and other libraries.
 
 - **[IEEE 802.15.4](src/ieee802154)**: 802.15.4 networking.
 - **[USB](src/usb.rs)**: USB 2.0.
+- **[Segger RTT](src/segger_rtt.rs)**: Segger RTT support. Provides `hil::uart`
+  interface.
 
 
 ### MCU Peripherals for Userspace
