@@ -125,14 +125,14 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
     pub fn read(&self, field: Field<T, R>) -> T {
         (self.get() & (field.mask << field.shift)) >> field.shift
     }
-    
+
     #[inline]
-    pub fn read_as_enum<E: TryFromValue<T, EnumType=E>>(&self, field: Field<T, R>) -> Option<E> {
+    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
         let val: T = self.read(field);
 
         E::try_from(val)
     }
-    
+
     #[inline]
     pub fn extract(&self) -> LocalRegisterCopy<T, R> {
         LocalRegisterCopy::new(self.get())
@@ -187,9 +187,9 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
     pub fn read(&self, field: Field<T, R>) -> T {
         (self.get() & (field.mask << field.shift)) >> field.shift
     }
-    
+
     #[inline]
-    pub fn read_as_enum<E: TryFromValue<T, EnumType=E>>(&self, field: Field<T, R>) -> Option<E> {
+    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
         let val: T = self.read(field);
 
         E::try_from(val)
