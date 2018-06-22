@@ -63,7 +63,7 @@ macro_rules! register_bitmasks {
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::regs::FieldValue;
+            use $crate::regs::{ TryFromValue, FieldValue };
             use super::$reg_desc;
 
             $(
@@ -97,15 +97,17 @@ macro_rules! register_bitmasks {
                 )*
             }
 
-            impl Value {
-                pub fn try_from(v: $valtype) -> Option<Value> {
+            impl TryFromValue<$valtype> for Value {
+                type EnumType = Value;
+
+                fn try_from(v: $valtype) -> Option<Self::EnumType> {
                     match v {
-                    	$(
+                        $(
                             $(#[$inner])*
                             x if x == Value::$valname as $valtype => Some(Value::$valname),
-                    	)*
+                        )*
 
-                    	_ => Option::None
+                        _ => Option::None
                     }
                 }
             }
