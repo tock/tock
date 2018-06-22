@@ -96,6 +96,19 @@ macro_rules! register_bitmasks {
                     $valname = $value,
                 )*
             }
+                
+            impl Value {
+                pub fn try_from(v: $valtype) -> Option<Value> {
+                    match v {
+                    	$(
+                            $(#[$inner])*
+                            x if x == Value::$valname as $valtype => Some(Value::$valname),
+                    	)*
+
+                    	_ => None
+                    }
+                }
+            }
         }
     };
 }
