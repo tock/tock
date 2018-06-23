@@ -66,7 +66,7 @@ impl Default for SlaveApp {
     }
 }
 
-pub struct Spi<'a, S: SpiMasterDevice + 'a> {
+pub struct Spi<'a, S: SpiMasterDevice> {
     spi_master: &'a S,
     busy: Cell<bool>,
     app: MapCell<App>,
@@ -75,7 +75,7 @@ pub struct Spi<'a, S: SpiMasterDevice + 'a> {
     kernel_len: Cell<usize>,
 }
 
-pub struct SpiSlave<'a, S: SpiSlaveDevice + 'a> {
+pub struct SpiSlave<'a, S: SpiSlaveDevice> {
     spi_slave: &'a S,
     busy: Cell<bool>,
     app: MapCell<SlaveApp>,

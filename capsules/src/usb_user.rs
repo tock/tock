@@ -37,7 +37,7 @@ pub struct App {
     awaiting: Option<Request>,
 }
 
-pub struct UsbSyscallDriver<'a, C: hil::usb::Client + 'a> {
+pub struct UsbSyscallDriver<'a, C: hil::usb::Client> {
     usbc_client: &'a C,
     apps: Grant<App>,
     serving_app: Cell<Option<AppId>>,

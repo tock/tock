@@ -8,7 +8,7 @@ use kernel::ReturnCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
-pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster + 'a> {
+pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: Cell<Option<&'a VirtualSpiMasterDevice<'a, Spi>>>,
@@ -92,7 +92,7 @@ enum Op {
     SetRate(u32),
 }
 
-pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
+pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     mux: &'a MuxSpiMaster<'a, Spi>,
     chip_select: Cell<Spi::ChipSelect>,
     txbuffer: TakeCell<'static, [u8]>,
@@ -192,7 +192,7 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
     }
 }
 
-pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave + 'a> {
+pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave> {
     spi: &'a Spi,
     client: Cell<Option<&'a hil::spi::SpiSlaveClient>>,
 }

@@ -68,7 +68,7 @@ enum CCMState {
     Encrypt,
 }
 
-pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
+pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     aes: &'a A,
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
@@ -86,7 +86,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
     saved_tag: Cell<[u8; AES128_BLOCK_SIZE]>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
     pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> AES128CCM<'a, A> {
         AES128CCM {
             aes: aes,
@@ -414,7 +414,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES128CCM<'a>
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     for AES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {

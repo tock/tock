@@ -1,4 +1,5 @@
 #![feature(const_fn)]
+#![feature(infer_outlives_requirements)]
 #![forbid(unsafe_code)]
 #![no_std]
 

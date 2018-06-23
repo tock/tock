@@ -80,7 +80,7 @@ pub enum ButtonState {
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a, G: hil::gpio::Pin + 'a> {
+pub struct Button<'a, G: hil::gpio::Pin> {
     pins: &'a [(&'a G, GpioMode)],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }

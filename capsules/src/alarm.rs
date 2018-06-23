@@ -28,7 +28,7 @@ impl Default for AlarmData {
     }
 }
 
-pub struct AlarmDriver<'a, A: Alarm + 'a> {
+pub struct AlarmDriver<'a, A: Alarm> {
     alarm: &'a A,
     num_armed: Cell<usize>,
     app_alarm: Grant<AlarmData>,

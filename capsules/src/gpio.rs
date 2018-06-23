@@ -50,7 +50,7 @@ use core::cell::Cell;
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
-pub struct GPIO<'a, G: Pin + 'a> {
+pub struct GPIO<'a, G: Pin> {
     pins: &'a [&'a G],
     callback: Cell<Option<Callback>>,
 }

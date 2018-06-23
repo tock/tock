@@ -231,8 +231,8 @@ impl App {
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
-        B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-        A: kernel::hil::time::Alarm + 'a,
+        B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+        A: kernel::hil::time::Alarm,
     {
         self.adv_data
             .as_ref()
@@ -300,8 +300,8 @@ impl App {
 
 pub struct BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    A: kernel::hil::time::Alarm,
 {
     radio: &'a B,
     busy: Cell<bool>,
@@ -314,8 +314,8 @@ where
 
 impl<'a, B, A> BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    A: kernel::hil::time::Alarm,
 {
     pub fn new(
         radio: &'a B,
@@ -366,8 +366,8 @@ where
 // Timer alarm
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    A: kernel::hil::time::Alarm,
 {
     // When an alarm is fired, we find which apps have expired timers. Expired
     // timers indicate a desire to perform some operation (e.g. start an
@@ -435,8 +435,8 @@ where
 // Callback from the radio once a RX event occur
 impl<'a, B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    A: kernel::hil::time::Alarm,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         if let Some(appid) = self.receiving_app.get() {
@@ -502,8 +502,8 @@ where
 // Callback from the radio once a TX event occur
 impl<'a, B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    A: kernel::hil::time::Alarm,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
@@ -543,8 +543,8 @@ where
 // System Call implementation
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 where
-    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
+    A: kernel::hil::time::Alarm,
 {
     fn command(
         &self,

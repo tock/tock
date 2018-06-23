@@ -64,7 +64,7 @@ pub trait UDPSender<'a> {
 /// This is a specific instantiation of the `UDPSender` trait. Note
 /// that this struct contains a reference to an `IP6Sender` which it
 /// forwards packets to (and receives callbacks from).
-pub struct UDPSendStruct<'a, T: IP6Sender<'a> + 'a> {
+pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: Cell<Option<&'a UDPSendClient>>,
 }

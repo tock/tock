@@ -39,7 +39,7 @@ impl Default for App {
     }
 }
 
-pub struct SimpleRng<'a, RNG: rng::RNG + 'a> {
+pub struct SimpleRng<'a, RNG: rng::RNG> {
     rng: &'a RNG,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,

@@ -63,7 +63,7 @@ pub enum ActivationMode {
 
 /// Holds the array of GPIO pins attached to the LEDs and implements a `Driver`
 /// interface to control them.
-pub struct LED<'a, G: hil::gpio::Pin + 'a> {
+pub struct LED<'a, G: hil::gpio::Pin> {
     pins_init: &'a [(&'a G, ActivationMode)],
 }
 

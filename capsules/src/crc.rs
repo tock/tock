@@ -86,7 +86,7 @@ pub struct App {
 
 /// Struct that holds the state of the CRC driver and implements the `Driver` trait for use by
 /// processes through the system call interface.
-pub struct Crc<'a, C: hil::crc::CRC + 'a> {
+pub struct Crc<'a, C: hil::crc::CRC> {
     crc_unit: &'a C,
     apps: Grant<App>,
     serving_app: Cell<Option<AppId>>,

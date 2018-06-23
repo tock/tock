@@ -51,7 +51,7 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
-pub struct Nrf51822Serialization<'a, U: UARTReceiveAdvanced + 'a> {
+pub struct Nrf51822Serialization<'a, U: UARTReceiveAdvanced> {
     uart: &'a U,
     app: MapCell<App>,
     tx_buffer: TakeCell<'static, [u8]>,

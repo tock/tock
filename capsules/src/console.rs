@@ -74,7 +74,7 @@ impl Default for App {
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a, U: UART + 'a> {
+pub struct Console<'a, U: UART> {
     uart: &'a U,
     apps: Grant<App>,
     tx_in_progress: Cell<Option<AppId>>,

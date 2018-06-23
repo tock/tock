@@ -66,14 +66,14 @@ pub trait Mac {
 /// implementation and the underlying radio::Radio device. Does not change the power
 /// state of the radio during operation.
 ///
-pub struct AwakeMac<'a, R: radio::Radio + 'a> {
+pub struct AwakeMac<'a, R: radio::Radio> {
     radio: &'a R,
 
     tx_client: Cell<Option<&'static radio::TxClient>>,
     rx_client: Cell<Option<&'static radio::RxClient>>,
 }
 
-impl<'a, R: radio::Radio + 'a> AwakeMac<'a, R> {
+impl<'a, R: radio::Radio> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
             radio: radio,
@@ -83,7 +83,7 @@ impl<'a, R: radio::Radio + 'a> AwakeMac<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> Mac for AwakeMac<'a, R> {
+impl<'a, R: radio::Radio> Mac for AwakeMac<'a, R> {
     fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
         // do nothing, extra buffer unnecessary
         ReturnCode::SUCCESS
@@ -146,7 +146,7 @@ impl<'a, R: radio::Radio + 'a> Mac for AwakeMac<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::TxClient for AwakeMac<'a, R> {
+impl<'a, R: radio::Radio> radio::TxClient for AwakeMac<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_client.get().map(move |c| {
             c.send_done(buf, acked, result);
@@ -154,7 +154,7 @@ impl<'a, R: radio::Radio + 'a> radio::TxClient for AwakeMac<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::RxClient for AwakeMac<'a, R> {
+impl<'a, R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
     fn receive(
         &self,
         buf: &'static mut [u8],

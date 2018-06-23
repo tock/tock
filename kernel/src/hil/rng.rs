@@ -21,7 +21,7 @@
 //! once a second using the `Alarm` and `RNG` traits.
 //!
 //! ```
-//! struct RngTest<'a, A: Alarm + 'a> {
+//! struct RngTest<'a, A: Alarm > {
 //!     rng: &'a RNG,
 //!     alarm: &'a A
 //! }

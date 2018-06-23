@@ -31,7 +31,7 @@ use kernel::{AppId, Callback, Driver};
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x80003;
 
-pub struct GPIOAsync<'a, Port: hil::gpio_async::Port + 'a> {
+pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
     callback: Cell<Option<Callback>>,
     interrupt_callback: Cell<Option<Callback>>,

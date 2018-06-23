@@ -49,7 +49,7 @@ pub trait ICMP6Sender<'a> {
 }
 
 /// A struct that implements the `ICMP6Sender` trait.
-pub struct ICMP6SendStruct<'a, T: IP6Sender<'a> + 'a> {
+pub struct ICMP6SendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: Cell<Option<&'a ICMP6SendClient>>,
 }

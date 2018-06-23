@@ -5,7 +5,7 @@ use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Time};
 
-pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
+pub struct VirtualMuxAlarm<'a, Alrm: Alarm> {
     mux: &'a MuxAlarm<'a, Alrm>,
     when: Cell<u32>,
     armed: Cell<bool>,
@@ -105,7 +105,7 @@ impl<'a, Alrm: Alarm> time::Client for VirtualMuxAlarm<'a, Alrm> {
 
 // MuxAlarm
 
-pub struct MuxAlarm<'a, Alrm: Alarm + 'a> {
+pub struct MuxAlarm<'a, Alrm: Alarm> {
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, Alrm>>,
     enabled: Cell<usize>,
     prev: Cell<u32>,
