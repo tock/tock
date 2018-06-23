@@ -59,7 +59,7 @@ pub struct PCA9544A<'a> {
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a> PCA9544A<'a> {
+impl PCA9544A<'a> {
     pub fn new(i2c: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
         PCA9544A {
             i2c: i2c,
@@ -117,7 +117,7 @@ impl<'a> PCA9544A<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for PCA9544A<'a> {
+impl i2c::I2CClient for PCA9544A<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::ReadControl(field) => {
@@ -146,7 +146,7 @@ impl<'a> i2c::I2CClient for PCA9544A<'a> {
     }
 }
 
-impl<'a> Driver for PCA9544A<'a> {
+impl Driver for PCA9544A<'a> {
     /// Setup callback for event done.
     ///
     /// ### `subscribe_num`

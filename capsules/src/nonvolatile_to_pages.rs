@@ -68,7 +68,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     buffer_index: Cell<usize>,
 }
 
-impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
+impl<F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
         NonvolatileToPages {
             driver: driver,
@@ -84,7 +84,7 @@ impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
+impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
     for NonvolatileToPages<'a, F>
 {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
@@ -152,7 +152,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
     }
 }
 
-impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
+impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: hil::flash::Error) {
         match self.state.get() {
             State::Read => {

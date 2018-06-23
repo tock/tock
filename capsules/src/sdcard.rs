@@ -189,7 +189,7 @@ pub trait SDCardClient {
 }
 
 /// Functions for initializing and accessing an SD card
-impl<'a, A: hil::time::Alarm> SDCard<'a, A> {
+impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// Create a new SD card interface
     ///
     /// spi - virtualized SPI to use for communication with SD card
@@ -1329,7 +1329,7 @@ impl<'a, A: hil::time::Alarm> SDCard<'a, A> {
 }
 
 /// Handle callbacks from the SPI peripheral
-impl<'a, A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(
         &self,
         mut write_buffer: &'static mut [u8],
@@ -1344,14 +1344,14 @@ impl<'a, A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
 }
 
 /// Handle callbacks from the timer
-impl<'a, A: hil::time::Alarm> hil::time::Client for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::time::Client for SDCard<'a, A> {
     fn fired(&self) {
         self.process_alarm_states();
     }
 }
 
 /// Handle callbacks from the card detection pin
-impl<'a, A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
     fn fired(&self, _: usize) {
         // check if there was an open transaction with the sd card
         if self.alarm_state.get() != AlarmState::Idle || self.state.get() != SpiState::Idle {
@@ -1411,7 +1411,7 @@ impl Default for App {
 pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
 
 /// Functions for SDCardDriver
-impl<'a, A: hil::time::Alarm> SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> SDCardDriver<'a, A> {
     /// Create new SD card userland interface
     ///
     /// sdcard - SDCard interface to provide application access to
@@ -1431,7 +1431,7 @@ impl<'a, A: hil::time::Alarm> SDCardDriver<'a, A> {
 }
 
 /// Handle callbacks from SDCard
-impl<'a, A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
             app.callback.map(|mut cb| {
@@ -1495,7 +1495,7 @@ impl<'a, A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
 }
 
 /// Connections to userspace syscalls
-impl<'a, A: hil::time::Alarm> Driver for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> Driver for SDCardDriver<'a, A> {
     fn allow(
         &self,
         _appid: AppId,

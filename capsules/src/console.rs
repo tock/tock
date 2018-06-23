@@ -84,7 +84,7 @@ pub struct Console<'a, U: UART> {
     baud_rate: u32,
 }
 
-impl<'a, U: UART> Console<'a, U> {
+impl<U: UART> Console<'a, U> {
     pub fn new(
         uart: &'a U,
         baud_rate: u32,
@@ -208,7 +208,7 @@ impl<'a, U: UART> Console<'a, U> {
     }
 }
 
-impl<'a, U: UART> Driver for Console<'a, U> {
+impl<U: UART> Driver for Console<'a, U> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -303,7 +303,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     }
 }
 
-impl<'a, U: UART> Client for Console<'a, U> {
+impl<U: UART> Client for Console<'a, U> {
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.

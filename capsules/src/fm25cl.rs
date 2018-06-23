@@ -99,7 +99,7 @@ pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice> {
     client_write_len: Cell<u16>,
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     pub fn new(
         spi: &'a S,
         txbuffer: &'static mut [u8],
@@ -179,7 +179,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, S> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -267,7 +267,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, 
 }
 
 // Implement the custom interface that exposes chip-specific commands.
-impl<'a, S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
     fn read_status(&self) -> ReturnCode {
         self.configure_spi();
 
@@ -291,9 +291,7 @@ impl<'a, S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
 
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
-impl<'a, S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage
-    for FM25CL<'a, S>
-{
+impl<S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage for FM25CL<'a, S> {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(Some(client));
     }

@@ -43,7 +43,7 @@ pub struct UsbSyscallDriver<'a, C: hil::usb::Client> {
     serving_app: Cell<Option<AppId>>,
 }
 
-impl<'a, C> UsbSyscallDriver<'a, C>
+impl<C> UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client,
 {
@@ -98,7 +98,7 @@ enum Request {
     EnableAndAttach,
 }
 
-impl<'a, C> Driver for UsbSyscallDriver<'a, C>
+impl<C> Driver for UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client,
 {

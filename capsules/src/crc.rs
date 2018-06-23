@@ -92,7 +92,7 @@ pub struct Crc<'a, C: hil::crc::CRC> {
     serving_app: Cell<Option<AppId>>,
 }
 
-impl<'a, C: hil::crc::CRC> Crc<'a, C> {
+impl<C: hil::crc::CRC> Crc<'a, C> {
     /// Create a `Crc` driver
     ///
     /// The argument `crc_unit` must implement the abstract `CRC`
@@ -164,7 +164,7 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a CRC computation using the `command` system call. See function-specific
 /// comments for details.
-impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
+impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
@@ -321,7 +321,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     }
 }
 
-impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
+impl<C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
     fn receive_result(&self, result: u32) {
         if let Some(appid) = self.serving_app.get() {
             self.apps

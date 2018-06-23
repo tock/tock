@@ -35,7 +35,7 @@ pub struct AlarmDriver<'a, A: Alarm> {
     prev: Cell<u32>,
 }
 
-impl<'a, A: Alarm> AlarmDriver<'a, A> {
+impl<A: Alarm> AlarmDriver<'a, A> {
     pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
@@ -70,7 +70,7 @@ impl<'a, A: Alarm> AlarmDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
+impl<A: Alarm> Driver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -161,7 +161,7 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
-impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
+impl<A: Alarm> time::Client for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
         self.app_alarm.each(|alarm| {

@@ -58,7 +58,7 @@ pub struct Nrf51822Serialization<'a, U: UARTReceiveAdvanced> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
+impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     pub fn new(
         uart: &'a U,
         tx_buffer: &'static mut [u8],
@@ -82,7 +82,7 @@ impl<'a, U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     }
 }
 
-impl<'a, U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
+impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
     /// Pass application space memory to this driver.
     ///
     /// ### `allow_num`
@@ -179,7 +179,7 @@ impl<'a, U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
 }
 
 // Callbacks from the underlying UART driver.
-impl<'a, U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
+impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
     // Called when the UART TX has finished.
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         self.tx_buffer.replace(buffer);

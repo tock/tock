@@ -54,7 +54,7 @@ pub struct AppFlash<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> AppFlash<'a> {
+impl AppFlash<'a> {
     pub fn new(
         driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
         grant: Grant<App>,
@@ -116,7 +116,7 @@ impl<'a> AppFlash<'a> {
     }
 }
 
-impl<'a> hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {}
 
     fn write_done(&self, buffer: &'static mut [u8], _length: usize) {
@@ -169,7 +169,7 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
     }
 }
 
-impl<'a> Driver for AppFlash<'a> {
+impl Driver for AppFlash<'a> {
     /// Setup buffer to write from.
     ///
     /// ### `allow_num`

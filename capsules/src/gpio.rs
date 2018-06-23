@@ -55,7 +55,7 @@ pub struct GPIO<'a, G: Pin> {
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a, G: Pin + PinCtl> GPIO<'a, G> {
+impl<G: Pin + PinCtl> GPIO<'a, G> {
     pub fn new(pins: &'a [&'a G]) -> GPIO<'a, G> {
         GPIO {
             pins: pins,
@@ -106,7 +106,7 @@ impl<'a, G: Pin + PinCtl> GPIO<'a, G> {
     }
 }
 
-impl<'a, G: Pin> Client for GPIO<'a, G> {
+impl<G: Pin> Client for GPIO<'a, G> {
     fn fired(&self, pin_num: usize) {
         // read the value of the pin
         let pins = self.pins.as_ref();
@@ -119,7 +119,7 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
     }
 }
 
-impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
+impl<G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// Subscribe to GPIO pin events.
     ///
     /// ### `subscribe_num`

@@ -67,7 +67,7 @@ pub struct LED<'a, G: hil::gpio::Pin> {
     pins_init: &'a [(&'a G, ActivationMode)],
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
+impl<G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
     pub fn new(pins_init: &'a [(&'a G, ActivationMode)]) -> LED<'a, G> {
         // Make all pins output and off
         for &(pin, mode) in pins_init.as_ref().iter() {
@@ -84,7 +84,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
     }
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
+impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
     /// Control the LEDs.
     ///
     /// ### `command_num`

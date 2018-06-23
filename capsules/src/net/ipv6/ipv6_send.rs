@@ -97,7 +97,7 @@ pub struct IP6SendStruct<'a> {
     client: Cell<Option<&'a IP6Client>>,
 }
 
-impl<'a> IP6Sender<'a> for IP6SendStruct<'a> {
+impl IP6Sender<'a> for IP6SendStruct<'a> {
     fn set_client(&self, client: &'a IP6Client) {
         self.client.set(Some(client));
     }
@@ -127,7 +127,7 @@ impl<'a> IP6Sender<'a> for IP6SendStruct<'a> {
     }
 }
 
-impl<'a> IP6SendStruct<'a> {
+impl IP6SendStruct<'a> {
     pub fn new(
         ip6_packet: &'static mut IP6Packet<'static>,
         tx_buf: &'static mut [u8],
@@ -190,7 +190,7 @@ impl<'a> IP6SendStruct<'a> {
     }
 }
 
-impl<'a> TxClient for IP6SendStruct<'a> {
+impl TxClient for IP6SendStruct<'a> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
         debug!("sendDone return code is: {:?}, acked: {}", result, acked);

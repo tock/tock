@@ -98,7 +98,7 @@ fn decode_key_id(buf: &[u8]) -> SResult<KeyId> {
     }
 }
 
-impl<'a> From<&'a KeyId> for KeyIdModeUserland {
+impl From<&'a KeyId> for KeyIdModeUserland {
     fn from(key_id: &'a KeyId) -> Self {
         match *key_id {
             KeyId::Implicit => KeyIdModeUserland::Implicit,
@@ -191,7 +191,7 @@ pub struct RadioDriver<'a> {
     kernel_tx: TakeCell<'static, [u8]>,
 }
 
-impl<'a> RadioDriver<'a> {
+impl RadioDriver<'a> {
     pub fn new(
         mac: &'a device::MacDevice<'a>,
         grant: Grant<App>,
@@ -493,7 +493,7 @@ impl<'a> RadioDriver<'a> {
     }
 }
 
-impl<'a> framer::DeviceProcedure for RadioDriver<'a> {
+impl framer::DeviceProcedure for RadioDriver<'a> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])> {
@@ -509,7 +509,7 @@ impl<'a> framer::DeviceProcedure for RadioDriver<'a> {
     }
 }
 
-impl<'a> framer::KeyProcedure for RadioDriver<'a> {
+impl framer::KeyProcedure for RadioDriver<'a> {
     /// Gets the key corresponding to the key that matches the given security
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
@@ -523,7 +523,7 @@ impl<'a> framer::KeyProcedure for RadioDriver<'a> {
     }
 }
 
-impl<'a> Driver for RadioDriver<'a> {
+impl Driver for RadioDriver<'a> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`
@@ -795,7 +795,7 @@ impl<'a> Driver for RadioDriver<'a> {
     }
 }
 
-impl<'a> device::TxClient for RadioDriver<'a> {
+impl device::TxClient for RadioDriver<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.get().map(|appid| {
@@ -826,7 +826,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
     ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
-impl<'a> device::RxClient for RadioDriver<'a> {
+impl device::RxClient for RadioDriver<'a> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         self.apps.each(|app| {
             app.app_read.take().as_mut().map(|rbuf| {
