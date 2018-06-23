@@ -188,7 +188,7 @@ impl Driver for IPC {
                     let procs = unsafe { &mut process::PROCS };
                     for (i, process) in procs.iter().enumerate() {
                         match process {
-                            &Some(ref p) => {
+                            Some(p) => {
                                 let s = p.package_name.as_bytes();
                                 // are slices equal?
                                 if s.len() == slice_data.len()
@@ -199,7 +199,7 @@ impl Driver for IPC {
                                     };
                                 }
                             }
-                            &None => {}
+                            None => {}
                         }
                     }
                 }
