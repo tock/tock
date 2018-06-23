@@ -174,7 +174,7 @@ pub static mut AST: Ast<'static> = Ast {
     callback: Cell::new(None),
 };
 
-impl<'a> Controller for Ast<'a> {
+impl Controller for Ast<'a> {
     type Config = &'static time::Client;
 
     fn configure(&self, client: &'a time::Client) {
@@ -200,7 +200,7 @@ enum Clock {
     Clock1K = 4,
 }
 
-impl<'a> Ast<'a> {
+impl Ast<'a> {
     fn clock_busy(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         regs.sr.is_set(Status::CLKBUSY)
@@ -302,7 +302,7 @@ impl<'a> Ast<'a> {
     }
 }
 
-impl<'a> Time for Ast<'a> {
+impl Time for Ast<'a> {
     type Frequency = Freq16KHz;
 
     fn disable(&self) {
@@ -315,7 +315,7 @@ impl<'a> Time for Ast<'a> {
     }
 }
 
-impl<'a> Alarm for Ast<'a> {
+impl Alarm for Ast<'a> {
     fn now(&self) -> u32 {
         self.get_counter()
     }

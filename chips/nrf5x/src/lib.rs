@@ -1,4 +1,5 @@
 #![feature(const_fn, try_from)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 #[allow(unused_imports)]

@@ -288,7 +288,7 @@ pub struct USARTRegManager<'a> {
 
 static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
-impl<'a> USARTRegManager<'a> {
+impl USARTRegManager<'a> {
     fn real_new(usart: &USART) -> USARTRegManager {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
@@ -312,7 +312,7 @@ impl<'a> USARTRegManager<'a> {
     }
 }
 
-impl<'a> Drop for USARTRegManager<'a> {
+impl Drop for USARTRegManager<'a> {
     fn drop(&mut self) {
         // Anything listening for RX or TX interrupts?
         let ints_active = self.registers.imr.matches_any(
