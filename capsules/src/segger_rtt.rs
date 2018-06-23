@@ -35,6 +35,21 @@
 //! -----
 //!
 //! ```
+//! pub struct Platform {
+//!     // Other fields omitted for clarity
+//!     console: &'static capsules::console::Console<
+//!         'static,
+//!         capsules::segger_rtt::SeggerRtt<
+//!             'static,
+//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+//!         >,
+//!     >,
+//! }
+//! ```
+//!
+//! In `reset_handler()`:
+//!
+//! ```
 //! let virtual_alarm_rtt = static_init!(
 //!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
 //!     capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
@@ -55,6 +70,24 @@
 //!         &mut capsules::segger_rtt::DOWN_BUFFER)
 //! );
 //! virtual_alarm_rtt.set_client(rtt);
+//!
+//! let console = static_init!(
+//!     capsules::console::Console<
+//!         'static,
+//!         capsules::segger_rtt::SeggerRtt<
+//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+//!         >,
+//!     >,
+//!     capsules::console::Console::new(
+//!         rtt,
+//!         0, // Baud rate is meaningless with RTT
+//!         &mut capsules::console::WRITE_BUF,
+//!         &mut capsules::console::READ_BUF,
+//!         kernel::Grant::create()
+//!     )
+//! );
+//! kernel::hil::uart::UART::set_client(rtt, console);
+//! console.initialize();
 //! ```
 
 use kernel::common::cells::{OptionalCell, TakeCell};
