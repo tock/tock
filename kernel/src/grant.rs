@@ -113,7 +113,7 @@ impl<T: ?Sized> DerefMut for Owned<T> {
     }
 }
 
-impl<'a> Allocator<'a> {
+impl Allocator<'a> {
     pub fn alloc<T>(&mut self, data: T) -> Result<Owned<T>, Error> {
         unsafe {
             let app_id = self.app_id;
@@ -141,7 +141,7 @@ pub struct Borrowed<'a, T: 'a + ?Sized> {
     app_id: usize,
 }
 
-impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
+impl<T: 'a + ?Sized> Borrowed<'a, T> {
     pub fn new(data: &'a mut T, app_id: usize) -> Borrowed<T> {
         Borrowed {
             data: data,
@@ -154,14 +154,14 @@ impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
     }
 }
 
-impl<'a, T: 'a + ?Sized> Deref for Borrowed<'a, T> {
+impl<T: 'a + ?Sized> Deref for Borrowed<'a, T> {
     type Target = T;
     fn deref(&self) -> &T {
         self.data
     }
 }
 
-impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
+impl<T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data
     }
@@ -282,7 +282,7 @@ pub struct Iter<'a, T: 'a + Default> {
     len: usize,
 }
 
-impl<'a, T: Default> Iterator for Iter<'a, T> {
+impl<T: Default> Iterator for Iter<'a, T> {
     type Item = AppliedGrant<T>;
 
     fn next(&mut self) -> Option<Self::Item> {

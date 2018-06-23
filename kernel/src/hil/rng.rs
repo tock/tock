@@ -26,7 +26,7 @@
 //!     alarm: &'a A
 //! }
 //!
-//! impl<'a, A: Alarm> RngTest<'a, A> {
+//! impl<A: Alarm> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let interval = 1 * <A::Frequency>::frequency();
 //!         let tics = self.alarm.now().wrapping_add(interval);
@@ -34,13 +34,13 @@
 //!     }
 //! }
 //!
-//! impl<'a, A: Alarm> time::Client for RngTest<'a, A> {
+//! impl<A: Alarm> time::Client for RngTest<'a, A> {
 //!     fn fired(&self) {
 //!         self.rng.get();
 //!     }
 //! }
 //!
-//! impl<'a, A: Alarm> rng::Client for RngTest<'a, A> {
+//! impl<A: Alarm> rng::Client for RngTest<'a, A> {
 //!     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
 //!         match randomness.next() {
 //!             Some(random) => {

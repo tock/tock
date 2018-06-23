@@ -8,7 +8,7 @@ pub struct RingBuffer<'a, T: 'a> {
     tail: usize,
 }
 
-impl<'a, T: Copy> RingBuffer<'a, T> {
+impl<T: Copy> RingBuffer<'a, T> {
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
@@ -18,7 +18,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 }
 
-impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
+impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
     fn has_elements(&self) -> bool {
         self.head != self.tail
     }

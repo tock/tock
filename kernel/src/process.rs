@@ -749,7 +749,7 @@ pub fn processes_blocked() -> bool {
     unsafe { HAVE_WORK.get() == 0 }
 }
 
-impl<'a> Process<'a> {
+impl Process<'a> {
     pub fn schedule_ipc(&mut self, from: AppId, cb_type: IPCType) {
         unsafe {
             HAVE_WORK.set(HAVE_WORK.get() + 1);
