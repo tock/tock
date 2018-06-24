@@ -22,7 +22,7 @@ macro_rules! align4 {
 /// to support any apps that were compiled with an older version of elf2tbf.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV1 {
+crate struct TbfHeaderV1 {
     version: u32,
     total_size: u32,
     entry_offset: u32,
@@ -47,7 +47,7 @@ pub(crate) struct TbfHeaderV1 {
 /// TBF fields that must be present in all v2 headers.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2Base {
+crate struct TbfHeaderV2Base {
     version: u16,
     header_size: u16,
     total_size: u32,
@@ -59,7 +59,7 @@ pub(crate) struct TbfHeaderV2Base {
 #[repr(u16)]
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
-pub(crate) enum TbfHeaderTypes {
+crate enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
@@ -69,7 +69,7 @@ pub(crate) enum TbfHeaderTypes {
 /// The TLV header (T and L).
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderTlv {
+crate struct TbfHeaderTlv {
     tipe: TbfHeaderTypes,
     length: u16,
 }
@@ -80,7 +80,7 @@ pub(crate) struct TbfHeaderTlv {
 /// only padding.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2Main {
+crate struct TbfHeaderV2Main {
     init_fn_offset: u32,
     protected_size: u32,
     minimum_ram_size: u32,
@@ -92,7 +92,7 @@ pub(crate) struct TbfHeaderV2Main {
 /// struct.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2WriteableFlashRegion {
+crate struct TbfHeaderV2WriteableFlashRegion {
     writeable_flash_region_offset: u32,
     writeable_flash_region_size: u32,
 }
@@ -103,7 +103,7 @@ pub(crate) struct TbfHeaderV2WriteableFlashRegion {
 /// block so the kernel knows where sections are in the app binary.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct PicOption1Fields {
+crate struct PicOption1Fields {
     text_offset: u32,
     data_offset: u32,
     data_size: u32,
@@ -118,7 +118,7 @@ pub(crate) struct PicOption1Fields {
 
 /// Single header that can contain all parts of a v2 header.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct TbfHeaderV2 {
+crate struct TbfHeaderV2 {
     base: &'static TbfHeaderV2Base,
     main: Option<&'static TbfHeaderV2Main>,
     package_name: Option<&'static str>,
@@ -132,7 +132,7 @@ pub(crate) struct TbfHeaderV2 {
 /// The kernel can also use this header to keep persistent state about
 /// the application.
 #[derive(Debug)]
-pub(crate) enum TbfHeader {
+crate enum TbfHeader {
     TbfHeaderV1(&'static TbfHeaderV1),
     TbfHeaderV2(TbfHeaderV2),
     Padding(&'static TbfHeaderV2Base),
@@ -140,7 +140,7 @@ pub(crate) enum TbfHeader {
 
 impl TbfHeader {
     /// Return whether this is an app or just padding between apps.
-    pub(crate) fn is_app(&self) -> bool {
+    crate fn is_app(&self) -> bool {
         match *self {
             TbfHeader::TbfHeaderV1(_) => true,
             TbfHeader::TbfHeaderV2(_) => true,
@@ -150,7 +150,7 @@ impl TbfHeader {
 
     /// Return whether the application is enabled or not.
     /// Disabled applications are not started by the kernel.
-    pub(crate) fn enabled(&self) -> bool {
+    crate fn enabled(&self) -> bool {
         match *self {
             // Header v1 has no flag for this, and therefore all apps are
             // always enabled.
@@ -164,7 +164,7 @@ impl TbfHeader {
     }
 
     /// Get the total size in flash of this app or padding.
-    pub(crate) fn get_total_size(&self) -> u32 {
+    crate fn get_total_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.total_size,
             TbfHeader::TbfHeaderV2(hd) => hd.base.total_size,
@@ -175,7 +175,7 @@ impl TbfHeader {
     /// Add up all of the relevant fields in header version 1, or just used the
     /// app provided value in version 2 to get the total amount of RAM that is
     /// needed for this app.
-    pub(crate) fn get_minimum_app_ram_size(&self) -> u32 {
+    crate fn get_minimum_app_ram_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => {
                 let heap_len = align8!(hd.min_app_heap_len) + align8!(hd.min_kernel_heap_len);
@@ -190,7 +190,7 @@ impl TbfHeader {
 
     /// Get the number of bytes from the start of the app's region in flash that
     /// is for kernel use only. The app cannot write this region.
-    pub(crate) fn get_protected_size(&self) -> u32 {
+    crate fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(_) => mem::size_of::<TbfHeaderV1>() as u32,
             TbfHeader::TbfHeaderV2(hd) => {
@@ -202,7 +202,7 @@ impl TbfHeader {
 
     /// Get the offset from the beginning of the app's flash region where the
     /// app should start executing.
-    pub(crate) fn get_init_function_offset(&self) -> u32 {
+    crate fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
             TbfHeader::TbfHeaderV2(hd) => {
@@ -213,7 +213,7 @@ impl TbfHeader {
     }
 
     /// Get the name of the app.
-    pub(crate) fn get_package_name(&self, flash_start_addr: *const u8) -> &'static str {
+    crate fn get_package_name(&self, flash_start_addr: *const u8) -> &'static str {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => unsafe {
                 let package_name_byte_array = slice::from_raw_parts(
@@ -232,7 +232,7 @@ impl TbfHeader {
     }
 
     /// Get the number of flash regions this app has specified in its header.
-    pub(crate) fn number_writeable_flash_regions(&self) -> usize {
+    crate fn number_writeable_flash_regions(&self) -> usize {
         match *self {
             TbfHeader::TbfHeaderV1(_) => 0,
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or(0, |wr| wr.len()),
@@ -241,7 +241,7 @@ impl TbfHeader {
     }
 
     /// Get the offset and size of a given flash region.
-    pub(crate) fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
+    crate fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
         match *self {
             TbfHeader::TbfHeaderV1(_) => (0, 0),
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wr| {
@@ -264,7 +264,7 @@ impl TbfHeader {
 /// This function takes a pointer to arbitrary memory and optionally returns a
 /// TBF header struct. This function will validate the header checksum, but does
 /// not perform sanity or security checking on the structure.
-pub(crate) unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader> {
+crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader> {
     let version = *(address as *const u16);
 
     match version {

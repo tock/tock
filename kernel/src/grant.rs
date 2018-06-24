@@ -8,7 +8,7 @@ use core::ptr::{read_volatile, write_volatile, Unique};
 use debug;
 use process::{self, Error};
 
-pub static mut CONTAINER_COUNTER: usize = 0;
+crate static mut CONTAINER_COUNTER: usize = 0;
 
 pub struct Grant<T: Default> {
     grant_num: usize,
@@ -26,7 +26,7 @@ pub struct AppliedGrant<T> {
 /// stored in a processes array, and finding apps is a matter of iterating that
 /// array. Kernel "apps" currently (June 2018) have no such structure, so
 /// finding them is a bit more ad-hoc.
-pub unsafe fn kernel_grant_for<T>(app_id: usize) -> *mut T {
+crate unsafe fn kernel_grant_for<T>(app_id: usize) -> *mut T {
     match app_id {
         debug::APPID_IDX => debug::get_grant(),
         _ => panic!("lookup for invalid kernel grant {}", app_id),

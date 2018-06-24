@@ -23,21 +23,21 @@ struct AtomicUsize {
 }
 
 impl AtomicUsize {
-    pub const fn new(v: usize) -> AtomicUsize {
+    crate const fn new(v: usize) -> AtomicUsize {
         AtomicUsize {
             v: UnsafeCell::new(v),
         }
     }
 
-    pub fn load_relaxed(&self) -> usize {
+    crate fn load_relaxed(&self) -> usize {
         unsafe { intrinsics::atomic_load_relaxed(self.v.get()) }
     }
 
-    pub fn store_relaxed(&self, val: usize) {
+    crate fn store_relaxed(&self, val: usize) {
         unsafe { intrinsics::atomic_store_relaxed(self.v.get(), val) }
     }
 
-    pub fn fetch_or_relaxed(&self, val: usize) {
+    crate fn fetch_or_relaxed(&self, val: usize) {
         unsafe { intrinsics::atomic_store_relaxed(self.v.get(), self.load_relaxed() | val) }
     }
 }
