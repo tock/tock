@@ -55,7 +55,7 @@ macro_rules! static_init {
 macro_rules! storage_volume {
     ($N:ident, $kB:expr) => {
         #[link_section = ".storage"]
-        #[no_mangle]
+        #[used]
         pub static $N: [u8; $kB * 1024] = [0x00; $kB * 1024];
     };
 }

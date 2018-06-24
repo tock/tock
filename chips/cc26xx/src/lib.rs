@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn, used)]
 #![no_std]
 #![crate_name = "cc26xx"]
 #![crate_type = "rlib"]

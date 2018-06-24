@@ -4,7 +4,7 @@
 //!
 //! Currently setup to use the default settings.
 
-#[no_mangle]
+#[used]
 #[link_section = ".ccfg"]
 pub static CCFG_CONF: [u32; 22] = [
     0x01800000, 0xFF820010, 0x0058FFFD, 0xF3FFFF3A, //0xF3BFFF3A,

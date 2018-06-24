@@ -32,16 +32,19 @@ macro_rules! align4 {
 /// This is used in the hardfault handler.
 #[allow(private_no_mangle_statics)]
 #[no_mangle]
+#[used]
 static mut SYSCALL_FIRED: usize = 0;
 
 /// This is used in the hardfault handler.
 #[allow(private_no_mangle_statics)]
 #[no_mangle]
+#[used]
 static mut APP_FAULT: usize = 0;
 
 /// This is used in the hardfault handler.
 #[allow(private_no_mangle_statics)]
 #[no_mangle]
+#[used]
 static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
 #[allow(improper_ctypes)]
