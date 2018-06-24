@@ -121,7 +121,7 @@ const SIZE: usize = 0x00001000;
 pub static INTERRUPT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Copy,Clone)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub enum Pin {
     PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7,
     PB0, PB1, PB2, PB3, PB4, PB5, PB6, PB7,
