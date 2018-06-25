@@ -1,4 +1,3 @@
-#![feature(asm, concat_idents, const_fn, const_cell_new, try_from)]
 #![no_std]
 #![crate_name = "cc26x2"]
 #![crate_type = "rlib"]

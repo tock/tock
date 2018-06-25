@@ -5,7 +5,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items, const_cell_new, panic_implementation)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;

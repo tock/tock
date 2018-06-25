@@ -6,9 +6,8 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(core_intrinsics, unique, nonzero, ptr_internals)]
-#![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
-#![feature(nonnull_cast, use_extern_macros, try_from)]
+#![feature(asm, core_intrinsics, unique, ptr_internals, const_fn)]
+#![feature(use_extern_macros, try_from)]
 #![no_std]
 
 extern crate tock_cells;
