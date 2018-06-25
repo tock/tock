@@ -49,7 +49,7 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_verbose, debug_gpio, static_init, create_capability)]
+#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
 extern crate cortexm0;
 extern crate nrf51;
@@ -146,9 +146,10 @@ pub unsafe fn reset_handler() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_cap = create_capability!(capabilities::MainLoopCapability);
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     // LEDs
     let led_pins = static_init!(
@@ -200,7 +201,10 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, board_kernel.create_grant(&grant_cap))
+        capsules::button::Button::new(
+            button_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -269,7 +273,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&grant_cap)
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     UART::set_client(console_uart, console);
@@ -305,7 +309,10 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        AlarmDriver::new(virtual_alarm1, board_kernel.create_grant(&grant_cap))
+        AlarmDriver::new(
+            virtual_alarm1,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     virtual_alarm1.set_client(alarm);
 
@@ -318,7 +325,7 @@ pub unsafe fn reset_handler() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            board_kernel.create_grant(&grant_cap)
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
@@ -327,7 +334,7 @@ pub unsafe fn reset_handler() {
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
         capsules::rng::SimpleRng::new(
             &mut nrf5x::trng::TRNG,
-            board_kernel.create_grant(&grant_cap)
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     nrf5x::trng::TRNG.set_client(rng);
@@ -340,7 +347,7 @@ pub unsafe fn reset_handler() {
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf51::radio::RADIO,
-            board_kernel.create_grant(&grant_cap),
+            board_kernel.create_grant(&memory_allocation_capability),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
@@ -397,13 +404,16 @@ pub unsafe fn reset_handler() {
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
-        &process_mgmt_cap,
+        &process_management_capability,
     );
 
     board_kernel.kernel_loop(
         &platform,
         &mut chip,
-        Some(&kernel::ipc::IPC::new(board_kernel, &grant_cap)),
-        &main_cap,
+        Some(&kernel::ipc::IPC::new(
+            board_kernel,
+            &memory_allocation_capability,
+        )),
+        &main_loop_capability,
     );
 }
