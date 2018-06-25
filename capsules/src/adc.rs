@@ -112,12 +112,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         }
     }
 
-    /// Initialize the ADC
-    /// This can be called harmlessly if the ADC has already been initialized
-    fn initialize(&self) -> ReturnCode {
-        self.adc.initialize()
-    }
-
     /// Store a buffer we've regained ownership of and return a handle to it
     /// The handle can have `map` called on it in order to process the data in
     /// the buffer
@@ -164,12 +158,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
             return ReturnCode::EBUSY;
         }
 
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
-        }
-
         // convert channel index
         if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
@@ -202,12 +190,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -244,12 +226,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -334,12 +310,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index

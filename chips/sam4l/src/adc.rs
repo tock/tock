@@ -596,13 +596,6 @@ impl Adc {
 impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
 
-    /// Enable and configure the ADC.
-    /// This can be called multiple times with no side effects.
-    fn initialize(&self) -> ReturnCode {
-        // always configure to 1KHz to get the slowest clock
-        self.config_and_enable(1000)
-    }
-
     /// Capture a single analog sample, calling the client when complete.
     /// Returns an error if the ADC is already sampling.
     ///
