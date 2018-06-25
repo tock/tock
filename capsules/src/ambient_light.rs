@@ -1,3 +1,5 @@
+//! Shared userland driver for light sensors.
+//!
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ```rust

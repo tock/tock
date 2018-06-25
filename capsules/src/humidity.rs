@@ -42,7 +42,7 @@
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,
-//!                                                 kernel::Grant::create()), 96/8);
+//!                                                kernel::Grant::create()));
 //! kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 //! ```
 
