@@ -11,6 +11,7 @@ extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate sam4l;
 extern crate sensys;
 

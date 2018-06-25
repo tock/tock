@@ -1,4 +1,5 @@
 use core::fmt::{Arguments, Write};
+use cortexm0;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
@@ -42,5 +43,5 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
     const LED1_PIN: usize = 21;
     let led = &mut led::LedLow::new(&mut nrf5x::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(led, writer, args, file, line, &cortexm0::support::nop)
 }

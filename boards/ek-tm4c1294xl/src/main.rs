@@ -3,10 +3,12 @@
 #![no_std]
 #![no_main]
 #![feature(asm, const_fn, lang_items)]
+
 extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate tm4c129x;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
