@@ -37,10 +37,15 @@ function add_board {
 		grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js >> doc/rustdoc/search-index.js
 
 		# Then need to move `initSearch(searchIndex);` to the bottom.
+		#
+		# Nothing in-place (i.e. `sed -i`) is safely cross-platform, so
+		# just use a temporary file.
+		#
 		# First remove it.
-		sed -i'' '/initSearch(searchIndex);/d' doc/rustdoc/search-index.js
+		grep -v 'initSearch(searchIndex);' doc/rustdoc/search-index.js > doc/rustdoc/search-index-temp.js
 		# Then add it again.
-		echo "initSearch(searchIndex);" >> doc/rustdoc/search-index.js
+		echo "initSearch(searchIndex);" >> doc/rustdoc/search-index-temp.js
+		mv doc/rustdoc/search-index-temp.js doc/rustdoc/search-index.js
 	done
 }
 
