@@ -6,10 +6,11 @@
 //! usage (eg. UART, GPIO, etc). It is used internally.
 
 use kernel::common::regs::ReadWrite;
+use kernel::common::StaticRef;
 use kernel::hil;
 
 #[repr(C)]
-pub struct IocRegisters {
+struct IocRegisters {
     iocfg: [ReadWrite<u32, IoConfiguration::Register>; 32],
 }
 
@@ -39,7 +40,8 @@ register_bitfields![
     ]
 ];
 
-const IOC_BASE: *mut IocRegisters = 0x4008_1000 as *mut IocRegisters;
+const IOC_BASE: StaticRef<IocRegisters> =
+    unsafe { StaticRef::new(0x40081000 as *const IocRegisters) };
 
 pub struct IocfgPin {
     pin: usize,
@@ -51,7 +53,7 @@ impl IocfgPin {
     }
 
     pub fn enable_gpio(&self) {
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
 
         // In order to configure the pin for GPIO we need to clear
@@ -60,7 +62,7 @@ impl IocfgPin {
     }
 
     pub fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
 
         let field = match mode {
@@ -74,20 +76,20 @@ impl IocfgPin {
 
     pub fn enable_output(&self) {
         // Enable by disabling input
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
         pin_ioc.modify(IoConfiguration::IE::CLEAR);
     }
 
     pub fn enable_input(&self) {
         // Set IE (Input Enable) bit
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
         pin_ioc.modify(IoConfiguration::IE::SET);
     }
 
     pub fn enable_interrupt(&self, mode: hil::gpio::InterruptMode) {
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
 
         let ioc_edge_mode = match mode {
@@ -100,14 +102,14 @@ impl IocfgPin {
     }
 
     pub fn disable_interrupt(&self) {
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
         pin_ioc.modify(IoConfiguration::EDGE_IRQ_EN::CLEAR);
     }
 
     /// Configures pin for UART receive (RX).
     pub fn enable_uart_rx(&self) {
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
 
         pin_ioc.modify(IoConfiguration::PORT_ID::UART_RX);
@@ -117,7 +119,7 @@ impl IocfgPin {
 
     /// Configures pin for UART transmit (TX).
     pub fn enable_uart_tx(&self) {
-        let regs: &IocRegisters = unsafe { &*IOC_BASE };
+        let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
 
         pin_ioc.modify(IoConfiguration::PORT_ID::UART_TX);
