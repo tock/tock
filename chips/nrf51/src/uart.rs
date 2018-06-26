@@ -1,56 +1,59 @@
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 use kernel::hil::uart;
 use nrf5x::pinmux::Pinmux;
 
 pub static mut UART0: UART = UART::new();
-const UART_BASE: u32 = 0x40002000;
 
 #[repr(C)]
-pub struct UartRegisters {
-    pub task_startrx: VolatileCell<u32>,
-    pub task_stoprx: VolatileCell<u32>,
-    pub task_starttx: VolatileCell<u32>,
-    pub task_stoptx: VolatileCell<u32>,
+struct UartRegisters {
+    task_startrx: VolatileCell<u32>,
+    task_stoprx: VolatileCell<u32>,
+    task_starttx: VolatileCell<u32>,
+    task_stoptx: VolatileCell<u32>,
     _reserved1: [u32; 3],
-    pub task_suspend: VolatileCell<u32>,
+    task_suspend: VolatileCell<u32>,
     _reserved2: [u32; 56],
-    pub event_cts: VolatileCell<u32>,
-    pub event_ncts: VolatileCell<u32>,
-    pub event_rxdrdy: VolatileCell<u32>,
+    event_cts: VolatileCell<u32>,
+    event_ncts: VolatileCell<u32>,
+    event_rxdrdy: VolatileCell<u32>,
     _reserved3: [u32; 4],
-    pub event_txdrdy: VolatileCell<u32>,
+    event_txdrdy: VolatileCell<u32>,
     _reserved4: [u32; 1],
-    pub event_error: VolatileCell<u32>,
+    event_error: VolatileCell<u32>,
     _reserved5: [u32; 7],
-    pub event_rxto: VolatileCell<u32>,
+    event_rxto: VolatileCell<u32>,
     _reserved6: [u32; 46],
-    pub shorts: VolatileCell<u32>,
+    shorts: VolatileCell<u32>,
     _reserved7: [u32; 64],
-    pub intenset: VolatileCell<u32>,
-    pub intenclr: VolatileCell<u32>,
+    intenset: VolatileCell<u32>,
+    intenclr: VolatileCell<u32>,
     _reserved8: [u32; 93],
-    pub errorsrc: VolatileCell<u32>,
+    errorsrc: VolatileCell<u32>,
     _reserved9: [u32; 31],
-    pub enable: VolatileCell<u32>,
+    enable: VolatileCell<u32>,
     _reserved10: [u32; 1],
-    pub pselrts: VolatileCell<Pinmux>,
-    pub pseltxd: VolatileCell<Pinmux>,
-    pub pselcts: VolatileCell<Pinmux>,
-    pub pselrxd: VolatileCell<Pinmux>,
-    pub rxd: VolatileCell<u32>,
-    pub txd: VolatileCell<u32>,
+    pselrts: VolatileCell<Pinmux>,
+    pseltxd: VolatileCell<Pinmux>,
+    pselcts: VolatileCell<Pinmux>,
+    pselrxd: VolatileCell<Pinmux>,
+    rxd: VolatileCell<u32>,
+    txd: VolatileCell<u32>,
     _reserved11: [u32; 1],
-    pub baudrate: VolatileCell<u32>,
+    baudrate: VolatileCell<u32>,
     _reserved12: [u32; 17],
-    pub config: VolatileCell<u32>,
+    config: VolatileCell<u32>,
     _reserved13: [u32; 675],
-    pub power: VolatileCell<u32>,
+    power: VolatileCell<u32>,
 }
 
+const UART_BASE: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const UartRegisters) };
+
 pub struct UART {
-    regs: *const UartRegisters,
+    registers: StaticRef<UartRegisters>,
     client: Cell<Option<&'static uart::Client>>,
     buffer: TakeCell<'static, [u8]>,
     len: Cell<usize>,
@@ -65,7 +68,7 @@ pub struct UARTParams {
 impl UART {
     pub const fn new() -> UART {
         UART {
-            regs: UART_BASE as *const UartRegisters,
+            registers: UART_BASE,
             client: Cell::new(None),
             buffer: TakeCell::empty(),
             len: Cell::new(0),
@@ -80,7 +83,7 @@ impl UART {
     /// * pin 10: CTS
     /// * pin 11: RX
     pub fn configure(&self, tx: Pinmux, rx: Pinmux, cts: Pinmux, rts: Pinmux) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         regs.pseltxd.set(tx);
         regs.pselrxd.set(rx);
@@ -89,7 +92,7 @@ impl UART {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         match baud_rate {
             1200 => regs.baudrate.set(0x0004F000),
             2400 => regs.baudrate.set(0x0009D000),
@@ -111,32 +114,32 @@ impl UART {
     }
 
     pub fn enable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.enable.set(0b100);
     }
 
     pub fn enable_rx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.set(1 << 3 as u32);
     }
 
     pub fn enable_tx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.set(1 << 7 as u32);
     }
 
     pub fn disable_rx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.set(1 << 3 as u32);
     }
 
     pub fn disable_tx_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.set(1 << 7 as u32);
     }
 
     pub fn handle_interrupt(&mut self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         let tx = regs.event_txdrdy.get() != 0;
 
         if tx {
@@ -165,7 +168,7 @@ impl UART {
     }
 
     pub unsafe fn send_byte(&self, byte: u8) {
-        let regs = &*self.regs;
+        let regs = &*self.registers;
 
         self.index.set(1);
         self.len.set(1);
@@ -177,12 +180,12 @@ impl UART {
     }
 
     pub fn tx_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.event_txdrdy.get() & 0b1 != 0
     }
 
     fn rx_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.event_rxdrdy.get() & 0b1 != 0
     }
 }
@@ -198,7 +201,7 @@ impl uart::UART for UART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         if tx_len == 0 {
             return;
@@ -216,7 +219,7 @@ impl uart::UART for UART {
 
     // Blocking implementation
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.task_startrx.set(1);
         let mut i = 0;
         while i < rx_len {

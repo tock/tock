@@ -13,43 +13,45 @@
 
 use core::cell::Cell;
 use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 
 pub static mut CLOCK: Clock = Clock::new();
 
 #[repr(C)]
-struct Registers {
-    pub tasks_hfclkstart: VolatileCell<u32>,    // 0x000
-    pub tasks_hfclkstop: VolatileCell<u32>,     // 0x004
-    pub tasks_lfclkstart: VolatileCell<u32>,    // 0x008
-    pub tasks_lfclkstop: VolatileCell<u32>,     // 0x00c
-    pub tasks_cal: VolatileCell<u32>,           // 0x010
-    pub tasks_cstart: VolatileCell<u32>,        // 0x014
-    pub tasks_cstop: VolatileCell<u32>,         // 0x018
-    _reserved1: [VolatileCell<u32>; 57],        // 0x01c - 0x100
-    pub events_hfclkstarted: VolatileCell<u32>, // 0x100
-    pub events_lfclkstarted: VolatileCell<u32>, // 0x104
-    _reserved2: VolatileCell<u32>,              // 0x108
-    pub events_done: VolatileCell<u32>,         // 0x10c
-    pub events_ctto: VolatileCell<u32>,         // 0x110
-    _reserved3: [VolatileCell<u32>; 124],       // 0x110 - 0x304
-    pub intenset: VolatileCell<u32>,            // 0x304
-    pub intenclr: VolatileCell<u32>,            // 0x308
-    _reserved4: [VolatileCell<u32>; 63],        // 0x308 - 0x408
-    pub hfclkrun: VolatileCell<u32>,            // 0x408
-    pub hfclkstat: VolatileCell<u32>,           // 0x40c
-    _reserved5: [VolatileCell<u32>; 1],         //0x410
-    pub lfclkrun: VolatileCell<u32>,            // 0x414
-    pub lfclkstat: VolatileCell<u32>,           // 0x418
-    pub lfclksrccopy: VolatileCell<u32>,        // 0x41c
-    _reserved6: [VolatileCell<u32>; 62],        // 0x420 - 0x518
-    pub lfclksrc: VolatileCell<u32>,            // 0x518
-    _reserved7: [VolatileCell<u32>; 7],         // 0x51c - 0x538
-    pub ctiv: VolatileCell<u32>,                // 0x538
-    _reserved8: [VolatileCell<u32>; 5],         // 0x53c - 0x550
-    pub xtalfreq: VolatileCell<u32>,            // 0x550
+struct ClockRegisters {
+    tasks_hfclkstart: VolatileCell<u32>,    // 0x000
+    tasks_hfclkstop: VolatileCell<u32>,     // 0x004
+    tasks_lfclkstart: VolatileCell<u32>,    // 0x008
+    tasks_lfclkstop: VolatileCell<u32>,     // 0x00c
+    tasks_cal: VolatileCell<u32>,           // 0x010
+    tasks_cstart: VolatileCell<u32>,        // 0x014
+    tasks_cstop: VolatileCell<u32>,         // 0x018
+    _reserved1: [VolatileCell<u32>; 57],    // 0x01c - 0x100
+    events_hfclkstarted: VolatileCell<u32>, // 0x100
+    events_lfclkstarted: VolatileCell<u32>, // 0x104
+    _reserved2: VolatileCell<u32>,          // 0x108
+    events_done: VolatileCell<u32>,         // 0x10c
+    events_ctto: VolatileCell<u32>,         // 0x110
+    _reserved3: [VolatileCell<u32>; 124],   // 0x110 - 0x304
+    intenset: VolatileCell<u32>,            // 0x304
+    intenclr: VolatileCell<u32>,            // 0x308
+    _reserved4: [VolatileCell<u32>; 63],    // 0x308 - 0x408
+    hfclkrun: VolatileCell<u32>,            // 0x408
+    hfclkstat: VolatileCell<u32>,           // 0x40c
+    _reserved5: [VolatileCell<u32>; 1],     // 0x410
+    lfclkrun: VolatileCell<u32>,            // 0x414
+    lfclkstat: VolatileCell<u32>,           // 0x418
+    lfclksrccopy: VolatileCell<u32>,        // 0x41c
+    _reserved6: [VolatileCell<u32>; 62],    // 0x420 - 0x518
+    lfclksrc: VolatileCell<u32>,            // 0x518
+    _reserved7: [VolatileCell<u32>; 7],     // 0x51c - 0x538
+    ctiv: VolatileCell<u32>,                // 0x538
+    _reserved8: [VolatileCell<u32>; 5],     // 0x53c - 0x550
+    xtalfreq: VolatileCell<u32>,            // 0x550
 }
 
-const CLOCK_BASE: usize = 0x40000000;
+const CLOCK_BASE: StaticRef<ClockRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const ClockRegisters) };
 
 pub enum InterruptField {
     HFCLKSTARTED = (1 << 0),
@@ -95,14 +97,14 @@ pub trait ClockClient {
 
 /// Clock struct
 pub struct Clock {
-    registers: *const Registers,
+    registers: StaticRef<ClockRegisters>,
     client: Cell<Option<&'static ClockClient>>,
 }
 
 impl Clock {
     pub const fn new() -> Clock {
         Clock {
-            registers: CLOCK_BASE as *const Registers,
+            registers: CLOCK_BASE,
             client: Cell::new(None),
         }
     }
@@ -112,32 +114,32 @@ impl Clock {
     }
 
     pub fn interrupt_enable(&self, interrupt: InterruptField) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.intenset.set(interrupt as u32);
     }
 
     pub fn interrupt_disable(&self, interrupt: InterruptField) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.intenclr.set(interrupt as u32);
     }
 
     pub fn high_start(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_hfclkstart.set(1);
     }
 
     pub fn high_stop(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_hfclkstop.set(1);
     }
 
     pub fn high_started(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.events_hfclkstarted.get() == 1
     }
 
     pub fn high_source(&self) -> HighClockSource {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.hfclkstat.get() & 1 {
             0b0 => HighClockSource::RC,
             _ => HighClockSource::XTAL,
@@ -145,7 +147,7 @@ impl Clock {
     }
 
     pub fn high_freq(&self) -> XtalFreq {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.xtalfreq.get() {
             0xff => XtalFreq::F16MHz,
             _ => XtalFreq::F32MHz,
@@ -153,34 +155,34 @@ impl Clock {
     }
 
     pub fn high_set_freq(&self, freq: XtalFreq) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.xtalfreq.set(freq as u32);
     }
 
     pub fn high_running(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         (regs.hfclkstat.get() & ClockRunning::RUN as u32) == ClockRunning::RUN as u32
     }
 
     #[no_mangle]
     #[inline(never)]
     pub fn low_start(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_lfclkstart.set(1);
     }
 
     pub fn low_stop(&self) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tasks_lfclkstop.set(1);
     }
 
     pub fn low_started(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.events_lfclkstarted.get() == 1
     }
 
     pub fn low_source(&self) -> LowClockSource {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         match regs.lfclkstat.get() & (LowClockSource::MASK as u32) {
             0b1 => LowClockSource::XTAL,
             0b10 => LowClockSource::SYNTH,
@@ -189,12 +191,12 @@ impl Clock {
     }
 
     pub fn low_running(&self) -> bool {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         (regs.lfclkstat.get() & ClockRunning::RUN as u32) == ClockRunning::RUN as u32
     }
 
     pub fn low_set_source(&self, src: LowClockSource) {
-        let regs = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.lfclksrc.set(src as u32);
     }
 }
