@@ -44,7 +44,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items, panic_implementation)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;

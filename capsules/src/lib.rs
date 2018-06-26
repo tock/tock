@@ -1,4 +1,4 @@
-#![feature(const_fn, const_cell_new)]
+#![feature(const_fn)]
 #![forbid(unsafe_code)]
 #![no_std]
 
