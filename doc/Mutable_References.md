@@ -1,10 +1,24 @@
-# Mutable References in Tock - Memory Containers
+# Mutable References in Tock - Memory Containers (Cells)
 
 Borrows are a critical part of the Rust language that help provide its
-safety guarantees. However, they can complicate event-driven code without
-a heap (no dynamic allocation). Tock uses memory containers
-such as the TakeCell abstraction to allow simple code to keep
-the safety properties Rust provides.
+safety guarantees. However, when there is no dynamic memory allocation
+(no heap), event-driven code runs into challenges with Rust's borrow
+semantics.  Often multiple structs need to
+be able to call (share) a struct based on what events occur. For example,
+a struct representing a radio interface needs to handle callbacks
+both from the bus it uses as well as handle calls from higher layers of
+a networking stack. Both of these callers need to be able to change the
+state of the radio struct, but Rust's borrow checker does not allow them
+to both have mutable references to the struct.
+
+To solve this problem, Tock builds on the observation that having two
+references to a struct that can modify it is safe, as long as no references
+to memory inside the struct are leaked (there is no interior mutability).
+Tock uses *memory containers*, a set of types that allow mutability
+but not interior mutability, to achieve this goal. The Rust standard
+library has two memory container types, `Cell` and `RefCell`. Tock uses
+`Cell` extensively, but also adds five new memory container types, each
+of which is tailored to a specific use common in kernel code.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Mutable_References.md -->
 
@@ -74,7 +88,7 @@ match external {
 }
 ```
 
-But what does this mean for Tock? As the Tock kernel is single
+As the Tock kernel is single
 threaded, it doesn't have race conditions and so in some cases it may
 be safe for there to be multiple references, as long as they do not
 point inside each other (as in the number/pointer example).  But Rust
@@ -97,23 +111,25 @@ references.
 
 ## `Cell`s in Tock
 
-Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for various
-different data types that need to be held by capsules and chip drivers. This
+Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for 
+different data types. This
 table summarizes the various types, and more detail is included below.
 
 | Cell Type      | Best Used For        | Example                                    | Common Uses                                                                                           |
 |----------------|----------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `Cell`         | Primitive types      | `Cell<bool>`                               | Keeping track of which state a capsule is in (holding an `enum`) or for holding a true/false flag.    |
-| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`                  | Holding static buffers that will receive or send data.                                                |
-| `MapCell`      | Large static buffers | `MapCell<'static, [u8;256]>`               | Delegating reference to large buffers (e.g. crypto operations).                                       |
-| `NumCell`      | Integers             | `NumCell<usize>`                           | Keeping state like buffer index pointers that needs to be preserved over multiple asynchronous calls. |
-| `OptionalCell` | Optional parameters  | `OptionalCell<&'static hil::uart::Client>` | Keeping state that can be uninitialized, like a Client before one is set.                             |
-| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers for a microcontroller.                                                       |
+| `Cell`         | Primitive types      | `Cell<bool>`, [`sched.rs`](../kernel/src/sched.rs) | State variables (holding an `enum`), true/false flags, integer parameters like length.    |
+| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi.rs)                 | Holding static buffers that will receive or send data.                                                |
+| `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)              | Delegating reference to large buffers (e.g. application buffers).                                       |
+| `NumCell`      | Integers             | `NumCell<usize>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs)                          | Numbers that are modified across multiple asynchronous calls, such as buffer index pointers. |
+| `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.                             |
+| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers, used by `tock_regs` crate.                                                       |
 
 ## The `TakeCell` abstraction
 
-Tock solves this issue of uniquely sharing memory with a memory
-container abstraction, TakeCell.
+While the different memory containers each have specialized uses, most of their
+operations are common across the different types. We therefore explain the basic
+use of memory containers in the context of TakeCell, and the additional/specialized
+functionality of each other type in its own section.
 From `tock/libraries/tock-cells/src/take_cell.rs`:
 
 > A `TakeCell` is a potential reference to mutable memory. Borrow rules are
