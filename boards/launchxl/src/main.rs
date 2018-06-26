@@ -3,6 +3,7 @@
 #![feature(lang_items, asm)]
 
 extern crate capsules;
+extern crate cortexm4;
 
 extern crate cc26x2;
 extern crate cc26xx;

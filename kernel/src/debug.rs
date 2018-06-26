@@ -56,8 +56,9 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
     args: Arguments,
     file: &'static str,
     line: u32,
+    nop: &Fn(),
 ) -> ! {
-    panic_begin();
+    panic_begin(nop);
     panic_banner(writer, args, file, line);
     // Flush debug buffer if needed
     flush(writer);
@@ -70,15 +71,11 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
 /// This opaque method should always be called at the beginning of a board's
 /// panic method to allow hooks for any core kernel cleanups that may be
 /// appropriate.
-pub unsafe fn panic_begin() {
+pub unsafe fn panic_begin(nop: &Fn()) {
     // Let any outstanding uart DMA's finish
-    asm!("nop");
-    asm!("nop");
     for _ in 0..200000 {
-        asm!("nop");
+        nop();
     }
-    asm!("nop");
-    asm!("nop");
 }
 
 /// Lightweight prints about the current panic and kernel version.

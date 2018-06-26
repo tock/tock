@@ -51,6 +51,7 @@ extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm0;
 extern crate nrf51;
 extern crate nrf5x;
 

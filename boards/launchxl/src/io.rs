@@ -1,5 +1,6 @@
 use cc26xx;
 use core::fmt::{Arguments, Write};
+use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
@@ -39,5 +40,5 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
 
     let led = &mut led::LedLow::new(&mut cc26xx::gpio::PORT[LED_PIN]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(led, writer, args, file, line, &cortexm4::support::nop)
 }
