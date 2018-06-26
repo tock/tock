@@ -14,6 +14,7 @@ pub trait Adc {
 
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn sample(&self, channel: &Self::Channel) -> ReturnCode;
 
     /// Request repeated ADC samples on a particular channel.
@@ -21,12 +22,24 @@ pub trait Adc {
     /// set to any frequency supported by the chip implementation. However
     /// callbacks may be limited based on how quickly the system can service
     /// individual samples, leading to missed samples at high frequencies.
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode;
 
     /// Stop a sampling operation.
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
     fn stop_sampling(&self) -> ReturnCode;
+
+    /// Function to ask the ADC how many bits of resolution are in the samples
+    /// it is returning.
+    fn get_resolution_bits(&self) -> usize;
+
+    /// Function to ask the ADC what reference voltage it used when taking the
+    /// samples. This allows the user of this interface to calculate an actual
+    /// voltage from the ADC reading.
+    ///
+    /// The returned reference voltage is in millivolts.
+    fn get_voltage_reference(&self) -> usize;
 }
 
 /// Trait for handling callbacks from simple ADC calls.
@@ -47,6 +60,8 @@ pub trait AdcHighSpeed: Adc {
     /// `provide_buffer` call. Length fields correspond to the number of
     /// samples that should be collected in each buffer. If an error occurs,
     /// the buffers will be returned.
+    ///
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn sample_highspeed(
         &self,
         channel: &Self::Channel,
@@ -68,6 +83,8 @@ pub trait AdcHighSpeed: Adc {
     /// missed. Length field corresponds to the number of samples that should
     /// be collected in the buffer. If an error occurs, the buffer will be
     /// returned.
+    ///
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn provide_buffer(
         &self,
         buf: &'static mut [u16],
@@ -80,6 +97,8 @@ pub trait AdcHighSpeed: Adc {
     /// operation is complete. Returns success if the ADC was inactive, but
     /// there may still be no buffers that are `some` if the driver had already
     /// returned all buffers.
+    ///
+    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn retrieve_buffers(
         &self,
     ) -> (
