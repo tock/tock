@@ -7,7 +7,8 @@
 //! - are 12 bits
 //! - use the ground pad as the negative reference
 //! - use a VCC/2 positive reference
-//! - are right justified
+//! - use a gain of 0.5x
+//! - are left justified
 //!
 //! Samples can either be collected individually or continuously at a specified
 //! frequency.
@@ -634,7 +635,7 @@ impl hil::adc::Adc for Adc {
                 + SequencerConfig::GCOMP::Disable
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Disable;
+                + SequencerConfig::HWLA::Enable;
             regs.seqcfg.write(cfg);
 
             // clear any current status
@@ -685,7 +686,7 @@ impl hil::adc::Adc for Adc {
                 + SequencerConfig::GCOMP::Disable
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Disable;
+                + SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
@@ -799,6 +800,17 @@ impl hil::adc::Adc for Adc {
             ReturnCode::SUCCESS
         }
     }
+
+    /// Resolution of the reading.
+    fn get_resolution_bits(&self) -> usize {
+        12
+    }
+
+    /// Voltage reference is VCC/2, we assume VCC is 3.3 V, and we use a gain
+    /// of 0.5.
+    fn get_voltage_reference(&self) -> usize {
+        3300
+    }
 }
 
 /// Implements an ADC capable of continuous sampling
@@ -864,7 +876,7 @@ impl hil::adc::AdcHighSpeed for Adc {
                 + SequencerConfig::GCOMP::Disable
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Disable;
+                + SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
