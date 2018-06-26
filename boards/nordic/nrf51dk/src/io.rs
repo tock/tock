@@ -1,6 +1,6 @@
-use cortexm0;
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use cortexm0;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};

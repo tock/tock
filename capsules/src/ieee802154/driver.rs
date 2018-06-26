@@ -441,7 +441,8 @@ impl<'a> RadioDriver<'a> {
                 };
 
                 // Append the payload: there must be one
-                let result = app.app_write
+                let result = app
+                    .app_write
                     .take()
                     .as_ref()
                     .map(|payload| frame.append_payload(payload.as_ref()))
@@ -692,7 +693,8 @@ impl<'a> Driver for RadioDriver<'a> {
                     value: self.num_neighbors.get() + 1,
                 }
             }
-            15 => self.get_neighbor(arg1)
+            15 => self
+                .get_neighbor(arg1)
                 .map_or(ReturnCode::EINVAL, |neighbor| {
                     ReturnCode::SuccessWithValue {
                         value: (neighbor.short_addr as usize) + 1,

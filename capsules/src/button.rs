@@ -132,7 +132,8 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |cntr, _| {
                     cntr.0 = callback;
                     ReturnCode::SUCCESS
@@ -190,7 +191,8 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                 if data >= pins.len() {
                     ReturnCode::EINVAL /* impossible button */
                 } else {
-                    let res = self.apps
+                    let res = self
+                        .apps
                         .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS

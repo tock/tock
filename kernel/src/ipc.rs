@@ -101,7 +101,8 @@ impl Driver for IPC {
             // application name stored in the TBF header of the application.
             // The callback that is passed to subscribe is called when another
             // process notifies the server process.
-            0 => self.data
+            0 => self
+                .data
                 .enter(app_id, |data, _| {
                     data.callback = callback;
                     ReturnCode::SUCCESS
@@ -207,7 +208,8 @@ impl Driver for IPC {
 
             return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
         }
-        return self.data
+        return self
+            .data
             .enter(appid, |data, _| {
                 data.shared_memory
                     .get_mut(target_id - 1)

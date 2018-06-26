@@ -53,7 +53,8 @@ impl<'a> MuxI2C<'a> {
 
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.devices
+            let mnode = self
+                .devices
                 .iter()
                 .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {

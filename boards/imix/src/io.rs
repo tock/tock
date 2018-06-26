@@ -1,6 +1,6 @@
 use core::fmt::*;
-use cortexm4;
 use core::panic::PanicInfo;
+use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};

@@ -110,7 +110,8 @@ where
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
@@ -127,7 +128,8 @@ where
 
             // Enable USB controller, attach to bus, and service default control endpoint
             1 => {
-                let result = self.apps
+                let result = self
+                    .apps
                     .enter(appid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time

@@ -432,7 +432,8 @@ impl<'a> LTC294XClient for LTC294XDriver<'a> {
         accumulated_charge_overflow: bool,
     ) {
         self.callback.get().map(|mut cb| {
-            let ret = (undervolt_lockout as usize) | ((vbat_alert as usize) << 1)
+            let ret = (undervolt_lockout as usize)
+                | ((vbat_alert as usize) << 1)
                 | ((charge_alert_low as usize) << 2)
                 | ((charge_alert_high as usize) << 3)
                 | ((accumulated_charge_overflow as usize) << 4);

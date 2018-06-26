@@ -330,7 +330,8 @@ pub fn enable_rc32k() {
     // 32k output.
     BSCIF.rc32kcr.modify_no_read(
         rc32kcr,
-        RC32Control::EN32K::OutputEnable + RC32Control::TCEN::TempCompensated
+        RC32Control::EN32K::OutputEnable
+            + RC32Control::TCEN::TempCompensated
             + RC32Control::EN::GclkSourceEnable,
     );
     // Wait for it to be ready, although it feels like this won't do anything

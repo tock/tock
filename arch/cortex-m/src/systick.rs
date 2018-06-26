@@ -146,7 +146,8 @@ impl kernel::SysTick for SysTick {
     fn enable(&self, with_interrupt: bool) {
         if with_interrupt {
             SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET + ControlAndStatus::TICKINT::SET
+                ControlAndStatus::ENABLE::SET
+                    + ControlAndStatus::TICKINT::SET
                     + ControlAndStatus::CLKSOURCE::SET,
             );
         } else {

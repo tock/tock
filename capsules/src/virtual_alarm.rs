@@ -151,7 +151,8 @@ impl<'a, Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.  This needs to happen after firing all expired
         // alarms since those may have reset new alarms.
-        let next = self.virtual_alarms
+        let next = self
+            .virtual_alarms
             .iter()
             .filter(|cur| cur.armed.get())
             .min_by_key(|cur| cur.when.get().wrapping_sub(now));

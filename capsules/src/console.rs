@@ -222,13 +222,15 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            1 => self.apps
+            1 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.write_buffer = slice;
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into()),
-            2 => self.apps
+            2 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.read_buffer = slice;
                     ReturnCode::SUCCESS

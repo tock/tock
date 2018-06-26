@@ -78,7 +78,8 @@ impl<'a, F: hil::flash::Flash + 'a> MuxFlash<'a, F> {
     /// request, then issue that request to the flash hardware.
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.users
+            let mnode = self
+                .users
                 .iter()
                 .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {

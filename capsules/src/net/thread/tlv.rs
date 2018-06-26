@@ -179,8 +179,10 @@ impl<'a> Tlv<'a> {
                 stable_data_version,
                 leader_router_id,
             } => {
-                let value_width = mem::size_of::<u32>() + mem::size_of::<u8>()
-                    + mem::size_of::<u8>() + mem::size_of::<u8>()
+                let value_width = mem::size_of::<u32>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
                     + mem::size_of::<u8>();
                 let mut offset = enc_consume!(buf; self; encode_tl, value_width);
                 offset = enc_consume!(buf, offset; encode_u32, partition_id.to_be());
@@ -219,9 +221,13 @@ impl<'a> Tlv<'a> {
                 sed_buffer_size,
                 sed_datagram_count,
             } => {
-                let base_width = mem::size_of::<u8>() + mem::size_of::<u8>() + mem::size_of::<u8>()
-                    + mem::size_of::<u8>() + mem::size_of::<u8>()
-                    + mem::size_of::<u8>() + mem::size_of::<u8>();
+                let base_width = mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>()
+                    + mem::size_of::<u8>();
                 let sed_buf_size_width = match sed_buffer_size {
                     None => 0,
                     Some(_) => mem::size_of::<u16>(),
@@ -599,8 +605,10 @@ impl<'a> NetworkDataTlv<'a> {
                 s_service_data,
                 sub_tlvs,
             } => {
-                let value_width = mem::size_of::<u8>() + mem::size_of::<u32>()
-                    + mem::size_of::<u8>() + s_service_data.len()
+                let value_width = mem::size_of::<u8>()
+                    + mem::size_of::<u32>()
+                    + mem::size_of::<u8>()
+                    + s_service_data.len()
                     + sub_tlvs.len();
                 let mut offset = enc_consume!(buf; self; encode_tl, value_width, stable);
                 let t_bit: u8 = if thread_enterprise_number {

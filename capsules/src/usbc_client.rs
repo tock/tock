@@ -280,7 +280,8 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                             let end = min(len, requested_length as usize);
                                             Some(&buf[..end])
                                         }
-                                        i if i > 0 && (i as usize) <= STRINGS.len()
+                                        i if i > 0
+                                            && (i as usize) <= STRINGS.len()
                                             && lang_id == LANGUAGES[0] =>
                                         {
                                             let buf = self.descriptor_buf();

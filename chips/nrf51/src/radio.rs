@@ -322,7 +322,8 @@ impl Radio {
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenset.set(
-            nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS
+            nrf5x::constants::RADIO_INTENSET_READY
+                | nrf5x::constants::RADIO_INTENSET_ADDRESS
                 | nrf5x::constants::RADIO_INTENSET_PAYLOAD
                 | nrf5x::constants::RADIO_INTENSET_END,
         );

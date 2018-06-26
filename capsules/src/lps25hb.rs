@@ -178,7 +178,8 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
                 self.state.set(State::GotMeasurement);
             }
             State::GotMeasurement => {
-                let pressure = (((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8)
+                let pressure = (((buffer[2] as u32) << 16)
+                    | ((buffer[1] as u32) << 8)
                     | (buffer[0] as u32)) as u32;
 
                 // Returned as microbars

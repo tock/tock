@@ -481,7 +481,8 @@ impl<'a> Usbc<'a> {
         debug1!("Set Endpoint{}/Bank{} addr={:8?}", e, b, p);
         self.descriptors[e][b].set_addr(p);
         self.descriptors[e][b].packet_size.write(
-            PacketSize::BYTE_COUNT.val(0) + PacketSize::MULTI_PACKET_SIZE.val(0)
+            PacketSize::BYTE_COUNT.val(0)
+                + PacketSize::MULTI_PACKET_SIZE.val(0)
                 + PacketSize::AUTO_ZLP::No,
         );
     }
@@ -518,7 +519,8 @@ impl<'a> Usbc<'a> {
 
                 // Clear pending device global interrupts
                 usbc_regs().udintclr.write(
-                    DeviceInterrupt::SUSP::SET + DeviceInterrupt::SOF::SET
+                    DeviceInterrupt::SUSP::SET
+                        + DeviceInterrupt::SOF::SET
                         + DeviceInterrupt::EORST::SET
                         + DeviceInterrupt::EORSM::SET
                         + DeviceInterrupt::UPRSM::SET,
@@ -531,7 +533,8 @@ impl<'a> Usbc<'a> {
                 // Note: SOF and SUSP may nevertheless be enabled here
                 //   without harm, but it makes debugging easier to omit them.
                 usbc_regs().udinteset.write(
-                    DeviceInterrupt::EORST::SET + DeviceInterrupt::EORSM::SET
+                    DeviceInterrupt::EORST::SET
+                        + DeviceInterrupt::EORSM::SET
                         + DeviceInterrupt::UPRSM::SET,
                 );
 
@@ -1465,8 +1468,10 @@ impl<'a> UsbController for Usbc<'a> {
 
     fn endpoint_ctrl_out_enable(&self, endpoint: usize) {
         let endpoint_cfg = LocalRegisterCopy::new(From::from(
-            EndpointConfig::EPTYPE::Control + EndpointConfig::EPDIR::Out
-                + EndpointConfig::EPSIZE::Bytes8 + EndpointConfig::EPBK::Single,
+            EndpointConfig::EPTYPE::Control
+                + EndpointConfig::EPDIR::Out
+                + EndpointConfig::EPSIZE::Bytes8
+                + EndpointConfig::EPBK::Single,
         ));
 
         self._endpoint_enable(endpoint, endpoint_cfg)
@@ -1474,8 +1479,10 @@ impl<'a> UsbController for Usbc<'a> {
 
     fn endpoint_bulk_in_enable(&self, endpoint: usize) {
         let endpoint_cfg = LocalRegisterCopy::new(From::from(
-            EndpointConfig::EPTYPE::Bulk + EndpointConfig::EPDIR::In
-                + EndpointConfig::EPSIZE::Bytes8 + EndpointConfig::EPBK::Single,
+            EndpointConfig::EPTYPE::Bulk
+                + EndpointConfig::EPDIR::In
+                + EndpointConfig::EPSIZE::Bytes8
+                + EndpointConfig::EPBK::Single,
         ));
 
         self._endpoint_enable(endpoint, endpoint_cfg)
@@ -1483,8 +1490,10 @@ impl<'a> UsbController for Usbc<'a> {
 
     fn endpoint_bulk_out_enable(&self, endpoint: usize) {
         let endpoint_cfg = LocalRegisterCopy::new(From::from(
-            EndpointConfig::EPTYPE::Bulk + EndpointConfig::EPDIR::Out
-                + EndpointConfig::EPSIZE::Bytes8 + EndpointConfig::EPBK::Single,
+            EndpointConfig::EPTYPE::Bulk
+                + EndpointConfig::EPDIR::Out
+                + EndpointConfig::EPSIZE::Bytes8
+                + EndpointConfig::EPBK::Single,
         ));
 
         self._endpoint_enable(endpoint, endpoint_cfg)
