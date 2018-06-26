@@ -63,7 +63,7 @@ macro_rules! register_bitmasks {
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::regs::{ TryFromValue, FieldValue };
+            use $crate::regs::{FieldValue, TryFromValue};
             use super::$reg_desc;
 
             $(
