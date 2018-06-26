@@ -110,6 +110,7 @@ There are three types provided by the register interface: `ReadOnly`,
 ReadOnly<T: IntLike, R: RegisterLongName = ()>
 .get() -> T                                    // Get the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
+.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
 .matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
@@ -126,6 +127,7 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 .get() -> T                                    // Get the raw register value
 .set(value: T)                                 // Set the raw register value
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
+.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
 .modify(value: FieldValue<T, R>)               // Write the value of one or more fields,
@@ -164,6 +166,17 @@ regs.cr.set(regs.cr.get() + 1);
 // `range` will contain the value of the RANGE field, e.g. 0, 1, 2, or 3.
 // The type annotation is not necessary, but provided for clarity here.
 let range: u8 = regs.cr.read(Control::RANGE);
+
+// Or one can read `range` as a enum and `match` over it.
+let range = regs.cr.read_as_enum(Control::RANGE);
+match range {
+    Some(Control::RANGE::Value::Zero) => { /* ... */ }
+    Some(Control::RANGE::Value::One) => { /* ... */ }
+    Some(Control::RANGE::Value::Two) => { /* ... */ }
+    Some(Control::RANGE::Value::Three) => { /* ... */ }
+    
+    None => unreachable!("invalid value")
+}
 
 // `en` will be 0 or 1
 let en: u8 = regs.cr.read(Control::EN);
@@ -230,6 +243,16 @@ while !regs.s.matches_all(Status::TXCOMPLETE::SET +
 
 // Or for checking whether any interrupts are enabled:
 let any_ints = regs.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT);
+
+// Also you can read a register with set of enumerated values as a enum and `match` over it:
+let mode = regs.cr.read_as_enum(Status::MODE);
+
+match mode {
+    Some(Status::MODE::FullDuplex) => { /* ... */ }
+    Some(Status::MODE::HalfDuplex) => { /* ... */ }
+    
+    None => unreachable!("invalid value")
+}
 
 // -----------------------------------------------------------------------------
 // LOCAL COPY
