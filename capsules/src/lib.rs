@@ -21,6 +21,7 @@ pub mod analog_comparator;
 pub mod app_flash_driver;
 pub mod ble_advertising_driver;
 pub mod button;
+pub mod buzzer_driver;
 pub mod console;
 pub mod crc;
 pub mod dac;
