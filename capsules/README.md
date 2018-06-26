@@ -28,6 +28,7 @@ The list of Tock capsules and a brief description.
 
 These implement a driver to setup and read various physical sensors.
 
+- **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
