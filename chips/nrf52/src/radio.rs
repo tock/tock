@@ -303,7 +303,7 @@ register_bitfields! [u32,
     /// Device address match index register
     DeviceAddressIndex [
         /// Device address match index
-        /// Index (n) of device address, see DAB[n] and DAP[n], that got an
+        /// Index (n) of device address, see DAB\[n\] and DAP\[n\], that got an
         /// address match
         INDEX OFFSET(0) NUMBITS(3)
     ],
