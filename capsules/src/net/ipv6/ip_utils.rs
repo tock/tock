@@ -39,7 +39,9 @@ impl IPAddr {
     }
 
     pub fn is_unicast_link_local(&self) -> bool {
-        self.0[0] == 0xfe && (self.0[1] & 0xc0) == 0x80 && (self.0[1] & 0x3f) == 0
+        self.0[0] == 0xfe
+            && (self.0[1] & 0xc0) == 0x80
+            && (self.0[1] & 0x3f) == 0
             && self.0[2..8].iter().all(|&b| b == 0)
     }
 

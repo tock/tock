@@ -68,7 +68,8 @@ unsafe fn do_process<P: Platform, C: Chip>(
     systick.enable(true);
 
     loop {
-        if chip.has_pending_interrupts() || systick.overflowed()
+        if chip.has_pending_interrupts()
+            || systick.overflowed()
             || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
         {
             break;

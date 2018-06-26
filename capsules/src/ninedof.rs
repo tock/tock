@@ -116,7 +116,8 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let started_command = cntr.enter(|app, _| {
-                if app.pending_command && app.command == finished_command
+                if app.pending_command
+                    && app.command == finished_command
                     && app.arg1 == finished_command_arg
                 {
                     // Don't bother re-issuing this command, just use
@@ -149,7 +150,8 @@ impl<'a> Driver for NineDof<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS

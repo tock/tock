@@ -457,15 +457,24 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
         1 => {
             let tbf_header = &*(address as *const TbfHeaderV1);
 
-            let checksum = tbf_header.version ^ tbf_header.total_size ^ tbf_header.entry_offset
-                ^ tbf_header.rel_data_offset ^ tbf_header.rel_data_size
-                ^ tbf_header.text_offset ^ tbf_header.text_size
-                ^ tbf_header.got_offset ^ tbf_header.got_size
-                ^ tbf_header.data_offset ^ tbf_header.data_size
-                ^ tbf_header.bss_mem_offset ^ tbf_header.bss_size
-                ^ tbf_header.min_stack_len ^ tbf_header.min_app_heap_len
+            let checksum = tbf_header.version
+                ^ tbf_header.total_size
+                ^ tbf_header.entry_offset
+                ^ tbf_header.rel_data_offset
+                ^ tbf_header.rel_data_size
+                ^ tbf_header.text_offset
+                ^ tbf_header.text_size
+                ^ tbf_header.got_offset
+                ^ tbf_header.got_size
+                ^ tbf_header.data_offset
+                ^ tbf_header.data_size
+                ^ tbf_header.bss_mem_offset
+                ^ tbf_header.bss_size
+                ^ tbf_header.min_stack_len
+                ^ tbf_header.min_app_heap_len
                 ^ tbf_header.min_kernel_heap_len
-                ^ tbf_header.pkg_name_offset ^ tbf_header.pkg_name_size;
+                ^ tbf_header.pkg_name_offset
+                ^ tbf_header.pkg_name_size;
 
             if checksum != tbf_header.checksum {
                 None

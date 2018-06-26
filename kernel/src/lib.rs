@@ -8,8 +8,7 @@
 
 #![feature(core_intrinsics, unique, nonzero, ptr_internals)]
 #![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
-#![feature(nonnull_cast)]
-#![feature(use_extern_macros)]
+#![feature(nonnull_cast, use_extern_macros, try_from)]
 #![no_std]
 
 extern crate tock_cells;

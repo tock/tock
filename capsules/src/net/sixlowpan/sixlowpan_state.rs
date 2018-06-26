@@ -669,7 +669,8 @@ impl<'a> RxState<'a> {
         dgram_size: u16,
         dgram_tag: u16,
     ) -> bool {
-        self.busy.get() && (self.dgram_tag.get() == dgram_tag)
+        self.busy.get()
+            && (self.dgram_tag.get() == dgram_tag)
             && (self.dgram_size.get() == dgram_size)
             && (self.src_mac_addr.get() == src_mac_addr)
             && (self.dst_mac_addr.get() == dst_mac_addr)
@@ -900,7 +901,8 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
     ) -> (Option<&RxState<'a>>, ReturnCode) {
-        let rx_state = self.rx_states
+        let rx_state = self
+            .rx_states
             .iter()
             .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
         rx_state
@@ -962,13 +964,15 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         dgram_offset: usize,
     ) -> (Option<&RxState<'a>>, ReturnCode) {
         // First try to find an rx_state in the middle of assembly
-        let mut rx_state = self.rx_states
+        let mut rx_state = self
+            .rx_states
             .iter()
             .find(|state| state.is_my_fragment(src_mac_addr, dst_mac_addr, dgram_size, dgram_tag));
 
         // Else find a free state
         if rx_state.is_none() {
-            rx_state = self.rx_states
+            rx_state = self
+                .rx_states
                 .iter()
                 .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
             // Initialize new state

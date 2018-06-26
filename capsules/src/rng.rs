@@ -138,7 +138,8 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
     ) -> ReturnCode {
         // pass buffer in from application
         match allow_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
@@ -155,7 +156,8 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS

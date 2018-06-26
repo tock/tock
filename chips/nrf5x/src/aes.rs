@@ -21,7 +21,7 @@
 //!
 //! ### Things to highlight that can be improved:
 //!
-//! * ECB_DATA must be a static mut [u8] and can't be located in the struct
+//! * ECB_DATA must be a static mut \[u8\] and can't be located in the struct
 //! * PAYLOAD size is restricted to 128 bytes
 //!
 //! Authors

@@ -217,8 +217,12 @@ impl<'a> Aes<'a> {
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
         regs.mode.write(
-            Mode::ENCRYPT.val(encrypt) + Mode::DMA.val(dma) + Mode::OPMODE.val(mode as u32)
-                + Mode::CTYPE4.val(1) + Mode::CTYPE3.val(1) + Mode::CTYPE2.val(1)
+            Mode::ENCRYPT.val(encrypt)
+                + Mode::DMA.val(dma)
+                + Mode::OPMODE.val(mode as u32)
+                + Mode::CTYPE4.val(1)
+                + Mode::CTYPE3.val(1)
+                + Mode::CTYPE2.val(1)
                 + Mode::CTYPE1.val(1),
         );
     }

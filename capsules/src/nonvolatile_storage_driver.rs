@@ -181,7 +181,8 @@ impl<'a> NonvolatileStorage<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 // Userspace sees memory that starts at address 0 even if it
                 // is offset in the physical memory.
-                if offset >= self.userspace_length || length > self.userspace_length
+                if offset >= self.userspace_length
+                    || length > self.userspace_length
                     || offset + length > self.userspace_length
                 {
                     return ReturnCode::EINVAL;

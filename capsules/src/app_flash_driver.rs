@@ -77,7 +77,8 @@ impl<'a> AppFlash<'a> {
                 // Check that this is a valid range in the app's flash.
                 let flash_length = app.buffer.as_mut().map_or(0, |app_buffer| app_buffer.len());
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
-                if flash_address < app_flash_start || flash_address >= app_flash_end
+                if flash_address < app_flash_start
+                    || flash_address >= app_flash_end
                     || flash_address + flash_length >= app_flash_end
                 {
                     return ReturnCode::EINVAL;
@@ -181,7 +182,8 @@ impl<'a> Driver for AppFlash<'a> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
@@ -203,7 +205,8 @@ impl<'a> Driver for AppFlash<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
