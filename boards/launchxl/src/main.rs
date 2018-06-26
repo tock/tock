@@ -30,6 +30,11 @@ static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM
 // Give half of RAM to be dedicated APP memory
 static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
 
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc26xx::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc26xx::gpio::GPIOPin>,

@@ -9,9 +9,8 @@ TOOLCHAIN ?= arm-none-eabi
 
 CARGO ?= cargo
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
-RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
+RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-Tlayout.ld -C linker=lld -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic"
 
-CC        := $(TOOLCHAIN)-gcc
 SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
@@ -45,24 +44,6 @@ endif
 
 export TOCK_KERNEL_VERSION := $(shell git describe --always || echo notgit)
 
-
-# Check that gcc version is new enough (> 5.1) - used during linking
-CC_VERSION_MAJOR := $(shell $(TOOLCHAIN)-gcc -dumpversion | cut -d '.' -f1)
-ifeq (1,$(shell expr $(CC_VERSION_MAJOR) \>= 6))
-  # no-op
-else
-  ifneq (5,$(CC_VERSION_MAJOR))
-    $(info CC=$(CC))
-    $(info $$(CC) -dumpversion: $(shell $(CC) -dumpversion))
-    $(error Your compiler is too old. Need gcc version > 5.1)
-  endif
-    CC_VERSION_MINOR := $(shell $(CC) -dumpversion | cut -d '.' -f2)
-  ifneq (1,$(shell expr $(CC_VERSION_MINOR) \> 1))
-    $(info CC=$(CC))
-    $(info $$(CC) -dumpversion: $(shell $(CC) -dumpversion))
-    $(error Your compiler is too old. Need gcc version > 5.1)
-  endif
-endif
 
 # Validate that rustup is new enough
 MINIMUM_RUSTUP_VERSION := 1.11.0
