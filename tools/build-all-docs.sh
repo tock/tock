@@ -5,9 +5,7 @@ set -e
 # Parse a search-index.js file to get the known crates.
 function get_known_crates {
 	FILE=$1
-
-	# This sed seems to be okay x-platform bsd/gnu
-	FOUND_CRATES=`sed -nE "s/.*searchIndex\[\"([a-z0-9_-]*)\"\].*/\1/gp" $FILE`
+	FOUND_CRATES=$(grep -o 'searchIndex\["[a-zA-Z0-9_-]*"\]' $FILE | cut -d'"' -f2)
 	echo $FOUND_CRATES
 }
 
