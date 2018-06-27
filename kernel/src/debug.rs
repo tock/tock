@@ -52,7 +52,7 @@ use returncode::ReturnCode;
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic<L: hil::led::Led, W: Write>(
-    led: &mut L,
+    leds: &mut [&mut L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &Fn(),
@@ -62,7 +62,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
     // Flush debug buffer if needed
     flush(writer);
     panic_process_info(writer);
-    panic_blink_forever(led)
+    panic_blink_forever(leds)
 }
 
 /// Generic panic entry.
@@ -124,20 +124,26 @@ pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
 ///
 /// If a multi-color LED is used for the panic pattern, it is
 /// advised to turn off other LEDs before calling this method.
-pub fn panic_blink_forever<L: hil::led::Led>(led: &mut L) -> ! {
-    led.init();
+///
+/// Generally, boards should blink red during panic if possible,
+/// otherwise choose the 'first' or most prominent LED. Some
+/// boards may find it appropriate to blink multiple LEDs (e.g.
+/// one on the top and one on the bottom), thus this method
+/// accepts an array, however most will only need one.
+pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&mut L]) -> ! {
+    leds.iter_mut().for_each(|led| led.init());
     loop {
         for _ in 0..1000000 {
-            led.on();
+            leds.iter_mut().for_each(|led| led.on());
         }
         for _ in 0..100000 {
-            led.off();
+            leds.iter_mut().for_each(|led| led.off());
         }
         for _ in 0..1000000 {
-            led.on();
+            leds.iter_mut().for_each(|led| led.on());
         }
         for _ in 0..500000 {
-            led.off();
+            leds.iter_mut().for_each(|led| led.off());
         }
     }
 }
