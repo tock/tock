@@ -13,7 +13,7 @@ struct ScbRegisters {
     aircr: VolatileCell<u32>,
     scr: VolatileCell<u32>,
     ccr: VolatileCell<u32>,
-    shp: [VolatileCell<u32>; 12],
+    shp: [VolatileCell<u32>; 3],
     shcsr: VolatileCell<u32>,
     cfsr: VolatileCell<u32>,
     hfsr: VolatileCell<u32>,
@@ -58,6 +58,7 @@ pub unsafe fn reset() {
 /// Enables Floating Point Unit. Section 4.6.6.
 /// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BEHBJHIG.html
 /// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0298a/CEGJEIGH.html
+#[cfg(feature = "fpu")]
 pub unsafe fn enable_fpu() {
     let cpacr = SCB.cpacr.get();
 
