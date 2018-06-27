@@ -57,12 +57,14 @@ impl<T: Copy> OptionalCell<T> {
         self.value.get().map(|mut val| closure(&mut val))
     }
 
-    /// Call a closure on the value if the value exists, or return value
-    /// instead.
-    pub fn map_or<F, R>(&self, value: R, closure: F) -> R
+    /// Call a closure on the value if the value exists, or return the
+    /// default if the value is `None`.
+    pub fn map_or<F, R>(&self, default: R, closure: F) -> R
     where
         F: FnOnce(&mut T) -> R,
     {
-        self.value.get().map_or(value, |mut val| closure(&mut val))
+        self.value
+            .get()
+            .map_or(default, |mut val| closure(&mut val))
     }
 }
