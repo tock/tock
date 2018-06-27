@@ -808,7 +808,7 @@ impl hil::adc::Adc for Adc {
 
     /// Voltage reference is VCC/2, we assume VCC is 3.3 V, and we use a gain
     /// of 0.5.
-    fn get_voltage_reference(&self) -> Option<usize> {
+    fn get_voltage_reference_mv(&self) -> Option<usize> {
         Some(3300)
     }
 }
