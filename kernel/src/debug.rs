@@ -124,6 +124,12 @@ pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
 ///
 /// If a multi-color LED is used for the panic pattern, it is
 /// advised to turn off other LEDs before calling this method.
+///
+/// Generally, boards should blink red during panic if possible,
+/// otherwise choose the 'first' or most prominent LED. Some
+/// boards may find it appropriate to blink multiple LEDs (e.g.
+/// one on the top and one on the bottom), thus this method
+/// accepts an array, however most will only need one.
 pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&mut L]) -> ! {
     leds.iter_mut().for_each(|led| led.init());
     loop {
