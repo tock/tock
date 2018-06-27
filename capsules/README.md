@@ -41,6 +41,7 @@ These drivers provide support for various ICs.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP23008](src/mcp23008.rs)**: I2C GPIO extender.
+- **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 

@@ -67,7 +67,7 @@ const PAGE_SIZE: u32 = 256;
 /// An example looks like:
 ///
 /// ```
-/// static mut PAGEBUFFER: Mx25r6435fPage = Mx25r6435fPage::new();
+/// static mut PAGEBUFFER: Mx25r6435fSector = Mx25r6435fSector::new();
 /// ```
 pub struct Mx25r6435fSector(pub [u8; SECTOR_SIZE as usize]);
 
