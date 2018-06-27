@@ -67,4 +67,17 @@ impl<T: Copy> OptionalCell<T> {
             .get()
             .map_or(default, |mut val| closure(&mut val))
     }
+
+    /// If the cell contains a value, call a closure supplied with the
+    /// value of the cell. If the cell contains `None`, call the other
+    /// closure to return a default value.
+    pub fn map_or_else<U, D, F>(&self, default: D, closure: F) -> U
+    where
+        D: FnOnce() -> U,
+        F: FnOnce(&mut T) -> U,
+    {
+        self.value
+            .get()
+            .map_or_else(default, |mut val| closure(&mut val))
+    }
 }
