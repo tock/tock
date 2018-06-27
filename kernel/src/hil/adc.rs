@@ -38,8 +38,8 @@ pub trait Adc {
     /// samples. This allows the user of this interface to calculate an actual
     /// voltage from the ADC reading.
     ///
-    /// The returned reference voltage is in millivolts.
-    fn get_voltage_reference(&self) -> usize;
+    /// The returned reference voltage is in millivolts, or `None` if unknown.
+    fn get_voltage_reference(&self) -> Option<usize>;
 }
 
 /// Trait for handling callbacks from simple ADC calls.
