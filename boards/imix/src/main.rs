@@ -131,10 +131,10 @@ const PAYLOAD_LEN: usize = 200;
 const  DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 
-static mut IP_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut UDP_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut IP_BUF: [u8; 1280] = [0x00; 1280];
+static mut UDP_BUF: [u8; PAYLOAD_LEN] = [0x00; PAYLOAD_LEN];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-static mut SIXLOWPAN_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 
 // This buffer is used as an intermediate buffer for AES CCM encryption
 // An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
@@ -580,7 +580,7 @@ pub unsafe fn reset_handler() {
     radio_mac.set_address(0x1008);
 
     // ** UDP **
-    
+
     let udp_mac = static_init!(
         capsules::ieee802154::virtual_mac::MacUser<'static>,
         capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
@@ -617,7 +617,7 @@ pub unsafe fn reset_handler() {
         IP6Packet<'static>,
         IP6Packet::new(ip_pyld)
     );
-    
+
     let ip_send = static_init!(
         capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
         capsules::net::ipv6::ipv6_send::IP6SendStruct::new(ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)

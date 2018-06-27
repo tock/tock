@@ -136,7 +136,7 @@ impl<'a> UDPDriver<'a> {
             })
             .unwrap_or_else(|err| err.into())
     }
-    
+
     /// Utility function to perform an action using an app's RX config buffer.
     /// (quick and dirty ctrl-c, ctrl-v from above)
     #[inline]
@@ -214,7 +214,6 @@ impl<'a> UDPDriver<'a> {
         if result != ReturnCode::SUCCESS {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
-                    .take()
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
             });
         }
@@ -235,9 +234,9 @@ impl<'a> UDPDriver<'a> {
             let result = self.kernel_tx.map_or(ReturnCode::ENOMEM, |kbuf| {
                 let dst_addr = addr_ports[1].addr;
                 let dst_port = addr_ports[1].port;
-                let src_port = addr_ports[0].port; 
-               
-                // Copy UDP payload to kernel memory 
+                let src_port = addr_ports[0].port;
+
+                // Copy UDP payload to kernel memory
                 // TODO: handle if too big
                 let result = app.app_write.as_ref().map_or(ReturnCode::ENOMEM, |payload| {
                         kbuf[..payload.len()].copy_from_slice(payload.as_ref());
@@ -367,7 +366,7 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
-    /// - `2`: Transmit payload 
+    /// - `2`: Transmit payload
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
@@ -378,13 +377,13 @@ impl<'a> Driver for UDPDriver<'a> {
                 let n_ifaces_to_copy = cmp::min(arg1, INTERFACES.len());
                 let iface_size = mem::size_of::<IPAddr>();
                 for i in 0..n_ifaces_to_copy {
-                    cfg[i * iface_size .. (i+1) * iface_size].copy_from_slice(&INTERFACES[i].0); 
+                    cfg[i * iface_size .. (i+1) * iface_size].copy_from_slice(&INTERFACES[i].0);
                 }
                 // Returns total number of interfaces
-                ReturnCode::SuccessWithValue { value: INTERFACES.len() } 
+                ReturnCode::SuccessWithValue { value: INTERFACES.len() }
             }),
 
-            // Transmits UDP packet stored in 
+            // Transmits UDP packet stored in
             2 => {
                 self.do_with_app(appid, |app| {
                     if app.pending_tx.is_some() {
@@ -399,7 +398,7 @@ impl<'a> Driver for UDPDriver<'a> {
 
                         debug!("{:?}", self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]));
 
-                        if let (Some(dst), Some(src)) = (self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]), 
+                        if let (Some(dst), Some(src)) = (self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]),
                                                          self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()])) {
                             Some([src, dst])
                         } else {
@@ -425,7 +424,6 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
-                    .take()
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
             });
         });
@@ -447,16 +445,18 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                     self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]).map(|requested_addr| {
                         if (socket_addr.addr == dst_addr && requested_addr.addr == src_addr &&
                            socket_addr.port == dst_port && requested_addr.port == src_port) || true {
-                            app.app_read.take().as_mut().map(|rbuf| {
+                            let mut app_read = app.app_read.take();
+                            app_read.as_mut().map(|rbuf| {
+                            //app.app_read.take().as_mut().map(|rbuf| {
                                 let rbuf = rbuf.as_mut();
                                 let len = payload.len();
                                 if rbuf.len() >= len { // silently ignore packets that don't fit?
                                     rbuf[..len].copy_from_slice(&payload[..len]);
                                     app.rx_callback
-                                        .take()
                                         .map(|mut cb| cb.schedule(len, 0, 0));
                                 }
                             });
+                            app.app_read = app_read;
                         }
                         ReturnCode::SUCCESS
                     });
