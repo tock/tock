@@ -51,5 +51,5 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_red = &mut led::LedLow::new(&mut sam4l::gpio::PA[13]);
     let writer = &mut WRITER;
-    debug::panic(led_red, writer, pi, &cortexm4::support::nop)
+    debug::panic(&mut [led_red], writer, pi, &cortexm4::support::nop)
 }
