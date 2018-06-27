@@ -26,7 +26,6 @@ usage:
 .PHONY: allboards
 allboards:
 	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Build $$f"; $(MAKE) -C "boards/$$f" || exit 1; done
-	@echo "$$(tput bold)Build course/sensys"; $(MAKE) -C "doc/courses/sensys/exercises/board" || exit 1;
 
 .PHONY: alldoc
 alldoc:
