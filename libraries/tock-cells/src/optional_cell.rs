@@ -24,6 +24,16 @@ impl<T: Copy> OptionalCell<T> {
         }
     }
 
+    /// Check if the cell is None.
+    pub fn is_none(&self) -> bool {
+        self.value.get().is_none()
+    }
+
+    /// Check if the cell contains something.
+    pub fn is_some(&self) -> bool {
+        self.value.get().is_some()
+    }
+
     /// Update the stored value.
     pub fn set(&self, val: T) {
         self.value.set(Some(val));
@@ -34,11 +44,40 @@ impl<T: Copy> OptionalCell<T> {
         self.value.set(None);
     }
 
+    /// Return the contained value and replace it with None.
+    pub fn take(&self) -> Option<T> {
+        self.value.take()
+    }
+
     /// Call a closure on the value if the value exists.
     pub fn map<F, R>(&self, closure: F) -> Option<R>
     where
         F: FnOnce(&mut T) -> R,
     {
         self.value.get().map(|mut val| closure(&mut val))
+    }
+
+    /// Call a closure on the value if the value exists, or return the
+    /// default if the value is `None`.
+    pub fn map_or<F, R>(&self, default: R, closure: F) -> R
+    where
+        F: FnOnce(&mut T) -> R,
+    {
+        self.value
+            .get()
+            .map_or(default, |mut val| closure(&mut val))
+    }
+
+    /// If the cell contains a value, call a closure supplied with the
+    /// value of the cell. If the cell contains `None`, call the other
+    /// closure to return a default value.
+    pub fn map_or_else<U, D, F>(&self, default: D, closure: F) -> U
+    where
+        D: FnOnce() -> U,
+        F: FnOnce(&mut T) -> U,
+    {
+        self.value
+            .get()
+            .map_or_else(default, |mut val| closure(&mut val))
     }
 }
