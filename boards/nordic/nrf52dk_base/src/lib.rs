@@ -223,16 +223,19 @@ pub unsafe fn setup_board(
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         app_memory,
         process_pointers,
         app_fault_response,
     );
 
-    kernel::kernel_loop(&platform, &mut chip, process_pointers, Some(&platform.ipc));
+    board_kernel.kernel_loop(&platform, &mut chip, process_pointers, Some(&platform.ipc));
 }
