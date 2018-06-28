@@ -28,5 +28,11 @@ pub fn panic_hook(panic_info: &panic::PanicInfo) {
         // Flush debug buffer if needed
         debug::flush(writer);
         debug::panic_process_info(writer);
+
+        eprintln!("");
+        eprintln!("-----------------------------------------");
+        eprintln!("End of Tock Panic. Triggering breakpoint.");
+        eprintln!("-----------------------------------------");
+        ::std::intrinsics::breakpoint();
     }
 }

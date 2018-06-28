@@ -1,6 +1,7 @@
 //! "Board" file for native process execution.
 
 #![feature(asm, const_fn, lang_items)]
+#![feature(core_intrinsics)] // for breakpoint()
 #![feature(panic_implementation)]
 extern crate capsules;
 #[allow(unused_imports)]

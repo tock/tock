@@ -1,43 +1,54 @@
 //! State holding of the native "chip"
 
+use std::collections::VecDeque;
+
 use kernel::Chip;
 
-pub struct NativeChip( () );
+pub struct NativeChip<'a> {
+    interrupt_queue: VecDeque<&'a Fn()>,
+}
 
-impl NativeChip {
-    pub fn new() -> NativeChip {
-        NativeChip( () )
+impl NativeChip<'a> {
+    pub fn new() -> NativeChip<'a> {
+        NativeChip {
+            interrupt_queue: VecDeque::new(),
+        }
     }
 }
 
-impl Chip for NativeChip {
+impl Chip for NativeChip<'a> {
     type MPU = ();
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &self.0
+        &()
     }
 
     fn systick(&self) -> &Self::SysTick {
-        &self.0
+        &()
     }
 
     fn service_pending_interrupts(&mut self) {
-        unimplemented!("service_pending_interrupts");
+        while self.has_pending_interrupts() {
+            if let Some(next) = self.interrupt_queue.pop_front() {
+                next();
+            }
+        }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unimplemented!("has_pending_interrupts");
+        !self.interrupt_queue.is_empty()
     }
 
     fn sleep(&self) {
         unimplemented!("sleep");
     }
 
-    unsafe fn atomic<F, R>(&self, _f: F) -> R
+    unsafe fn atomic<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        unimplemented!("atomic operation");
+        // TODO: Think about whether there's a situation where native isn't atomic
+        f()
     }
 }
