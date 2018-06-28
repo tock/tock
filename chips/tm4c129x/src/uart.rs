@@ -203,7 +203,7 @@ impl hil::uart::UART for UART {
         unimplemented!()
     }
 
-    fn abort_receive(&self) {
+    fn abort_receive(&self) -> ReturnCode {
         unimplemented!()
     }
 }

@@ -245,7 +245,7 @@ impl uart::UART for UART {
         }
     }
 
-    fn abort_receive(&self) {
+    fn abort_receive(&self) -> ReturnCode {
         unimplemented!()
     }
 }

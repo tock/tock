@@ -41,6 +41,9 @@ pub enum Error {
     /// UART hardware was reset
     ResetError,
 
+    /// A receieve in progress was aborted
+    AbortedError,
+
     /// No error occurred and the command completed successfully
     CommandComplete,
 }
@@ -67,9 +70,12 @@ pub trait UART {
     /// Receive data until buffer is full.
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
 
-    /// Abort any ongoing receive transfers and return what is in the
-    /// receive buffer with the `receive_complete` callback.
-    fn abort_receive(&self);
+    /// Abort any ongoing receive transfers. The `receieve_callback` will be
+    /// called with `AbortedError`. Callers should take care to note that an
+    /// active receive may complete before this call occurs, in which case the
+    /// `receive_callback` will be called with `CommandComplete` and this method
+    /// will return `EALREADY`.
+    fn abort_receive(&self) -> ReturnCode;
 }
 
 /// Trait that isn't required for basic UART operation, but provides useful

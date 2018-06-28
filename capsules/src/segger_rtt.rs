@@ -221,7 +221,9 @@ impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
 
     fn receive(&self, _rx_buf: &'static mut [u8], _rx_len: usize) {}
 
-    fn abort_receive(&self) {}
+    fn abort_receive(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
 }
 
 impl<A: hil::time::Alarm> hil::time::Client for SeggerRtt<'a, A> {

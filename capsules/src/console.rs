@@ -277,8 +277,9 @@ impl<U: UART> Driver for Console<'a, U> {
     ///        passed in `arg1`
     /// - `2`: Receives into a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
-    /// - `3`: Cancel any in progress receives and return (via callback)
-    ///        what has been received so far.
+    /// - `3`: Cancel any in progress receives. If this returns successfully,
+    ///        the callback will fire with an error indicating it was aborted.
+    ///        If this call returns an error, the callback will not fire.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -295,8 +296,7 @@ impl<U: UART> Driver for Console<'a, U> {
                 }).unwrap_or_else(|err| err.into())
             },
             3 /* abort rx */ => {
-                self.uart.abort_receive();
-                ReturnCode::SUCCESS
+                self.uart.abort_receive()
             }
             _ => ReturnCode::ENOSUPPORT
         }

@@ -326,7 +326,7 @@ impl Uarte {
                         client.receive_complete(
                             rx_buffer,
                             self.offset.get() + rx_bytes,
-                            kernel::hil::uart::Error::CommandComplete,
+                            kernel::hil::uart::Error::AbortedError,
                         );
                     });
                 });
@@ -474,10 +474,17 @@ impl kernel::hil::uart::UART for Uarte {
         self.enable_rx_interrupts();
     }
 
-    fn abort_receive(&self) {
+    fn abort_receive(&self) -> ReturnCode {
+        // TODO: This should check first whether there is still an active receive.
+        // Without opening the datasheet, it looks like you can only `intenset` and
+        // `intenclr` (set and clear) the interrupt registers, you can't read them?
+        // If you could, you should be able to just check whether the RX interrupt
+        // is enabled. Otherwise we'll need to add a software flag.
+
         // Trigger the STOPRX event to cancel the current receive call.
         let regs = &*self.registers;
         self.rx_abort_in_progress.set(true);
         regs.task_stoprx.write(Task::ENABLE::SET);
+        ReturnCode::SUCCESS
     }
 }
