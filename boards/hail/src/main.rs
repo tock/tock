@@ -77,6 +77,10 @@ struct Hail {
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
+    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+        'static,
+        sam4l::acifc::Acifc<'static>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -106,6 +110,8 @@ impl Platform for Hail {
 
             capsules::dac::DRIVER_NUM => f(Some(self.dac)),
 
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -114,7 +120,7 @@ impl Platform for Hail {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::PeripheralFunction::{A, B};
+    use sam4l::gpio::PeripheralFunction::{A, B, E};
     use sam4l::gpio::{PA, PB};
 
     PA[04].configure(Some(A)); // A0 - ADC0
@@ -139,7 +145,7 @@ unsafe fn set_pin_primary_functions() {
     PA[22].configure(Some(A)); // D2 - SPI MOSI
     PA[23].configure(Some(A)); // D4 - SPI SCK
     PA[24].configure(Some(A)); // D5 - SPI CS0
-                               // // I2C MODE
+                               // // I2C Mode
                                // PA[21].configure(None); // D3
                                // PA[22].configure(None); // D2
                                // PA[23].configure(Some(B)); // D4 - TWIMS0 SDA
@@ -150,8 +156,12 @@ unsafe fn set_pin_primary_functions() {
 
     PB[00].configure(Some(A)); // SENSORS_SDA - TWIMS1 SDA
     PB[01].configure(Some(A)); // SENSORS_SCL - TWIMS1 SCL
-    PB[02].configure(Some(A)); // A2 - ADC3
-    PB[03].configure(Some(A)); // A3 - ADC4
+                               // Analog Comparator Mode
+    PB[02].configure(Some(E)); // A2 - ACIFC ACBN0
+    PB[03].configure(Some(E)); // A3 - ACIFC ACBP0
+                               // // ADC Mode
+                               // PB[02].configure(Some(A)); // A2 - ADC3
+                               // PB[03].configure(Some(A)); // A3 - ADC4
     PB[04].configure(Some(A)); // A4 - ADC5
     PB[05].configure(Some(A)); // A5 - ADC6
     PB[06].configure(Some(A)); // NRF_CTS - USART3 RTS
@@ -442,6 +452,13 @@ pub unsafe fn reset_handler() {
         capsules::dac::Dac::new(&mut sam4l::dac::DAC)
     );
 
+    // ACIFC
+    let analog_comparator = static_init!(
+        capsules::analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
+        capsules::analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC)
+    );
+    sam4l::acifc::ACIFC.set_client(analog_comparator);
+
     let hail = Hail {
         console: console,
         gpio: gpio,
@@ -459,6 +476,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
         crc: crc,
         dac: dac,
+        analog_comparator: analog_comparator,
     };
 
     // Need to reset the nRF on boot
