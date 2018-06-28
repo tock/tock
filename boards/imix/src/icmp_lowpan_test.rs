@@ -147,7 +147,7 @@ impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     }
 }
 
-impl<'a, A: time::Alarm> LowpanICMPTest<'a, A> {
+impl<A: time::Alarm> LowpanICMPTest<'a, A> {
     pub fn new(
         //sixlowpan_tx: TxState<'a>,
         //radio: &'a Mac<'a>,
