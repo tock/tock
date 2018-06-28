@@ -5,11 +5,9 @@ use kernel::debug;
 
 extern crate tock_native_arch;
 
-pub struct Writer {
-    initialized: bool,
-}
+pub struct Writer {}
 
-pub static mut WRITER: Writer = Writer { initialized: false };
+pub static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -20,7 +18,6 @@ impl Write for Writer {
 
 /// Panic handler.
 pub fn panic_hook(panic_info: &panic::PanicInfo) {
-
     //debug::panic(led, writer, pi, &tock_native_arch::nop)
 
     unsafe {
@@ -33,4 +30,3 @@ pub fn panic_hook(panic_info: &panic::PanicInfo) {
         debug::panic_process_info(writer);
     }
 }
-

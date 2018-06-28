@@ -29,3 +29,4 @@ tock_native_arch = { path = "../../arch/native" }
 tock_native_chip = { path = "../../chips/native" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
+memmap = "0.6.2"

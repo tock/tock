@@ -11,12 +11,20 @@ extern crate tock_native_chip;
 // Implicit in no_std environments, but native w/ std needs it
 extern crate core;
 
+// Rust native crates
+use std::fs::File;
+use std::io;
 use std::panic;
 
+// crates.io crates
+extern crate memmap;
+use memmap::Mmap;
+
+// Tock crates
 use kernel::hil;
 use kernel::Platform;
 
-pub mod io;
+pub mod native_panic;
 
 // State for loading and holding applications.
 
@@ -62,21 +70,32 @@ impl Platform for NativeProcess {
 }
 
 /// Expected entry function
-pub fn main() {
+pub fn main() -> Result<(), io::Error> {
     // Panic setup in no_std is done via a language feature. In a std
     // environment, we install a hook to run, which should happen before any of
     // Tock proper runs.
-    panic::set_hook(Box::new(|pi| io::panic_hook(pi)));
+    panic::set_hook(Box::new(|pi| native_panic::panic_hook(pi)));
+
+    // Eventually, we'll need a real story for loading apps. I think the way to
+    // do this best will be to create an image that represents what we'd
+    // normally have put into flash and mmap that image so that it looks like
+    // readable flash on the chip to the rest of the kernel.
+    //
+    // Create no-apps image with: truncate -s 1K /tmp/zeros
+    let file = File::open("/tmp/zeros")?;
+    let mmap = unsafe { Mmap::map(&file)? };
 
     // "Boot" the "machine"
     unsafe {
-        reset_handler();
+        reset_handler(mmap.as_ptr());
     }
+
+    unimplemented!("Should never get past reset_handler()");
 }
 
 /// Reset Handler
 #[no_mangle]
-pub unsafe fn reset_handler() {
+pub unsafe fn reset_handler(_sapps: *const u8) {
     tock_native_chip::init();
 
     let console = static_init!(
@@ -115,12 +134,6 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
     */
-    kernel::procs::load_processes(
-        //&_sapps as *const u8,
-        0 as *const u8,
-        &mut APP_MEMORY,
-        &mut PROCESSES,
-        FAULT_RESPONSE,
-    );
+    kernel::procs::load_processes(_sapps, &mut APP_MEMORY, &mut PROCESSES, FAULT_RESPONSE);
     kernel::kernel_loop(&native, &mut chip, &mut PROCESSES, Some(&native.ipc));
 }
