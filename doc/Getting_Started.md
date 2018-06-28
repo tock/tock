@@ -9,7 +9,7 @@ developing Tock.
 1. [Rust](http://www.rust-lang.org/)
 2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
 3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-4. Command line utilities: wget, sed, make, cmake
+4. Command line utilities: wget, make, cmake
 
 ### Super Quick Setup
 
