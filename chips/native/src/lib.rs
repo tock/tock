@@ -3,7 +3,10 @@
 #![feature(attr_literals, const_cell_new)]
 #![feature(const_atomic_usize_new, const_ptr_null_mut, integer_atomics)]
 #![feature(asm, core_intrinsics, concat_idents, const_fn)]
-#![no_std]
+#![feature(in_band_lifetimes)]
+#![feature(infer_outlives_requirements)]
+
+extern crate core;
 
 extern crate tock_native_arch;
 #[allow(unused_imports)]
@@ -11,6 +14,7 @@ extern crate tock_native_arch;
 extern crate kernel;
 
 pub mod chip;
+pub mod serial;
 
 use tock_native_arch::{generic_isr, svc_handler, systick_handler};
 
@@ -29,7 +33,7 @@ extern "C" {
     // Defined by platform
     fn reset_handler();
 
-    /*
+/*
     static mut _szero: u32;
     static mut _ezero: u32;
     static mut _etext: u32;
@@ -66,7 +70,8 @@ pub static IRQS: [unsafe extern "C" fn(); 111] = [generic_isr; 111];
 
 pub unsafe fn init() {
 
-    unimplemented!("Manual relocation needed on native?");
+    // TODO: Is manual relocation needed on native?
+
     /*
     // Relocate data segment.
     // Assumes data starts right after text segment as specified by the linker
@@ -93,10 +98,10 @@ pub unsafe fn init() {
     }
     */
 
-    unimplemented!("Call native interrupt init (probably signal setup)");
+    // TODO
+    //unimplemented!("Call native interrupt init (probably signal setup)");
 }
 
 unsafe extern "C" fn hard_fault_handler() {
     unimplemented!("Hard fault hander");
 }
-

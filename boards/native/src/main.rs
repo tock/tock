@@ -13,6 +13,7 @@ extern crate core;
 
 use std::panic;
 
+use kernel::hil;
 use kernel::Platform;
 
 pub mod io;
@@ -37,7 +38,10 @@ static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NativeProcess {
-    //console: &'static capsules::console::Console<'static, tock_native_chip::uart::UART>,
+    console: &'static capsules::console::Console<
+        'static,
+        tock_native_chip::serial::NativeSerial<'static>,
+    >,
     //gpio: &'static capsules::gpio::GPIO<'static, tock_native_chip::gpio::GPIOPin>,
     ipc: kernel::ipc::IPC,
 }
@@ -62,10 +66,12 @@ pub fn main() {
     // Panic setup in no_std is done via a language feature. In a std
     // environment, we install a hook to run, which should happen before any of
     // Tock proper runs.
-    panic::set_hook(Box::new(|pi| {io::panic_hook(pi)}));
+    panic::set_hook(Box::new(|pi| io::panic_hook(pi)));
 
     // "Boot" the "machine"
-    unsafe { reset_handler(); }
+    unsafe {
+        reset_handler();
+    }
 }
 
 /// Reset Handler
@@ -73,31 +79,31 @@ pub fn main() {
 pub unsafe fn reset_handler() {
     tock_native_chip::init();
 
-    //let console = static_init!(
-    //    capsules::console::Console<tock_native_chip::uart::UART>,
-    //    capsules::console::Console::new(
-    //        &tm4c129x::uart::UART0,
-    //        115200,
-    //        &mut capsules::console::WRITE_BUF,
-    //        &mut capsules::console::READ_BUF,
-    //        kernel::Grant::create()
-    //    )
-    //);
-    //hil::uart::UART::set_client(&tock_native_chip::uart::UART0, console);
+    let console = static_init!(
+        capsules::console::Console<tock_native_chip::serial::NativeSerial>,
+        capsules::console::Console::new(
+            &tock_native_chip::serial::NATIVE_SERIAL_0,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            kernel::Grant::create()
+        )
+    );
+    hil::uart::UART::set_client(&tock_native_chip::serial::NATIVE_SERIAL_0, console);
 
     let native = NativeProcess {
-        //console: console,
+        console: console,
         //gpio: gpio,
         ipc: kernel::ipc::IPC::new(),
     };
 
     let mut chip = tock_native_chip::chip::NativeChip::new();
 
-    //tock_native_chip.console.initialize();
+    native.console.initialize();
 
     // Attach the kernel debug interface to this console
-    //let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    //kernel::debug::assign_console_driver(Some(tock_native_chip.console), kc);
+    let kc = static_init!(capsules::console::App, capsules::console::App::default());
+    kernel::debug::assign_console_driver(Some(native.console), kc);
 
     debug!("Initialization complete. Entering main loop...\r");
 
@@ -118,4 +124,3 @@ pub unsafe fn reset_handler() {
     );
     kernel::kernel_loop(&native, &mut chip, &mut PROCESSES, Some(&native.ipc));
 }
-
