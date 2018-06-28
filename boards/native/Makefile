@@ -1,6 +1,6 @@
 #TARGET := $(shell cc -dumpmachine)
 TARGET := x86_64-apple-darwin
-PLATFORM := native
+PLATFORM := tock-native
 
 include ../Makefile.common
 

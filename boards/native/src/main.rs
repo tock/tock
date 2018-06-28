@@ -24,7 +24,8 @@ const NUM_PROCS: usize = 4;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
-#[link_section = ".app_memory"]
+//#[link_section = ".app_memory"]
+//TODO: files? maps?
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
@@ -103,14 +104,17 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop...\r");
 
+    /*
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
         /// This symbol is defined in the linker script.
         static _sapps: u8;
     }
+    */
     kernel::procs::load_processes(
-        &_sapps as *const u8,
+        //&_sapps as *const u8,
+        0 as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
