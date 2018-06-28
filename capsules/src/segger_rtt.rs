@@ -191,7 +191,7 @@ impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
         ReturnCode::SUCCESS
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode {
         self.up_buffer.map(|buffer| {
             self.config.map(|config| {
                 // Copy the incoming data into the buffer. Once we increment
@@ -217,9 +217,13 @@ impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
         let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
+
+        ReturnCode::SUCCESS
     }
 
-    fn receive(&self, _rx_buf: &'static mut [u8], _rx_len: usize) {}
+    fn receive(&self, _rx_buf: &'static mut [u8], _rx_len: usize) -> ReturnCode {
+        unimplemented!("SEGGER RTT Receive");
+    }
 
     fn abort_receive(&self) -> ReturnCode {
         ReturnCode::FAIL

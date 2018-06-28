@@ -24,3 +24,8 @@ Since 1.2
     /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
     fn configure(&self, params: UARTParameters) -> ReturnCode;
     ```
+
+  - [#1049](https://github.com/tock/tock/pull/1049) updates the UART HIL to
+    allow failures. Previously, UART implementations would have to silently
+    drop errors. This means that users of the UART HIL will now need to add
+    error handling.

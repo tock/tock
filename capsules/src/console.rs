@@ -118,8 +118,7 @@ impl<U: UART> Console<'a, U> {
             Some(slice) => {
                 app.write_len = cmp::min(len, slice.len());
                 app.write_remaining = app.write_len;
-                self.send(app_id, app, slice);
-                ReturnCode::SUCCESS
+                self.send(app_id, app, slice)
             }
             None => ReturnCode::EBUSY,
         }
@@ -132,8 +131,10 @@ impl<U: UART> Console<'a, U> {
             app.write_buffer
                 .take()
                 .map_or(Err(ReturnCode::ERESERVE), |slice| {
-                    self.send(app_id, app, slice);
-                    Ok(true)
+                    match self.send(app_id, app, slice) {
+                        ReturnCode::SUCCESS => Ok(true),
+                        err => Err(err),
+                    }
                 })
         } else {
             Ok(false)
@@ -141,37 +142,44 @@ impl<U: UART> Console<'a, U> {
     }
 
     /// Internal helper function for sending data for an existing transaction.
-    /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
+    /// If can't send now, it will schedule for sending later.
+    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) -> ReturnCode {
         if self.tx_in_progress.get().is_none() {
             self.tx_in_progress.set(Some(app_id));
-            self.tx_buffer.take().map(|buffer| {
-                let mut transaction_len = app.write_remaining;
-                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
-                    .iter()
-                    .enumerate()
-                {
-                    if buffer.len() <= i {
-                        break;
+            self.tx_buffer.take().map_or_else(
+                || {
+                    debug_assert!(false, "Console internal consistency error");
+                    ReturnCode::FAIL
+                },
+                |buffer| {
+                    let mut transaction_len = app.write_remaining;
+                    for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
+                        .iter()
+                        .enumerate()
+                    {
+                        if buffer.len() <= i {
+                            break;
+                        }
+                        buffer[i] = *c;
                     }
-                    buffer[i] = *c;
-                }
 
-                // Check if everything we wanted to print
-                // fit in the buffer.
-                if app.write_remaining > buffer.len() {
-                    transaction_len = buffer.len();
-                    app.write_remaining -= buffer.len();
-                    app.write_buffer = Some(slice);
-                } else {
-                    app.write_remaining = 0;
-                }
+                    // Check if everything we wanted to print
+                    // fit in the buffer.
+                    if app.write_remaining > buffer.len() {
+                        transaction_len = buffer.len();
+                        app.write_remaining -= buffer.len();
+                        app.write_buffer = Some(slice);
+                    } else {
+                        app.write_remaining = 0;
+                    }
 
-                self.uart.transmit(buffer, transaction_len);
-            });
+                    self.uart.transmit(buffer, transaction_len)
+                },
+            )
         } else {
             app.pending_write = true;
             app.write_buffer = Some(slice);
+            ReturnCode::SUCCESS
         }
     }
 

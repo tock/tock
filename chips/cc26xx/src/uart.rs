@@ -218,9 +218,9 @@ impl kernel::hil::uart::UART for UART {
         self.configure(params)
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode {
         if tx_len == 0 {
-            return;
+            return ReturnCode::ESIZE;
         }
 
         for i in 0..tx_len {
@@ -230,10 +230,14 @@ impl kernel::hil::uart::UART for UART {
         self.client.get().map(move |client| {
             client.transmit_complete(tx_data, kernel::hil::uart::Error::CommandComplete);
         });
+
+        ReturnCode::SUCCESS
     }
 
     #[allow(unused)]
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {}
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> ReturnCode {
+        unimplemented!()
+    }
 
     fn abort_receive(&self) -> ReturnCode {
         unimplemented!()

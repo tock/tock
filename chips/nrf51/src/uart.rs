@@ -216,11 +216,11 @@ impl uart::UART for UART {
         ReturnCode::SUCCESS
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode {
         let regs = &*self.registers;
 
         if tx_len == 0 {
-            return;
+            return ReturnCode::ESIZE;
         }
 
         self.index.set(1);
@@ -231,10 +231,12 @@ impl uart::UART for UART {
         regs.task_starttx.set(1);
         regs.txd.set(tx_data[0] as u32);
         self.buffer.replace(tx_data);
+
+        ReturnCode::SUCCESS
     }
 
     // Blocking implementation
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> ReturnCode {
         let regs = &*self.registers;
         regs.task_startrx.set(1);
         let mut i = 0;
@@ -243,6 +245,8 @@ impl uart::UART for UART {
             rx_buffer[i] = regs.rxd.get() as u8;
             i += 1;
         }
+
+        ReturnCode::SUCCESS
     }
 
     fn abort_receive(&self) -> ReturnCode {

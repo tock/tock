@@ -433,11 +433,11 @@ impl kernel::hil::uart::UART for Uarte {
         ReturnCode::SUCCESS
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode {
         let truncated_len = min(tx_data.len(), tx_len);
 
         if truncated_len == 0 {
-            return;
+            return ReturnCode::ESIZE;
         }
 
         self.tx_remaining_bytes.set(tx_len);
@@ -451,13 +451,19 @@ impl kernel::hil::uart::UART for Uarte {
         regs.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
+
+        ReturnCode::SUCCESS
     }
 
-    fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) {
+    fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) -> ReturnCode {
         let regs = &*self.registers;
 
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
+
+        if truncated_length == 0 {
+            return ReturnCode::ESIZE;
+        }
 
         self.rx_remaining_bytes.set(truncated_length);
         self.offset.set(0);
@@ -472,6 +478,8 @@ impl kernel::hil::uart::UART for Uarte {
         regs.task_startrx.write(Task::ENABLE::SET);
 
         self.enable_rx_interrupts();
+
+        ReturnCode::SUCCESS
     }
 
     fn abort_receive(&self) -> ReturnCode {

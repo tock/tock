@@ -65,10 +65,10 @@ pub trait UART {
     fn configure(&self, params: UARTParameters) -> ReturnCode;
 
     /// Transmit data.
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode;
 
     /// Receive data until buffer is full.
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> ReturnCode;
 
     /// Abort any ongoing receive transfers. The `receieve_callback` will be
     /// called with `AbortedError`. Callers should take care to note that an
