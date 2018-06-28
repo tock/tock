@@ -32,6 +32,7 @@ mod process;
 mod returncode;
 mod sched;
 mod syscall;
+mod tbfheader;
 
 pub use callback::{AppId, Callback};
 pub use driver::Driver;
