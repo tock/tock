@@ -1,7 +1,5 @@
 //! "Board" file for native process execution.
 
-#![no_std]
-#![no_main]
 #![feature(asm, const_fn, lang_items)]
 #![feature(panic_implementation)]
 extern crate capsules;
@@ -10,9 +8,13 @@ extern crate capsules;
 extern crate kernel;
 extern crate tock_native_chip;
 
+// Implicit in no_std environments, but native w/ std needs it
+extern crate core;
+
+use std::panic;
+
 use kernel::Platform;
 
-#[macro_use]
 pub mod io;
 
 // State for loading and holding applications.
@@ -55,20 +57,15 @@ impl Platform for NativeProcess {
     }
 }
 
-/// Expected entry function (linux)
-#[cfg(target_os = "linux")]
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
-    unsafe { reset_handler(); }
-    loop {}
-}
+/// Expected entry function
+pub fn main() {
+    // Panic setup in no_std is done via a language feature. In a std
+    // environment, we install a hook to run, which should happen before any of
+    // Tock proper runs.
+    panic::set_hook(Box::new(|pi| {io::panic_hook(pi)}));
 
-/// Expected entry function (mac)
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub extern "C" fn main() -> ! {
+    // "Boot" the "machine"
     unsafe { reset_handler(); }
-    loop {}
 }
 
 /// Reset Handler
