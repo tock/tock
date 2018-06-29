@@ -30,8 +30,6 @@ const BUTTON3_PIN: usize = 24;
 const BUTTON4_PIN: usize = 25;
 const BUTTON_RST_PIN: usize = 18;
 
-
-
 /// UART Writer
 #[macro_use]
 pub mod io;

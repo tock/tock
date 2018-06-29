@@ -206,7 +206,6 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
 }
 
 impl<'a> rng::RNG<'a> for Trng<'a> {
-
     fn get(&self) {
         self.start_rng()
     }

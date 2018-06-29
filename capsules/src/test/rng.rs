@@ -1,18 +1,14 @@
 //! Test RNG hardware
 
-use kernel::hil::rng::{RNG, Continue, Client};
+use kernel::hil::rng::{Client, Continue, RNG};
 
 pub struct TestRng<'a> {
     rng: &'a RNG<'a>,
 }
 
 impl<'a> TestRng<'a> {
-    pub fn new(
-        rng: &'a RNG<'a>,
-    ) -> Self {
-        TestRng {
-            rng: rng,
-        }
+    pub fn new(rng: &'a RNG<'a>) -> Self {
+        TestRng { rng: rng }
     }
 
     pub fn run(&self) {

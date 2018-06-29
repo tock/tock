@@ -71,7 +71,6 @@ pub enum Continue {
 /// Implementors should assume the client implements the
 /// [Client](trait.Client.html) trait.
 pub trait RNG<'a> {
-
     /// Set the client for this random number generator.
     /// THe client will be called in response to requests for randomness.
     fn set_client(&self, client: &'a Client);

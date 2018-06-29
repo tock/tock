@@ -19,10 +19,10 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::hil;
+use kernel::hil::rng::RNG;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
-use kernel::hil::rng::RNG;
 
 /// Support routines for debugging I/O.
 ///
