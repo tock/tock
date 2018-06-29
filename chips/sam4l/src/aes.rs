@@ -159,7 +159,7 @@ pub struct Aes<'a> {
     stop_index: Cell<usize>,
 }
 
-impl<'a> Aes<'a> {
+impl Aes<'a> {
     const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
@@ -402,7 +402,7 @@ impl<'a> Aes<'a> {
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
+impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
         let regs: &AesRegisters = &*self.registers;
         self.enable_clock();
@@ -501,13 +501,13 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128Ctr for Aes<'a> {
+impl hil::symmetric_encryption::AES128Ctr for Aes<'a> {
     fn set_mode_aes128ctr(&self, encrypting: bool) {
         self.set_mode(encrypting, ConfidentialityMode::CTR);
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128CBC for Aes<'a> {
+impl hil::symmetric_encryption::AES128CBC for Aes<'a> {
     fn set_mode_aes128cbc(&self, encrypting: bool) {
         self.set_mode(encrypting, ConfidentialityMode::CBC);
     }

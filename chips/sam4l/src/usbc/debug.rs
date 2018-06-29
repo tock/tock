@@ -2,7 +2,7 @@ use core::fmt;
 
 pub struct HexBuf<'a>(pub &'a [u8]);
 
-impl<'a> fmt::Debug for HexBuf<'a> {
+impl fmt::Debug for HexBuf<'a> {
     #[allow(unused_must_use)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[");

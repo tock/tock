@@ -498,7 +498,7 @@ pub struct LanguagesDescriptor<'a> {
     pub langs: &'a [u16],
 }
 
-impl<'a> Descriptor for LanguagesDescriptor<'a> {
+impl Descriptor for LanguagesDescriptor<'a> {
     fn size(&self) -> usize {
         2 + (2 * self.langs.len())
     }
@@ -518,7 +518,7 @@ pub struct StringDescriptor<'a> {
     pub string: &'a str,
 }
 
-impl<'a> Descriptor for StringDescriptor<'a> {
+impl Descriptor for StringDescriptor<'a> {
     fn size(&self) -> usize {
         let mut len = 2;
         for ch in self.string.chars() {

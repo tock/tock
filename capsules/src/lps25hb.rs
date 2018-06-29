@@ -98,7 +98,7 @@ pub struct LPS25HB<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> LPS25HB<'a> {
+impl LPS25HB<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
         interrupt_pin: &'a gpio::Pin,
@@ -145,7 +145,7 @@ impl<'a> LPS25HB<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for LPS25HB<'a> {
+impl i2c::I2CClient for LPS25HB<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectWhoAmI => {
@@ -205,7 +205,7 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
     }
 }
 
-impl<'a> gpio::Client for LPS25HB<'a> {
+impl gpio::Client for LPS25HB<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -219,7 +219,7 @@ impl<'a> gpio::Client for LPS25HB<'a> {
     }
 }
 
-impl<'a> Driver for LPS25HB<'a> {
+impl Driver for LPS25HB<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,

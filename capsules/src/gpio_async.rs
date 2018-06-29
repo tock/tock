@@ -31,13 +31,13 @@ use kernel::{AppId, Callback, Driver};
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x80003;
 
-pub struct GPIOAsync<'a, Port: hil::gpio_async::Port + 'a> {
+pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {
     ports: &'a [&'a Port],
     callback: Cell<Option<Callback>>,
     interrupt_callback: Cell<Option<Callback>>,
 }
 
-impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     pub fn new(ports: &'a [&'a Port]) -> GPIOAsync<'a, Port> {
         GPIOAsync {
             ports: ports,
@@ -69,7 +69,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     }
 }
 
-impl<'a, Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
         self.interrupt_callback
             .get()
@@ -81,7 +81,7 @@ impl<'a, Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, 
     }
 }
 
-impl<'a, Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
+impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     /// Setup callbacks for gpio_async events.
     ///
     /// ### `subscribe_num`

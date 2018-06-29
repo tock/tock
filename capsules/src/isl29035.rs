@@ -43,7 +43,7 @@ enum State {
     Disabling(usize),
 }
 
-pub struct Isl29035<'a, A: time::Alarm + 'a> {
+pub struct Isl29035<'a, A: time::Alarm> {
     i2c: &'a I2CDevice,
     alarm: &'a A,
     state: Cell<State>,
@@ -51,7 +51,7 @@ pub struct Isl29035<'a, A: time::Alarm + 'a> {
     client: Cell<Option<&'a AmbientLightClient>>,
 }
 
-impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
+impl<A: time::Alarm> Isl29035<'a, A> {
     pub fn new(i2c: &'a I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
         Isl29035 {
             i2c: i2c,
@@ -86,7 +86,7 @@ impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> AmbientLight for Isl29035<'a, A> {
+impl<A: time::Alarm> AmbientLight for Isl29035<'a, A> {
     fn set_client(&self, client: &'static AmbientLightClient) {
         self.client.set(Some(client));
     }
@@ -97,7 +97,7 @@ impl<'a, A: time::Alarm + 'a> AmbientLight for Isl29035<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> time::Client for Isl29035<'a, A> {
+impl<A: time::Alarm> time::Client for Isl29035<'a, A> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // Turn on i2c to send commands.
@@ -110,7 +110,7 @@ impl<'a, A: time::Alarm + 'a> time::Client for Isl29035<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> I2CClient for Isl29035<'a, A> {
+impl<A: time::Alarm> I2CClient for Isl29035<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         // TODO(alevy): handle I2C errors
         match self.state.get() {

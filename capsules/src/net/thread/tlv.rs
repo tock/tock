@@ -119,7 +119,7 @@ pub enum Tlv<'a> {
     PendingOperationalDataset(&'a [u8]),
 }
 
-impl<'a> Tlv<'a> {
+impl Tlv<'a> {
     /// Serializes TLV data in `buf` into the format specific to the TLV
     /// type.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
@@ -568,7 +568,7 @@ pub enum NetworkDataTlv<'a> {
     },
 }
 
-impl<'a> NetworkDataTlv<'a> {
+impl NetworkDataTlv<'a> {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Network Data TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
@@ -751,7 +751,7 @@ pub enum PrefixSubTlv<'a> {
     },
 }
 
-impl<'a> PrefixSubTlv<'a> {
+impl PrefixSubTlv<'a> {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Prefix sub-TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
@@ -958,7 +958,7 @@ pub enum ServiceSubTlv {
     },
 }
 
-impl<'a> ServiceSubTlv {
+impl ServiceSubTlv {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Service sub-TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
@@ -1034,7 +1034,7 @@ impl From<u8> for ServiceSubTlvType {
     }
 }
 
-impl<'a> From<&'a ServiceSubTlv> for ServiceSubTlvType {
+impl From<&'a ServiceSubTlv> for ServiceSubTlvType {
     fn from(service_sub_tlv: &'a ServiceSubTlv) -> Self {
         match *service_sub_tlv {
             ServiceSubTlv::Server { .. } => ServiceSubTlvType::Server,
@@ -1080,7 +1080,7 @@ pub enum NetworkManagementTlv<'a> {
     ChannelMask(&'a [u8]),
 }
 
-impl<'a> NetworkManagementTlv<'a> {
+impl NetworkManagementTlv<'a> {
     /// Serializes TLV data in `buf` into the format specific to the
     /// Network Management TLV type.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
@@ -1475,7 +1475,7 @@ pub struct ChannelMaskEntry {
     channel_mask: [u8; MAX_VALUE_FIELD_LENGTH],
 }
 
-impl<'a> ChannelMaskEntry {
+impl ChannelMaskEntry {
     /// Serializes this Channel Mask Entry into `buf`.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         let mut offset = enc_consume!(buf, 0; encode_u8, self.channel_page);

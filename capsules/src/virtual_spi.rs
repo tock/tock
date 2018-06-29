@@ -8,13 +8,13 @@ use kernel::ReturnCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
-pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster + 'a> {
+pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: Cell<Option<&'a VirtualSpiMasterDevice<'a, Spi>>>,
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
+impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -29,7 +29,7 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
+impl<Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
     pub const fn new(spi: &'a Spi) -> MuxSpiMaster<'a, Spi> {
         MuxSpiMaster {
             spi: spi,
@@ -92,7 +92,7 @@ enum Op {
     SetRate(u32),
 }
 
-pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
+pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     mux: &'a MuxSpiMaster<'a, Spi>,
     chip_select: Cell<Spi::ChipSelect>,
     txbuffer: TakeCell<'static, [u8]>,
@@ -102,7 +102,7 @@ pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
     client: Cell<Option<&'a hil::spi::SpiMasterClient>>,
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
+impl<Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
     pub const fn new(
         mux: &'a MuxSpiMaster<'a, Spi>,
         chip_select: Spi::ChipSelect,
@@ -124,7 +124,7 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDevice<'a, Spi> {
+impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDevice<'a, Spi> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -137,7 +137,7 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMaste
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
+impl<Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
     for VirtualSpiMasterDevice<'a, Spi>
 {
     fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
@@ -145,7 +145,7 @@ impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'a, Spi> {
+impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'a, Spi> {
     fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase, rate: u32) {
         self.operation.set(Op::Configure(cpol, cpal, rate));
         self.mux.do_next_op();
@@ -192,12 +192,12 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
     }
 }
 
-pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave + 'a> {
+pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave> {
     spi: &'a Spi,
     client: Cell<Option<&'a hil::spi::SpiSlaveClient>>,
 }
 
-impl<'a, Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
+impl<Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
     pub const fn new(spi: &'a Spi) -> VirtualSpiSlaveDevice<'a, Spi> {
         VirtualSpiSlaveDevice {
             spi: spi,
@@ -210,7 +210,7 @@ impl<'a, Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
     }
 }
 
-impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for VirtualSpiSlaveDevice<'a, Spi> {
+impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for VirtualSpiSlaveDevice<'a, Spi> {
     fn read_write_done(
         &self,
         write_buffer: Option<&'static mut [u8]>,
@@ -229,7 +229,7 @@ impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for VirtualSpiSlaveDe
     }
 }
 
-impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for VirtualSpiSlaveDevice<'a, Spi> {
+impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for VirtualSpiSlaveDevice<'a, Spi> {
     fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase) {
         self.spi.set_clock(cpol);
         self.spi.set_phase(cpal);

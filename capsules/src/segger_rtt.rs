@@ -154,7 +154,7 @@ impl SeggerRttMemory {
     }
 }
 
-pub struct SeggerRtt<'a, A: hil::time::Alarm + 'a> {
+pub struct SeggerRtt<'a, A: hil::time::Alarm> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
     config: TakeCell<'static, SeggerRttMemory>,
     up_buffer: TakeCell<'static, [u8]>,
@@ -163,7 +163,7 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm + 'a> {
     client_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, A: hil::time::Alarm + 'a> SeggerRtt<'a, A> {
+impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
     pub fn new(
         alarm: &'a A,
         config: &'static mut SeggerRttMemory,
@@ -181,7 +181,7 @@ impl<'a, A: hil::time::Alarm + 'a> SeggerRtt<'a, A> {
     }
 }
 
-impl<'a, A: hil::time::Alarm + 'a> hil::uart::UART for SeggerRtt<'a, A> {
+impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
     fn set_client(&self, client: &'static hil::uart::Client) {
         self.client.set(client);
     }
@@ -221,7 +221,7 @@ impl<'a, A: hil::time::Alarm + 'a> hil::uart::UART for SeggerRtt<'a, A> {
     fn abort_receive(&self) {}
 }
 
-impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for SeggerRtt<'a, A> {
+impl<A: hil::time::Alarm> hil::time::Client for SeggerRtt<'a, A> {
     fn fired(&self) {
         self.client.map(|client| {
             self.client_buffer.take().map(|buffer| {

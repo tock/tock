@@ -134,7 +134,7 @@ static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_H
 static mut IP6_DG_OPT: Option<IP6Packet> = None;
 //END changes
 
-pub struct LowpanTest<'a, A: time::Alarm + 'a> {
+pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: A,
     sixlowpan_tx: TxState<'a>,
     radio: &'a MacDevice<'a>,

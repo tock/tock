@@ -80,12 +80,12 @@ pub enum ButtonState {
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a, G: hil::gpio::Pin + 'a> {
+pub struct Button<'a, G: hil::gpio::Pin> {
     pins: &'a [(&'a G, GpioMode)],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
+impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
     pub fn new(
         pins: &'a [(&'a G, GpioMode)],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
@@ -115,7 +115,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
     }
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
+impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     /// Set callbacks.
     ///
     /// ### `subscribe_num`
@@ -236,7 +236,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     }
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
+impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
     fn fired(&self, pin_num: usize) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);

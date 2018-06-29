@@ -61,7 +61,7 @@ pub struct I2CMasterSlaveDriver<'a> {
     app: MapCell<App>,
 }
 
-impl<'a> I2CMasterSlaveDriver<'a> {
+impl I2CMasterSlaveDriver<'a> {
     pub fn new(
         i2c: &'a hil::i2c::I2CMasterSlave,
         master_buffer: &'static mut [u8],
@@ -80,7 +80,7 @@ impl<'a> I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
+impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
         // Map I2C error to a number we can pass back to the application
         let err: isize = match error {
@@ -146,7 +146,7 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
+impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
@@ -218,7 +218,7 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl<'a> Driver for I2CMasterSlaveDriver<'a> {
+impl Driver for I2CMasterSlaveDriver<'a> {
     fn allow(
         &self,
         _appid: AppId,

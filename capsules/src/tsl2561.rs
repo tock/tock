@@ -208,7 +208,7 @@ pub struct TSL2561<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> TSL2561<'a> {
+impl TSL2561<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
         interrupt_pin: &'a gpio::Pin,
@@ -344,7 +344,7 @@ impl<'a> TSL2561<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for TSL2561<'a> {
+impl i2c::I2CClient for TSL2561<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectId => {
@@ -421,7 +421,7 @@ impl<'a> i2c::I2CClient for TSL2561<'a> {
     }
 }
 
-impl<'a> gpio::Client for TSL2561<'a> {
+impl gpio::Client for TSL2561<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -435,7 +435,7 @@ impl<'a> gpio::Client for TSL2561<'a> {
     }
 }
 
-impl<'a> Driver for TSL2561<'a> {
+impl Driver for TSL2561<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,

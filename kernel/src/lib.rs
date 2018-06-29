@@ -8,6 +8,7 @@
 
 #![feature(asm, core_intrinsics, unique, ptr_internals, const_fn)]
 #![feature(use_extern_macros, try_from, used)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 extern crate tock_cells;
