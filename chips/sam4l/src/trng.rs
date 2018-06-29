@@ -99,8 +99,6 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
 
 impl<'a> rng::RNG<'a> for Trng<'a> {
 
-    fn init(&self) {}
-
     fn get(&self) {
         let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));

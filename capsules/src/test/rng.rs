@@ -16,7 +16,6 @@ impl<'a> TestRng<'a> {
     }
 
     pub fn run(&self) {
-        self.rng.init();
         self.rng.get();
     }
 }

@@ -11,6 +11,7 @@ extern crate nrf5x;
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use nrf5x::rtc::Rtc;
+use kernel::hil::rng::RNG;
 
 /// Supported drivers by the platform
 pub struct Platform {

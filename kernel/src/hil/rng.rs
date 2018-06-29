@@ -76,10 +76,7 @@ pub trait RNG<'a> {
     /// THe client will be called in response to requests for randomness.
     fn set_client(&self, client: &'a Client);
 
-    /// Initialize the random number generator
-    fn init(&self);
-    
-    /// Initiate the aquisition of new random number generation.
+    /// Initiate acquiring a random number.
     ///
     /// The implementor may ignore this command if the generation proccess is
     /// already in progress.
