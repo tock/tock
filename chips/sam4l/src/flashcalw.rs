@@ -682,7 +682,9 @@ impl FLASHCALW {
         // fast/rarely used commands or commands that don't generate interrupts
         // it is better to wait (or at least that is how this driver was
         // originally implemented).
-        if command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
+        if command != FlashCMD::QPRUP
+            && command != FlashCMD::QPR
+            && command != FlashCMD::CPB
             && command != FlashCMD::HSEN
         {
             // Enable ready interrupt.
@@ -703,7 +705,9 @@ impl FLASHCALW {
         // Since we don't enable interrupts for these commands, spin wait
         // until they are finished. In particular, QPR and QPRUP will not issue
         // interrupts (see datasheet 14.6 paragraph 2).
-        if command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
+        if command == FlashCMD::QPRUP
+            || command == FlashCMD::QPR
+            || command == FlashCMD::CPB
             || command == FlashCMD::HSEN
         {
             while !regs.fsr.is_set(FlashStatus::FRDY) {}
@@ -804,7 +808,9 @@ impl FLASHCALW {
         // Configure all other interrupts explicitly. Note the issue_command
         // function turns this on when need be.
         regs.fcr.modify(
-            FlashControl::FRDY::CLEAR + FlashControl::LOCKE::CLEAR + FlashControl::PROGE::CLEAR
+            FlashControl::FRDY::CLEAR
+                + FlashControl::LOCKE::CLEAR
+                + FlashControl::PROGE::CLEAR
                 + FlashControl::ECCE::CLEAR,
         );
 
@@ -837,7 +843,8 @@ impl FLASHCALW {
 
         // Check that address makes sense and buffer has room.
         if address > (self.get_flash_size() as usize)
-            || address + size > (self.get_flash_size() as usize) || address + size < size
+            || address + size > (self.get_flash_size() as usize)
+            || address + size < size
             || buffer.len() < size
         {
             // invalid flash address

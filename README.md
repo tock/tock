@@ -20,7 +20,7 @@ Learn More
 
 How would you like to get started?
 
-### Learn How Tock Works 
+### Learn How Tock Works
 
 Tock is documented in the [doc](doc) folder. Read through the guides there to
 learn about the overview and design of Tock, its implementation, and much
@@ -30,12 +30,15 @@ more.
 ### Use Tock
 
 Follow our [getting started guide](doc/Getting_Started.md) to set up your
-system to compile Tock and Tock applications.
+system to compile Tock.
 
 Head to the [hardware page](https://www.tockos.org/hardware/)
 to learn about the hardware platforms Tock supports. Also check out the
 [workshop-style courses](doc/courses) to get started running apps with TockOS.
 
+Find example applications that run on top of the Tock kernel written in both
+[Rust](https://github.com/tock/libtock-rs) and
+[C](https://github.com/tock/libtock-c).
 
 ### Develop Tock
 

@@ -53,18 +53,27 @@ kernel is installed on your board two options are supported: `program` and
     re-programming the kernel.
 
 3. **Load an Application**. For this introduction, we will program the blink
-app. The app can be found in the `userland/examples` directory, and is
-compiled and loaded much like the kernel is. See the
-[getting started README](../Getting_Started.md) for how applications are
-installed on your board.
+app. Tockloader supports installing apps from a repository, so installing the
+blink app is simple:
 
     ```bash
-    cd userland/examples/blink
-    make TOCK_BOARD=imix program  # Load code via bootloader
-      -- or --    # Check the README in your board folder
-    make TOCK_BOARD=imix flash    # Load code via jtag
+    tockloader install blink
     ```
 
-    If you have another board than Imix replace imix with your board.
-    When the `make` command finishes you should see the LEDs on the board blinking.
-    Congratulations! You have just programmed your first Tock application.
+    Your specific board may require additional arguments, please see the readme
+    in the `boards/` folder for more details.
+
+    We can also compile the blink app and load our compiled version. The basic C
+    version of blink is located in the
+    [libtock-c](https://github.com/tock/libtock-c) repository. Clone that
+    repository, then navigate to `examples/blink`. From there, you should be
+    able to compile it and install it by:
+
+    ```bash
+    make
+    tockloader install
+    ```
+
+    When the blink app is installed you should see the LEDs on the board
+    blinking. Congratulations! You have just programmed your first Tock
+    application.

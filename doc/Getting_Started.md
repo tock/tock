@@ -9,7 +9,7 @@ developing Tock.
 1. [Rust](http://www.rust-lang.org/)
 2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
 3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-4. Command line utilities: wget, sed, make, cmake
+4. Command line utilities: wget, make, cmake
 
 ### Super Quick Setup
 
@@ -37,7 +37,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2018-04-19`. We require
+We are using `nightly-2018-06-26`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -52,7 +52,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2018-04-19
+$ rustup install nightly-2018-06-26
 ```
 
 #### `arm-none-eabi` toolchain

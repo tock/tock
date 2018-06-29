@@ -229,7 +229,7 @@ unsafe extern "C" fn hard_fault_handler() {
 }
 
 #[link_section = ".vectors"]
-#[no_mangle] // ensures that the symbol is kept until the final binary
+#[used] // ensures that the symbol is kept until the final binary
 /// ARM Cortex M Vector Table
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Stack Pointer
@@ -267,7 +267,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 ];
 
 #[link_section = ".vectors"]
-#[no_mangle] // Ensures that the symbol is kept until the final binary
+#[used] // Ensures that the symbol is kept until the final binary
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]

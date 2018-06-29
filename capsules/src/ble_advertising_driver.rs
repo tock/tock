@@ -263,7 +263,8 @@ impl App {
                             data[..adv_data_len].copy_from_slice(adv_data_corrected);
                         }
                         let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                        let result = ble.radio
+                        let result = ble
+                            .radio
                             .transmit_advertisement(kernel_tx, total_len, channel);
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
@@ -451,7 +452,8 @@ where
 
                 if len <= PACKET_LENGTH as u8 && result == ReturnCode::SUCCESS {
                     // write to buffer in userland
-                    let success = app.scan_buffer
+                    let success = app
+                        .scan_buffer
                         .as_mut()
                         .map(|userland| {
                             for (dst, src) in userland.iter_mut().zip(buf[0..len as usize].iter()) {
@@ -553,7 +555,8 @@ where
     ) -> ReturnCode {
         match command_num {
             // Start periodic advertisements
-            0 => self.app
+            0 => self
+                .app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
                         let pdu_type = data as AdvPduType;
@@ -576,7 +579,8 @@ where
                 .unwrap_or_else(|err| err.into()),
 
             // Stop periodic advertisements or passive scanning
-            1 => self.app
+            1 => self
+                .app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::AdvertisingIdle) | Some(BLEState::ScanningIdle) => {
                         app.process_status = Some(BLEState::Initialized);
@@ -618,7 +622,8 @@ where
             }
 
             // Passive scanning mode
-            5 => self.app
+            5 => self
+                .app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
                         app.process_status = Some(BLEState::ScanningIdle);
@@ -643,7 +648,8 @@ where
     ) -> ReturnCode {
         match allow_num {
             // Advertisement buffer
-            0 => self.app
+            0 => self
+                .app
                 .enter(appid, |app, _| {
                     app.adv_data = slice;
                     if let ReturnCode::SUCCESS = app.generate_random_address(appid) {
@@ -656,7 +662,8 @@ where
                 .unwrap_or_else(|err| err.into()),
 
             // Passive scanning buffer
-            1 => self.app
+            1 => self
+                .app
                 .enter(appid, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
                         app.scan_buffer = slice;
@@ -680,7 +687,8 @@ where
     ) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning
-            0 => self.app
+            0 => self
+                .app
                 .enter(app_id, |app, _| match app.process_status {
                     Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
                         app.scan_callback = callback;

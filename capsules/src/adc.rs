@@ -1,5 +1,33 @@
 //! Provides userspace applications with the ability to sample
 //! analog signals.
+//!
+//! Usage
+//! -----
+//!
+//! ```
+//! let adc_channels = static_init!(
+//!     [&'static sam4l::adc::AdcChannel; 6],
+//!     [
+//!         &sam4l::adc::CHANNEL_AD0, // A0
+//!         &sam4l::adc::CHANNEL_AD1, // A1
+//!         &sam4l::adc::CHANNEL_AD3, // A2
+//!         &sam4l::adc::CHANNEL_AD4, // A3
+//!         &sam4l::adc::CHANNEL_AD5, // A4
+//!         &sam4l::adc::CHANNEL_AD6, // A5
+//!     ]
+//! );
+//! let adc = static_init!(
+//!     capsules::adc::Adc<'static, sam4l::adc::Adc>,
+//!     capsules::adc::Adc::new(
+//!         &mut sam4l::adc::ADC0,
+//!         adc_channels,
+//!         &mut capsules::adc::ADC_BUFFER1,
+//!         &mut capsules::adc::ADC_BUFFER2,
+//!         &mut capsules::adc::ADC_BUFFER3
+//!     )
+//! );
+//! sam4l::adc::ADC0.set_client(adc);
+//! ```
 
 use core::cell::Cell;
 use core::cmp;
@@ -112,12 +140,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         }
     }
 
-    /// Initialize the ADC
-    /// This can be called harmlessly if the ADC has already been initialized
-    fn initialize(&self) -> ReturnCode {
-        self.adc.initialize()
-    }
-
     /// Store a buffer we've regained ownership of and return a handle to it
     /// The handle can have `map` called on it in order to process the data in
     /// the buffer
@@ -164,12 +186,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
             return ReturnCode::EBUSY;
         }
 
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
-        }
-
         // convert channel index
         if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
@@ -202,12 +218,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -244,12 +254,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -296,7 +300,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
                 self.using_app_buf1.set(true);
                 self.samples_remaining.set(request_len - len1 - len2);
                 self.samples_outstanding.set(len1 + len2);
-                let (rc, retbuf1, retbuf2) = self.adc
+                let (rc, retbuf1, retbuf2) = self
+                    .adc
                     .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
@@ -334,12 +339,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -402,7 +401,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
 
                 // begin sampling
                 self.using_app_buf1.set(true);
-                let (rc, retbuf1, retbuf2) = self.adc
+                let (rc, retbuf1, retbuf2) = self
+                    .adc
                     .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again

@@ -63,7 +63,8 @@ fn main() {
             dev = Some(d);
         }
     }
-    let mut dh = dev.expect("Matching device not found")
+    let mut dh = dev
+        .expect("Matching device not found")
         .open()
         .expect("Opening device");
     // dh.reset().expect("Reset");

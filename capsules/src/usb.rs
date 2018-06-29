@@ -390,11 +390,9 @@ pub struct ConfigurationAttributes(u8);
 impl ConfigurationAttributes {
     pub fn new(is_self_powered: bool, supports_remote_wakeup: bool) -> Self {
         ConfigurationAttributes(
-            (1 << 7) | if is_self_powered { 1 << 6 } else { 0 } | if supports_remote_wakeup {
-                1 << 5
-            } else {
-                0
-            },
+            (1 << 7)
+                | if is_self_powered { 1 << 6 } else { 0 }
+                | if supports_remote_wakeup { 1 << 5 } else { 0 },
         )
     }
 }

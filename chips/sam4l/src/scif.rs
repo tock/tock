@@ -273,7 +273,8 @@ pub fn setup_dfll_rc32k_48mhz() {
         SCIF.gcctrl0.write(
             GenericClockControl::CEN::SET
                 + GenericClockControl::OCSEL.val(ClockSource::RC32K as u32)
-                + GenericClockControl::DIVEN::CLEAR + GenericClockControl::DIV.val(0),
+                + GenericClockControl::DIVEN::CLEAR
+                + GenericClockControl::DIV.val(0),
         );
 
         // Setup DFLL. Must wait after every operation for the ready bit to go high.
@@ -332,7 +333,9 @@ pub unsafe fn setup_osc_16mhz_fast_startup() {
     // Enable the OSC0 with ~557us startup time
     unlock(Register::OSCCTRL0);
     SCIF.oscctrl0.write(
-        Oscillator::OSCEN::SET + Oscillator::STARTUP::Cycles64 + Oscillator::GAIN::G4
+        Oscillator::OSCEN::SET
+            + Oscillator::STARTUP::Cycles64
+            + Oscillator::GAIN::G4
             + Oscillator::MODE::Crystal,
     );
 
@@ -344,7 +347,9 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
     // Enable the OSC0 with ~8.9ms startup time
     unlock(Register::OSCCTRL0);
     SCIF.oscctrl0.write(
-        Oscillator::OSCEN::SET + Oscillator::STARTUP::Cycles1024 + Oscillator::GAIN::G4
+        Oscillator::OSCEN::SET
+            + Oscillator::STARTUP::Cycles1024
+            + Oscillator::GAIN::G4
             + Oscillator::MODE::Crystal,
     );
 
@@ -368,8 +373,11 @@ pub unsafe fn setup_pll_osc_48mhz() {
     // PLLCOUNT specifies the number of RCSYS clock cycles before ISR.PLLLOCKn will be set after PLLn has been written
     unlock(Register::PLL0);
     SCIF.pll0.write(
-        PllControl::PLLCOUNT::Max + PllControl::PLLMUL.val(5) + PllControl::PLLDIV.val(1)
-            + PllControl::PLLOPT::DivideBy2 + PllControl::PLLOSC::OSC0
+        PllControl::PLLCOUNT::Max
+            + PllControl::PLLMUL.val(5)
+            + PllControl::PLLDIV.val(1)
+            + PllControl::PLLOPT::DivideBy2
+            + PllControl::PLLOSC::OSC0
             + PllControl::PLLEN::SET,
     );
 
@@ -472,8 +480,10 @@ pub fn generic_clock_enable(clock: GenericClock, source: ClockSource) {
 pub fn generic_clock_enable_divided(clock: GenericClock, source: ClockSource, divider: u16) {
     generic_clock_control_write(
         clock,
-        GenericClockControl::OCSEL.val(source as u32) + GenericClockControl::DIVEN::SET
-            + GenericClockControl::DIV.val(divider as u32) + GenericClockControl::CEN::SET,
+        GenericClockControl::OCSEL.val(source as u32)
+            + GenericClockControl::DIVEN::SET
+            + GenericClockControl::DIV.val(divider as u32)
+            + GenericClockControl::CEN::SET,
     );
 }
 

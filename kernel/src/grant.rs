@@ -118,7 +118,8 @@ impl<'a> Allocator<'a> {
         unsafe {
             let app_id = self.app_id;
             match self.app.as_mut() {
-                Some(app) => app.alloc(size_of::<T>())
+                Some(app) => app
+                    .alloc(size_of::<T>())
                     .map_or(Err(Error::OutOfMemory), |arr| {
                         let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
                         *owned = data;

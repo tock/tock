@@ -41,7 +41,7 @@
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 //!     capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
 //!         fm25cl,                      // The underlying storage driver.
-//!         kernel::Grant::create(), // Storage for app-specific state.
+//!         kernel::Grant::create(),     // Storage for app-specific state.
 //!         3000,                        // The byte start address for the userspace
 //!                                      // accessible memory region.
 //!         2000,                        // The length of the userspace region.
@@ -181,7 +181,8 @@ impl<'a> NonvolatileStorage<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 // Userspace sees memory that starts at address 0 even if it
                 // is offset in the physical memory.
-                if offset >= self.userspace_length || length > self.userspace_length
+                if offset >= self.userspace_length
+                    || length > self.userspace_length
                     || offset + length > self.userspace_length
                 {
                     return ReturnCode::EINVAL;

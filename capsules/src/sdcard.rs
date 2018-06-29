@@ -1551,7 +1551,8 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
             2 => self.sdcard.initialize(),
 
             // read_block
-            3 => self.kernel_buf
+            3 => self
+                .kernel_buf
                 .take()
                 .map_or(ReturnCode::EBUSY, |kernel_buf| {
                     self.sdcard.read_blocks(kernel_buf, data as u32, 1)

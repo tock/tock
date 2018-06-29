@@ -177,7 +177,8 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
@@ -212,7 +213,8 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS

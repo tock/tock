@@ -6,12 +6,11 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(asm, core_intrinsics, unique, nonzero, ptr_internals)]
-#![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
-#![feature(nonnull_cast)]
-#![feature(use_extern_macros)]
+#![feature(asm, core_intrinsics, unique, ptr_internals, const_fn)]
+#![feature(use_extern_macros, try_from, used)]
 #![no_std]
 
+extern crate tock_cells;
 extern crate tock_regs;
 
 pub use tock_regs::{register_bitfields, register_bitmasks};
@@ -33,6 +32,7 @@ mod process;
 mod returncode;
 mod sched;
 mod syscall;
+mod tbfheader;
 
 pub use callback::{AppId, Callback};
 pub use driver::Driver;

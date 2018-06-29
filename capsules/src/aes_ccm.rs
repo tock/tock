@@ -35,12 +35,28 @@
 //! PlaintextData before running CBC over both fields. The last step is to
 //! combine saved_tag and the unencrypted tag to form the encrypted tag and
 //! verify its correctness.
+//!
+//! Usage
+//! -----
+//!
+//! ```
+//! const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
+//! static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
+//!
+//! let aes_ccm = static_init!(
+//!     capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+//!     capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
+//! );
+//! sam4l::aes::AES.set_client(aes_ccm);
+//! sam4l::aes::AES.enable();
+//! ```
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
-                                        AES128_KEY_SIZE, CCM_NONCE_LENGTH};
+use kernel::hil::symmetric_encryption::{
+    AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
+};
 use kernel::ReturnCode;
 use net::stream::SResult;
 use net::stream::{encode_bytes, encode_u16};

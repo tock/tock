@@ -5,6 +5,7 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 use kernel::hil;
 use sysctl;
 
@@ -27,7 +28,7 @@ const CLOCKS: [sysctl::RCGCGPIO; 15] = [
 ];
 
 #[repr(C)]
-struct Registers {
+struct GpioRegisters {
     _reserved0: [u32; 255],
     data: VolatileCell<u32>, //Verbesserungspotenzial Data Direction Operation
     dir: VolatileCell<u32>,
@@ -141,7 +142,7 @@ pub enum Pin {
 }
 
 pub struct Port {
-    port: *mut Registers,
+    registers: StaticRef<GpioRegisters>,
     pins: [GPIOPin; 8],
 }
 
@@ -161,11 +162,11 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let port: &Registers = unsafe { &*self.port };
+        let regs = &*self.registers;
 
-        let mut fired = port.ris.get() & port.im.get();
+        let mut fired = regs.ris.get() & regs.im.get();
 
-        port.icr.set(0xFF);
+        regs.icr.set(0xFF);
 
         loop {
             let pin = fired.trailing_zeros() as usize;
@@ -181,7 +182,7 @@ impl Port {
 
 /// Port A
 pub static mut PA: Port = Port {
-    port: (BASE_ADDRESS + 0 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 0 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PA0),
         GPIOPin::new(PA1),
@@ -196,7 +197,7 @@ pub static mut PA: Port = Port {
 
 /// Port B
 pub static mut PB: Port = Port {
-    port: (BASE_ADDRESS + 1 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 1 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PB0),
         GPIOPin::new(PB1),
@@ -211,7 +212,7 @@ pub static mut PB: Port = Port {
 
 //// Port C
 pub static mut PC: Port = Port {
-    port: (BASE_ADDRESS + 2 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 2 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PC0),
         GPIOPin::new(PC1),
@@ -226,7 +227,7 @@ pub static mut PC: Port = Port {
 
 //// Port D
 pub static mut PD: Port = Port {
-    port: (BASE_ADDRESS + 3 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 3 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PD0),
         GPIOPin::new(PD1),
@@ -241,7 +242,7 @@ pub static mut PD: Port = Port {
 
 //// Port E
 pub static mut PE: Port = Port {
-    port: (BASE_ADDRESS + 4 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 4 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PE0),
         GPIOPin::new(PE1),
@@ -256,7 +257,7 @@ pub static mut PE: Port = Port {
 
 //// Port F
 pub static mut PF: Port = Port {
-    port: (BASE_ADDRESS + 5 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 5 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PF0),
         GPIOPin::new(PF1),
@@ -271,7 +272,7 @@ pub static mut PF: Port = Port {
 
 //// Port G
 pub static mut PG: Port = Port {
-    port: (BASE_ADDRESS + 6 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 6 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PG0),
         GPIOPin::new(PG1),
@@ -286,7 +287,7 @@ pub static mut PG: Port = Port {
 
 //// Port H
 pub static mut PH: Port = Port {
-    port: (BASE_ADDRESS + 7 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 7 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PH0),
         GPIOPin::new(PH1),
@@ -301,7 +302,7 @@ pub static mut PH: Port = Port {
 
 //// Port J
 pub static mut PJ: Port = Port {
-    port: (BASE_ADDRESS + 8 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 8 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PJ0),
         GPIOPin::new(PJ1),
@@ -316,7 +317,7 @@ pub static mut PJ: Port = Port {
 
 //// Port K
 pub static mut PK: Port = Port {
-    port: (BASE_ADDRESS + 9 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 9 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PK0),
         GPIOPin::new(PK1),
@@ -330,7 +331,7 @@ pub static mut PK: Port = Port {
 };
 //// Port L
 pub static mut PL: Port = Port {
-    port: (BASE_ADDRESS + 10 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 10 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PL0),
         GPIOPin::new(PL1),
@@ -344,7 +345,7 @@ pub static mut PL: Port = Port {
 };
 //// Port M
 pub static mut PM: Port = Port {
-    port: (BASE_ADDRESS + 11 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 11 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PM0),
         GPIOPin::new(PM1),
@@ -359,7 +360,7 @@ pub static mut PM: Port = Port {
 
 //// Port N
 pub static mut PN: Port = Port {
-    port: (BASE_ADDRESS + 12 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 12 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PN0),
         GPIOPin::new(PN1),
@@ -374,7 +375,7 @@ pub static mut PN: Port = Port {
 
 //// Port P
 pub static mut PP: Port = Port {
-    port: (BASE_ADDRESS + 13 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 13 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PP0),
         GPIOPin::new(PP1),
@@ -389,7 +390,7 @@ pub static mut PP: Port = Port {
 
 //// Port Q
 pub static mut PQ: Port = Port {
-    port: (BASE_ADDRESS + 14 * SIZE) as *mut Registers,
+    registers: unsafe { StaticRef::new((BASE_ADDRESS + 14 * SIZE) as *const GpioRegisters) },
     pins: [
         GPIOPin::new(PQ0),
         GPIOPin::new(PQ1),
@@ -403,7 +404,7 @@ pub static mut PQ: Port = Port {
 };
 
 pub struct GPIOPin {
-    port: *mut Registers,
+    registers: StaticRef<GpioRegisters>,
     pin: usize,
     clock: usize,
     client: Cell<Option<&'static hil::gpio::Client>>,
@@ -413,7 +414,9 @@ pub struct GPIOPin {
 impl GPIOPin {
     const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
-            port: (BASE_ADDRESS + ((pin as usize) / 8) * SIZE) as *mut Registers,
+            registers: unsafe {
+                StaticRef::new((BASE_ADDRESS + ((pin as usize) / 8) * SIZE) as *const GpioRegisters)
+            },
             pin: (pin as usize) % 8,
             clock: (pin as usize) / 8,
             client: Cell::new(None),
@@ -480,74 +483,74 @@ impl GPIOPin {
     }
 
     pub fn enable_analog(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.amsel.set(port.amsel.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.amsel.set(regs.amsel.get() | (1 << self.pin));
     }
 
     pub fn disable_analog(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.amsel.set(port.amsel.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.amsel.set(regs.amsel.get() & !(1 << self.pin));
     }
 
     pub fn enable_digital(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.den.set(port.den.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.den.set(regs.den.get() | (1 << self.pin));
     }
 
     pub fn disable_digital(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.den.set(port.den.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.den.set(regs.den.get() & !(1 << self.pin));
     }
 
     pub fn enable_opendrain(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.odr.set(port.odr.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.odr.set(regs.odr.get() | (1 << self.pin));
     }
 
     pub fn disable_opendrain(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.odr.set(port.odr.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.odr.set(regs.odr.get() & !(1 << self.pin));
     }
 
     pub fn enable_alternate(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.afsel.set(1 << self.pin);
-        port.pctl.set(port.pctl.get() | (1 << self.pin * 4));
+        let regs = &*self.registers;
+        regs.afsel.set(1 << self.pin);
+        regs.pctl.set(regs.pctl.get() | (1 << self.pin * 4));
     }
 
     pub fn disable_alternate(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.afsel.set(port.afsel.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.afsel.set(regs.afsel.get() & !(1 << self.pin));
     }
 
     pub fn enable_output(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.dir.set(port.dir.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.dir.set(regs.dir.get() | (1 << self.pin));
     }
 
     pub fn disable_output(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.dir.set(port.dir.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.dir.set(regs.dir.get() & !(1 << self.pin));
     }
 
     pub fn enable_pull_down(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.pdr.set(port.pdr.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.pdr.set(regs.pdr.get() | (1 << self.pin));
     }
 
     pub fn disable_pull_down(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.pdr.set(port.pdr.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.pdr.set(regs.pdr.get() & !(1 << self.pin));
     }
 
     pub fn enable_pull_up(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.pur.set(port.pur.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.pur.set(regs.pur.get() | (1 << self.pin));
     }
 
     pub fn disable_pull_up(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.pur.set(port.pur.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.pur.set(regs.pur.get() & !(1 << self.pin));
     }
 
     /// | `mode` value |  Mode |
@@ -557,35 +560,33 @@ impl GPIOPin {
     /// | 0b10         | Falling edge   |
 
     pub fn set_interrupt_mode(&self, mode: u8) {
-        let port: &Registers = unsafe { &*self.port };
+        let regs = &*self.registers;
 
         if mode == 0b00 {
-            port.is.set(0x0);
-            port.ibe.set(port.ibe.get() | (1 << self.pin));
+            regs.is.set(0x0);
+            regs.ibe.set(regs.ibe.get() | (1 << self.pin));
         } else if mode == 0b01 {
-            port.is.set(0x0);
-            port.iev.set(port.iev.get() | (1 << self.pin));
+            regs.is.set(0x0);
+            regs.iev.set(regs.iev.get() | (1 << self.pin));
         } else if mode == 0b10 {
-            port.is.set(0x0);
-            port.iev.set(port.iev.get() & !(1 << self.pin));
+            regs.is.set(0x0);
+            regs.iev.set(regs.iev.get() & !(1 << self.pin));
         }
     }
 
     pub fn enable_interrupt(&self) {
-        unsafe {
-            let port: &Registers = &*self.port;
-            if port.im.get() & (1 << self.pin) == 0 {
-                INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed);
-                port.im.set(port.im.get() | (1 << self.pin));
-            }
+        let regs = &*self.registers;
+        if regs.im.get() & (1 << self.pin) == 0 {
+            INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed);
+            regs.im.set(regs.im.get() | (1 << self.pin));
         }
     }
 
     pub fn disable_interrupt(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        if port.im.get() & (1 << self.pin) != 0 {
+        let regs = &*self.registers;
+        if regs.im.get() & (1 << self.pin) != 0 {
             INTERRUPT_COUNT.fetch_sub(1, Ordering::Relaxed);
-            port.im.set(port.iev.get() & !(1 << self.pin));
+            regs.im.set(regs.iev.get() & !(1 << self.pin));
         }
     }
 
@@ -596,23 +597,23 @@ impl GPIOPin {
     }
 
     pub fn read(&self) -> bool {
-        let port: &Registers = unsafe { &*self.port };
-        port.data.get() & (1 << self.pin) != 0
+        let regs = &*self.registers;
+        regs.data.get() & (1 << self.pin) != 0
     }
 
     pub fn toggle(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.data.set(port.data.get() ^ (1 << self.pin));
+        let regs = &*self.registers;
+        regs.data.set(regs.data.get() ^ (1 << self.pin));
     }
 
     pub fn set(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.data.set(port.data.get() | (1 << self.pin));
+        let regs = &*self.registers;
+        regs.data.set(regs.data.get() | (1 << self.pin));
     }
 
     pub fn clear(&self) {
-        let port: &Registers = unsafe { &*self.port };
-        port.data.set(port.data.get() & !(1 << self.pin));
+        let regs = &*self.registers;
+        regs.data.set(regs.data.get() & !(1 << self.pin));
     }
 }
 
