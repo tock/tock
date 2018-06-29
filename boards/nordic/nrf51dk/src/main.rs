@@ -57,6 +57,7 @@ extern crate nrf5x;
 
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::hil::rng::RNG;
 use kernel::hil::uart::UART;
 use kernel::{Chip, SysTick};
 use nrf5x::pinmux::Pinmux;

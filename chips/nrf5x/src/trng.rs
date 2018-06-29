@@ -163,11 +163,6 @@ impl<'a> Trng<'a> {
         }
     }
 
-    /// Configure client
-    pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(Some(client));
-    }
-
     fn enable_interrupts(&self) {
         let regs = &*self.registers;
         regs.intenset.write(Intenset::VALRDY::SET);
@@ -210,8 +205,13 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl<'a> rng::RNG for Trng<'a> {
+impl<'a> rng::RNG<'a> for Trng<'a> {
     fn get(&self) {
         self.start_rng()
+    }
+
+    /// Configure client
+    fn set_client(&self, client: &'a rng::Client) {
+        self.client.set(Some(client));
     }
 }

@@ -69,13 +69,13 @@ const RNG_BASE: StaticRef<RngRegisters> =
 
 pub static mut TRNG: Trng = Trng::new();
 
-pub struct Trng {
+pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
-    client: Cell<Option<&'static rng::Client>>,
+    client: Cell<Option<&'a rng::Client>>,
 }
 
-impl Trng {
-    const fn new() -> Trng {
+impl<'a> Trng<'a> {
+    const fn new() -> Trng<'a> {
         Trng {
             registers: RNG_BASE,
             client: Cell::new(None),
@@ -138,13 +138,9 @@ impl Trng {
 
         ((regs.out0.get() as u64) << 32) | (regs.out1.get() as u64)
     }
-
-    pub fn set_client(&self, client: &'static rng::Client) {
-        self.client.set(Some(client));
-    }
 }
 
-impl Iterator for Trng {
+impl<'a> Iterator for Trng<'a> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -157,8 +153,12 @@ impl Iterator for Trng {
     }
 }
 
-impl rng::RNG for Trng {
+impl<'a> rng::RNG<'a> for Trng<'a> {
     fn get(&self) {
         self.enable();
+    }
+
+    fn set_client(&self, client: &'a rng::Client) {
+        self.client.set(Some(client));
     }
 }

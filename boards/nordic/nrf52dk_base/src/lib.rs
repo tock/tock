@@ -10,6 +10,7 @@ extern crate nrf52;
 extern crate nrf5x;
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use kernel::hil::rng::RNG;
 use nrf5x::rtc::Rtc;
 
 /// Supported drivers by the platform

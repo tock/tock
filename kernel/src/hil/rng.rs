@@ -70,8 +70,12 @@ pub enum Continue {
 ///
 /// Implementors should assume the client implements the
 /// [Client](trait.Client.html) trait.
-pub trait RNG {
-    /// Initiate the aquisition of new random number generation.
+pub trait RNG<'a> {
+    /// Set the client for this random number generator.
+    /// THe client will be called in response to requests for randomness.
+    fn set_client(&self, client: &'a Client);
+
+    /// Initiate acquiring a random number.
     ///
     /// The implementor may ignore this command if the generation proccess is
     /// already in progress.
@@ -88,7 +92,7 @@ pub trait Client {
     /// `randomness` in an `Iterator` of available random numbers. The amount of
     /// randomness available may increase if `randomness` is not consumed
     /// quickly so clients should not rely on iterator termination to finish
-    /// consuming randomn numbers.
+    /// consuming random numbers.
     ///
     /// The client returns either `Continue::More` if the iterator did not have
     /// enough random values and the client would like to be called again when

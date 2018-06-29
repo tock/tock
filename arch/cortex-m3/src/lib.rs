@@ -6,6 +6,8 @@
 extern crate kernel;
 extern crate cortexm;
 
+pub mod mpu;
+
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m3.
 pub mod support {

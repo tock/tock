@@ -14,6 +14,7 @@ extern crate kernel;
 
 use cc26xx::aon;
 use cc26xx::prcm;
+use kernel::hil::rng::RNG;
 
 #[macro_use]
 pub mod io;
@@ -44,7 +45,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
     >,
-    rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
+    rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng<'static>>,
 }
 
 impl kernel::Platform for Platform {
@@ -202,7 +203,7 @@ pub unsafe fn reset_handler() {
     virtual_alarm1.set_client(alarm);
 
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
+        capsules::rng::SimpleRng<'static, cc26xx::trng::Trng<'static>>,
         capsules::rng::SimpleRng::new(&cc26xx::trng::TRNG, kernel::Grant::create())
     );
     cc26xx::trng::TRNG.set_client(rng);
