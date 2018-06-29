@@ -22,6 +22,7 @@ use kernel::hil;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
+use kernel::hil::rng::RNG;
 
 /// Support routines for debugging I/O.
 ///
