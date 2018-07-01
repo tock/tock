@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use kernel::common::cells::VolatileCell;
+use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::StaticRef;
 use kernel::hil;
 use sysctl;
@@ -406,7 +406,7 @@ pub struct GPIOPin {
     registers: StaticRef<GpioRegisters>,
     pin: usize,
     clock: usize,
-    client: Cell<Option<&'static hil::gpio::Client>>,
+    client: OptionalCell<&'static hil::gpio::Client>,
     client_data: Cell<usize>,
 }
 
@@ -418,13 +418,13 @@ impl GPIOPin {
             },
             pin: (pin as usize) % 8,
             clock: (pin as usize) / 8,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             client_data: Cell::new(0),
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn configure_input(&self, config: InputMode) {
@@ -590,7 +590,7 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired(self.client_data.get());
         });
     }
