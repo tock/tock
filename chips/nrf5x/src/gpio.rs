@@ -6,6 +6,7 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -329,7 +330,7 @@ register_bitfields! [u32,
 pub struct GPIOPin {
     pin: u8,
     client_data: Cell<usize>,
-    client: Cell<Option<&'static hil::gpio::Client>>,
+    client: OptionalCell<&'static hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
@@ -339,14 +340,14 @@ impl GPIOPin {
         GPIOPin {
             pin: pin,
             client_data: Cell::new(0),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             gpio_registers: GPIO_BASE,
             gpiote_registers: GPIOTE_BASE,
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
@@ -457,7 +458,7 @@ impl GPIOPin {
     }
 
     fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired(self.client_data.get());
         });
     }
