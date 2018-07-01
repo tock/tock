@@ -45,6 +45,10 @@ pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use returncode::ReturnCode;
 pub use sched::kernel_loop;
 
+// These symbols must be exported for the arch crate to access them.
+pub use process::APP_FAULT;
+pub use process::SYSCALL_FIRED;
+
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These
 // functions and types are used by board files to setup the platform and setup

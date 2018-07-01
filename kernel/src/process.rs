@@ -17,16 +17,14 @@ use syscall::Syscall;
 use tbfheader;
 
 /// This is used in the hardfault handler.
-#[allow(private_no_mangle_statics)]
 #[no_mangle]
 #[used]
-static mut SYSCALL_FIRED: usize = 0;
+pub static mut SYSCALL_FIRED: usize = 0;
 
 /// This is used in the hardfault handler.
-#[allow(private_no_mangle_statics)]
 #[no_mangle]
 #[used]
-static mut APP_FAULT: usize = 0;
+pub static mut APP_FAULT: usize = 0;
 
 /// This is used in the hardfault handler.
 #[allow(private_no_mangle_statics)]
