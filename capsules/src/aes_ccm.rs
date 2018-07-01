@@ -52,7 +52,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
     AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
@@ -73,7 +73,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: Cell<Option<&'a symmetric_encryption::CCMClient>>,
+    crypt_client: OptionalCell<&'a symmetric_encryption::CCMClient>,
 
     state: Cell<CCMState>,
     confidential: Cell<bool>,
@@ -93,7 +93,7 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
             crypt_buf: TakeCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),
             crypt_enc_len: Cell::new(0),
-            crypt_client: Cell::new(None),
+            crypt_client: OptionalCell::empty(),
             state: Cell::new(CCMState::Idle),
             confidential: Cell::new(false),
             encrypting: Cell::new(false),
@@ -344,11 +344,11 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
         });
 
         self.state.set(CCMState::Idle);
-        if let Some(client) = self.crypt_client.get() {
+        self.crypt_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
             });
-        }
+        });
     }
 
     fn reverse_end_ccm(&self) {
@@ -380,11 +380,11 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
         });
 
         self.state.set(CCMState::Idle);
-        if let Some(client) = self.crypt_client.get() {
+        self.crypt_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
             });
-        }
+        });
     }
 
     fn save_tag_block(&self) {
@@ -418,7 +418,7 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     for AES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
-        self.crypt_client.set(Some(client));
+        self.crypt_client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
@@ -528,9 +528,9 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for
                     if res != ReturnCode::SUCCESS {
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
-                            if let Some(client) = self.crypt_client.get() {
+                            self.crypt_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
-                            }
+                            });
                         });
                         self.state.set(CCMState::Idle);
                     }
@@ -561,9 +561,9 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for
                     if res != ReturnCode::SUCCESS {
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
-                            if let Some(client) = self.crypt_client.get() {
+                            self.crypt_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
-                            }
+                            });
                         });
                         self.state.set(CCMState::Idle);
                     }

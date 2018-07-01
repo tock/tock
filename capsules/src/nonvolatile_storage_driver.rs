@@ -54,7 +54,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -112,7 +112,7 @@ pub struct NonvolatileStorage<'a> {
     // Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
     // What issued the currently executing call. This can be an app or the kernel.
-    current_user: Cell<Option<NonvolatileUser>>,
+    current_user: OptionalCell<NonvolatileUser>,
 
     // The first byte that is accessible from userspace.
     userspace_start_address: usize,
@@ -125,7 +125,7 @@ pub struct NonvolatileStorage<'a> {
 
     // Optional client for the kernel. Only needed if the kernel intends to use
     // this nonvolatile storage.
-    kernel_client: Cell<Option<&'static hil::nonvolatile_storage::NonvolatileStorageClient>>,
+    kernel_client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>,
     // Whether the kernel is waiting for a read/write.
     kernel_pending_command: Cell<bool>,
     // Whether the kernel wanted a read/write.
@@ -152,12 +152,12 @@ impl NonvolatileStorage<'a> {
             driver: driver,
             apps: grant,
             buffer: TakeCell::new(buffer),
-            current_user: Cell::new(None),
+            current_user: OptionalCell::empty(),
             userspace_start_address: userspace_start_address,
             userspace_length: userspace_length,
             kernel_start_address: kernel_start_address,
             kernel_length: kernel_length,
-            kernel_client: Cell::new(None),
+            kernel_client: OptionalCell::empty(),
             kernel_pending_command: Cell::new(false),
             kernel_command: Cell::new(NonvolatileCommand::KernelRead),
             kernel_buffer: TakeCell::empty(),
@@ -230,11 +230,11 @@ impl NonvolatileStorage<'a> {
 
                             // First need to determine if we can execute this or must
                             // queue it.
-                            if self.current_user.get().is_none() {
+                            if self.current_user.is_none() {
                                 // No app is currently using the underlying storage.
                                 // Mark this app as active, and then execute the command.
                                 self.current_user
-                                    .set(Some(NonvolatileUser::App { app_id: appid }));
+                                    .set(NonvolatileUser::App { app_id: appid });
 
                                 // Need to copy bytes if this is a write!
                                 if command == NonvolatileCommand::UserspaceWrite {
@@ -282,9 +282,9 @@ impl NonvolatileStorage<'a> {
                         let active_len = cmp::min(length, kernel_buffer.len());
 
                         // Check if there is something going on.
-                        if self.current_user.get().is_none() {
+                        if self.current_user.is_none() {
                             // Nothing is using this, lets go!
-                            self.current_user.set(Some(NonvolatileUser::Kernel));
+                            self.current_user.set(NonvolatileUser::Kernel);
 
                             match command {
                                 NonvolatileCommand::KernelRead => {
@@ -345,7 +345,7 @@ impl NonvolatileStorage<'a> {
         if self.kernel_pending_command.get() {
             self.kernel_buffer.take().map(|kernel_buffer| {
                 self.kernel_pending_command.set(false);
-                self.current_user.set(Some(NonvolatileUser::Kernel));
+                self.current_user.set(NonvolatileUser::Kernel);
 
                 match self.kernel_command.get() {
                     NonvolatileCommand::KernelRead => self.driver.read(
@@ -367,9 +367,9 @@ impl NonvolatileStorage<'a> {
                 let started_command = cntr.enter(|app, _| {
                     if app.pending_command {
                         app.pending_command = false;
-                        self.current_user.set(Some(NonvolatileUser::App {
+                        self.current_user.set(NonvolatileUser::App {
                             app_id: app.appid(),
-                        }));
+                        });
                         self.userspace_call_driver(app.command, app.offset, app.length)
                             == ReturnCode::SUCCESS
                     } else {
@@ -388,11 +388,10 @@ impl NonvolatileStorage<'a> {
 impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'a> {
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
-        self.current_user.get().map(|user| {
-            self.current_user.set(None);
+        self.current_user.take().map(|user| {
             match user {
                 NonvolatileUser::Kernel => {
-                    self.kernel_client.get().map(move |client| {
+                    self.kernel_client.map(move |client| {
                         client.read_done(buffer, length);
                     });
                 }
@@ -423,11 +422,10 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
 
     fn write_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
-        self.current_user.get().map(|user| {
-            self.current_user.set(None);
+        self.current_user.take().map(|user| {
             match user {
                 NonvolatileUser::Kernel => {
-                    self.kernel_client.get().map(move |client| {
+                    self.kernel_client.map(move |client| {
                         client.write_done(buffer, length);
                     });
                 }
@@ -450,7 +448,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
 /// Provide an interface for the kernel.
 impl hil::nonvolatile_storage::NonvolatileStorage for NonvolatileStorage<'a> {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
-        self.kernel_client.set(Some(client));
+        self.kernel_client.set(client);
     }
 
     fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {

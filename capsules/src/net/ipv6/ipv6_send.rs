@@ -18,7 +18,7 @@
 
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, TxClient};
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::ReturnCode;
 use net::ieee802154::MacAddress;
 use net::ipv6::ip_utils::IPAddr;
@@ -94,12 +94,12 @@ pub struct IP6SendStruct<'a> {
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a MacDevice<'a>,
-    client: Cell<Option<&'a IP6Client>>,
+    client: OptionalCell<&'a IP6Client>,
 }
 
 impl IP6Sender<'a> for IP6SendStruct<'a> {
     fn set_client(&self, client: &'a IP6Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn set_addr(&self, src_addr: IPAddr) {
@@ -141,7 +141,7 @@ impl IP6SendStruct<'a> {
             tx_buf: TakeCell::new(tx_buf),
             sixlowpan: sixlowpan,
             radio: radio,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -184,9 +184,7 @@ impl IP6SendStruct<'a> {
     }
 
     fn send_completed(&self, result: ReturnCode) {
-        self.client
-            .get()
-            .map(move |client| client.send_done(result));
+        self.client.map(move |client| client.send_done(result));
     }
 }
 

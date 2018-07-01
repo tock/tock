@@ -26,7 +26,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Frequency};
@@ -48,7 +48,7 @@ pub struct Isl29035<'a, A: time::Alarm> {
     alarm: &'a A,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    client: Cell<Option<&'a AmbientLightClient>>,
+    client: OptionalCell<&'a AmbientLightClient>,
 }
 
 impl<A: time::Alarm> Isl29035<'a, A> {
@@ -58,7 +58,7 @@ impl<A: time::Alarm> Isl29035<'a, A> {
             alarm: alarm,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -88,7 +88,7 @@ impl<A: time::Alarm> Isl29035<'a, A> {
 
 impl<A: time::Alarm> AmbientLight for Isl29035<'a, A> {
     fn set_client(&self, client: &'static AmbientLightClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn read_light_intensity(&self) -> ReturnCode {
@@ -145,7 +145,7 @@ impl<A: time::Alarm> I2CClient for Isl29035<'a, A> {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.client.get().map(|client| client.callback(lux));
+                self.client.map(|client| client.callback(lux));
             }
             _ => {}
         }

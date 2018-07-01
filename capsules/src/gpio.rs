@@ -46,20 +46,20 @@
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000004;
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
 pub struct GPIO<'a, G: Pin> {
     pins: &'a [&'a G],
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
 }
 
 impl<G: Pin + PinCtl> GPIO<'a, G> {
     pub fn new(pins: &'a [&'a G]) -> GPIO<'a, G> {
         GPIO {
             pins: pins,
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
         }
     }
 
@@ -114,8 +114,7 @@ impl<G: Pin> Client for GPIO<'a, G> {
 
         // schedule callback with the pin number and value
         self.callback
-            .get()
-            .map(|mut cb| cb.schedule(pin_num, pin_state as usize, 0));
+            .map(|cb| cb.schedule(pin_num, pin_state as usize, 0));
     }
 }
 
@@ -136,7 +135,7 @@ impl<G: Pin + PinCtl> Driver for GPIO<'a, G> {
             // subscribe to all pin interrupts (no affect or reliance on
             // individual pins being configured as interrupts)
             0 => {
-                self.callback.set(callback);
+                self.callback.replace(callback);
                 ReturnCode::SUCCESS
             }
 

@@ -72,7 +72,7 @@
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, RxClient, TxClient};
 use ieee802154::mac::Mac;
-use kernel::common::cells::MapCell;
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use kernel::ReturnCode;
@@ -295,21 +295,21 @@ pub struct Framer<'a, M: Mac, A: AES128CCM<'a>> {
     data_sequence: Cell<u8>,
 
     /// KeyDescriptor lookup procedure
-    key_procedure: Cell<Option<&'a KeyProcedure>>,
+    key_procedure: OptionalCell<&'a KeyProcedure>,
     /// DeviceDescriptor lookup procedure
-    device_procedure: Cell<Option<&'a DeviceProcedure>>,
+    device_procedure: OptionalCell<&'a DeviceProcedure>,
 
     /// Transmision pipeline state. This should never be `None`, except when
     /// transitioning between states. That is, any method that consumes the
     /// current state should always remember to replace it along with the
     /// associated state information.
     tx_state: MapCell<TxState>,
-    tx_client: Cell<Option<&'a TxClient>>,
+    tx_client: OptionalCell<&'a TxClient>,
 
     /// Reception pipeline state. Similar to the above, this should never be
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
-    rx_client: Cell<Option<&'a RxClient>>,
+    rx_client: OptionalCell<&'a RxClient>,
 }
 
 impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
@@ -318,30 +318,29 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
             mac: mac,
             aes_ccm: aes_ccm,
             data_sequence: Cell::new(0),
-            key_procedure: Cell::new(None),
-            device_procedure: Cell::new(None),
+            key_procedure: OptionalCell::empty(),
+            device_procedure: OptionalCell::empty(),
             tx_state: MapCell::new(TxState::Idle),
-            tx_client: Cell::new(None),
+            tx_client: OptionalCell::empty(),
             rx_state: MapCell::new(RxState::Idle),
-            rx_client: Cell::new(None),
+            rx_client: OptionalCell::empty(),
         }
     }
 
     /// Sets the IEEE 802.15.4 key lookup procedure to be used.
     pub fn set_key_procedure(&self, key_procedure: &'a KeyProcedure) {
-        self.key_procedure.set(Some(key_procedure));
+        self.key_procedure.set(key_procedure);
     }
 
     /// Sets the IEEE 802.15.4 key lookup procedure to be used.
     pub fn set_device_procedure(&self, device_procedure: &'a DeviceProcedure) {
-        self.device_procedure.set(Some(device_procedure));
+        self.device_procedure.set(device_procedure);
     }
 
     /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
     /// implemented elsewhere.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
         self.key_procedure
-            .get()
             .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
     }
 
@@ -350,7 +349,6 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<([u8; 8])> {
         src_addr.and_then(|addr| {
             self.device_procedure
-                .get()
                 .and_then(|device_procedure| device_procedure.lookup_addr_long(addr))
         })
     }
@@ -455,7 +453,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                     }
                 } else {
                     // No security needed, can yield the frame immediately
-                    self.rx_client.get().map(|client| {
+                    self.rx_client.map(|client| {
                         client.receive(&buf, header, radio::PSDU_OFFSET + data_offset, data_len);
                     });
                     None
@@ -622,7 +620,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // This is so that it is possible to tell if the
                         // frame was secured or unsecured, while still
                         // always receiving the frame payload in plaintext.
-                        self.rx_client.get().map(|client| {
+                        self.rx_client.map(|client| {
                             client.receive(
                                 &buf,
                                 header,
@@ -647,11 +645,11 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
 
 impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
     fn set_transmit_client(&self, client: &'a TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 
     fn set_receive_client(&self, client: &'a RxClient) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
     }
 
     fn get_address(&self) -> u16 {
@@ -788,7 +786,7 @@ impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
 impl<M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
-        self.tx_client.get().map(move |client| {
+        self.tx_client.map(move |client| {
             client.send_done(buf, acked, result);
         });
     }
@@ -832,7 +830,7 @@ impl<M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
         let (rval, buf) = self.step_transmit_state();
         if let Some(buf) = buf {
             // Return the buffer to the transmit client
-            self.tx_client.get().map(move |client| {
+            self.tx_client.map(move |client| {
                 client.send_done(buf, false, rval);
             });
         }
@@ -858,7 +856,7 @@ impl<M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
 
                     if let Some(buf) = opt_buf {
                         // Abort the transmission process. Return the buffer to the client.
-                        self.tx_client.get().map(move |client| {
+                        self.tx_client.map(move |client| {
                             client.send_done(buf, false, rval);
                         });
                     }
@@ -906,7 +904,7 @@ impl<M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
             let (rval, opt_buf) = self.step_transmit_state();
             if let Some(buf) = opt_buf {
                 // Return the buffer to the client.
-                self.tx_client.get().map(move |client| {
+                self.tx_client.map(move |client| {
                     client.send_done(buf, false, rval);
                 });
             }

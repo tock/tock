@@ -4,7 +4,7 @@
 //! users. `I2CDevice` provides access to a specific I2C address.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
 
@@ -12,13 +12,12 @@ pub struct MuxI2C<'a> {
     i2c: &'a i2c::I2CMaster,
     devices: List<'a, I2CDevice<'a>>,
     enabled: Cell<usize>,
-    inflight: Cell<Option<&'a I2CDevice<'a>>>,
+    inflight: OptionalCell<&'a I2CDevice<'a>>,
 }
 
 impl I2CHwMasterClient for MuxI2C<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.inflight.get().map(move |device| {
-            self.inflight.set(None);
+        self.inflight.take().map(move |device| {
             device.command_complete(buffer, error);
         });
         self.do_next_op();
@@ -31,7 +30,7 @@ impl MuxI2C<'a> {
             i2c: i2c,
             devices: List::new(),
             enabled: Cell::new(0),
-            inflight: Cell::new(None),
+            inflight: OptionalCell::empty(),
         }
     }
 
@@ -52,7 +51,7 @@ impl MuxI2C<'a> {
     }
 
     fn do_next_op(&self) {
-        if self.inflight.get().is_none() {
+        if self.inflight.is_none() {
             let mnode = self
                 .devices
                 .iter()
@@ -69,7 +68,7 @@ impl MuxI2C<'a> {
                     }
                 });
                 node.operation.set(Op::Idle);
-                self.inflight.set(Some(node));
+                self.inflight.set(node);
             });
         }
     }
@@ -90,7 +89,7 @@ pub struct I2CDevice<'a> {
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, I2CDevice<'a>>,
-    client: Cell<Option<&'a I2CClient>>,
+    client: OptionalCell<&'a I2CClient>,
 }
 
 impl I2CDevice<'a> {
@@ -102,19 +101,19 @@ impl I2CDevice<'a> {
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     pub fn set_client(&'a self, client: &'a I2CClient) {
         self.mux.devices.push_head(self);
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
 impl I2CClient for I2CDevice<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.client.get().map(move |client| {
+        self.client.map(move |client| {
             client.command_complete(buffer, error);
         });
     }

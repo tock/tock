@@ -28,7 +28,7 @@
 
 use core::cell::Cell;
 use ieee802154::{device, framer};
-use kernel::common::cells::MapCell;
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::ReturnCode;
 use net::ieee802154::*;
@@ -39,13 +39,12 @@ use net::ieee802154::*;
 pub struct MuxMac<'a> {
     mac: &'a device::MacDevice<'a>,
     users: List<'a, MacUser<'a>>,
-    inflight: Cell<Option<&'a MacUser<'a>>>,
+    inflight: OptionalCell<&'a MacUser<'a>>,
 }
 
 impl device::TxClient for MuxMac<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.inflight.get().map(move |user| {
-            self.inflight.set(None);
+        self.inflight.take().map(move |user| {
             user.send_done(spi_buf, acked, result);
         });
         self.do_next_op_async();
@@ -65,7 +64,7 @@ impl MuxMac<'a> {
         MuxMac {
             mac: mac,
             users: List::new(),
-            inflight: Cell::new(None),
+            inflight: OptionalCell::empty(),
         }
     }
 
@@ -78,24 +77,23 @@ impl MuxMac<'a> {
     /// Gets the next `MacUser` and operation to perform if an operation is not
     /// already underway.
     fn get_next_op_if_idle(&self) -> Option<(&'a MacUser<'a>, Op)> {
-        match self.inflight.get() {
-            Some(_) => None,
-            None => {
-                let mnode = self.users.iter().find(|node| {
-                    node.operation.take().map_or(false, |op| {
-                        let pending = op != Op::Idle;
-                        node.operation.replace(op);
-                        pending
-                    })
-                });
-                mnode.and_then(|node| {
-                    node.operation.take().map(|op| {
-                        node.operation.replace(Op::Idle);
-                        (node, op)
-                    })
-                })
-            }
+        if self.inflight.is_some() {
+            return None;
         }
+
+        let mnode = self.users.iter().find(|node| {
+            node.operation.take().map_or(false, |op| {
+                let pending = op != Op::Idle;
+                node.operation.replace(op);
+                pending
+            })
+        });
+        mnode.and_then(|node| {
+            node.operation.take().map(|op| {
+                node.operation.replace(Op::Idle);
+                (node, op)
+            })
+        })
     }
 
     /// Performs a non-idle operation on a `MacUser` asynchronously: that is, if the
@@ -109,7 +107,7 @@ impl MuxMac<'a> {
             mbuf.map(|buf| {
                 node.send_done(buf, false, result);
             }).unwrap_or_else(|| {
-                self.inflight.set(Some(node));
+                self.inflight.set(node);
             });
         }
     }
@@ -124,7 +122,7 @@ impl MuxMac<'a> {
         if let Op::Transmit(frame) = op {
             let (result, mbuf) = self.mac.transmit(frame);
             if result == ReturnCode::SUCCESS {
-                self.inflight.set(Some(node));
+                self.inflight.set(node);
             }
             Some((result, mbuf))
         } else {
