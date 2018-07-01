@@ -80,4 +80,10 @@ impl<T: Copy> OptionalCell<T> {
             .get()
             .map_or_else(default, |mut val| closure(&mut val))
     }
+
+    /// If the cell is empty, return `None`. Otherwise, call a closure
+    /// with the value of the cell and return the result.
+    pub fn and_then<U, F: FnOnce(T) -> Option<U>>(&self, f: F) -> Option<U> {
+        self.value.get().and_then(f)
+    }
 }
