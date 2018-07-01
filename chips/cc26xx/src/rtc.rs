@@ -1,6 +1,6 @@
 //! RTC driver, sensortag family
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
@@ -62,7 +62,7 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 
 pub struct Rtc {
     registers: StaticRef<RtcRegisters>,
-    callback: Cell<Option<&'static time::Client>>,
+    callback: OptionalCell<&'static time::Client>,
 }
 
 pub static mut RTC: Rtc = Rtc::new();
@@ -71,7 +71,7 @@ impl Rtc {
     const fn new() -> Rtc {
         Rtc {
             registers: RTC_BASE,
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
         }
     }
 
@@ -123,11 +123,11 @@ impl Rtc {
 
         regs.sync.get();
 
-        self.callback.get().map(|cb| cb.fired());
+        self.callback.map(|cb| cb.fired());
     }
 
     pub fn set_client(&self, client: &'static time::Client) {
-        self.callback.set(Some(client));
+        self.callback.set(client);
     }
 }
 
