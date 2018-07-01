@@ -44,6 +44,15 @@ impl<T: Copy> OptionalCell<T> {
         self.value.set(None);
     }
 
+    /// Replace the contents with the value from the supplied `Option`,
+    /// or empty this `OptionalCell` if the supplied `Option` is `None`.
+    pub fn replace(&self, option: Option<T>) {
+        match option {
+            Some(v) => self.set(v),
+            None => self.clear(),
+        }
+    }
+
     /// Return the contained value and replace it with None.
     pub fn take(&self) -> Option<T> {
         self.value.take()
