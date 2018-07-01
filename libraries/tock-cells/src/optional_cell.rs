@@ -53,6 +53,11 @@ impl<T: Copy> OptionalCell<T> {
         }
     }
 
+    /// Returns the contained value, or panics if contents is `None`.
+    pub fn expect(&self, msg: &str) -> T {
+        self.value.get().expect(msg)
+    }
+
     /// Return the contained value and replace it with None.
     pub fn take(&self) -> Option<T> {
         self.value.take()
