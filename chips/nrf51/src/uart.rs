@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
@@ -54,7 +55,7 @@ const UART_BASE: StaticRef<UartRegisters> =
 
 pub struct UART {
     registers: StaticRef<UartRegisters>,
-    client: Cell<Option<&'static uart::Client>>,
+    client: OptionalCell<&'static uart::Client>,
     buffer: TakeCell<'static, [u8]>,
     len: Cell<usize>,
     index: Cell<usize>,
@@ -69,7 +70,7 @@ impl UART {
     pub const fn new() -> UART {
         UART {
             registers: UART_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             len: Cell::new(0),
             index: Cell::new(0),
@@ -149,7 +150,7 @@ impl UART {
                 regs.task_stoptx.set(1 as u32);
 
                 // Signal client write done
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.transmit_complete(buffer, uart::Error::CommandComplete);
                     });
@@ -192,7 +193,7 @@ impl UART {
 
 impl uart::UART for UART {
     fn set_client(&self, client: &'static uart::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn init(&self, params: uart::UARTParams) {

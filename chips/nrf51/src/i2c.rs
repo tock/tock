@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -16,7 +17,7 @@ use {nrf5x, nrf5x::gpio, nrf5x::pinmux::Pinmux};
 /// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
     registers: StaticRef<TwimRegisters>,
-    client: Cell<Option<&'static i2c::I2CHwMasterClient>>,
+    client: OptionalCell<&'static i2c::I2CHwMasterClient>,
     tx_len: Cell<u8>,
     rx_len: Cell<u8>,
     pos: Cell<usize>,
@@ -27,7 +28,7 @@ impl TWIM {
     const fn new(instance: usize) -> TWIM {
         TWIM {
             registers: TWIM_BASE[instance],
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
             pos: Cell::new(0),
@@ -36,8 +37,8 @@ impl TWIM {
     }
 
     pub fn set_client(&self, client: &'static i2c::I2CHwMasterClient) {
-        debug_assert!(self.client.get().is_none());
-        self.client.set(Some(client));
+        debug_assert!(self.client.is_none());
+        self.client.set(client);
     }
 
     /// Configures an already constructed `TWIM`.
@@ -94,7 +95,7 @@ impl TWIM {
     }
 
     fn reply(&self, result: i2c::Error) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             self.buf.take().map(|buf| {
                 client.command_complete(buf, result);
             });

@@ -11,7 +11,7 @@
 //! * Philip Levis
 //! * Date: August 18, 2016
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
 
@@ -98,19 +98,19 @@ pub trait ClockClient {
 /// Clock struct
 pub struct Clock {
     registers: StaticRef<ClockRegisters>,
-    client: Cell<Option<&'static ClockClient>>,
+    client: OptionalCell<&'static ClockClient>,
 }
 
 impl Clock {
     pub const fn new() -> Clock {
         Clock {
             registers: CLOCK_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'static ClockClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn interrupt_enable(&self, interrupt: InterruptField) {
