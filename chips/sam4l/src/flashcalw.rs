@@ -24,7 +24,7 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use deferred_call_tasks::Task;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -406,7 +406,7 @@ pub struct FLASHCALW {
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
-    client: Cell<Option<&'static hil::flash::Client<FLASHCALW>>>,
+    client: OptionalCell<&'static hil::flash::Client<FLASHCALW>>,
     current_state: Cell<FlashState>,
     buffer: TakeCell<'static, Sam4lPage>,
 }
@@ -446,7 +446,7 @@ impl FLASHCALW {
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
             pb_clock: pm::Clock::PBB(pb_clk),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             current_state: Cell::new(FlashState::Unconfigured),
             buffer: TakeCell::empty(),
         }
@@ -501,7 +501,7 @@ impl FLASHCALW {
             // Reset state now that we are ready to do a new operation.
             self.current_state.set(FlashState::Ready);
 
-            self.client.get().map(|client| match attempted_operation {
+            self.client.map(|client| match attempted_operation {
                 FlashState::Read => {
                     self.buffer.take().map(|buffer| {
                         client.read_complete(buffer, hil::flash::Error::FlashError);
@@ -526,7 +526,7 @@ impl FLASHCALW {
             FlashState::Read => {
                 self.current_state.set(FlashState::Ready);
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.read_complete(buffer, hil::flash::Error::CommandComplete);
                     });
@@ -554,7 +554,7 @@ impl FLASHCALW {
 
                 self.current_state.set(FlashState::Ready);
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.write_complete(buffer, hil::flash::Error::CommandComplete);
                     });
@@ -567,7 +567,7 @@ impl FLASHCALW {
             FlashState::EraseErasing => {
                 self.current_state.set(FlashState::Ready);
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.erase_complete(hil::flash::Error::CommandComplete);
                 });
             }
@@ -908,7 +908,7 @@ impl FLASHCALW {
 
 impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCALW {
     fn set_client(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 

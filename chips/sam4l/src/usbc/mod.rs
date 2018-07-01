@@ -7,7 +7,7 @@ use self::debug::{HexBuf, UdintFlags, UeconFlags, UestaFlags};
 use core::cell::Cell;
 use core::ptr;
 use core::slice;
-use kernel::common::cells::VolatileCell;
+use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::regs::{FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -235,7 +235,7 @@ pub const N_ENDPOINTS: usize = 8;
 #[repr(align(8))]
 pub struct Usbc<'a> {
     descriptors: [Endpoint; N_ENDPOINTS],
-    state: Cell<Option<State>>,
+    state: OptionalCell<State>,
     requests: [Cell<Requests>; N_ENDPOINTS],
     client: Option<&'a hil::usb::Client>,
 }
@@ -419,7 +419,7 @@ impl Usbc<'a> {
     const fn new() -> Self {
         Usbc {
             client: None,
-            state: Cell::new(Some(State::Reset)),
+            state: OptionalCell::new(State::Reset),
             descriptors: [
                 new_endpoint(),
                 new_endpoint(),
@@ -454,16 +454,16 @@ impl Usbc<'a> {
     {
         let mut state = self.state.take().expect("map_state: state value is in use");
         let result = closure(&mut state);
-        self.state.set(Some(state));
+        self.state.set(state);
         result
     }
 
     fn get_state(&self) -> State {
-        self.state.get().expect("get_state: state value is in use")
+        self.state.expect("get_state: state value is in use")
     }
 
     fn set_state(&self, state: State) {
-        self.state.set(Some(state));
+        self.state.set(state);
     }
 
     /// Provide a buffer for transfers in and out of the given endpoint
