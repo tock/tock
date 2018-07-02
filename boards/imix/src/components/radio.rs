@@ -33,15 +33,17 @@ type RF233Device =
     capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 pub struct RadioComponent {
-    rf233:      &'static RF233Device,
-    pan_id:     capsules::net::ieee802154::PanID,
+    rf233: &'static RF233Device,
+    pan_id: capsules::net::ieee802154::PanID,
     short_addr: u16,
 }
 
 impl RadioComponent {
-    pub fn new(rf233: &'static RF233Device,
-               pan_id: capsules::net::ieee802154::PanID,
-               addr: u16) -> RadioComponent {
+    pub fn new(
+        rf233: &'static RF233Device,
+        pan_id: capsules::net::ieee802154::PanID,
+        addr: u16,
+    ) -> RadioComponent {
         RadioComponent {
             rf233: rf233,
             pan_id: pan_id,
