@@ -15,6 +15,8 @@ extern crate kernel;
 use cc26xx::aon;
 use cc26xx::prcm;
 
+use kernel::hil::rng::RNG;
+
 #[macro_use]
 pub mod io;
 
@@ -44,7 +46,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
     >,
-    rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
+    rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng<'static>>,
 }
 
 impl kernel::Platform for Platform {

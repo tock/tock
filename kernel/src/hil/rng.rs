@@ -70,12 +70,15 @@ pub enum Continue {
 ///
 /// Implementors should assume the client implements the
 /// [Client](trait.Client.html) trait.
-pub trait RNG {
+pub trait RNG<'a> {
     /// Initiate the aquisition of new random number generation.
     ///
     /// The implementor may ignore this command if the generation proccess is
     /// already in progress.
     fn get(&self);
+
+    /// Set the callback for when random bits are ready.
+    fn set_client(&self, &'a Client);
 }
 
 /// An [RNG](trait.RNG.html) client

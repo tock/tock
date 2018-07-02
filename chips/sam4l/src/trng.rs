@@ -79,10 +79,6 @@ impl Trng<'a> {
             }
         });
     }
-
-    pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(Some(client));
-    }
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
@@ -100,7 +96,7 @@ impl Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl rng::RNG for Trng<'a> {
+impl rng::RNG<'a> for Trng<'a> {
     fn get(&self) {
         let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
@@ -109,4 +105,9 @@ impl rng::RNG for Trng<'a> {
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
         regs.ier.write(Interrupt::DATRDY::SET);
     }
+
+    fn set_client(&self, client: &'a rng::Client) {
+        self.client.set(Some(client));
+    }
+
 }
