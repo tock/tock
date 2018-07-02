@@ -10,11 +10,6 @@ include ../../Makefile.common
 apps/$(APP)/build/$(TOCK_ARCH)/app.bin:
 	@make -C apps/$(APP) TOCK_ARCH=$(TOCK_ARCH)
 
-target/$(TARGET)/release/nrf52dk-$(APP): target/$(TARGET)/release/nrf52dk apps/$(APP)/build/$(TOCK_ARCH)/app.bin
-	@$(OBJCOPY) --update-section .apps=../../userland/examples/$(APP)/build/$(TOCK_ARCH)/app.bin \
-	  --set-section-flags .apps=alloc,code \
-	  target/$(TARGET)/release/nrf52dk $@
-
 target/$(TARGET)/release/nrf52dk-$(APP).hex: target/$(TARGET)/release/nrf52dk-$(APP)
 	@$(OBJCOPY) -Oihex $^ $@
 

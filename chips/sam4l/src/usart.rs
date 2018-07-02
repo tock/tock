@@ -288,7 +288,7 @@ pub struct USARTRegManager<'a> {
 
 static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
-impl<'a> USARTRegManager<'a> {
+impl USARTRegManager<'a> {
     fn real_new(usart: &USART) -> USARTRegManager {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
@@ -312,13 +312,18 @@ impl<'a> USARTRegManager<'a> {
     }
 }
 
-impl<'a> Drop for USARTRegManager<'a> {
+impl Drop for USARTRegManager<'a> {
     fn drop(&mut self) {
         // Anything listening for RX or TX interrupts?
         let ints_active = self.registers.imr.matches_any(
-            Interrupt::RXBUFF::SET + Interrupt::TXEMPTY::SET + Interrupt::TIMEOUT::SET
-                + Interrupt::PARE::SET + Interrupt::FRAME::SET + Interrupt::OVRE::SET
-                + Interrupt::TXRDY::SET + Interrupt::RXRDY::SET,
+            Interrupt::RXBUFF::SET
+                + Interrupt::TXEMPTY::SET
+                + Interrupt::TIMEOUT::SET
+                + Interrupt::PARE::SET
+                + Interrupt::FRAME::SET
+                + Interrupt::OVRE::SET
+                + Interrupt::TXRDY::SET
+                + Interrupt::RXRDY::SET,
         );
 
         let rx_active = self.rx_dma.map_or(false, |rx_dma| rx_dma.is_enabled());
@@ -538,8 +543,12 @@ impl USART {
 
     fn disable_rx_interrupts(&self, usart: &USARTRegManager) {
         usart.registers.idr.write(
-            Interrupt::RXBUFF::SET + Interrupt::TIMEOUT::SET + Interrupt::PARE::SET
-                + Interrupt::FRAME::SET + Interrupt::OVRE::SET + Interrupt::RXRDY::SET,
+            Interrupt::RXBUFF::SET
+                + Interrupt::TIMEOUT::SET
+                + Interrupt::PARE::SET
+                + Interrupt::FRAME::SET
+                + Interrupt::OVRE::SET
+                + Interrupt::RXRDY::SET,
         );
     }
 
@@ -921,7 +930,10 @@ impl hil::spi::SpiMaster for USART {
         self.set_baud_rate(usart, 2000000);
 
         usart.registers.mr.write(
-            Mode::MODE::SPI_MASTER + Mode::USCLKS::CLK_USART + Mode::CHRL::BITS8 + Mode::PAR::NONE
+            Mode::MODE::SPI_MASTER
+                + Mode::USCLKS::CLK_USART
+                + Mode::CHRL::BITS8
+                + Mode::PAR::NONE
                 + Mode::CLKO::SET,
         );
 

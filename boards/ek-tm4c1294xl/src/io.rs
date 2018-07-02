@@ -1,5 +1,7 @@
 use core::fmt::*;
+use core::panic::PanicInfo;
 use core::str;
+use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
@@ -38,9 +40,9 @@ impl Write for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
-#[lang = "panic_fmt"]
-pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+#[panic_implementation]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut led::LedLow::new(&mut tm4c129x::gpio::PF[0]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
 }

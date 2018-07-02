@@ -1,8 +1,6 @@
 #![crate_name = "tm4c129x"]
 #![crate_type = "rlib"]
-#![feature(attr_literals, const_cell_new)]
-#![feature(const_atomic_usize_new, const_ptr_null_mut, integer_atomics, try_from)]
-#![feature(asm, core_intrinsics, concat_idents, const_fn)]
+#![feature(asm, const_fn, core_intrinsics, used)]
 #![no_std]
 
 extern crate cortexm4;
@@ -52,8 +50,8 @@ extern "C" {
 }
 
 #[link_section = ".vectors"]
-// no_mangle Ensures that the symbol is kept until the final binary
-#[no_mangle]
+// used Ensures that the symbol is kept until the final binary
+#[used]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     reset_handler,
@@ -74,7 +72,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 ];
 
 #[link_section = ".vectors"]
-#[no_mangle] // Ensures that the symbol is kept until the final binary
+#[used] // Ensures that the symbol is kept until the final binary
 pub static IRQS: [unsafe extern "C" fn(); 111] = [generic_isr; 111];
 
 pub unsafe fn init() {

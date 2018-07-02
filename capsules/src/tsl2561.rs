@@ -5,7 +5,7 @@
 //! > The TSL2560 and TSL2561 are light-to-digital converters that transform
 //! > light intensity to a digital signal output capable of direct I2C
 //! > interface. Each device combines one broadband photodiode (visible plus
-//! > infrared) and one infrared-responding photodiodeon a single CMOS
+//! > infrared) and one infrared-responding photodiode on a single CMOS
 //! > integrated circuit capable of providing a near-photopic response over an
 //! > effective 20-bit dynamic range (16-bit resolution). Two integrating ADCs
 //! > convert the photodiode currents to a digital output that represents the
@@ -208,7 +208,7 @@ pub struct TSL2561<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> TSL2561<'a> {
+impl TSL2561<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
         interrupt_pin: &'a gpio::Pin,
@@ -344,7 +344,7 @@ impl<'a> TSL2561<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for TSL2561<'a> {
+impl i2c::I2CClient for TSL2561<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectId => {
@@ -421,7 +421,7 @@ impl<'a> i2c::I2CClient for TSL2561<'a> {
     }
 }
 
-impl<'a> gpio::Client for TSL2561<'a> {
+impl gpio::Client for TSL2561<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -435,7 +435,7 @@ impl<'a> gpio::Client for TSL2561<'a> {
     }
 }
 
-impl<'a> Driver for TSL2561<'a> {
+impl Driver for TSL2561<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,

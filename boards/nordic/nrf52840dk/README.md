@@ -23,7 +23,7 @@ make flash in this directory to install a fresh kernel.
 You can program an application via JTAG using `tockloader`:
 
     ```bash
-    $ cd userland/examples/<app>
+    $ cd libtock-c/examples/<app>
     $ make
     $ tockloader install --jlink --board nrf52dk
     ```

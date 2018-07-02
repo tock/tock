@@ -438,8 +438,11 @@ impl Adc {
             // we are inactive, why did we get an interrupt?
             // disable all interrupts, clear status, and just ignore it
             regs.idr.write(
-                Interrupt::TTO::SET + Interrupt::SMTRG::SET + Interrupt::WM::SET
-                    + Interrupt::LOVR::SET + Interrupt::SEOC::SET,
+                Interrupt::TTO::SET
+                    + Interrupt::SMTRG::SET
+                    + Interrupt::WM::SET
+                    + Interrupt::LOVR::SET
+                    + Interrupt::SEOC::SET,
             );
             self.clear_status();
         }
@@ -449,7 +452,10 @@ impl Adc {
     fn clear_status(&self) {
         let regs: &AdcRegisters = &*self.registers;
         regs.scr.write(
-            Interrupt::TTO::SET + Interrupt::SMTRG::SET + Interrupt::WM::SET + Interrupt::LOVR::SET
+            Interrupt::TTO::SET
+                + Interrupt::SMTRG::SET
+                + Interrupt::WM::SET
+                + Interrupt::LOVR::SET
                 + Interrupt::SEOC::SET,
         );
     }
@@ -577,7 +583,8 @@ impl Adc {
 
             // wait until buffers are enabled
             timeout = 100000;
-            while !regs.sr
+            while !regs
+                .sr
                 .matches_all(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
             {
                 timeout -= 1;
@@ -595,13 +602,6 @@ impl Adc {
 /// Implements an ADC capable reading ADC samples on any channel.
 impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
-
-    /// Enable and configure the ADC.
-    /// This can be called multiple times with no side effects.
-    fn initialize(&self) -> ReturnCode {
-        // always configure to 1KHz to get the slowest clock
-        self.config_and_enable(1000)
-    }
 
     /// Capture a single analog sample, calling the client when complete.
     /// Returns an error if the ADC is already sampling.

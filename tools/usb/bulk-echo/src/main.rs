@@ -1,7 +1,7 @@
 //! This testing utility is designed to communicate with a device
 //! running Tock.  In particular, it interacts with the usbc_client
 //! capsule.  The USB controller and the client capsule must be enabled
-//! from userspace; the application in `userland/examples/tests/usb/`
+//! from userspace; the application in `libtock-c/examples/tests/usb/`
 //! will do this.
 //!
 //! NOTE: A more flexible and performant variant of this utility can be
@@ -63,7 +63,8 @@ fn main() {
             dev = Some(d);
         }
     }
-    let mut dh = dev.expect("Matching device not found")
+    let mut dh = dev
+        .expect("Matching device not found")
         .open()
         .expect("Opening device");
     // dh.reset().expect("Reset");

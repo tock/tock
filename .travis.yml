@@ -5,8 +5,6 @@ cache:
   cargo: true
   directories:
     - $HOME/gcc-arm-none-eabi-6_2-2016q4
-    - $HOME/uncrustify-uncrustify-0.65
-    - $HOME/local_cargo
 
 os:
   - linux
@@ -14,22 +12,18 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2018-04-19
+  - nightly-2018-06-26
 
 before_install:
   - ./.travis-install-gcc
   - export PATH="$PATH:$HOME/gcc-arm-none-eabi-6_2-2016q4/bin"
-  - export PATH="$PATH:$HOME/uncrustify-uncrustify-0.65/build"
 
 before_script:
-  - tools/install_cargo_fmt.sh
   - npm install -g markdown-toc
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - tools/run_cargo_fmt.sh diff
   - make allboards
-  - pushd userland/examples; ./build_all.sh || exit; popd
-  - pushd userland/examples; ./format_all.sh || exit; popd
   - tools/toc.sh
 

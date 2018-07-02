@@ -28,25 +28,6 @@
  */
 
 
-/*
- * CCFG - Customer Configuration
- *
- * Chip specific to TI family chips. It is a configuration area
- * needed to validate the image - otherwise it is not possible to boot.
- */
-CCFG_ORIGIN = DEFINED(CCFG_ORIGIN) ? CCFG_ORIGIN : 0;
-CCFG_LENGTH = DEFINED(CCFG_LENGTH) ? CCFG_LENGTH : 0;
-
-MEMORY
-{
-  rom (rx)  : ORIGIN =  ROM_ORIGIN, LENGTH =  ROM_LENGTH
-  prog (rx) : ORIGIN = PROG_ORIGIN, LENGTH = PROG_LENGTH
-  ccfg (rx) : ORIGIN = CCFG_ORIGIN, LENGTH = CCFG_LENGTH
-  ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
-}
-
-__stack_size__ = DEFINED(__stack_size__) ? __stack_size__ : 0x1000;
-
 SECTIONS
 {
     /* STATIC ELEMENTS FOR TOCK KERNEL */
@@ -201,10 +182,19 @@ SECTIONS
         . = ALIGN(8);
          _sstack = .;
 
-        . = . + __stack_size__;
+         /* For GNU LD, we can just advance the location pointer (".") here to
+          * reserve space for the stack. That, however, doesn't seem to work
+          * for LLVM LLD. The resulting ELF has a stack section that shows the
+          * correct size, but the next section (in our case .relocate) is not
+          * moved down as well, instead it sits at the same address as .stack.
+          * To work around this, we declare a dummy buffer and then insert it
+          * here in the .stack section. This sets the stack size correctly and
+          * places the .relocate section at the correct address. */
+         KEEP(*(.stack_buffer))
+         /*. = . + STACK_SIZE;*/ /* This is the original method. */
 
-        . = ALIGN(8);
-        _estack = .;
+         . = ALIGN(8);
+         _estack = .;
     } > ram
 
 
@@ -217,7 +207,7 @@ SECTIONS
      * Tock assumes the relocation section follows all static elements and will
      * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
      */
-    .relocate :
+    .relocate : AT (_etext)
     {
         . = ALIGN(4);
         _srelocate = .;
@@ -226,7 +216,7 @@ SECTIONS
 
         . = ALIGN(4);
         _erelocate = .;
-    } > ram AT > rom
+    } > ram
 
 
 
@@ -267,3 +257,6 @@ SECTIONS
         *(.app_memory)
     } > ram
 }
+
+ASSERT((_etext-_stext) + (_erelocate-_srelocate) < LENGTH(rom), "
+Text plus relocations exceeds the available ROM space.");

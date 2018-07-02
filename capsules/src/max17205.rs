@@ -103,7 +103,7 @@ pub struct MAX17205<'a> {
     client: Cell<Option<&'static MAX17205Client>>,
 }
 
-impl<'a> MAX17205<'a> {
+impl MAX17205<'a> {
     pub fn new(
         i2c_lower: &'a i2c::I2CDevice,
         i2c_upper: &'a i2c::I2CDevice,
@@ -193,7 +193,7 @@ impl<'a> MAX17205<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for MAX17205<'a> {
+impl i2c::I2CClient for MAX17205<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SetupReadStatus => {
@@ -362,7 +362,7 @@ pub struct MAX17205Driver<'a> {
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a> MAX17205Driver<'a> {
+impl MAX17205Driver<'a> {
     pub fn new(max: &'a MAX17205) -> MAX17205Driver<'a> {
         MAX17205Driver {
             max17205: max,
@@ -371,7 +371,7 @@ impl<'a> MAX17205Driver<'a> {
     }
 }
 
-impl<'a> MAX17205Client for MAX17205Driver<'a> {
+impl MAX17205Client for MAX17205Driver<'a> {
     fn status(&self, status: u16, error: ReturnCode) {
         self.callback
             .get()
@@ -411,7 +411,7 @@ impl<'a> MAX17205Client for MAX17205Driver<'a> {
     }
 }
 
-impl<'a> Driver for MAX17205Driver<'a> {
+impl Driver for MAX17205Driver<'a> {
     /// Setup callback.
     ///
     /// ### `subscribe_num`

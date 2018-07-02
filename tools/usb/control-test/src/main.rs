@@ -54,7 +54,8 @@ fn main() {
         }
     }
 
-    let mut dh = dev.expect("Matching device not found")
+    let mut dh = dev
+        .expect("Matching device not found")
         .open()
         .expect("Opening device");
 
@@ -70,7 +71,8 @@ fn main() {
         let index = 0;
         let timeout = Duration::from_secs(3);
         let buf = &mut [0; 8];
-        let n = dh.read_control(request_type, request, value, index, buf, timeout)
+        let n = dh
+            .read_control(request_type, request, value, index, buf, timeout)
             .expect("read_control");
         let received = &buf[..n];
 
@@ -88,7 +90,8 @@ fn main() {
         let index = 0;
         let timeout = Duration::from_secs(3);
         let buf = &[0xd, 0xe, 0xf];
-        let n = dh.write_control(request_type, request, value, index, buf, timeout)
+        let n = dh
+            .write_control(request_type, request, value, index, buf, timeout)
             .expect("write_control");
 
         println!("Wrote {:?}", &buf[..n]);

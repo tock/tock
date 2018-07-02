@@ -71,7 +71,7 @@ impl Default for State {
     }
 }
 
-impl<'a, C: UsbController> Client<'a, C> {
+impl<C: UsbController> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
         Client {
             controller: controller,
@@ -108,7 +108,7 @@ impl<'a, C: UsbController> Client<'a, C> {
     }
 }
 
-impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
+impl<C: UsbController> hil::usb::Client for Client<'a, C> {
     fn enable(&self) {
         // Set up the default control endpoint
         self.controller.endpoint_set_buffer(0, &self.buffers[0]);
@@ -280,7 +280,8 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                             let end = min(len, requested_length as usize);
                                             Some(&buf[..end])
                                         }
-                                        i if i > 0 && (i as usize) <= STRINGS.len()
+                                        i if i > 0
+                                            && (i as usize) <= STRINGS.len()
                                             && lang_id == LANGUAGES[0] =>
                                         {
                                             let buf = self.descriptor_buf();

@@ -93,7 +93,7 @@ enum OnDeck {
     Humidity,
 }
 
-pub struct SI7021<'a, A: time::Alarm + 'a> {
+pub struct SI7021<'a, A: time::Alarm> {
     i2c: &'a i2c::I2CDevice,
     alarm: &'a A,
     temp_callback: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
@@ -103,7 +103,7 @@ pub struct SI7021<'a, A: time::Alarm + 'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
+impl<A: time::Alarm> SI7021<'a, A> {
     pub fn new(i2c: &'a i2c::I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> SI7021<'a, A> {
         // setup and return struct
         SI7021 {
@@ -147,7 +147,7 @@ impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
+impl<A: time::Alarm> i2c::I2CClient for SI7021<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectElectronicId1 => {
@@ -237,7 +237,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
+impl<A: time::Alarm> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
     fn read_temperature(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
@@ -265,7 +265,7 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021
     }
 }
 
-impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
+impl<A: time::Alarm> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
     fn read_humidity(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
@@ -293,7 +293,7 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a
     }
 }
 
-impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
+impl<A: time::Alarm> time::Client for SI7021<'a, A> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands

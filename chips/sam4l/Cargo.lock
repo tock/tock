@@ -1,6 +1,9 @@
 [[package]]
 name = "cortexm"
 version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+]
 
 [[package]]
 name = "cortexm4"
@@ -13,6 +16,9 @@ dependencies = [
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "tock-regs 0.1.0",
+]
 
 [[package]]
 name = "sam4l"
@@ -21,4 +27,8 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "tock-regs"
+version = "0.1.0"
 

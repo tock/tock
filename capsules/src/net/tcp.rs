@@ -15,7 +15,7 @@ pub struct TCPHeader {
 }
 
 /*
-impl<'a> TCPPacket<'a> {
+impl TCPPacket<'a> {
     pub fn new(buf: &mut [u8]) -> TCPPacket<'a> {
         let header = TCPHeader {
             src_port: 0,

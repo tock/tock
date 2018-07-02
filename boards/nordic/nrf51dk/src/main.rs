@@ -44,13 +44,14 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm0;
 extern crate nrf51;
 extern crate nrf5x;
 
@@ -91,6 +92,11 @@ const NUM_PROCS: usize = 1;
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
 static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [None];
+
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// Supported drivers by the platform
 pub struct Platform {

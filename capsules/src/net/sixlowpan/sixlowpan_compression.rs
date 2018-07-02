@@ -914,7 +914,8 @@ fn decompress_tf(ip6_header: &mut IP6Header, iphc_header: u8, buf: &[u8], consum
     if fl_compressed {
         ip6_header.set_flow_label(0);
     } else {
-        let flow = (((buf[*consumed] & 0x0f) as u32) << 16) | ((buf[*consumed + 1] as u32) << 8)
+        let flow = (((buf[*consumed] & 0x0f) as u32) << 16)
+            | ((buf[*consumed + 1] as u32) << 8)
             | (buf[*consumed + 2] as u32);
         *consumed += 3;
         ip6_header.set_flow_label(flow);

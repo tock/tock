@@ -159,7 +159,7 @@ pub struct Aes<'a> {
     stop_index: Cell<usize>,
 }
 
-impl<'a> Aes<'a> {
+impl Aes<'a> {
     const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
@@ -217,8 +217,12 @@ impl<'a> Aes<'a> {
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
         regs.mode.write(
-            Mode::ENCRYPT.val(encrypt) + Mode::DMA.val(dma) + Mode::OPMODE.val(mode as u32)
-                + Mode::CTYPE4.val(1) + Mode::CTYPE3.val(1) + Mode::CTYPE2.val(1)
+            Mode::ENCRYPT.val(encrypt)
+                + Mode::DMA.val(dma)
+                + Mode::OPMODE.val(mode as u32)
+                + Mode::CTYPE4.val(1)
+                + Mode::CTYPE3.val(1)
+                + Mode::CTYPE2.val(1)
                 + Mode::CTYPE1.val(1),
         );
     }
@@ -398,7 +402,7 @@ impl<'a> Aes<'a> {
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
+impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
         let regs: &AesRegisters = &*self.registers;
         self.enable_clock();
@@ -497,13 +501,13 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128Ctr for Aes<'a> {
+impl hil::symmetric_encryption::AES128Ctr for Aes<'a> {
     fn set_mode_aes128ctr(&self, encrypting: bool) {
         self.set_mode(encrypting, ConfidentialityMode::CTR);
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128CBC for Aes<'a> {
+impl hil::symmetric_encryption::AES128CBC for Aes<'a> {
     fn set_mode_aes128cbc(&self, encrypting: bool) {
         self.set_mode(encrypting, ConfidentialityMode::CBC);
     }

@@ -20,6 +20,7 @@ Tock Guides
 - **[Tock Binary Format](TockBinaryFormat.md)** - How Tock application binaries are specified.
 - **[Memory Layout](Memory_Layout.md)** - How memory is divided for Tock.
 - **[Memory Isolation](Memory_Isolation.md)** - How memory is isolated in Tock.
+- **[Registers](../libraries/tock-register-interface/README.md)** - How memory-mapped registers are handled in Tock.
 - **[Startup](Startup.md)** - What happens when Tock boots.
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.

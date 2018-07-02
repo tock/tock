@@ -2,6 +2,7 @@
 
 use core::cell::Cell;
 use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Clock {
@@ -54,7 +55,7 @@ pub enum RCGCUART {
 }
 
 #[repr(C)]
-struct Registers {
+struct SysctlRegisters {
     did0: VolatileCell<u32>,
     did1: VolatileCell<u32>,
     _reserved0: [u32; 12],
@@ -306,10 +307,11 @@ pub enum SystemClockSource {
     Mosc { frequency: OscillatorFrequency },
 }
 
-const BASE_ADDRESS: usize = 0x400FE000;
+const SYSCTL_BASE: StaticRef<SysctlRegisters> =
+    unsafe { StaticRef::new(0x400FE000 as *const SysctlRegisters) };
 
 pub struct SystemControl {
-    registers: *mut Registers,
+    registers: StaticRef<SysctlRegisters>,
     /// Frequency at which the system clock is running.
     system_frequency: Cell<u32>,
     /// Clock source configuration
@@ -317,7 +319,7 @@ pub struct SystemControl {
 }
 
 pub static mut PSYSCTLM: SystemControl = SystemControl {
-    registers: BASE_ADDRESS as *mut Registers,
+    registers: SYSCTL_BASE,
     system_frequency: Cell::new(16000000),
     system_clock_source: Cell::new(SystemClockSource::PioscAt16MHz),
 };
@@ -354,7 +356,7 @@ impl SystemControl {
 }
 
 unsafe fn configure_internal_oscillator_pll() {
-    let regs: &Registers = &*PSYSCTLM.registers;
+    let regs = &*PSYSCTLM.registers;
 
     regs.rsclkcfg.set(0x00000000);
 
@@ -371,7 +373,7 @@ unsafe fn configure_internal_oscillator_pll() {
 }
 
 unsafe fn configure_external_oscillator() {
-    let regs: &Registers = &*PSYSCTLM.registers;
+    let regs = &*PSYSCTLM.registers;
 
     regs.moscctl.set(0x10);
     while regs.ris.get() & (1 << 8) == (0) {}
@@ -384,7 +386,7 @@ unsafe fn configure_external_oscillator() {
 }
 
 unsafe fn configure_external_oscillator_pll() {
-    let regs: &Registers = &*PSYSCTLM.registers;
+    let regs = &*PSYSCTLM.registers;
 
     regs.moscctl.set(0x10); // OSCRNG
     while regs.ris.get() & (1 << 8) == (0) {}
@@ -407,7 +409,7 @@ pub fn get_system_frequency() -> u32 {
 }
 
 pub unsafe fn enable_clock(clock: Clock) {
-    let regs: &Registers = &*PSYSCTLM.registers;
+    let regs = &*PSYSCTLM.registers;
     match clock {
         Clock::TIMER(c) => regs.rcgctimer.set(regs.rcgctimer.get() | 1 << (c as u32)),
         Clock::GPIO(c) => regs.rcgcgpio.set(regs.rcgcgpio.get() | 1 << (c as u32)),

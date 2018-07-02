@@ -6,22 +6,17 @@
 //! they provide safe wrappers around unsafe interface so that other kernel
 //! crates do not need to use unsafe code.
 
+pub use tock_regs::*;
+
 pub mod deferred_call;
 pub mod list;
 pub mod math;
 pub mod peripherals;
-#[macro_use]
-pub mod regs;
 pub mod utils;
 
-mod map_cell;
-mod num_cell;
-mod optional_cell;
 mod queue;
 mod ring_buffer;
 mod static_ref;
-mod take_cell;
-mod volatile_cell;
 
 pub use self::list::{List, ListLink, ListNode};
 pub use self::queue::Queue;
@@ -34,9 +29,9 @@ pub use self::static_ref::StaticRef;
 ///
 ///     use kernel::common::cells::TakeCell;
 pub mod cells {
-    pub use common::map_cell::MapCell;
-    pub use common::num_cell::NumCell;
-    pub use common::optional_cell::OptionalCell;
-    pub use common::take_cell::TakeCell;
-    pub use common::volatile_cell::VolatileCell;
+    pub use tock_cells::map_cell::MapCell;
+    pub use tock_cells::num_cell::NumCell;
+    pub use tock_cells::optional_cell::OptionalCell;
+    pub use tock_cells::take_cell::TakeCell;
+    pub use tock_cells::volatile_cell::VolatileCell;
 }

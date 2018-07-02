@@ -311,7 +311,8 @@ impl Nvmc {
         regs.config.write(Configuration::WEN::Wen);
 
         for i in (0..data.len()).step_by(4) {
-            let word: u32 = (data[i + 0] as u32) << 0 | (data[i + 1] as u32) << 8
+            let word: u32 = (data[i + 0] as u32) << 0
+                | (data[i + 1] as u32) << 8
                 | (data[i + 2] as u32) << 16
                 | (data[i + 3] as u32) << 24;
 

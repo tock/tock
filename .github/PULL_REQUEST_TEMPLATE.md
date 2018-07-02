@@ -15,8 +15,7 @@ This pull request still needs...
 
 ### Documentation Updated
 
-- [ ] Kernel: Updated the relevant files in `/docs`, or no updates are required.
-- [ ] Userland: Added/updated the application README, if needed.
+- [ ] Updated the relevant files in `/docs`, or no updates are required.
 
 ### Formatting
 

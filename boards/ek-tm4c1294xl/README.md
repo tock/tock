@@ -23,7 +23,7 @@ to flash a fresh kernel.
 
 You can program an application via JTAG:
 ```bash
-$ cd userland/examples/<app>
+$ cd libtock-c/examples/<app>
 $ make TOCK_BOARD=ek-tm4c1294xl flash
 ```
 

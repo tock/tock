@@ -62,13 +62,14 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate nrf52;
 extern crate nrf52dk_base;
 extern crate nrf5x;
@@ -108,6 +109,11 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
     [None, None, None, None];
+
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// Entry point in the vector table called on hard reset.
 #[no_mangle]
@@ -193,5 +199,6 @@ pub unsafe fn reset_handler() {
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        false,
     );
 }

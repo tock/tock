@@ -1,3 +1,5 @@
+//! Shared userland driver for light sensors.
+//!
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ```rust
@@ -28,7 +30,7 @@ pub struct AmbientLight<'a> {
     apps: Grant<App>,
 }
 
-impl<'a> AmbientLight<'a> {
+impl AmbientLight<'a> {
     pub fn new(sensor: &'a hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
@@ -55,7 +57,7 @@ impl<'a> AmbientLight<'a> {
     }
 }
 
-impl<'a> Driver for AmbientLight<'a> {
+impl Driver for AmbientLight<'a> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`
@@ -69,7 +71,8 @@ impl<'a> Driver for AmbientLight<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
@@ -102,7 +105,7 @@ impl<'a> Driver for AmbientLight<'a> {
     }
 }
 
-impl<'a> hil::sensors::AmbientLightClient for AmbientLight<'a> {
+impl hil::sensors::AmbientLightClient for AmbientLight<'a> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
         self.apps.each(|app| {

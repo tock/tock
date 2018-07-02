@@ -46,8 +46,9 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
 use capsules::net::sixlowpan::sixlowpan_compression;
-use capsules::net::sixlowpan::sixlowpan_state::{RxState, Sixlowpan, SixlowpanRxClient,
-                                                SixlowpanState, TxState};
+use capsules::net::sixlowpan::sixlowpan_state::{
+    RxState, Sixlowpan, SixlowpanRxClient, SixlowpanState, TxState,
+};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
@@ -133,7 +134,7 @@ static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_H
 static mut IP6_DG_OPT: Option<IP6Packet> = None;
 //END changes
 
-pub struct LowpanTest<'a, A: time::Alarm + 'a> {
+pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: A,
     sixlowpan_tx: TxState<'a>,
     radio: &'a MacDevice<'a>,
@@ -385,7 +386,8 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         unsafe {
             match IP6_DG_OPT {
                 Some(ref ip6_packet) => {
-                    match self.sixlowpan_tx
+                    match self
+                        .sixlowpan_tx
                         .next_fragment(&ip6_packet, tx_buf, self.radio)
                     {
                         Ok((is_done, frame)) => {

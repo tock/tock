@@ -124,7 +124,7 @@ pub struct MCP23008<'a> {
     client: Cell<Option<&'static hil::gpio_async::Client>>,
 }
 
-impl<'a> MCP23008<'a> {
+impl MCP23008<'a> {
     pub fn new(
         i2c: &'a hil::i2c::I2CDevice,
         interrupt_pin: Option<&'static hil::gpio::Pin>,
@@ -314,7 +314,7 @@ impl<'a> MCP23008<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CClient for MCP23008<'a> {
+impl hil::i2c::I2CClient for MCP23008<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: hil::i2c::Error) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
@@ -456,7 +456,7 @@ impl<'a> hil::i2c::I2CClient for MCP23008<'a> {
     }
 }
 
-impl<'a> hil::gpio::Client for MCP23008<'a> {
+impl hil::gpio::Client for MCP23008<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buffer| {
             self.i2c.enable();
@@ -470,7 +470,7 @@ impl<'a> hil::gpio::Client for MCP23008<'a> {
     }
 }
 
-impl<'a> hil::gpio_async::Port for MCP23008<'a> {
+impl hil::gpio_async::Port for MCP23008<'a> {
     fn disable(&self, pin: usize) -> ReturnCode {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)
