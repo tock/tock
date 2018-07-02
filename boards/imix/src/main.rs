@@ -308,7 +308,7 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let radio_driver = RadioComponent::new(rf233).finalize();
+    let radio_driver = RadioComponent::new(rf233, 0xABCD, 0x1008).finalize();
 
     let usb_driver = UsbComponent::new().finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new().finalize();

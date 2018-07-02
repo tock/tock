@@ -33,12 +33,20 @@ type RF233Device =
     capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 pub struct RadioComponent {
-    rf233: &'static RF233Device,
+    rf233:      &'static RF233Device,
+    pan_id:     capsules::net::ieee802154::PanID,
+    short_addr: u16,
 }
 
 impl RadioComponent {
-    pub fn new(rf233: &'static RF233Device) -> RadioComponent {
-        RadioComponent { rf233: rf233 }
+    pub fn new(rf233: &'static RF233Device,
+               pan_id: capsules::net::ieee802154::PanID,
+               addr: u16) -> RadioComponent {
+        RadioComponent {
+            rf233: rf233,
+            pan_id: pan_id,
+            short_addr: addr,
+        }
     }
 }
 // The RF233 system call interface ("radio") requires one buffer, which it
@@ -110,8 +118,8 @@ impl Component for RadioComponent {
         mac_device.set_device_procedure(radio_driver);
         radio_mac.set_transmit_client(radio_driver);
         radio_mac.set_receive_client(radio_driver);
-        radio_mac.set_pan(0xABCD);
-        radio_mac.set_address(0x1008);
+        radio_mac.set_pan(self.pan_id);
+        radio_mac.set_address(self.short_addr);
 
         radio_driver
     }
