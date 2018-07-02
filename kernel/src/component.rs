@@ -2,7 +2,7 @@
 /// This abstraction is intended to make the kernel boot sequence simpler:
 /// without it, the reset_handler involves lots of driver-specific
 /// initialization. The Component trait encapsulates all of the
-/// initialziation and configuration of a kernel extension inside
+/// initialization and configuration of a kernel extension inside
 /// the finalize function call.
 ///
 /// Note that instantiating a component does not necessarily instantiate
