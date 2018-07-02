@@ -214,5 +214,4 @@ impl rng::RNG<'a> for Trng<'a> {
     fn set_client(&self, client: &'a rng::Client) {
         self.client.set(Some(client));
     }
-
 }

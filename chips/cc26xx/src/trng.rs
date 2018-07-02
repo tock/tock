@@ -138,7 +138,6 @@ impl<'a> Trng<'a> {
 
         ((regs.out0.get() as u64) << 32) | (regs.out1.get() as u64)
     }
-
 }
 
 impl<'a> Iterator for Trng<'a> {
@@ -162,5 +161,4 @@ impl<'a> rng::RNG<'a> for Trng<'a> {
     fn set_client(&self, client: &'a rng::Client) {
         self.client.set(Some(client));
     }
-
 }
