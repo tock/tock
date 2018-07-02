@@ -1,9 +1,10 @@
-//! Interfaces for accessing a random number generator.
+//! Interfaces for random number generation.
 //!
 //! A random number generator produces a stream of random numbers, either from
 //! hardware or based on an initial seed. The [RNG](trait.RNG.html) trait
 //! provides a simple, implementation agnostic interface for getting new random
-//! values.
+//! values. Cryptosystems should use this interface with care, as it does not
+//! provide strong entropy guarantees.
 //!
 //! The interface is designed to work well with random number generators that
 //! may not have values ready immediately. This is important when generating
@@ -66,15 +67,28 @@ pub enum Continue {
     Done,
 }
 
-/// Generic interface for a random number generator
+/// Generic interface for random number generation.
 ///
 /// Implementors should assume the client implements the
-/// [Client](trait.Client.html) trait.
+/// [Client](trait.Client.html) trait. Note that the random
+/// bits generated do not have entropy guarantees. Therefore,
+/// a caller who needs strong entropy (e.g., for cryptography)
+/// should request many more bits than needed and compress their
+/// entropy with a cryptographic hash and should do so with a
+/// good understanding of the true underlying entropy provided.
+///
+/// Implementers of this
+/// trait should try to ensure that there is at least 0.25 bits of
+/// entropy per generated bit, such that sampling 4x the bits needed
+/// can generate sufficient entropy, but cryptosystems should verify
+/// this is true for each implementation they rely on.
+
 pub trait RNG<'a> {
-    /// Initiate the aquisition of new random number generation.
+    /// Request new random bits.
     ///
-    /// The implementor may ignore this command if the generation proccess is
-    /// already in progress.
+    /// This method will cause `randomness_available` being called on the Client
+    /// at some point soon in the future. Numerious calls to this method before
+    /// `randomness_available` is called will only result in one callback.
     fn get(&self);
 
     /// Set the callback for when random bits are ready.
@@ -91,7 +105,7 @@ pub trait Client {
     /// `randomness` in an `Iterator` of available random numbers. The amount of
     /// randomness available may increase if `randomness` is not consumed
     /// quickly so clients should not rely on iterator termination to finish
-    /// consuming randomn numbers.
+    /// consuming random numbers.
     ///
     /// The client returns either `Continue::More` if the iterator did not have
     /// enough random values and the client would like to be called again when
