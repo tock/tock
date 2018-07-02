@@ -563,8 +563,8 @@ pub unsafe fn reset_handler() {
     mac_device.set_device_procedure(radio_driver);
     radio_mac.set_transmit_client(radio_driver);
     radio_mac.set_receive_client(radio_driver);
-    radio_mac.set_pan(0xABCD);
-    radio_mac.set_address(0x1008);
+    radio_mac.set_pan(0x0000);
+    radio_mac.set_address(0xbbbb);
 
     // Configure the USB controller
     let usb_client = static_init!(

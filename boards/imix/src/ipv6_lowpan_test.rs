@@ -1,4 +1,4 @@
-//! `lowpan_frag_dummy.rs`: 6LoWPAN Fragmentation Test Suite
+//! `ipv6_lowpan_test.rs`: 6LoWPAN Fragmentation Test Suite
 //!
 //! This implements a simple testing framework for 6LoWPAN fragmentation and
 //! compression. Two Imix boards run this code, one for receiving and one for
@@ -29,7 +29,7 @@
 //! ...
 //! // Radio initialization code
 //! ...
-//! let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static MacDevice,
+//! let lowpan_frag_test = ipv6_lowpan_test::initialize_all(radio_mac as &'static MacDevice,
 //!                                                          mux_alarm as &'static
 //!                                                             MuxAlarm<'static,
 //!                                                                 sam4l::ast::Ast>);
@@ -74,8 +74,9 @@ pub const DST_ADDR: IPAddr = IPAddr([
 ]);
 pub const SRC_MAC_ADDR: MacAddress =
     MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
-pub const DST_MAC_ADDR: MacAddress =
-    MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
+//pub const DST_MAC_ADDR: MacAddress =
+//    MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
+pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(0xbbbb);
 //TODO: No longer pass MAC addresses to 6lowpan code, so these values arent used rn
 pub const IP6_HDR_SIZE: usize = 40;
 pub const UDP_HDR_SIZE: usize = 8;
@@ -165,6 +166,8 @@ pub unsafe fn initialize_all(
 
     let sixlowpan_state = sixlowpan as &SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
+
+    sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, None);
 
     let lowpan_frag_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
@@ -514,7 +517,7 @@ fn ipv6_check_receive_packet(
 
                 match ip6_packet.payload.header {
                     TransportHeader::UDP(ref sent_udp_pkt) => {
-                        if u16::from_be(rcvudphdr.get_src_port()) != sent_udp_pkt.get_src_port() {
+                        if rcvudphdr.get_src_port() != sent_udp_pkt.get_src_port() {
                             debug!(
                                 "Mismatched src_port. Rcvd is: {:?}, expctd is: {:?}",
                                 rcvudphdr.get_src_port(),
@@ -523,7 +526,7 @@ fn ipv6_check_receive_packet(
                             test_success = false;
                         }
 
-                        if u16::from_be(rcvudphdr.get_dst_port()) != sent_udp_pkt.get_dst_port() {
+                        if rcvudphdr.get_dst_port() != sent_udp_pkt.get_dst_port() {
                             debug!(
                                 "Mismatched dst_port. Rcvd is: {:?}, expctd is: {:?}",
                                 rcvudphdr.get_dst_port(),
@@ -532,7 +535,7 @@ fn ipv6_check_receive_packet(
                             test_success = false;
                         }
 
-                        if u16::from_be(rcvudphdr.get_len()) != sent_udp_pkt.get_len() {
+                        if rcvudphdr.get_len() != sent_udp_pkt.get_len() {
                             debug!(
                                 "Mismatched udp_len. Rcvd is: {:?}, expctd is: {:?}",
                                 rcvudphdr.get_len(),
@@ -541,8 +544,12 @@ fn ipv6_check_receive_packet(
                             test_success = false;
                         }
 
-                        if u16::from_be(rcvudphdr.get_cksum()) != sent_udp_pkt.get_cksum() {
-                            debug!("mismatched cksum");
+                        if rcvudphdr.get_cksum() != sent_udp_pkt.get_cksum() {
+                            debug!(
+                                "Mismatched cksum. Rcvd is: {:?}, expctd is: {:?}",
+                                rcvudphdr.get_cksum(),
+                                sent_udp_pkt.get_cksum()
+                            );
                             test_success = false;
                         }
                     }
