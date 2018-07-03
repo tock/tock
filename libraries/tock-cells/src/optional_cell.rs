@@ -58,10 +58,8 @@ impl<T: Copy> OptionalCell<T> {
         self.value.get().expect(msg)
     }
 
-    /// Returns the contained value or panics if contents is `None`.
-    pub fn unwrap(&self) -> T {
-        self.value.get().unwrap()
-    }
+    // Note: Explicitly do not support unwrap, as we do not to encourage
+    // panic'ing in the Tock kernel.
 
     /// Returns the contained value or a default.
     pub fn unwrap_or(&self, default: T) -> T {
