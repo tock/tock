@@ -29,16 +29,21 @@ impl<T: Copy> OptionalCell<T> {
         self.value.set(Some(val));
     }
 
-    /// Replace the contents with the value from the supplied `Option`,
-    /// or empty this `OptionalCell` if the supplied `Option` is `None`.
-    /// If the cell was not empty, the previous value is returned, otherwise
-    /// `None` is returned.
-    pub fn replace(&self, option: Option<T>) -> Option<T> {
-        let prev = self.take();
-        match option {
+    /// Insert the value of the supplied `Option`, or `None` if the supplied
+    /// `Option` is `None`.
+    pub fn insert(&self, opt: Option<T>) {
+        match opt {
             Some(v) => self.set(v),
             None => self.clear(),
         }
+    }
+
+    /// Replace the contents with the supplied value.
+    /// If the cell was not empty, the previous value is returned, otherwise
+    /// `None` is returned.
+    pub fn replace(&self, val: T) -> Option<T> {
+        let prev = self.take();
+        self.set(val);
         prev
     }
 
