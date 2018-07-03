@@ -44,20 +44,6 @@ impl<T: Copy> OptionalCell<T> {
         self.value.set(None);
     }
 
-    /// Replace the contents with the value from the supplied `Option`,
-    /// or empty this `OptionalCell` if the supplied `Option` is `None`.
-    pub fn replace(&self, option: Option<T>) {
-        match option {
-            Some(v) => self.set(v),
-            None => self.clear(),
-        }
-    }
-
-    /// Returns the contained value, or panics if contents is `None`.
-    pub fn expect(&self, msg: &str) -> T {
-        self.value.get().expect(msg)
-    }
-
     /// Return the contained value and replace it with None.
     pub fn take(&self) -> Option<T> {
         self.value.take()
@@ -93,11 +79,5 @@ impl<T: Copy> OptionalCell<T> {
         self.value
             .get()
             .map_or_else(default, |mut val| closure(&mut val))
-    }
-
-    /// If the cell is empty, return `None`. Otherwise, call a closure
-    /// with the value of the cell and return the result.
-    pub fn and_then<U, F: FnOnce(T) -> Option<U>>(&self, f: F) -> Option<U> {
-        self.value.get().and_then(f)
     }
 }

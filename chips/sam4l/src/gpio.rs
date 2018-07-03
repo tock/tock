@@ -4,7 +4,6 @@ use self::Pin::*;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -296,7 +295,7 @@ pub struct GPIOPin {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
     client_data: Cell<usize>,
-    client: OptionalCell<&'static hil::gpio::Client>,
+    client: Cell<Option<&'static hil::gpio::Client>>,
 }
 
 impl GPIOPin {
@@ -309,12 +308,12 @@ impl GPIOPin {
             },
             pin_mask: 1 << ((pin as u32) % 32),
             client_data: Cell::new(0),
-            client: OptionalCell::empty(),
+            client: Cell::new(None),
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(client);
+        self.client.set(Some(client));
     }
 
     pub fn select_peripheral(&self, function: PeripheralFunction) {
@@ -427,7 +426,7 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.map(|client| {
+        self.client.get().map(|client| {
             client.fired(self.client_data.get());
         });
     }

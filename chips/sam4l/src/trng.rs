@@ -1,6 +1,6 @@
 //! Implementation of the SAM4L TRNG.
 
-use kernel::common::cells::OptionalCell;
+use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
@@ -45,7 +45,7 @@ const BASE_ADDRESS: StaticRef<TrngRegisters> =
 
 pub struct Trng<'a> {
     regs: StaticRef<TrngRegisters>,
-    client: OptionalCell<&'a rng::Client>,
+    client: Cell<Option<&'a rng::Client>>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
@@ -55,7 +55,7 @@ impl Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
             regs: BASE_ADDRESS,
-            client: OptionalCell::empty(),
+            client: Cell::new(None),
         }
     }
 
@@ -67,7 +67,7 @@ impl Trng<'a> {
         }
         regs.idr.write(Interrupt::DATRDY::SET);
 
-        self.client.map(|client| {
+        self.client.get().map(|client| {
             let result = client.randomness_available(&mut TrngIter(self));
             if let Continue::Done = result {
                 // disable controller
@@ -81,7 +81,7 @@ impl Trng<'a> {
     }
 
     pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(client);
+        self.client.set(Some(client));
     }
 }
 
