@@ -4,7 +4,7 @@
 //! - Author: Philip Levis <pal@cs.stanford.edu>
 //! - Date: July 16, 2015
 
-use kernel::common::cells::OptionalCell;
+use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
@@ -166,19 +166,19 @@ const AST_ADDRESS: StaticRef<AstRegisters> =
 
 pub struct Ast<'a> {
     registers: StaticRef<AstRegisters>,
-    callback: OptionalCell<&'a time::Client>,
+    callback: Cell<Option<&'a time::Client>>,
 }
 
 pub static mut AST: Ast<'static> = Ast {
     registers: AST_ADDRESS,
-    callback: OptionalCell::empty(),
+    callback: Cell::new(None),
 };
 
 impl Controller for Ast<'a> {
     type Config = &'static time::Client;
 
     fn configure(&self, client: &'a time::Client) {
-        self.callback.set(client);
+        self.callback.set(Some(client));
 
         pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
         self.select_clock(Clock::ClockOsc32);
@@ -207,7 +207,7 @@ impl Ast<'a> {
     }
 
     pub fn set_client(&self, client: &'a time::Client) {
-        self.callback.set(client);
+        self.callback.set(Some(client));
     }
 
     fn busy(&self) -> bool {
@@ -296,7 +296,7 @@ impl Ast<'a> {
 
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.callback.map(|cb| {
+        self.callback.get().map(|cb| {
             cb.fired();
         });
     }

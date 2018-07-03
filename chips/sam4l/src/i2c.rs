@@ -11,7 +11,7 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::TakeCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
 use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -546,7 +546,7 @@ pub struct I2CHw {
     slave_mmio_address: Option<StaticRef<TWISRegisters>>,
     master_clock: TWIMClock,
     slave_clock: TWISClock,
-    dma: OptionalCell<&'static DMAChannel>,
+    dma: Cell<Option<&'static DMAChannel>>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
     master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     slave_client: Cell<Option<&'static hil::i2c::I2CHwSlaveClient>>,
@@ -675,7 +675,7 @@ impl I2CHw {
             slave_mmio_address: slave_base_addr,
             master_clock: clocks.0,
             slave_clock: clocks.1,
-            dma: OptionalCell::empty(),
+            dma: Cell::new(None),
             dma_pids: (dma_rx, dma_tx),
             master_client: Cell::new(None),
             slave_client: Cell::new(None),
@@ -725,7 +725,7 @@ impl I2CHw {
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
-        self.dma.set(dma);
+        self.dma.set(Some(dma));
     }
 
     pub fn set_master_client(&self, client: &'static hil::i2c::I2CHwMasterClient) {
@@ -792,11 +792,14 @@ impl I2CHw {
 
                 err.map(|err| {
                     self.master_client.get().map(|client| {
-                        let buf = self.dma.and_then(|dma| {
-                            let b = dma.abort_transfer();
-                            self.dma.set(dma);
-                            b
-                        });
+                        let buf = match self.dma.get() {
+                            Some(dma) => {
+                                let b = dma.abort_transfer();
+                                self.dma.set(Some(dma));
+                                b
+                            }
+                            None => None,
+                        };
                         buf.map(|buf| {
                             client.command_complete(buf, err);
                         });
@@ -831,11 +834,14 @@ impl I2CHw {
 
                     err.map(|err| {
                         self.master_client.get().map(|client| {
-                            let buf = self.dma.and_then(|dma| {
-                                let b = dma.abort_transfer();
-                                self.dma.set(dma);
-                                b
-                            });
+                            let buf = match self.dma.get() {
+                                Some(dma) => {
+                                    let b = dma.abort_transfer();
+                                    self.dma.set(Some(dma));
+                                    b
+                                }
+                                None => None,
+                            };
                             buf.map(|buf| {
                                 // Save the already read byte.
                                 buf[0] = the_byte;
@@ -854,7 +860,7 @@ impl I2CHw {
                                 + Interrupt::ARBLST::SET,
                         );
                     }
-                    self.dma.map(|dma| {
+                    self.dma.get().map(|dma| {
                         let buf = dma.abort_transfer().unwrap();
                         dma.prepare_transfer(dma_periph, buf, len);
                         dma.start_transfer();
@@ -930,7 +936,7 @@ impl I2CHw {
         len: u8,
     ) {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.map(move |dma| {
+        self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_transfer(self.dma_pids.1, data, len as usize);
             self.setup_transfer(twim, chip, flags, Command::READ::Transmit, len);
@@ -947,7 +953,7 @@ impl I2CHw {
         len: u8,
     ) {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.map(move |dma| {
+        self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_transfer(self.dma_pids.0, data, len as usize);
             self.setup_transfer(twim, chip, flags, Command::READ::Receive, len);
@@ -958,7 +964,7 @@ impl I2CHw {
 
     fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.map(move |dma| {
+        self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_transfer(self.dma_pids.1, data, split as usize);
             self.setup_transfer(

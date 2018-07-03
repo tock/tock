@@ -2,8 +2,8 @@
 
 use core::cell::Cell;
 use core::{cmp, intrinsics};
+use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use pm;
@@ -194,7 +194,7 @@ pub static mut DMA_CHANNELS: [DMAChannel; 16] = [
 
 pub struct DMAChannel {
     registers: StaticRef<DMARegisters>,
-    client: OptionalCell<&'static DMAClient>,
+    client: Cell<Option<&'static DMAClient>>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
@@ -212,7 +212,7 @@ impl DMAChannel {
                     (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *const DMARegisters,
                 )
             },
-            client: OptionalCell::empty(),
+            client: Cell::new(None),
             width: Cell::new(DMAWidth::Width8Bit),
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
@@ -220,7 +220,7 @@ impl DMAChannel {
     }
 
     pub fn initialize(&self, client: &'static mut DMAClient, width: DMAWidth) {
-        self.client.set(client);
+        self.client.set(Some(client));
         self.width.set(width);
     }
 
@@ -272,7 +272,7 @@ impl DMAChannel {
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
         let channel = registers.psr.get();
 
-        self.client.map(|client| {
+        self.client.get().as_mut().map(|client| {
             client.transfer_done(channel);
         });
     }
