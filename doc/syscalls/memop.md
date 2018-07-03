@@ -41,7 +41,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Description**: Get the address of the start of the application's RAM
     allocation.
 
-    **Argument 1**: Ignored.
+    **Argument 1**: unused
 
     **Returns** `as *u8`: The address.
 
@@ -50,7 +50,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Description**: Get the address pointing to the first address after the
     end of the application's RAM allocation.
 
-    **Argument 1**: Ignored.
+    **Argument 1**: unused
 
     **Returns** `as *u8`: The address.
 
@@ -59,7 +59,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Description**: Get the address of the start of the application's flash
     region. This is where the TBF header is located.
 
-    **Argument 1**: Ignored.
+    **Argument 1**: unused
 
     **Returns** `as *u8`: The address.
 
@@ -68,7 +68,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Description**: Get the address pointing to the first address after the
     end of the application's flash region.
 
-    **Argument 1**: Ignored.
+    **Argument 1**: unused
 
     **Returns** `as *u8`: The address.
 
@@ -78,7 +78,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     for the app. (Note: the grant end is by definition the memory end, so there
     is no corresponding grant end syscall.)
 
-    **Argument 1**: Ignored.
+    **Argument 1**: unused
 
     **Returns** `as *u8`: The address.
 
@@ -87,7 +87,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
     **Description**: Get the number of writeable flash regions defined in the
     header of this app.
 
-    **Argument 1**: Ignored.
+    **Argument 1**: unused
 
     **Returns** `as u32`: The number of regions.
 
