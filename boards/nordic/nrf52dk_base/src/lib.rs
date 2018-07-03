@@ -12,6 +12,7 @@ extern crate nrf5x;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use kernel::hil;
+use kernel::hil::rng::RNG;
 use nrf5x::rtc::Rtc;
 
 /// Supported drivers by the platform
