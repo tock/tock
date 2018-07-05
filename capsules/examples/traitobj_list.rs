@@ -16,7 +16,7 @@
 //! manager.report();
 //! ```
 
-use kernel::common::list::*;
+use kernel::common::list::{List, ListLink, ListNode};
 
 pub trait Funky<'a> {
     fn name(&self) -> &'static str;

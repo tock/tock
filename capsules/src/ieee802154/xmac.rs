@@ -83,7 +83,7 @@ use kernel::hil::radio;
 use kernel::hil::rng::{self, RNG};
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 use kernel::ReturnCode;
-use net::ieee802154::*;
+use net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 
 // Time the radio will remain awake listening for packets before sleeping.
 // Observing the RF233, receive callbacks for preambles are generated only after

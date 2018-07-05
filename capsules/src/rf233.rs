@@ -23,7 +23,25 @@ use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use rf233_const::*;
+use rf233_const::{ExternalState, InteruptFlags, RF233BusCommand, RF233Register, RF233TrxCmd};
+// n.b. This is a fairly "C"-like interface presently. Ideally it should move
+// over to the Tock register interface eventually, but this code does work as
+// written. Do not follow this as an example when implementing new code.
+use rf233_const::CSMA_SEED_1;
+use rf233_const::SHORT_ADDR_0;
+use rf233_const::SHORT_ADDR_1;
+use rf233_const::TRX_CTRL_1;
+use rf233_const::TRX_CTRL_2;
+use rf233_const::XAH_CTRL_0;
+use rf233_const::XAH_CTRL_1;
+use rf233_const::IRQ_MASK;
+use rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
+use rf233_const::PHY_CHANNEL;
+use rf233_const::PHY_RSSI_RX_CRC_VALID;
+use rf233_const::PHY_TX_PWR;
+use rf233_const::TRX_RPC;
+use rf233_const::TRX_TRAC_CHANNEL_ACCESS_FAILURE;
+use rf233_const::TRX_TRAC_MASK;
 
 const INTERRUPT_ID: usize = 0x2154;
 
@@ -263,8 +281,9 @@ fn power_to_setting(power: i8) -> u8 {
     }
 }
 
-fn interrupt_included(mask: u8, interrupt: u8) -> bool {
-    (mask & interrupt) == interrupt
+fn interrupt_included(mask: u8, interrupt: InteruptFlags) -> bool {
+    let int = interrupt as u8;
+    (mask & int) == int
 }
 
 impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
@@ -329,15 +348,15 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             // If we're going to sleep, ignore the interrupt and continue
             if state != InternalState::SLEEP_TRX_OFF && state != InternalState::SLEEP {
                 if state == InternalState::ON_PLL_WAITING {
-                    if interrupt_included(interrupt, IRQ_0_PLL_LOCK) {
+                    if interrupt_included(interrupt, InteruptFlags::IRQ_0_PLL_LOCK) {
                         self.state.set(InternalState::ON_PLL_SET);
                     }
                 } else if state == InternalState::TX_TRANSMITTING
-                    && interrupt_included(interrupt, IRQ_3_TRX_END)
+                    && interrupt_included(interrupt, InteruptFlags::IRQ_3_TRX_END)
                 {
                     self.state.set(InternalState::TX_DONE);
                 }
-                if interrupt_included(interrupt, IRQ_2_RX_START) {
+                if interrupt_included(interrupt, InteruptFlags::IRQ_2_RX_START) {
                     // Start of frame
                     self.receiving.set(true);
                     self.state.set(InternalState::RX);
@@ -349,7 +368,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 //   1. we have a receive buffer: copy it out
                 //   2. no receive buffer, but transmission pending: send
                 //   3. no receive buffer, no transmission: return to waiting
-                if (interrupt_included(interrupt, IRQ_3_TRX_END) && self.receiving.get()) {
+                if (interrupt_included(interrupt, InteruptFlags::IRQ_3_TRX_END)
+                    && self.receiving.get())
+                {
                     self.receiving.set(false);
                     if self.rx_buf.is_some() {
                         self.state.set(InternalState::RX_START_READING);

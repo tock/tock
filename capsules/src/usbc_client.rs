@@ -6,8 +6,19 @@ use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::VolatileCell;
 use kernel::hil;
-use kernel::hil::usb::*;
-use usb::*;
+use usb::ConfigurationDescriptor;
+use usb::Descriptor;
+use usb::DescriptorType;
+use usb::DeviceDescriptor;
+use usb::EndpointAddress;
+use usb::EndpointDescriptor;
+use usb::InterfaceDescriptor;
+use usb::LanguagesDescriptor;
+use usb::SetupData;
+use usb::StandardDeviceRequest;
+use usb::StringDescriptor;
+use usb::TransferDirection;
+use usb::TransferType;
 
 const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;
@@ -71,7 +82,7 @@ impl Default for State {
     }
 }
 
-impl<C: UsbController> Client<'a, C> {
+impl<C: hil::usb::UsbController> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
         Client {
             controller: controller,
@@ -108,11 +119,12 @@ impl<C: UsbController> Client<'a, C> {
     }
 }
 
-impl<C: UsbController> hil::usb::Client for Client<'a, C> {
+impl<C: hil::usb::UsbController> hil::usb::Client for Client<'a, C> {
     fn enable(&self) {
         // Set up the default control endpoint
         self.controller.endpoint_set_buffer(0, &self.buffers[0]);
-        self.controller.enable_as_device(DeviceSpeed::Full); // must be Full for Bulk transfers
+        self.controller
+            .enable_as_device(hil::usb::DeviceSpeed::Full); // must be Full for Bulk transfers
         self.controller.endpoint_ctrl_out_enable(0);
 
         // Set up a bulk-in endpoint for debugging
@@ -141,64 +153,66 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
     }
 
     /// Handle a Control Setup transaction
-    fn ctrl_setup(&self, endpoint: usize) -> CtrlSetupResult {
+    fn ctrl_setup(&self, endpoint: usize) -> hil::usb::CtrlSetupResult {
         if endpoint != 0 {
             // For now we only support the default Control endpoint
-            return CtrlSetupResult::ErrInvalidDeviceIndex;
+            return hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex;
         }
-        SetupData::get(&self.buffers[endpoint]).map_or(CtrlSetupResult::ErrNoParse, |setup_data| {
-            setup_data.get_standard_request().map_or_else(
-                || {
-                    // XX: CtrlSetupResult::ErrNonstandardRequest
+        SetupData::get(&self.buffers[endpoint]).map_or(
+            hil::usb::CtrlSetupResult::ErrNoParse,
+            |setup_data| {
+                setup_data.get_standard_request().map_or_else(
+                    || {
+                        // XX: CtrlSetupResult::ErrNonstandardRequest
 
-                    // For now, promiscuously accept vendor data and even supply
-                    // a few debugging bytes when host does a read
+                        // For now, promiscuously accept vendor data and even supply
+                        // a few debugging bytes when host does a read
 
-                    match setup_data.request_type.transfer_direction() {
-                        TransferDirection::HostToDevice => {
-                            self.state[endpoint].set(State::CtrlOut);
-                            CtrlSetupResult::Ok
+                        match setup_data.request_type.transfer_direction() {
+                            TransferDirection::HostToDevice => {
+                                self.state[endpoint].set(State::CtrlOut);
+                                hil::usb::CtrlSetupResult::Ok
+                            }
+                            TransferDirection::DeviceToHost => {
+                                // Arrange to send some crap back
+                                let buf = self.descriptor_buf();
+                                buf[0].set(0xa);
+                                buf[1].set(0xb);
+                                buf[2].set(0xc);
+                                self.state[endpoint].set(State::CtrlIn(0, 3));
+                                hil::usb::CtrlSetupResult::Ok
+                            }
                         }
-                        TransferDirection::DeviceToHost => {
-                            // Arrange to send some crap back
-                            let buf = self.descriptor_buf();
-                            buf[0].set(0xa);
-                            buf[1].set(0xb);
-                            buf[2].set(0xc);
-                            self.state[endpoint].set(State::CtrlIn(0, 3));
-                            CtrlSetupResult::Ok
-                        }
-                    }
-                },
-                |request| {
-                    match request {
-                        StandardDeviceRequest::GetDescriptor {
-                            descriptor_type,
-                            descriptor_index,
-                            lang_id,
-                            requested_length,
-                        } => {
-                            match descriptor_type {
-                                DescriptorType::Device => match descriptor_index {
-                                    0 => {
-                                        let buf = self.descriptor_buf();
-                                        let d = DeviceDescriptor {
-                                            vendor_id: VENDOR_ID,
-                                            product_id: PRODUCT_ID,
-                                            manufacturer_string: 1,
-                                            product_string: 2,
-                                            serial_number_string: 3,
-                                            ..Default::default()
-                                        };
-                                        let len = d.write_to(buf);
-                                        let end = min(len, requested_length as usize);
-                                        self.state[endpoint].set(State::CtrlIn(0, end));
-                                        CtrlSetupResult::Ok
-                                    }
-                                    _ => CtrlSetupResult::ErrInvalidDeviceIndex,
-                                },
-                                DescriptorType::Configuration => {
-                                    match descriptor_index {
+                    },
+                    |request| {
+                        match request {
+                            StandardDeviceRequest::GetDescriptor {
+                                descriptor_type,
+                                descriptor_index,
+                                lang_id,
+                                requested_length,
+                            } => {
+                                match descriptor_type {
+                                    DescriptorType::Device => match descriptor_index {
+                                        0 => {
+                                            let buf = self.descriptor_buf();
+                                            let d = DeviceDescriptor {
+                                                vendor_id: VENDOR_ID,
+                                                product_id: PRODUCT_ID,
+                                                manufacturer_string: 1,
+                                                product_string: 2,
+                                                serial_number_string: 3,
+                                                ..Default::default()
+                                            };
+                                            let len = d.write_to(buf);
+                                            let end = min(len, requested_length as usize);
+                                            self.state[endpoint].set(State::CtrlIn(0, end));
+                                            hil::usb::CtrlSetupResult::Ok
+                                        }
+                                        _ => hil::usb::CtrlSetupResult::ErrInvalidDeviceIndex,
+                                    },
+                                    DescriptorType::Configuration => {
+                                        match descriptor_index {
                                         0 => {
                                             // Place all the descriptors
                                             // related to this configuration
@@ -266,70 +280,71 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
                                             );
                                             self.state[endpoint]
                                                 .set(State::CtrlIn(request_start, request_end));
-                                            CtrlSetupResult::Ok
+                                            hil::usb::CtrlSetupResult::Ok
                                         }
-                                        _ => CtrlSetupResult::ErrInvalidConfigurationIndex,
+                                        _ => hil::usb::CtrlSetupResult::ErrInvalidConfigurationIndex,
                                     }
-                                }
-                                DescriptorType::String => {
-                                    if let Some(buf) = match descriptor_index {
-                                        0 => {
-                                            let buf = self.descriptor_buf();
-                                            let d = LanguagesDescriptor { langs: LANGUAGES };
-                                            let len = d.write_to(buf);
-                                            let end = min(len, requested_length as usize);
-                                            Some(&buf[..end])
-                                        }
-                                        i if i > 0
-                                            && (i as usize) <= STRINGS.len()
-                                            && lang_id == LANGUAGES[0] =>
-                                        {
-                                            let buf = self.descriptor_buf();
-                                            let d = StringDescriptor {
-                                                string: STRINGS[i as usize - 1],
-                                            };
-                                            let len = d.write_to(buf);
-                                            let end = min(len, requested_length as usize);
-                                            Some(&buf[..end])
-                                        }
-                                        _ => None,
-                                    } {
-                                        self.state[endpoint].set(State::CtrlIn(0, buf.len()));
-                                        CtrlSetupResult::Ok
-                                    } else {
-                                        CtrlSetupResult::ErrInvalidStringIndex
                                     }
-                                }
-                                DescriptorType::DeviceQualifier => {
-                                    // We are full-speed only, so we must
-                                    // respond with a request error
-                                    CtrlSetupResult::ErrNoDeviceQualifier
-                                }
-                                _ => CtrlSetupResult::ErrUnrecognizedDescriptorType,
-                            } // match descriptor_type
-                        }
-                        StandardDeviceRequest::SetAddress { device_address } => {
-                            // Load the address we've been assigned ...
-                            self.controller.set_address(device_address);
+                                    DescriptorType::String => {
+                                        if let Some(buf) = match descriptor_index {
+                                            0 => {
+                                                let buf = self.descriptor_buf();
+                                                let d = LanguagesDescriptor { langs: LANGUAGES };
+                                                let len = d.write_to(buf);
+                                                let end = min(len, requested_length as usize);
+                                                Some(&buf[..end])
+                                            }
+                                            i if i > 0
+                                                && (i as usize) <= STRINGS.len()
+                                                && lang_id == LANGUAGES[0] =>
+                                            {
+                                                let buf = self.descriptor_buf();
+                                                let d = StringDescriptor {
+                                                    string: STRINGS[i as usize - 1],
+                                                };
+                                                let len = d.write_to(buf);
+                                                let end = min(len, requested_length as usize);
+                                                Some(&buf[..end])
+                                            }
+                                            _ => None,
+                                        } {
+                                            self.state[endpoint].set(State::CtrlIn(0, buf.len()));
+                                            hil::usb::CtrlSetupResult::Ok
+                                        } else {
+                                            hil::usb::CtrlSetupResult::ErrInvalidStringIndex
+                                        }
+                                    }
+                                    DescriptorType::DeviceQualifier => {
+                                        // We are full-speed only, so we must
+                                        // respond with a request error
+                                        hil::usb::CtrlSetupResult::ErrNoDeviceQualifier
+                                    }
+                                    _ => hil::usb::CtrlSetupResult::ErrUnrecognizedDescriptorType,
+                                } // match descriptor_type
+                            }
+                            StandardDeviceRequest::SetAddress { device_address } => {
+                                // Load the address we've been assigned ...
+                                self.controller.set_address(device_address);
 
-                            // ... and when this request gets to the Status stage
-                            // we will actually enable the address.
-                            self.state[endpoint].set(State::SetAddress);
-                            CtrlSetupResult::Ok
+                                // ... and when this request gets to the Status stage
+                                // we will actually enable the address.
+                                self.state[endpoint].set(State::SetAddress);
+                                hil::usb::CtrlSetupResult::Ok
+                            }
+                            StandardDeviceRequest::SetConfiguration { .. } => {
+                                // We have been assigned a particular configuration: fine!
+                                hil::usb::CtrlSetupResult::Ok
+                            }
+                            _ => hil::usb::CtrlSetupResult::ErrUnrecognizedRequestType,
                         }
-                        StandardDeviceRequest::SetConfiguration { .. } => {
-                            // We have been assigned a particular configuration: fine!
-                            CtrlSetupResult::Ok
-                        }
-                        _ => CtrlSetupResult::ErrUnrecognizedRequestType,
-                    }
-                },
-            )
-        })
+                    },
+                )
+            },
+        )
     }
 
     /// Handle a Control In transaction
-    fn ctrl_in(&self, endpoint: usize) -> CtrlInResult {
+    fn ctrl_in(&self, endpoint: usize) -> hil::usb::CtrlInResult {
         match self.state[endpoint].get() {
             State::CtrlIn(start, end) => {
                 let len = end.saturating_sub(start);
@@ -349,25 +364,25 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
 
                     self.state[endpoint].set(State::CtrlIn(start, end));
 
-                    CtrlInResult::Packet(packet_bytes, transfer_complete)
+                    hil::usb::CtrlInResult::Packet(packet_bytes, transfer_complete)
                 } else {
-                    CtrlInResult::Packet(0, true)
+                    hil::usb::CtrlInResult::Packet(0, true)
                 }
             }
-            _ => CtrlInResult::Error,
+            _ => hil::usb::CtrlInResult::Error,
         }
     }
 
     /// Handle a Control Out transaction
-    fn ctrl_out(&self, endpoint: usize, _packet_bytes: u32) -> CtrlOutResult {
+    fn ctrl_out(&self, endpoint: usize, _packet_bytes: u32) -> hil::usb::CtrlOutResult {
         match self.state[endpoint].get() {
             State::CtrlOut => {
                 // Gamely accept the data
-                CtrlOutResult::Ok
+                hil::usb::CtrlOutResult::Ok
             }
             _ => {
                 // Bad state
-                CtrlOutResult::Halted
+                hil::usb::CtrlOutResult::Halted
             }
         }
     }
@@ -391,7 +406,7 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
     }
 
     /// Handle a Bulk IN transaction
-    fn bulk_in(&self, endpoint: usize) -> BulkInResult {
+    fn bulk_in(&self, endpoint: usize) -> hil::usb::BulkInResult {
         // Write a packet into the endpoint buffer
 
         let packet_bytes = self.echo_len.get();
@@ -406,16 +421,16 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
             // We can receive more now
             self.alert_empty();
 
-            BulkInResult::Packet(packet_bytes)
+            hil::usb::BulkInResult::Packet(packet_bytes)
         } else {
             // Nothing to send
             self.delayed_in.set(true);
-            BulkInResult::Delay
+            hil::usb::BulkInResult::Delay
         }
     }
 
     /// Handle a Bulk OUT transaction
-    fn bulk_out(&self, endpoint: usize, packet_bytes: u32) -> BulkOutResult {
+    fn bulk_out(&self, endpoint: usize, packet_bytes: u32) -> hil::usb::BulkOutResult {
         // Consume a packet from the endpoint buffer
 
         let new_len = packet_bytes as usize;
@@ -426,7 +441,7 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
             // The packet won't fit in our little buffer.  We'll have
             // to wait until it is drained
             self.delayed_out.set(true);
-            BulkOutResult::Delay
+            hil::usb::BulkOutResult::Delay
         } else if new_len > 0 {
             // Copy the packet into our echo buffer
             let packet = &self.buffers[endpoint];
@@ -438,10 +453,10 @@ impl<C: UsbController> hil::usb::Client for Client<'a, C> {
             // We can start sending again
             self.alert_full();
 
-            BulkOutResult::Ok
+            hil::usb::BulkOutResult::Ok
         } else {
             debug!("Ignoring zero-length OUT packet");
-            BulkOutResult::Ok
+            hil::usb::BulkOutResult::Ok
         }
     }
 }

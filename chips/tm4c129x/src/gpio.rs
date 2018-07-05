@@ -1,6 +1,5 @@
 //! Implementation of the GPIO controller.
 
-use self::Pin::*;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -184,14 +183,14 @@ impl Port {
 pub static mut PA: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 0 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PA0),
-        GPIOPin::new(PA1),
-        GPIOPin::new(PA2),
-        GPIOPin::new(PA3),
-        GPIOPin::new(PA4),
-        GPIOPin::new(PA5),
-        GPIOPin::new(PA6),
-        GPIOPin::new(PA7),
+        GPIOPin::new(Pin::PA0),
+        GPIOPin::new(Pin::PA1),
+        GPIOPin::new(Pin::PA2),
+        GPIOPin::new(Pin::PA3),
+        GPIOPin::new(Pin::PA4),
+        GPIOPin::new(Pin::PA5),
+        GPIOPin::new(Pin::PA6),
+        GPIOPin::new(Pin::PA7),
     ],
 };
 
@@ -199,14 +198,14 @@ pub static mut PA: Port = Port {
 pub static mut PB: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 1 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PB0),
-        GPIOPin::new(PB1),
-        GPIOPin::new(PB2),
-        GPIOPin::new(PB3),
-        GPIOPin::new(PB4),
-        GPIOPin::new(PB5),
-        GPIOPin::new(PB6),
-        GPIOPin::new(PB7),
+        GPIOPin::new(Pin::PB0),
+        GPIOPin::new(Pin::PB1),
+        GPIOPin::new(Pin::PB2),
+        GPIOPin::new(Pin::PB3),
+        GPIOPin::new(Pin::PB4),
+        GPIOPin::new(Pin::PB5),
+        GPIOPin::new(Pin::PB6),
+        GPIOPin::new(Pin::PB7),
     ],
 };
 
@@ -214,14 +213,14 @@ pub static mut PB: Port = Port {
 pub static mut PC: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 2 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PC0),
-        GPIOPin::new(PC1),
-        GPIOPin::new(PC2),
-        GPIOPin::new(PC3),
-        GPIOPin::new(PC4),
-        GPIOPin::new(PC5),
-        GPIOPin::new(PC6),
-        GPIOPin::new(PC7),
+        GPIOPin::new(Pin::PC0),
+        GPIOPin::new(Pin::PC1),
+        GPIOPin::new(Pin::PC2),
+        GPIOPin::new(Pin::PC3),
+        GPIOPin::new(Pin::PC4),
+        GPIOPin::new(Pin::PC5),
+        GPIOPin::new(Pin::PC6),
+        GPIOPin::new(Pin::PC7),
     ],
 };
 
@@ -229,14 +228,14 @@ pub static mut PC: Port = Port {
 pub static mut PD: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 3 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PD0),
-        GPIOPin::new(PD1),
-        GPIOPin::new(PD2),
-        GPIOPin::new(PD3),
-        GPIOPin::new(PD4),
-        GPIOPin::new(PD5),
-        GPIOPin::new(PD6),
-        GPIOPin::new(PD7),
+        GPIOPin::new(Pin::PD0),
+        GPIOPin::new(Pin::PD1),
+        GPIOPin::new(Pin::PD2),
+        GPIOPin::new(Pin::PD3),
+        GPIOPin::new(Pin::PD4),
+        GPIOPin::new(Pin::PD5),
+        GPIOPin::new(Pin::PD6),
+        GPIOPin::new(Pin::PD7),
     ],
 };
 
@@ -244,14 +243,14 @@ pub static mut PD: Port = Port {
 pub static mut PE: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 4 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PE0),
-        GPIOPin::new(PE1),
-        GPIOPin::new(PE2),
-        GPIOPin::new(PE3),
-        GPIOPin::new(PE4),
-        GPIOPin::new(PE5),
-        GPIOPin::new(PE6),
-        GPIOPin::new(PE7),
+        GPIOPin::new(Pin::PE0),
+        GPIOPin::new(Pin::PE1),
+        GPIOPin::new(Pin::PE2),
+        GPIOPin::new(Pin::PE3),
+        GPIOPin::new(Pin::PE4),
+        GPIOPin::new(Pin::PE5),
+        GPIOPin::new(Pin::PE6),
+        GPIOPin::new(Pin::PE7),
     ],
 };
 
@@ -259,14 +258,14 @@ pub static mut PE: Port = Port {
 pub static mut PF: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 5 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PF0),
-        GPIOPin::new(PF1),
-        GPIOPin::new(PF2),
-        GPIOPin::new(PF3),
-        GPIOPin::new(PF4),
-        GPIOPin::new(PF5),
-        GPIOPin::new(PF6),
-        GPIOPin::new(PF7),
+        GPIOPin::new(Pin::PF0),
+        GPIOPin::new(Pin::PF1),
+        GPIOPin::new(Pin::PF2),
+        GPIOPin::new(Pin::PF3),
+        GPIOPin::new(Pin::PF4),
+        GPIOPin::new(Pin::PF5),
+        GPIOPin::new(Pin::PF6),
+        GPIOPin::new(Pin::PF7),
     ],
 };
 
@@ -274,14 +273,14 @@ pub static mut PF: Port = Port {
 pub static mut PG: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 6 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PG0),
-        GPIOPin::new(PG1),
-        GPIOPin::new(PG2),
-        GPIOPin::new(PG3),
-        GPIOPin::new(PG4),
-        GPIOPin::new(PG5),
-        GPIOPin::new(PG6),
-        GPIOPin::new(PG7),
+        GPIOPin::new(Pin::PG0),
+        GPIOPin::new(Pin::PG1),
+        GPIOPin::new(Pin::PG2),
+        GPIOPin::new(Pin::PG3),
+        GPIOPin::new(Pin::PG4),
+        GPIOPin::new(Pin::PG5),
+        GPIOPin::new(Pin::PG6),
+        GPIOPin::new(Pin::PG7),
     ],
 };
 
@@ -289,14 +288,14 @@ pub static mut PG: Port = Port {
 pub static mut PH: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 7 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PH0),
-        GPIOPin::new(PH1),
-        GPIOPin::new(PH2),
-        GPIOPin::new(PH3),
-        GPIOPin::new(PH4),
-        GPIOPin::new(PH5),
-        GPIOPin::new(PH6),
-        GPIOPin::new(PH7),
+        GPIOPin::new(Pin::PH0),
+        GPIOPin::new(Pin::PH1),
+        GPIOPin::new(Pin::PH2),
+        GPIOPin::new(Pin::PH3),
+        GPIOPin::new(Pin::PH4),
+        GPIOPin::new(Pin::PH5),
+        GPIOPin::new(Pin::PH6),
+        GPIOPin::new(Pin::PH7),
     ],
 };
 
@@ -304,14 +303,14 @@ pub static mut PH: Port = Port {
 pub static mut PJ: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 8 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PJ0),
-        GPIOPin::new(PJ1),
-        GPIOPin::new(PJ2),
-        GPIOPin::new(PJ3),
-        GPIOPin::new(PJ4),
-        GPIOPin::new(PJ5),
-        GPIOPin::new(PJ6),
-        GPIOPin::new(PJ7),
+        GPIOPin::new(Pin::PJ0),
+        GPIOPin::new(Pin::PJ1),
+        GPIOPin::new(Pin::PJ2),
+        GPIOPin::new(Pin::PJ3),
+        GPIOPin::new(Pin::PJ4),
+        GPIOPin::new(Pin::PJ5),
+        GPIOPin::new(Pin::PJ6),
+        GPIOPin::new(Pin::PJ7),
     ],
 };
 
@@ -319,42 +318,42 @@ pub static mut PJ: Port = Port {
 pub static mut PK: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 9 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PK0),
-        GPIOPin::new(PK1),
-        GPIOPin::new(PK2),
-        GPIOPin::new(PK3),
-        GPIOPin::new(PK4),
-        GPIOPin::new(PK5),
-        GPIOPin::new(PK6),
-        GPIOPin::new(PK7),
+        GPIOPin::new(Pin::PK0),
+        GPIOPin::new(Pin::PK1),
+        GPIOPin::new(Pin::PK2),
+        GPIOPin::new(Pin::PK3),
+        GPIOPin::new(Pin::PK4),
+        GPIOPin::new(Pin::PK5),
+        GPIOPin::new(Pin::PK6),
+        GPIOPin::new(Pin::PK7),
     ],
 };
 //// Port L
 pub static mut PL: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 10 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PL0),
-        GPIOPin::new(PL1),
-        GPIOPin::new(PL2),
-        GPIOPin::new(PL3),
-        GPIOPin::new(PL4),
-        GPIOPin::new(PL5),
-        GPIOPin::new(PL6),
-        GPIOPin::new(PL7),
+        GPIOPin::new(Pin::PL0),
+        GPIOPin::new(Pin::PL1),
+        GPIOPin::new(Pin::PL2),
+        GPIOPin::new(Pin::PL3),
+        GPIOPin::new(Pin::PL4),
+        GPIOPin::new(Pin::PL5),
+        GPIOPin::new(Pin::PL6),
+        GPIOPin::new(Pin::PL7),
     ],
 };
 //// Port M
 pub static mut PM: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 11 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PM0),
-        GPIOPin::new(PM1),
-        GPIOPin::new(PM2),
-        GPIOPin::new(PM3),
-        GPIOPin::new(PM4),
-        GPIOPin::new(PM5),
-        GPIOPin::new(PM6),
-        GPIOPin::new(PM7),
+        GPIOPin::new(Pin::PM0),
+        GPIOPin::new(Pin::PM1),
+        GPIOPin::new(Pin::PM2),
+        GPIOPin::new(Pin::PM3),
+        GPIOPin::new(Pin::PM4),
+        GPIOPin::new(Pin::PM5),
+        GPIOPin::new(Pin::PM6),
+        GPIOPin::new(Pin::PM7),
     ],
 };
 
@@ -362,14 +361,14 @@ pub static mut PM: Port = Port {
 pub static mut PN: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 12 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PN0),
-        GPIOPin::new(PN1),
-        GPIOPin::new(PN2),
-        GPIOPin::new(PN3),
-        GPIOPin::new(PN4),
-        GPIOPin::new(PN5),
-        GPIOPin::new(PN6),
-        GPIOPin::new(PN7),
+        GPIOPin::new(Pin::PN0),
+        GPIOPin::new(Pin::PN1),
+        GPIOPin::new(Pin::PN2),
+        GPIOPin::new(Pin::PN3),
+        GPIOPin::new(Pin::PN4),
+        GPIOPin::new(Pin::PN5),
+        GPIOPin::new(Pin::PN6),
+        GPIOPin::new(Pin::PN7),
     ],
 };
 
@@ -377,14 +376,14 @@ pub static mut PN: Port = Port {
 pub static mut PP: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 13 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PP0),
-        GPIOPin::new(PP1),
-        GPIOPin::new(PP2),
-        GPIOPin::new(PP3),
-        GPIOPin::new(PP4),
-        GPIOPin::new(PP5),
-        GPIOPin::new(PP6),
-        GPIOPin::new(PP7),
+        GPIOPin::new(Pin::PP0),
+        GPIOPin::new(Pin::PP1),
+        GPIOPin::new(Pin::PP2),
+        GPIOPin::new(Pin::PP3),
+        GPIOPin::new(Pin::PP4),
+        GPIOPin::new(Pin::PP5),
+        GPIOPin::new(Pin::PP6),
+        GPIOPin::new(Pin::PP7),
     ],
 };
 
@@ -392,14 +391,14 @@ pub static mut PP: Port = Port {
 pub static mut PQ: Port = Port {
     registers: unsafe { StaticRef::new((BASE_ADDRESS + 14 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PQ0),
-        GPIOPin::new(PQ1),
-        GPIOPin::new(PQ2),
-        GPIOPin::new(PQ3),
-        GPIOPin::new(PQ4),
-        GPIOPin::new(PQ5),
-        GPIOPin::new(PQ6),
-        GPIOPin::new(PQ7),
+        GPIOPin::new(Pin::PQ0),
+        GPIOPin::new(Pin::PQ1),
+        GPIOPin::new(Pin::PQ2),
+        GPIOPin::new(Pin::PQ3),
+        GPIOPin::new(Pin::PQ4),
+        GPIOPin::new(Pin::PQ5),
+        GPIOPin::new(Pin::PQ6),
+        GPIOPin::new(Pin::PQ7),
     ],
 };
 

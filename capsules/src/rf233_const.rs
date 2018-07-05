@@ -112,14 +112,17 @@ pub const SHORT_ADDR_0: u8 = 0x11;
 pub const SHORT_ADDR_1: u8 = 0x22;
 
 // Interrupt flags.
-pub const IRQ_7_BAT_LOW: u8 = 0x80;
-pub const IRQ_6_TRX_UR: u8 = 0x40;
-pub const IRQ_5_AMI: u8 = 0x20;
-pub const IRQ_4_CCA_ED_DONE: u8 = 0x10;
-pub const IRQ_3_TRX_END: u8 = 0x08;
-pub const IRQ_2_RX_START: u8 = 0x04;
-pub const IRQ_1_PLL_UNLOCK: u8 = 0x02;
-pub const IRQ_0_PLL_LOCK: u8 = 0x01;
+#[repr(u8)]
+pub enum InteruptFlags {
+    IRQ_7_BAT_LOW = 0x80,
+    IRQ_6_TRX_UR = 0x40,
+    IRQ_5_AMI = 0x20,
+    IRQ_4_CCA_ED_DONE = 0x10,
+    IRQ_3_TRX_END = 0x08,
+    IRQ_2_RX_START = 0x04,
+    IRQ_1_PLL_UNLOCK = 0x02,
+    IRQ_0_PLL_LOCK = 0x01,
+}
 
 // The commands issued over SPI (first 2-3 bits).
 #[derive(PartialEq, Copy, Clone, Debug)]

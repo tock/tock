@@ -369,18 +369,17 @@ impl HeaderIE<'a> {
 
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         // Append the content field of the IE first
-        use self::HeaderIE::*;
         let mut off = 2;
         let element_id: u8 = match *self {
-            Undissected {
+            HeaderIE::Undissected {
                 element_id,
                 content,
             } => {
                 off = enc_consume!(buf, off; encode_bytes, content);
                 element_id
             }
-            Termination1 => 0x7e,
-            Termination2 => 0x7f,
+            HeaderIE::Termination1 => 0x7e,
+            HeaderIE::Termination2 => 0x7f,
         };
 
         // Write the two octets that begin each header IE
@@ -405,11 +404,10 @@ impl HeaderIE<'a> {
         stream_len_cond!(buf, off + content_len);
         let content = &buf[off..off + content_len];
 
-        use self::HeaderIE::*;
         let ie = match element_id {
-            0x7e => Termination1,
-            0x7f => Termination2,
-            element_id => Undissected {
+            0x7e => HeaderIE::Termination1,
+            0x7f => HeaderIE::Termination2,
+            element_id => HeaderIE::Undissected {
                 element_id: element_id,
                 content: content,
             },
@@ -441,14 +439,13 @@ impl PayloadIE<'a> {
 
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         // Append the content field of the IE first
-        use self::PayloadIE::*;
         let mut off = 2;
         let group_id: u8 = match *self {
-            Undissected { group_id, content } => {
+            PayloadIE::Undissected { group_id, content } => {
                 off = enc_consume!(buf, off; encode_bytes, content);
                 group_id
             }
-            Termination => 0xf,
+            PayloadIE::Termination => 0xf,
         };
 
         // Write the two octets that begin each payload IE
@@ -474,10 +471,9 @@ impl PayloadIE<'a> {
         stream_len_cond!(buf, off + content_len);
         let content = &buf[off..off + content_len];
 
-        use self::PayloadIE::*;
         let ie = match element_id {
-            0xf => Termination,
-            group_id => Undissected {
+            0xf => PayloadIE::Termination,
+            group_id => PayloadIE::Undissected {
                 group_id: group_id,
                 content: content,
             },

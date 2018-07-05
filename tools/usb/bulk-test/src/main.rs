@@ -28,7 +28,7 @@
 
 extern crate libusb;
 
-use libusb::*;
+use libusb::Context;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -92,7 +92,7 @@ fn main() {
         {
             let endpoint = 1;
             let address = endpoint | 1 << 7; // IN endpoint
-            let mut buf = &mut [0; 8];
+            let buf = &mut [0; 8];
             let timeout = Duration::from_secs(3);
 
             let n = dh.read_bulk(address, buf, timeout).expect("read_bulk");

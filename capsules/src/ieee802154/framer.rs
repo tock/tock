@@ -76,7 +76,9 @@ use kernel::common::cells::MapCell;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use kernel::ReturnCode;
-use net::ieee802154::*;
+use net::ieee802154::{
+    FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
+};
 use net::stream::SResult;
 use net::stream::{encode_bytes, encode_u32, encode_u8};
 

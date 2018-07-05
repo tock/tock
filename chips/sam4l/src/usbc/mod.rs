@@ -11,7 +11,6 @@ use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::regs::{FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::hil::usb::*;
 use pm;
 use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use scif;
@@ -922,11 +921,11 @@ impl Usbc<'a> {
                         let result = if packet_bytes == 8 {
                             self.client.map(|c| c.ctrl_setup(endpoint))
                         } else {
-                            Some(CtrlSetupResult::ErrBadLength)
+                            Some(hil::usb::CtrlSetupResult::ErrBadLength)
                         };
 
                         match result {
-                            Some(CtrlSetupResult::Ok) => {
+                            Some(hil::usb::CtrlSetupResult::Ok) => {
                                 // Unsubscribe from SETUP interrupts
                                 endpoint_disable_interrupts(endpoint, EndpointControl::RXSTPE::SET);
 
@@ -1012,7 +1011,10 @@ impl Usbc<'a> {
                             c.ctrl_in(endpoint)
                         });
                         match result {
-                            Some(CtrlInResult::Packet(packet_bytes, transfer_complete)) => {
+                            Some(hil::usb::CtrlInResult::Packet(
+                                packet_bytes,
+                                transfer_complete,
+                            )) => {
                                 let packet_size = if packet_bytes == 8 && transfer_complete {
                                     // Send a complete final packet, and request
                                     // that the controller also send a zero-length
@@ -1051,7 +1053,7 @@ impl Usbc<'a> {
                                 // ready to send
                                 usbc_regs().uestaclr[endpoint].write(EndpointStatus::TXIN::SET);
                             }
-                            Some(CtrlInResult::Delay) => {
+                            Some(hil::usb::CtrlInResult::Delay) => {
                                 endpoint_disable_interrupts(endpoint, EndpointControl::TXINE::SET);
 
                                 debug1!("*** Client NAK");
@@ -1112,11 +1114,11 @@ impl Usbc<'a> {
                             )
                         });
                         match result {
-                            Some(CtrlOutResult::Ok) => {
+                            Some(hil::usb::CtrlOutResult::Ok) => {
                                 // Acknowledge
                                 usbc_regs().uestaclr[endpoint].write(EndpointStatus::RXOUT::SET);
                             }
-                            Some(CtrlOutResult::Delay) => {
+                            Some(hil::usb::CtrlOutResult::Delay) => {
                                 // Don't acknowledge; hardware will have to send NAK
 
                                 // Unsubscribe from RXOUT until client says it is ready
@@ -1233,7 +1235,7 @@ impl Usbc<'a> {
                         c.bulk_out(endpoint, packet_bytes)
                     });
                     match result {
-                        Some(BulkOutResult::Ok) => {
+                        Some(hil::usb::BulkOutResult::Ok) => {
                             // Acknowledge
                             usbc_regs().uestaclr[endpoint].write(EndpointStatus::RXOUT::SET);
 
@@ -1248,7 +1250,7 @@ impl Usbc<'a> {
 
                             // Remain in Init state
                         }
-                        Some(BulkOutResult::Delay) => {
+                        Some(hil::usb::BulkOutResult::Delay) => {
                             // The client is not ready to consume data; wait for resume
 
                             endpoint_disable_interrupts(endpoint, EndpointControl::RXOUTE::SET);
@@ -1296,7 +1298,7 @@ impl Usbc<'a> {
                         c.bulk_in(endpoint)
                     });
                     match result {
-                        Some(BulkInResult::Packet(packet_bytes)) => {
+                        Some(hil::usb::BulkInResult::Packet(packet_bytes)) => {
                             // Acknowledge
                             usbc_regs().uestaclr[endpoint].write(EndpointStatus::TXIN::SET);
 
@@ -1317,7 +1319,7 @@ impl Usbc<'a> {
 
                             // Remain in Init state
                         }
-                        Some(BulkInResult::Delay) => {
+                        Some(hil::usb::BulkInResult::Delay) => {
                             // The client is not ready to send data; wait for resume
 
                             endpoint_disable_interrupts(endpoint, EndpointControl::TXINE::SET);
@@ -1408,7 +1410,7 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
     usbc_regs().ueconset[endpoint].write(mask);
 }
 
-impl UsbController for Usbc<'a> {
+impl hil::usb::UsbController for Usbc<'a> {
     fn endpoint_set_buffer<'b>(&'b self, endpoint: usize, buf: &[VolatileCell<u8>]) {
         if buf.len() != 8 {
             client_err!("Bad endpoint buffer size");
@@ -1417,10 +1419,10 @@ impl UsbController for Usbc<'a> {
         self._endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
     }
 
-    fn enable_as_device(&self, speed: DeviceSpeed) {
+    fn enable_as_device(&self, speed: hil::usb::DeviceSpeed) {
         let speed = match speed {
-            DeviceSpeed::Full => Speed::Full,
-            DeviceSpeed::Low => Speed::Low,
+            hil::usb::DeviceSpeed::Full => Speed::Full,
+            hil::usb::DeviceSpeed::Low => Speed::Low,
         };
 
         match self.get_state() {
