@@ -5,6 +5,7 @@ use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::ReturnCode;
 use sysctl;
 
 #[repr(C)]
@@ -169,9 +170,24 @@ impl hil::uart::UART for UART {
         self.client.set(Some(client));
     }
 
-    fn init(&self, params: hil::uart::UARTParams) {
+    fn configure(&self, params: hil::uart::UARTParameters) -> ReturnCode {
         self.enable();
-        self.set_baud_rate(params.baud_rate)
+
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
+
+        self.set_baud_rate(params.baud_rate);
+
+        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

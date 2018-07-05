@@ -125,7 +125,7 @@ pub unsafe fn reset_handler() {
     }
 
     // UART
-    cc26xx::uart::UART0.set_pins(3, 2);
+    cc26xx::uart::UART0.initialize_and_set_pins(3, 2);
     let console = static_init!(
         capsules::console::Console<cc26xx::uart::UART>,
         capsules::console::Console::new(

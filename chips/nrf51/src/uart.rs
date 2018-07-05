@@ -4,6 +4,7 @@ use kernel::common::cells::TakeCell;
 use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::uart;
+use kernel::ReturnCode;
 use nrf5x::pinmux::Pinmux;
 
 pub static mut UART0: UART = UART::new();
@@ -178,13 +179,15 @@ impl UART {
     /// * pin  9: TX
     /// * pin 10: CTS
     /// * pin 11: RX
-    pub fn configure(&self, tx: Pinmux, rx: Pinmux, cts: Pinmux, rts: Pinmux) {
+    pub fn initialize(&self, tx: Pinmux, rx: Pinmux, cts: Pinmux, rts: Pinmux) {
         let regs = &*self.registers;
 
         regs.pseltxd.write(Psel::PIN.val(tx.into()));
         regs.pselrxd.write(Psel::PIN.val(rx.into()));
         regs.pselcts.write(Psel::PIN.val(cts.into()));
         regs.pselrts.write(Psel::PIN.val(rts.into()));
+
+        self.enable();
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -291,9 +294,22 @@ impl uart::UART for UART {
         self.client.set(client);
     }
 
-    fn init(&self, params: uart::UARTParams) {
-        self.enable();
+    fn configure(&self, params: uart::UARTParameters) -> ReturnCode {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
+
         self.set_baud_rate(params.baud_rate);
+
+        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

@@ -7,6 +7,7 @@ use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::gpio::Pin;
 use kernel::hil::uart;
+use kernel::ReturnCode;
 use prcm;
 
 const MCU_CLOCK: u32 = 48_000_000;
@@ -82,25 +83,38 @@ impl UART {
         }
     }
 
-    /// Sets pin number for transmit and receive line.
+    /// Initialize the UART hardware.
     ///
-    /// This function needs to be run before the UART module is initialized.
-    /// Initializing the module without setting the pins will make the kernel panic.
-    pub fn set_pins(&self, tx_pin: u8, rx_pin: u8) {
+    /// This function needs to be run before the UART module is used.
+    pub fn initialize_and_set_pins(&self, tx_pin: u8, rx_pin: u8) {
         self.tx_pin.set(Some(tx_pin));
         self.rx_pin.set(Some(rx_pin));
+        self.power_and_clock();
+        self.disable_interrupts();
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParams) {
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
         let tx_pin = match self.tx_pin.get() {
             Some(pin) => pin,
-            None => panic!("Tx pin not configured for UART"),
+            None => return ReturnCode::EOFF,
         };
 
         let rx_pin = match self.rx_pin.get() {
             Some(pin) => pin,
-            None => panic!("Rx pin not configured for UART"),
+            None => return ReturnCode::EOFF,
         };
+
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != kernel::hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != kernel::hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
 
         unsafe {
             // Make sure the TX pin is output/high before assigning it to UART control
@@ -127,6 +141,8 @@ impl UART {
         // Enable UART, RX and TX
         regs.ctl
             .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
+
+        ReturnCode::SUCCESS
     }
 
     fn power_and_clock(&self) {
@@ -198,10 +214,8 @@ impl kernel::hil::uart::UART for UART {
         self.client.set(Some(client));
     }
 
-    fn init(&self, params: kernel::hil::uart::UARTParams) {
-        self.power_and_clock();
-        self.disable_interrupts();
-        self.configure(params);
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        self.configure(params)
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

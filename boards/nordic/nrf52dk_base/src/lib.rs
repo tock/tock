@@ -142,12 +142,12 @@ pub unsafe fn setup_board(
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
 
-    nrf52::uart::UARTE0.configure(
+    nrf52::uart::UARTE0.initialize(
         nrf5x::pinmux::Pinmux::new(6), // tx
         nrf5x::pinmux::Pinmux::new(8), // rx
         nrf5x::pinmux::Pinmux::new(7), // cts
-        nrf5x::pinmux::Pinmux::new(5),
-    ); // rts
+        nrf5x::pinmux::Pinmux::new(5), // rts
+    );
     let console = static_init!(
         capsules::console::Console<nrf52::uart::Uarte>,
         capsules::console::Console::new(
