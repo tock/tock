@@ -13,6 +13,11 @@ developing Tock.
 
 ### Super Quick Setup
 
+Nix:
+```
+$ nix-shell
+```
+
 MacOS:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
