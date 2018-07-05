@@ -1,6 +1,8 @@
 #![crate_name = "tm4c129x"]
 #![crate_type = "rlib"]
 #![feature(asm, const_fn, core_intrinsics, used)]
+#![feature(in_band_lifetimes)]
+#![feature(infer_outlives_requirements)]
 #![no_std]
 
 extern crate cortexm4;

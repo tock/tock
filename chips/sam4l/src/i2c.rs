@@ -546,7 +546,7 @@ pub struct I2CHw {
     slave_mmio_address: Option<StaticRef<TWISRegisters>>,
     master_clock: TWIMClock,
     slave_clock: TWISClock,
-    dma: OptionalCell<&'static DMAChannel>,
+    dma: OptionalCell<&'static DMAChannel<'static>>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
     master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     slave_client: Cell<Option<&'static hil::i2c::I2CHwSlaveClient>>,

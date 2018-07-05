@@ -166,7 +166,7 @@ impl UART {
 }
 
 impl hil::uart::UART for UART {
-    fn set_client(&self, client: &'static hil::uart::Client) {
+    fn set_client(&self, client: &'a hil::uart::Client) {
         self.client.set(Some(client));
     }
 
@@ -190,7 +190,7 @@ impl hil::uart::UART for UART {
         ReturnCode::SUCCESS
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'a mut [u8], tx_len: usize) {
         self.buffer.replace(tx_data);
         self.offset.set(0);
         self.remaining.set(tx_len);
@@ -199,7 +199,7 @@ impl hil::uart::UART for UART {
         self.send_next();
     }
 
-    fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {
+    fn receive(&self, _rx_buffer: &'a mut [u8], _rx_len: usize) {
         unimplemented!()
     }
 

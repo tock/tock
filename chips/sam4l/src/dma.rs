@@ -192,20 +192,20 @@ pub static mut DMA_CHANNELS: [DMAChannel; 16] = [
     DMAChannel::new(DMAChannelNum::DMAChannel15),
 ];
 
-pub struct DMAChannel {
+pub struct DMAChannel<'a> {
     registers: StaticRef<DMARegisters>,
-    client: OptionalCell<&'static DMAClient>,
+    client: OptionalCell<&'a DMAClient>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: TakeCell<'a, [u8]>,
 }
 
 pub trait DMAClient {
     fn transfer_done(&self, pid: DMAPeripheral);
 }
 
-impl DMAChannel {
-    const fn new(channel: DMAChannelNum) -> DMAChannel {
+impl DMAChannel<'a> {
+    const fn new(channel: DMAChannelNum) -> DMAChannel<'a> {
         DMAChannel {
             registers: unsafe {
                 StaticRef::new(
@@ -219,7 +219,7 @@ impl DMAChannel {
         }
     }
 
-    pub fn initialize(&self, client: &'static mut DMAClient, width: DMAWidth) {
+    pub fn initialize(&self, client: &'a mut DMAClient, width: DMAWidth) {
         self.client.set(client);
         self.width.set(width);
     }
@@ -282,7 +282,7 @@ impl DMAChannel {
         registers.cr.write(Control::TEN::SET);
     }
 
-    pub fn prepare_transfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
+    pub fn prepare_transfer(&self, pid: DMAPeripheral, buf: &'a mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
 
         let registers: &DMARegisters = &*self.registers;
@@ -308,14 +308,14 @@ impl DMAChannel {
         self.buffer.replace(buf);
     }
 
-    pub fn do_transfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], len: usize) {
+    pub fn do_transfer(&self, pid: DMAPeripheral, buf: &'a mut [u8], len: usize) {
         self.prepare_transfer(pid, buf, len);
         self.start_transfer();
     }
 
     /// Aborts any current transactions and returns the buffer used in the
     /// transaction.
-    pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
+    pub fn abort_transfer(&'a self) -> Option<&'a mut [u8]> {
         let registers: &DMARegisters = &*self.registers;
         registers
             .idr

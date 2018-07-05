@@ -157,19 +157,19 @@ impl SeggerRttMemory {
 
 pub struct SeggerRtt<'a, A: hil::time::Alarm> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
-    config: TakeCell<'static, SeggerRttMemory>,
-    up_buffer: TakeCell<'static, [u8]>,
-    _down_buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static hil::uart::Client>,
-    client_buffer: TakeCell<'static, [u8]>,
+    config: TakeCell<'a, SeggerRttMemory>,
+    up_buffer: TakeCell<'a, [u8]>,
+    _down_buffer: TakeCell<'a, [u8]>,
+    client: OptionalCell<&'a hil::uart::Client<'a>>,
+    client_buffer: TakeCell<'a, [u8]>,
 }
 
 impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
     pub fn new(
         alarm: &'a A,
-        config: &'static mut SeggerRttMemory,
-        up_buffer: &'static mut [u8],
-        down_buffer: &'static mut [u8],
+        config: &'a mut SeggerRttMemory,
+        up_buffer: &'a mut [u8],
+        down_buffer: &'a mut [u8],
     ) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm: alarm,
@@ -182,8 +182,8 @@ impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
-    fn set_client(&self, client: &'static hil::uart::Client) {
+impl<A: hil::time::Alarm> hil::uart::UART<'a> for SeggerRtt<'a, A> {
+    fn set_client(&self, client: &'a hil::uart::Client<'a>) {
         self.client.set(client);
     }
 
@@ -191,7 +191,7 @@ impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
         ReturnCode::SUCCESS
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'a mut [u8], tx_len: usize) {
         self.up_buffer.map(|buffer| {
             self.config.map(|config| {
                 // Copy the incoming data into the buffer. Once we increment
@@ -219,7 +219,7 @@ impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
         self.alarm.set_alarm(tics);
     }
 
-    fn receive(&self, _rx_buf: &'static mut [u8], _rx_len: usize) {}
+    fn receive(&self, _rx_buf: &'a mut [u8], _rx_len: usize) {}
 
     fn abort_receive(&self) {}
 }

@@ -118,7 +118,7 @@ pub struct Adc {
     timer_counts: Cell<u8>,
 
     // DMA peripheral, buffers, and length
-    rx_dma: OptionalCell<&'static dma::DMAChannel>,
+    rx_dma: OptionalCell<&'static dma::DMAChannel<'static>>,
     rx_dma_peripheral: dma::DMAPeripheral,
     rx_length: Cell<usize>,
     next_dma_buffer: TakeCell<'static, [u16]>,

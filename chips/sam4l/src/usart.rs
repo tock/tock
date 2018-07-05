@@ -283,14 +283,14 @@ const USART_BASE_ADDRS: [StaticRef<UsartRegisters>; 4] = unsafe {
 pub struct USARTRegManager<'a> {
     registers: &'a UsartRegisters,
     clock: pm::Clock,
-    rx_dma: Option<&'static dma::DMAChannel>,
-    tx_dma: Option<&'static dma::DMAChannel>,
+    rx_dma: Option<&'a dma::DMAChannel<'a>>,
+    tx_dma: Option<&'a dma::DMAChannel<'a>>,
 }
 
 static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
 impl USARTRegManager<'a> {
-    fn real_new(usart: &USART) -> USARTRegManager {
+    fn real_new(usart: &'a USART<'a>) -> USARTRegManager<'a> {
         if pm::is_clock_enabled(usart.clock) == false {
             pm::enable_clock(usart.clock);
         }
@@ -303,11 +303,11 @@ impl USARTRegManager<'a> {
         }
     }
 
-    fn new(usart: &USART) -> USARTRegManager {
+    fn new(usart: &'a USART<'a>) -> USARTRegManager<'a> {
         USARTRegManager::real_new(usart)
     }
 
-    pub fn panic_new(usart: &USART) -> USARTRegManager {
+    pub fn panic_new(usart: &'a USART<'a>) -> USARTRegManager<'a> {
         IS_PANICING.store(true, Ordering::Relaxed);
         USARTRegManager::real_new(usart)
     }
@@ -365,11 +365,11 @@ pub enum UsartMode {
 
 #[derive(Copy, Clone)]
 enum UsartClient<'a> {
-    Uart(&'a hil::uart::Client),
+    Uart(&'a hil::uart::Client<'a>),
     SpiMaster(&'a hil::spi::SpiMasterClient),
 }
 
-pub struct USART {
+pub struct USART<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: pm::Clock,
 
@@ -378,14 +378,14 @@ pub struct USART {
     usart_tx_state: Cell<USARTStateTX>,
     usart_rx_state: Cell<USARTStateRX>,
 
-    rx_dma: Cell<Option<&'static dma::DMAChannel>>,
+    rx_dma: Cell<Option<&'a dma::DMAChannel<'a>>>,
     rx_dma_peripheral: dma::DMAPeripheral,
     rx_len: Cell<usize>,
-    tx_dma: Cell<Option<&'static dma::DMAChannel>>,
+    tx_dma: Cell<Option<&'a dma::DMAChannel<'a>>>,
     tx_dma_peripheral: dma::DMAPeripheral,
     tx_len: Cell<usize>,
 
-    client: OptionalCell<UsartClient<'static>>,
+    client: OptionalCell<UsartClient<'a>>,
 
     spi_chip_select: OptionalCell<&'static hil::gpio::Pin>,
 }
@@ -416,13 +416,13 @@ pub static mut USART3: USART = USART::new(
     dma::DMAPeripheral::USART3_TX,
 );
 
-impl USART {
+impl USART<'a> {
     const fn new(
         base_addr: StaticRef<UsartRegisters>,
         clock: pm::PBAClock,
         rx_dma_peripheral: dma::DMAPeripheral,
         tx_dma_peripheral: dma::DMAPeripheral,
-    ) -> USART {
+    ) -> USART<'a> {
         USART {
             registers: base_addr,
             clock: pm::Clock::PBA(clock),
@@ -448,12 +448,12 @@ impl USART {
         }
     }
 
-    pub fn set_dma(&self, rx_dma: &'static dma::DMAChannel, tx_dma: &'static dma::DMAChannel) {
+    pub fn set_dma(&self, rx_dma: &'a dma::DMAChannel<'a>, tx_dma: &'a dma::DMAChannel<'a>) {
         self.rx_dma.set(Some(rx_dma));
         self.tx_dma.set(Some(tx_dma));
     }
 
-    pub fn set_mode(&self, mode: UsartMode) {
+    pub fn set_mode(&'a self, mode: UsartMode) {
         if self.usart_mode.get() != UsartMode::Unused {
             // n.b. This may actually "just work", particularly if we reset the
             // whole peripheral here. But we really should check other
@@ -596,7 +596,7 @@ impl USART {
         self.abort_tx(usart, hil::uart::Error::ResetError);
     }
 
-    pub fn handle_interrupt(&self) {
+    pub fn handle_interrupt(&'a self) {
         let usart = &USARTRegManager::new(&self);
 
         let status = usart.registers.csr.extract();
@@ -741,7 +741,7 @@ impl USART {
     }
 }
 
-impl dma::DMAClient for USART {
+impl dma::DMAClient for USART<'a> {
     fn transfer_done(&self, pid: dma::DMAPeripheral) {
         let usart = &USARTRegManager::new(&self);
 
@@ -819,8 +819,8 @@ impl dma::DMAClient for USART {
 }
 
 /// Implementation of kernel::hil::UART
-impl hil::uart::UART for USART {
-    fn set_client(&self, client: &'static hil::uart::Client) {
+impl hil::uart::UART<'a> for USART<'a> {
+    fn set_client(&self, client: &'a hil::uart::Client<'a>) {
         let c = UsartClient::Uart(client);
         self.client.set(c);
     }
@@ -860,7 +860,7 @@ impl hil::uart::UART for USART {
         ReturnCode::SUCCESS
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, tx_data: &'a mut [u8], tx_len: usize) {
         let usart = &USARTRegManager::new(&self);
 
         // quit current transmission if any
@@ -878,7 +878,7 @@ impl hil::uart::UART for USART {
         });
     }
 
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
+    fn receive(&self, rx_buffer: &'a mut [u8], rx_len: usize) {
         let usart = &USARTRegManager::new(&self);
 
         // quit current reception if any
@@ -910,8 +910,8 @@ impl hil::uart::UART for USART {
     }
 }
 
-impl hil::uart::UARTReceiveAdvanced for USART {
-    fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
+impl hil::uart::UARTReceiveAdvanced<'a> for USART<'a> {
+    fn receive_automatic(&self, rx_buffer: &'a mut [u8], interbyte_timeout: u8) {
         let usart = &USARTRegManager::new(&self);
 
         // quit current reception if any
@@ -936,7 +936,7 @@ impl hil::uart::UARTReceiveAdvanced for USART {
 }
 
 /// SPI
-impl hil::spi::SpiMaster for USART {
+impl hil::spi::SpiMaster for USART<'a> {
     type ChipSelect = Option<&'static hil::gpio::Pin>;
 
     fn init(&self) {
@@ -1129,7 +1129,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {
-        let usart = &USARTRegManager::new(&self);
+        let usart = USARTRegManager::new(self);
         let phase = usart.registers.mr.read(Mode::SYNC);
 
         // Note that in SPI mode SYNC bit is clock phase

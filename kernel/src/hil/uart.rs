@@ -45,10 +45,10 @@ pub enum Error {
     CommandComplete,
 }
 
-pub trait UART {
+pub trait UART<'a> {
     /// Set the client for this UART peripheral. The client will be
     /// called when events finish.
-    fn set_client(&self, client: &'static Client);
+    fn set_client(&'a self, client: &'a Client<'a>);
 
     /// Configure UART
     ///
@@ -59,17 +59,17 @@ pub trait UART {
     ///         hardware USART controller because it is set up for SPI.
     /// - EINVAL: Impossible parameters (e.g. a `baud_rate` of 0)
     /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
-    fn configure(&self, params: UARTParameters) -> ReturnCode;
+    fn configure(&'a self, params: UARTParameters) -> ReturnCode;
 
     /// Transmit data.
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
+    fn transmit(&'a self, tx_data: &'a mut [u8], tx_len: usize);
 
     /// Receive data until buffer is full.
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+    fn receive(&'a self, rx_buffer: &'a mut [u8], rx_len: usize);
 
     /// Abort any ongoing receive transfers and return what is in the
     /// receive buffer with the `receive_complete` callback.
-    fn abort_receive(&self);
+    fn abort_receive(&'a self);
 }
 
 /// Trait that isn't required for basic UART operation, but provides useful
@@ -89,20 +89,20 @@ pub trait UART {
 /// - `receive_len_then_message`: This would do a one byte read to get a length
 ///   byte and then read that many more bytes from UART before returning to the
 ///   client.
-pub trait UARTReceiveAdvanced: UART {
+pub trait UARTReceiveAdvanced<'a>: UART<'a> {
     /// Receive data until `interbyte_timeout` bit periods have passed since the
     /// last byte or buffer is full. Does not timeout until at least one byte
     /// has been received.
     ///
     /// * `interbyte_timeout`: number of bit periods since last data received.
-    fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8);
+    fn receive_automatic(&self, rx_buffer: &'a mut [u8], interbyte_timeout: u8);
 }
 
 /// Implement Client to receive callbacks from UART.
-pub trait Client {
+pub trait Client<'a> {
     /// UART transmit complete.
-    fn transmit_complete(&self, tx_buffer: &'static mut [u8], error: Error);
+    fn transmit_complete(&self, tx_buffer: &'a mut [u8], error: Error);
 
     /// UART receive complete.
-    fn receive_complete(&self, rx_buffer: &'static mut [u8], rx_len: usize, error: Error);
+    fn receive_complete(&self, rx_buffer: &'a mut [u8], rx_len: usize, error: Error);
 }

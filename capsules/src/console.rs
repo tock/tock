@@ -74,22 +74,22 @@ impl Default for App {
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a, U: UART> {
+pub struct Console<'a, U: UART<'a>> {
     uart: &'a U,
     apps: Grant<App>,
     tx_in_progress: Cell<Option<AppId>>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: TakeCell<'a, [u8]>,
     rx_in_progress: Cell<Option<AppId>>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: TakeCell<'a, [u8]>,
     baud_rate: u32,
 }
 
-impl<U: UART> Console<'a, U> {
+impl<U: UART<'a>> Console<'a, U> {
     pub fn new(
         uart: &'a U,
         baud_rate: u32,
-        tx_buffer: &'static mut [u8],
-        rx_buffer: &'static mut [u8],
+        tx_buffer: &'a mut [u8],
+        rx_buffer: &'a mut [u8],
         grant: Grant<App>,
     ) -> Console<'a, U> {
         Console {
@@ -208,7 +208,7 @@ impl<U: UART> Console<'a, U> {
     }
 }
 
-impl<U: UART> Driver for Console<'a, U> {
+impl<U: UART<'a>> Driver for Console<'a, U> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -303,8 +303,8 @@ impl<U: UART> Driver for Console<'a, U> {
     }
 }
 
-impl<U: UART> Client for Console<'a, U> {
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+impl<U: UART<'a>> Client<'a> for Console<'a, U> {
+    fn transmit_complete(&self, buffer: &'a mut [u8], _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -368,7 +368,7 @@ impl<U: UART> Client for Console<'a, U> {
         }
     }
 
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
+    fn receive_complete(&self, buffer: &'a mut [u8], rx_len: usize, error: uart::Error) {
         self.rx_buffer.replace(buffer);
         self.rx_in_progress.get().map(|appid| {
             self.rx_in_progress.set(None);

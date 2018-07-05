@@ -182,8 +182,8 @@ pub enum SpiRole {
 /// Abstraction of the SPI Hardware
 pub struct SpiHw {
     client: OptionalCell<&'static SpiMasterClient>,
-    dma_read: OptionalCell<&'static DMAChannel>,
-    dma_write: OptionalCell<&'static DMAChannel>,
+    dma_read: OptionalCell<&'static DMAChannel<'static>>,
+    dma_write: OptionalCell<&'static DMAChannel<'static>>,
     // keep track of which how many DMA transfers are pending to correctly
     // issue completion event only after both complete.
     transfers_in_progress: Cell<u8>,
