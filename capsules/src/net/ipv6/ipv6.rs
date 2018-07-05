@@ -396,7 +396,7 @@ impl IP6Packet<'a> {
     }
 
     pub fn set_transport_checksum(&mut self) {
-        //Looks at internal buffer assuming
+        // Looks at internal buffer assuming
         // it contains a valid IP packet, checks the payload type. If the payload
         // type requires a cksum calculation, this function calculates the
         // psuedoheader cksum and calls the appropriate transport packet function

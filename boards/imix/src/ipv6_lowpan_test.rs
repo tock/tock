@@ -444,7 +444,7 @@ impl<'a, A: time::Alarm> TxClient for LowpanTest<'a, A> {
             // a race condition on the receiver
             //it is sorta complicated bc I was having some trouble with dead code elimination
             let mut i = 0;
-            while i < 10000000 {
+            while i < 4000000 {
                 ARRAY[i % 100] = (i % 100) as u8;
                 i = i + 1;
                 if i % 1000000 == 0 {
