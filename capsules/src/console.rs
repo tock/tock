@@ -104,7 +104,7 @@ impl<U: UART> Console<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
+        self.uart.configure(uart::UARTParameters {
             baud_rate: self.baud_rate,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,

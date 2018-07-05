@@ -356,8 +356,8 @@ pub enum USARTStateTX {
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
-#[derive(Copy, Clone)]
-enum UsartMode {
+#[derive(Copy, Clone, PartialEq)]
+pub enum UsartMode {
     Uart,
     Spi,
     Unused,
@@ -451,6 +451,27 @@ impl USART {
     pub fn set_dma(&self, rx_dma: &'static dma::DMAChannel, tx_dma: &'static dma::DMAChannel) {
         self.rx_dma.set(Some(rx_dma));
         self.tx_dma.set(Some(tx_dma));
+    }
+
+    pub fn set_mode(&self, mode: UsartMode) {
+        if self.usart_mode.get() != UsartMode::Unused {
+            // n.b. This may actually "just work", particularly if we reset the
+            // whole peripheral here. But we really should check other
+            // conditions, such as whether there's an outstanding transaction
+            // in progress (will a USART reset cancel the DMA? will we get an
+            // unexpected interrupt?), before letting this happen.
+            unimplemented!("Dynamically changing USART mode");
+        }
+
+        self.usart_mode.set(mode);
+
+        let usart = &USARTRegManager::new(&self);
+
+        // disable interrupts
+        self.disable_interrupts(usart);
+
+        // stop any TX and RX and clear status
+        self.reset(usart);
     }
 
     fn enable_rx(&self, usart: &USARTRegManager) {
@@ -804,16 +825,12 @@ impl hil::uart::UART for USART {
         self.client.set(c);
     }
 
-    fn init(&self, params: hil::uart::UARTParams) {
-        self.usart_mode.set(UsartMode::Uart);
+    fn configure(&self, parameters: hil::uart::UARTParameters) -> ReturnCode {
+        if self.usart_mode.get() != UsartMode::Uart {
+            return ReturnCode::EOFF;
+        }
 
         let usart = &USARTRegManager::new(&self);
-
-        // disable interrupts
-        self.disable_interrupts(usart);
-
-        // stop any TX and RX and clear status
-        self.reset(usart);
 
         // set USART mode register
         let mut mode = Mode::OVER::SET; // OVER: oversample at 8x
@@ -821,26 +838,26 @@ impl hil::uart::UART for USART {
         mode += Mode::CHRL::BITS8; // CHRL: 8-bit characters
         mode += Mode::USCLKS::CLK_USART; // USCLKS: select CLK_USART
 
-        mode += match params.stop_bits {
+        mode += match parameters.stop_bits {
             hil::uart::StopBits::One => Mode::NBSTOP::BITS_1_1,
             hil::uart::StopBits::Two => Mode::NBSTOP::BITS_2_2,
         };
 
-        mode += match params.parity {
+        mode += match parameters.parity {
             hil::uart::Parity::None => Mode::PAR::NONE, // no parity
             hil::uart::Parity::Odd => Mode::PAR::ODD,   // odd parity
             hil::uart::Parity::Even => Mode::PAR::EVEN, // even parity
         };
 
-        mode += match params.hw_flow_control {
+        mode += match parameters.hw_flow_control {
             true => Mode::MODE::HARD_HAND,
             false => Mode::MODE::NORMAL,
         };
-
         usart.registers.mr.write(mode);
-
         // Set baud rate
-        self.set_baud_rate(usart, params.baud_rate);
+        self.set_baud_rate(usart, parameters.baud_rate);
+
+        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

@@ -200,6 +200,8 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
+    // Initialize USART0 for Uart
+    sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(
@@ -212,6 +214,8 @@ pub unsafe fn reset_handler() {
     );
     hil::uart::UART::set_client(&sam4l::usart::USART0, console);
 
+    // Initialize USART3 for Uart
+    sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(

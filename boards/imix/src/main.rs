@@ -255,6 +255,8 @@ pub unsafe fn reset_handler() {
 
     // # CONSOLE
 
+    // Initialize USART3 for Uart
+    sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(
@@ -272,6 +274,8 @@ pub unsafe fn reset_handler() {
     let kc = static_init!(capsules::console::App, capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(console), kc);
 
+    // Initialize USART2 for Uart
+    sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(
