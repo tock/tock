@@ -81,30 +81,26 @@ pub trait FM25CLCustom {
     fn read_status(&self) -> ReturnCode;
 }
 
-pub trait FM25CLClient {
+pub trait FM25CLClient<'a> {
     fn status(&self, status: u8);
-    fn read(&self, data: &'static mut [u8], len: usize);
-    fn done(&self, buffer: &'static mut [u8]);
+    fn read(&self, data: &'a mut [u8], len: usize);
+    fn done(&self, buffer: &'a mut [u8]);
 }
 
-pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice> {
+pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice<'a>> {
     spi: &'a S,
     state: Cell<State>,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
-    client: Cell<Option<&'static hil::nonvolatile_storage::NonvolatileStorageClient>>,
-    client_custom: Cell<Option<&'static FM25CLClient>>,
-    client_buffer: TakeCell<'static, [u8]>, // Store buffer and state for passing back to client
+    txbuffer: TakeCell<'a, [u8]>,
+    rxbuffer: TakeCell<'a, [u8]>,
+    client: Cell<Option<&'a hil::nonvolatile_storage::NonvolatileStorageClient<'a>>>,
+    client_custom: Cell<Option<&'a FM25CLClient<'a>>>,
+    client_buffer: TakeCell<'a, [u8]>, // Store buffer and state for passing back to client
     client_write_address: Cell<u16>,
     client_write_len: Cell<u16>,
 }
 
-impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
-    pub fn new(
-        spi: &'a S,
-        txbuffer: &'static mut [u8],
-        rxbuffer: &'static mut [u8],
-    ) -> FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
+    pub fn new(spi: &'a S, txbuffer: &'a mut [u8], rxbuffer: &'a mut [u8]) -> FM25CL<'a, S> {
         // setup and return struct
         FM25CL {
             spi: spi,
@@ -119,7 +115,7 @@ impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
         }
     }
 
-    pub fn set_client<C: FM25CLClient>(&self, client: &'static C) {
+    pub fn set_client<C: FM25CLClient<'a>>(&self, client: &'a C) {
         self.client_custom.set(Some(client));
     }
 
@@ -132,7 +128,7 @@ impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
         );
     }
 
-    pub fn write(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
+    pub fn write(&self, address: u16, buffer: &'a mut [u8], len: u16) -> ReturnCode {
         self.configure_spi();
 
         self.txbuffer
@@ -153,7 +149,7 @@ impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
             })
     }
 
-    pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
+    pub fn read(&self, address: u16, buffer: &'a mut [u8], len: u16) -> ReturnCode {
         self.configure_spi();
 
         self.txbuffer
@@ -179,11 +175,11 @@ impl<S: hil::spi::SpiMasterDevice> FM25CL<'a, S> {
     }
 }
 
-impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient<'a> for FM25CL<'a, S> {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: &'a mut [u8],
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) {
         match self.state.get() {
@@ -267,7 +263,7 @@ impl<S: hil::spi::SpiMasterDevice> hil::spi::SpiMasterClient for FM25CL<'a, S> {
 }
 
 // Implement the custom interface that exposes chip-specific commands.
-impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
+impl<S: hil::spi::SpiMasterDevice<'a>> FM25CLCustom for FM25CL<'a, S> {
     fn read_status(&self) -> ReturnCode {
         self.configure_spi();
 
@@ -291,16 +287,18 @@ impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
 
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
-impl<S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage for FM25CL<'a, S> {
-    fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
+impl<S: hil::spi::SpiMasterDevice<'a>> hil::nonvolatile_storage::NonvolatileStorage<'a>
+    for FM25CL<'a, S>
+{
+    fn set_client(&self, client: &'a hil::nonvolatile_storage::NonvolatileStorageClient<'a>) {
         self.client.set(Some(client));
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode {
         self.read(address as u16, buffer, length as u16)
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode {
         self.write(address as u16, buffer, length as u16)
     }
 }

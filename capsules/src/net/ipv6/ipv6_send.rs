@@ -88,10 +88,10 @@ pub trait IP6Sender<'a> {
 /// struct sends the packet using 6LoWPAN over a generic `MacDevice` object.
 pub struct IP6SendStruct<'a> {
     // We want the ip6_packet field to be a TakeCell so that it is easy to mutate
-    ip6_packet: TakeCell<'static, IP6Packet<'static>>,
+    ip6_packet: TakeCell<'a, IP6Packet<'a>>,
     src_addr: Cell<IPAddr>,
     gateway: Cell<MacAddress>,
-    tx_buf: TakeCell<'static, [u8]>,
+    tx_buf: TakeCell<'a, [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a MacDevice<'a>,
     client: Cell<Option<&'a IP6Client>>,
@@ -129,8 +129,8 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
 
 impl IP6SendStruct<'a> {
     pub fn new(
-        ip6_packet: &'static mut IP6Packet<'static>,
-        tx_buf: &'static mut [u8],
+        ip6_packet: &'a mut IP6Packet<'a>,
+        tx_buf: &'a mut [u8],
         sixlowpan: TxState<'a>,
         radio: &'a MacDevice<'a>,
     ) -> IP6SendStruct<'a> {
@@ -158,7 +158,7 @@ impl IP6SendStruct<'a> {
     // Returns EBUSY if the tx_buf is not there
     fn send_next_fragment(&self) -> ReturnCode {
         self.ip6_packet
-            .map(move |ip6_packet| match self.tx_buf.take() {
+            .map(|ip6_packet| match self.tx_buf.take() {
                 Some(tx_buf) => {
                     let next_frame = self.sixlowpan.next_fragment(ip6_packet, tx_buf, self.radio);
 
@@ -190,8 +190,8 @@ impl IP6SendStruct<'a> {
     }
 }
 
-impl TxClient for IP6SendStruct<'a> {
-    fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+impl TxClient<'a> for IP6SendStruct<'a> {
+    fn send_done(&self, tx_buf: &'a mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
         debug!("sendDone return code is: {:?}, acked: {}", result, acked);
         //The below code introduces a delay between frames to prevent

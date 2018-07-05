@@ -73,13 +73,13 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: Cell<Option<&'a symmetric_encryption::CCMClient>>,
+    crypt_client: Cell<Option<&'a symmetric_encryption::CCMClient<'a>>>,
 
     state: Cell<CCMState>,
     confidential: Cell<bool>,
     encrypting: Cell<bool>,
 
-    buf: TakeCell<'static, [u8]>,
+    buf: TakeCell<'a, [u8]>,
     pos: Cell<(usize, usize, usize, usize)>,
     key: Cell<[u8; AES128_KEY_SIZE]>,
     nonce: Cell<[u8; CCM_NONCE_LENGTH]>,
@@ -87,7 +87,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
 }
 
 impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
-    pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> AES128CCM<'a, A> {
+    pub fn new(aes: &'a A, crypt_buf: &'a mut [u8]) -> AES128CCM<'a, A> {
         AES128CCM {
             aes: aes,
             crypt_buf: TakeCell::new(crypt_buf),
@@ -417,7 +417,7 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
 impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     for AES128CCM<'a, A>
 {
-    fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
+    fn set_client(&self, client: &'a symmetric_encryption::CCMClient<'a>) {
         self.crypt_client.set(Some(client));
     }
 
@@ -445,14 +445,14 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
 
     fn crypt(
         &self,
-        buf: &'static mut [u8],
+        buf: &'a mut [u8],
         a_off: usize,
         m_off: usize,
         m_len: usize,
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (ReturnCode, Option<&'a mut [u8]>) {
         if self.state.get() != CCMState::Idle {
             return (ReturnCode::EBUSY, Some(buf));
         }

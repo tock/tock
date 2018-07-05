@@ -48,17 +48,17 @@ impl Default for App {
 }
 
 pub struct AppFlash<'a> {
-    driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
+    driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'a>,
     apps: Grant<App>,
     current_app: Cell<Option<AppId>>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: TakeCell<'a, [u8]>,
 }
 
 impl AppFlash<'a> {
     pub fn new(
-        driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
+        driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'a>,
         grant: Grant<App>,
-        buffer: &'static mut [u8],
+        buffer: &'a mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {
             driver: driver,
@@ -116,10 +116,10 @@ impl AppFlash<'a> {
     }
 }
 
-impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
-    fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {}
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'a> for AppFlash<'a> {
+    fn read_done(&self, _buffer: &'a mut [u8], _length: usize) {}
 
-    fn write_done(&self, buffer: &'static mut [u8], _length: usize) {
+    fn write_done(&self, buffer: &'a mut [u8], _length: usize) {
         // Put our write buffer back.
         self.buffer.replace(buffer);
 

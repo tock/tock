@@ -401,15 +401,15 @@ impl TxState<'a> {
     /// This function returns a `Result` type:
     /// `Ok(bool, frame)` - If `Ok`, then `bool` indicates whether the
     /// transmission is complete, and `Frame` is the filled out next MAC frame
-    /// `Err(ReturnCode, &'static mut [u8])` - If `Err`, then `ReturnCode`
+    /// `Err(ReturnCode, &'a mut [u8])` - If `Err`, then `ReturnCode`
     /// is the reason for the error, and the return buffer is the (non-consumed)
     /// `frag_buf` passed in as an argument
     pub fn next_fragment<'b>(
         &self,
         ip6_packet: &'b IP6Packet<'b>,
-        frag_buf: &'static mut [u8],
-        radio: &MacDevice,
-    ) -> Result<(bool, Frame), (ReturnCode, &'static mut [u8])> {
+        frag_buf: &'b mut [u8],
+        radio: &MacDevice<'b>,
+    ) -> Result<(bool, Frame<'b>), (ReturnCode, &'b mut [u8])> {
         // This consumes frag_buf
         let frame = radio
             .prepare_data_frame(
@@ -448,24 +448,24 @@ impl TxState<'a> {
 
     // Frag_buf needs to be >= 802.15.4 MTU
     // The radio takes frag_buf, consumes it, returns Frame or Error
-    fn start_transmit<'b>(
+    fn start_transmit(
         &self,
-        ip6_packet: &'b IP6Packet<'b>,
-        frame: Frame,
+        ip6_packet: &'a IP6Packet<'a>,
+        frame: Frame<'a>,
         ctx_store: &ContextStore,
-    ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
+    ) -> Result<Frame<'a>, (ReturnCode, &'a mut [u8])> {
         self.busy.set(true);
         self.dgram_size.set(ip6_packet.get_total_len());
         self.dgram_tag.set(self.sixlowpan.next_dgram_tag());
         self.prepare_first_fragment(ip6_packet, frame, ctx_store)
     }
 
-    fn prepare_first_fragment<'b>(
+    fn prepare_first_fragment(
         &self,
-        ip6_packet: &'b IP6Packet<'b>,
-        mut frame: Frame,
+        ip6_packet: &'a IP6Packet<'a>,
+        mut frame: Frame<'a>,
         ctx_store: &ContextStore,
-    ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
+    ) -> Result<Frame<'a>, (ReturnCode, &'a mut [u8])> {
         // Here, we assume that the compressed headers fit in the first MTU
         // fragment. This is consistent with RFC 6282.
         let mut lowpan_packet = [0 as u8; radio::MAX_FRAME_SIZE as usize];
@@ -519,11 +519,11 @@ impl TxState<'a> {
         Ok(frame)
     }
 
-    fn prepare_next_fragment<'b>(
+    fn prepare_next_fragment(
         &self,
-        ip6_packet: &'b IP6Packet<'b>,
-        mut frame: Frame,
-    ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
+        ip6_packet: &'a IP6Packet<'a>,
+        mut frame: Frame<'a>,
+    ) -> Result<Frame<'a>, (ReturnCode, &'a mut [u8])> {
         let dgram_offset = self.dgram_offset.get();
         let mut remaining_capacity = frame.remaining_data_capacity();
         remaining_capacity -= self.write_frag_hdr(&mut frame, false);
@@ -554,10 +554,10 @@ impl TxState<'a> {
 
     // NOTE: This function will not work for headers that span past the first
     // frame.
-    fn write_additional_headers<'b>(
+    fn write_additional_headers(
         &self,
-        ip6_packet: &'b IP6Packet<'b>,
-        frame: &mut Frame,
+        ip6_packet: &'a IP6Packet<'a>,
+        frame: &mut Frame<'a>,
         dgram_offset: usize,
         payload_len: usize,
     ) -> (usize, usize) {
@@ -579,7 +579,7 @@ impl TxState<'a> {
         (payload_len, dgram_offset)
     }
 
-    fn write_frag_hdr(&self, frame: &mut Frame, first_frag: bool) -> usize {
+    fn write_frag_hdr(&self, frame: &mut Frame<'a>, first_frag: bool) -> usize {
         if first_frag {
             let mut frag_header = [0 as u8; lowpan_frag::FRAG1_HDR_SIZE];
             set_frag_hdr(
@@ -620,7 +620,7 @@ impl TxState<'a> {
 /// number of packets that can be reassembled at the same time. Generally,
 /// two `RxState`s are sufficient for normal-case operation.
 pub struct RxState<'a> {
-    packet: TakeCell<'static, [u8]>,
+    packet: TakeCell<'a, [u8]>,
     bitmap: MapCell<Bitmap>,
     dst_mac_addr: Cell<MacAddress>,
     src_mac_addr: Cell<MacAddress>,
@@ -648,7 +648,7 @@ impl RxState<'a> {
     ///
     /// `packet` - A buffer for reassembling an IPv6 packet. Currently, we
     /// assume this to be 1280 bytes long (the minimum IPv6 MTU size).
-    pub fn new(packet: &'static mut [u8]) -> RxState<'a> {
+    pub fn new(packet: &'a mut [u8]) -> RxState<'a> {
         RxState {
             packet: TakeCell::new(packet),
             bitmap: MapCell::new(Bitmap::new()),
@@ -790,7 +790,7 @@ pub struct Sixlowpan<'a, A: time::Alarm, C: ContextStore> {
 
 // This function is called after receiving a frame
 impl<A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive(&self, buf: &'b [u8], header: Header, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
         // TODO: Handle the case where the addresses are None/elided - they

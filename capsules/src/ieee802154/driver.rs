@@ -188,14 +188,14 @@ pub struct RadioDriver<'a> {
     current_app: Cell<Option<AppId>>,
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
-    kernel_tx: TakeCell<'static, [u8]>,
+    kernel_tx: TakeCell<'a, [u8]>,
 }
 
 impl RadioDriver<'a> {
     pub fn new(
         mac: &'a device::MacDevice<'a>,
         grant: Grant<App>,
-        kernel_tx: &'static mut [u8],
+        kernel_tx: &'a mut [u8],
     ) -> RadioDriver<'a> {
         RadioDriver {
             mac: mac,
@@ -795,8 +795,8 @@ impl Driver for RadioDriver<'a> {
     }
 }
 
-impl device::TxClient for RadioDriver<'a> {
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+impl device::TxClient<'a> for RadioDriver<'a> {
+    fn send_done(&self, spi_buf: &'a mut [u8], acked: bool, result: ReturnCode) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {

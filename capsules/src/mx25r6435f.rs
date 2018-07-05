@@ -157,29 +157,29 @@ enum State {
 
 pub struct MX25R6435F<
     'a,
-    S: hil::spi::SpiMasterDevice + 'a,
-    P: hil::gpio::Pin + 'a,
-    A: hil::time::Alarm + 'a,
+    S: hil::spi::SpiMasterDevice<'a>,
+    P: hil::gpio::Pin,
+    A: hil::time::Alarm,
 > {
     spi: &'a S,
     alarm: &'a A,
     state: Cell<State>,
     write_protect_pin: Option<&'a P>,
     hold_pin: Option<&'a P>,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'a hil::flash::Client<MX25R6435F<'a, S, P, A>>>,
-    client_sector: TakeCell<'static, Mx25r6435fSector>,
+    txbuffer: TakeCell<'a, [u8]>,
+    rxbuffer: TakeCell<'a, [u8]>,
+    client: OptionalCell<&'a hil::flash::Client<'a, MX25R6435F<'a, S, P, A>>>,
+    client_sector: TakeCell<'a, Mx25r6435fSector>,
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
+impl<'a, S: hil::spi::SpiMasterDevice<'a>, P: hil::gpio::Pin, A: hil::time::Alarm>
     MX25R6435F<'a, S, P, A>
 {
     pub fn new(
         spi: &'a S,
         alarm: &'a A,
-        txbuffer: &'static mut [u8],
-        rxbuffer: &'static mut [u8],
+        txbuffer: &'a mut [u8],
+        rxbuffer: &'a mut [u8],
         write_protect_pin: Option<&'a P>,
         hold_pin: Option<&'a P>,
     ) -> MX25R6435F<'a, S, P, A> {
@@ -246,7 +246,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
         self.enable_write()
     }
 
-    fn read_sector(&self, sector_index: u32, sector: &'static mut Mx25r6435fSector) -> ReturnCode {
+    fn read_sector(&self, sector_index: u32, sector: &'a mut Mx25r6435fSector) -> ReturnCode {
         self.configure_spi();
         self.txbuffer
             .take()
@@ -277,7 +277,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
             })
     }
 
-    fn write_sector(&self, sector_index: u32, sector: &'static mut Mx25r6435fSector) -> ReturnCode {
+    fn write_sector(&self, sector_index: u32, sector: &'a mut Mx25r6435fSector) -> ReturnCode {
         self.client_sector.replace(sector);
         self.configure_spi();
         self.state.set(State::EraseSectorWriteEnable {
@@ -288,13 +288,13 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
+impl<'a, S: hil::spi::SpiMasterDevice<'a>, P: hil::gpio::Pin, A: hil::time::Alarm>
+    hil::spi::SpiMasterClient<'a> for MX25R6435F<'a, S, P, A>
 {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: &'a mut [u8],
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) {
         match self.state.get() {
@@ -496,7 +496,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
+impl<'a, S: hil::spi::SpiMasterDevice<'a>, P: hil::gpio::Pin, A: hil::time::Alarm>
     hil::time::Client for MX25R6435F<'a, S, P, A>
 {
     fn fired(&self) {
@@ -514,10 +514,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
-        P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm + 'a,
-        C: hil::flash::Client<Self>,
+        S: hil::spi::SpiMasterDevice<'a>,
+        P: hil::gpio::Pin,
+        A: hil::time::Alarm,
+        C: hil::flash::Client<'a, Self>,
     > hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A>
 {
     fn set_client(&self, client: &'a C) {
@@ -525,16 +525,16 @@ impl<
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    hil::flash::Flash for MX25R6435F<'a, S, P, A>
+impl<'a, S: hil::spi::SpiMasterDevice<'a>, P: hil::gpio::Pin, A: hil::time::Alarm>
+    hil::flash::Flash<'a> for MX25R6435F<'a, S, P, A>
 {
     type Page = Mx25r6435fSector;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn read_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode {
         self.read_sector(page_number as u32, buf)
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn write_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode {
         self.write_sector(page_number as u32, buf)
     }
 

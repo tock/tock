@@ -57,7 +57,7 @@ pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
 pub struct SDCard<'a, A: hil::time::Alarm> {
-    spi: &'a hil::spi::SpiMasterDevice,
+    spi: &'a hil::spi::SpiMasterDevice<'a>,
     state: Cell<SpiState>,
     after_state: Cell<SpiState>,
 
@@ -68,13 +68,13 @@ pub struct SDCard<'a, A: hil::time::Alarm> {
     is_initialized: Cell<bool>,
     card_type: Cell<SDCardType>,
 
-    detect_pin: Cell<Option<&'static hil::gpio::Pin>>,
+    detect_pin: Cell<Option<&'a hil::gpio::Pin>>,
 
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: TakeCell<'a, [u8]>,
+    rxbuffer: TakeCell<'a, [u8]>,
 
-    client: Cell<Option<&'static SDCardClient>>,
-    client_buffer: TakeCell<'static, [u8]>,
+    client: Cell<Option<&'a SDCardClient<'a>>>,
+    client_buffer: TakeCell<'a, [u8]>,
     client_offset: Cell<usize>,
 }
 
@@ -180,11 +180,11 @@ const INITIALIZING_STATUS: u8 = 0x01;
 const DATA_TOKEN: u8 = 0xFE;
 
 /// Callback functions from SDCard
-pub trait SDCardClient {
+pub trait SDCardClient<'a> {
     fn card_detection_changed(&self, installed: bool);
     fn init_done(&self, block_size: u32, total_size: u64);
-    fn read_done(&self, data: &'static mut [u8], len: usize);
-    fn write_done(&self, buffer: &'static mut [u8]);
+    fn read_done(&self, data: &'a mut [u8], len: usize);
+    fn write_done(&self, buffer: &'a mut [u8]);
     fn error(&self, error: u32);
 }
 
@@ -201,11 +201,11 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// rxbuffer - buffer for holding SPI read data, at least 515 bytes in
     ///     length
     pub fn new(
-        spi: &'a hil::spi::SpiMasterDevice,
+        spi: &'a hil::spi::SpiMasterDevice<'a>,
         alarm: &'a A,
-        detect_pin: Option<&'static hil::gpio::Pin>,
-        txbuffer: &'static mut [u8; 515],
-        rxbuffer: &'static mut [u8; 515],
+        detect_pin: Option<&'a hil::gpio::Pin>,
+        txbuffer: &'a mut [u8; 515],
+        rxbuffer: &'a mut [u8; 515],
     ) -> SDCard<'a, A> {
         // initialize buffers
         for byte in txbuffer.iter_mut() {
@@ -267,8 +267,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         &self,
         cmd: SDCmd,
         arg: u32,
-        write_buffer: &'static mut [u8],
-        read_buffer: &'static mut [u8],
+        write_buffer: &'a mut [u8],
+        read_buffer: &'a mut [u8],
         recv_len: usize,
     ) {
         // Note: a good default recv_len is 10 bytes. Reading too many bytes
@@ -326,8 +326,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// wrapper for easy reading of bytes over SPI
     fn read_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: &'static mut [u8],
+        write_buffer: &'a mut [u8],
+        read_buffer: &'a mut [u8],
         recv_len: usize,
     ) {
         self.set_spi_fast_mode();
@@ -347,8 +347,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// wrapper for easy writing of bytes over SPI
     fn write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: &'static mut [u8],
+        write_buffer: &'a mut [u8],
+        read_buffer: &'a mut [u8],
         recv_len: usize,
     ) {
         self.set_spi_fast_mode();
@@ -404,8 +404,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// updates SD card state on SPI transaction returns
     fn process_spi_states(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: &'static mut [u8],
+        write_buffer: &'a mut [u8],
+        read_buffer: &'a mut [u8],
         _: usize,
     ) {
         match self.state.get() {
@@ -1181,7 +1181,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         }
     }
 
-    pub fn set_client<C: SDCardClient>(&self, client: &'static C) {
+    pub fn set_client<C: SDCardClient<'a>>(&self, client: &'a C) {
         self.client.set(Some(client));
     }
 
@@ -1228,7 +1228,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         }
     }
 
-    pub fn read_blocks(&self, buffer: &'static mut [u8], sector: u32, count: u32) -> ReturnCode {
+    pub fn read_blocks(&self, buffer: &'a mut [u8], sector: u32, count: u32) -> ReturnCode {
         // only if initialized and installed
         if self.is_installed() {
             if self.is_initialized() {
@@ -1280,7 +1280,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         }
     }
 
-    pub fn write_blocks(&self, buffer: &'static mut [u8], sector: u32, count: u32) -> ReturnCode {
+    pub fn write_blocks(&self, buffer: &'a mut [u8], sector: u32, count: u32) -> ReturnCode {
         // only if initialized and installed
         if self.is_installed() {
             if self.is_initialized() {
@@ -1329,11 +1329,11 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
 }
 
 /// Handle callbacks from the SPI peripheral
-impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::spi::SpiMasterClient<'a> for SDCard<'a, A> {
     fn read_write_done(
         &self,
-        mut write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
+        mut write_buffer: &'a mut [u8],
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) {
         // unrwap so we don't have to deal with options everywhere
@@ -1387,7 +1387,7 @@ impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
 pub struct SDCardDriver<'a, A: hil::time::Alarm> {
     sdcard: &'a SDCard<'a, A>,
     app: MapCell<App>,
-    kernel_buf: TakeCell<'static, [u8]>,
+    kernel_buf: TakeCell<'a, [u8]>,
 }
 
 /// Holds buffers and whatnot that the application has passed us.
@@ -1419,7 +1419,7 @@ impl<A: hil::time::Alarm> SDCardDriver<'a, A> {
     ///     bytes in length
     pub fn new(
         sdcard: &'a SDCard<'a, A>,
-        kernel_buf: &'static mut [u8; 512],
+        kernel_buf: &'a mut [u8; 512],
     ) -> SDCardDriver<'a, A> {
         // return new SDCardDriver
         SDCardDriver {
@@ -1431,7 +1431,7 @@ impl<A: hil::time::Alarm> SDCardDriver<'a, A> {
 }
 
 /// Handle callbacks from SDCard
-impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> SDCardClient<'a> for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
             app.callback.map(|mut cb| {
@@ -1449,7 +1449,7 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
         });
     }
 
-    fn read_done(&self, data: &'static mut [u8], len: usize) {
+    fn read_done(&self, data: &'a mut [u8], len: usize) {
         self.kernel_buf.replace(data);
         self.app.map(|app| {
             let mut read_len: usize = 0;
@@ -1475,7 +1475,7 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
         });
     }
 
-    fn write_done(&self, buffer: &'static mut [u8]) {
+    fn write_done(&self, buffer: &'a mut [u8]) {
         self.kernel_buf.replace(buffer);
 
         self.app.map(|app| {

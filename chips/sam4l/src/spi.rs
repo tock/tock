@@ -180,24 +180,24 @@ pub enum SpiRole {
 }
 
 /// Abstraction of the SPI Hardware
-pub struct SpiHw {
-    client: OptionalCell<&'static SpiMasterClient>,
-    dma_read: OptionalCell<&'static DMAChannel<'static>>,
-    dma_write: OptionalCell<&'static DMAChannel<'static>>,
+pub struct SpiHw<'a> {
+    client: OptionalCell<&'a SpiMasterClient>,
+    dma_read: OptionalCell<&'a DMAChannel<'a>>,
+    dma_write: OptionalCell<&'a DMAChannel<'a>>,
     // keep track of which how many DMA transfers are pending to correctly
     // issue completion event only after both complete.
     transfers_in_progress: Cell<u8>,
     dma_length: Cell<usize>,
 
     // Slave client is distinct from master client
-    slave_client: OptionalCell<&'static SpiSlaveClient>,
+    slave_client: OptionalCell<&'a SpiSlaveClient>,
     role: Cell<SpiRole>,
 }
 
 const SPI_BASE: StaticRef<SpiRegisters> =
     unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
 
-impl PeripheralManagement<pm::Clock> for SpiHw {
+impl PeripheralManagement<pm::Clock> for SpiHw<'a> {
     type RegisterType = SpiRegisters;
 
     fn get_registers(&self) -> &SpiRegisters {
@@ -223,7 +223,7 @@ type SpiRegisterManager<'a> = PeripheralManager<'a, SpiHw, pm::Clock>;
 
 pub static mut SPI: SpiHw = SpiHw::new();
 
-impl SpiHw {
+impl SpiHw<'a> {
     /// Creates a new SPI object, with peripheral 0 selected
     const fn new() -> SpiHw {
         SpiHw {
@@ -417,7 +417,7 @@ impl SpiHw {
     }
 
     /// Set the DMA channels used for reading and writing.
-    pub fn set_dma(&mut self, read: &'static DMAChannel, write: &'static DMAChannel) {
+    pub fn set_dma(&mut self, read: &'a DMAChannel, write: &'a DMAChannel) {
         self.dma_read.set(read);
         self.dma_write.set(write);
     }

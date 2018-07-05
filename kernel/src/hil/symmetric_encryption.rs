@@ -96,21 +96,21 @@ pub trait AES128CBC {
     fn set_mode_aes128cbc(&self, encrypting: bool);
 }
 
-pub trait CCMClient {
+pub trait CCMClient<'a> {
     /// `res` is SUCCESS if the encryption/decryption process succeeded. This
     /// does not mean that the message has been verified in the case of
     /// decryption.
     /// If we are encrypting: `tag_is_valid` is `true` iff `res` is SUCCESS.
     /// If we are decrypting: `tag_is_valid` is `true` iff `res` is SUCCESS and the
     /// message authentication tag is valid.
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool);
+    fn crypt_done(&self, buf: &'a mut [u8], res: ReturnCode, tag_is_valid: bool);
 }
 
 pub const CCM_NONCE_LENGTH: usize = 13;
 
 pub trait AES128CCM<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, client: &'a CCMClient);
+    fn set_client(&'a self, client: &'a CCMClient<'a>);
 
     /// Set the key to be used for CCM encryption
     fn set_key(&self, key: &[u8]) -> ReturnCode;
@@ -121,12 +121,12 @@ pub trait AES128CCM<'a> {
     /// Try to begin the encryption/decryption process
     fn crypt(
         &self,
-        buf: &'static mut [u8],
+        buf: &'a mut [u8],
         a_off: usize,
         m_off: usize,
         m_len: usize,
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> (ReturnCode, Option<&'a mut [u8]>);
 }

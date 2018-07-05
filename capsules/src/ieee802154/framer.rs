@@ -85,8 +85,8 @@ use net::stream::{encode_bytes, encode_u32, encode_u8};
 /// modifying its payload. This enables the user to abdicate any concerns about
 /// where the payload should be placed in the buffer.
 #[derive(Eq, PartialEq, Debug)]
-pub struct Frame {
-    buf: &'static mut [u8],
+pub struct Frame<'a> {
+    buf: &'a mut [u8],
     info: FrameInfo,
 }
 
@@ -114,9 +114,9 @@ struct FrameInfo {
     security_params: Option<(SecurityLevel, [u8; 16], [u8; 13])>,
 }
 
-impl Frame {
+impl Frame<'a> {
     /// Consumes the frame and retrieves the buffer it wraps
-    pub fn into_buf(self) -> &'static mut [u8] {
+    pub fn into_buf(self) -> &'a mut [u8] {
         self.buf
     }
 
@@ -252,34 +252,34 @@ pub trait DeviceProcedure {
 /// - `config_done` callbacks from the underlying radio (if, for example,
 ///   configuration was in progress when a transmission was requested)
 #[derive(Eq, PartialEq, Debug)]
-enum TxState {
+enum TxState<'a> {
     /// There is no frame to be transmitted.
     Idle,
     /// There is a valid frame that needs to be secured before transmission.
-    ReadyToEncrypt(FrameInfo, &'static mut [u8]),
+    ReadyToEncrypt(FrameInfo, &'a mut [u8]),
     /// There is currently a frame being encrypted by the encryption facility.
     #[allow(dead_code)]
     Encrypting(FrameInfo),
     /// There is a frame that is completely secured or does not require
     /// security, and is waiting to be passed to the radio.
-    ReadyToTransmit(FrameInfo, &'static mut [u8]),
+    ReadyToTransmit(FrameInfo, &'a mut [u8]),
 }
 
 #[derive(Eq, PartialEq, Debug)]
-enum RxState {
+enum RxState<'a> {
     /// There is no frame that has been received.
     Idle,
     /// There is a secured frame that needs to be decrypted.
-    ReadyToDecrypt(FrameInfo, &'static mut [u8]),
+    ReadyToDecrypt(FrameInfo, &'a mut [u8]),
     /// A secured frame is currently being decrypted by the decryption facility.
     #[allow(dead_code)]
     Decrypting(FrameInfo),
     /// There is an unsecured frame that needs to be re-parsed and exposed to
     /// the client.
     #[allow(dead_code)]
-    ReadyToYield(FrameInfo, &'static mut [u8]),
+    ReadyToYield(FrameInfo, &'a mut [u8]),
     /// The buffer containing the frame needs to be returned to the radio.
-    ReadyToReturn(&'static mut [u8]),
+    ReadyToReturn(&'a mut [u8]),
 }
 
 /// This struct wraps an IEEE 802.15.4 radio device `kernel::hil::radio::Radio`
@@ -289,7 +289,7 @@ enum RxState {
 /// machines corresponding to the transmission, reception and
 /// encryption/decryption pipelines. See the documentation in
 /// `capsules/src/mac.rs` for more details.
-pub struct Framer<'a, M: Mac, A: AES128CCM<'a>> {
+pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     mac: &'a M,
     aes_ccm: &'a A,
     data_sequence: Cell<u8>,
@@ -303,16 +303,16 @@ pub struct Framer<'a, M: Mac, A: AES128CCM<'a>> {
     /// transitioning between states. That is, any method that consumes the
     /// current state should always remember to replace it along with the
     /// associated state information.
-    tx_state: MapCell<TxState>,
-    tx_client: Cell<Option<&'a TxClient>>,
+    tx_state: MapCell<TxState<'a>>,
+    tx_client: Cell<Option<&'a TxClient<'a>>>,
 
     /// Reception pipeline state. Similar to the above, this should never be
     /// `None`, except when transitioning between states.
-    rx_state: MapCell<RxState>,
+    rx_state: MapCell<RxState<'a>>,
     rx_client: Cell<Option<&'a RxClient>>,
 }
 
-impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
+impl<M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     pub fn new(mac: &'a M, aes_ccm: &'a A) -> Framer<'a, M, A> {
         Framer {
             mac: mac,
@@ -359,7 +359,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     /// Performs the first checks in the security procedure. The rest of the
     /// steps are performed as part of the transmission pipeline.
     /// Returns the next `TxState` to enter.
-    fn outgoing_frame_security(&self, buf: &'static mut [u8], frame_info: FrameInfo) -> TxState {
+    fn outgoing_frame_security(&self, buf: &'a mut [u8], frame_info: FrameInfo) -> TxState<'a> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
         // Steps a-e have already been performed in the frame preparation step,
         // so we only need to dispatch on the security parameters in the frame info
@@ -378,7 +378,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 
     /// IEEE 802.15.4-2015, 9.2.3, incoming frame security procedure
-    fn incoming_frame_security(&self, buf: &'static mut [u8], frame_len: usize) -> RxState {
+    fn incoming_frame_security(&self, buf: &'a mut [u8], frame_len: usize) -> RxState<'a> {
         // Try to decode the MAC header. Three possible results can occur:
         // 1) The frame should be dropped and the buffer returned to the radio
         // 2) The frame is unsecured. We immediately expose the frame to the
@@ -469,7 +469,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 
     /// Advances the transmission pipeline if it can be advanced.
-    fn step_transmit_state(&self) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn step_transmit_state(&self) -> (ReturnCode, Option<&'a mut [u8]>) {
         self.tx_state
             .take()
             .map_or((ReturnCode::FAIL, None), |state| {
@@ -645,8 +645,8 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
-    fn set_transmit_client(&self, client: &'a TxClient) {
+impl<M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
+    fn set_transmit_client(&self, client: &'a TxClient<'a>) {
         self.tx_client.set(Some(client));
     }
 
@@ -686,15 +686,15 @@ impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         self.mac.is_on()
     }
 
-    fn prepare_data_frame(
+    fn prepare_data_frame<'b>(
         &self,
-        buf: &'static mut [u8],
+        buf: &'b mut [u8],
         dst_pan: PanID,
         dst_addr: MacAddress,
         src_pan: PanID,
         src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
-    ) -> Result<Frame, &'static mut [u8]> {
+    ) -> Result<Frame<'b>, &'b mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
         // Steps a-e of the security procedure are implemented here.
 
@@ -763,7 +763,7 @@ impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         }
     }
 
-    fn transmit(&self, frame: Frame) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit(&self, frame: Frame<'a>) -> (ReturnCode, Option<&'a mut [u8]>) {
         let Frame { buf, info } = frame;
         let state = match self.tx_state.take() {
             None => {
@@ -785,8 +785,8 @@ impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+impl<M: Mac<'a>, A: AES128CCM<'a>> radio::TxClient<'a> for Framer<'a, M, A> {
+    fn send_done(&self, buf: &'a mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_client.get().map(move |client| {
             client.send_done(buf, acked, result);
@@ -794,8 +794,8 @@ impl<M: Mac, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
-    fn receive(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _: ReturnCode) {
+impl<M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient<'a> for Framer<'a, M, A> {
+    fn receive(&self, buf: &'a mut [u8], frame_len: usize, crc_valid: bool, _: ReturnCode) {
         // Drop all frames with invalid CRC
         if !crc_valid {
             self.mac.set_receive_buffer(buf);
@@ -824,7 +824,7 @@ impl<M: Mac, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
+impl<M: Mac<'a>, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
     fn config_done(&self, _: ReturnCode) {
         // The transmission pipeline is the only state machine that
         // waits for the configuration procedure to complete before
@@ -839,8 +839,8 @@ impl<M: Mac, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
     }
 }
 
-impl<M: Mac, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+impl<M: Mac<'a>, A: AES128CCM<'a>> CCMClient<'a> for Framer<'a, M, A> {
+    fn crypt_done(&self, buf: &'a mut [u8], res: ReturnCode, tag_is_valid: bool) {
         let mut tx_waiting = false;
         let mut rx_waiting = false;
 

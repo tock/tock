@@ -44,15 +44,15 @@
 //!
 //! ```rust
 //!
-//! impl hil::flash::HasClient for NewChipStruct {
+//! impl hil::flash::HasClient<'a> for NewChipStruct {
 //!     fn set_client(&'a self, client: &'a C) { }
 //! }
 //!
-//! impl hil::flash::Flash for NewChipStruct {
+//! impl hil::flash::Flash<'a> for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { }
-//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { }
+//!     fn read_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode { }
+//!     fn write_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode { }
 //!     fn erase_page(&self, page_number: usize) -> ReturnCode { }
 //! }
 //! ```
@@ -60,13 +60,13 @@
 //! A user of this flash interface might look like:
 //!
 //! ```rust
-//! pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
+//! pub struct FlashUser<'a, F: hil::flash::Flash<'a>> {
 //!     driver: &'a F,
-//!     buffer: TakeCell<'static, F::Page>,
+//!     buffer: TakeCell<'a, F::Page>,
 //! }
 //!
-//! impl<F: hil::flash::Flash > FlashUser<'a, F> {
-//!     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> FlashUser<'a, F> {
+//! impl<F: hil::flash::Flash<'a>> FlashUser<'a, F> {
+//!     pub fn new(driver: &'a F, buffer: &'a mut F::Page) -> FlashUser<'a, F> {
 //!         FlashUser {
 //!             driver: driver,
 //!             buffer: TakeCell::new(buffer),
@@ -74,9 +74,9 @@
 //!     }
 //! }
 //!
-//! impl<F: hil::flash::Flash > hil::flash::Client<F> for FlashUser<'a, F> {
-//!     fn read_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) {}
-//!     fn write_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) { }
+//! impl<F: hil::flash::Flash<'a>> hil::flash::Client<'a, F> for FlashUser<'a, F> {
+//!     fn read_complete(&self, buffer: &'a mut F::Page, error: hil::flash::Error) {}
+//!     fn write_complete(&self, buffer: &'a mut F::Page, error: hil::flash::Error) { }
 //!     fn erase_complete(&self, error: hil::flash::Error) {}
 //! }
 //! ```
@@ -100,27 +100,27 @@ pub trait HasClient<'a, C> {
 }
 
 /// A page of writable persistent flash memory.
-pub trait Flash {
+pub trait Flash<'a> {
     /// Type of a single flash page for the given implementation.
     type Page: AsMut<[u8]>;
 
     /// Read a page of flash into the buffer.
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode;
+    fn read_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode;
 
     /// Write a page of flash from the buffer.
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode;
+    fn write_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode;
 
     /// Erase a page of flash.
     fn erase_page(&self, page_number: usize) -> ReturnCode;
 }
 
 /// Implement `Client` to receive callbacks from `Flash`.
-pub trait Client<F: Flash> {
+pub trait Client<'a, F: Flash<'a>> {
     /// Flash read complete.
-    fn read_complete(&self, read_buffer: &'static mut F::Page, error: Error);
+    fn read_complete(&self, read_buffer: &'a mut F::Page, error: Error);
 
     /// Flash write complete.
-    fn write_complete(&self, write_buffer: &'static mut F::Page, error: Error);
+    fn write_complete(&self, write_buffer: &'a mut F::Page, error: Error);
 
     /// Flash erase complete.
     fn erase_complete(&self, error: Error);

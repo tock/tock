@@ -66,25 +66,25 @@ impl Default for SlaveApp {
     }
 }
 
-pub struct Spi<'a, S: SpiMasterDevice> {
+pub struct Spi<'a, S: SpiMasterDevice<'a>> {
     spi_master: &'a S,
     busy: Cell<bool>,
     app: MapCell<App>,
-    kernel_read: TakeCell<'static, [u8]>,
-    kernel_write: TakeCell<'static, [u8]>,
+    kernel_read: TakeCell<'a, [u8]>,
+    kernel_write: TakeCell<'a, [u8]>,
     kernel_len: Cell<usize>,
 }
 
-pub struct SpiSlave<'a, S: SpiSlaveDevice> {
+pub struct SpiSlave<'a, S: SpiSlaveDevice<'a>> {
     spi_slave: &'a S,
     busy: Cell<bool>,
     app: MapCell<SlaveApp>,
-    kernel_read: TakeCell<'static, [u8]>,
-    kernel_write: TakeCell<'static, [u8]>,
+    kernel_read: TakeCell<'a, [u8]>,
+    kernel_write: TakeCell<'a, [u8]>,
     kernel_len: Cell<usize>,
 }
 
-impl<S: SpiMasterDevice> Spi<'a, S> {
+impl<S: SpiMasterDevice<'a>> Spi<'a, S> {
     pub fn new(spi_master: &'a S) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
@@ -96,7 +96,7 @@ impl<S: SpiMasterDevice> Spi<'a, S> {
         }
     }
 
-    pub fn config_buffers(&mut self, read: &'static mut [u8], write: &'static mut [u8]) {
+    pub fn config_buffers(&mut self, read: &'a mut [u8], write: &'a mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
         self.kernel_read.replace(read);
@@ -126,7 +126,7 @@ impl<S: SpiMasterDevice> Spi<'a, S> {
     }
 }
 
-impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
+impl<S: SpiMasterDevice<'a>> Driver for Spi<'a, S> {
     fn allow(
         &self,
         _appid: AppId,
@@ -276,11 +276,11 @@ impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
     }
 }
 
-impl<S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
+impl<S: SpiMasterDevice<'a>> SpiMasterClient<'a> for Spi<'a, S> {
     fn read_write_done(
         &self,
-        writebuf: &'static mut [u8],
-        readbuf: Option<&'static mut [u8]>,
+        writebuf: &'a mut [u8],
+        readbuf: Option<&'a mut [u8]>,
         length: usize,
     ) {
         self.app.map(move |app| {
@@ -313,7 +313,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice<'a>> SpiSlave<'a, S> {
     pub fn new(spi_slave: &'a S) -> SpiSlave<'a, S> {
         SpiSlave {
             spi_slave: spi_slave,
@@ -325,7 +325,7 @@ impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
         }
     }
 
-    pub fn config_buffers(&mut self, read: &'static mut [u8], write: &'static mut [u8]) {
+    pub fn config_buffers(&mut self, read: &'a mut [u8], write: &'a mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
         self.kernel_read.replace(read);
@@ -352,7 +352,7 @@ impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice<'a>> Driver for SpiSlave<'a, S> {
     /// Provide read/write buffers to SpiSlave
     ///
     /// - allow_num 0: Provides an app_read buffer to receive transfers into.
@@ -493,11 +493,11 @@ impl<S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> SpiSlaveClient for SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice<'a>> SpiSlaveClient<'a> for SpiSlave<'a, S> {
     fn read_write_done(
         &self,
-        writebuf: Option<&'static mut [u8]>,
-        readbuf: Option<&'static mut [u8]>,
+        writebuf: Option<&'a mut [u8]>,
+        readbuf: Option<&'a mut [u8]>,
         length: usize,
     ) {
         self.app.map(move |app| {

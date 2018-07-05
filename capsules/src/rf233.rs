@@ -176,7 +176,7 @@ enum InternalState {
 // and waits for the interrupt specifying the entire packet has been
 // received.
 
-pub struct RF233<'a, S: spi::SpiMasterDevice> {
+pub struct RF233<'a, S: spi::SpiMasterDevice<'a>> {
     spi: &'a S,
     radio_on: Cell<bool>,
     transmitting: Cell<bool>,
@@ -194,21 +194,21 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     irq_pin: &'a gpio::Pin,
     irq_ctl: &'a gpio::PinCtl,
     state: Cell<InternalState>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: TakeCell<'a, [u8]>,
+    rx_buf: TakeCell<'a, [u8]>,
     tx_len: Cell<u8>,
-    tx_client: Cell<Option<&'static radio::TxClient>>,
-    rx_client: Cell<Option<&'static radio::RxClient>>,
-    cfg_client: Cell<Option<&'static radio::ConfigClient>>,
-    power_client: Cell<Option<&'static radio::PowerClient>>,
+    tx_client: Cell<Option<&'a radio::TxClient<'a>>>,
+    rx_client: Cell<Option<&'a radio::RxClient<'a>>>,
+    cfg_client: Cell<Option<&'a radio::ConfigClient>>,
+    power_client: Cell<Option<&'a radio::PowerClient>>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
     tx_power: Cell<i8>,
     channel: Cell<u8>,
-    spi_rx: TakeCell<'static, [u8]>,
-    spi_tx: TakeCell<'static, [u8]>,
-    spi_buf: TakeCell<'static, [u8]>,
+    spi_rx: TakeCell<'a, [u8]>,
+    spi_tx: TakeCell<'a, [u8]>,
+    spi_buf: TakeCell<'a, [u8]>,
 }
 
 fn setting_to_power(setting: u8) -> i8 {
@@ -267,14 +267,14 @@ fn interrupt_included(mask: u8, interrupt: u8) -> bool {
     (mask & interrupt) == interrupt
 }
 
-impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
+impl<S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient<'a> for RF233<'a, S> {
     // This function is a bit confusing because the order of the logic in the
     // function is different than the order of operations during transmission
     // and reception.
     fn read_write_done(
         &self,
-        mut _write: &'static mut [u8],
-        mut read: Option<&'static mut [u8]>,
+        mut _write: &'a mut [u8],
+        mut read: Option<&'a mut [u8]>,
         _len: usize,
     ) {
         self.spi_busy.set(false);
@@ -1002,7 +1002,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
+impl<S: spi::SpiMasterDevice<'a>> gpio::Client for RF233<'a, S> {
     fn fired(&self, identifier: usize) {
         if identifier == INTERRUPT_ID {
             self.handle_interrupt();
@@ -1010,7 +1010,7 @@ impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> RF233<'a, S> {
+impl<S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
     pub fn new(
         spi: &'a S,
         reset: &'a gpio::Pin,
@@ -1114,7 +1114,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    fn frame_write(&self, buf: &'static mut [u8], frame_len: u8) -> ReturnCode {
+    fn frame_write(&self, buf: &'a mut [u8], frame_len: u8) -> ReturnCode {
         if self.spi_busy.get() {
             return ReturnCode::EBUSY;
         }
@@ -1126,7 +1126,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    fn frame_read(&self, buf: &'static mut [u8], frame_len: u8) -> ReturnCode {
+    fn frame_read(&self, buf: &'a mut [u8], frame_len: u8) -> ReturnCode {
         if self.spi_busy.get() {
             return ReturnCode::EBUSY;
         }
@@ -1150,14 +1150,14 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> radio::Radio for RF233<'a, S> {}
+impl<S: spi::SpiMasterDevice<'a>> radio::Radio<'a> for RF233<'a, S> {}
 
-impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
+impl<S: spi::SpiMasterDevice<'a>> radio::RadioConfig<'a> for RF233<'a, S> {
     fn initialize(
         &self,
-        buf: &'static mut [u8],
-        reg_write: &'static mut [u8],
-        reg_read: &'static mut [u8],
+        buf: &'a mut [u8],
+        reg_write: &'a mut [u8],
+        reg_read: &'a mut [u8],
     ) -> ReturnCode {
         if (buf.len() < radio::MAX_BUF_SIZE || reg_read.len() != 2 || reg_write.len() != 2) {
             return ReturnCode::ESIZE;
@@ -1235,11 +1235,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
         self.state.get() != InternalState::READY && self.state.get() != InternalState::SLEEP
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'a radio::ConfigClient) {
         self.cfg_client.set(Some(client));
     }
 
-    fn set_power_client(&self, client: &'static radio::PowerClient) {
+    fn set_power_client(&self, client: &'a radio::PowerClient) {
         self.power_client.set(Some(client));
     }
 
@@ -1317,26 +1317,26 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
     }
 }
 
-impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+impl<S: spi::SpiMasterDevice<'a>> radio::RadioData<'a> for RF233<'a, S> {
+    fn set_transmit_client(&self, client: &'a radio::TxClient<'a>) {
         self.tx_client.set(Some(client));
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'a radio::RxClient<'a>, buffer: &'a mut [u8]) {
         self.rx_client.set(Some(client));
         self.rx_buf.replace(buffer);
     }
 
-    fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
+    fn set_receive_buffer(&self, buffer: &'a mut [u8]) {
         self.rx_buf.replace(buffer);
     }
 
     // The payload length is the length of the MAC payload, not the PSDU
     fn transmit(
         &self,
-        spi_buf: &'static mut [u8],
+        spi_buf: &'a mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (ReturnCode, Option<&'a mut [u8]>) {
         let state = self.state.get();
         let frame_len = frame_len + radio::MFR_SIZE;
 

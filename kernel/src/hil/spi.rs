@@ -24,12 +24,12 @@ pub enum ClockPhase {
     SampleTrailing,
 }
 
-pub trait SpiMasterClient {
+pub trait SpiMasterClient<'a> {
     /// Called when a read/write operation finishes
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: &'a mut [u8],
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     );
 }
@@ -72,10 +72,10 @@ pub trait SpiMasterClient {
 ///   pin_b.set();
 ///   write_byte(0xaa); // Uses SampleTrailing
 ///
-pub trait SpiMaster {
+pub trait SpiMaster<'a> {
     type ChipSelect: Copy;
 
-    fn set_client(&self, client: &'static SpiMasterClient);
+    fn set_client(&self, client: &'a SpiMasterClient);
 
     fn init(&self);
     fn is_busy(&self) -> bool;
@@ -88,8 +88,8 @@ pub trait SpiMaster {
     /// the two buffers.
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: &'a mut [u8],
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) -> ReturnCode;
     fn write_byte(&self, val: u8);
@@ -125,7 +125,7 @@ pub trait SpiMaster {
 /// SPIMasterDevice provides a chip-specific interface to the SPI Master
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
-pub trait SpiMasterDevice {
+pub trait SpiMasterDevice<'a> {
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
 
@@ -137,8 +137,8 @@ pub trait SpiMasterDevice {
     /// the two buffers.
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: &'a mut [u8],
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) -> ReturnCode;
 
@@ -151,31 +151,31 @@ pub trait SpiMasterDevice {
     fn get_rate(&self) -> u32;
 }
 
-pub trait SpiSlaveClient {
+pub trait SpiSlaveClient<'a> {
     /// This is called whenever the slave is selected by the master
     fn chip_selected(&self);
 
     /// This is called as a DMA interrupt when a transfer has completed
     fn read_write_done(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: Option<&'a mut [u8]>,
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     );
 }
 
-pub trait SpiSlave {
+pub trait SpiSlave<'a> {
     fn init(&self);
     /// Returns true if there is a client.
     fn has_client(&self) -> bool;
 
-    fn set_client(&self, client: Option<&'static SpiSlaveClient>);
+    fn set_client(&self, client: Option<&'a SpiSlaveClient>);
 
     fn set_write_byte(&self, write_byte: u8);
     fn read_write_bytes(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: Option<&'a mut [u8]>,
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) -> ReturnCode;
 
@@ -188,7 +188,7 @@ pub trait SpiSlave {
 /// SPISlaveDevice provides a chip-specific interface to the SPI Slave
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
-pub trait SpiSlaveDevice {
+pub trait SpiSlaveDevice<'a> {
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase);
 
@@ -199,8 +199,8 @@ pub trait SpiSlaveDevice {
     /// minimum of the size of the two buffers.
     fn read_write_bytes(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
+        write_buffer: Option<&'a mut [u8]>,
+        read_buffer: Option<&'a mut [u8]>,
         len: usize,
     ) -> ReturnCode;
 

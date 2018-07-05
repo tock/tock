@@ -8,14 +8,14 @@
 //! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
-pub trait TxClient {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
+pub trait TxClient<'a> {
+    fn send_done(&self, buf: &'a mut [u8], acked: bool, result: ReturnCode);
 }
 
-pub trait RxClient {
+pub trait RxClient<'a> {
     fn receive(
         &self,
-        buf: &'static mut [u8],
+        buf: &'a mut [u8],
         frame_len: usize,
         crc_valid: bool,
         result: ReturnCode,
@@ -61,17 +61,17 @@ pub const PSDU_OFFSET: usize = 2;
 pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU;
 pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
 
-pub trait Radio: RadioConfig + RadioData {}
+pub trait Radio<'a>: RadioConfig<'a> + RadioData<'a> {}
 
 /// Configure the 802.15.4 radio.
-pub trait RadioConfig {
+pub trait RadioConfig<'a> {
     /// buf must be at least MAX_BUF_SIZE in length, and
     /// reg_read and reg_write must be 2 bytes.
     fn initialize(
         &self,
-        spi_buf: &'static mut [u8],
-        reg_write: &'static mut [u8],
-        reg_read: &'static mut [u8],
+        spi_buf: &'a mut [u8],
+        reg_write: &'a mut [u8],
+        reg_read: &'a mut [u8],
     ) -> ReturnCode;
     fn reset(&self) -> ReturnCode;
     fn start(&self) -> ReturnCode;
@@ -79,13 +79,13 @@ pub trait RadioConfig {
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    fn set_power_client(&self, client: &'static PowerClient);
+    fn set_power_client(&self, client: &'a PowerClient);
 
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
     fn config_commit(&self);
-    fn set_config_client(&self, client: &'static ConfigClient);
+    fn set_config_client(&self, client: &'a ConfigClient);
 
     fn get_address(&self) -> u16; //....... The local 16-bit address
     fn get_address_long(&self) -> [u8; 8]; // 64-bit address
@@ -100,14 +100,14 @@ pub trait RadioConfig {
     fn set_channel(&self, chan: u8) -> ReturnCode;
 }
 
-pub trait RadioData {
-    fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
-    fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
+pub trait RadioData<'a> {
+    fn set_transmit_client(&self, client: &'a TxClient<'a>);
+    fn set_receive_client(&self, client: &'a RxClient<'a>, receive_buffer: &'a mut [u8]);
+    fn set_receive_buffer(&self, receive_buffer: &'a mut [u8]);
 
     fn transmit(
         &self,
-        spi_buf: &'static mut [u8],
+        spi_buf: &'a mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> (ReturnCode, Option<&'a mut [u8]>);
 }

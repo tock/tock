@@ -45,17 +45,17 @@ enum State {
     Write,
 }
 
-pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
+pub struct NonvolatileToPages<'a, F: hil::flash::Flash<'a>> {
     /// The module providing a `Flash` interface.
     driver: &'a F,
     /// Callback to the user of this capsule.
-    client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>,
+    client: OptionalCell<&'a hil::nonvolatile_storage::NonvolatileStorageClient<'a>>,
     /// Buffer correctly sized for the underlying flash page size.
-    pagebuffer: TakeCell<'static, F::Page>,
+    pagebuffer: TakeCell<'a, F::Page>,
     /// Current state of this capsule.
     state: Cell<State>,
     /// Temporary holding place for the user's buffer.
-    buffer: TakeCell<'static, [u8]>,
+    buffer: TakeCell<'a, [u8]>,
     /// Absolute address of where we are reading or writing. This gets updated
     /// as the operation proceeds across pages.
     address: NumCell<usize>,
@@ -68,8 +68,8 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     buffer_index: Cell<usize>,
 }
 
-impl<F: hil::flash::Flash> NonvolatileToPages<'a, F> {
-    pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
+impl<F: hil::flash::Flash<'a>> NonvolatileToPages<'a, F> {
+    pub fn new(driver: &'a F, buffer: &'a mut F::Page) -> NonvolatileToPages<'a, F> {
         NonvolatileToPages {
             driver: driver,
             client: OptionalCell::empty(),
@@ -84,14 +84,14 @@ impl<F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
+impl<F: hil::flash::Flash<'a>> hil::nonvolatile_storage::NonvolatileStorage<'a>
     for NonvolatileToPages<'a, F>
 {
-    fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
+    fn set_client(&self, client: &'a hil::nonvolatile_storage::NonvolatileStorageClient<'a>) {
         self.client.set(client);
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode {
         if self.state.get() != State::Idle {
             return ReturnCode::EBUSY;
         }
@@ -113,7 +113,7 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
             })
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode {
         if self.state.get() != State::Idle {
             return ReturnCode::EBUSY;
         }
@@ -152,8 +152,8 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
     }
 }
 
-impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: hil::flash::Error) {
+impl<F: hil::flash::Flash<'a>> hil::flash::Client<'a, F> for NonvolatileToPages<'a, F> {
+    fn read_complete(&self, pagebuffer: &'a mut F::Page, _error: hil::flash::Error) {
         match self.state.get() {
             State::Read => {
                 // OK we got a page from flash. Copy what we actually want from it
@@ -223,7 +223,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
         }
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, _error: hil::flash::Error) {
+    fn write_complete(&self, pagebuffer: &'a mut F::Page, _error: hil::flash::Error) {
         // After a write we could be done, need to do another write, or need to
         // do a read.
         self.buffer.take().map(move |buffer| {

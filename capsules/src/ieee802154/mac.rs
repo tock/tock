@@ -14,19 +14,19 @@ use kernel::hil::radio;
 use kernel::ReturnCode;
 use net::ieee802154::{Header, MacAddress};
 
-pub trait Mac {
+pub trait Mac<'a> {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
     /// transmitted
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode;
+    fn initialize(&self, mac_buf: &'a mut [u8]) -> ReturnCode;
 
     /// Sets the notified client for configuration changes
-    fn set_config_client(&self, client: &'static radio::ConfigClient);
+    fn set_config_client(&self, client: &'a radio::ConfigClient);
     /// Sets the notified client for transmission completions
-    fn set_transmit_client(&self, client: &'static radio::TxClient);
+    fn set_transmit_client(&self, client: &'a radio::TxClient<'a>);
     /// Sets the notified client for frame receptions
-    fn set_receive_client(&self, client: &'static radio::RxClient);
+    fn set_receive_client(&self, client: &'a radio::RxClient<'a>);
     /// Sets the buffer for packet reception
-    fn set_receive_buffer(&self, buffer: &'static mut [u8]);
+    fn set_receive_buffer(&self, buffer: &'a mut [u8]);
 
     /// The short 16-bit address of the radio
     fn get_address(&self) -> u16;
@@ -56,9 +56,9 @@ pub trait Mac {
     /// before being passed to the Mac layer. Returns the frame buffer in case of an error.
     fn transmit(
         &self,
-        full_mac_frame: &'static mut [u8],
+        full_mac_frame: &'a mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> (ReturnCode, Option<&'a mut [u8]>);
 }
 
 ///
@@ -66,14 +66,14 @@ pub trait Mac {
 /// implementation and the underlying radio::Radio device. Does not change the power
 /// state of the radio during operation.
 ///
-pub struct AwakeMac<'a, R: radio::Radio> {
+pub struct AwakeMac<'a, R: radio::Radio<'a>> {
     radio: &'a R,
 
-    tx_client: Cell<Option<&'static radio::TxClient>>,
-    rx_client: Cell<Option<&'static radio::RxClient>>,
+    tx_client: Cell<Option<&'a radio::TxClient<'a>>>,
+    rx_client: Cell<Option<&'a radio::RxClient<'a>>>,
 }
 
-impl<R: radio::Radio> AwakeMac<'a, R> {
+impl<R: radio::Radio<'a>> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
             radio: radio,
@@ -83,8 +83,8 @@ impl<R: radio::Radio> AwakeMac<'a, R> {
     }
 }
 
-impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
-    fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
+impl<R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
+    fn initialize(&self, _mac_buf: &'a mut [u8]) -> ReturnCode {
         // do nothing, extra buffer unnecessary
         ReturnCode::SUCCESS
     }
@@ -93,7 +93,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
         self.radio.is_on()
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'a radio::ConfigClient) {
         self.radio.set_config_client(client)
     }
 
@@ -125,43 +125,37 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
         self.radio.config_commit()
     }
 
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'a radio::TxClient<'a>) {
         self.tx_client.set(Some(client));
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient) {
+    fn set_receive_client(&self, client: &'a radio::RxClient<'a>) {
         self.rx_client.set(Some(client));
     }
 
-    fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
+    fn set_receive_buffer(&self, buffer: &'a mut [u8]) {
         self.radio.set_receive_buffer(buffer);
     }
 
     fn transmit(
         &self,
-        full_mac_frame: &'static mut [u8],
+        full_mac_frame: &'a mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (ReturnCode, Option<&'a mut [u8]>) {
         self.radio.transmit(full_mac_frame, frame_len)
     }
 }
 
-impl<R: radio::Radio> radio::TxClient for AwakeMac<'a, R> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+impl<R: radio::Radio<'a>> radio::TxClient<'a> for AwakeMac<'a, R> {
+    fn send_done(&self, buf: &'a mut [u8], acked: bool, result: ReturnCode) {
         self.tx_client.get().map(move |c| {
             c.send_done(buf, acked, result);
         });
     }
 }
 
-impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
-    fn receive(
-        &self,
-        buf: &'static mut [u8],
-        frame_len: usize,
-        crc_valid: bool,
-        result: ReturnCode,
-    ) {
+impl<R: radio::Radio<'a>> radio::RxClient<'a> for AwakeMac<'a, R> {
+    fn receive(&self, buf: &'a mut [u8], frame_len: usize, crc_valid: bool, result: ReturnCode) {
         // Filter packets by destination because radio is in promiscuous mode
         let mut addr_match = false;
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {

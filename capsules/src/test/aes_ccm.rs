@@ -8,23 +8,16 @@ use kernel::ReturnCode;
 pub struct Test<'a, A: AES128CCM<'a>> {
     aes_ccm: &'a A,
 
-    buf: TakeCell<'static, [u8]>,
+    buf: TakeCell<'a, [u8]>,
     current_test: Cell<usize>,
     encrypting: Cell<bool>,
 
     // (a_data, m_data, c_data, nonce, confidential, mic_len)
-    tests: [(
-        &'static [u8],
-        &'static [u8],
-        &'static [u8],
-        &'static [u8],
-        bool,
-        usize,
-    ); 3],
+    tests: [(&'a [u8], &'a [u8], &'a [u8], &'a [u8], bool, usize); 3],
 }
 
 impl<A: AES128CCM<'a>> Test<'a, A> {
-    pub fn new(aes_ccm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
+    pub fn new(aes_ccm: &'a A, buf: &'a mut [u8]) -> Test<'a, A> {
         Test {
             aes_ccm: aes_ccm,
             buf: TakeCell::new(buf),
@@ -184,8 +177,8 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
     }
 }
 
-impl<A: AES128CCM<'a>> CCMClient for Test<'a, A> {
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+impl<A: AES128CCM<'a>> CCMClient<'a> for Test<'a, A> {
+    fn crypt_done(&self, buf: &'a mut [u8], res: ReturnCode, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != ReturnCode::SUCCESS {
             debug!("Test failed: crypt_done returned {:?}", res);

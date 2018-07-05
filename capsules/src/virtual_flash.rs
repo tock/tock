@@ -33,14 +33,14 @@ use kernel::ReturnCode;
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests. After each completed request the list is checked to see if there
 /// is another flash user with an outstanding read, write, or erase request.
-pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
+pub struct MuxFlash<'a, F: hil::flash::Flash<'a>> {
     flash: &'a F,
     users: List<'a, FlashUser<'a, F>>,
     inflight: Cell<Option<&'a FlashUser<'a, F>>>,
 }
 
-impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'a, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+impl<F: hil::flash::Flash<'a>> hil::flash::Client<'a, F> for MuxFlash<'a, F> {
+    fn read_complete(&self, pagebuffer: &'a mut F::Page, error: hil::flash::Error) {
         self.inflight.get().map(move |user| {
             self.inflight.set(None);
             user.read_complete(pagebuffer, error);
@@ -48,7 +48,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'a, F> {
         self.do_next_op();
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+    fn write_complete(&self, pagebuffer: &'a mut F::Page, error: hil::flash::Error) {
         self.inflight.get().map(move |user| {
             self.inflight.set(None);
             user.write_complete(pagebuffer, error);
@@ -65,7 +65,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash> MuxFlash<'a, F> {
+impl<F: hil::flash::Flash<'a>> MuxFlash<'a, F> {
     pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
         MuxFlash {
             flash: flash,
@@ -127,15 +127,15 @@ enum Op {
 /// need to create one of these to be a user of the flash. The `new()` function
 /// handles most of the work, a user only has to pass in a reference to the
 /// MuxFlash object.
-pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
+pub struct FlashUser<'a, F: hil::flash::Flash<'a>> {
     mux: &'a MuxFlash<'a, F>,
-    buffer: TakeCell<'static, F::Page>,
+    buffer: TakeCell<'a, F::Page>,
     operation: Cell<Op>,
     next: ListLink<'a, FlashUser<'a, F>>,
-    client: Cell<Option<&'a hil::flash::Client<FlashUser<'a, F>>>>,
+    client: Cell<Option<&'a hil::flash::Client<'a, FlashUser<'a, F>>>>,
 }
 
-impl<F: hil::flash::Flash> FlashUser<'a, F> {
+impl<F: hil::flash::Flash<'a>> FlashUser<'a, F> {
     pub const fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
         FlashUser {
             mux: mux,
@@ -147,7 +147,7 @@ impl<F: hil::flash::Flash> FlashUser<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
+impl<F: hil::flash::Flash<'a>, C: hil::flash::Client<'a, Self>> hil::flash::HasClient<'a, C>
     for FlashUser<'a, F>
 {
     fn set_client(&'a self, client: &'a C) {
@@ -156,14 +156,14 @@ impl<F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a
     }
 }
 
-impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+impl<F: hil::flash::Flash<'a>> hil::flash::Client<'a, F> for FlashUser<'a, F> {
+    fn read_complete(&self, pagebuffer: &'a mut F::Page, error: hil::flash::Error) {
         self.client.get().map(move |client| {
             client.read_complete(pagebuffer, error);
         });
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+    fn write_complete(&self, pagebuffer: &'a mut F::Page, error: hil::flash::Error) {
         self.client.get().map(move |client| {
             client.write_complete(pagebuffer, error);
         });
@@ -176,23 +176,23 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
     }
 }
 
-impl<F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
+impl<F: hil::flash::Flash<'a>> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
     fn next(&'a self) -> &'a ListLink<'a, FlashUser<'a, F>> {
         &self.next
     }
 }
 
-impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'a, F> {
+impl<F: hil::flash::Flash<'a>> hil::flash::Flash<'a> for FlashUser<'a, F> {
     type Page = F::Page;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn read_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode {
         self.buffer.replace(buf);
         self.operation.set(Op::Read(page_number));
         self.mux.do_next_op();
         ReturnCode::SUCCESS
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn write_page(&self, page_number: usize, buf: &'a mut Self::Page) -> ReturnCode {
         self.buffer.replace(buf);
         self.operation.set(Op::Write(page_number));
         self.mux.do_next_op();

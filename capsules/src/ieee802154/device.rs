@@ -17,7 +17,7 @@ use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 
 pub trait MacDevice<'a> {
     /// Sets the transmission client of this MAC device
-    fn set_transmit_client(&self, client: &'a TxClient);
+    fn set_transmit_client(&self, client: &'a TxClient<'a>);
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a RxClient);
 
@@ -59,26 +59,26 @@ pub trait MacDevice<'a> {
     ///
     /// Returns either a Frame that is ready to have payload appended to it, or
     /// the mutable buffer if the frame cannot be prepared for any reason
-    fn prepare_data_frame(
+    fn prepare_data_frame<'b>(
         &self,
-        buf: &'static mut [u8],
+        buf: &'b mut [u8],
         dst_pan: PanID,
         dst_addr: MacAddress,
         src_pan: PanID,
         src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
-    ) -> Result<Frame, &'static mut [u8]>;
+    ) -> Result<Frame<'b>, &'b mut [u8]>;
 
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
     /// that it can be re-used.
-    fn transmit(&self, frame: Frame) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn transmit(&self, frame: Frame<'a>) -> (ReturnCode, Option<&'a mut [u8]>);
 }
 
 /// Trait to be implemented by any user of the IEEE 802.15.4 device that
-/// transmits frames. Contains a callback through which the static mutable
+/// transmits frames. Contains a callback through which the mutable
 /// reference to the frame buffer is returned to the client.
-pub trait TxClient {
+pub trait TxClient<'a> {
     /// When transmission is complete or fails, return the buffer used for
     /// transmission to the client. `result` indicates whether or not
     /// the transmission was successful.
@@ -88,7 +88,7 @@ pub trait TxClient {
     /// - `acked`: Whether the transmission was acknowledged.
     /// - `result`: This is `ReturnCode::SUCCESS` if the frame was transmitted,
     /// otherwise an error occured in the transmission pipeline.
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode);
+    fn send_done(&self, spi_buf: &'a mut [u8], acked: bool, result: ReturnCode);
 }
 
 /// Trait to be implemented by users of the IEEE 802.15.4 device that wish to

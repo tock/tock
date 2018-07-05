@@ -105,12 +105,12 @@ impl Default for App {
 
 pub struct NonvolatileStorage<'a> {
     // The underlying physical storage device.
-    driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
+    driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'a>,
     // Per-app state.
     apps: Grant<App>,
 
     // Internal buffer for copying appslices into.
-    buffer: TakeCell<'static, [u8]>,
+    buffer: TakeCell<'a, [u8]>,
     // What issued the currently executing call. This can be an app or the kernel.
     current_user: Cell<Option<NonvolatileUser>>,
 
@@ -125,13 +125,13 @@ pub struct NonvolatileStorage<'a> {
 
     // Optional client for the kernel. Only needed if the kernel intends to use
     // this nonvolatile storage.
-    kernel_client: Cell<Option<&'static hil::nonvolatile_storage::NonvolatileStorageClient>>,
+    kernel_client: Cell<Option<&'a hil::nonvolatile_storage::NonvolatileStorageClient<'a>>>,
     // Whether the kernel is waiting for a read/write.
     kernel_pending_command: Cell<bool>,
     // Whether the kernel wanted a read/write.
     kernel_command: Cell<NonvolatileCommand>,
     // Holder for the buffer passed from the kernel in case we need to wait.
-    kernel_buffer: TakeCell<'static, [u8]>,
+    kernel_buffer: TakeCell<'a, [u8]>,
     // How many bytes to read/write from the kernel buffer.
     kernel_readwrite_length: Cell<usize>,
     // Where to read/write from the kernel request.
@@ -140,13 +140,13 @@ pub struct NonvolatileStorage<'a> {
 
 impl NonvolatileStorage<'a> {
     pub fn new(
-        driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
+        driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'a>,
         grant: Grant<App>,
         userspace_start_address: usize,
         userspace_length: usize,
         kernel_start_address: usize,
         kernel_length: usize,
-        buffer: &'static mut [u8],
+        buffer: &'a mut [u8],
     ) -> NonvolatileStorage<'a> {
         NonvolatileStorage {
             driver: driver,
@@ -385,8 +385,8 @@ impl NonvolatileStorage<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'a> {
-    fn read_done(&self, buffer: &'static mut [u8], length: usize) {
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'a> for NonvolatileStorage<'a> {
+    fn read_done(&self, buffer: &'a mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.get().map(|user| {
             self.current_user.set(None);
@@ -421,7 +421,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
         self.check_queue();
     }
 
-    fn write_done(&self, buffer: &'static mut [u8], length: usize) {
+    fn write_done(&self, buffer: &'a mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.get().map(|user| {
             self.current_user.set(None);
@@ -448,17 +448,17 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
 }
 
 /// Provide an interface for the kernel.
-impl hil::nonvolatile_storage::NonvolatileStorage for NonvolatileStorage<'a> {
-    fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
+impl hil::nonvolatile_storage::NonvolatileStorage<'a> for NonvolatileStorage<'a> {
+    fn set_client(&self, client: &'a hil::nonvolatile_storage::NonvolatileStorageClient<'a>) {
         self.kernel_client.set(Some(client));
     }
 
-    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn read(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelRead, address, length, None)
     }
 
-    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+    fn write(&self, buffer: &'a mut [u8], address: usize, length: usize) -> ReturnCode {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelWrite, address, length, None)
     }

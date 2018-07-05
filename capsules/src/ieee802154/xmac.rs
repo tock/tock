@@ -142,27 +142,27 @@ pub struct XMacHeaderInfo {
 // the tx/rx client, and the underlying radio driver. The transmit buffer can
 // also hold the actual data packet contents while preambles are being
 // transmitted.
-pub struct XMac<'a, R: radio::Radio, A: Alarm> {
+pub struct XMac<'a, R: radio::Radio<'a>, A: Alarm> {
     radio: &'a R,
     alarm: &'a A,
     rng: &'a RNG,
-    tx_client: Cell<Option<&'static radio::TxClient>>,
-    rx_client: Cell<Option<&'static radio::RxClient>>,
+    tx_client: Cell<Option<&'a radio::TxClient<'a>>>,
+    rx_client: Cell<Option<&'a radio::RxClient<'a>>>,
     state: Cell<XMacState>,
     delay_sleep: Cell<bool>,
 
     tx_header: Cell<Option<XMacHeaderInfo>>,
-    tx_payload: TakeCell<'static, [u8]>,
+    tx_payload: TakeCell<'a, [u8]>,
     tx_len: Cell<usize>,
 
     tx_preamble_pending: Cell<bool>,
     tx_preamble_seq_num: Cell<u8>,
-    tx_preamble_buf: TakeCell<'static, [u8]>,
+    tx_preamble_buf: TakeCell<'a, [u8]>,
 
     rx_pending: Cell<bool>,
 }
 
-impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
+impl<R: radio::Radio<'a>, A: Alarm> XMac<'a, R, A> {
     pub fn new(radio: &'a R, alarm: &'a A, rng: &'a RNG) -> XMac<'a, R, A> {
         XMac {
             radio: radio,
@@ -216,7 +216,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
     }
 
     fn transmit_preamble(&self) {
-        let mut result: (ReturnCode, Option<&'static mut [u8]>) = (ReturnCode::SUCCESS, None);
+        let mut result: (ReturnCode, Option<&'a mut [u8]>) = (ReturnCode::SUCCESS, None);
         let buf = self.tx_preamble_buf.take().unwrap();
         let tx_header = self.tx_header.get().unwrap();
 
@@ -269,7 +269,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
         // If we have actual data to transmit, send it and report errors to
         // client.
         if self.tx_payload.is_some() {
-            let result: (ReturnCode, Option<&'static mut [u8]>);
+            let result: (ReturnCode, Option<&'a mut [u8]>);
             let tx_buf = self.tx_payload.take().unwrap();
 
             result = self.radio.transmit(tx_buf, self.tx_len.get());
@@ -282,7 +282,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
 
     // Reports back to client that transmission is complete, radio can turn off
     // if not kept awake by other portions of the protocol.
-    fn call_tx_client(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+    fn call_tx_client(&self, buf: &'a mut [u8], acked: bool, result: ReturnCode) {
         self.state.set(XMacState::AWAKE);
         self.sleep();
         self.tx_client.get().map(move |c| {
@@ -294,7 +294,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
     // Does not propagate preamble packets up to the RxClient.
     fn call_rx_client(
         &self,
-        buf: &'static mut [u8],
+        buf: &'a mut [u8],
         len: usize,
         crc_valid: bool,
         result: ReturnCode,
@@ -308,7 +308,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm> rng::Client for XMac<'a, R, A> {
+impl<R: radio::Radio<'a>, A: Alarm> rng::Client for XMac<'a, R, A> {
     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
         match randomness.next() {
             Some(random) => {
@@ -335,8 +335,8 @@ impl<R: radio::Radio, A: Alarm> rng::Client for XMac<'a, R, A> {
 }
 
 // The vast majority of these calls pass through to the underlying radio driver.
-impl<R: radio::Radio, A: Alarm> Mac for XMac<'a, R, A> {
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode {
+impl<R: radio::Radio<'a>, A: Alarm> Mac<'a> for XMac<'a, R, A> {
+    fn initialize(&self, mac_buf: &'a mut [u8]) -> ReturnCode {
         self.tx_preamble_buf.replace(mac_buf);
         self.state.set(XMacState::STARTUP);
         ReturnCode::SUCCESS
@@ -351,7 +351,7 @@ impl<R: radio::Radio, A: Alarm> Mac for XMac<'a, R, A> {
         self.radio.is_on()
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'a radio::ConfigClient) {
         self.radio.set_config_client(client)
     }
 
@@ -383,23 +383,23 @@ impl<R: radio::Radio, A: Alarm> Mac for XMac<'a, R, A> {
         self.radio.config_commit()
     }
 
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'a radio::TxClient<'a>) {
         self.tx_client.set(Some(client));
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient) {
+    fn set_receive_client(&self, client: &'a radio::RxClient<'a>) {
         self.rx_client.set(Some(client));
     }
 
-    fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
+    fn set_receive_buffer(&self, buffer: &'a mut [u8]) {
         self.radio.set_receive_buffer(buffer);
     }
 
     fn transmit(
         &self,
-        full_mac_frame: &'static mut [u8],
+        full_mac_frame: &'a mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+    ) -> (ReturnCode, Option<&'a mut [u8]>) {
         // If the radio is busy, we already have data to transmit, or the buffer
         // size is wrong, fail before attempting to send any preamble packets
         // (and waking up the radio).
@@ -456,7 +456,7 @@ impl<R: radio::Radio, A: Alarm> Mac for XMac<'a, R, A> {
 
 // Core of the XMAC protocol - when the timer fires, the protocol state
 // indicates the next state/action to take.
-impl<R: radio::Radio, A: Alarm> time::Client for XMac<'a, R, A> {
+impl<R: radio::Radio<'a>, A: Alarm> time::Client for XMac<'a, R, A> {
     fn fired(&self) {
         match self.state.get() {
             XMacState::SLEEP => {
@@ -496,7 +496,7 @@ impl<R: radio::Radio, A: Alarm> time::Client for XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm> radio::PowerClient for XMac<'a, R, A> {
+impl<R: radio::Radio<'a>, A: Alarm> radio::PowerClient for XMac<'a, R, A> {
     fn changed(&self, on: bool) {
         // If the radio turns on and we're in STARTUP, then either transition to
         // listening for incoming preambles or start transmitting preambles if
@@ -517,8 +517,8 @@ impl<R: radio::Radio, A: Alarm> radio::PowerClient for XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm> radio::TxClient for XMac<'a, R, A> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+impl<R: radio::Radio<'a>, A: Alarm> radio::TxClient<'a> for XMac<'a, R, A> {
+    fn send_done(&self, buf: &'a mut [u8], acked: bool, result: ReturnCode) {
         match self.state.get() {
             // Completed a data transmission to the destination node
             XMacState::TX => {
@@ -551,10 +551,10 @@ impl<R: radio::Radio, A: Alarm> radio::TxClient for XMac<'a, R, A> {
 // destination node is receiving packets/awake while we are attempting a
 // transmission, we put the radio in promiscuous mode. Not a huge issue, but
 // we need to be wary of incoming packets not actually addressed to our node.
-impl<R: radio::Radio, A: Alarm> radio::RxClient for XMac<'a, R, A> {
+impl<R: radio::Radio<'a>, A: Alarm> radio::RxClient<'a> for XMac<'a, R, A> {
     fn receive(
         &self,
-        buf: &'static mut [u8],
+        buf: &'a mut [u8],
         frame_len: usize,
         crc_valid: bool,
         result: ReturnCode,
