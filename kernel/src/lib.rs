@@ -43,7 +43,7 @@ pub use platform::systick::SysTick;
 pub use platform::{mpu, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use returncode::ReturnCode;
-pub use sched::kernel_loop;
+pub use sched::Kernel;
 
 // These symbols must be exported for the arch crate to access them.
 pub use process::APP_FAULT;

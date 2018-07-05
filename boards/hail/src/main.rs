@@ -488,6 +488,8 @@ pub unsafe fn reset_handler() {
 
     // debug!("Initialization complete. Entering main loop");
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
@@ -496,10 +498,11 @@ pub unsafe fn reset_handler() {
     }
 
     kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
+    board_kernel.kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
 }
