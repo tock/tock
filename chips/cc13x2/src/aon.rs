@@ -50,7 +50,7 @@ register_bitfields![
         AUX_SRAM_PWR_OFF_OFF    OFFSET(17) NUMBITS(1) [],
         AUX_SRAM_RET_EN OFFSET(16) NUMBITS(1) [],
 
-        // SRAM Retention enabled
+        //  SRAM Retention enabled
         //  0x00 - Retention disabled
         //  0x01 - Retention enabled for BANK0
         //  0x03 - Retention enabled for BANK0, BANK1
@@ -83,12 +83,6 @@ register_bitfields![
         EN  OFFSET(0) NUMBITS(1) []
     ]
 
-    // PwrCtl controls the power configuration to supply the VDDR to the
-    // entire chip (that is, the power source).
-    //      GLDO = Global LDO, uses higher current
-    //      DCDC = Regulated LDO, uses lower current (to conserve energy)
-    //      EXT  = Use an external power source
-    //  *NOTE*: DCDC_ACTIVE and DCDC_EN should always have the same value
 ];
 
 const AON_EVENT_BASE: StaticRef<AonEventRegisters> = unsafe { StaticRef::new(0x4009_3000 as *const AonEventRegisters) };

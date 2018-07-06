@@ -1,4 +1,4 @@
-//! RTC driver, sensortag family
+//! RTC driver
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite};
