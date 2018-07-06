@@ -1,10 +1,24 @@
-# Mutable References in Tock - Memory Containers
+# Mutable References in Tock - Memory Containers (Cells)
 
 Borrows are a critical part of the Rust language that help provide its
-safety guarantees. However, they can complicate event-driven code without
-a heap (no dynamic allocation). Tock uses memory containers
-such as the TakeCell abstraction to allow simple code to keep
-the safety properties Rust provides.
+safety guarantees. However, when there is no dynamic memory allocation
+(no heap), event-driven code runs into challenges with Rust's borrow
+semantics.  Often multiple structs need to
+be able to call (share) a struct based on what events occur. For example,
+a struct representing a radio interface needs to handle callbacks
+both from the bus it uses as well as handle calls from higher layers of
+a networking stack. Both of these callers need to be able to change the
+state of the radio struct, but Rust's borrow checker does not allow them
+to both have mutable references to the struct.
+
+To solve this problem, Tock builds on the observation that having two
+references to a struct that can modify it is safe, as long as no references
+to memory inside the struct are leaked (there is no interior mutability).
+Tock uses *memory containers*, a set of types that allow mutability
+but not interior mutability, to achieve this goal. The Rust standard
+library has two memory container types, `Cell` and `RefCell`. Tock uses
+`Cell` extensively, but also adds five new memory container types, each
+of which is tailored to a specific use common in kernel code.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Mutable_References.md -->
 
@@ -18,9 +32,10 @@ the safety properties Rust provides.
   * [Example use of `map`](#example-use-of-map)
     + [`map` variants](#map-variants)
 - [`MapCell`](#mapcell)
-- [`NumCell`](#numcell)
 - [`OptionalCell`](#optionalcell)
 - [`VolatileCell`](#volatilecell)
+- [Cell Extensions](#cell-extensions)
+  * [`NumericCellExt`](#numericcellext)
 
 <!-- tocstop -->
 
@@ -74,7 +89,7 @@ match external {
 }
 ```
 
-But what does this mean for Tock? As the Tock kernel is single
+As the Tock kernel is single
 threaded, it doesn't have race conditions and so in some cases it may
 be safe for there to be multiple references, as long as they do not
 point inside each other (as in the number/pointer example).  But Rust
@@ -97,24 +112,25 @@ references.
 
 ## `Cell`s in Tock
 
-Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for various
-different data types that need to be held by capsules and chip drivers. This
+Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for 
+different data types. This
 table summarizes the various types, and more detail is included below.
 
 | Cell Type      | Best Used For        | Example                                    | Common Uses                                                                                           |
 |----------------|----------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `Cell`         | Primitive types      | `Cell<bool>`                               | Keeping track of which state a capsule is in (holding an `enum`) or for holding a true/false flag.    |
-| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`                  | Holding static buffers that will receive or send data.                                                |
-| `MapCell`      | Large static buffers | `MapCell<'static, [u8;256]>`               | Delegating reference to large buffers (e.g. crypto operations).                                       |
-| `NumCell`      | Integers             | `NumCell<usize>`                           | Keeping state like buffer index pointers that needs to be preserved over multiple asynchronous calls. |
-| `OptionalCell` | Optional parameters  | `OptionalCell<&'static hil::uart::Client>` | Keeping state that can be uninitialized, like a Client before one is set.                             |
-| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers for a microcontroller.                                                       |
+| `Cell`         | Primitive types      | `Cell<bool>`, [`sched.rs`](../kernel/src/sched.rs) | State variables (holding an `enum`), true/false flags, integer parameters like length.    |
+| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi.rs)                 | Holding static buffers that will receive or send data.                                                |
+| `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)              | Delegating reference to large buffers (e.g. application buffers).                                       |
+| `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.                             |
+| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers, used by `tock_regs` crate.                                                       |
 
 ## The `TakeCell` abstraction
 
-Tock solves this issue of uniquely sharing memory with a memory
-container abstraction, TakeCell.
-From `tock/kernel/src/common/take_cell.rs`:
+While the different memory containers each have specialized uses, most of their
+operations are common across the different types. We therefore explain the basic
+use of memory containers in the context of TakeCell, and the additional/specialized
+functionality of each other type in its own section.
+From `tock/libraries/tock-cells/src/take_cell.rs`:
 
 > A `TakeCell` is a potential reference to mutable memory. Borrow rules are
 > enforced by forcing clients to either move the memory out of the cell or
@@ -276,7 +292,7 @@ txbuf.map_or_else(|| {
 });
 ```
 
-Not in both the `.map_or()` and `.map_or_else()` cases, the first argument
+Note, in both the `.map_or()` and `.map_or_else()` cases, the first argument
 corresponds to when the `TakeCell` is empty.
 
 
@@ -299,19 +315,9 @@ Generally speaking, medium to large sized buffers should prefer `MapCell`s.
 [mapcell]: https://github.com/tock/tock/commit/5f7246d4af139864f567cebf15bfc0b49e17b787)
 
 
-## `NumCell`
-
-[`NumCell`](https://github.com/tock/tock/blob/master/kernel/src/common/num_cell.rs)
-is just like a normal `Cell` but can only contain numbers, and provides some
-convenient functions (`add()` and `subtract()`, for example). `NumCell` makes
-for cleaner code when storing numbers that are increased or decreased. For
-example, with a typical `Cell`, adding one to the stored value looks like:
-`my_cell.set(my_cell.get() + 1)`. With a `NumCell` it is a little easier to
-understand: `my_cell.increment()` (or `my_cell.add(1)`).
-
 ## `OptionalCell`
 
-[`OptionalCell`](https://github.com/tock/tock/blob/master/kernel/src/common/optional_cell.rs)
+[`OptionalCell`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/optional_cell.rs)
 is effectively a wrapper for a `Cell` that contains an `Option`, like:
 `Cell<Option<T>>`. This to an extent mirrors the `TakeCell` interface, where the
 `Option` is hidden from the user. So instead of `my_optional_cell.get().map(||
@@ -327,3 +333,24 @@ A `VolatileCell` is just a helper type for doing volatile reads and writes to a
 value. This is mostly used for accessing memory-mapped I/O registers. The
 `get()` and `set()` functions are wrappers around `core::ptr::read_volatile()`
 and `core::ptr::write_volatile()`.
+
+
+## Cell Extensions
+
+In addition to custom types, Tock adds [extensions][extension_trait] to some of
+the standard cells to enhance and ease usability. The mechanism here is to add
+traits to existing data types to enhance their ability. To use extensions,
+authors need only `use kernel::common::cells::THE_EXTENSION` to pull the new
+traits into scope.
+
+### `NumericCellExt`
+
+[`NumericCellExt`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/numeric_cell_ext.rs)
+extends cells that contain "numeric" types (like `usize` or `i32`) to provide
+some convenient functions (`add()` and `subtract()`, for example). This
+extension makes for cleaner code when storing numbers that are increased or
+decreased. For example, with a typical `Cell`, adding one to the stored value
+looks like: `my_cell.set(my_cell.get() + 1)`. With a `NumericCellExt` it is a
+little easier to understand: `my_cell.increment()` (or `my_cell.add(1)`).
+
+[extension_trait]: https://github.com/aturon/rfcs/blob/extension-trait-conventions/text/0000-extension-trait-conventions.md

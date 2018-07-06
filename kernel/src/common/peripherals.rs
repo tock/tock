@@ -134,7 +134,7 @@ where
     clock: &'a C,
 }
 
-impl<'a, H, C> PeripheralManager<'a, H, C>
+impl<H, C> PeripheralManager<'a, H, C>
 where
     H: 'a + PeripheralManagement<C>,
     C: 'a + ClockInterface,
@@ -151,7 +151,7 @@ where
     }
 }
 
-impl<'a, H, C> Drop for PeripheralManager<'a, H, C>
+impl<H, C> Drop for PeripheralManager<'a, H, C>
 where
     H: 'a + PeripheralManagement<C>,
     C: 'a + ClockInterface,

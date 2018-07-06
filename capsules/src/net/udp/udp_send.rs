@@ -64,14 +64,14 @@ pub trait UDPSender<'a> {
 /// This is a specific instantiation of the `UDPSender` trait. Note
 /// that this struct contains a reference to an `IP6Sender` which it
 /// forwards packets to (and receives callbacks from).
-pub struct UDPSendStruct<'a, T: IP6Sender<'a> + 'a> {
+pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: Cell<Option<&'a UDPSendClient>>,
 }
 
 /// Below is the implementation of the `UDPSender` traits for the
 /// `UDPSendStruct`.
-impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
+impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     fn set_client(&self, client: &'a UDPSendClient) {
         self.client.set(Some(client));
     }
@@ -91,7 +91,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     }
 }
 
-impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
+impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(ip_send_struct: &'a T) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             ip_send_struct: ip_send_struct,
@@ -103,7 +103,7 @@ impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
 /// This function implements the `IP6Client` trait for the `UDPSendStruct`,
 /// and is necessary to receive callbacks from the lower (IP) layer. When
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
-impl<'a, T: IP6Sender<'a>> IP6Client for UDPSendStruct<'a, T> {
+impl<T: IP6Sender<'a>> IP6Client for UDPSendStruct<'a, T> {
     fn send_done(&self, result: ReturnCode) {
         self.client.get().map(|client| client.send_done(result));
     }

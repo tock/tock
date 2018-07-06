@@ -8,13 +8,13 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use ioc;
 use kernel::common::regs::{ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
 
 const NUM_PINS: usize = 32;
-const GPIO_BASE: *const GpioRegisters = 0x4002_2000 as *const GpioRegisters;
 
 #[repr(C)]
-pub struct GpioRegisters {
+struct GpioRegisters {
     _reserved0: [u8; 0x90],
     pub dout_set: WriteOnly<u32>,
     _reserved1: [u8; 0xC],
@@ -29,8 +29,11 @@ pub struct GpioRegisters {
     pub evflags: ReadWrite<u32>,
 }
 
+const GPIO_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x40022000 as *const GpioRegisters) };
+
 pub struct GPIOPin {
-    regs: *const GpioRegisters,
+    registers: StaticRef<GpioRegisters>,
     pin: usize,
     pin_mask: u32,
     client_data: Cell<usize>,
@@ -40,7 +43,7 @@ pub struct GPIOPin {
 impl GPIOPin {
     const fn new(pin: usize) -> GPIOPin {
         GPIOPin {
-            regs: GPIO_BASE,
+            registers: GPIO_BASE,
             pin: pin,
             pin_mask: 1 << (pin % NUM_PINS),
             client_data: Cell::new(0),
@@ -75,7 +78,7 @@ impl hil::gpio::Pin for GPIOPin {
         // Disable input in the io configuration
         ioc::IOCFG[self.pin].enable_output();
         // Enable data output
-        let regs: &GpioRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.doe.set(regs.doe.get() | self.pin_mask);
     }
 
@@ -89,22 +92,22 @@ impl hil::gpio::Pin for GPIOPin {
     }
 
     fn set(&self) {
-        let regs: &GpioRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.dout_set.set(self.pin_mask);
     }
 
     fn clear(&self) {
-        let regs: &GpioRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.dout_clr.set(self.pin_mask);
     }
 
     fn toggle(&self) {
-        let regs: &GpioRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.dout_tgl.set(self.pin_mask);
     }
 
     fn read(&self) -> bool {
-        let regs: &GpioRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.din.get() & self.pin_mask != 0
     }
 
@@ -138,7 +141,7 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let regs: &GpioRegisters = unsafe { &*GPIO_BASE };
+        let regs = GPIO_BASE;
         let evflags = regs.evflags.get();
         // Clear all interrupts by setting their bits to 1 in evflags
         regs.evflags.set(evflags);

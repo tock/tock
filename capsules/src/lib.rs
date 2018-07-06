@@ -1,4 +1,5 @@
-#![feature(const_fn, const_cell_new)]
+#![feature(const_fn)]
+#![feature(infer_outlives_requirements, in_band_lifetimes)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -34,6 +35,7 @@ pub mod lps25hb;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp23008;
+pub mod mx25r6435f;
 pub mod ninedof;
 pub mod nonvolatile_storage_driver;
 pub mod nonvolatile_to_pages;

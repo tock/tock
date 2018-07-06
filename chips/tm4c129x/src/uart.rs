@@ -3,12 +3,12 @@ use gpio;
 use kernel;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 use kernel::hil;
 use sysctl;
 
-#[allow(dead_code)]
 #[repr(C)]
-struct UARTRegisters {
+struct UartRegisters {
     dr: VolatileCell<u32>,
     rsr: VolatileCell<u32>,
     _reserved0: [u32; 4],
@@ -34,19 +34,21 @@ struct UARTRegisters {
     cc: VolatileCell<u32>,
 }
 
-const UART_BASE_ADDRS: [*mut UARTRegisters; 8] = [
-    0x4000C000 as *mut UARTRegisters,
-    0x4000D000 as *mut UARTRegisters,
-    0x4000E000 as *mut UARTRegisters,
-    0x4000F000 as *mut UARTRegisters,
-    0x40010000 as *mut UARTRegisters,
-    0x40011000 as *mut UARTRegisters,
-    0x40012000 as *mut UARTRegisters,
-    0x40013000 as *mut UARTRegisters,
-];
+const UART_BASES: [StaticRef<UartRegisters>; 8] = unsafe {
+    [
+        StaticRef::new(0x4000C000 as *const UartRegisters),
+        StaticRef::new(0x4000D000 as *const UartRegisters),
+        StaticRef::new(0x4000E000 as *const UartRegisters),
+        StaticRef::new(0x4000F000 as *const UartRegisters),
+        StaticRef::new(0x40010000 as *const UartRegisters),
+        StaticRef::new(0x40011000 as *const UartRegisters),
+        StaticRef::new(0x40012000 as *const UartRegisters),
+        StaticRef::new(0x40013000 as *const UartRegisters),
+    ]
+};
 
 pub struct UART {
-    registers: *mut UARTRegisters,
+    registers: StaticRef<UartRegisters>,
     clock: sysctl::Clock,
     rx: Cell<Option<&'static gpio::GPIOPin>>,
     tx: Cell<Option<&'static gpio::GPIOPin>>,
@@ -56,13 +58,10 @@ pub struct UART {
     offset: Cell<usize>,
 }
 
-pub static mut UART0: UART = UART::new(
-    UART_BASE_ADDRS[0],
-    sysctl::Clock::UART(sysctl::RCGCUART::UART0),
-);
+pub static mut UART0: UART = UART::new(UART_BASES[0], sysctl::Clock::UART(sysctl::RCGCUART::UART0));
 
 impl UART {
-    const fn new(base_addr: *mut UARTRegisters, clock: sysctl::Clock) -> UART {
+    const fn new(base_addr: StaticRef<UartRegisters>, clock: sysctl::Clock) -> UART {
         UART {
             registers: base_addr,
             clock: clock,
@@ -76,7 +75,7 @@ impl UART {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
 
         regs.cc.set(0x5);
         let brd = /*uartclk*/16000000 * /*width(brdf)*/64 / (/*clkdiv*/16 * /*baud*/baud_rate);
@@ -101,17 +100,17 @@ impl UART {
     }
 
     fn enable_tx_interrupts(&self) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.im.set(regs.im.get() | (1 << 5)); // TCIE
     }
 
     fn disable_tx_interrupts(&self) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.im.set(regs.im.get() & !(1 << 5)); // TCIE
     }
 
     pub fn enable_tx(&self) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         self.tx
             .get()
             .map(|pin| pin.configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel)));
@@ -120,7 +119,7 @@ impl UART {
     }
 
     pub fn enable_rx(&self) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         self.rx
             .get()
             .map(|pin| pin.configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel)));
@@ -129,13 +128,13 @@ impl UART {
     }
 
     pub fn send_byte(&self, byte: u8) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         while regs.fr.get() & (1 << 3) != 0 {} // TXE
         regs.dr.set(byte as u32);
     }
 
     pub fn tx_ready(&self) -> bool {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.fr.get() & (1 << 3) == 0 // TC
     }
 
@@ -146,7 +145,7 @@ impl UART {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &UARTRegisters = unsafe { &*self.registers };
+        let regs = &*self.registers;
         // check if caused by TC
         if regs.mis.get() & (1 << 5) != 0 {
             self.remaining.set(self.remaining.get() - 1);

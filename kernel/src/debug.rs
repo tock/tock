@@ -36,6 +36,7 @@
 use callback::{AppId, Callback};
 use core::cmp::min;
 use core::fmt::{write, Arguments, Result, Write};
+use core::panic::PanicInfo;
 use core::ptr::{read_volatile, write_volatile};
 use core::{slice, str};
 use driver::Driver;
@@ -51,19 +52,17 @@ use returncode::ReturnCode;
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic<L: hil::led::Led, W: Write>(
-    led: &mut L,
+    leds: &mut [&mut L],
     writer: &mut W,
-    args: Arguments,
-    file: &'static str,
-    line: u32,
+    panic_info: &PanicInfo,
     nop: &Fn(),
 ) -> ! {
     panic_begin(nop);
-    panic_banner(writer, args, file, line);
+    panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
     panic_process_info(writer);
-    panic_blink_forever(led)
+    panic_blink_forever(leds)
 }
 
 /// Generic panic entry.
@@ -81,17 +80,16 @@ pub unsafe fn panic_begin(nop: &Fn()) {
 /// Lightweight prints about the current panic and kernel version.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_banner<W: Write>(
-    writer: &mut W,
-    args: Arguments,
-    file: &'static str,
-    line: u32,
-) {
-    let _ = writer.write_fmt(format_args!(
-        "\r\n\nKernel panic at {}:{}:\r\n\t\"",
-        file, line
-    ));
-    let _ = write(writer, args);
+pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
+    if let Some(location) = panic_info.location() {
+        let _ = writer.write_fmt(format_args!(
+            "\r\n\nKernel panic at {}:{}:\r\n\t\"",
+            location.file(),
+            location.line()
+        ));
+    } else {
+        let _ = writer.write_fmt(format_args!("\r\n\nKernel panic:\r\n\t\""));
+    }
     let _ = writer.write_str("\"\r\n");
 
     // Print version of the kernel
@@ -126,20 +124,26 @@ pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
 ///
 /// If a multi-color LED is used for the panic pattern, it is
 /// advised to turn off other LEDs before calling this method.
-pub fn panic_blink_forever<L: hil::led::Led>(led: &mut L) -> ! {
-    led.init();
+///
+/// Generally, boards should blink red during panic if possible,
+/// otherwise choose the 'first' or most prominent LED. Some
+/// boards may find it appropriate to blink multiple LEDs (e.g.
+/// one on the top and one on the bottom), thus this method
+/// accepts an array, however most will only need one.
+pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&mut L]) -> ! {
+    leds.iter_mut().for_each(|led| led.init());
     loop {
         for _ in 0..1000000 {
-            led.on();
+            leds.iter_mut().for_each(|led| led.on());
         }
         for _ in 0..100000 {
-            led.off();
+            leds.iter_mut().for_each(|led| led.off());
         }
         for _ in 0..1000000 {
-            led.on();
+            leds.iter_mut().for_each(|led| led.on());
         }
         for _ in 0..500000 {
-            led.off();
+            leds.iter_mut().for_each(|led| led.off());
         }
     }
 }

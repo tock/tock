@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, asm)]
+#![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
 extern crate cortexm4;
@@ -218,19 +218,22 @@ pub unsafe fn reset_handler() {
 
     let mut chip = cc26x2::chip::Cc26X2::new();
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
 
     kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
 
-    kernel::kernel_loop(
+    board_kernel.kernel_loop(
         &launchxl,
         &mut chip,
         &mut PROCESSES,

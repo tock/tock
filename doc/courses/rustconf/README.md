@@ -27,7 +27,7 @@ time:
 1. A laptop running Linux or OS X. Linux in a VM will work just fine, see below
    for a pre-made image with all the dependencies.
 
-2. Command line utilities: wget, sed, make, cmake, git
+2. Command line utilities: wget, make, cmake, git
 
 4. Python 3 and pip
 

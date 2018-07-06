@@ -9,9 +9,6 @@ pub trait Adc {
     /// The chip-dependent type of an ADC channel.
     type Channel;
 
-    /// Initialize must be called before taking a sample.
-    fn initialize(&self) -> ReturnCode;
-
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
     /// All ADC samples will be the raw ADC value left-justified in the u16.

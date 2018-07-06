@@ -21,7 +21,7 @@
 //!
 //! ### Things to highlight that can be improved:
 //!
-//! * ECB_DATA must be a static mut [u8] and can't be located in the struct
+//! * ECB_DATA must be a static mut \[u8\] and can't be located in the struct
 //! * PAYLOAD size is restricted to 128 bytes
 //!
 //! Authors
@@ -134,7 +134,7 @@ pub struct AesECB<'a> {
 
 pub static mut AESECB: AesECB = AesECB::new();
 
-impl<'a> AesECB<'a> {
+impl AesECB<'a> {
     const fn new() -> AesECB<'a> {
         AesECB {
             registers: AESECB_BASE,
@@ -253,7 +253,7 @@ impl<'a> AesECB<'a> {
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     fn enable(&self) {
         self.set_dma();
     }
@@ -332,7 +332,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
     fn set_mode_aes128ctr(&self, _encrypting: bool) {
         ()

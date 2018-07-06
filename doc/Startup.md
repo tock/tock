@@ -47,7 +47,7 @@ marked to be placed into the `.vectors` section.
 In Rust, a vector table will look something like this:
 ```rust
 #[link_section=".vectors"]
-#[no_mangle] // Ensures that the symbol is kept until the final binary
+#[used] // Ensures that the symbol is kept until the final binary
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     _estack,                        // Initial stack pointer value
     tock_kernel_reset_handler,      // Tock's reset handler function

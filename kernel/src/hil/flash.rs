@@ -65,7 +65,7 @@
 //!     buffer: TakeCell<'static, F::Page>,
 //! }
 //!
-//! impl<'a, F: hil::flash::Flash + 'a> FlashUser<'a, F> {
+//! impl<F: hil::flash::Flash > FlashUser<'a, F> {
 //!     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> FlashUser<'a, F> {
 //!         FlashUser {
 //!             driver: driver,
@@ -74,7 +74,7 @@
 //!     }
 //! }
 //!
-//! impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for FlashUser<'a, F> {
+//! impl<F: hil::flash::Flash > hil::flash::Client<F> for FlashUser<'a, F> {
 //!     fn read_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) {}
 //!     fn write_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) { }
 //!     fn erase_complete(&self, error: hil::flash::Error) {}

@@ -62,7 +62,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
@@ -199,5 +199,6 @@ pub unsafe fn reset_handler() {
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        false,
     );
 }

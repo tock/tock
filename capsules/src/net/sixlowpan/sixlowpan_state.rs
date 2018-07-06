@@ -327,7 +327,7 @@ pub struct TxState<'a> {
     sixlowpan: &'a SixlowpanState<'a>,
 }
 
-impl<'a> TxState<'a> {
+impl TxState<'a> {
     /// Creates a new `TxState`
     ///
     /// # Arguments
@@ -635,13 +635,13 @@ pub struct RxState<'a> {
     next: ListLink<'a, RxState<'a>>,
 }
 
-impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
+impl ListNode<'a, RxState<'a>> for RxState<'a> {
     fn next(&'a self) -> &'a ListLink<RxState<'a>> {
         &self.next
     }
 }
 
-impl<'a> RxState<'a> {
+impl RxState<'a> {
     /// Creates a new `RxState`
     ///
     /// # Arguments
@@ -669,7 +669,8 @@ impl<'a> RxState<'a> {
         dgram_size: u16,
         dgram_tag: u16,
     ) -> bool {
-        self.busy.get() && (self.dgram_tag.get() == dgram_tag)
+        self.busy.get()
+            && (self.dgram_tag.get() == dgram_tag)
             && (self.dgram_size.get() == dgram_size)
             && (self.src_mac_addr.get() == src_mac_addr)
             && (self.dst_mac_addr.get() == dst_mac_addr)
@@ -777,7 +778,7 @@ impl<'a> RxState<'a> {
 ///
 /// Finally, `set_client` controls the client that will receive transmission
 /// completion and reception callbacks.
-pub struct Sixlowpan<'a, A: time::Alarm + 'a, C: ContextStore> {
+pub struct Sixlowpan<'a, A: time::Alarm, C: ContextStore> {
     pub ctx_store: C,
     clock: &'a A,
     tx_dgram_tag: Cell<u16>,
@@ -788,7 +789,7 @@ pub struct Sixlowpan<'a, A: time::Alarm + 'a, C: ContextStore> {
 }
 
 // This function is called after receiving a frame
-impl<'a, A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
@@ -809,7 +810,7 @@ impl<'a, A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     }
 }
 
-impl<'a, A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
     fn next_dgram_tag(&self) -> u16 {
         // Increment dgram_tag
         let dgram_tag = if (self.tx_dgram_tag.get() + 1) == 0 {
@@ -840,7 +841,7 @@ impl<'a, A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A
     }
 }
 
-impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
+impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     /// Creates a new `Sixlowpan`
     ///
     /// # Arguments
@@ -900,7 +901,8 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
     ) -> (Option<&RxState<'a>>, ReturnCode) {
-        let rx_state = self.rx_states
+        let rx_state = self
+            .rx_states
             .iter()
             .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
         rx_state
@@ -962,13 +964,15 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         dgram_offset: usize,
     ) -> (Option<&RxState<'a>>, ReturnCode) {
         // First try to find an rx_state in the middle of assembly
-        let mut rx_state = self.rx_states
+        let mut rx_state = self
+            .rx_states
             .iter()
             .find(|state| state.is_my_fragment(src_mac_addr, dst_mac_addr, dgram_size, dgram_tag));
 
         // Else find a free state
         if rx_state.is_none() {
-            rx_state = self.rx_states
+            rx_state = self
+                .rx_states
                 .iter()
                 .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
             // Initialize new state

@@ -236,7 +236,7 @@ pub struct Crccu<'a> {
 
 const DSCR_RESERVE: usize = 512 + 5 * 4;
 
-impl<'a> Crccu<'a> {
+impl Crccu<'a> {
     const fn new(base_address: StaticRef<CrccuRegisters>) -> Self {
         Crccu {
             registers: base_address,
@@ -339,7 +339,7 @@ impl<'a> Crccu<'a> {
 }
 
 // Implement the generic CRC interface with the CRCCU
-impl<'a> crc::CRC for Crccu<'a> {
+impl crc::CRC for Crccu<'a> {
     fn compute(&self, data: &[u8], alg: CrcAlg) -> ReturnCode {
         let regs: &CrccuRegisters = &*self.registers;
 

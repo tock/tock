@@ -135,7 +135,7 @@ pub struct LTC294X<'a> {
     client: Cell<Option<&'static LTC294XClient>>,
 }
 
-impl<'a> LTC294X<'a> {
+impl LTC294X<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
         interrupt_pin: Option<&'a gpio::Pin>,
@@ -319,7 +319,7 @@ impl<'a> LTC294X<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for LTC294X<'a> {
+impl i2c::I2CClient for LTC294X<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::ReadStatus => {
@@ -392,7 +392,7 @@ impl<'a> i2c::I2CClient for LTC294X<'a> {
     }
 }
 
-impl<'a> gpio::Client for LTC294X<'a> {
+impl gpio::Client for LTC294X<'a> {
     fn fired(&self, _: usize) {
         self.client.get().map(|client| {
             client.interrupt();
@@ -407,7 +407,7 @@ pub struct LTC294XDriver<'a> {
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a> LTC294XDriver<'a> {
+impl LTC294XDriver<'a> {
     pub fn new(ltc: &'a LTC294X) -> LTC294XDriver<'a> {
         LTC294XDriver {
             ltc294x: ltc,
@@ -416,7 +416,7 @@ impl<'a> LTC294XDriver<'a> {
     }
 }
 
-impl<'a> LTC294XClient for LTC294XDriver<'a> {
+impl LTC294XClient for LTC294XDriver<'a> {
     fn interrupt(&self) {
         self.callback.get().map(|mut cb| {
             cb.schedule(0, 0, 0);
@@ -432,7 +432,8 @@ impl<'a> LTC294XClient for LTC294XDriver<'a> {
         accumulated_charge_overflow: bool,
     ) {
         self.callback.get().map(|mut cb| {
-            let ret = (undervolt_lockout as usize) | ((vbat_alert as usize) << 1)
+            let ret = (undervolt_lockout as usize)
+                | ((vbat_alert as usize) << 1)
                 | ((charge_alert_low as usize) << 2)
                 | ((charge_alert_high as usize) << 3)
                 | ((accumulated_charge_overflow as usize) << 4);
@@ -465,7 +466,7 @@ impl<'a> LTC294XClient for LTC294XDriver<'a> {
     }
 }
 
-impl<'a> Driver for LTC294XDriver<'a> {
+impl Driver for LTC294XDriver<'a> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

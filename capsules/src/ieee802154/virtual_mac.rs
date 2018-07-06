@@ -42,7 +42,7 @@ pub struct MuxMac<'a> {
     inflight: Cell<Option<&'a MacUser<'a>>>,
 }
 
-impl<'a> device::TxClient for MuxMac<'a> {
+impl device::TxClient for MuxMac<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.inflight.get().map(move |user| {
             self.inflight.set(None);
@@ -52,7 +52,7 @@ impl<'a> device::TxClient for MuxMac<'a> {
     }
 }
 
-impl<'a> device::RxClient for MuxMac<'a> {
+impl device::RxClient for MuxMac<'a> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         for user in self.users.iter() {
             user.receive(buf, header, data_offset, data_len);
@@ -60,7 +60,7 @@ impl<'a> device::RxClient for MuxMac<'a> {
     }
 }
 
-impl<'a> MuxMac<'a> {
+impl MuxMac<'a> {
     pub const fn new(mac: &'a device::MacDevice<'a>) -> MuxMac<'a> {
         MuxMac {
             mac: mac,
@@ -192,7 +192,7 @@ pub struct MacUser<'a> {
     rx_client: Cell<Option<&'a device::RxClient>>,
 }
 
-impl<'a> MacUser<'a> {
+impl MacUser<'a> {
     pub const fn new(mux: &'a MuxMac<'a>) -> MacUser<'a> {
         MacUser {
             mux: mux,
@@ -204,7 +204,7 @@ impl<'a> MacUser<'a> {
     }
 }
 
-impl<'a> MacUser<'a> {
+impl MacUser<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_client
             .get()
@@ -218,13 +218,13 @@ impl<'a> MacUser<'a> {
     }
 }
 
-impl<'a> ListNode<'a, MacUser<'a>> for MacUser<'a> {
+impl ListNode<'a, MacUser<'a>> for MacUser<'a> {
     fn next(&'a self) -> &'a ListLink<'a, MacUser<'a>> {
         &self.next
     }
 }
 
-impl<'a> device::MacDevice<'a> for MacUser<'a> {
+impl device::MacDevice<'a> for MacUser<'a> {
     fn set_transmit_client(&self, client: &'a device::TxClient) {
         self.tx_client.set(Some(client));
     }

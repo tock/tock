@@ -33,7 +33,8 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{NumCell, OptionalCell, TakeCell};
+use kernel::common::cells::NumericCellExt;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -58,17 +59,17 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     buffer: TakeCell<'static, [u8]>,
     /// Absolute address of where we are reading or writing. This gets updated
     /// as the operation proceeds across pages.
-    address: NumCell<usize>,
+    address: Cell<usize>,
     /// Total length to read or write. We need to store this to return it to the
     /// client.
     length: Cell<usize>,
     /// How many bytes are left to read or write.
-    remaining_length: NumCell<usize>,
+    remaining_length: Cell<usize>,
     /// Where we are in the user buffer.
     buffer_index: Cell<usize>,
 }
 
-impl<'a, F: hil::flash::Flash + 'a> NonvolatileToPages<'a, F> {
+impl<F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
         NonvolatileToPages {
             driver: driver,
@@ -76,15 +77,15 @@ impl<'a, F: hil::flash::Flash + 'a> NonvolatileToPages<'a, F> {
             pagebuffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
             buffer: TakeCell::empty(),
-            address: NumCell::new(0),
+            address: Cell::new(0),
             length: Cell::new(0),
-            remaining_length: NumCell::new(0),
+            remaining_length: Cell::new(0),
             buffer_index: Cell::new(0),
         }
     }
 }
 
-impl<'a, F: hil::flash::Flash + 'a> hil::nonvolatile_storage::NonvolatileStorage
+impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
     for NonvolatileToPages<'a, F>
 {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
@@ -152,7 +153,7 @@ impl<'a, F: hil::flash::Flash + 'a> hil::nonvolatile_storage::NonvolatileStorage
     }
 }
 
-impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
+impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: hil::flash::Error) {
         match self.state.get() {
             State::Read => {

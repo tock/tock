@@ -24,7 +24,7 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use deferred_call_tasks::Task;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::deferred_call::DeferredCall;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -406,7 +406,7 @@ pub struct FLASHCALW {
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
-    client: Cell<Option<&'static hil::flash::Client<FLASHCALW>>>,
+    client: OptionalCell<&'static hil::flash::Client<FLASHCALW>>,
     current_state: Cell<FlashState>,
     buffer: TakeCell<'static, Sam4lPage>,
 }
@@ -446,7 +446,7 @@ impl FLASHCALW {
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
             pb_clock: pm::Clock::PBB(pb_clk),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             current_state: Cell::new(FlashState::Unconfigured),
             buffer: TakeCell::empty(),
         }
@@ -501,7 +501,7 @@ impl FLASHCALW {
             // Reset state now that we are ready to do a new operation.
             self.current_state.set(FlashState::Ready);
 
-            self.client.get().map(|client| match attempted_operation {
+            self.client.map(|client| match attempted_operation {
                 FlashState::Read => {
                     self.buffer.take().map(|buffer| {
                         client.read_complete(buffer, hil::flash::Error::FlashError);
@@ -526,7 +526,7 @@ impl FLASHCALW {
             FlashState::Read => {
                 self.current_state.set(FlashState::Ready);
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.read_complete(buffer, hil::flash::Error::CommandComplete);
                     });
@@ -554,7 +554,7 @@ impl FLASHCALW {
 
                 self.current_state.set(FlashState::Ready);
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.write_complete(buffer, hil::flash::Error::CommandComplete);
                     });
@@ -567,7 +567,7 @@ impl FLASHCALW {
             FlashState::EraseErasing => {
                 self.current_state.set(FlashState::Ready);
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.erase_complete(hil::flash::Error::CommandComplete);
                 });
             }
@@ -682,7 +682,9 @@ impl FLASHCALW {
         // fast/rarely used commands or commands that don't generate interrupts
         // it is better to wait (or at least that is how this driver was
         // originally implemented).
-        if command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
+        if command != FlashCMD::QPRUP
+            && command != FlashCMD::QPR
+            && command != FlashCMD::CPB
             && command != FlashCMD::HSEN
         {
             // Enable ready interrupt.
@@ -703,7 +705,9 @@ impl FLASHCALW {
         // Since we don't enable interrupts for these commands, spin wait
         // until they are finished. In particular, QPR and QPRUP will not issue
         // interrupts (see datasheet 14.6 paragraph 2).
-        if command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
+        if command == FlashCMD::QPRUP
+            || command == FlashCMD::QPR
+            || command == FlashCMD::CPB
             || command == FlashCMD::HSEN
         {
             while !regs.fsr.is_set(FlashStatus::FRDY) {}
@@ -804,7 +808,9 @@ impl FLASHCALW {
         // Configure all other interrupts explicitly. Note the issue_command
         // function turns this on when need be.
         regs.fcr.modify(
-            FlashControl::FRDY::CLEAR + FlashControl::LOCKE::CLEAR + FlashControl::PROGE::CLEAR
+            FlashControl::FRDY::CLEAR
+                + FlashControl::LOCKE::CLEAR
+                + FlashControl::PROGE::CLEAR
                 + FlashControl::ECCE::CLEAR,
         );
 
@@ -837,7 +843,8 @@ impl FLASHCALW {
 
         // Check that address makes sense and buffer has room.
         if address > (self.get_flash_size() as usize)
-            || address + size > (self.get_flash_size() as usize) || address + size < size
+            || address + size > (self.get_flash_size() as usize)
+            || address + size < size
             || buffer.len() < size
         {
             // invalid flash address
@@ -901,7 +908,7 @@ impl FLASHCALW {
 
 impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCALW {
     fn set_client(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 

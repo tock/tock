@@ -6,22 +6,22 @@
 //! Although `kernel::hil::spi::SpiMaster` is implemented for `SPIM`,
 //! only the functions marked with `x` are fully defined:
 //!
-//! * [x] set_client
-//! * [x] init
-//! * [x] is_busy
-//! * [x] read_write_bytes
-//! * [] write_byte
-//! * [] read_byte
-//! * [] read_write_byte
-//! * [x] specify_chip_select
-//! * [x] set_rate
-//! * [x] get_rate
-//! * [x] set_clock
-//! * [x] get_clock
-//! * [x] set_phase
-//! * [x] get_phase
-//! * [] hold_low
-//! * [] release_low
+//! * ✓ set_client
+//! * ✓ init
+//! * ✓ is_busy
+//! * ✓ read_write_bytes
+//! * write_byte
+//! * read_byte
+//! * read_write_byte
+//! * ✓ specify_chip_select
+//! * ✓ set_rate
+//! * ✓ get_rate
+//! * ✓ set_clock
+//! * ✓ get_clock
+//! * ✓ set_phase
+//! * ✓ get_phase
+//! * hold_low
+//! * release_low
 //!
 //! Author
 //! -------------------

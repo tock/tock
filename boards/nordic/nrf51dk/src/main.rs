@@ -44,7 +44,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
@@ -340,18 +340,22 @@ pub unsafe fn reset_handler() {
     chip.systick().enable(true);
 
     debug!("Initialization complete. Entering main loop");
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
 
-    kernel::kernel_loop(
+    board_kernel.kernel_loop(
         &platform,
         &mut chip,
         &mut PROCESSES,

@@ -182,7 +182,7 @@ pub struct Fxos8700cq<'a> {
     callback: Cell<Option<&'static hil::sensors::NineDofClient>>,
 }
 
-impl<'a> Fxos8700cq<'a> {
+impl Fxos8700cq<'a> {
     pub fn new(
         i2c: &'a I2CDevice,
         interrupt_pin1: &'a gpio::Pin,
@@ -224,7 +224,7 @@ impl<'a> Fxos8700cq<'a> {
     }
 }
 
-impl<'a> gpio::Client for Fxos8700cq<'a> {
+impl gpio::Client for Fxos8700cq<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin1.disable_interrupt();
@@ -238,7 +238,7 @@ impl<'a> gpio::Client for Fxos8700cq<'a> {
     }
 }
 
-impl<'a> I2CClient for Fxos8700cq<'a> {
+impl I2CClient for Fxos8700cq<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         match self.state.get() {
             State::ReadAccelSetup => {
@@ -316,7 +316,7 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
     }
 }
 
-impl<'a> hil::sensors::NineDof for Fxos8700cq<'a> {
+impl hil::sensors::NineDof for Fxos8700cq<'a> {
     fn set_client(&self, client: &'static hil::sensors::NineDofClient) {
         self.callback.set(Some(client));
     }
