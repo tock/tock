@@ -98,17 +98,17 @@ impl DirectCommand {
 
 #[repr(C)]
 pub struct CmdRadioSetup {
-    pub command_no: u16,
+    command_no: u16,
     pub status: u16,
-    pub p_next_op: u32, // Pointer to next command
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
-    pub mode: u8,
-    pub io_divider: u8,
-    pub config: RfcSetupConfig,
-    pub tx_power: u16,
-    pub reg_override: u32,
+    p_next_op: u32, // Pointer to next command
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
+    mode: u8,
+    io_divider: u8,
+    config: RfcSetupConfig,
+    tx_power: u16,
+    reg_override: u32,
 }
 
 impl CmdRadioSetup {
@@ -140,44 +140,44 @@ impl CmdRadioSetup {
 
 #[repr(C)]
 pub struct CmdCommon {
-    pub command_no: ReadOnly<u16>,
+    command_no: ReadOnly<u16>,
     pub status: ReadOnly<u16>,
-    pub p_next_op: ReadOnly<u32>,
-    pub start_time: ReadOnly<u32>,
-    pub start_trigger: ReadOnly<u8>,
-    pub condition: RfcCondition,
+    p_next_op: ReadOnly<u32>,
+    start_time: ReadOnly<u32>,
+    start_trigger: ReadOnly<u8>,
+    condition: RfcCondition,
 }
 
 #[repr(C)]
 pub struct CmdNop {
-    pub command_no: u16, //0x0801
+    command_no: u16, //0x0801
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
 }
 
 #[repr(C)]
 pub struct CmdFSPowerup {
-    pub command_no: u16, //0x080C
+    command_no: u16, //0x080C
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
-    pub reserved: u16,
-    pub reg_override: u32,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
+    reserved: u16,
+    reg_override: u32,
 }
 
 #[repr(C)]
 pub struct CmdFSPowerdown {
-    pub command_no: u16, //0x080D
+    command_no: u16, //0x080D
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
 }
 
 impl CmdFSPowerdown {
@@ -199,68 +199,68 @@ impl CmdFSPowerdown {
 
 #[repr(C)]
 pub struct CmdFS {
-    pub command_no: u16, // 0x0803
+    command_no: u16, // 0x0803
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
-    pub fract_freq: u16,
-    pub synth_conf: u8,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
+    fract_freq: u16,
+    synth_conf: u8,
     _reserved: [u8; 5],
 }
 
 #[repr(C)]
 pub struct CmdFSOff {
-    pub command_no: u16, // 0x0804
+    command_no: u16, // 0x0804
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
 }
 
 #[repr(C)]
 pub struct CmdRxTest {
-    pub command_no: u16, // 0x0807
+    command_no: u16, // 0x0807
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
-    pub config: u8,
-    pub end_trigger: u8,
-    pub sync_word: u32,
-    pub end_time: u32,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
+    config: u8,
+    end_trigger: u8,
+    sync_word: u32,
+    end_time: u32,
 }
 
 #[repr(C)]
 pub struct CmdTxTest {
-    pub command_no: u16, // 0x0808
+    command_no: u16, // 0x0808
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
-    pub config: u8,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
+    config: u8,
     _reserved_a: u8,
-    pub tx_word: u16,
+    tx_word: u16,
     _reserved_b: u8,
-    pub end_trigger: u8,
-    pub sync_word: u32,
-    pub end_time: u32,
+    end_trigger: u8,
+    sync_word: u32,
+    end_time: u32,
 }
 
 #[repr(C)]
 pub struct CmdSyncStopRat {
-    pub command_no: u16, // 0x0809
+    command_no: u16, // 0x0809
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
     _reserved: u16,
-    pub rat0: u32,
+    rat0: u32,
 }
 
 impl CmdSyncStopRat {
@@ -284,14 +284,14 @@ impl CmdSyncStopRat {
 
 #[repr(C)]
 pub struct CmdSyncStartRat {
-    pub command_no: u16, // 0x080A
+    command_no: u16, // 0x080A
     pub status: u16,
-    pub p_next_op: u32,
-    pub start_time: u32,
-    pub start_trigger: u8,
-    pub condition: RfcCondition,
+    p_next_op: u32,
+    start_time: u32,
+    start_trigger: u8,
+    condition: RfcCondition,
     _reserved: u16,
-    pub rat0: u32,
+    rat0: u32,
 }
 
 impl CmdSyncStartRat {

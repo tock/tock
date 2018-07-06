@@ -11,7 +11,6 @@
 //! It also manages the clocks attached to almost every peripheral, which needs to
 //! be enabled before usage.
 //!
-#![allow(dead_code)]
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 

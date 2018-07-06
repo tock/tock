@@ -4,7 +4,6 @@
 //!
 //! The current configuration disables all wake-up selectors, since the
 //! MCU never go to sleep and is always active.
-#![allow(dead_code)]
 use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -94,8 +93,6 @@ const AON_IOC_BASE: StaticRef<AonIocRegisters> =
 
 pub struct Aon {
     event_regs: StaticRef<AonEventRegisters>,
-    aon_pmctl_regs: StaticRef<AonPmCtlRegisters>,
-    aon_ioc_regs: StaticRef<AonIocRegisters>,
 }
 
 pub const AON: Aon = Aon::new();
@@ -103,14 +100,12 @@ pub const AON: Aon = Aon::new();
 impl Aon {
     const fn new() -> Aon {
         Aon {
-            aon_pmctl_regs: AON_PMCTL_BASE,
             event_regs: AON_EVENT_BASE,
-            aon_ioc_regs: AON_IOC_BASE,
         }
     }
 
     pub fn setup(&self) {
-        let regs = AON_EVENT_BASE;
+        let regs = &*self.event_regs;
 
         // Default to no events at all
         regs.aux_wu_sel.set(0x3F3F3F3F);

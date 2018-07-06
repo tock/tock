@@ -32,20 +32,20 @@ impl kernel::Chip for Cc13X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
-
+    #[allow(non_snake_case)]
     fn service_pending_interrupts(&mut self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
                 match interrupt {
-                    GPIO => gpio::PORT.handle_interrupt(),
-                    AON_RTC => rtc::RTC.handle_interrupt(),
-                    UART0 => uart::UART0.handle_interrupt(),
-                    RF_CORE_HW => rfc::RFCORE.handle_hw_interrupts(),
-                    RF_CMD_ACK => rfc::RFCORE.handle_ack_interrupt(),
-                    RF_CORE_PE1 => rfc::RFCORE.handle_cpe_interrupts(),
+                    peripheral_interrupts::GPIO => gpio::PORT.handle_interrupt(),
+                    peripheral_interrupts::AON_RTC => rtc::RTC.handle_interrupt(),
+                    peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
+                    peripheral_interrupts::RF_CORE_HW => rfc::RFCORE.handle_hw_interrupts(),
+                    peripheral_interrupts::RF_CMD_ACK => rfc::RFCORE.handle_ack_interrupt(),
+                    peripheral_interrupts::RF_CORE_PE1 => rfc::RFCORE.handle_cpe_interrupts(),
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
-                    AON_PROG => (),
+                    peripheral_interrupts::AON_PROG => (),
                     _ => panic!("unhandled interrupt {}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);

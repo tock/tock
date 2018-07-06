@@ -10,8 +10,6 @@
 //! "Radio Doorbell".
 //!
 //!
-
-#![allow(dead_code)]
 use commands as cmd;
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite};
@@ -237,9 +235,9 @@ register_bitfields! {
 }
 
 const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
-    unsafe { StaticRef::new(0x4004_000 as *mut RfcPWCRegisters) };
+    unsafe { StaticRef::new(0x4004_000 as *const RfcPWCRegisters) };
 const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> =
-    unsafe { StaticRef::new(0x4004_1000 as *mut RfcDBellRegisters) };
+    unsafe { StaticRef::new(0x4004_1000 as *const RfcDBellRegisters) };
 
 pub const RFC_RAM_BASE: usize = 0x2100_0000;
 pub const RFC_ULLRAM_BASE: usize = 0x2100_4000;
@@ -280,8 +278,8 @@ pub enum RfcCMDSTA {
 }
 
 pub struct RFCore {
-    dbell_regs: StaticRef<RfcDBellRegisters>,
-    pwc_regs: StaticRef<RfcPWCRegisters>,
+    // dbell_regs: StaticRef<RfcDBellRegisters>,
+    // pwc_regs: StaticRef<RfcPWCRegisters>,
     client: Cell<Option<&'static RFCoreClient>>,
     mode: Cell<Option<RfcMode>>,
     rat: Cell<u32>,
@@ -295,8 +293,8 @@ pub trait RFCoreClient {
 impl RFCore {
     pub const fn new() -> RFCore {
         RFCore {
-            dbell_regs: RFC_DBELL_BASE,
-            pwc_regs: RFC_PWC_BASE,
+            // dbell_regs: RFC_DBELL_BASE,
+            // pwc_regs: RFC_PWC_BASE,
             client: Cell::new(None),
             mode: Cell::new(None),
             rat: Cell::new(0),

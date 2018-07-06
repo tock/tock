@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
@@ -40,14 +39,12 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 pub static mut RFRAT: RFRat = RFRat::new();
 
 pub struct RFRat {
-    rat_regs: StaticRef<RfcRatRegisters>,
     rtc_upd_en: StaticRef<RtcRegisters>,
 }
 
 impl RFRat {
     pub const fn new() -> RFRat {
         RFRat {
-            rat_regs: RFC_RAT_BASE,
             rtc_upd_en: RTC_BASE,
         }
     }
