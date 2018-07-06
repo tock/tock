@@ -9,7 +9,11 @@ TOOLCHAIN ?= arm-none-eabi
 
 CARGO ?= cargo
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
-RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-Tlayout.ld -C linker=lld -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic"
+RUSTFLAGS_FOR_CARGO_LINKING := -C link-arg=-Tlayout.ld -C linker=lld -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic
+
+ifeq ($(CI),true)
+  RUSTFLAGS_FOR_CARGO_LINKING += -D warnings
+endif
 
 SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
@@ -109,7 +113,7 @@ target/$(TARGET)/release/$(PLATFORM).lst: target/$(TARGET)/release/$(PLATFORM).e
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
 
 target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
@@ -120,7 +124,7 @@ target/$(TARGET)/debug/$(PLATFORM).lst: target/$(TARGET)/debug/$(PLATFORM).elf
 
 .PHONY: target/$(TARGET)/debug/$(PLATFORM)
 target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build $(VERBOSE) --target=$(TARGET)
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
 	$(Q)$(SIZE) $@
 
 target/$(TARGET)/release/$(PLATFORM).hex: target/$(TARGET)/release/$(PLATFORM).elf
@@ -139,7 +143,7 @@ target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
 
 .PHONY: clean
 clean::
