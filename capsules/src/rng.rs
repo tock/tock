@@ -21,22 +21,12 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x40001;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
     buffer: Option<AppSlice<Shared, u8>>,
     remaining: usize,
     idx: usize,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            buffer: None,
-            remaining: 0,
-            idx: 0,
-        }
-    }
 }
 
 pub struct SimpleRng<'a, RNG: rng::RNG> {
