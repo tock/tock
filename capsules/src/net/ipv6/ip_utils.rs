@@ -81,8 +81,8 @@ pub fn compute_udp_checksum(
 ) -> u16 {
     //This checksum is calculated according to some of the recommendations found in RFC 1071.
 
-    let src_port = udp_header.src_port;
-    let dst_port = udp_header.dst_port;
+    let src_port = udp_header.get_src_port();
+    let dst_port = udp_header.get_dst_port();
     let mut sum: u32 = 0;
     {
         //First, iterate through src/dst address and add them to the sum
@@ -101,7 +101,7 @@ pub fn compute_udp_checksum(
             i += 2; //Iterate two bytes at a time bc 16 bit checksum
         }
     }
-    sum += udp_header.len as u32;
+    sum += udp_header.get_len() as u32;
     //Finally, add UDP next header
     sum += 17; //was "padded next header"
 
@@ -109,7 +109,7 @@ pub fn compute_udp_checksum(
     //Next, add the UDP header elements to the sum
     sum += src_port as u32;
     sum += dst_port as u32;
-    sum += udp_header.len as u32;
+    sum += udp_header.get_len() as u32;
     //Now just need to iterate thru data and add it to the sum
     {
         let mut i: usize = 0;
@@ -121,7 +121,6 @@ pub fn compute_udp_checksum(
 
             i += 2; //Iterate two bytes at a time bc 16 bit checksum
         }
-        //debug!("Checksum is currently: {:?}", sum);
     }
     //now all 16 bit addition has occurred
 
@@ -134,7 +133,7 @@ pub fn compute_udp_checksum(
     //Finally, flip all bits
     sum = !sum;
     sum = sum & 65535; //Remove upper 16 bits (which should be FFFF after flip)
-    (sum as u16) //Return result as u16 in host byte order
+    (sum as u16) //Return result as u16 in host byte order */
 }
 
 pub fn compute_icmp_checksum(
