@@ -368,16 +368,18 @@ impl RFCore {
     pub fn current_mode(&self) -> Option<RfcMode> {
         self.mode.get()
     }
-/*
+
     pub fn set_mode(&self, mode: RfcMode) {
         let rf_mode = match mode {
             RfcMode::NONPROP => 0x00,
             _ => panic!("Only HAL mode supported"),
         };
         
+        prcm::rf_mode_sel(rf_mode);
+
         self.mode.set(Some(mode))
     }
-*/
+
 
     fn post_cmdr(&self, rf_command: u32) -> RfcResult {
         let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
