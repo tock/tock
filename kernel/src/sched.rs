@@ -1,11 +1,12 @@
 //! Tock core scheduler.
 
+use core::cell::Cell;
 use core::ptr;
 use core::ptr::NonNull;
 
 use callback;
 use callback::{AppId, Callback};
-use common::cells::NumCell;
+use common::cells::NumericCellExt;
 use ipc;
 use mem::AppSlice;
 use memop;
@@ -26,14 +27,12 @@ const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
     /// outstanding callbacks and processes in the Running state.
-    work: NumCell<usize>,
+    work: Cell<usize>,
 }
 
 impl Kernel {
     pub fn new() -> Kernel {
-        Kernel {
-            work: NumCell::new(0),
-        }
+        Kernel { work: Cell::new(0) }
     }
 
     /// Something was scheduled for a process, so there is more work to do.
