@@ -1,3 +1,16 @@
+//! RF Core
+//!
+//! Provides communication with the core module of the radio.
+//!
+//! The radio is managed by an external Cortex-M0 running prioprietary code in order to manage
+//! and set everything up. All stacks is implemented on this external MCU, and interaction
+//! with it enables the radio for communication in Sub-GHz bands.
+//!
+//! In order to communicate, we send commands to the Cortex-M0 through something called
+//! "Radio Doorbell".
+//!
+//!
+
 #![allow(dead_code)]
 use prcm;
 use kernel::common::regs::{ReadOnly, ReadWrite};

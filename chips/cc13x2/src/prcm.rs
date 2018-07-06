@@ -1,6 +1,6 @@
 //! Power, Clock, and Reset Management (PRCM)
 //!
-//! For details see p.411 in the cc2650 technical reference manual.
+//! For details see cc13x2 technical reference manual.
 //!
 //! PRCM manages different power domains on the boards, specifically:
 //!
@@ -10,6 +10,7 @@
 //!
 //! It also manages the clocks attached to almost every peripheral, which needs to
 //! be enabled before usage.
+//!
 #![allow(dead_code)]
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
