@@ -23,8 +23,5 @@ before_script:
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
-  - tools/run_cargo_fmt.sh diff
-  - make allboards
-  - make -C boards/nordic/nrf52dk debug
-  - tools/toc.sh
+  - make ci-travis
 
