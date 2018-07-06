@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use kernel::common::regs::{ ReadWrite, ReadOnly };
+use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 //*****************************************************************************
@@ -9,7 +9,7 @@ use kernel::common::StaticRef;
 //
 //*****************************************************************************
 
-// May need to enable RTC_UPD_EN in rtc.rs for cc23xx chip 
+// May need to enable RTC_UPD_EN in rtc.rs for cc23xx chip
 #[repr(C)]
 struct RtcRegisters {
     ctl: ReadWrite<u32, Control::Register>,
@@ -31,8 +31,10 @@ register_bitfields! [
     ]
 ];
 
-const RFC_RAT_BASE: StaticRef<RfcRatRegisters> = unsafe { StaticRef::new(0x4004_3000 as *const RfcRatRegisters) };
-const RTC_BASE: StaticRef<RtcRegisters> = unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
+const RFC_RAT_BASE: StaticRef<RfcRatRegisters> =
+    unsafe { StaticRef::new(0x4004_3000 as *const RfcRatRegisters) };
+const RTC_BASE: StaticRef<RtcRegisters> =
+    unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
 
 // Enable RAT interface
 pub static mut RFRAT: RFRat = RFRat::new();
@@ -46,17 +48,17 @@ impl RFRat {
     pub const fn new() -> RFRat {
         RFRat {
             rat_regs: RFC_RAT_BASE,
-            rtc_upd_en: RTC_BASE, 
+            rtc_upd_en: RTC_BASE,
         }
     }
-    
+
     pub fn rtc_enabled(&self) -> bool {
         let reg = &*self.rtc_upd_en;
         let enabled: bool = reg.ctl.matches_all(Control::RTC_UPD_EN::SET);
-        
+
         return enabled;
     }
-    
+
     pub fn enable_rtc_upd(&self) {
         let reg = &*self.rtc_upd_en;
         reg.ctl.modify(Control::RTC_UPD_EN::SET);
@@ -69,5 +71,3 @@ impl RFRat {
         return cur_rat;
     }
 }
-
-

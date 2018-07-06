@@ -1,5 +1,5 @@
 use cc26xx::gpio;
-use cc26xx::peripheral_interrupts::*;
+use cc26xx::peripheral_interrupts;
 use cc26xx::rtc;
 use cc26xx::uart;
 use cortexm4::{self, nvic};

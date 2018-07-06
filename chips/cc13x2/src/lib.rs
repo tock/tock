@@ -11,13 +11,13 @@ extern crate kernel;
 #[macro_use]
 extern crate bitfield;
 
-pub mod chip;
-pub mod crt1;
-pub mod rfc;
-pub mod rat;
-pub mod commands;
-pub mod prcm;
 pub mod aon;
+pub mod chip;
+pub mod commands;
+pub mod crt1;
+pub mod prcm;
+pub mod rat;
+pub mod rfc;
 pub mod rtc;
 
 pub use crt1::init;

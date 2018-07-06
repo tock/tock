@@ -33,14 +33,13 @@ register_bitfields! [
 #[repr(C)]
 struct PrcmRegisters {
     _reserved0: [ReadOnly<u8>; 0x0C],
-    
+
     pub vd_ctl: ReadWrite<u32, VDControl::Register>,
-    
+
     _reserved1: [ReadOnly<u8>; 0x18],
     // Write 1 in order to load settings
-    
     pub clk_load_ctl: ReadWrite<u32, ClockLoad::Register>,
-    
+
     pub rfc_clk_gate: ReadWrite<u32, ClockGate::Register>,
 
     _reserved2: [ReadOnly<u8>; 0xC],
@@ -93,10 +92,7 @@ struct PrcmRegisters {
     _reserved9: [ReadOnly<u8>; 0x38],
 
     pub rfc_mode_sel: ReadWrite<u32>,
-
 }
-
-
 
 register_bitfields![
     u32,
@@ -141,8 +137,10 @@ register_bitfields![
     ]
 ];
 
-const PRCM_BASE: StaticRef<PrcmRegisters> = unsafe { StaticRef::new(0x4008_2000 as *mut PrcmRegisters) };
-const AON_WUC_BASE: StaticRef<AonWucRegisters> = unsafe { StaticRef::new(0x4009_1000 as *mut AonWucRegisters) };
+const PRCM_BASE: StaticRef<PrcmRegisters> =
+    unsafe { StaticRef::new(0x4008_2000 as *mut PrcmRegisters) };
+const AON_WUC_BASE: StaticRef<AonWucRegisters> =
+    unsafe { StaticRef::new(0x4009_1000 as *mut AonWucRegisters) };
 
 /*
     In order to save changes to the PRCM, we need to
@@ -158,12 +156,14 @@ fn prcm_commit() {
 pub fn force_disable_dma_and_crypto() {
     let regs = PRCM_BASE;
     if regs.sec_dma_clk_run.is_set(SECDMAClockGate::DMA_CLK_EN) {
-        regs.sec_dma_clk_deep_sleep.modify(SECDMAClockGate::DMA_CLK_EN::CLEAR);
+        regs.sec_dma_clk_deep_sleep
+            .modify(SECDMAClockGate::DMA_CLK_EN::CLEAR);
     }
     if regs.sec_dma_clk_run.is_set(SECDMAClockGate::CRYPTO_CLK_EN) {
-        regs.sec_dma_clk_deep_sleep.modify(SECDMAClockGate::CRYPTO_CLK_EN::CLEAR);
+        regs.sec_dma_clk_deep_sleep
+            .modify(SECDMAClockGate::CRYPTO_CLK_EN::CLEAR);
     }
-    
+
     prcm_commit();
 }
 
@@ -177,7 +177,7 @@ pub fn acquire_uldo() {
 /// It is no use to enable the ULDO power source constantly,
 /// and it would need to be released once we go out of deep sleep
 pub fn release_uldo() {
-    let regs =PRCM_BASE;
+    let regs = PRCM_BASE;
     regs.vd_ctl.modify(VDControl::ULDO::CLEAR);
 }
 
@@ -206,7 +206,7 @@ impl From<u32> for PowerDomain {
             4 => PowerDomain::CPU,
             _ => unimplemented!(),
         }
-    } 
+    }
 }
 
 pub struct Power(());
@@ -267,7 +267,8 @@ impl Power {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
             PowerDomain::RFC => {
-                regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON) && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
+                    && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
             }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),
@@ -313,11 +314,12 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate::CLK_EN::CLEAR);
         regs.uart_clk_gate_sleep.modify(ClockGate::CLK_EN::CLEAR);
-        regs.uart_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::CLEAR);
+        regs.uart_clk_gate_deep_sleep
+            .modify(ClockGate::CLK_EN::CLEAR);
 
         prcm_commit();
     }
-    
+
     pub fn enable_rfc() {
         let regs = PRCM_BASE;
         regs.rfc_clk_gate.write(ClockGate::CLK_EN::SET);
@@ -331,7 +333,7 @@ impl Clock {
 
         prcm_commit();
     }
-    
+
     pub fn enable_gpt() {
         let regs = PRCM_BASE;
         regs.gpt_clk_gate_run.write(ClockGate::CLK_EN::SET);
@@ -353,7 +355,6 @@ impl Clock {
     pub fn set_power_down_source(source: u32) {
         let regs = AON_WUC_BASE;
         regs.mcu_clk.set(source & 0x01);
-
     }
 }
 
@@ -361,5 +362,3 @@ pub fn rf_mode_sel(mode: u32) {
     let regs = PRCM_BASE;
     regs.rfc_mode_sel.set(mode);
 }
-
-

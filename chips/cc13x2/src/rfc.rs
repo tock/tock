@@ -12,11 +12,11 @@
 //!
 
 #![allow(dead_code)]
-use prcm;
-use kernel::common::regs::{ReadOnly, ReadWrite};
-use core::cell::Cell;
-use kernel::common::StaticRef;
 use commands as cmd;
+use core::cell::Cell;
+use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::StaticRef;
+use prcm;
 
 //*****************************************************************************
 //
@@ -236,8 +236,10 @@ register_bitfields! {
     ]
 }
 
-const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> = unsafe { StaticRef::new(0x4004_000 as *mut RfcPWCRegisters) };
-const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> = unsafe { StaticRef::new(0x4004_1000 as *mut RfcDBellRegisters) };
+const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
+    unsafe { StaticRef::new(0x4004_000 as *mut RfcPWCRegisters) };
+const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> =
+    unsafe { StaticRef::new(0x4004_1000 as *mut RfcDBellRegisters) };
 
 pub const RFC_RAM_BASE: usize = 0x2100_0000;
 pub const RFC_ULLRAM_BASE: usize = 0x2100_4000;
@@ -271,10 +273,10 @@ pub enum RfcCMDSTA {
     UnknownCommand = 0x82,
     UnknownDirCommand = 0x83,
     ContextError = 0x85,
-    SchedulingError = 0x86, 
+    SchedulingError = 0x86,
     ParError = 0x87,
     QueueError = 0x88,
-    QueueBusy = 0x89
+    QueueBusy = 0x89,
 }
 
 pub struct RFCore {
@@ -300,7 +302,7 @@ impl RFCore {
             rat: Cell::new(0),
         }
     }
-    
+
     pub fn is_enabled(&self) -> bool {
         prcm::Power::is_enabled(prcm::PowerDomain::RFC)
     }
@@ -315,7 +317,7 @@ impl RFCore {
 
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
-        
+
         pwc_regs.pwmclken.set(0x7FF);
 
         // Enable interrupts and clear flags
@@ -340,12 +342,12 @@ impl RFCore {
             .ok()
             .expect("Coudl not ping radio module");
     }
-    
+
     pub fn disable(&self) {
         self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok()
             .expect("Could not send stop cmd to radio module");
-        
+
         self.disable_cpe_interrupts();
         self.disable_hw_interrupts();
 
@@ -359,24 +361,20 @@ impl RFCore {
         self.stop_rat();
 
         // Add disable power domain and clocks
-        
+
         self.mode.set(None);
-        
     }
 
     pub fn setup(&self, reg_override: u32, tx_power: u16) {
-        let mode = self.mode
-            .get()
-            .expect("No RF mode selected, cannot setup");
+        let mode = self.mode.get().expect("No RF mode selected, cannot setup");
         let radio_setup = cmd::CmdRadioSetup::new(reg_override, mode as u8, tx_power);
 
         self.send(&radio_setup)
             .and_then(|_| self.wait(&radio_setup))
             .ok()
             .expect("Could not enable NonProp mode in radio module");
-        
     }
-    
+
     pub fn current_mode(&self) -> Option<RfcMode> {
         self.mode.get()
     }
@@ -386,16 +384,15 @@ impl RFCore {
             RfcMode::NONPROP => 0x00,
             _ => panic!("Only HAL mode supported"),
         };
-        
+
         prcm::rf_mode_sel(rf_mode);
 
         self.mode.set(Some(mode))
     }
 
-
     fn post_cmdr(&self, rf_command: u32) -> RfcResult {
         let dbell_regs = RFC_DBELL_BASE;
-        
+
         if !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {
             panic!("RFC power domain is off");
         }
@@ -414,10 +411,10 @@ impl RFCore {
 
             timeout += 1;
         }
-        
+
         return Err(status);
     }
-    
+
     fn wait_cmdr(&self, rf_command: u32) -> RfcResult {
         let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
 
@@ -482,9 +479,7 @@ impl RFCore {
     pub fn handle_cpe_interrupts(&self) {
         let dbell_regs = RFC_DBELL_BASE;
         // Clear all CPE interrupts
-        dbell_regs
-            .rfcpeifg
-            .set(0x7FFFFFFF);
+        dbell_regs.rfcpeifg.set(0x7FFFFFFF);
     }
 
     fn disable_cpe_interrupts(&self) {
@@ -494,9 +489,7 @@ impl RFCore {
             .rfcpeien
             .modify(CPEInterrupts::ALL_INTERRUPTS::CLEAR);
         // Clear all CPE interrupts
-        dbell_regs
-            .rfcpeifg
-            .set(0x7FFFFFFF);
+        dbell_regs.rfcpeifg.set(0x7FFFFFFF);
     }
 
     pub fn cpe_vec_select(&self, cpe: bool) {
@@ -516,9 +509,7 @@ impl RFCore {
     }
 
     pub fn send<T>(&self, rf_command: &T) -> RfcResult {
-        let command = {
-            (rf_command as *const T) as u32
-        };
+        let command = { (rf_command as *const T) as u32 };
 
         return self.post_cmdr(command);
     }
@@ -527,29 +518,27 @@ impl RFCore {
         let command = {
             let cmd = dir_command.command_no as u32;
             let par = dir_command.command_no as u32;
-            (cmd <<16) | (par & 0xFFFC) | 1
+            (cmd << 16) | (par & 0xFFFC) | 1
         };
 
         return self.post_cmdr(command);
     }
 
     pub fn wait<T>(&self, rf_command: &T) -> RfcResult {
-        let command = {
-            (rf_command as *const T) as u32 
-        };
+        let command = { (rf_command as *const T) as u32 };
 
         return self.wait_cmdr(command);
     }
-    
-    pub fn start_rat(&self){
-        let rf_command = cmd::CmdSyncStartRat::new(self.rat.get()); 
+
+    pub fn start_rat(&self) {
+        let rf_command = cmd::CmdSyncStartRat::new(self.rat.get());
 
         self.send(&rf_command)
             .and_then(|_| self.wait(&rf_command))
             .ok()
             .expect("Could not start radio timer.");
     }
-    
+
     pub fn stop_rat(&self) {
         let rf_command = cmd::CmdSyncStopRat::new(self.rat.get());
 
@@ -562,16 +551,12 @@ impl RFCore {
         let dbell_regs = RFC_DBELL_BASE;
 
         match int {
-            RfcInterrupt::CmdAck => { 
+            RfcInterrupt::CmdAck => {
                 dbell_regs.rfackifg.set(0);
-            },
-            RfcInterrupt::Cpe0 => { 
-                let command_done = dbell_regs
-                    .rfcpeifg
-                    .is_set(CPEIntFlags::COMMAND_DONE);
-                let tx_done = dbell_regs
-                    .rfcpeifg
-                    .is_set(CPEIntFlags::TX_DONE);
+            }
+            RfcInterrupt::Cpe0 => {
+                let command_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE);
+                let tx_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::TX_DONE);
 
                 dbell_regs.rfcpeifg.set(0);
 
@@ -582,8 +567,11 @@ impl RFCore {
                 if tx_done {
                     self.client.get().map(|client| client.tx_done());
                 }
-            },
-            RfcInterrupt::Cpe1 => { dbell_regs.rfcpeifg.set(0x7FFFFFFF); panic!("Internal error occurred during rad command") },
+            }
+            RfcInterrupt::Cpe1 => {
+                dbell_regs.rfcpeifg.set(0x7FFFFFFF);
+                panic!("Internal error occurred during rad command")
+            }
             _ => panic!("Unhandled RFC interrupt: {}\r", int as u8),
         }
     }
@@ -592,5 +580,3 @@ impl RFCore {
         self.client.set(Some(client));
     }
 }
-
-

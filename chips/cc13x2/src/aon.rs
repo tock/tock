@@ -6,8 +6,8 @@
 //! MCU never go to sleep and is always active.
 #![allow(dead_code)]
 use kernel::common::cells::VolatileCell;
+use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::common::regs::{ReadWrite, ReadOnly};
 use rtc;
 
 #[repr(C)]
@@ -85,9 +85,12 @@ register_bitfields![
 
 ];
 
-const AON_EVENT_BASE: StaticRef<AonEventRegisters> = unsafe { StaticRef::new(0x4009_3000 as *const AonEventRegisters) };
-const AON_PMCTL_BASE: StaticRef<AonPmCtlRegisters> = unsafe { StaticRef::new(0x4009_0000 as *const AonPmCtlRegisters) };
-const AON_IOC_BASE: StaticRef<AonIocRegisters> = unsafe { StaticRef::new(0x4009_4000 as *const AonIocRegisters) };
+const AON_EVENT_BASE: StaticRef<AonEventRegisters> =
+    unsafe { StaticRef::new(0x4009_3000 as *const AonEventRegisters) };
+const AON_PMCTL_BASE: StaticRef<AonPmCtlRegisters> =
+    unsafe { StaticRef::new(0x4009_0000 as *const AonPmCtlRegisters) };
+const AON_IOC_BASE: StaticRef<AonIocRegisters> =
+    unsafe { StaticRef::new(0x4009_4000 as *const AonIocRegisters) };
 
 pub struct Aon {
     event_regs: StaticRef<AonEventRegisters>,
@@ -151,9 +154,9 @@ impl Aon {
         let regs = AON_PMCTL_BASE;
         regs.ram_cfg.modify({
             if enabled {
-                RamCfg::AUX_SRAM_RET_EN::SET 
+                RamCfg::AUX_SRAM_RET_EN::SET
             } else {
-                RamCfg::AUX_SRAM_RET_EN::CLEAR 
+                RamCfg::AUX_SRAM_RET_EN::CLEAR
             }
         });
     }
