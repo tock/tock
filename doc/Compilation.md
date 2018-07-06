@@ -12,6 +12,7 @@ of how platforms program each onto an actual board.
 
 - [Compiling the kernel](#compiling-the-kernel)
   * [Life of a Tock compilation](#life-of-a-tock-compilation)
+  * [LLVM Binutils](#llvm-binutils)
 - [Compiling a process](#compiling-a-process)
   * [Position Independent Code](#position-independent-code)
   * [Tock Binary Format](#tock-binary-format)
@@ -83,6 +84,24 @@ You can see each command executed by `cargo` by passing it the `--verbose`
 argument. In our build system, you can run `make V=1` to see the verbose
 commands.
 
+
+### LLVM Binutils
+
+Tock uses the `lld`, `objcopy`, and `size` tools included with the Rust
+toolchain to produce kernel binaries that are executed on microcontrollers. This
+has three main ramifications:
+
+1. The tools are not entirely feature-compatible with the GNU versions. While
+   they are very similar, there are edge cases where they do not behave exactly
+   the same. This will likely improve with time, but it is worth noting in case
+   unexpected issues arise.
+2. The tools will automatically update with Rust versions. The tools are
+   provided in the `llvm-tools` rustup component that is compiled for and ships
+   with every version of the Rust toolchain. Therefore, if Rust updates the
+   version they use in the Rust repository, Tock will also see those updates.
+3. Tock no longer relies on an external dependency to provide these tools. That
+   should ensure that all Tock developers are using the same version of the
+   tools.
 
 ## Compiling a process
 
