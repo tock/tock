@@ -100,14 +100,6 @@ struct PrcmRegisters {
 register_bitfields![
     u32,
     VDControl [
-        // Request a MCU power down, will only be enabled during
-        // following conditions:
-        //      * PDCTL1.CPU_ON = 0
-        //      * PDCTL1.VIMS_MODE = 0
-        //      * SECDMACLKGDS.DMA_CLK_EN = 0
-        //      * SECDMACLKGDS.CRYPTO_CLK_EN = 0
-        //      * RFC does not request the bus
-        //      * System CPU in deepsleep
         MCU_VD_POWERDOWN  OFFSET(2) NUMBITS(1) [],
         ULDO              OFFSET(0) NUMBITS(1) []
     ],
@@ -164,11 +156,13 @@ fn prcm_commit() {
 
 pub fn force_disable_dma_and_crypto() {
     let regs = PRCM_BASE;
-
-    // TODO(cpluss): do not override these, detect if enabled instead
-    regs.sec_dma_clk_deep_sleep
-        .modify(SECDMAClockGate::DMA_CLK_EN::CLEAR + SECDMAClockGate::CRYPTO_CLK_EN::CLEAR);
-
+    if regs.sec_dma_clk_run.is_set(SECDMAClockGate::DMA_CLK_EN) {
+        regs.sec_dma_clk_deep_sleep.modify(SECDMAClockGate::DMA_CLK_EN::CLEAR);
+    }
+    if regs.sec_dma_clk_run.is_set(SECDMAClockGate::CRYPTO_CLK_EN) {
+        regs.sec_dma_clk_deep_sleep.modify(SECDMAClockGate::CRYPTO_CLK_EN::CLEAR);
+    }
+    
     prcm_commit();
 }
 

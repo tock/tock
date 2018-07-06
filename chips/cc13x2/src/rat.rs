@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use kernel::common::regs::{ ReadWrite, ReadOnly };
 use kernel::common::StaticRef;
 
@@ -30,15 +31,14 @@ register_bitfields! [
     ]
 ];
 
-
-const RFC_RAT_BASE: *const RfcRatRegisters = 0x4004_3000 as *const RfcRatRegisters;
+const RFC_RAT_BASE: StaticRef<RfcRatRegisters> = unsafe { StaticRef::new(0x4004_3000 as *const RfcRatRegisters) };
 const RTC_BASE: StaticRef<RtcRegisters> = unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
 
 // Enable RAT interface
 pub static mut RFRAT: RFRat = RFRat::new();
 
 pub struct RFRat {
-    rat_regs: *const RfcRatRegisters,
+    rat_regs: StaticRef<RfcRatRegisters>,
     rtc_upd_en: StaticRef<RtcRegisters>,
 }
 
@@ -63,7 +63,7 @@ impl RFRat {
     }
 
     pub fn read_rat(&self) -> u32 {
-        let rat_regs: &RfcRatRegisters = unsafe { &*self.rat_regs };
+        let rat_regs = RFC_RAT_BASE;
         let cur_rat: u32 = rat_regs.ratcnt.get();
 
         return cur_rat;

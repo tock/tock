@@ -1,6 +1,8 @@
+#![allow(dead_code)]
 use prcm;
 use kernel::common::regs::{ReadOnly, ReadWrite};
 use core::cell::Cell;
+use kernel::common::StaticRef;
 use commands as cmd;
 
 //*****************************************************************************
@@ -221,14 +223,11 @@ register_bitfields! {
     ]
 }
 
-const RFC_PWC_BASE: *mut RfcPWCRegisters = 0x4004_0000 as *mut RfcPWCRegisters;
-const RFC_DBELL_BASE: *mut RfcDBellRegisters = 0x4004_1000 as *mut RfcDBellRegisters;
-
+const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> = unsafe { StaticRef::new(0x4004_000 as *mut RfcPWCRegisters) };
+const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> = unsafe { StaticRef::new(0x4004_1000 as *mut RfcDBellRegisters) };
 
 pub const RFC_RAM_BASE: usize = 0x2100_0000;
 pub const RFC_ULLRAM_BASE: usize = 0x2100_4000;
-
-// const RFC_FSCA_BASE: *const RfcFSCARegisters = 0x40044000 as *const RfcFSCARegisters;
 
 pub static mut RFCORE: RFCore = RFCore::new();
 
@@ -266,8 +265,8 @@ pub enum RfcCMDSTA {
 }
 
 pub struct RFCore {
-    dbell_regs: *mut RfcDBellRegisters,
-    pwc_regs: *mut RfcPWCRegisters,
+    dbell_regs: StaticRef<RfcDBellRegisters>,
+    pwc_regs: StaticRef<RfcPWCRegisters>,
     client: Cell<Option<&'static RFCoreClient>>,
     mode: Cell<Option<RfcMode>>,
     rat: Cell<u32>,
@@ -302,7 +301,7 @@ impl RFCore {
         }
 
         // Set power and clock regs for RFC
-        let pwc_regs = unsafe { &*self.pwc_regs };
+        let pwc_regs = RFC_PWC_BASE;
         
         pwc_regs.pwmclken.set(0x7FF);
 
@@ -382,7 +381,7 @@ impl RFCore {
 
 
     fn post_cmdr(&self, rf_command: u32) -> RfcResult {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         
         if !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {
             panic!("RFC power domain is off");
@@ -425,14 +424,14 @@ impl RFCore {
     }
 
     fn cmdsta(&self) -> u32 {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         let ret: u32 = dbell_regs.cmdsta.get();
 
         return ret;
     }
 
     fn enable_hw_interrupts(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Enable all interrupts
         dbell_regs
             ._rfhwien
@@ -440,7 +439,7 @@ impl RFCore {
     }
 
     pub fn handle_hw_interrupts(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Clear all RFHW interrupts
         dbell_regs
             ._rfhwifg
@@ -448,7 +447,7 @@ impl RFCore {
     }
 
     fn disable_hw_interrupts(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Disable all RFHW interrupts
         dbell_regs
             ._rfhwien
@@ -460,7 +459,7 @@ impl RFCore {
     }
 
     fn enable_cpe_interrupts(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Enable CPE interrupts
         dbell_regs
             .rfcpeien
@@ -468,7 +467,7 @@ impl RFCore {
     }
 
     pub fn handle_cpe_interrupts(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Clear all CPE interrupts
         dbell_regs
             .rfcpeifg
@@ -476,7 +475,7 @@ impl RFCore {
     }
 
     fn disable_cpe_interrupts(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Disable all CPE interrupts
         dbell_regs
             .rfcpeien
@@ -488,7 +487,7 @@ impl RFCore {
     }
 
     pub fn cpe_vec_select(&self, cpe: bool) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Select CPE0 or CPE1
         if !cpe {
             dbell_regs.rfcpeisl.modify(CPEVectorSelect::ALL::CLEAR);
@@ -498,7 +497,7 @@ impl RFCore {
     }
 
     pub fn handle_ack_interrupt(&self) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
         // Reset flag for Command ACK
         dbell_regs.rfackifg.write(DBellCmdAck::CMDACK::SET);
     }
@@ -547,7 +546,7 @@ impl RFCore {
             .expect("Could not start radio timer");
     }
     pub fn handle_interrupts(&self, int: RfcInterrupt) {
-        let dbell_regs: &RfcDBellRegisters = unsafe { &*self.dbell_regs };
+        let dbell_regs = RFC_DBELL_BASE;
 
         match int {
             RfcInterrupt::CmdAck => { 
@@ -580,8 +579,5 @@ impl RFCore {
         self.client.set(Some(client));
     }
 }
-
-
-
 
 
