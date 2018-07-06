@@ -1,7 +1,7 @@
 //! Configuration and interrupt handling.
 
 use cc26xx::gpio;
-use cc26xx::peripheral_interrupts::*;
+use cc26xx::peripheral_interrupts;
 use cc26xx::rtc;
 use cc26xx::uart;
 use cortexm4::{self, nvic};
@@ -38,13 +38,13 @@ impl kernel::Chip for Cc26X2 {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
                 match interrupt {
-                    GPIO => gpio::PORT.handle_interrupt(),
-                    AON_RTC => rtc::RTC.handle_interrupt(),
-                    UART0 => uart::UART0.handle_interrupt(),
+                    peripheral_interrupts::GPIO => gpio::PORT.handle_interrupt(),
+                    peripheral_interrupts::AON_RTC => rtc::RTC.handle_interrupt(),
+                    peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
-                    AON_PROG => (),
-                    _ => panic!("unhandled interrupt {}", interrupt),
+                    peripheral_interrupts::AON_PROG => (),
+                    _ => panic!("unhandled interrupt {:?}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();

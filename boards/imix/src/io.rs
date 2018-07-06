@@ -1,4 +1,4 @@
-use core::fmt::*;
+use core::fmt::Write;
 use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;

@@ -6,9 +6,7 @@ extern crate kernel;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
-pub mod support {
-    pub use cortexm::support::*;
-}
+pub use cortexm::support;
 
 pub use cortexm::nvic;
 

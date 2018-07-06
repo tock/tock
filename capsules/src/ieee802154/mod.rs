@@ -6,4 +6,5 @@ pub mod xmac;
 
 mod driver;
 
-pub use self::driver::*;
+pub use self::driver::RadioDriver;
+pub use self::driver::DRIVER_NUM;

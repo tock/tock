@@ -31,7 +31,7 @@ use ieee802154::{device, framer};
 use kernel::common::cells::MapCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::ReturnCode;
-use net::ieee802154::*;
+use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
 /// any pending transmission requests. Any received frames from the underlying
