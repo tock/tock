@@ -1,5 +1,6 @@
 #![feature(const_fn)]
 #![feature(infer_outlives_requirements, in_band_lifetimes)]
+#![feature(tool_attributes)]
 #![forbid(unsafe_code)]
 #![no_std]
 
