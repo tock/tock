@@ -8,6 +8,9 @@ OPENOCD ?= openocd
 
 include ../Makefile.common
 
-flash: target/$(TARGET)/release/launchxl.hex
+flash: target/$(TARGET)/release/launchxl.bin
 	$(OPENOCD) -f flash-kernel.openocd
+
+flash-ccfg: target/$(TARGET)/release/launchxlccfg.bin
+	$(OPENOCD) -f flash-ccfg.openocd
 

@@ -124,11 +124,11 @@ target:
 doc: | target
 	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
-target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
-	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
+target/$(TARGET)/release/%.elf: target/$(TARGET)/release/%
+	$(Q)cp $< $@
 
 target/$(TARGET)/release/$(PLATFORM).lst: target/$(TARGET)/release/$(PLATFORM).elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/release/$(PLATFORM).lst
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
@@ -136,21 +136,22 @@ target/$(TARGET)/release/$(PLATFORM):
 	$(Q)$(SIZE) $@
 
 target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
-	$(Q)cp target/$(TARGET)/debug/$(PLATFORM) target/$(TARGET)/debug/$(PLATFORM).elf
+	$(Q)cp $< $@
 
-target/$(TARGET)/debug/$(PLATFORM).lst: target/$(TARGET)/debug/$(PLATFORM).elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/debug/$(PLATFORM).lst
+target/$(TARGET)/debug/%.lst: target/$(TARGET)/debug/%.elf
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 .PHONY: target/$(TARGET)/debug/$(PLATFORM)
 target/$(TARGET)/debug/$(PLATFORM):
 	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
 	$(Q)$(SIZE) $@
 
-target/$(TARGET)/release/$(PLATFORM).bin: target/$(TARGET)/release/$(PLATFORM).elf
+target/$(TARGET)/release/%.bin: target/$(TARGET)/release/%.elf
 	$(Q)$(OBJCOPY) -O=binary $^ $@
 
-target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
+target/$(TARGET)/debug/%.bin: target/$(TARGET)/debug/%.elf
 	$(Q)$(OBJCOPY) -O=binary $^ $@
+
 
 # `make check` runs the Rust compiler but does not actually output the final
 # binary. This makes checking for Rust errors much faster.
@@ -164,3 +165,6 @@ clean::
 
 .PHONY: debug
 debug: target/$(TARGET)/debug/$(PLATFORM).elf
+
+.PHONY: release
+debug: target/$(TARGET)/release/$(PLATFORM).elf
