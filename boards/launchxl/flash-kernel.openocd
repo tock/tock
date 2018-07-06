@@ -1,0 +1,11 @@
+source [find board/ti_cc26x2_launchpad.cfg]
+
+init;
+halt;
+
+flash protect 0 0 last off;
+flash write_image erase target/thumbv7em-none-eabi/release/launchxl.hex 0 ihex;
+verify_image_checksum target/thumbv7em-none-eabi/release/launchxl.hex 0 ihex;
+soft_reset_halt
+resume;
+exit;
