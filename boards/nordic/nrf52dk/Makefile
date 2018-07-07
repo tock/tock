@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the nRF development kit
+# Makefile for building the tock kernel for the nRF52 development kit
 
 TOCK_ARCH=cortex-m4
 TARGET=thumbv7em-none-eabi
@@ -6,23 +6,24 @@ PLATFORM=nrf52dk
 
 include ../../Makefile.common
 
-.PHONY: apps/$(APP)/build/$(TOCK_ARCH)/app.bin
-apps/$(APP)/build/$(TOCK_ARCH)/app.bin:
-	@make -C apps/$(APP) TOCK_ARCH=$(TOCK_ARCH)
+TOCKLOADER=tockloader
 
-target/$(TARGET)/release/nrf52dk-$(APP).hex: target/$(TARGET)/release/nrf52dk-$(APP)
-	@$(OBJCOPY) -Oihex $^ $@
+# Where in the nrf52 flash to load the kernel with `tockloader`
+KERNEL_ADDRESS=0x00000
 
-JLINK=JLinkExe
-JLINK_OPTIONS+=-device nrf52 -if swd -speed 1200 -AutoConnect 1
-JLINK_SCRIPTS_DIR=jtag/
+# Upload programs over uart with tockloader
+ifdef PORT
+  TOCKLOADER_GENERAL_FLAGS += --port $(PORT)
+endif
+
+TOCKLOADER_JTAG_FLAGS = --jlink --board nrf52dk
 
 # Upload the kernel over JTAG
 .PHONY: flash
-flash: target/$(TARGET)/release/nrf52dk.hex
-	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-kernel.jlink
+flash: target/$(TARGET)/release/$(PLATFORM).bin
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<
 
 # Upload the kernel over serial/bootloader
 .PHONY: program
-program: target/$(TARGET)/release/nrf52dk.hex
+program: target/$(TARGET)/release/$(PLATFORM).hex
 	$(error Cannot program nRF52DK over USB. Use \`make flash\` and JTAG)
