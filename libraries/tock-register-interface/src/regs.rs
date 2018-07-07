@@ -72,7 +72,6 @@ impl IntLike for u32 {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl IntLike for u64 {
     fn zero() -> Self {
         0
@@ -320,7 +319,6 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
     fn from(r: LocalRegisterCopy<u64, R>) -> u64 {
         r.value
@@ -378,7 +376,6 @@ impl<R: RegisterLongName> Field<u32, R> {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl<R: RegisterLongName> Field<u64, R> {
     pub const fn new(mask: u64, shift: usize) -> Field<u64, R> {
         Field {
@@ -463,7 +460,6 @@ impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl<R: RegisterLongName> FieldValue<u64, R> {
     pub const fn new(mask: u64, shift: usize, value: u64) -> Self {
         FieldValue {
@@ -479,7 +475,6 @@ impl<R: RegisterLongName> FieldValue<u64, R> {
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl<R: RegisterLongName> From<FieldValue<u64, R>> for u64 {
     fn from(val: FieldValue<u64, R>) -> u64 {
         val.value
