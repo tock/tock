@@ -51,7 +51,10 @@ pub unsafe extern "C" fn svc_handler() {
 
 #[cfg(not(target_os = "none"))]
 #[no_mangle]
-pub unsafe extern "C" fn switch_to_user(_user_stack: *const u8, _process_got: *const u8) -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(
+    _user_stack: *const u8,
+    _process_got: *const u8,
+) -> *mut u8 {
     unimplemented!("switch_to_user");
 }
 
@@ -64,4 +67,3 @@ pub unsafe extern "C" fn switch_to_user(
 ) -> *mut u8 {
     unimplemented!("switch_to_user");
 }
-

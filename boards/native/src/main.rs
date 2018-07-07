@@ -136,6 +136,12 @@ pub unsafe fn reset_handler(_sapps: *const u8) {
     }
     */
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-    kernel::procs::load_processes(board_kernel, _sapps, &mut APP_MEMORY, &mut PROCESSES, FAULT_RESPONSE);
+    kernel::procs::load_processes(
+        board_kernel,
+        _sapps,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+    );
     board_kernel.kernel_loop(&native, &mut chip, &mut PROCESSES, Some(&native.ipc));
 }
