@@ -277,15 +277,14 @@ fields simultaneously.
 ## Performance
 
 Examining the binaries while testing this interface, everything compiles
-down to the optimal inclined bit twiddling instructions--in other words, there is
-zero runtime cost, as far as my informal preliminary study has found. I will
-eventually be writing a more rigorous test to confirm this.
+down to the optimal inlined bit twiddling instructions--in other words, there is
+zero runtime cost, as far as an informal preliminary study has found.
 
 ## Nice type checking
 
 This interface helps the compiler catch some common types of bugs via type checking.
 
-If you define the bitfields for eg a control register, you can give them a
+If you define the bitfields for e.g. a control register, you can give them a
 descriptive group name like `Control`. This group of bitfields will only work
 with a register of the type `ReadWrite<_, Control>` (or `ReadOnly/WriteOnly`,
 etc). For instance, if we have the bitfields and registers as defined above,
