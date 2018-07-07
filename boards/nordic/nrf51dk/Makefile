@@ -6,22 +6,24 @@ PLATFORM=nrf51dk
 
 include ../../Makefile.common
 
-.PHONY: apps/$(APP)/build/$(TOCK_ARCH)/app.bin
-apps/$(APP)/build/$(TOCK_ARCH)/app.bin:
-	@make -C apps/$(APP) TOCK_ARCH=$(TOCK_ARCH)
+TOCKLOADER=tockloader
 
-target/$(TARGET)/release/nrf51dk-$(APP).hex: target/$(TARGET)/release/nrf51dk-$(APP)
-	@$(OBJCOPY) -Oihex $^ $@
+# Where in the nrf51 flash to load the kernel with `tockloader`
+KERNEL_ADDRESS=0x00000
 
-JLINK=JLinkExe
-JLINK_OPTIONS+=-device nrf51422 -if swd -speed 1200 -AutoConnect 1
-JLINK_SCRIPTS_DIR=jtag/
+# Upload programs over uart with tockloader
+ifdef PORT
+  TOCKLOADER_GENERAL_FLAGS += --port $(PORT)
+endif
+
+TOCKLOADER_JTAG_FLAGS = --jlink --board nrf51dk
 
 # Upload the kernel over JTAG
 .PHONY: flash
-flash: target/$(TARGET)/release/nrf51dk.hex
-	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-kernel.jlink
+flash: target/$(TARGET)/release/$(PLATFORM).bin
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<
 
+# Upload the kernel over serial/bootloader
 .PHONY: program
-program: target/$(TARGET)/release/nrf51dk.hex
-	$(error Cannot program nRF51DK over USB. Use \'make flash\' and JTAG)
+program: target/$(TARGET)/release/$(PLATFORM).hex
+	$(error Cannot program nRF52DK over USB. Use \`make flash\` and JTAG)
