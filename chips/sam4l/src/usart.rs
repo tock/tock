@@ -1052,7 +1052,7 @@ impl hil::spi::SpiMaster for USART {
 
     /// Pass in a None to use the HW chip select pin on the USART (RTS).
     fn specify_chip_select(&self, cs: Self::ChipSelect) {
-        self.spi_chip_select.replace(cs);
+        self.spi_chip_select.insert(cs);
     }
 
     /// Returns the actual rate set
