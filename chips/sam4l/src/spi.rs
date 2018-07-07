@@ -629,7 +629,7 @@ impl spi::SpiMaster for SpiHw {
 impl spi::SpiSlave for SpiHw {
     // Set to None to disable the whole thing
     fn set_client(&self, client: Option<&'static SpiSlaveClient>) {
-        self.slave_client.replace(client);
+        self.slave_client.insert(client);
     }
 
     fn has_client(&self) -> bool {
