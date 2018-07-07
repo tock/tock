@@ -1,7 +1,13 @@
 [[package]]
+name = "bitfield"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "cc26x2"
 version = "0.1.0"
 dependencies = [
+ "bitfield 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc26xx 0.1.0",
  "cortexm4 0.1.0",
  "kernel 0.1.0",
@@ -33,10 +39,17 @@ dependencies = [
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "tock-cells 0.1.0",
  "tock-regs 0.1.0",
 ]
+
+[[package]]
+name = "tock-cells"
+version = "0.1.0"
 
 [[package]]
 name = "tock-regs"
 version = "0.1.0"
 
+[metadata]
+"checksum bitfield 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0cdfb9275e899a694a3de63ef97a727c38f0be15765468c23f6e29e4bb461a46"

@@ -1,11 +1,10 @@
-//! Configuration and interrupt handling.
-
 use cc26xx::gpio;
 use cc26xx::peripheral_interrupts;
 use cc26xx::rtc;
 use cc26xx::uart;
 use cortexm4::{self, nvic};
 use kernel;
+use rfc;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -33,7 +32,7 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
-
+    #[allow(non_snake_case)]
     fn service_pending_interrupts(&mut self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
@@ -41,10 +40,13 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::GPIO => gpio::PORT.handle_interrupt(),
                     peripheral_interrupts::AON_RTC => rtc::RTC.handle_interrupt(),
                     peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
+                    peripheral_interrupts::RF_CORE_HW => rfc::RFCORE.handle_hw_interrupts(),
+                    peripheral_interrupts::RF_CMD_ACK => rfc::RFCORE.handle_ack_interrupt(),
+                    peripheral_interrupts::RF_CORE_PE1 => rfc::RFCORE.handle_cpe_interrupts(),
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     peripheral_interrupts::AON_PROG => (),
-                    _ => panic!("unhandled interrupt {:?}", interrupt),
+                    _ => panic!("unhandled interrupt {}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();
