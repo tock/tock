@@ -4,7 +4,7 @@ PLATFORM := tock-native
 
 include ../Makefile.common
 
-override RUSTFLAGS_FOR_CARGO_LINKING := "-Z pre-link-arg=-lSystem"
+override RUSTFLAGS_FOR_CARGO_LINKING := -Z pre-link-arg=-lSystem
 
 .PHONY: program
 program: target/$(TARGET)/release/$(PLATFORM).bin
