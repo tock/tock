@@ -26,7 +26,6 @@ usage:
 .PHONY: allboards
 allboards:
 	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Build $$f"; $(MAKE) -C "boards/$$f" || exit 1; done
-	@RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=1.2.3 cargo build --manifest-path=chips/cc13x2/Cargo.toml --target=thumbv7em-none-eabi
 
 .PHONY: alldoc
 alldoc:
