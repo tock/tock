@@ -14,6 +14,53 @@ use capsules::virtual_spi::MuxSpiMaster;
 use kernel::hil;
 use nrf5x::rtc::Rtc;
 
+/// Pins for SPI for the flash chip MX25R6435F
+#[derive(Debug)]
+pub struct SpiMX25R6435FPins {
+    device: usize,
+    client: usize,
+    client_sector: usize,
+}
+
+impl SpiMX25R6435FPins {
+    pub fn new(device: usize, client: usize, client_sector: usize) -> Self {
+        Self {
+            device,
+            client,
+            client_sector,
+        }
+    }
+}
+
+/// Pins for the SPI driver
+#[derive(Debug)]
+pub struct SpiPins {
+    mosi: usize,
+    miso: usize,
+    clk: usize,
+}
+
+impl SpiPins {
+    pub fn new(mosi: usize, miso: usize, clk: usize) -> Self {
+        Self { mosi, miso, clk }
+    }
+}
+
+/// Pins for the UART
+#[derive(Debug)]
+pub struct UartPins {
+    rts: usize,
+    txd: usize,
+    cts: usize,
+    rxd: usize,
+}
+
+impl UartPins {
+    pub fn new(rts: usize, txd: usize, cts: usize, rxd: usize) -> Self {
+        Self { rts, txd, cts, rxd }
+    }
+}
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
@@ -68,14 +115,9 @@ pub unsafe fn setup_board(
     debug_pin2_index: usize,
     debug_pin3_index: usize,
     led_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode)],
-    uart_rts: u32,
-    uart_txd: u32,
-    uart_cts: u32,
-    uart_rxd: u32,
-    spi_mosi: u32,
-    spi_miso: u32,
-    spi_clock: u32,
-    mx25r6435f: &Option<[usize; 3]>,
+    uart_pins: &UartPins,
+    spi_pins: &SpiPins,
+    mx25r6435f: &Option<SpiMX25R6435FPins>,
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
     process_pointers: &'static mut [core::option::Option<
@@ -150,10 +192,10 @@ pub unsafe fn setup_board(
     );
 
     nrf52::uart::UARTE0.configure(
-        nrf5x::pinmux::Pinmux::new(uart_txd),
-        nrf5x::pinmux::Pinmux::new(uart_rxd),
-        nrf5x::pinmux::Pinmux::new(uart_cts),
-        nrf5x::pinmux::Pinmux::new(uart_rts),
+        nrf5x::pinmux::Pinmux::new(uart_pins.txd as u32),
+        nrf5x::pinmux::Pinmux::new(uart_pins.rxd as u32),
+        nrf5x::pinmux::Pinmux::new(uart_pins.cts as u32),
+        nrf5x::pinmux::Pinmux::new(uart_pins.rts as u32),
     );
     let console = static_init!(
         capsules::console::Console<nrf52::uart::Uarte>,
@@ -218,20 +260,20 @@ pub unsafe fn setup_board(
     hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
     hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
     nrf52::spi::SPIM0.configure(
-        nrf5x::pinmux::Pinmux::new(spi_mosi),
-        nrf5x::pinmux::Pinmux::new(spi_miso),
-        nrf5x::pinmux::Pinmux::new(spi_clock),
+        nrf5x::pinmux::Pinmux::new(spi_pins.mosi as u32),
+        nrf5x::pinmux::Pinmux::new(spi_pins.miso as u32),
+        nrf5x::pinmux::Pinmux::new(spi_pins.clk as u32),
     );
 
     let nonvolatile_storage: Option<
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    > = if let Some([device, client, client_sector]) = mx25r6435f {
+    > = if let Some(driver) = mx25r6435f {
         // Create a SPI device for the mx25r6435f flash chip.
         let mx25r6435f_spi = static_init!(
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
             capsules::virtual_spi::VirtualSpiMasterDevice::new(
                 mux_spi,
-                &nrf5x::gpio::PORT[*device]
+                &nrf5x::gpio::PORT[driver.device]
             )
         );
         // Create an alarm for this chip.
@@ -252,8 +294,8 @@ pub unsafe fn setup_board(
                 mx25r6435f_virtual_alarm,
                 &mut capsules::mx25r6435f::TXBUFFER,
                 &mut capsules::mx25r6435f::RXBUFFER,
-                Some(&nrf5x::gpio::PORT[*client]),
-                Some(&nrf5x::gpio::PORT[*client_sector])
+                Some(&nrf5x::gpio::PORT[driver.client]),
+                Some(&nrf5x::gpio::PORT[driver.client_sector])
             )
         );
         mx25r6435f_spi.set_client(mx25r6435f);

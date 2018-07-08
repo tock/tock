@@ -17,6 +17,8 @@ extern crate nrf52;
 extern crate nrf52dk_base;
 extern crate nrf5x;
 
+use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins};
+
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: usize = 13;
 const LED2_PIN: usize = 14;
@@ -30,14 +32,14 @@ const BUTTON3_PIN: usize = 24;
 const BUTTON4_PIN: usize = 25;
 const BUTTON_RST_PIN: usize = 18;
 
-const UART_RTS: u32 = 5;
-const UART_TXD: u32 = 6;
-const UART_CTS: u32 = 7;
-const UART_RXD: u32 = 8;
+const UART_RTS: usize = 5;
+const UART_TXD: usize = 6;
+const UART_CTS: usize = 7;
+const UART_RXD: usize = 8;
 
-const SPI_MOSI: u32 = 20;
-const SPI_MISO: u32 = 21;
-const SPI_CLK: u32 = 19;
+const SPI_MOSI: usize = 20;
+const SPI_MISO: usize = 21;
+const SPI_CLK: usize = 19;
 
 const SPI_MX25R6435F_DEVICE: usize = 17;
 const SPI_MX25R6435F_CLIENT: usize = 22;
@@ -143,18 +145,13 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
-        UART_RTS,
-        UART_TXD,
-        UART_CTS,
-        UART_RXD,
-        SPI_MOSI,
-        SPI_MISO,
-        SPI_CLK,
-        &Some([
+        &UartPins::new(UART_RTS, UART_TXD, UART_RXD, UART_CTS),
+        &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
+        &Some(SpiMX25R6435FPins::new(
             SPI_MX25R6435F_DEVICE,
             SPI_MX25R6435F_CLIENT,
             SPI_MX25R6435F_CLIENT_SECTOR,
-        ]),
+        )),
         button_pins,
         &mut APP_MEMORY,
         &mut PROCESSES,

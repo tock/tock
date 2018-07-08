@@ -74,6 +74,8 @@ extern crate nrf52;
 extern crate nrf52dk_base;
 extern crate nrf5x;
 
+use nrf52dk_base::{SpiPins, UartPins};
+
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
 const LED2_PIN: usize = 18;
@@ -87,14 +89,14 @@ const BUTTON3_PIN: usize = 15;
 const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 21;
 
-const UART_RTS: u32 = 5;
-const UART_TXD: u32 = 6;
-const UART_CTS: u32 = 7;
-const UART_RXD: u32 = 8;
+const UART_RTS: usize = 5;
+const UART_TXD: usize = 6;
+const UART_CTS: usize = 7;
+const UART_RXD: usize = 8;
 
-const SPI_MOSI: u32 = 22;
-const SPI_MISO: u32 = 23;
-const SPI_CLK: u32 = 24;
+const SPI_MOSI: usize = 22;
+const SPI_MISO: usize = 23;
+const SPI_CLK: usize = 24;
 
 /// UART Writer
 #[macro_use]
@@ -201,13 +203,8 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
-        UART_RTS,
-        UART_TXD,
-        UART_CTS,
-        UART_RXD,
-        SPI_MOSI,
-        SPI_MISO,
-        SPI_CLK,
+        &UartPins::new(UART_RTS, UART_TXD, UART_RXD, UART_CTS),
+        &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &None,
         button_pins,
         &mut APP_MEMORY,
