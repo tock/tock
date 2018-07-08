@@ -30,6 +30,19 @@ const BUTTON3_PIN: usize = 24;
 const BUTTON4_PIN: usize = 25;
 const BUTTON_RST_PIN: usize = 18;
 
+const UART_RTS: u32 = 5;
+const UART_TXD: u32 = 6;
+const UART_CTS: u32 = 7;
+const UART_RXD: u32 = 8;
+
+const SPI_MOSI: u32 = 20;
+const SPI_MISO: u32 = 21;
+const SPI_CLK: u32 = 19;
+
+const SPI_MX25R6435F_DEVICE: usize = 17;
+const SPI_MX25R6435F_CLIENT: usize = 22;
+const SPI_MX25R6435F_CLIENT_SECTOR: usize = 23;
+
 /// UART Writer
 #[macro_use]
 pub mod io;
@@ -130,10 +143,21 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
+        UART_RTS,
+        UART_TXD,
+        UART_CTS,
+        UART_RXD,
+        SPI_MOSI,
+        SPI_MISO,
+        SPI_CLK,
+        &Some([
+            SPI_MX25R6435F_DEVICE,
+            SPI_MX25R6435F_CLIENT,
+            SPI_MX25R6435F_CLIENT_SECTOR,
+        ]),
         button_pins,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
-        true,
     );
 }

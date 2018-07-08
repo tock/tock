@@ -68,13 +68,20 @@ pub unsafe fn setup_board(
     debug_pin2_index: usize,
     debug_pin3_index: usize,
     led_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode)],
+    uart_rts: u32,
+    uart_txd: u32,
+    uart_cts: u32,
+    uart_rxd: u32,
+    spi_mosi: u32,
+    spi_miso: u32,
+    spi_clock: u32,
+    mx25r6435f: &Option<[usize; 3]>,
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
     process_pointers: &'static mut [core::option::Option<
         &'static mut kernel::procs::Process<'static>,
     >],
     app_fault_response: kernel::procs::FaultResponse,
-    has_mx25r6435f: bool,
 ) {
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52::uicr::Uicr::new();
@@ -143,11 +150,11 @@ pub unsafe fn setup_board(
     );
 
     nrf52::uart::UARTE0.configure(
-        nrf5x::pinmux::Pinmux::new(6), // tx
-        nrf5x::pinmux::Pinmux::new(8), // rx
-        nrf5x::pinmux::Pinmux::new(7), // cts
-        nrf5x::pinmux::Pinmux::new(5),
-    ); // rts
+        nrf5x::pinmux::Pinmux::new(uart_txd),
+        nrf5x::pinmux::Pinmux::new(uart_rxd),
+        nrf5x::pinmux::Pinmux::new(uart_cts),
+        nrf5x::pinmux::Pinmux::new(uart_rts),
+    );
     let console = static_init!(
         capsules::console::Console<nrf52::uart::Uarte>,
         capsules::console::Console::new(
@@ -211,18 +218,21 @@ pub unsafe fn setup_board(
     hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
     hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
     nrf52::spi::SPIM0.configure(
-        nrf5x::pinmux::Pinmux::new(20), // MOSI
-        nrf5x::pinmux::Pinmux::new(21), // MISO
-        nrf5x::pinmux::Pinmux::new(19), // CLK
+        nrf5x::pinmux::Pinmux::new(spi_mosi),
+        nrf5x::pinmux::Pinmux::new(spi_miso),
+        nrf5x::pinmux::Pinmux::new(spi_clock),
     );
 
     let nonvolatile_storage: Option<
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    > = if has_mx25r6435f {
+    > = if let Some([device, client, client_sector]) = mx25r6435f {
         // Create a SPI device for the mx25r6435f flash chip.
         let mx25r6435f_spi = static_init!(
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-            capsules::virtual_spi::VirtualSpiMasterDevice::new(mux_spi, &nrf5x::gpio::PORT[17])
+            capsules::virtual_spi::VirtualSpiMasterDevice::new(
+                mux_spi,
+                &nrf5x::gpio::PORT[*device]
+            )
         );
         // Create an alarm for this chip.
         let mx25r6435f_virtual_alarm = static_init!(
@@ -242,8 +252,8 @@ pub unsafe fn setup_board(
                 mx25r6435f_virtual_alarm,
                 &mut capsules::mx25r6435f::TXBUFFER,
                 &mut capsules::mx25r6435f::RXBUFFER,
-                Some(&nrf5x::gpio::PORT[22]),
-                Some(&nrf5x::gpio::PORT[23])
+                Some(&nrf5x::gpio::PORT[*client]),
+                Some(&nrf5x::gpio::PORT[*client_sector])
             )
         );
         mx25r6435f_spi.set_client(mx25r6435f);

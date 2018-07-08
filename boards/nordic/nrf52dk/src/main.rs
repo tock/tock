@@ -87,6 +87,15 @@ const BUTTON3_PIN: usize = 15;
 const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 21;
 
+const UART_RTS: u32 = 5;
+const UART_TXD: u32 = 6;
+const UART_CTS: u32 = 7;
+const UART_RXD: u32 = 8;
+
+const SPI_MOSI: u32 = 22;
+const SPI_MISO: u32 = 23;
+const SPI_CLK: u32 = 24;
+
 /// UART Writer
 #[macro_use]
 pub mod io;
@@ -123,7 +132,7 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 15],
+        [&'static nrf5x::gpio::GPIOPin; 12],
         [
             &nrf5x::gpio::PORT[3], // Bottom right header on DK board
             &nrf5x::gpio::PORT[4],
@@ -136,10 +145,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[27], // Top left header on DK board
             &nrf5x::gpio::PORT[26],
             &nrf5x::gpio::PORT[2],
-            &nrf5x::gpio::PORT[25],
-            &nrf5x::gpio::PORT[24],
-            &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22], // -----
+            &nrf5x::gpio::PORT[25]
         ]
     );
 
@@ -195,10 +201,17 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
+        UART_RTS,
+        UART_TXD,
+        UART_CTS,
+        UART_RXD,
+        SPI_MOSI,
+        SPI_MISO,
+        SPI_CLK,
+        &None,
         button_pins,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
-        false,
     );
 }
