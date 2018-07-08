@@ -44,7 +44,7 @@ Bitfields are defined through the `register_bitfields!` macro:
 ```rust
 register_bitfields! [
     // First parameter is the register width for the bitfields. Can be u8, u16,
-    // or u32.
+    // u32, or u64.
     u8,
 
     // Each subsequent parameter is a register abbreviation, its descriptive
@@ -142,7 +142,7 @@ ReadWrite<T: IntLike, R: RegisterLongName = ()>
 
 ```
 
-The first type parameter (the `IntLike` type) is `u8`, `u16`, or `u32`.
+The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`, or `u64`.
 
 ## Example: Using registers and bitfields
 
