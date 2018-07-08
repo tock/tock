@@ -421,7 +421,7 @@ impl Driver for MAX17205Driver<'a> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.replace(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 
