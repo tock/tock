@@ -8,7 +8,8 @@
 //! To use these traits, simply pull them into scope:
 //!
 //! ```rust
-//! use kernel::common::cells::numeric_cell_ext;
+//! extern crate tock_cells;
+//! use tock_cells::numeric_cell_ext::NumericCellExt;
 //! ```
 
 use core::cell::Cell;

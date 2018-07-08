@@ -47,6 +47,9 @@ impl<T> MapCell<T> {
     /// # Examples
     ///
     /// ```
+    /// extern crate tock_cells;
+    /// use tock_cells::map_cell::MapCell;
+    ///
     /// let cell = MapCell::new(1234);
     /// let x = &cell;
     /// let y = &cell;
@@ -88,13 +91,16 @@ impl<T> MapCell<T> {
     /// # Examples
     ///
     /// ```
+    /// extern crate tock_cells;
+    /// use tock_cells::map_cell::MapCell;
+    ///
     /// let cell = MapCell::new(1234);
     /// let x = &cell;
     /// let y = &cell;
     ///
     /// x.map(|value| {
     ///     // We have mutable access to the value while in the closure
-    ///     value += 1;
+    ///     *value += 1;
     /// });
     ///
     /// // After the closure completes, the mutable memory is still in the cell,
