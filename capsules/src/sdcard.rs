@@ -1391,20 +1391,11 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm> {
 }
 
 /// Holds buffers and whatnot that the application has passed us.
+#[derive(Default)]
 struct App {
     callback: Option<Callback>,
     write_buffer: Option<AppSlice<Shared, u8>>,
     read_buffer: Option<AppSlice<Shared, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            write_buffer: None,
-            read_buffer: None,
-        }
-    }
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
