@@ -9,7 +9,7 @@
 //! > view.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math::{get_errno, sqrtf32};
 use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
@@ -100,7 +100,7 @@ pub struct TMP006<'a> {
     interrupt_pin: &'a Pin,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
     protocol_state: Cell<ProtocolState>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -118,7 +118,7 @@ impl TMP006<'a> {
             interrupt_pin: interrupt_pin,
             sampling_period: Cell::new(DEFAULT_SAMPLING_RATE),
             repeated_mode: Cell::new(false),
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
             protocol_state: Cell::new(ProtocolState::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -206,9 +206,8 @@ impl i2c::I2CClient for TMP006<'a> {
                 self.protocol_state.set(ProtocolState::Idle);
                 temperature.map(|temp_val| {
                     self.callback
-                        .get()
+                        .take()
                         .map(|mut cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
-                    self.callback.set(None);
                 });
             }
             ProtocolState::SetRegSensorVoltage => {
@@ -246,8 +245,7 @@ impl i2c::I2CClient for TMP006<'a> {
                 } else {
                     // send value to callback
                     self.callback
-                        .get()
-                        .map(|mut cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
+                        .map(|cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
 
                     self.i2c.disable();
                 }
@@ -285,7 +283,7 @@ impl Driver for TMP006<'a> {
                 self.repeated_mode.set(false);
 
                 // set callback function
-                self.callback.set(callback);
+                self.callback.replace(callback);
 
                 // enable sensor
                 //  turn up the sampling rate so we get the sample faster
@@ -300,7 +298,7 @@ impl Driver for TMP006<'a> {
                 self.repeated_mode.set(true);
 
                 // set callback function
-                self.callback.set(callback);
+                self.callback.replace(callback);
 
                 // enable temperature sensor
                 self.enable_sensor(self.sampling_period.get());
@@ -332,7 +330,7 @@ impl Driver for TMP006<'a> {
             // unsubscribe callback
             2 => {
                 // clear callback function
-                self.callback.set(None);
+                self.callback.clear();
 
                 // disable temperature sensor
                 self.disable_sensor(None);

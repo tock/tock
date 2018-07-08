@@ -2,6 +2,7 @@
 //! alarm hardware peripheral.
 
 use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Time};
 
@@ -10,7 +11,7 @@ pub struct VirtualMuxAlarm<'a, Alrm: Alarm> {
     when: Cell<u32>,
     armed: Cell<bool>,
     next: ListLink<'a, VirtualMuxAlarm<'a, Alrm>>,
-    client: Cell<Option<&'a time::Client>>,
+    client: OptionalCell<&'a time::Client>,
 }
 
 impl<A: Alarm> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
@@ -26,7 +27,7 @@ impl<Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
             when: Cell::new(0),
             armed: Cell::new(false),
             next: ListLink::empty(),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -34,7 +35,7 @@ impl<Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
         self.mux.virtual_alarms.push_head(self);
         self.when.set(0);
         self.armed.set(false);
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
@@ -99,7 +100,7 @@ impl<Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
 
 impl<Alrm: Alarm> time::Client for VirtualMuxAlarm<'a, Alrm> {
     fn fired(&self) {
-        self.client.get().map(|client| client.fired());
+        self.client.map(|client| client.fired());
     }
 }
 

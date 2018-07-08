@@ -17,7 +17,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -93,7 +93,7 @@ enum State {
 pub struct LPS25HB<'a> {
     i2c: &'a i2c::I2CDevice,
     interrupt_pin: &'a gpio::Pin,
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -108,7 +108,7 @@ impl LPS25HB<'a> {
         LPS25HB {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -186,8 +186,7 @@ impl i2c::I2CClient for LPS25HB<'a> {
                 let pressure_ubar = (pressure * 1000) / 4096;
 
                 self.callback
-                    .get()
-                    .map(|mut cb| cb.schedule(pressure_ubar as usize, 0, 0));
+                    .map(|cb| cb.schedule(pressure_ubar as usize, 0, 0));
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
@@ -230,7 +229,7 @@ impl Driver for LPS25HB<'a> {
             // Set a callback
             0 => {
                 // Set callback function
-                self.callback.set(callback);
+                self.callback.replace(callback);
                 ReturnCode::SUCCESS
             }
             // default

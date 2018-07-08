@@ -18,7 +18,7 @@
 #![allow(unused_parens)]
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
@@ -215,10 +215,10 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     tx_len: Cell<u8>,
-    tx_client: Cell<Option<&'static radio::TxClient>>,
-    rx_client: Cell<Option<&'static radio::RxClient>>,
-    cfg_client: Cell<Option<&'static radio::ConfigClient>>,
-    power_client: Cell<Option<&'static radio::PowerClient>>,
+    tx_client: OptionalCell<&'static radio::TxClient>,
+    rx_client: OptionalCell<&'static radio::RxClient>,
+    cfg_client: OptionalCell<&'static radio::ConfigClient>,
+    power_client: OptionalCell<&'static radio::PowerClient>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
@@ -445,7 +445,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 } else if self.power_client_pending.get() {
                     // fixes bug where client would start transmitting before this state completed
                     self.power_client_pending.set(false);
-                    self.power_client.get().map(|p| {
+                    self.power_client.map(|p| {
                         p.changed(self.radio_on.get());
                     });
                 }
@@ -686,7 +686,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 // Inform power client that the radio turned off successfully
                 } else {
                     self.state.set(InternalState::SLEEP);
-                    self.power_client.get().map(|p| {
+                    self.power_client.map(|p| {
                         p.changed(self.radio_on.get());
                     });
                 }
@@ -804,7 +804,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
-                    self.tx_client.get().map(|c| {
+                    self.tx_client.map(|c| {
                         c.send_done(buf.unwrap(), ack, return_code);
                     });
                 } else {
@@ -912,7 +912,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 } else {
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
                 }
-                self.rx_client.get().map(|client| {
+                self.rx_client.map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
                     let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                     client.receive(rbuf, frame_len, self.crc_valid.get(), ReturnCode::SUCCESS);
@@ -1015,7 +1015,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::CONFIG_DONE => {
                 self.config_pending.set(false);
                 self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
-                self.cfg_client.get().map(|c| {
+                self.cfg_client.map(|c| {
                     c.config_done(ReturnCode::SUCCESS);
                 });
             }
@@ -1060,10 +1060,10 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             tx_len: Cell::new(0),
-            tx_client: Cell::new(None),
-            rx_client: Cell::new(None),
-            cfg_client: Cell::new(None),
-            power_client: Cell::new(None),
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+            cfg_client: OptionalCell::empty(),
+            power_client: OptionalCell::empty(),
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
@@ -1257,11 +1257,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
     }
 
     fn set_config_client(&self, client: &'static radio::ConfigClient) {
-        self.cfg_client.set(Some(client));
+        self.cfg_client.set(client);
     }
 
     fn set_power_client(&self, client: &'static radio::PowerClient) {
-        self.power_client.set(Some(client));
+        self.power_client.set(client);
     }
 
     fn set_address(&self, addr: u16) {
@@ -1340,11 +1340,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
 
 impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 
     fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
         self.rx_buf.replace(buffer);
     }
 
