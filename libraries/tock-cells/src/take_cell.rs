@@ -45,7 +45,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// use kernel::common::cells::TakeCell;
+    /// extern crate tock_cells;
+    /// use tock_cells::take_cell::TakeCell;
+    ///
     /// let mut value = 1234;
     /// let cell = TakeCell::new(&mut value);
     /// let x = &cell;
@@ -88,7 +90,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// # Examples
     ///
     /// ```
-    /// use kernel::common::cells::TakeCell;
+    /// extern crate tock_cells;
+    /// use tock_cells::take_cell::TakeCell;
+    ///
     /// let mut value = 1234;
     /// let cell = TakeCell::new(&mut value);
     /// let x = &cell;
