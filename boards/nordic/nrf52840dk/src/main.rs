@@ -41,9 +41,9 @@ const SPI_MOSI: usize = 20;
 const SPI_MISO: usize = 21;
 const SPI_CLK: usize = 19;
 
-const SPI_MX25R6435F_DEVICE: usize = 17;
-const SPI_MX25R6435F_CLIENT: usize = 22;
-const SPI_MX25R6435F_CLIENT_SECTOR: usize = 23;
+const SPI_MX25R6435F_CHIP_SELECT: usize = 17;
+const SPI_MX25R6435F_WRITE_PROTECT_PIN: usize = 22;
+const SPI_MX25R6435F_HOLD_PIN: usize = 23;
 
 /// UART Writer
 #[macro_use]
@@ -148,9 +148,9 @@ pub unsafe fn reset_handler() {
         &UartPins::new(UART_RTS, UART_TXD, UART_RXD, UART_CTS),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
-            SPI_MX25R6435F_DEVICE,
-            SPI_MX25R6435F_CLIENT,
-            SPI_MX25R6435F_CLIENT_SECTOR,
+            SPI_MX25R6435F_CHIP_SELECT,
+            SPI_MX25R6435F_WRITE_PROTECT_PIN,
+            SPI_MX25R6435F_HOLD_PIN,
         )),
         button_pins,
         &mut APP_MEMORY,

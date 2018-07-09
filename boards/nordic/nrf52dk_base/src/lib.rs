@@ -17,17 +17,17 @@ use nrf5x::rtc::Rtc;
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
 pub struct SpiMX25R6435FPins {
-    device: usize,
-    client: usize,
-    client_sector: usize,
+    chip_select: usize,
+    write_protect_pin: usize,
+    hold_pin: usize,
 }
 
 impl SpiMX25R6435FPins {
-    pub fn new(device: usize, client: usize, client_sector: usize) -> Self {
+    pub fn new(chip_select: usize, write_protect_pin: usize, hold_pin: usize) -> Self {
         Self {
-            device,
-            client,
-            client_sector,
+            chip_select,
+            write_protect_pin,
+            hold_pin,
         }
     }
 }
@@ -274,7 +274,7 @@ pub unsafe fn setup_board(
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
             capsules::virtual_spi::VirtualSpiMasterDevice::new(
                 mux_spi,
-                &nrf5x::gpio::PORT[driver.device]
+                &nrf5x::gpio::PORT[driver.chip_select]
             )
         );
         // Create an alarm for this chip.
@@ -295,8 +295,8 @@ pub unsafe fn setup_board(
                 mx25r6435f_virtual_alarm,
                 &mut capsules::mx25r6435f::TXBUFFER,
                 &mut capsules::mx25r6435f::RXBUFFER,
-                Some(&nrf5x::gpio::PORT[driver.client]),
-                Some(&nrf5x::gpio::PORT[driver.client_sector])
+                Some(&nrf5x::gpio::PORT[driver.write_protect_pin]),
+                Some(&nrf5x::gpio::PORT[driver.hold_pin])
             )
         );
         mx25r6435f_spi.set_client(mx25r6435f);
