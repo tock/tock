@@ -26,8 +26,13 @@ impl<T> AppliedGrant<T> {
         F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
         R: Copy,
     {
+        let proc = unsafe {
+            process::PROCS[self.appid]
+                .as_mut()
+                .expect("Request to allocate in nonexistent app")
+        };
         let mut allocator = Allocator {
-            app: unsafe { process::PROCS[self.appid].as_mut() },
+            app: proc,
             app_id: self.appid,
         };
         let mut root = unsafe { Owned::new(self.grant, self.appid) };
@@ -36,7 +41,7 @@ impl<T> AppliedGrant<T> {
 }
 
 pub struct Allocator<'a> {
-    app: Option<&'a mut &'a mut process::Process<'a>>,
+    app: &'a mut process::Process<'a>,
     app_id: usize,
 }
 
@@ -90,18 +95,13 @@ impl Allocator<'a> {
     pub fn alloc<T>(&mut self, data: T) -> Result<Owned<T>, Error> {
         unsafe {
             let app_id = self.app_id;
-            match self.app.as_mut() {
-                Some(app) => app
-                    .alloc(size_of::<T>())
-                    .map_or(Err(Error::OutOfMemory), |arr| {
-                        let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
-                        *owned = data;
-                        Ok(owned)
-                    }),
-                None => {
-                    panic!("Request to allocate in kernel grant");
-                }
-            }
+            self.app
+                .alloc(size_of::<T>())
+                .map_or(Err(Error::OutOfMemory), |arr| {
+                    let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
+                    *owned = data;
+                    Ok(owned)
+                })
         }
     }
 }
@@ -181,7 +181,7 @@ impl<T: Default> Grant<T> {
                     move |root_ptr| {
                         let mut root = Borrowed::new(&mut *root_ptr, app_id);
                         let mut allocator = Allocator {
-                            app: Some(app),
+                            app: app,
                             app_id: app_id,
                         };
                         let res = fun(&mut root, &mut allocator);
