@@ -118,16 +118,32 @@ A reasonable set of CCFG values is in `src/ccfg.rs`, which compiles to a
 separate target binary and can be flashed directly to offset of the first CCFG
 register (0x57FA8).
 
+If you're using OpenOCD:
+
 ```bash
 $ make flash-ccfg
 ```
 
+If you're using JLinkExe
+
+```bash
+$ make flash-ccfg-jlink
+```
+
 ### Flashing the kernel
 
-The Makefile target `flash` builds and loads the kernel using OpenOCD (not `tockloader`).
+The Makefile targets `flash` (for OpenOCD) and `flash-jlink`) (for JLinkExe) build and load the kernel.
+
+OpenOCD:
 
 ```bash
 $ make flash       # make and flash the kernel
+```
+
+JLinkExe:
+
+```bash
+$ make flash-jlink       # make and flash the kernel
 ```
 
 ### Flashing apps
