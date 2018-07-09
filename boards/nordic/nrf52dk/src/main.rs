@@ -74,6 +74,8 @@ extern crate nrf52;
 extern crate nrf52dk_base;
 extern crate nrf5x;
 
+use nrf52dk_base::{SpiPins, UartPins};
+
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
 const LED2_PIN: usize = 18;
@@ -86,6 +88,15 @@ const BUTTON2_PIN: usize = 14;
 const BUTTON3_PIN: usize = 15;
 const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 21;
+
+const UART_RTS: usize = 5;
+const UART_TXD: usize = 6;
+const UART_CTS: usize = 7;
+const UART_RXD: usize = 8;
+
+const SPI_MOSI: usize = 22;
+const SPI_MISO: usize = 23;
+const SPI_CLK: usize = 24;
 
 /// UART Writer
 #[macro_use]
@@ -123,7 +134,7 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 15],
+        [&'static nrf5x::gpio::GPIOPin; 12],
         [
             &nrf5x::gpio::PORT[3], // Bottom right header on DK board
             &nrf5x::gpio::PORT[4],
@@ -136,10 +147,7 @@ pub unsafe fn reset_handler() {
             &nrf5x::gpio::PORT[27], // Top left header on DK board
             &nrf5x::gpio::PORT[26],
             &nrf5x::gpio::PORT[2],
-            &nrf5x::gpio::PORT[25],
-            &nrf5x::gpio::PORT[24],
-            &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22], // -----
+            &nrf5x::gpio::PORT[25]
         ]
     );
 
@@ -195,10 +203,12 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
+        &UartPins::new(UART_RTS, UART_TXD, UART_RXD, UART_CTS),
+        &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
+        &None,
         button_pins,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
-        false,
     );
 }
