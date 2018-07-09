@@ -20,8 +20,10 @@ pub trait Component {
     /// static reference (`&'static`).
     type Output;
 
-    /// A factory method that returns an instance of the Output type of
-    /// this Component implementation. Used in the boot sequence to
-    /// instantiate and initalize part of the Tock kernel.
+    /// A factory method that returns an instance of the Output type
+    /// of this Component implementation.  This factory method may
+    /// only be called once per Component instance.  Used in the boot
+    /// sequence to instantiate and initalize part of the Tock
+    /// kernel.
     unsafe fn finalize(&mut self) -> Self::Output;
 }
