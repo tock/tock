@@ -111,6 +111,9 @@ all: target/$(TARGET)/release/$(PLATFORM).bin
 .PHONY: lst
 lst: target/$(TARGET)/release/$(PLATFORM).lst
 
+.PHONY: release
+release: target/$(TARGET)/release/$(PLATFORM).bin
+
 .PHONY: debug
 debug: target/$(TARGET)/debug/$(PLATFORM).bin
 
@@ -162,9 +165,3 @@ check:
 .PHONY: clean
 clean::
 	$(Q)$(CARGO) clean $(VERBOSE)
-
-.PHONY: debug
-debug: target/$(TARGET)/debug/$(PLATFORM).elf
-
-.PHONY: release
-debug: target/$(TARGET)/release/$(PLATFORM).elf
