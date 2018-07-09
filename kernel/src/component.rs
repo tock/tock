@@ -1,30 +1,27 @@
-/// A Component extends the functionality of the Tock kernel.
-/// This abstraction is intended to make the kernel boot sequence simpler:
-/// without it, the reset_handler involves lots of driver-specific
-/// initialization. The Component trait encapsulates all of the
-/// initialization and configuration of a kernel extension inside
-/// the finalize function call.
+//! Components extend the functionality of the Tock kernel through a
+//! simple factory method interface.
+
+/// Encapsulates peripheral-specific and capsule-specific
+/// initialization for the Tock OS kernel in a factory method,
+/// reducing repeated code and simplifying the boot sequence.
 ///
-/// Note that instantiating a component does not necessarily instantiate
-/// the underlying Output type; this can be instantiated when finalize()
-/// is called.
+/// The Component trait encapsulates all of the initialization and
+/// configuration of a kernel extension inside the finalize function
+/// call. The Output type defines what type this component generates.
+/// Note that instantiating a component does not necessarily
+/// instantiate the underlying Output type; instead, it is typically
+/// instantiated in the call to finalize() is called. If instantiating
+/// and initializing the Output type requires parameters, these should
+/// be passed in the Component's new() function.
 
 pub trait Component {
+    /// The type (e.g., capsule, peripheral) that this implementation
+    /// of Component produces via finalize. This is typically a
+    /// static reference (`&'static`).
     type Output;
+
+    /// A factory method that returns an instance of the Output type of
+    /// this Component implementation. Used in the boot sequence to
+    /// instantiate and initalize part of the Tock kernel.
     unsafe fn finalize(&mut self) -> Self::Output;
-}
-
-/// This trait allows components to set up circular references.
-/// If component A requires a reference to component B, and B
-/// requires a reference to A, then one of them can implement this
-/// trait. For example, A can implement ComponentWithDependency<B>.
-/// When A is constructed, B does not exist yet. When B is constructed,
-/// A exists, so can be passed to new(). Then, B can be passed to A
-/// via a call to dependency(). After both dependencies are resolved,
-/// the boot sequence can call finalize() on both of them.
-
-pub trait ComponentWithDependency<D>: Component {
-    fn dependency(&mut self, _dep: D) -> &mut Self {
-        self
-    }
 }
