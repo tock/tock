@@ -21,11 +21,12 @@ pub mod common;
 pub mod component;
 #[macro_use]
 pub mod debug;
+pub mod hil;
+pub mod ipc;
+
 mod callback;
 mod driver;
 mod grant;
-pub mod hil;
-pub mod ipc;
 mod mem;
 mod memop;
 mod platform;
