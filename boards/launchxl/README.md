@@ -16,15 +16,31 @@ comprehensible than the manual for cc26x2.
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md).
 
-The Launchxl boards use an on-board debug-chip (the XDS110) to allow flashing
-and debugging the chip over USB. However, to use the on-board debugger, you
-need to upgrade its firmware, and use a version of OpenOCD that can interface
-with it.
+There are two options for flashing and debugging the board:
+
+  1. OpenOCD + on-board debugger: The launchxl boards have an on-board debug-chip (the XDS110) to
+     allow flashing and debugging the chip over USB that works with OpenOCD.
+     However, to use the on-board debugger, you need to upgrade its firmware,
+     and use an unreleased version of OpenOCD that can interface with it.
+
+  2. JLinkExe + external JTag debugger: You can connect an external debugger to
+     the JTag port (labled "Target In") and use JLinkExe/JLinkGDBServer to
+     flash and debug the chip. This is currently a more seemless software
+     experience, but requires additinoal hardware (the debugger).
 
 ### Hardware Setup
 
-If you're using OpenOCD to interact with the chip, ensure all the jumpers are
-attached to the configurable header pins. Specifically, for flashing and debugging you need _at least_:
+The jumpers on the configurable headers change which debug features are
+available.
+
+In order to interact with the serial console over USB, you need to attach
+jumpers to the `RX` and `TX` pins.
+
+For flashing and debugging, you need different sets of jumpers for each strategy.
+
+If you're using **OpenOCD**, ensure all the jumpers are attached to the
+configurable header pins. Specifically, for flashing and debugging you need _at
+least_:
 
   * `GND`
   * `3V3`
@@ -34,9 +50,18 @@ attached to the configurable header pins. Specifically, for flashing and debuggi
   * `TDO`
   * `TDI`
 
-For interacting with the serial console over USB, you additionally need `RX` and `TX`.
+If you're using **JLinkExe/JLinkGDBServer**, make sure to __*detach*__ the
+`TMS`, `TCK`, `TDO`, and `TDI` pins. If you don't, JLinkExe will fail to
+connect and print an error that it cannot find ICE-PICK (because TI is really
+serious about useful error messages).
+
+```
+InitTarget: Can not find ICE-Pick (IDCODE mismatch).
+```
 
 ### Update the XDS110 firmware
+
+_Only necessary for OpenOCD_
 
 The launchpad has TI's XDS110 JTAG device that can be used to program it.
 However, OpenOCD requires a recent version of the firmware that may not be on
@@ -46,6 +71,8 @@ Note: you only need to download CCS to do this, the `firmware.bin` file is in
 the xds110 folder.
 
 ### Install OpenOCD from Git
+
+_Only necessary for OpenOCD_
 
 As of July 2018, the released version of OpenOCD (v0.10) does not include
 support for the XDS110 on-board debugger. However, support is available from
