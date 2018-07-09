@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
@@ -196,7 +197,7 @@ pub static mut NVMC: Nvmc = Nvmc::new();
 
 pub struct Nvmc {
     registers: StaticRef<NvmcRegisters>,
-    client: Cell<Option<&'static hil::flash::Client<Nvmc>>>,
+    client: OptionalCell<&'static hil::flash::Client<Nvmc>>,
     buffer: TakeCell<'static, NrfPage>,
     state: Cell<FlashState>,
 }
@@ -205,7 +206,7 @@ impl Nvmc {
     pub const fn new() -> Nvmc {
         Nvmc {
             registers: NVMC_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             state: Cell::new(FlashState::Ready),
         }
@@ -242,21 +243,21 @@ impl Nvmc {
 
         match state {
             FlashState::Read => {
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.read_complete(buffer, hil::flash::Error::CommandComplete);
                     });
                 });
             }
             FlashState::Write => {
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.write_complete(buffer, hil::flash::Error::CommandComplete);
                     });
                 });
             }
             FlashState::Erase => {
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.erase_complete(hil::flash::Error::CommandComplete);
                 });
             }
@@ -351,7 +352,7 @@ impl Nvmc {
 
 impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Nvmc {
     fn set_client(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 

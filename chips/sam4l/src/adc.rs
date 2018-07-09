@@ -7,7 +7,8 @@
 //! - are 12 bits
 //! - use the ground pad as the negative reference
 //! - use a VCC/2 positive reference
-//! - are right justified
+//! - use a gain of 0.5x
+//! - are left justified
 //!
 //! Samples can either be collected individually or continuously at a specified
 //! frequency.
@@ -18,7 +19,7 @@
 use core::cell::Cell;
 use core::{cmp, mem, slice};
 use dma;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -118,7 +119,7 @@ pub struct Adc {
     timer_counts: Cell<u8>,
 
     // DMA peripheral, buffers, and length
-    rx_dma: Cell<Option<&'static dma::DMAChannel>>,
+    rx_dma: OptionalCell<&'static dma::DMAChannel>,
     rx_dma_peripheral: dma::DMAPeripheral,
     rx_length: Cell<usize>,
     next_dma_buffer: TakeCell<'static, [u16]>,
@@ -126,7 +127,7 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: Cell<Option<&'static EverythingClient>>,
+    client: OptionalCell<&'static EverythingClient>,
 }
 
 /// Memory mapped registers for the ADC.
@@ -371,7 +372,7 @@ impl Adc {
             timer_counts: Cell::new(0),
 
             // DMA status and stuff
-            rx_dma: Cell::new(None),
+            rx_dma: OptionalCell::empty(),
             rx_dma_peripheral: rx_dma_peripheral,
             rx_length: Cell::new(0),
             next_dma_buffer: TakeCell::empty(),
@@ -379,7 +380,7 @@ impl Adc {
             stopped_buffer: TakeCell::empty(),
 
             // higher layer to send responses to
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -387,14 +388,14 @@ impl Adc {
     ///
     /// - `client`: reference to capsule which handles responses
     pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     /// Sets the DMA channel for this driver.
     ///
     /// - `rx_dma`: reference to the DMA channel the ADC should use
     pub fn set_dma(&self, rx_dma: &'static dma::DMAChannel) {
-        self.rx_dma.set(Some(rx_dma));
+        self.rx_dma.set(rx_dma);
     }
 
     /// Interrupt handler for the ADC.
@@ -413,7 +414,7 @@ impl Adc {
 
                     // single sample complete. Send value to client
                     let val = regs.lcv.read(SequencerLastConvertedValue::LCV) as u16;
-                    self.client.get().map(|client| {
+                    self.client.map(|client| {
                         client.sample_ready(val);
                     });
 
@@ -634,7 +635,7 @@ impl hil::adc::Adc for Adc {
                 + SequencerConfig::GCOMP::Disable
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Disable;
+                + SequencerConfig::HWLA::Enable;
             regs.seqcfg.write(cfg);
 
             // clear any current status
@@ -685,7 +686,7 @@ impl hil::adc::Adc for Adc {
                 + SequencerConfig::GCOMP::Disable
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Disable;
+                + SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
@@ -777,7 +778,7 @@ impl hil::adc::Adc for Adc {
 
             // stop DMA transfer if going. This should safely return a None if
             // the DMA was not being used
-            let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
+            let dma_buffer = self.rx_dma.map_or(None, |rx_dma| {
                 let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
                 dma_buf
@@ -798,6 +799,17 @@ impl hil::adc::Adc for Adc {
 
             ReturnCode::SUCCESS
         }
+    }
+
+    /// Resolution of the reading.
+    fn get_resolution_bits(&self) -> usize {
+        12
+    }
+
+    /// Voltage reference is VCC/2, we assume VCC is 3.3 V, and we use a gain
+    /// of 0.5.
+    fn get_voltage_reference_mv(&self) -> Option<usize> {
+        Some(3300)
     }
 }
 
@@ -864,7 +876,7 @@ impl hil::adc::AdcHighSpeed for Adc {
                 + SequencerConfig::GCOMP::Disable
                 + SequencerConfig::GAIN::Gain0p5x
                 + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Disable;
+                + SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
@@ -902,7 +914,7 @@ impl hil::adc::AdcHighSpeed for Adc {
             let dma_buf = unsafe { slice::from_raw_parts_mut(dma_buf_ptr, buffer1.len() * 2) };
 
             // set up the DMA
-            self.rx_dma.get().map(move |dma| {
+            self.rx_dma.map(move |dma| {
                 self.dma_running.set(true);
                 dma.enable();
                 self.rx_length.set(dma_len);
@@ -980,7 +992,7 @@ impl dma::DMAClient for Adc {
             // RX transfer was completed
 
             // get buffer filled with samples from DMA
-            let dma_buffer = self.rx_dma.get().map_or(None, |rx_dma| {
+            let dma_buffer = self.rx_dma.map_or(None, |rx_dma| {
                 self.dma_running.set(false);
                 let dma_buf = rx_dma.abort_transfer();
                 rx_dma.disable();
@@ -1015,7 +1027,7 @@ impl dma::DMAClient for Adc {
                     let dma_buf = unsafe { slice::from_raw_parts_mut(dma_buf_ptr, buf.len() * 2) };
 
                     // set up the DMA
-                    self.rx_dma.get().map(move |dma| {
+                    self.rx_dma.map(move |dma| {
                         self.dma_running.set(true);
                         dma.enable();
                         self.rx_length.set(dma_len);
@@ -1029,7 +1041,7 @@ impl dma::DMAClient for Adc {
             });
 
             // alert client
-            self.client.get().map(|client| {
+            self.client.map(|client| {
                 dma_buffer.map(|dma_buf| {
                     // change buffer back into a [u16]
                     // the buffer was originally a [u16] so this should be okay

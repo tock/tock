@@ -52,9 +52,25 @@ for f in $(find . | grep Cargo.toml); do
 	popd > /dev/null
 done
 
+# rustfmt doesn't have an option for this, so do it manually
+# Find folders with Cargo.toml files in them and check them (avoids matching this script!)
+for f in $(find . | grep Cargo.toml); do
+	pushd $(dirname $f) > /dev/null
+	if $(git grep -q 'use .*\*;'); then
+		echo
+		echo "$(tput bold)Wildcard import(s) found in $(dirname $f).$(tput sgr0)"
+		echo "Tock style rules prohibit this use of wildcard imports."
+		echo
+		echo "The following wildcard imports were found:"
+		git grep 'use .*\*;'
+		let FAIL=FAIL+1
+	fi
+	popd > /dev/null
+done
+
 if [[ $FAIL -ne 0 ]]; then
 	echo
-	echo "$(tput bold)Error running rustfmt.$(tput sgr0)"
+	echo "$(tput bold)Formatting errors.$(tput sgr0)"
 	echo "See above for details"
 fi
 exit $FAIL

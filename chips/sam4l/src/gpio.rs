@@ -1,9 +1,9 @@
 //! Implementation of the GPIO controller.
 
-use self::Pin::*;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
+use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -96,7 +96,7 @@ pub static INTERRUPT_COUNT: AtomicUsize = AtomicUsize::new(0);
 ///
 /// [^1]: Section 3.1, pages 10-18
 #[derive(Copy,Clone)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub enum Pin {
     PA00, PA01, PA02, PA03, PA04, PA05, PA06, PA07,
     PA08, PA09, PA10, PA11, PA12, PA13, PA14, PA15,
@@ -179,38 +179,38 @@ impl Port {
 pub static mut PA: Port = Port {
     port: unsafe { StaticRef::new((BASE_ADDRESS + 0 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PA00),
-        GPIOPin::new(PA01),
-        GPIOPin::new(PA02),
-        GPIOPin::new(PA03),
-        GPIOPin::new(PA04),
-        GPIOPin::new(PA05),
-        GPIOPin::new(PA06),
-        GPIOPin::new(PA07),
-        GPIOPin::new(PA08),
-        GPIOPin::new(PA09),
-        GPIOPin::new(PA10),
-        GPIOPin::new(PA11),
-        GPIOPin::new(PA12),
-        GPIOPin::new(PA13),
-        GPIOPin::new(PA14),
-        GPIOPin::new(PA15),
-        GPIOPin::new(PA16),
-        GPIOPin::new(PA17),
-        GPIOPin::new(PA18),
-        GPIOPin::new(PA19),
-        GPIOPin::new(PA20),
-        GPIOPin::new(PA21),
-        GPIOPin::new(PA22),
-        GPIOPin::new(PA23),
-        GPIOPin::new(PA24),
-        GPIOPin::new(PA25),
-        GPIOPin::new(PA26),
-        GPIOPin::new(PA27),
-        GPIOPin::new(PA28),
-        GPIOPin::new(PA29),
-        GPIOPin::new(PA30),
-        GPIOPin::new(PA31),
+        GPIOPin::new(Pin::PA00),
+        GPIOPin::new(Pin::PA01),
+        GPIOPin::new(Pin::PA02),
+        GPIOPin::new(Pin::PA03),
+        GPIOPin::new(Pin::PA04),
+        GPIOPin::new(Pin::PA05),
+        GPIOPin::new(Pin::PA06),
+        GPIOPin::new(Pin::PA07),
+        GPIOPin::new(Pin::PA08),
+        GPIOPin::new(Pin::PA09),
+        GPIOPin::new(Pin::PA10),
+        GPIOPin::new(Pin::PA11),
+        GPIOPin::new(Pin::PA12),
+        GPIOPin::new(Pin::PA13),
+        GPIOPin::new(Pin::PA14),
+        GPIOPin::new(Pin::PA15),
+        GPIOPin::new(Pin::PA16),
+        GPIOPin::new(Pin::PA17),
+        GPIOPin::new(Pin::PA18),
+        GPIOPin::new(Pin::PA19),
+        GPIOPin::new(Pin::PA20),
+        GPIOPin::new(Pin::PA21),
+        GPIOPin::new(Pin::PA22),
+        GPIOPin::new(Pin::PA23),
+        GPIOPin::new(Pin::PA24),
+        GPIOPin::new(Pin::PA25),
+        GPIOPin::new(Pin::PA26),
+        GPIOPin::new(Pin::PA27),
+        GPIOPin::new(Pin::PA28),
+        GPIOPin::new(Pin::PA29),
+        GPIOPin::new(Pin::PA30),
+        GPIOPin::new(Pin::PA31),
     ],
 };
 
@@ -218,38 +218,38 @@ pub static mut PA: Port = Port {
 pub static mut PB: Port = Port {
     port: unsafe { StaticRef::new((BASE_ADDRESS + 1 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PB00),
-        GPIOPin::new(PB01),
-        GPIOPin::new(PB02),
-        GPIOPin::new(PB03),
-        GPIOPin::new(PB04),
-        GPIOPin::new(PB05),
-        GPIOPin::new(PB06),
-        GPIOPin::new(PB07),
-        GPIOPin::new(PB08),
-        GPIOPin::new(PB09),
-        GPIOPin::new(PB10),
-        GPIOPin::new(PB11),
-        GPIOPin::new(PB12),
-        GPIOPin::new(PB13),
-        GPIOPin::new(PB14),
-        GPIOPin::new(PB15),
-        GPIOPin::new(PB16),
-        GPIOPin::new(PB17),
-        GPIOPin::new(PB18),
-        GPIOPin::new(PB19),
-        GPIOPin::new(PB20),
-        GPIOPin::new(PB21),
-        GPIOPin::new(PB22),
-        GPIOPin::new(PB23),
-        GPIOPin::new(PB24),
-        GPIOPin::new(PB25),
-        GPIOPin::new(PB26),
-        GPIOPin::new(PB27),
-        GPIOPin::new(PB28),
-        GPIOPin::new(PB29),
-        GPIOPin::new(PB30),
-        GPIOPin::new(PB31),
+        GPIOPin::new(Pin::PB00),
+        GPIOPin::new(Pin::PB01),
+        GPIOPin::new(Pin::PB02),
+        GPIOPin::new(Pin::PB03),
+        GPIOPin::new(Pin::PB04),
+        GPIOPin::new(Pin::PB05),
+        GPIOPin::new(Pin::PB06),
+        GPIOPin::new(Pin::PB07),
+        GPIOPin::new(Pin::PB08),
+        GPIOPin::new(Pin::PB09),
+        GPIOPin::new(Pin::PB10),
+        GPIOPin::new(Pin::PB11),
+        GPIOPin::new(Pin::PB12),
+        GPIOPin::new(Pin::PB13),
+        GPIOPin::new(Pin::PB14),
+        GPIOPin::new(Pin::PB15),
+        GPIOPin::new(Pin::PB16),
+        GPIOPin::new(Pin::PB17),
+        GPIOPin::new(Pin::PB18),
+        GPIOPin::new(Pin::PB19),
+        GPIOPin::new(Pin::PB20),
+        GPIOPin::new(Pin::PB21),
+        GPIOPin::new(Pin::PB22),
+        GPIOPin::new(Pin::PB23),
+        GPIOPin::new(Pin::PB24),
+        GPIOPin::new(Pin::PB25),
+        GPIOPin::new(Pin::PB26),
+        GPIOPin::new(Pin::PB27),
+        GPIOPin::new(Pin::PB28),
+        GPIOPin::new(Pin::PB29),
+        GPIOPin::new(Pin::PB30),
+        GPIOPin::new(Pin::PB31),
     ],
 };
 
@@ -257,45 +257,45 @@ pub static mut PB: Port = Port {
 pub static mut PC: Port = Port {
     port: unsafe { StaticRef::new((BASE_ADDRESS + 2 * SIZE) as *const GpioRegisters) },
     pins: [
-        GPIOPin::new(PC00),
-        GPIOPin::new(PC01),
-        GPIOPin::new(PC02),
-        GPIOPin::new(PC03),
-        GPIOPin::new(PC04),
-        GPIOPin::new(PC05),
-        GPIOPin::new(PC06),
-        GPIOPin::new(PC07),
-        GPIOPin::new(PC08),
-        GPIOPin::new(PC09),
-        GPIOPin::new(PC10),
-        GPIOPin::new(PC11),
-        GPIOPin::new(PC12),
-        GPIOPin::new(PC13),
-        GPIOPin::new(PC14),
-        GPIOPin::new(PC15),
-        GPIOPin::new(PC16),
-        GPIOPin::new(PC17),
-        GPIOPin::new(PC18),
-        GPIOPin::new(PC19),
-        GPIOPin::new(PC20),
-        GPIOPin::new(PC21),
-        GPIOPin::new(PC22),
-        GPIOPin::new(PC23),
-        GPIOPin::new(PC24),
-        GPIOPin::new(PC25),
-        GPIOPin::new(PC26),
-        GPIOPin::new(PC27),
-        GPIOPin::new(PC28),
-        GPIOPin::new(PC29),
-        GPIOPin::new(PC30),
-        GPIOPin::new(PC31),
+        GPIOPin::new(Pin::PC00),
+        GPIOPin::new(Pin::PC01),
+        GPIOPin::new(Pin::PC02),
+        GPIOPin::new(Pin::PC03),
+        GPIOPin::new(Pin::PC04),
+        GPIOPin::new(Pin::PC05),
+        GPIOPin::new(Pin::PC06),
+        GPIOPin::new(Pin::PC07),
+        GPIOPin::new(Pin::PC08),
+        GPIOPin::new(Pin::PC09),
+        GPIOPin::new(Pin::PC10),
+        GPIOPin::new(Pin::PC11),
+        GPIOPin::new(Pin::PC12),
+        GPIOPin::new(Pin::PC13),
+        GPIOPin::new(Pin::PC14),
+        GPIOPin::new(Pin::PC15),
+        GPIOPin::new(Pin::PC16),
+        GPIOPin::new(Pin::PC17),
+        GPIOPin::new(Pin::PC18),
+        GPIOPin::new(Pin::PC19),
+        GPIOPin::new(Pin::PC20),
+        GPIOPin::new(Pin::PC21),
+        GPIOPin::new(Pin::PC22),
+        GPIOPin::new(Pin::PC23),
+        GPIOPin::new(Pin::PC24),
+        GPIOPin::new(Pin::PC25),
+        GPIOPin::new(Pin::PC26),
+        GPIOPin::new(Pin::PC27),
+        GPIOPin::new(Pin::PC28),
+        GPIOPin::new(Pin::PC29),
+        GPIOPin::new(Pin::PC30),
+        GPIOPin::new(Pin::PC31),
     ],
 };
 pub struct GPIOPin {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
     client_data: Cell<usize>,
-    client: Cell<Option<&'static hil::gpio::Client>>,
+    client: OptionalCell<&'static hil::gpio::Client>,
 }
 
 impl GPIOPin {
@@ -308,12 +308,12 @@ impl GPIOPin {
             },
             pin_mask: 1 << ((pin as u32) % 32),
             client_data: Cell::new(0),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn select_peripheral(&self, function: PeripheralFunction) {
@@ -426,7 +426,7 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired(self.client_data.get());
         });
     }

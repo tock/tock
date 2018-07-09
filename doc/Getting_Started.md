@@ -8,22 +8,24 @@ developing Tock.
 
 1. [Rust](http://www.rust-lang.org/)
 2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
-3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-4. Command line utilities: wget, make, cmake
+3. Command line utilities: make
 
 ### Super Quick Setup
+
+Nix:
+```
+$ nix-shell
+```
 
 MacOS:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
-$ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
 $ pip3 install tockloader
 ```
 
 Ubuntu:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
-$ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
 $ pip3 install tockloader --user
 $ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
 ```
@@ -54,84 +56,6 @@ Then install the correct nightly version of Rust:
 ```bash
 $ rustup install nightly-2018-06-26
 ```
-
-#### `arm-none-eabi` toolchain
-
-We generally track the latest version of arm-none-eabi-gcc [as released by
-ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
-
-There are known issues with arm-none-eabi-gcc version 5.1 and older, or other
-versions packaged with a newlib version earlier than 2.3, as they will run into
-problems with missing ARM intrinsics (e.g., `__aeabi_memclr`). Tock does not
-support these versions.
-
-Pre-compiled binaries are available [from
-ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
-The recommendations below will set up your operating system's package manager
-to track the latest release from ARM.
-
-##### MacOS
-
-With [Homebrew](http://brew.sh/) (preferred):
-
-```bash
-$ brew tap ARMmbed/homebrew-formulae
-$ brew update
-$ brew install arm-none-eabi-gcc
-```
-
-or with [MacPorts](https://www.macports.org/):
-
-```bash
-$ port install arm-none-eabi-gcc
-```
-
-###### Heads Up!
-
-The `make debug` target asks the Tock build system to generate a listings
-(disassembly) file. Some developers have noticed that `arm-none-eabi-objdump`
-takes a long time (order several minutes) on a mac while Activity Monitor
-reports that `opendirectoryd` pegs the CPU.
-
-This is a [known issue](http://superuser.com/questions/350879/) that you can
-resolve by commenting out the `/home` line from `/etc/auto_master` and then
-running `sudo automount -vc` to apply the changes.
-
-##### Linux
-
-If you install the binaries but get a "no such file or directory" error
-when trying to run them, then you are most likely missing needed libraries.
-Check that you have a 64-bit version of libc installed.
-
-###### Ubuntu
-
-```bash
-$ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa
-$ sudo apt update
-$ sudo apt install gcc-arm-embedded
-```
-
-###### Arch
-
-On Arch Linux the `arm-none-eabi-newlib` package in pacman contains a
-sufficiently up-to-date version of newlibc.
-
-```bash
-$ sudo pacman -S arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
-```
-
-##### Windows
-
-You can download precompiled binaries for Windows from the ARM site listed
-above. While we expect things should work on Windows, none of the active Tock
-developers currently develop on Windows, so it is possible that there are
-some unexpected pitfalls.
-
-##### Other
-
-Alternatively, if you would like simulator mode in `arm-none-eabi-gdb`,
-you can use the build scripts in the `tools` directory, in this order:
-`build-arm-binutils` then `build-arm-gcc` then `build-arm-gdb`.
 
 #### Tockloader
 

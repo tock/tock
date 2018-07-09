@@ -9,7 +9,7 @@
 //! Converted to new register abstraction by Philip Levis <pal@cs.stanford.edu>
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -144,7 +144,7 @@ const AES_BASE: StaticRef<AesRegisters> =
 pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
 
-    client: Cell<Option<&'a hil::symmetric_encryption::Client<'a>>>,
+    client: OptionalCell<&'a hil::symmetric_encryption::Client<'a>>,
     source: TakeCell<'a, [u8]>,
     dest: TakeCell<'a, [u8]>,
 
@@ -163,7 +163,7 @@ impl Aes<'a> {
     const fn new() -> Aes<'a> {
         Aes {
             registers: AES_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             source: TakeCell::empty(),
             dest: TakeCell::empty(),
             write_index: Cell::new(0),
@@ -394,9 +394,9 @@ impl Aes<'a> {
                 self.disable_interrupts();
 
                 // Alert the client of the completion
-                if let Some(client) = self.client.get() {
+                self.client.map(|client| {
                     client.crypt_done(self.source.take(), self.dest.take().unwrap());
-                }
+                });
             }
         }
     }
@@ -416,7 +416,7 @@ impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_client(&'a self, client: &'a hil::symmetric_encryption::Client<'a>) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {

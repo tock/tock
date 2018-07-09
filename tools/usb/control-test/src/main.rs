@@ -23,7 +23,7 @@
 
 extern crate libusb;
 
-use libusb::*;
+use libusb::{request_type, Context, Direction, Recipient, RequestType};
 use std::time::Duration;
 
 const VENDOR_ID: u16 = 0x6667;

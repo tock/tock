@@ -54,7 +54,7 @@
 //! `mcp23008` object is created.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -121,7 +121,7 @@ pub struct MCP23008<'a> {
     interrupt_pin: Option<&'static hil::gpio::Pin>,
     interrupt_settings: Cell<u32>, // Whether the pin interrupt is enabled, and what mode it's in.
     identifier: Cell<usize>,
-    client: Cell<Option<&'static hil::gpio_async::Client>>,
+    client: OptionalCell<&'static hil::gpio_async::Client>,
 }
 
 impl MCP23008<'a> {
@@ -137,7 +137,7 @@ impl MCP23008<'a> {
             interrupt_pin: interrupt_pin,
             interrupt_settings: Cell::new(0),
             identifier: Cell::new(0),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -145,7 +145,7 @@ impl MCP23008<'a> {
     /// occur. The `identifier` is simply passed back with the callback
     /// so that the upper layer can keep track of which device triggered.
     pub fn set_client<C: hil::gpio_async::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn enable_host_interrupt(&self) -> ReturnCode {
@@ -384,7 +384,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
             State::ReadGpioRead(pin_number) => {
                 let pin_value = (buffer[0] >> pin_number) & 0x01;
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.done(pin_value as usize);
                 });
 
@@ -428,7 +428,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                         };
                         if fire_interrupt {
                             // Signal this interrupt to the application.
-                            self.client.get().map(|client| {
+                            self.client.map(|client| {
                                 // Return both the pin that interrupted and
                                 // the identifier that was passed for
                                 // enable_interrupt.
@@ -443,7 +443,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                 self.state.set(State::Idle);
             }
             State::Done => {
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.done(0);
                 });
 

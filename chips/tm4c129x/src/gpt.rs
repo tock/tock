@@ -1,5 +1,4 @@
-use core::cell::Cell;
-use kernel::common::cells::VolatileCell;
+use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::StaticRef;
 use kernel::hil;
 use sysctl;
@@ -49,7 +48,7 @@ pub static mut TIMER0: AlarmTimer =
 pub struct AlarmTimer {
     registers: StaticRef<GptRegisters>,
     clock: sysctl::Clock,
-    client: Cell<Option<&'static hil::time::Client>>,
+    client: OptionalCell<&'static hil::time::Client>,
 }
 
 impl AlarmTimer {
@@ -57,7 +56,7 @@ impl AlarmTimer {
         AlarmTimer {
             registers: base_addr,
             clock: clock,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -72,7 +71,7 @@ impl AlarmTimer {
         if regs.mis.get() & (1 << 4) != 0 {
             self.disable_interrupts();
             regs.icr.set(regs.icr.get() | (1 << 4));
-            self.client.get().map(|cb| {
+            self.client.map(|cb| {
                 cb.fired();
             });
         }
@@ -87,7 +86,7 @@ impl hil::Controller for AlarmTimer {
             sysctl::enable_clock(self.clock);
         }
 
-        self.client.set(Some(client));
+        self.client.set(client);
         let regs = &*self.registers;
 
         regs.ctl.set(0x0);

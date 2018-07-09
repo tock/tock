@@ -32,9 +32,10 @@ of which is tailored to a specific use common in kernel code.
   * [Example use of `map`](#example-use-of-map)
     + [`map` variants](#map-variants)
 - [`MapCell`](#mapcell)
-- [`NumCell`](#numcell)
 - [`OptionalCell`](#optionalcell)
 - [`VolatileCell`](#volatilecell)
+- [Cell Extensions](#cell-extensions)
+  * [`NumericCellExt`](#numericcellext)
 
 <!-- tocstop -->
 
@@ -120,7 +121,6 @@ table summarizes the various types, and more detail is included below.
 | `Cell`         | Primitive types      | `Cell<bool>`, [`sched.rs`](../kernel/src/sched.rs) | State variables (holding an `enum`), true/false flags, integer parameters like length.    |
 | `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi.rs)                 | Holding static buffers that will receive or send data.                                                |
 | `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)              | Delegating reference to large buffers (e.g. application buffers).                                       |
-| `NumCell`      | Integers             | `NumCell<usize>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs)                          | Numbers that are modified across multiple asynchronous calls, such as buffer index pointers. |
 | `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.                             |
 | `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers, used by `tock_regs` crate.                                                       |
 
@@ -315,16 +315,6 @@ Generally speaking, medium to large sized buffers should prefer `MapCell`s.
 [mapcell]: https://github.com/tock/tock/commit/5f7246d4af139864f567cebf15bfc0b49e17b787)
 
 
-## `NumCell`
-
-[`NumCell`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/num_cell.rs)
-is just like a normal `Cell` but can only contain numbers, and provides some
-convenient functions (`add()` and `subtract()`, for example). `NumCell` makes
-for cleaner code when storing numbers that are increased or decreased. For
-example, with a typical `Cell`, adding one to the stored value looks like:
-`my_cell.set(my_cell.get() + 1)`. With a `NumCell` it is a little easier to
-understand: `my_cell.increment()` (or `my_cell.add(1)`).
-
 ## `OptionalCell`
 
 [`OptionalCell`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/optional_cell.rs)
@@ -343,3 +333,24 @@ A `VolatileCell` is just a helper type for doing volatile reads and writes to a
 value. This is mostly used for accessing memory-mapped I/O registers. The
 `get()` and `set()` functions are wrappers around `core::ptr::read_volatile()`
 and `core::ptr::write_volatile()`.
+
+
+## Cell Extensions
+
+In addition to custom types, Tock adds [extensions][extension_trait] to some of
+the standard cells to enhance and ease usability. The mechanism here is to add
+traits to existing data types to enhance their ability. To use extensions,
+authors need only `use kernel::common::cells::THE_EXTENSION` to pull the new
+traits into scope.
+
+### `NumericCellExt`
+
+[`NumericCellExt`](https://github.com/tock/tock/blob/master/libraries/tock-cells/src/numeric_cell_ext.rs)
+extends cells that contain "numeric" types (like `usize` or `i32`) to provide
+some convenient functions (`add()` and `subtract()`, for example). This
+extension makes for cleaner code when storing numbers that are increased or
+decreased. For example, with a typical `Cell`, adding one to the stored value
+looks like: `my_cell.set(my_cell.get() + 1)`. With a `NumericCellExt` it is a
+little easier to understand: `my_cell.increment()` (or `my_cell.add(1)`).
+
+[extension_trait]: https://github.com/aturon/rfcs/blob/extension-trait-conventions/text/0000-extension-trait-conventions.md

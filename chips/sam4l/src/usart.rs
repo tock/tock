@@ -5,6 +5,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
+use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -384,9 +385,9 @@ pub struct USART {
     tx_dma_peripheral: dma::DMAPeripheral,
     tx_len: Cell<usize>,
 
-    client: Cell<Option<UsartClient<'static>>>,
+    client: OptionalCell<UsartClient<'static>>,
 
-    spi_chip_select: Cell<Option<&'static hil::gpio::Pin>>,
+    spi_chip_select: OptionalCell<&'static hil::gpio::Pin>,
 }
 
 // USART hardware peripherals on SAM4L
@@ -440,10 +441,10 @@ impl USART {
             tx_len: Cell::new(0),
 
             // this gets defined later by `main.rs`
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
 
             // This is only used if the USART is in SPI mode.
-            spi_chip_select: Cell::new(None),
+            spi_chip_select: OptionalCell::empty(),
         }
     }
 
@@ -487,7 +488,7 @@ impl USART {
             self.rx_len.set(0);
 
             // alert client
-            self.client.get().map(|usartclient| {
+            self.client.map(|usartclient| {
                 buffer.map(|buf| match usartclient {
                     UsartClient::Uart(client) => {
                         client.receive_complete(buf, length, error);
@@ -515,7 +516,7 @@ impl USART {
             self.tx_len.set(0);
 
             // alert client
-            self.client.get().map(|usartclient| {
+            self.client.map(|usartclient| {
                 buffer.map(|buf| match usartclient {
                     UsartClient::Uart(client) => {
                         client.receive_complete(buf, length, error);
@@ -601,7 +602,7 @@ impl USART {
             });
 
             // alert client
-            self.client.get().map(|usartclient| {
+            self.client.map(|usartclient| {
                 txbuffer.map(|tbuf| match usartclient {
                     UsartClient::Uart(client) => {
                         client.transmit_complete(tbuf, hil::uart::Error::CommandComplete);
@@ -611,7 +612,7 @@ impl USART {
 
                         // First, it is now a valid time to de-assert the CS
                         // line because we know the write and/or read is done.
-                        self.spi_chip_select.get().map_or_else(
+                        self.spi_chip_select.map_or_else(
                             || {
                                 // Do "else" case first. Thanks, rust.
                                 self.rts_disable_spi_deassert_cs(usart);
@@ -742,7 +743,7 @@ impl dma::DMAClient for USART {
                     });
 
                     // alert client
-                    self.client.get().map(|usartclient| {
+                    self.client.map(|usartclient| {
                         buffer.map(|buf| {
                             let length = self.rx_len.get();
                             match usartclient {
@@ -800,7 +801,7 @@ impl dma::DMAClient for USART {
 impl hil::uart::UART for USART {
     fn set_client(&self, client: &'static hil::uart::Client) {
         let c = UsartClient::Uart(client);
-        self.client.set(Some(c));
+        self.client.set(c);
     }
 
     fn init(&self, params: hil::uart::UARTParams) {
@@ -944,7 +945,7 @@ impl hil::spi::SpiMaster for USART {
 
     fn set_client(&self, client: &'static hil::spi::SpiMasterClient) {
         let c = UsartClient::SpiMaster(client);
-        self.client.set(Some(c));
+        self.client.set(c);
     }
 
     fn is_busy(&self) -> bool {
@@ -971,7 +972,7 @@ impl hil::spi::SpiMaster for USART {
         self.tx_len.set(count);
 
         // Set !CS low
-        self.spi_chip_select.get().map_or_else(
+        self.spi_chip_select.map_or_else(
             || {
                 // Do the "else" case first. If a CS pin was provided as the
                 // CS line, we use the HW RTS pin as the CS line instead.
@@ -1051,7 +1052,7 @@ impl hil::spi::SpiMaster for USART {
 
     /// Pass in a None to use the HW chip select pin on the USART (RTS).
     fn specify_chip_select(&self, cs: Self::ChipSelect) {
-        self.spi_chip_select.set(cs);
+        self.spi_chip_select.insert(cs);
     }
 
     /// Returns the actual rate set

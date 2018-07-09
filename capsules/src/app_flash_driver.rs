@@ -20,9 +20,8 @@
 //!         kernel::Grant::create(), &mut APP_FLASH_BUFFER));
 //! ```
 
-use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -50,7 +49,7 @@ impl Default for App {
 pub struct AppFlash<'a> {
     driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
     apps: Grant<App>,
-    current_app: Cell<Option<AppId>>,
+    current_app: OptionalCell<AppId>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -63,7 +62,7 @@ impl AppFlash<'a> {
         AppFlash {
             driver: driver,
             apps: grant,
-            current_app: Cell::new(None),
+            current_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
         }
     }
@@ -84,8 +83,8 @@ impl AppFlash<'a> {
                     return ReturnCode::EINVAL;
                 }
 
-                if self.current_app.get().is_none() {
-                    self.current_app.set(Some(appid));
+                if self.current_app.is_none() {
+                    self.current_app.set(appid);
 
                     app.buffer
                         .as_mut()
@@ -124,8 +123,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
         self.buffer.replace(buffer);
 
         // Notify the current application that the command finished.
-        self.current_app.get().map(|appid| {
-            self.current_app.set(None);
+        self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.callback.map(|mut cb| {
                     cb.schedule(0, 0, 0);
@@ -138,7 +136,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
             let started_command = cntr.enter(|app, _| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(Some(app.appid()));
+                    self.current_app.set(app.appid());
                     let flash_address = app.flash_address;
 
                     app.buffer.as_mut().map_or(false, |app_buffer| {

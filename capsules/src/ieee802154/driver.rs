@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::cmp::min;
 use ieee802154::{device, framer};
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
 use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
@@ -185,7 +185,7 @@ pub struct RadioDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
-    current_app: Cell<Option<AppId>>,
+    current_app: OptionalCell<AppId>,
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
     kernel_tx: TakeCell<'static, [u8]>,
@@ -204,7 +204,7 @@ impl RadioDriver<'a> {
             keys: MapCell::new(Default::default()),
             num_keys: Cell::new(0),
             apps: grant,
-            current_app: Cell::new(None),
+            current_app: OptionalCell::empty(),
             kernel_tx: TakeCell::new(kernel_tx),
         }
     }
@@ -375,7 +375,7 @@ impl RadioDriver<'a> {
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `AppId`.
     fn get_next_tx_if_idle(&self) -> Option<AppId> {
-        if self.current_app.get().is_some() {
+        if self.current_app.is_some() {
             return None;
         }
         let mut pending_app = None;
@@ -459,7 +459,7 @@ impl RadioDriver<'a> {
                 result
             });
             if result == ReturnCode::SUCCESS {
-                self.current_app.set(Some(appid));
+                self.current_app.set(appid);
             }
             result
         })
@@ -798,14 +798,13 @@ impl Driver for RadioDriver<'a> {
 impl device::TxClient for RadioDriver<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.kernel_tx.replace(spi_buf);
-        self.current_app.get().map(|appid| {
+        self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
                     .take()
                     .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
             });
         });
-        self.current_app.set(None);
         self.do_next_tx_async();
     }
 }

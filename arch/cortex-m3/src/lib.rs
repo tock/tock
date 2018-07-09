@@ -8,9 +8,7 @@ extern crate cortexm;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m3.
-pub mod support {
-    pub use cortexm::support::*;
-}
+pub use cortexm::support;
 
 pub use cortexm::nvic;
 pub use cortexm::scb;

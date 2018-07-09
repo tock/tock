@@ -98,6 +98,7 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::Frequency;
@@ -308,8 +309,8 @@ where
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
-    sending_app: Cell<Option<kernel::AppId>>,
-    receiving_app: Cell<Option<kernel::AppId>>,
+    sending_app: OptionalCell<kernel::AppId>,
+    receiving_app: OptionalCell<kernel::AppId>,
 }
 
 impl<B, A> BLE<'a, B, A>
@@ -329,8 +330,8 @@ where
             app: container,
             kernel_tx: kernel::common::cells::TakeCell::new(tx_buf),
             alarm: alarm,
-            sending_app: Cell::new(None),
-            receiving_app: Cell::new(None),
+            sending_app: OptionalCell::empty(),
+            receiving_app: OptionalCell::empty(),
         }
     }
 
@@ -406,7 +407,7 @@ where
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
-                            self.sending_app.set(Some(app.appid()));
+                            self.sending_app.set(app.appid());
                             self.radio.set_tx_power(app.tx_power);
                             app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
                         }
@@ -414,7 +415,7 @@ where
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
-                            self.receiving_app.set(Some(app.appid()));
+                            self.receiving_app.set(app.appid());
                             self.radio.set_tx_power(app.tx_power);
                             self.radio
                                 .receive_advertisement(RadioChannel::AdvertisingChannel37);
@@ -439,8 +440,8 @@ where
     A: kernel::hil::time::Alarm,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
-        if let Some(appid) = self.receiving_app.get() {
-            let _ = self.app.enter(appid, |app, _| {
+        self.receiving_app.map(|appid| {
+            let _ = self.app.enter(*appid, |app, _| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
                 // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
@@ -473,7 +474,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
-                        self.receiving_app.set(Some(app.appid()));
+                        self.receiving_app.set(app.appid());
                         self.radio.set_tx_power(app.tx_power);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel38);
@@ -481,7 +482,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
-                        self.receiving_app.set(Some(app.appid()));
+                        self.receiving_app.set(app.appid());
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
@@ -495,7 +496,7 @@ where
                 }
             });
             self.reset_active_alarm();
-        }
+        });
     }
 }
 
@@ -508,13 +509,13 @@ where
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
     fn transmit_event(&self, _crc_ok: ReturnCode) {
-        if let Some(appid) = self.sending_app.get() {
-            let _ = self.app.enter(appid, |app, _| {
+        self.sending_app.map(|appid| {
+            let _ = self.app.enter(*appid, |app, _| {
                 match app.process_status {
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
-                        self.sending_app.set(Some(app.appid()));
+                        self.sending_app.set(app.appid());
                         self.radio.set_tx_power(app.tx_power);
                         app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
                     }
@@ -522,7 +523,7 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
-                        self.sending_app.set(Some(app.appid()));
+                        self.sending_app.set(app.appid());
                         app.send_advertisement(&self, RadioChannel::AdvertisingChannel39);
                     }
 
@@ -536,7 +537,7 @@ where
                 }
             });
             self.reset_active_alarm();
-        }
+        });
     }
 }
 

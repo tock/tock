@@ -25,7 +25,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::ReturnCode;
@@ -36,29 +36,26 @@ use kernel::ReturnCode;
 pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
     flash: &'a F,
     users: List<'a, FlashUser<'a, F>>,
-    inflight: Cell<Option<&'a FlashUser<'a, F>>>,
+    inflight: OptionalCell<&'a FlashUser<'a, F>>,
 }
 
 impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
-        self.inflight.get().map(move |user| {
-            self.inflight.set(None);
+        self.inflight.take().map(move |user| {
             user.read_complete(pagebuffer, error);
         });
         self.do_next_op();
     }
 
     fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
-        self.inflight.get().map(move |user| {
-            self.inflight.set(None);
+        self.inflight.take().map(move |user| {
             user.write_complete(pagebuffer, error);
         });
         self.do_next_op();
     }
 
     fn erase_complete(&self, error: hil::flash::Error) {
-        self.inflight.get().map(move |user| {
-            self.inflight.set(None);
+        self.inflight.take().map(move |user| {
             user.erase_complete(error);
         });
         self.do_next_op();
@@ -70,14 +67,14 @@ impl<F: hil::flash::Flash> MuxFlash<'a, F> {
         MuxFlash {
             flash: flash,
             users: List::new(),
-            inflight: Cell::new(None),
+            inflight: OptionalCell::empty(),
         }
     }
 
     /// Scan the list of users and find the first user that has a pending
     /// request, then issue that request to the flash hardware.
     fn do_next_op(&self) {
-        if self.inflight.get().is_none() {
+        if self.inflight.is_none() {
             let mnode = self
                 .users
                 .iter()
@@ -109,7 +106,7 @@ impl<F: hil::flash::Flash> MuxFlash<'a, F> {
                     },
                 );
                 node.operation.set(Op::Idle);
-                self.inflight.set(Some(node));
+                self.inflight.set(node);
             });
         }
     }
@@ -132,7 +129,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     buffer: TakeCell<'static, F::Page>,
     operation: Cell<Op>,
     next: ListLink<'a, FlashUser<'a, F>>,
-    client: Cell<Option<&'a hil::flash::Client<FlashUser<'a, F>>>>,
+    client: OptionalCell<&'a hil::flash::Client<FlashUser<'a, F>>>,
 }
 
 impl<F: hil::flash::Flash> FlashUser<'a, F> {
@@ -142,7 +139,7 @@ impl<F: hil::flash::Flash> FlashUser<'a, F> {
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 }
@@ -152,25 +149,25 @@ impl<F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClient<'a
 {
     fn set_client(&'a self, client: &'a C) {
         self.mux.users.push_head(self);
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
 impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
-        self.client.get().map(move |client| {
+        self.client.map(move |client| {
             client.read_complete(pagebuffer, error);
         });
     }
 
     fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
-        self.client.get().map(move |client| {
+        self.client.map(move |client| {
             client.write_complete(pagebuffer, error);
         });
     }
 
     fn erase_complete(&self, error: hil::flash::Error) {
-        self.client.get().map(move |client| {
+        self.client.map(move |client| {
             client.erase_complete(error);
         });
     }

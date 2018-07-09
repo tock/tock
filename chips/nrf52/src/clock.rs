@@ -16,7 +16,7 @@
 //!     * 32.768 kHz synthesized from HFCLK (LFSYNT)
 //!
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
@@ -145,7 +145,7 @@ pub enum HighClockSource {
 /// Clock struct
 pub struct Clock {
     registers: StaticRef<ClockRegisters>,
-    client: Cell<Option<&'static ClockClient>>,
+    client: OptionalCell<&'static ClockClient>,
 }
 
 pub trait ClockClient {
@@ -163,13 +163,13 @@ impl Clock {
     pub const fn new() -> Clock {
         Clock {
             registers: CLOCK_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     /// Client for callbacks
     pub fn set_client(&self, client: &'static ClockClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     /// Enable interrupt

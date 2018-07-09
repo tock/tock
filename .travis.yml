@@ -3,8 +3,6 @@ language: rust
 
 cache:
   cargo: true
-  directories:
-    - $HOME/gcc-arm-none-eabi-6_2-2016q4
 
 os:
   - linux
@@ -14,16 +12,10 @@ os:
 rust:
   - nightly-2018-06-26
 
-before_install:
-  - ./.travis-install-gcc
-  - export PATH="$PATH:$HOME/gcc-arm-none-eabi-6_2-2016q4/bin"
-
 before_script:
   - npm install -g markdown-toc
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
-  - tools/run_cargo_fmt.sh diff
-  - make allboards
-  - tools/toc.sh
+  - make ci-travis
 

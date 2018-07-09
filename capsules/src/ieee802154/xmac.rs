@@ -78,12 +78,12 @@
 
 use core::cell::Cell;
 use ieee802154::mac::Mac;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::rng::{self, RNG};
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 use kernel::ReturnCode;
-use net::ieee802154::*;
+use net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 
 // Time the radio will remain awake listening for packets before sleeping.
 // Observing the RF233, receive callbacks for preambles are generated only after
@@ -146,8 +146,8 @@ pub struct XMac<'a, R: radio::Radio, A: Alarm> {
     radio: &'a R,
     alarm: &'a A,
     rng: &'a RNG,
-    tx_client: Cell<Option<&'static radio::TxClient>>,
-    rx_client: Cell<Option<&'static radio::RxClient>>,
+    tx_client: OptionalCell<&'static radio::TxClient>,
+    rx_client: OptionalCell<&'static radio::RxClient>,
     state: Cell<XMacState>,
     delay_sleep: Cell<bool>,
 
@@ -168,8 +168,8 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
             radio: radio,
             alarm: alarm,
             rng: rng,
-            tx_client: Cell::new(None),
-            rx_client: Cell::new(None),
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
             state: Cell::new(XMacState::STARTUP),
             delay_sleep: Cell::new(false),
             tx_header: Cell::new(None),
@@ -285,7 +285,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
     fn call_tx_client(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.state.set(XMacState::AWAKE);
         self.sleep();
-        self.tx_client.get().map(move |c| {
+        self.tx_client.map(move |c| {
             c.send_done(buf, acked, result);
         });
     }
@@ -302,7 +302,7 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
         self.delay_sleep.set(true);
         self.sleep();
 
-        self.rx_client.get().map(move |c| {
+        self.rx_client.map(move |c| {
             c.receive(buf, len, crc_valid, result);
         });
     }
@@ -384,11 +384,11 @@ impl<R: radio::Radio, A: Alarm> Mac for XMac<'a, R, A> {
     }
 
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 
     fn set_receive_client(&self, client: &'static radio::RxClient) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
