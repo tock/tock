@@ -91,6 +91,8 @@ impl DirectCommand {
     }
 }
 
+
+// Command and parameters for radio setup
 #[repr(C)]
 pub struct CmdRadioSetup {
     command_no: u16,
@@ -133,6 +135,7 @@ impl CmdRadioSetup {
     }
 }
 
+// Common command header for all radio commands
 #[repr(C)]
 pub struct CmdCommon {
     command_no: ReadOnly<u16>,
@@ -143,6 +146,7 @@ pub struct CmdCommon {
     condition: RfcCondition,
 }
 
+// Command for pinging radio, no operation
 #[repr(C)]
 pub struct CmdNop {
     command_no: u16, //0x0801
@@ -153,6 +157,7 @@ pub struct CmdNop {
     condition: RfcCondition,
 }
 
+// Power up frequency synthesizer
 #[repr(C)]
 pub struct CmdFSPowerup {
     command_no: u16, //0x080C
@@ -165,6 +170,7 @@ pub struct CmdFSPowerup {
     reg_override: u32,
 }
 
+// Power down frequency synthesizer
 #[repr(C)]
 pub struct CmdFSPowerdown {
     command_no: u16, //0x080D
@@ -192,6 +198,7 @@ impl CmdFSPowerdown {
     }
 }
 
+// Custom FS, unimplemented
 #[repr(C)]
 pub struct CmdFS {
     command_no: u16, // 0x0803
@@ -205,6 +212,7 @@ pub struct CmdFS {
     _reserved: [u8; 5],
 }
 
+// Disable FS, unimplemented
 #[repr(C)]
 pub struct CmdFSOff {
     command_no: u16, // 0x0804
@@ -215,6 +223,7 @@ pub struct CmdFSOff {
     condition: RfcCondition,
 }
 
+// Continuous RX test, unimplemented
 #[repr(C)]
 pub struct CmdRxTest {
     command_no: u16, // 0x0807
@@ -229,6 +238,7 @@ pub struct CmdRxTest {
     end_time: u32,
 }
 
+// Continuous TX test, unimplemented
 #[repr(C)]
 pub struct CmdTxTest {
     command_no: u16, // 0x0808
@@ -246,6 +256,7 @@ pub struct CmdTxTest {
     end_time: u32,
 }
 
+// Stop radio RAT timer
 #[repr(C)]
 pub struct CmdSyncStopRat {
     command_no: u16, // 0x0809
@@ -277,6 +288,7 @@ impl CmdSyncStopRat {
     }
 }
 
+// Start radio RAT timer
 #[repr(C)]
 pub struct CmdSyncStartRat {
     command_no: u16, // 0x080A
