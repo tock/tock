@@ -39,6 +39,7 @@ __check_defined = \
 
 
 $(call check_defined, PLATFORM)
+$(call check_defined, TARGET)
 
 # If environment variable V is non-empty, be verbose
 ifneq ($(V),)
@@ -105,56 +106,10 @@ ifneq ($(V),)
   $(info )
 endif
 
+
+# User-facing targets
 .PHONY: all
-all: target/$(TARGET)/release/$(PLATFORM).bin
-
-.PHONY: lst
-lst: target/$(TARGET)/release/$(PLATFORM).lst
-
-.PHONY: release
-release: target/$(TARGET)/release/$(PLATFORM).bin
-
-.PHONY: debug
-debug: target/$(TARGET)/debug/$(PLATFORM).bin
-
-.PHONY: debug-lst
-debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
-
-target:
-	@mkdir -p target
-
-.PHONY: doc
-doc: | target
-	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
-
-target/$(TARGET)/release/%.elf: target/$(TARGET)/release/%
-	$(Q)cp $< $@
-
-target/$(TARGET)/release/$(PLATFORM).lst: target/$(TARGET)/release/$(PLATFORM).elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
-
-.PHONY: target/$(TARGET)/release/$(PLATFORM)
-target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
-	$(Q)$(SIZE) $@
-
-target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
-	$(Q)cp $< $@
-
-target/$(TARGET)/debug/%.lst: target/$(TARGET)/debug/%.elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
-
-.PHONY: target/$(TARGET)/debug/$(PLATFORM)
-target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
-	$(Q)$(SIZE) $@
-
-target/$(TARGET)/release/%.bin: target/$(TARGET)/release/%.elf
-	$(Q)$(OBJCOPY) -O=binary $^ $@
-
-target/$(TARGET)/debug/%.bin: target/$(TARGET)/debug/%.elf
-	$(Q)$(OBJCOPY) -O=binary $^ $@
-
+all: release
 
 # `make check` runs the Rust compiler but does not actually output the final
 # binary. This makes checking for Rust errors much faster.
@@ -165,3 +120,53 @@ check:
 .PHONY: clean
 clean::
 	$(Q)$(CARGO) clean $(VERBOSE)
+
+.PHONY: release
+release: target/$(TARGET)/release/$(PLATFORM).bin
+
+.PHONY: debug
+debug: target/$(TARGET)/debug/$(PLATFORM).bin
+
+.PHONY: debug-lst
+debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
+
+.PHONY: doc
+doc: | target
+	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
+
+.PHONY: lst
+lst: target/$(TARGET)/release/$(PLATFORM).lst
+
+.PHONY: release
+release: target/$(TARGET)/release/$(PLATFORM).bin
+
+
+# Support rules
+
+target:
+	@mkdir -p target
+
+# Cargo outputs an elf file (just without a file extension)
+%.elf: %
+	$(Q)cp $< $@
+
+%.bin: %.elf
+	$(Q)$(OBJCOPY) -O=binary $^ $@
+
+%.lst: %.elf
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+
+
+# Cargo-drivers
+# We want to always invoke cargo (yay nested build systems), so these need to
+# be phony, which means they can't be pattern rules.
+
+.PHONY: target/$(TARGET)/release/$(PLATFORM)
+target/$(TARGET)/release/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+	$(Q)$(SIZE) $@
+
+.PHONY: target/$(TARGET)/debug/$(PLATFORM)
+target/$(TARGET)/debug/$(PLATFORM):
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
+	$(Q)$(SIZE) $@
