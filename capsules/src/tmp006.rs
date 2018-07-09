@@ -283,7 +283,7 @@ impl Driver for TMP006<'a> {
                 self.repeated_mode.set(false);
 
                 // set callback function
-                self.callback.replace(callback);
+                self.callback.insert(callback);
 
                 // enable sensor
                 //  turn up the sampling rate so we get the sample faster
@@ -298,7 +298,7 @@ impl Driver for TMP006<'a> {
                 self.repeated_mode.set(true);
 
                 // set callback function
-                self.callback.replace(callback);
+                self.callback.insert(callback);
 
                 // enable temperature sensor
                 self.enable_sensor(self.sampling_period.get());

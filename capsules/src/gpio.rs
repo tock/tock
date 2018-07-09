@@ -135,7 +135,7 @@ impl<G: Pin + PinCtl> Driver for GPIO<'a, G> {
             // subscribe to all pin interrupts (no affect or reliance on
             // individual pins being configured as interrupts)
             0 => {
-                self.callback.replace(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 

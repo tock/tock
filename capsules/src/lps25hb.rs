@@ -229,7 +229,7 @@ impl Driver for LPS25HB<'a> {
             // Set a callback
             0 => {
                 // Set callback function
-                self.callback.replace(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
             // default

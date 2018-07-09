@@ -817,7 +817,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {
                 // set callback
-                self.callback.replace(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 

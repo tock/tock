@@ -104,13 +104,13 @@ impl<Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
         match subscribe_num {
             // Set callback for `done()` events
             0 => {
-                self.callback.replace(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 
             // Set callback for pin interrupts
             1 => {
-                self.interrupt_callback.replace(callback);
+                self.interrupt_callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 
