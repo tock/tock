@@ -1,6 +1,7 @@
 use core::cell::Cell;
 use gpio;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
@@ -51,9 +52,9 @@ const UART_BASES: [StaticRef<UartRegisters>; 8] = unsafe {
 pub struct UART {
     registers: StaticRef<UartRegisters>,
     clock: sysctl::Clock,
-    rx: Cell<Option<&'static gpio::GPIOPin>>,
-    tx: Cell<Option<&'static gpio::GPIOPin>>,
-    client: Cell<Option<&'static kernel::hil::uart::Client>>,
+    rx: OptionalCell<&'static gpio::GPIOPin>,
+    tx: OptionalCell<&'static gpio::GPIOPin>,
+    client: OptionalCell<&'static kernel::hil::uart::Client>,
     buffer: TakeCell<'static, [u8]>,
     remaining: Cell<usize>,
     offset: Cell<usize>,
@@ -66,9 +67,9 @@ impl UART {
         UART {
             registers: base_addr,
             clock: clock,
-            rx: Cell::new(None),
-            tx: Cell::new(None),
-            client: Cell::new(None),
+            rx: OptionalCell::empty(),
+            tx: OptionalCell::empty(),
+            client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             remaining: Cell::new(0),
             offset: Cell::new(0),
@@ -90,8 +91,8 @@ impl UART {
     }
 
     pub fn specify_pins(&self, rx: &'static gpio::GPIOPin, tx: &'static gpio::GPIOPin) {
-        self.rx.set(Some(rx));
-        self.tx.set(Some(tx));
+        self.rx.set(rx);
+        self.tx.set(tx);
     }
 
     fn enable(&self) {
@@ -113,7 +114,6 @@ impl UART {
     pub fn enable_tx(&self) {
         let regs = &*self.registers;
         self.tx
-            .get()
             .map(|pin| pin.configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel)));
         self.enable();
         regs.ctl.set(regs.ctl.get() | (1 << 8)); // TE
@@ -122,7 +122,6 @@ impl UART {
     pub fn enable_rx(&self) {
         let regs = &*self.registers;
         self.rx
-            .get()
             .map(|pin| pin.configure(gpio::Mode::InputOutput(gpio::InputOutputMode::DigitalAfsel)));
         self.enable();
         regs.ctl.set(regs.ctl.get() | (1 << 9)); // RE
@@ -155,7 +154,7 @@ impl UART {
                 self.send_next();
             } else {
                 self.disable_tx_interrupts();
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
                     });
@@ -167,7 +166,7 @@ impl UART {
 
 impl hil::uart::UART for UART {
     fn set_client(&self, client: &'static hil::uart::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn configure(&self, params: hil::uart::UARTParameters) -> ReturnCode {
