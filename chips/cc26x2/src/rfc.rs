@@ -400,7 +400,7 @@ impl RFCore {
         // We should add guards against hanging on a radio operation that never produces a command
         // done variant of cpe interrupt. E.g. A setup command should certainly take less than one
         // second to complete but a TX/RX operation may be running for much longer. 
-        while !dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE) || !dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE) {};
+        while !dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE) || !dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE) {}
         let status = self.cmdsta();
         if (status & 0xFF) == 0x01 {
             return Ok(());
