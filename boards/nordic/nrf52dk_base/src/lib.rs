@@ -108,6 +108,7 @@ impl kernel::Platform for Platform {
 }
 
 /// Generic function for starting an nrf52dk board.
+#[inline]
 pub unsafe fn setup_board(
     button_rst_pin: usize,
     gpio_pins: &'static mut [&'static nrf5x::gpio::GPIOPin],
