@@ -3,30 +3,36 @@
 //! Provides communication with the core module of the radio.
 //!
 //! The radio is managed by an external Cortex-M0 running prioprietary code in order to manage
-//! and set everything up. All stacks is implemented on this external MCU, and interaction
-//! with it enables the radio for communication in Sub-GHz bands.
+//! and set everything up. The external MCU implements all network stacks, and the main MCU
+//! communicates over the radio by interfacing with it.
 //!
-//! In order to communicate, we send commands to the Cortex-M0 through something called
-//! "Radio Doorbell".
 //!
+//! In order to communicate, we send a set of commands to the cortex-m0 through an interface called
+//! the radio doorbell. 
+//!
+//! The radio doorbell is a communication mechanism between the system and radio MCUs which contains 
+//! a set of dedicated registers, shared access to MCU RAMs, and a set of interrupts to both the 
+//! radio CPU and to the system CPU. Parameters and payloads are transferred through the system RAM 
+//! or the radio RAM. During operation, the radio CPU updates parameters and payload in RAM and raises 
+//! interrupts. The system CPU can mask out interrupts so that it remains in idle or power-down mode 
+//! until the entire radio operation finishes. Because the system CPU and the radio CPU share a common 
+//! RAM area, software must ensure that there is no contention or race conditions. If any parameters or 
+//! payload are in the system RAM, the system CPU must remain powered. Otherwise, if everything is in the 
+//! radio RAM, the system CPU may go into power-down mode to save current.
 //!
 use commands as cmd;
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use prcm;
 
-//*****************************************************************************
-//
 // This section defines the register offsets of
 // RFC_DBELL component
-//
-//*****************************************************************************
 
 #[repr(C)]
 pub struct RfcDBellRegisters {
     // Doorbell Command Register
-    pub cmdr: ReadWrite<u32>,
+    pub cmdr: WriteOnly<u32>,
     // RFC Command Status register
     pub cmdsta: ReadOnly<u32>,
     // Interrupt Flags From RF HW Modules
@@ -206,12 +212,9 @@ register_bitfields! {
     ]
 }
 
-//*****************************************************************************
-//
 // This section defines the register offsets of
 // RFC_PWR component
-//
-//*****************************************************************************
+
 #[repr(C)]
 pub struct RfcPWCRegisters {
     pub pwmclken: ReadWrite<u32, RFCorePWMEnable::Register>,
@@ -326,23 +329,23 @@ impl RFCore {
         self.handle_hw_interrupts();
 
         // Initialize radio module
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
+        self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
             .ok()
             .expect("Could not initialize radio module");
 
         // Request bus
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1))
+        self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1))
             .ok()
             .expect("Could not request bus for radio module");
 
         // Ping radio module
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_PING, 0))
+        self.send_direct(cmd::DirectCommand::new(cmd::RFC_PING, 0))
             .ok()
             .expect("Coudl not ping radio module");
     }
 
     pub fn disable(&self) {
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
+        self.send_direct(cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok()
             .expect("Could not send stop cmd to radio module");
 
@@ -366,7 +369,6 @@ impl RFCore {
     pub fn setup(&self, reg_override: u32, tx_power: u16) {
         let mode = self.mode.get().expect("No RF mode selected, cannot setup");
         let radio_setup = cmd::CmdRadioSetup::new(reg_override, mode as u8, tx_power);
-
         self.send(&radio_setup)
             .and_then(|_| self.wait(&radio_setup))
             .ok()
@@ -390,26 +392,19 @@ impl RFCore {
 
     fn post_cmdr(&self, rf_command: u32) -> RfcResult {
         let dbell_regs = RFC_DBELL_BASE;
-
         if !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {
             panic!("RFC power domain is off");
         }
 
         dbell_regs.cmdr.set(rf_command);
-
-        let mut timeout: u32 = 0;
-        let mut status = 0;
-
-        const MAX_TIMEOUT: u32 = 0x2FFFFFF;
-        while timeout < MAX_TIMEOUT {
-            status = self.cmdsta();
-            if (status & 0xFF) == 0x01 {
-                return Ok(());
-            }
-
-            timeout += 1;
+        // We should add guards against hanging on a radio operation that never produces a command
+        // done variant of cpe interrupt. E.g. A setup command should certainly take less than one
+        // second to complete but a TX/RX operation may be running for much longer. 
+        while !dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE) || !dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE) {};
+        let status = self.cmdsta();
+        if (status & 0xFF) == 0x01 {
+            return Ok(());
         }
-
         return Err(status);
     }
 
@@ -506,23 +501,23 @@ impl RFCore {
         dbell_regs.rfackifg.write(DBellCmdAck::CMDACK::SET);
     }
 
-    pub fn send<T>(&self, rf_command: &T) -> RfcResult {
+    fn send<T>(&self, rf_command: &T) -> RfcResult {
         let command = { (rf_command as *const T) as u32 };
 
         return self.post_cmdr(command);
     }
 
-    fn send_direct(&self, dir_command: &cmd::DirectCommand) -> RfcResult {
+    fn send_direct(&self, dir_command: cmd::DirectCommand) -> RfcResult {
         let command = {
-            let cmd = dir_command.command_no as u32;
-            let par = dir_command.command_no as u32;
+            let cmd = dir_command.params as u32;
+            let par = dir_command.params as u32;
             (cmd << 16) | (par & 0xFFFC) | 1
         };
 
         return self.post_cmdr(command);
     }
 
-    pub fn wait<T>(&self, rf_command: &T) -> RfcResult {
+    fn wait<T>(&self, rf_command: &T) -> RfcResult {
         let command = { (rf_command as *const T) as u32 };
 
         return self.wait_cmdr(command);

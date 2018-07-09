@@ -32,7 +32,6 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
-    #[allow(non_snake_case)]
     fn service_pending_interrupts(&mut self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {

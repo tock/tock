@@ -1,9 +1,7 @@
 #![allow(dead_code)]
 use kernel::common::regs::ReadOnly;
 
-/******************************************************************************
- * Radio and data commands bitfields
-*******************************************************************************/
+// Radio and data commands bitfields
 
 bitfield! {
     #[derive(Copy, Clone)]
@@ -33,11 +31,9 @@ bitfield! {
     pub _analog_cfg_mode, _set_analog_config_mode: 9, 4;
     pub _no_fs_powerup, _set_no_fs_powerup: 10;
 }
-/******************************************************************************
- * Radio Command structure headers, bitfields, and partial settings for the
- * bitfields
- *
-*******************************************************************************/
+
+// Radio Command structure headers, bitfields, and partial settings for the 
+// bitfields
 
 #[derive(Clone, Copy)]
 pub enum TriggerType {
@@ -69,13 +65,11 @@ pub struct DataEntryQueue {
     p_last_entry: *mut u32,
 }
 
-/******************************************************************************
- * Radio Commands
- *
-*******************************************************************************/
-/*
-    RFC Immediate commands
-*/
+// Radio Commands
+
+pub type RadioCommand = &'static [u32];
+
+// RFC Immediate commands
 pub const RFC_CMD0: u16 = 0x607;
 pub const RFC_PING: u16 = 0x406;
 pub const RFC_BUS_REQUEST: u16 = 0x40E;
@@ -85,6 +79,7 @@ pub const RFC_SETUP: u16 = 0x0802;
 pub const RFC_STOP: u16 = 0x0402;
 pub const RFC_FS_POWERDOWN: u16 = 0x080D;
 
+#[derive(Clone, Copy)]
 pub struct DirectCommand {
     pub command_no: u16,
     pub params: u16,

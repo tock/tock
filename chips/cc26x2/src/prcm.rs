@@ -1,6 +1,6 @@
 //! Power, Clock, and Reset Management (PRCM)
 //!
-//! For details see cc13x2 technical reference manual.
+//! For details see pg 451-566 of the cc13x2/cc26x2 Technical Reference Manual.
 //!
 //! PRCM manages different power domains on the boards, specifically:
 //!
@@ -31,14 +31,18 @@ register_bitfields! [
 
 #[repr(C)]
 struct PrcmRegisters {
+    // leaving INFRCLKDIVR/INFRCLKDIVRS/INFRCLKDIVD unimplemented for now
     _reserved0: [ReadOnly<u8>; 0x0C],
-
+    
+    // MCU Voltage Domain Control
     pub vd_ctl: ReadWrite<u32, VDControl::Register>,
-
+    
     _reserved1: [ReadOnly<u8>; 0x18],
-    // Write 1 in order to load settings
+    
+    // Write 1 in order to load prcm settings to CLKCTL power domain
     pub clk_load_ctl: ReadWrite<u32, ClockLoad::Register>,
-
+    
+    // RFC Clock Gate
     pub rfc_clk_gate: ReadWrite<u32, ClockGate::Register>,
 
     _reserved2: [ReadOnly<u8>; 0xC],
@@ -48,25 +52,29 @@ struct PrcmRegisters {
     pub sec_dma_clk_sleep: ReadWrite<u32, SECDMAClockGate::Register>,
     pub sec_dma_clk_deep_sleep: ReadWrite<u32, SECDMAClockGate::Register>,
 
+    // GPIO Clock Gate for run, sleep, and deep sleep modes
     pub gpio_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
     pub gpio_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
     pub gpio_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
+    // GPT Clock Gate for run, sleep, and deep sleep modes
     pub gpt_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
     pub gpt_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
     pub gpt_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
+    // I2C Clock Gate for run, sleep, and deep sleep modes
     pub i2c_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
     pub i2c_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
     pub i2c_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
+    // UART Clock Gate for run, sleep, and deep sleep modes
     pub uart_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
     pub uart_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
     pub uart_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
     _reserved4: [ReadOnly<u8>; 0xB4],
 
-    // Power domain control 0
+    // Power Domain Control 0
     pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>,
     pub pd_ctl0_rfc: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
@@ -74,7 +82,7 @@ struct PrcmRegisters {
 
     _reserved5: [ReadOnly<u8>; 0x04],
 
-    // Power domain status 0
+    // Power Domain Status 0
     pub pd_stat0: ReadOnly<u32, PowerDomainStatus0::Register>,
     pub pd_stat0_rfc: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat0_serial: ReadOnly<u32, PowerDomainSingle::Register>,
@@ -82,21 +90,23 @@ struct PrcmRegisters {
 
     _reserved7: [ReadOnly<u8>; 0x2C],
 
+    // Power Domain Control 1
     pub pd_ctl1: ReadWrite<u32, PowerDomain1::Register>,
 
     _reserved8: [ReadOnly<u8>; 0x14],
 
+    // Power Domain Status 1
     pub pd_stat1: ReadOnly<u32, PowerDomainStatus1::Register>,
 
     _reserved9: [ReadOnly<u8>; 0x38],
 
+    // RF
     pub rfc_mode_sel: ReadWrite<u32>,
 }
 
 register_bitfields![
     u32,
     VDControl [
-        MCU_VD_POWERDOWN  OFFSET(2) NUMBITS(1) [],
         ULDO              OFFSET(0) NUMBITS(1) []
     ],
     ClockLoad [
@@ -104,7 +114,12 @@ register_bitfields![
         LOAD        OFFSET(0) NUMBITS(1) []
     ],
     SECDMAClockGate [
+        //RESERVED (bits 25-31)
+        // Force Clock Enable for Crypto, TRNG, DMA, PKA not implemented here (bits 16, 17, 18 , 24
+        // respectively)
         DMA_CLK_EN      OFFSET(8) NUMBITS(1) [],
+        // RESERVED (bits 3-7)
+        // PKA Clock not implemented (bit 2)
         TRNG_CLK_EN     OFFSET(1) NUMBITS(1) [],
         CRYPTO_CLK_EN   OFFSET(0) NUMBITS(1) []
     ],
@@ -141,10 +156,9 @@ const PRCM_BASE: StaticRef<PrcmRegisters> =
 const AON_WUC_BASE: StaticRef<AonWucRegisters> =
     unsafe { StaticRef::new(0x4009_1000 as *mut AonWucRegisters) };
 
-/*
-    In order to save changes to the PRCM, we need to
-    trigger
-*/
+// In order to save changes to the PRCM, we need to
+// trigger the load register
+
 fn prcm_commit() {
     let regs = PRCM_BASE;
     regs.clk_load_ctl.write(ClockLoad::LOAD::SET);
@@ -178,11 +192,6 @@ pub fn acquire_uldo() {
 pub fn release_uldo() {
     let regs = PRCM_BASE;
     regs.vd_ctl.modify(VDControl::ULDO::CLEAR);
-}
-
-pub fn mcu_power_down() {
-    let regs = PRCM_BASE;
-    regs.vd_ctl.modify(VDControl::MCU_VD_POWERDOWN::SET);
 }
 
 pub enum PowerDomain {
