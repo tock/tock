@@ -31,7 +31,7 @@
 
 use core::cell::Cell;
 use core::{cmp, ptr};
-use kernel::common::cells::{TakeCell, VolatileCell};
+use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::common::regs::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -230,8 +230,8 @@ impl From<u32> for Frequency {
 /// addition data necessary to implement an asynchronous interface.
 pub struct SPIM {
     registers: StaticRef<SpimRegisters>,
-    client: Cell<Option<&'static hil::spi::SpiMasterClient>>,
-    chip_select: Cell<Option<&'static hil::gpio::Pin>>,
+    client: OptionalCell<&'static hil::spi::SpiMasterClient>,
+    chip_select: OptionalCell<&'static hil::gpio::Pin>,
     initialized: Cell<bool>,
     busy: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
@@ -243,8 +243,8 @@ impl SPIM {
     const fn new(instance: usize) -> SPIM {
         SPIM {
             registers: INSTANCES[instance],
-            client: Cell::new(None),
-            chip_select: Cell::new(None),
+            client: OptionalCell::empty(),
+            chip_select: OptionalCell::empty(),
             initialized: Cell::new(false),
             busy: Cell::new(false),
             tx_buf: TakeCell::empty(),
@@ -257,24 +257,21 @@ impl SPIM {
     pub fn handle_interrupt(&self) {
         if self.registers.events_end.is_set(EVENT::EVENT) {
             // End of RXD buffer and TXD buffer reached
-            match self.chip_select.get() {
-                Some(cs) => cs.set(),
-                None => {
-                    debug_assert!(false, "Invariant violated. Chip-select must be Some.");
-                    return;
-                }
+
+            if self.chip_select.is_none() {
+                debug_assert!(false, "Invariant violated. Chip-select must be Some.");
+                return;
             }
+
+            self.chip_select.map(|cs| cs.set());
             self.registers.events_end.write(EVENT::EVENT::CLEAR);
 
-            match self.client.get() {
+            self.client.map(|client| match self.tx_buf.take() {
                 None => (),
-                Some(client) => match self.tx_buf.take() {
-                    None => (),
-                    Some(tx_buf) => {
-                        client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
-                    }
-                },
-            };
+                Some(tx_buf) => {
+                    client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
+                }
+            });
 
             self.busy.set(false);
         }
@@ -331,7 +328,7 @@ impl hil::spi::SpiMaster for SPIM {
     type ChipSelect = &'static hil::gpio::Pin;
 
     fn set_client(&self, client: &'static hil::spi::SpiMasterClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn init(&self) {
@@ -355,10 +352,10 @@ impl hil::spi::SpiMaster for SPIM {
         debug_assert!(self.rx_buf.is_none());
 
         // Clear (set to low) chip-select
-        match self.chip_select.get() {
-            Some(cs) => cs.clear(),
-            None => return ReturnCode::ENODEVICE,
+        if self.chip_select.is_none() {
+            return ReturnCode::ENODEVICE;
         }
+        self.chip_select.map(|cs| cs.clear());
 
         // Setup transmit data registers
         let tx_len: u32 = cmp::min(len, tx_buf.len()) as u32;
@@ -410,7 +407,7 @@ impl hil::spi::SpiMaster for SPIM {
     fn specify_chip_select(&self, cs: Self::ChipSelect) {
         cs.make_output();
         cs.set();
-        self.chip_select.set(Some(cs));
+        self.chip_select.set(cs);
     }
 
     // Returns the actual rate set

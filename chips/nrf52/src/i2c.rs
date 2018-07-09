@@ -7,7 +7,7 @@
 //! - Author: Andrew Thompson
 //! - Date: Nov 4, 2017
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::regs::{ReadWrite, WriteOnly};
@@ -29,7 +29,7 @@ const INSTANCES: [StaticRef<TwimRegisters>; 2] = unsafe {
 /// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
     registers: StaticRef<TwimRegisters>,
-    client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
+    client: OptionalCell<&'static hil::i2c::I2CHwMasterClient>,
     buf: TakeCell<'static, [u8]>,
 }
 
@@ -45,14 +45,14 @@ impl TWIM {
     const fn new(registers: StaticRef<TwimRegisters>) -> TWIM {
         TWIM {
             registers: registers,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             buf: TakeCell::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'static hil::i2c::I2CHwMasterClient) {
-        debug_assert!(self.client.get().is_none());
-        self.client.set(Some(client));
+        debug_assert!(self.client.is_none());
+        self.client.set(client);
     }
 
     /// Configures an already constructed `TWIM`.
@@ -80,15 +80,12 @@ impl TWIM {
     pub fn handle_interrupt(&self) {
         if self.registers.events_stopped.is_set(EVENT::EVENT) {
             self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
-            match self.client.get() {
+            self.client.map(|client| match self.buf.take() {
                 None => (),
-                Some(client) => match self.buf.take() {
-                    None => (),
-                    Some(buf) => {
-                        client.command_complete(buf, hil::i2c::Error::CommandComplete);
-                    }
-                },
-            };
+                Some(buf) => {
+                    client.command_complete(buf, hil::i2c::Error::CommandComplete);
+                }
+            });
         }
 
         if self.registers.events_error.is_set(EVENT::EVENT) {
@@ -97,22 +94,19 @@ impl TWIM {
             self.registers
                 .errorsrc
                 .write(ERRORSRC::ANACK::ErrorDidNotOccur + ERRORSRC::DNACK::ErrorDidNotOccur);
-            match self.client.get() {
+            self.client.map(|client| match self.buf.take() {
                 None => (),
-                Some(client) => match self.buf.take() {
-                    None => (),
-                    Some(buf) => {
-                        let i2c_error = if errorsrc.is_set(ERRORSRC::ANACK) {
-                            hil::i2c::Error::AddressNak
-                        } else if errorsrc.is_set(ERRORSRC::DNACK) {
-                            hil::i2c::Error::DataNak
-                        } else {
-                            hil::i2c::Error::CommandComplete
-                        };
-                        client.command_complete(buf, i2c_error);
-                    }
-                },
-            };
+                Some(buf) => {
+                    let i2c_error = if errorsrc.is_set(ERRORSRC::ANACK) {
+                        hil::i2c::Error::AddressNak
+                    } else if errorsrc.is_set(ERRORSRC::DNACK) {
+                        hil::i2c::Error::DataNak
+                    } else {
+                        hil::i2c::Error::CommandComplete
+                    };
+                    client.command_complete(buf, i2c_error);
+                }
+            });
         }
 
         // We can blindly clear the following events since we're not using them.
