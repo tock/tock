@@ -1,17 +1,23 @@
 //! Data structure for storing a callback to userspace or kernelspace.
 
 use core::ptr::NonNull;
+
 use process;
+use sched::Kernel;
 
 /// Userspace app identifier.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy)]
 pub struct AppId {
+    crate kernel: &'static Kernel,
     idx: usize,
 }
 
 impl AppId {
-    crate fn new(idx: usize) -> AppId {
-        AppId { idx: idx }
+    crate fn new(kernel: &'static Kernel, idx: usize) -> AppId {
+        AppId {
+            kernel: kernel,
+            idx: idx,
+        }
     }
 
     pub fn idx(&self) -> usize {
@@ -19,12 +25,16 @@ impl AppId {
     }
 
     pub fn get_editable_flash_range(&self) -> (usize, usize) {
-        process::get_editable_flash_range(self.idx)
+        self.kernel.process_map_or((0, 0), self.idx, |process| {
+            let start = process.flash_non_protected_start() as usize;
+            let end = process.flash_end() as usize;
+            (start, end)
+        })
     }
 }
 
 /// Wrapper around a function pointer.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Callback {
     app_id: AppId,
     appdata: usize,
@@ -41,15 +51,16 @@ impl Callback {
     }
 
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        process::schedule(
-            process::FunctionCall {
-                r0: r0,
-                r1: r1,
-                r2: r2,
-                r3: self.appdata,
-                pc: self.fn_ptr.as_ptr() as usize,
-            },
-            self.app_id,
-        )
+        self.app_id
+            .kernel
+            .process_map_or(false, self.app_id.idx(), |process| {
+                process.schedule(process::FunctionCall {
+                    r0: r0,
+                    r1: r1,
+                    r2: r2,
+                    r3: self.appdata,
+                    pc: self.fn_ptr.as_ptr() as usize,
+                })
+            })
     }
 }

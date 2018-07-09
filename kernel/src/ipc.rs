@@ -12,6 +12,7 @@ use grant::Grant;
 use mem::{AppSlice, Shared};
 use process;
 use returncode::ReturnCode;
+use sched::Kernel;
 
 struct IPCData {
     shared_memory: [Option<AppSlice<Shared, u8>>; 8],
@@ -34,9 +35,9 @@ pub struct IPC {
 }
 
 impl IPC {
-    pub unsafe fn new() -> IPC {
+    pub unsafe fn new(kernel: &'static Kernel) -> IPC {
         IPC {
-            data: Grant::create(),
+            data: Grant::create(kernel),
         }
     }
 
@@ -136,6 +137,8 @@ impl Driver for IPC {
     /// and notifying an IPC client is done by setting client_or_svc to 1.
     /// In either case, the target_id is the same number as provided in a notify
     /// callback or as returned by allow.
+    ///
+    /// Returns EINVAL if the other process doesn't exist.
     fn command(
         &self,
         target_id: usize,
@@ -143,24 +146,18 @@ impl Driver for IPC {
         _: usize,
         appid: AppId,
     ) -> ReturnCode {
-        let procs = unsafe { &mut process::PROCS };
-        if target_id == 0 || target_id > procs.len() {
-            return ReturnCode::EINVAL; /* Request to IPC to impossible process */
-        }
-
         let cb_type = if client_or_svc == 0 {
             process::IPCType::Service
         } else {
             process::IPCType::Client
         };
 
-        procs[target_id - 1]
-            .as_mut()
-            .map(|target| {
+        self.data
+            .kernel
+            .process_map_or(ReturnCode::EINVAL, target_id - 1, |target| {
                 target.schedule_ipc(appid, cb_type);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or(ReturnCode::EINVAL) /* Request to IPC to unknown process */
     }
 
     /// allow enables processes to discover IPC services on the platform or
@@ -185,22 +182,21 @@ impl Driver for IPC {
         if target_id == 0 {
             match slice {
                 Some(slice_data) => {
-                    let procs = unsafe { &mut process::PROCS };
-                    for (i, process) in procs.iter().enumerate() {
-                        match process {
-                            Some(p) => {
-                                let s = p.package_name.as_bytes();
-                                // are slices equal?
-                                if s.len() == slice_data.len()
-                                    && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)
-                                {
-                                    return ReturnCode::SuccessWithValue {
-                                        value: (i as usize) + 1,
-                                    };
-                                }
+                    let ret = self.data.kernel.process_each_enumerate_stop(|i, p| {
+                        let s = p.package_name.as_bytes();
+                        // are slices equal?
+                        if s.len() == slice_data.len()
+                            && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)
+                        {
+                            ReturnCode::SuccessWithValue {
+                                value: (i as usize) + 1,
                             }
-                            None => {}
+                        } else {
+                            ReturnCode::FAIL
                         }
+                    });
+                    if ret != ReturnCode::FAIL {
+                        return ret;
                     }
                 }
                 None => {}

@@ -38,8 +38,6 @@ extern "C" {
     crate fn switch_to_user(user_stack: *const u8, process_regs: &[usize; 8]) -> *mut u8;
 }
 
-crate static mut PROCS: &'static mut [Option<&mut Process<'static>>] = &mut [];
-
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
 /// is able to create its own `load_processes()` function and use that instead.
@@ -87,39 +85,6 @@ pub unsafe fn load_processes(
     }
 }
 
-crate fn schedule(callback: FunctionCall, appid: AppId) -> bool {
-    let procs = unsafe { &mut PROCS };
-    let idx = appid.idx();
-    if idx >= procs.len() {
-        return false;
-    }
-
-    match procs[idx] {
-        None => false,
-        Some(ref mut p) => p.schedule(callback),
-    }
-}
-
-/// Returns the full address of the start and end of the flash region that the
-/// app owns and can write to. This includes the app's code and data and any
-/// padding at the end of the app. It does not include the TBF header, or any
-/// space that the kernel is using for any potential bookkeeping.
-crate fn get_editable_flash_range(app_idx: usize) -> (usize, usize) {
-    let procs = unsafe { &mut PROCS };
-    if app_idx >= procs.len() {
-        return (0, 0);
-    }
-
-    match procs[app_idx] {
-        None => (0, 0),
-        Some(ref mut p) => {
-            let start = p.flash_non_protected_start() as usize;
-            let end = p.flash_end() as usize;
-            (start, end)
-        }
-    }
-}
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     NoSuchApp,
@@ -156,7 +121,7 @@ pub enum IPCType {
     Client,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 crate enum Task {
     FunctionCall(FunctionCall),
     IPC((AppId, IPCType)),
