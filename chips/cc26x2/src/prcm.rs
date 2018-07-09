@@ -33,15 +33,15 @@ register_bitfields! [
 struct PrcmRegisters {
     // leaving INFRCLKDIVR/INFRCLKDIVRS/INFRCLKDIVD unimplemented for now
     _reserved0: [ReadOnly<u8>; 0x0C],
-    
+
     // MCU Voltage Domain Control
     pub vd_ctl: ReadWrite<u32, VDControl::Register>,
-    
+
     _reserved1: [ReadOnly<u8>; 0x18],
-    
+
     // Write 1 in order to load prcm settings to CLKCTL power domain
     pub clk_load_ctl: ReadWrite<u32, ClockLoad::Register>,
-    
+
     // RFC Clock Gate
     pub rfc_clk_gate: ReadWrite<u32, ClockGate::Register>,
 

@@ -32,7 +32,7 @@ bitfield! {
     pub _no_fs_powerup, _set_no_fs_powerup: 10;
 }
 
-// Radio Command structure headers, bitfields, and partial settings for the 
+// Radio Command structure headers, bitfields, and partial settings for the
 // bitfields
 
 #[derive(Clone, Copy)]
@@ -90,7 +90,6 @@ impl DirectCommand {
         DirectCommand { command_no, params }
     }
 }
-
 
 // Command and parameters for radio setup
 #[repr(C)]

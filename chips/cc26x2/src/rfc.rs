@@ -8,16 +8,16 @@
 //!
 //!
 //! In order to communicate, we send a set of commands to the cortex-m0 through an interface called
-//! the radio doorbell. 
+//! the radio doorbell.
 //!
-//! The radio doorbell is a communication mechanism between the system and radio MCUs which contains 
-//! a set of dedicated registers, shared access to MCU RAMs, and a set of interrupts to both the 
-//! radio CPU and to the system CPU. Parameters and payloads are transferred through the system RAM 
-//! or the radio RAM. During operation, the radio CPU updates parameters and payload in RAM and raises 
-//! interrupts. The system CPU can mask out interrupts so that it remains in idle or power-down mode 
-//! until the entire radio operation finishes. Because the system CPU and the radio CPU share a common 
-//! RAM area, software must ensure that there is no contention or race conditions. If any parameters or 
-//! payload are in the system RAM, the system CPU must remain powered. Otherwise, if everything is in the 
+//! The radio doorbell is a communication mechanism between the system and radio MCUs which contains
+//! a set of dedicated registers, shared access to MCU RAMs, and a set of interrupts to both the
+//! radio CPU and to the system CPU. Parameters and payloads are transferred through the system RAM
+//! or the radio RAM. During operation, the radio CPU updates parameters and payload in RAM and raises
+//! interrupts. The system CPU can mask out interrupts so that it remains in idle or power-down mode
+//! until the entire radio operation finishes. Because the system CPU and the radio CPU share a common
+//! RAM area, software must ensure that there is no contention or race conditions. If any parameters or
+//! payload are in the system RAM, the system CPU must remain powered. Otherwise, if everything is in the
 //! radio RAM, the system CPU may go into power-down mode to save current.
 //!
 use commands as cmd;
@@ -399,8 +399,10 @@ impl RFCore {
         dbell_regs.cmdr.set(rf_command);
         // We should add guards against hanging on a radio operation that never produces a command
         // done variant of cpe interrupt. E.g. A setup command should certainly take less than one
-        // second to complete but a TX/RX operation may be running for much longer. 
-        while !dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE) || !dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE) {}
+        // second to complete but a TX/RX operation may be running for much longer.
+        while !dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE)
+            || !dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE)
+        {}
         let status = self.cmdsta();
         if (status & 0xFF) == 0x01 {
             return Ok(());
