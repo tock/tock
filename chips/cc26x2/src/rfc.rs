@@ -341,7 +341,7 @@ impl RFCore {
         // Ping radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_PING, 0))
             .ok()
-            .expect("Coudl not ping radio module");
+            .expect("Could not ping radio module");
     }
 
     pub fn disable(&self) {
@@ -397,19 +397,11 @@ impl RFCore {
         }
 
         dbell_regs.cmdr.set(rf_command);
-        // We should add guards against hanging on a radio operation that never produces a command
-        // done variant of cpe interrupt. E.g. A setup command should certainly take less than one
-        // second to complete but a TX/RX operation may be running for much longer.
-        while !dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE)
-            || !dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE)
-        {}
-        let status = self.cmdsta();
-        if (status & 0xFF) == 0x01 {
-            return Ok(());
-        }
-        return Err(status);
+        
+        return self.cmd_status_handler();
+        
     }
-
+    
     fn wait_cmdr(&self, rf_command: u32) -> RfcResult {
         let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
 
@@ -427,7 +419,16 @@ impl RFCore {
 
         return Err(status as u32);
     }
+    
+    fn cmd_status_handler(&self) -> RfcResult {
+        let status = self.cmdsta();
+        if (status & 0xFF) == 0x01 {
+            return Ok(());
+        }
+        return Err(status);
 
+
+    }
     fn cmdsta(&self) -> u32 {
         let dbell_regs = RFC_DBELL_BASE;
         let ret: u32 = dbell_regs.cmdsta.get();
@@ -470,10 +471,11 @@ impl RFCore {
             .rfcpeien
             .modify(CPEInterrupts::ALL_INTERRUPTS::SET);
     }
-
+    
     pub fn handle_cpe_interrupts(&self) {
         let dbell_regs = RFC_DBELL_BASE;
         // Clear all CPE interrupts
+        //
         dbell_regs.rfcpeifg.set(0x7FFFFFFF);
     }
 
@@ -505,7 +507,7 @@ impl RFCore {
 
     fn send<T>(&self, rf_command: &T) -> RfcResult {
         let command = { (rf_command as *const T) as u32 };
-
+        
         return self.post_cmdr(command);
     }
 

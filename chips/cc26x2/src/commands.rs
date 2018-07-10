@@ -67,8 +67,6 @@ pub struct DataEntryQueue {
 
 // Radio Commands
 
-pub type RadioCommand = &'static [u32];
-
 // RFC Immediate commands
 pub const RFC_CMD0: u16 = 0x607;
 pub const RFC_PING: u16 = 0x406;
