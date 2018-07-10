@@ -25,13 +25,19 @@ use kernel::component::Component;
 use kernel::Grant;
 
 pub struct ConsoleComponent {
+    board_kernel: &'static kernel::Kernel,
     uart_mux: &'static UartMux<'static>,
     baud_rate: u32,
 }
 
 impl ConsoleComponent {
-    pub fn new(uart_mux: &'static UartMux, rate: u32) -> ConsoleComponent {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        uart_mux: &'static UartMux,
+        rate: u32,
+    ) -> ConsoleComponent {
         ConsoleComponent {
+            board_kernel: board_kernel,
             uart_mux: uart_mux,
             baud_rate: rate,
         }
@@ -52,7 +58,7 @@ impl Component for ConsoleComponent {
                 self.baud_rate,
                 &mut console::WRITE_BUF,
                 &mut console::READ_BUF,
-                Grant::create()
+                Grant::create(self.board_kernel)
             )
         );
         hil::uart::UART::set_client(console_uart, console);

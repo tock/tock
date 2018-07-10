@@ -19,7 +19,9 @@ use kernel;
 use kernel::component::Component;
 use sam4l;
 
-pub struct UsbComponent {}
+pub struct UsbComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 type UsbDevice = capsules::usb_user::UsbSyscallDriver<
     'static,
@@ -27,8 +29,10 @@ type UsbDevice = capsules::usb_user::UsbSyscallDriver<
 >;
 
 impl UsbComponent {
-    pub fn new() -> UsbComponent {
-        UsbComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> UsbComponent {
+        UsbComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -49,7 +53,10 @@ impl Component for UsbComponent {
                 'static,
                 capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
             >,
-            capsules::usb_user::UsbSyscallDriver::new(usb_client, kernel::Grant::create())
+            capsules::usb_user::UsbSyscallDriver::new(
+                usb_client,
+                kernel::Grant::create(self.board_kernel)
+            )
         );
 
         usb_driver

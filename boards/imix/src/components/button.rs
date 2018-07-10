@@ -20,11 +20,15 @@ use kernel;
 use kernel::component::Component;
 use sam4l;
 
-pub struct ButtonComponent {}
+pub struct ButtonComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl ButtonComponent {
-    pub fn new() -> ButtonComponent {
-        ButtonComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> ButtonComponent {
+        ButtonComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -39,7 +43,7 @@ impl Component for ButtonComponent {
 
         let button = static_init!(
             button::Button<'static, sam4l::gpio::GPIOPin>,
-            button::Button::new(button_pins, kernel::Grant::create())
+            button::Button::new(button_pins, kernel::Grant::create(self.board_kernel))
         );
         for &(btn, _) in button_pins.iter() {
             btn.set_client(button);

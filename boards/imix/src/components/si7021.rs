@@ -25,6 +25,7 @@ use capsules::temperature::TemperatureSensor;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
+use kernel;
 use kernel::component::Component;
 use kernel::Grant;
 use sam4l;
@@ -69,14 +70,19 @@ impl Component for SI7021Component {
 }
 
 pub struct TemperatureComponent {
+    board_kernel: &'static kernel::Kernel,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
 }
 
 impl TemperatureComponent {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     ) -> TemperatureComponent {
-        TemperatureComponent { si7021: si }
+        TemperatureComponent {
+            board_kernel: board_kernel,
+            si7021: si,
+        }
     }
 }
 
@@ -86,7 +92,7 @@ impl Component for TemperatureComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let temp = static_init!(
             TemperatureSensor<'static>,
-            TemperatureSensor::new(self.si7021, Grant::create())
+            TemperatureSensor::new(self.si7021, Grant::create(self.board_kernel))
         );
 
         hil::sensors::TemperatureDriver::set_client(self.si7021, temp);
@@ -95,14 +101,19 @@ impl Component for TemperatureComponent {
 }
 
 pub struct HumidityComponent {
+    board_kernel: &'static kernel::Kernel,
     si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
 }
 
 impl HumidityComponent {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
         si: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     ) -> HumidityComponent {
-        HumidityComponent { si7021: si }
+        HumidityComponent {
+            board_kernel: board_kernel,
+            si7021: si,
+        }
     }
 }
 
@@ -112,7 +123,7 @@ impl Component for HumidityComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let hum = static_init!(
             HumiditySensor<'static>,
-            HumiditySensor::new(self.si7021, Grant::create())
+            HumiditySensor::new(self.si7021, Grant::create(self.board_kernel))
         );
 
         hil::sensors::HumidityDriver::set_client(self.si7021, hum);

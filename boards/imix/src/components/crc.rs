@@ -20,11 +20,15 @@ use kernel;
 use kernel::component::Component;
 use sam4l;
 
-pub struct CrcComponent {}
+pub struct CrcComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl CrcComponent {
-    pub fn new() -> CrcComponent {
-        CrcComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> CrcComponent {
+        CrcComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -34,7 +38,10 @@ impl Component for CrcComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let crc = static_init!(
             crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-            crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create())
+            crc::Crc::new(
+                &mut sam4l::crccu::CRCCU,
+                kernel::Grant::create(self.board_kernel)
+            )
         );
 
         crc

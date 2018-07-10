@@ -21,12 +21,19 @@ use kernel::component::Component;
 use sam4l;
 
 pub struct AlarmDriverComponent {
+    board_kernel: &'static kernel::Kernel,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
 
 impl AlarmDriverComponent {
-    pub fn new(mux: &'static MuxAlarm<'static, sam4l::ast::Ast>) -> AlarmDriverComponent {
-        AlarmDriverComponent { alarm_mux: mux }
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        mux: &'static MuxAlarm<'static, sam4l::ast::Ast>,
+    ) -> AlarmDriverComponent {
+        AlarmDriverComponent {
+            board_kernel: board_kernel,
+            alarm_mux: mux,
+        }
     }
 }
 
@@ -40,7 +47,7 @@ impl Component for AlarmDriverComponent {
         );
         let alarm = static_init!(
             AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+            AlarmDriver::new(virtual_alarm1, kernel::Grant::create(self.board_kernel))
         );
 
         virtual_alarm1.set_client(alarm);
