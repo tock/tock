@@ -44,7 +44,7 @@ use core::str;
 use common::cells::NumericCellExt;
 use common::cells::{MapCell, TakeCell};
 use hil;
-use process;
+use process::Process;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -57,12 +57,13 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &Fn(),
+    processes: &'static [Option<&'static Process<'static>>],
 ) -> ! {
     panic_begin(nop);
     panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
-    panic_process_info(writer);
+    panic_process_info(processes, writer);
     panic_blink_forever(leds)
 }
 
@@ -106,11 +107,13 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
+pub unsafe fn panic_process_info<W: Write>(
+    procs: &'static [Option<&'static Process<'static>>],
+    writer: &mut W,
+) {
     // Print fault status once
-    let procs = &mut process::PROCS;
     if !procs.is_empty() {
-        procs[0].as_mut().map(|process| {
+        procs[0].as_ref().map(|process| {
             process.fault_str(writer);
         });
     }
@@ -118,7 +121,7 @@ pub unsafe fn panic_process_info<W: Write>(writer: &mut W) {
     // print data about each process
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
     for idx in 0..procs.len() {
-        procs[idx].as_mut().map(|process| {
+        procs[idx].as_ref().map(|process| {
             process.statistics_str(writer);
         });
     }
