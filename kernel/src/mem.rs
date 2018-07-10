@@ -62,7 +62,7 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    pub(crate) fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
+    crate fn new(ptr: *mut T, len: usize, appid: AppId) -> AppSlice<L, T> {
         unsafe {
             AppSlice {
                 ptr: AppPtr::new(ptr, appid),
@@ -79,7 +79,7 @@ impl<L, T> AppSlice<L, T> {
         self.ptr.ptr.as_ptr()
     }
 
-    pub unsafe fn expose_to(&self, appid: AppId) -> bool {
+    crate unsafe fn expose_to(&self, appid: AppId) -> bool {
         let ps = &mut process::PROCS;
         if appid.idx() != self.ptr.process.idx() && ps.len() > appid.idx() {
             ps[appid.idx()]

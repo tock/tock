@@ -36,13 +36,13 @@ impl Kernel {
     }
 
     /// Something was scheduled for a process, so there is more work to do.
-    pub fn increment_work(&self) {
+    crate fn increment_work(&self) {
         self.work.increment();
     }
 
     /// Something finished for a process, so we decrement how much work there is
     /// to do.
-    pub fn decrement_work(&self) {
+    crate fn decrement_work(&self) {
         self.work.decrement();
     }
 
