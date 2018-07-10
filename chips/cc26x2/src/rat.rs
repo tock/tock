@@ -1,12 +1,8 @@
 use kernel::common::regs::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-//*****************************************************************************
-//
 // This section defines the register offsets of
 // RFC_RAT component
-//
-//*****************************************************************************
 
 // May need to enable RTC_UPD_EN in rtc.rs for cc23xx chip
 #[repr(C)]

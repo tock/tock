@@ -107,9 +107,11 @@ struct PrcmRegisters {
 register_bitfields![
     u32,
     VDControl [
+        // SPARE1 (bits 1-31)
         ULDO              OFFSET(0) NUMBITS(1) []
     ],
     ClockLoad [
+        // RESERVED (bits 2-31)
         LOAD_DONE   OFFSET(1) NUMBITS(1) [],
         LOAD        OFFSET(0) NUMBITS(1) []
     ],
@@ -124,27 +126,33 @@ register_bitfields![
         CRYPTO_CLK_EN   OFFSET(0) NUMBITS(1) []
     ],
     ClockGate [
+        // RESERVED (bits 1-31)
         CLK_EN      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomain0 [
+        // RESERVED (bits 3-31)
         PERIPH_ON   OFFSET(2) NUMBITS(1) [],
         SERIAL_ON   OFFSET(1) NUMBITS(1) [],
         RFC_ON      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomainSingle [
+        // RESERVED (bits 1-31)
         ON          OFFSET(0) NUMBITS(1) []
     ],
     PowerDomainStatus0 [
+        // RESERVED (bits 1-31)
         PERIPH_ON   OFFSET(2) NUMBITS(1) [],
         SERIAL_ON   OFFSET(1) NUMBITS(1) [],
         RFC_ON      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomain1 [
+        // RESERVED (bits 1-31)
         VIMS_ON   OFFSET(2) NUMBITS(1) [],
         RFC_ON   OFFSET(1) NUMBITS(1) [],
         CPU_ON      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomainStatus1 [
+        // RESERVED (bits 3-31)
         VIMS_ON     OFFSET(2) NUMBITS(1) [],
         RFC_ON      OFFSET(1) NUMBITS(1) [],
         CPU_ON      OFFSET(0) NUMBITS(1) []
