@@ -26,6 +26,10 @@ use kernel::hil::analog_comparator;
 use kernel::ReturnCode;
 use pm;
 
+pub static mut AC0: 0x00; // AdcChannel = AdcChannel::new(Channel::AC0);
+pub static mut AC1: 0x01; // AdcChannel = AdcChannel::new(Channel::AC1);
+// pub static mut WINDOW0: AdcChannel = AdcChannel::new(Window::WINDOW1);
+
 #[repr(C)]
 struct AcifcRegisters {
     ctrl: ReadWrite<u32, Control::Register>,
@@ -431,20 +435,20 @@ impl<'a> Acifc<'a> {
 }
 
 impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
-    fn comparison(&self, data: usize) -> bool {
-        self.comparison(data)
+    fn comparison(&self, ac: usize) -> bool {
+        self.comparison(ac)
     }
 
-    fn window_comparison(&self, data: usize) -> bool {
-        self.window_comparison(data)
+    fn window_comparison(&self, ac: usize) -> bool {
+        self.window_comparison(ac)
     }
 
-    fn enable_interrupts(&self, data: usize) -> ReturnCode {
-        self.enable_interrupts(data)
+    fn enable_interrupts(&self, ac: usize) -> ReturnCode {
+        self.enable_interrupts(ac)
     }
 
-    fn disable_interrupts(&self, data: usize) -> ReturnCode {
-        self.disable_interrupts(data)
+    fn disable_interrupts(&self, ac: usize) -> ReturnCode {
+        self.disable_interrupts(ac)
     }
 }
 

@@ -43,14 +43,14 @@ use kernel::hil;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator + 'a> {
-    ac: &'a A,
+    analog_comparator: &'a A,
     callback: Cell<Option<Callback>>,
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
-    pub fn new(ac: &'a A) -> AnalogComparator<'a, A> {
+    pub fn new(analog_comparator: &'a A) -> AnalogComparator<'a, A> {
         AnalogComparator {
-            ac: ac,
+            analog_comparator: analog_comparator,
             callback: Cell::new(None),
         }
     }
@@ -74,21 +74,21 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     /// - `4`: Disable interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, ac: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => return ReturnCode::SUCCESS,
 
             1 => ReturnCode::SuccessWithValue {
-                value: self.ac.comparison(data) as usize,
+                value: self.analog_comparator.comparison(ac) as usize,
             },
 
             2 => ReturnCode::SuccessWithValue {
-                value: self.ac.window_comparison(data) as usize,
+                value: self.analog_comparator.window_comparison(ac) as usize,
             },
 
-            3 => self.ac.enable_interrupts(data),
+            3 => self.analog_comparator.enable_interrupts(ac),
 
-            4 => self.ac.disable_interrupts(data),
+            4 => self.analog_comparator.disable_interrupts(ac),
 
             _ => return ReturnCode::ENOSUPPORT,
         }
