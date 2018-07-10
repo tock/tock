@@ -397,11 +397,10 @@ impl RFCore {
         }
 
         dbell_regs.cmdr.set(rf_command);
-        
+
         return self.cmd_status_handler();
-        
     }
-    
+
     fn wait_cmdr(&self, rf_command: u32) -> RfcResult {
         let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
 
@@ -419,15 +418,13 @@ impl RFCore {
 
         return Err(status as u32);
     }
-    
+
     fn cmd_status_handler(&self) -> RfcResult {
         let status = self.cmdsta();
         if (status & 0xFF) == 0x01 {
             return Ok(());
         }
         return Err(status);
-
-
     }
     fn cmdsta(&self) -> u32 {
         let dbell_regs = RFC_DBELL_BASE;
@@ -471,7 +468,7 @@ impl RFCore {
             .rfcpeien
             .modify(CPEInterrupts::ALL_INTERRUPTS::SET);
     }
-    
+
     pub fn handle_cpe_interrupts(&self) {
         let dbell_regs = RFC_DBELL_BASE;
         // Clear all CPE interrupts
@@ -507,7 +504,7 @@ impl RFCore {
 
     fn send<T>(&self, rf_command: &T) -> RfcResult {
         let command = { (rf_command as *const T) as u32 };
-        
+
         return self.post_cmdr(command);
     }
 
