@@ -29,11 +29,11 @@ pub struct Kernel {
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static mut Process<'static>>],
+    processes: &'static [Option<&'static Process<'static>>],
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static mut Process<'static>>]) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static Process<'static>>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,

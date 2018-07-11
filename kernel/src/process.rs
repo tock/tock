@@ -52,7 +52,7 @@ pub unsafe fn load_processes(
     kernel: &'static Kernel,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
-    procs: &mut [Option<&mut Process<'static>>],
+    procs: &mut [Option<&Process<'static>>],
     fault_response: FaultResponse,
 ) {
     let mut apps_in_flash_ptr = start_of_flash;
@@ -576,7 +576,7 @@ impl Process<'a> {
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
-    ) -> (Option<&'static mut Process<'a>>, usize, usize) {
+    ) -> (Option<&'static Process<'a>>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
 
