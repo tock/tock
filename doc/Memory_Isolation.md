@@ -23,9 +23,9 @@ buffer overflows) and type safety at compile-time, this doesn't prevent
 processes, which can be written in any language, from accessing certain
 addresses which they should not have access to in memory. Some other component
 is necessary to prevent this from happening, or systems can not safely support
-untrusted processes. 
+untrusted processes.
 
-To do this, Tock uses the memory protection units (MPU)
+To support untrusted applications, Tock uses the memory protection units (MPU)
 provided by many embedded microcontrollers. The MPU is a hardware component
 which can configure access permissions for certain memory regions. Three
 fundamental access types can be set for these memory regions: read (R), write
@@ -63,7 +63,7 @@ accessing bootloader or kernel code. They are also prohibited from reading or
 writing the nonvolatile regions of other processes.
 
 Processes generally have access to their own memory in flash. Certain regions,
-including the Tock Binary Format (TBF) header and a protected region after the
+including their Tock Binary Format (TBF) header and a protected region after the
 header, are read-only, as the kernel must be able to ensure the integrity of the
 header. In particular, the kernel needs to know the total size of the app to find
 the next app in flash. The kernel may also wish to store nonvolatile information
