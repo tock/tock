@@ -3,7 +3,7 @@ Tock Startup
 
 This document walks through how all of the components of Tock start up.
 
-<!-- npm i -g markdown-toc; markdown-toc -i Memory_Layout.md -->
+<!-- npm i -g markdown-toc; markdown-toc -i Startup.md -->
 
 <!-- toc -->
 
@@ -12,7 +12,7 @@ This document walks through how all of the components of Tock start up.
 - [Reset Handler](#reset-handler)
   * [Memory Initialization](#memory-initialization)
   * [MCU Setup](#mcu-setup)
-  * [Capsule Initialization](#capsule-initialization)
+  * [Peripheral and Capsule Initialization](#peripheral-and-capsule-initialization)
 - [Application Startup](#application-startup)
 - [Scheduler Execution](#scheduler-execution)
 
