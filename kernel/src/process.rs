@@ -333,7 +333,7 @@ impl Process<'a> {
 
     crate fn schedule_ipc(&self, from: AppId, cb_type: IPCType) {
         self.kernel.increment_work();
-        // let ret = self.tasks.enqueue(Task::IPC((from, cb_type)));
+
         let ret = self
             .tasks
             .map_or(false, |tasks| tasks.enqueue(Task::IPC((from, cb_type))));
