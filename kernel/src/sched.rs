@@ -69,8 +69,8 @@ impl Kernel {
             unsafe {
                 chip.service_pending_interrupts();
 
-                for (i, p) in processes.iter_mut().enumerate() {
-                    p.as_mut().map(|process| {
+                for (i, p) in processes.iter().enumerate() {
+                    p.as_ref().map(|process| {
                         self.do_process(platform, chip, process, callback::AppId::new(i), ipc);
                     });
                     if chip.has_pending_interrupts() {
@@ -91,7 +91,7 @@ impl Kernel {
         &self,
         platform: &P,
         chip: &mut C,
-        process: &mut Process,
+        process: &Process,
         appid: AppId,
         ipc: Option<&::ipc::IPC>,
     ) {
