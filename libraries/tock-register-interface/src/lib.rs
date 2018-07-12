@@ -5,7 +5,7 @@
 #![feature(const_fn)]
 #![no_std]
 
-pub mod regs;
+pub mod registers;
 
 #[macro_use]
 pub mod macros;

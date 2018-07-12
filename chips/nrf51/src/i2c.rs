@@ -6,7 +6,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::i2c;
 use {nrf5x, nrf5x::gpio, nrf5x::pinmux::Pinmux};

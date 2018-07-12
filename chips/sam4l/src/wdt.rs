@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use cortexm4::support;
 use kernel::common::math::log_base_two_u64;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use pm::{self, Clock, PBDClock};

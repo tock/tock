@@ -63,7 +63,7 @@ macro_rules! register_bitmasks {
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::regs::{FieldValue, TryFromValue};
+            use $crate::registers::{FieldValue, TryFromValue};
             use super::$reg_desc;
 
             $(
@@ -127,9 +127,9 @@ macro_rules! register_bitfields {
             pub mod $reg {
                 #[derive(Clone, Copy)]
                 pub struct Register;
-                impl $crate::regs::RegisterLongName for Register {}
+                impl $crate::registers::RegisterLongName for Register {}
 
-                use $crate::regs::Field;
+                use $crate::registers::Field;
 
                 register_bitmasks!( $valtype, Register, $fields );
             }

@@ -4,7 +4,7 @@
 //!
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::rng;
 use prcm;

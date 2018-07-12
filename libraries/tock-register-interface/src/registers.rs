@@ -3,7 +3,7 @@
 //! Allows register maps to be specified like this:
 //!
 //! ```rust
-//! use common::regs::{ReadOnly, ReadWrite, WriteOnly};
+//! use common::registers::{ReadOnly, ReadWrite, WriteOnly};
 //!
 //! #[repr(C)]
 //! struct Registers {

@@ -3,7 +3,7 @@ use core::cell::Cell;
 use gpio;
 use ioc;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::gpio::Pin;
 use kernel::hil::uart;

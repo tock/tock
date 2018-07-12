@@ -7,7 +7,7 @@
 //! crates do not need to use unsafe code.
 
 /// Re-export the tock-register-interface library.
-pub use tock_regs::{macros, regs};
+pub use tock_registers::{macros, registers};
 
 pub mod deferred_call;
 pub mod list;

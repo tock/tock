@@ -49,7 +49,7 @@
 // - Support continuous-mode CRC
 
 use core::cell::Cell;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
 use kernel::ReturnCode;
