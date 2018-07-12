@@ -306,11 +306,13 @@ impl<'a> IPPayload<'a> {
             TransportHeader::UDP(mut udp_header) => {
                 let length = (payload.len() + udp_header.get_hdr_size()) as u16;
                 udp_header.set_len(length);
+                self.header = transport_header;
                 (ip6_nh::UDP, length)
             }
             TransportHeader::ICMP(mut icmp_header) => {
                 let length = (payload.len() + icmp_header.get_hdr_size()) as u16;
                 icmp_header.set_len(length);
+                self.header = transport_header;
                 (ip6_nh::ICMP, length)
             }
             _ => (ip6_nh::NO_NEXT, payload.len() as u16),
