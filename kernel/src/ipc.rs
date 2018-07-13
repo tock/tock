@@ -183,7 +183,7 @@ impl Driver for IPC {
             match slice {
                 Some(slice_data) => {
                     let ret = self.data.kernel.process_each_enumerate_stop(|i, p| {
-                        let s = p.package_name.as_bytes();
+                        let s = p.get_package_name();
                         // are slices equal?
                         if s.len() == slice_data.len()
                             && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)

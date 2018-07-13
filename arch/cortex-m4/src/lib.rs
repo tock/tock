@@ -18,6 +18,7 @@ pub use cortexm::support;
 
 pub use cortexm::nvic;
 pub use cortexm::scb;
+pub use cortexm::syscall;
 pub use cortexm::systick;
 
 extern "C" {
@@ -351,11 +352,8 @@ pub unsafe extern "C" fn hard_fault_handler() {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
         asm!(
-            "ldr r0, =SYSCALL_FIRED
-              mov r1, #1
-              str r1, [r0, #0]
-
-              ldr r0, =APP_FAULT
+            "ldr r0, =APP_FAULT
+              mov r1, #1 /* Fault */
               str r1, [r0, #0]
 
               /* Read the SCB registers. */

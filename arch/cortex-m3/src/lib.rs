@@ -12,6 +12,7 @@ pub use cortexm::support;
 
 pub use cortexm::nvic;
 pub use cortexm::scb;
+pub use cortexm::syscall;
 pub use cortexm::systick;
 
 #[no_mangle]
