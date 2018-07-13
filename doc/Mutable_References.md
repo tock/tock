@@ -122,7 +122,7 @@ table summarizes the various types, and more detail is included below.
 | `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi.rs)                 | Holding static buffers that will receive or send data.                                                |
 | `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)              | Delegating reference to large buffers (e.g. application buffers).                                       |
 | `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.                             |
-| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers, used by `tock_regs` crate.                                                       |
+| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers, used by `tock_registers` crate.                                                       |
 
 ## The `TakeCell` abstraction
 
@@ -202,11 +202,11 @@ Here is a simple use of `map`, taken from `chips/sam4l/src/dma.rs`:
 
 ```rust
 pub fn disable(&self) {
-    let regs: &SpiRegisters = unsafe { &*self.registers };
+    let registers: &SpiRegisters = unsafe { &*self.registers };
 
     self.dma_read.map(|read| read.disable());
     self.dma_write.map(|write| write.disable());
-    regs.cr.set(0b10);
+    registers.cr.set(0b10);
 }
 ```
 

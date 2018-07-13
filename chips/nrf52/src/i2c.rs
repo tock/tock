@@ -10,7 +10,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
-use kernel::common::regs::{ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use nrf5x::pinmux::Pinmux;

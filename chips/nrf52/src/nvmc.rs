@@ -8,7 +8,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;

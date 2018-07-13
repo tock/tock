@@ -13,9 +13,9 @@
 #![no_std]
 
 extern crate tock_cells;
-extern crate tock_regs;
+extern crate tock_registers;
 
-pub use tock_regs::{register_bitfields, register_bitmasks};
+pub use tock_registers::{register_bitfields, register_bitmasks};
 
 #[macro_use]
 pub mod common;

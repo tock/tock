@@ -6,7 +6,7 @@ use core::cell::Cell;
 use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 use scif;

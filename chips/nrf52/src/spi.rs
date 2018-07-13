@@ -32,7 +32,7 @@
 use core::cell::Cell;
 use core::{cmp, ptr};
 use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
-use kernel::common::regs::{ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
