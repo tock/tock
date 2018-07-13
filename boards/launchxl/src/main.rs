@@ -25,7 +25,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -253,6 +253,11 @@ pub unsafe fn reset_handler() {
 
     let mut chip = cc26x2::chip::Cc26X2::new();
 
+    let syscall = static_init!(
+        cortexm4::syscall::SysCall,
+        cortexm4::syscall::SysCall::new()
+    );
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -260,6 +265,7 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
+        syscall,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

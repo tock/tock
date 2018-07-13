@@ -88,7 +88,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -366,12 +366,18 @@ pub unsafe fn reset_handler() {
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
 
+    let syscall = static_init!(
+        cortexm4::syscall::SysCall,
+        cortexm4::syscall::SysCall::new()
+    );
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
+        syscall,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
