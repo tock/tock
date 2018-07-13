@@ -1,6 +1,7 @@
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
 
+use core::fmt::Write;
 use core::ptr::{read_volatile, write_volatile};
 
 use kernel;
@@ -28,6 +29,13 @@ pub static mut APP_HARD_FAULT: usize = 0;
 #[no_mangle]
 #[used]
 pub static mut SYSTICK_EXPIRED: usize = 0;
+
+/// This is used in the hardfault handler. When an app faults, the hardfault
+/// handler stores the value of the SCB registers in this static array. This
+/// makes them available to be displayed in a diagnostic fault message.
+#[no_mangle]
+#[used]
+pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
 #[allow(improper_ctypes)]
 extern "C" {
@@ -219,5 +227,260 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         };
 
         (new_stack_pointer as *mut usize, switch_reason)
+    }
+
+    unsafe fn fault_str(&self, writer: &mut Write) {
+        let _ccr = SCB_REGISTERS[0];
+        let cfsr = SCB_REGISTERS[1];
+        let hfsr = SCB_REGISTERS[2];
+        let mmfar = SCB_REGISTERS[3];
+        let bfar = SCB_REGISTERS[4];
+
+        let iaccviol = (cfsr & 0x01) == 0x01;
+        let daccviol = (cfsr & 0x02) == 0x02;
+        let munstkerr = (cfsr & 0x08) == 0x08;
+        let mstkerr = (cfsr & 0x10) == 0x10;
+        let mlsperr = (cfsr & 0x20) == 0x20;
+        let mmfarvalid = (cfsr & 0x80) == 0x80;
+
+        let ibuserr = ((cfsr >> 8) & 0x01) == 0x01;
+        let preciserr = ((cfsr >> 8) & 0x02) == 0x02;
+        let impreciserr = ((cfsr >> 8) & 0x04) == 0x04;
+        let unstkerr = ((cfsr >> 8) & 0x08) == 0x08;
+        let stkerr = ((cfsr >> 8) & 0x10) == 0x10;
+        let lsperr = ((cfsr >> 8) & 0x20) == 0x20;
+        let bfarvalid = ((cfsr >> 8) & 0x80) == 0x80;
+
+        let undefinstr = ((cfsr >> 16) & 0x01) == 0x01;
+        let invstate = ((cfsr >> 16) & 0x02) == 0x02;
+        let invpc = ((cfsr >> 16) & 0x04) == 0x04;
+        let nocp = ((cfsr >> 16) & 0x08) == 0x08;
+        let unaligned = ((cfsr >> 16) & 0x100) == 0x100;
+        let divbysero = ((cfsr >> 16) & 0x200) == 0x200;
+
+        let vecttbl = (hfsr & 0x02) == 0x02;
+        let forced = (hfsr & 0x40000000) == 0x40000000;
+
+        let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
+
+        if iaccviol {
+            let _ = writer.write_fmt(format_args!(
+                "Instruction Access Violation:       {}\r\n",
+                iaccviol
+            ));
+        }
+        if daccviol {
+            let _ = writer.write_fmt(format_args!(
+                "Data Access Violation:              {}\r\n",
+                daccviol
+            ));
+        }
+        if munstkerr {
+            let _ = writer.write_fmt(format_args!(
+                "Memory Management Unstacking Fault: {}\r\n",
+                munstkerr
+            ));
+        }
+        if mstkerr {
+            let _ = writer.write_fmt(format_args!(
+                "Memory Management Stacking Fault:   {}\r\n",
+                mstkerr
+            ));
+        }
+        if mlsperr {
+            let _ = writer.write_fmt(format_args!(
+                "Memory Management Lazy FP Fault:    {}\r\n",
+                mlsperr
+            ));
+        }
+
+        if ibuserr {
+            let _ = writer.write_fmt(format_args!(
+                "Instruction Bus Error:              {}\r\n",
+                ibuserr
+            ));
+        }
+        if preciserr {
+            let _ = writer.write_fmt(format_args!(
+                "Precise Data Bus Error:             {}\r\n",
+                preciserr
+            ));
+        }
+        if impreciserr {
+            let _ = writer.write_fmt(format_args!(
+                "Imprecise Data Bus Error:           {}\r\n",
+                impreciserr
+            ));
+        }
+        if unstkerr {
+            let _ = writer.write_fmt(format_args!(
+                "Bus Unstacking Fault:               {}\r\n",
+                unstkerr
+            ));
+        }
+        if stkerr {
+            let _ = writer.write_fmt(format_args!(
+                "Bus Stacking Fault:                 {}\r\n",
+                stkerr
+            ));
+        }
+        if lsperr {
+            let _ = writer.write_fmt(format_args!(
+                "Bus Lazy FP Fault:                  {}\r\n",
+                lsperr
+            ));
+        }
+        if undefinstr {
+            let _ = writer.write_fmt(format_args!(
+                "Undefined Instruction Usage Fault:  {}\r\n",
+                undefinstr
+            ));
+        }
+        if invstate {
+            let _ = writer.write_fmt(format_args!(
+                "Invalid State Usage Fault:          {}\r\n",
+                invstate
+            ));
+        }
+        if invpc {
+            let _ = writer.write_fmt(format_args!(
+                "Invalid PC Load Usage Fault:        {}\r\n",
+                invpc
+            ));
+        }
+        if nocp {
+            let _ = writer.write_fmt(format_args!(
+                "No Coprocessor Usage Fault:         {}\r\n",
+                nocp
+            ));
+        }
+        if unaligned {
+            let _ = writer.write_fmt(format_args!(
+                "Unaligned Access Usage Fault:       {}\r\n",
+                unaligned
+            ));
+        }
+        if divbysero {
+            let _ = writer.write_fmt(format_args!(
+                "Divide By Zero:                     {}\r\n",
+                divbysero
+            ));
+        }
+
+        if vecttbl {
+            let _ = writer.write_fmt(format_args!(
+                "Bus Fault on Vector Table Read:     {}\r\n",
+                vecttbl
+            ));
+        }
+        if forced {
+            let _ = writer.write_fmt(format_args!(
+                "Forced Hard Fault:                  {}\r\n",
+                forced
+            ));
+        }
+
+        if mmfarvalid {
+            let _ = writer.write_fmt(format_args!(
+                "Faulting Memory Address:            {:#010X}\r\n",
+                mmfar
+            ));
+        }
+        if bfarvalid {
+            let _ = writer.write_fmt(format_args!(
+                "Bus Fault Address:                  {:#010X}\r\n",
+                bfar
+            ));
+        }
+
+        if cfsr == 0 && hfsr == 0 {
+            let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
+        } else {
+            let _ = writer.write_fmt(format_args!(
+                "Fault Status Register (CFSR):       {:#010X}\r\n",
+                cfsr
+            ));
+            let _ = writer.write_fmt(format_args!(
+                "Hard Fault Status Register (HFSR):  {:#010X}\r\n",
+                hfsr
+            ));
+        }
+    }
+
+    unsafe fn print_process_arch_detail(
+        &self,
+        stack_pointer: *const usize,
+        state: &CortexMStoredState,
+        writer: &mut Write,
+    ) {
+        let r0 = read_volatile(stack_pointer.offset(0));
+        let r1 = read_volatile(stack_pointer.offset(1));
+        let r2 = read_volatile(stack_pointer.offset(2));
+        let r3 = read_volatile(stack_pointer.offset(3));
+        let r12 = read_volatile(stack_pointer.offset(4));
+        let lr = read_volatile(stack_pointer.offset(5));
+        let pc = read_volatile(stack_pointer.offset(6));
+        let xpsr = read_volatile(stack_pointer.offset(7));
+
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n  R0 : {:#010X}    R6 : {:#010X}\
+             \r\n  R1 : {:#010X}    R7 : {:#010X}\
+             \r\n  R2 : {:#010X}    R8 : {:#010X}\
+             \r\n  R3 : {:#010X}    R10: {:#010X}\
+             \r\n  R4 : {:#010X}    R11: {:#010X}\
+             \r\n  R5 : {:#010X}    R12: {:#010X}\
+             \r\n  R9 : {:#010X} (Static Base Register)\
+             \r\n  SP : {:#010X} (Process Stack Pointer)\
+             \r\n  LR : {:#010X}\
+             \r\n  PC : {:#010X}\
+             \r\n YPC : {:#010X}\
+             \r\n",
+            r0,
+            state.r6,
+            r1,
+            state.r7,
+            r2,
+            state.r8,
+            r3,
+            state.r10,
+            state.r4,
+            state.r11,
+            state.r5,
+            r12,
+            state.r9,
+            stack_pointer as usize,
+            lr,
+            pc,
+            state.yield_pc,
+        ));
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n APSR: N {} Z {} C {} V {} Q {}\
+             \r\n       GE {} {} {} {}",
+            (xpsr >> 31) & 0x1,
+            (xpsr >> 30) & 0x1,
+            (xpsr >> 29) & 0x1,
+            (xpsr >> 28) & 0x1,
+            (xpsr >> 27) & 0x1,
+            (xpsr >> 19) & 0x1,
+            (xpsr >> 18) & 0x1,
+            (xpsr >> 17) & 0x1,
+            (xpsr >> 16) & 0x1,
+        ));
+        let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
+        let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n EPSR: ICI.IT {:#04x}\
+             \r\n       ThumbBit {} {}",
+            ici_it,
+            thumb_bit,
+            if thumb_bit {
+                ""
+            } else {
+                "!!ERROR - Cortex M Thumb only!"
+            },
+        ));
     }
 }

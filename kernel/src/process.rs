@@ -15,11 +15,6 @@ use sched::Kernel;
 use syscall::{self, Syscall, UserspaceKernelBoundary};
 use tbfheader;
 
-/// This is used in the hardfault handler.
-#[no_mangle]
-#[used]
-pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
-
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
 /// is able to create its own `load_processes()` function and use that instead.
@@ -791,182 +786,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 
     unsafe fn fault_str(&self, writer: &mut Write) {
-        let _ccr = SCB_REGISTERS[0];
-        let cfsr = SCB_REGISTERS[1];
-        let hfsr = SCB_REGISTERS[2];
-        let mmfar = SCB_REGISTERS[3];
-        let bfar = SCB_REGISTERS[4];
-
-        let iaccviol = (cfsr & 0x01) == 0x01;
-        let daccviol = (cfsr & 0x02) == 0x02;
-        let munstkerr = (cfsr & 0x08) == 0x08;
-        let mstkerr = (cfsr & 0x10) == 0x10;
-        let mlsperr = (cfsr & 0x20) == 0x20;
-        let mmfarvalid = (cfsr & 0x80) == 0x80;
-
-        let ibuserr = ((cfsr >> 8) & 0x01) == 0x01;
-        let preciserr = ((cfsr >> 8) & 0x02) == 0x02;
-        let impreciserr = ((cfsr >> 8) & 0x04) == 0x04;
-        let unstkerr = ((cfsr >> 8) & 0x08) == 0x08;
-        let stkerr = ((cfsr >> 8) & 0x10) == 0x10;
-        let lsperr = ((cfsr >> 8) & 0x20) == 0x20;
-        let bfarvalid = ((cfsr >> 8) & 0x80) == 0x80;
-
-        let undefinstr = ((cfsr >> 16) & 0x01) == 0x01;
-        let invstate = ((cfsr >> 16) & 0x02) == 0x02;
-        let invpc = ((cfsr >> 16) & 0x04) == 0x04;
-        let nocp = ((cfsr >> 16) & 0x08) == 0x08;
-        let unaligned = ((cfsr >> 16) & 0x100) == 0x100;
-        let divbysero = ((cfsr >> 16) & 0x200) == 0x200;
-
-        let vecttbl = (hfsr & 0x02) == 0x02;
-        let forced = (hfsr & 0x40000000) == 0x40000000;
-
-        let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
-
-        if iaccviol {
-            let _ = writer.write_fmt(format_args!(
-                "Instruction Access Violation:       {}\r\n",
-                iaccviol
-            ));
-        }
-        if daccviol {
-            let _ = writer.write_fmt(format_args!(
-                "Data Access Violation:              {}\r\n",
-                daccviol
-            ));
-        }
-        if munstkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Memory Management Unstacking Fault: {}\r\n",
-                munstkerr
-            ));
-        }
-        if mstkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Memory Management Stacking Fault:   {}\r\n",
-                mstkerr
-            ));
-        }
-        if mlsperr {
-            let _ = writer.write_fmt(format_args!(
-                "Memory Management Lazy FP Fault:    {}\r\n",
-                mlsperr
-            ));
-        }
-
-        if ibuserr {
-            let _ = writer.write_fmt(format_args!(
-                "Instruction Bus Error:              {}\r\n",
-                ibuserr
-            ));
-        }
-        if preciserr {
-            let _ = writer.write_fmt(format_args!(
-                "Precise Data Bus Error:             {}\r\n",
-                preciserr
-            ));
-        }
-        if impreciserr {
-            let _ = writer.write_fmt(format_args!(
-                "Imprecise Data Bus Error:           {}\r\n",
-                impreciserr
-            ));
-        }
-        if unstkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Unstacking Fault:               {}\r\n",
-                unstkerr
-            ));
-        }
-        if stkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Stacking Fault:                 {}\r\n",
-                stkerr
-            ));
-        }
-        if lsperr {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Lazy FP Fault:                  {}\r\n",
-                lsperr
-            ));
-        }
-
-        if undefinstr {
-            let _ = writer.write_fmt(format_args!(
-                "Undefined Instruction Usage Fault:  {}\r\n",
-                undefinstr
-            ));
-        }
-        if invstate {
-            let _ = writer.write_fmt(format_args!(
-                "Invalid State Usage Fault:          {}\r\n",
-                invstate
-            ));
-        }
-        if invpc {
-            let _ = writer.write_fmt(format_args!(
-                "Invalid PC Load Usage Fault:        {}\r\n",
-                invpc
-            ));
-        }
-        if nocp {
-            let _ = writer.write_fmt(format_args!(
-                "No Coprocessor Usage Fault:         {}\r\n",
-                nocp
-            ));
-        }
-        if unaligned {
-            let _ = writer.write_fmt(format_args!(
-                "Unaligned Access Usage Fault:       {}\r\n",
-                unaligned
-            ));
-        }
-        if divbysero {
-            let _ = writer.write_fmt(format_args!(
-                "Divide By Zero:                     {}\r\n",
-                divbysero
-            ));
-        }
-
-        if vecttbl {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Fault on Vector Table Read:     {}\r\n",
-                vecttbl
-            ));
-        }
-        if forced {
-            let _ = writer.write_fmt(format_args!(
-                "Forced Hard Fault:                  {}\r\n",
-                forced
-            ));
-        }
-
-        if mmfarvalid {
-            let _ = writer.write_fmt(format_args!(
-                "Faulting Memory Address:            {:#010X}\r\n",
-                mmfar
-            ));
-        }
-        if bfarvalid {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Fault Address:                  {:#010X}\r\n",
-                bfar
-            ));
-        }
-
-        if cfsr == 0 && hfsr == 0 {
-            let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
-        } else {
-            let _ = writer.write_fmt(format_args!(
-                "Fault Status Register (CFSR):       {:#010X}\r\n",
-                cfsr
-            ));
-            let _ = writer.write_fmt(format_args!(
-                "Hard Fault Status Register (HFSR):  {:#010X}\r\n",
-                hfsr
-            ));
-        }
+        self.syscall.fault_str(writer);
     }
 
     unsafe fn statistics_str(&self, writer: &mut Write) {
@@ -1024,27 +844,6 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
         let restart_count = self.debug.map_or(0, |debug| debug.restart_count);
 
-        // register values
-        let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (
-            // self.r0(),
-            // self.r1(),
-            // self.r2(),
-            // self.r3(),
-            5,
-            6,
-            7,
-            8,
-            9,
-            // self.r12(),
-            self.sp() as usize,
-            10,
-            11,
-            12,
-            // self.lr(),
-            // self.pc(),
-            // self.xpsr(),
-        );
-
         let _ = writer.write_fmt(format_args!(
             "\
              App: {}   -   [{:?}]\
@@ -1086,18 +885,6 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
   \r\n  {:#010X} ┼─────────────────────────────────────────── A\
 \r\n             │ Protected    {:6}                        S\
   \r\n  {:#010X} ┴─────────────────────────────────────────── H\
-\r\n\
-  \r\n  R0 : {:#010X}    R6 : {:#010X}\
-  \r\n  R1 : {:#010X}    R7 : {:#010X}\
-  \r\n  R2 : {:#010X}    R8 : {:#010X}\
-  \r\n  R3 : {:#010X}    R10: {:#010X}\
-  \r\n  R4 : {:#010X}    R11: {:#010X}\
-  \r\n  R5 : {:#010X}    R12: {:#010X}\
-  \r\n  R9 : {:#010X} (Static Base Register)\
-  \r\n  SP : {:#010X} (Process Stack Pointer)\
-  \r\n  LR : {:#010X}\
-  \r\n  PC : {:#010X}\
-  \r\n YPC : {:#010X}\
 \r\n",
   sram_end,
   sram_grant_size, sram_grant_allocated, sram_grant_error_str,
@@ -1114,62 +901,18 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
   flash_app_size,
   flash_app_start,
   flash_protected_size,
-  flash_start,
-  // r0, self.stored_regs.r6,
-  // r1, self.stored_regs.r7,
-  // r2, self.stored_regs.r8,
-  // r3, self.stored_regs.r10,
-  // self.stored_regs.r4, self.stored_regs.r11,
-  // self.stored_regs.r5, r12,
-  // self.stored_regs.r9,
-  r0, 6,
-  r1, 7,
-  r2, 8,
-  r3, 10,
-  4, 11,
-  5, r12,
-  9,
-  sp,
-  lr,
-  pc,
-  // self.yield_pc.get(),
-  0
-  ));
+  flash_start));
+
+        self.stored_state.map(|stored_state| {
+            self.syscall
+                .print_process_arch_detail(self.sp(), &stored_state, writer);
+        });
+
         let _ = writer.write_fmt(format_args!(
             "\
-             \r\n APSR: N {} Z {} C {} V {} Q {}\
-             \r\n       GE {} {} {} {}",
-            (xpsr >> 31) & 0x1,
-            (xpsr >> 30) & 0x1,
-            (xpsr >> 29) & 0x1,
-            (xpsr >> 28) & 0x1,
-            (xpsr >> 27) & 0x1,
-            (xpsr >> 19) & 0x1,
-            (xpsr >> 18) & 0x1,
-            (xpsr >> 17) & 0x1,
-            (xpsr >> 16) & 0x1,
-        ));
-        let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
-        let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n EPSR: ICI.IT {:#04x}\
-             \r\n       ThumbBit {} {}",
-            ici_it,
-            thumb_bit,
-            if thumb_bit {
-                ""
-            } else {
-                "!!ERROR - Cortex M Thumb only!"
-            },
-        ));
-        let _ = writer.write_fmt(format_args!("\r\n To debug, run "));
-        let _ = writer.write_fmt(format_args!(
-            "`make debug RAM_START={:#x} FLASH_INIT={:#x}`",
+             \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
+             \r\nin the app's folder and open the .lst file.\r\n\r\n",
             sram_start, flash_init_fn
-        ));
-        let _ = writer.write_fmt(format_args!(
-            "\r\n in the app's folder and open the .lst file.\r\n\r\n"
         ));
     }
 }
