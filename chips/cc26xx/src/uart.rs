@@ -1,8 +1,8 @@
 //! UART driver, cc26xx family
-use core::cell::Cell;
 use gpio;
 use ioc;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::gpio::Pin;
@@ -67,18 +67,18 @@ const UART_BASE: StaticRef<UartRegisters> =
 
 pub struct UART {
     registers: StaticRef<UartRegisters>,
-    client: Cell<Option<&'static uart::Client>>,
-    tx_pin: Cell<Option<u8>>,
-    rx_pin: Cell<Option<u8>>,
+    client: OptionalCell<&'static uart::Client>,
+    tx_pin: OptionalCell<u8>,
+    rx_pin: OptionalCell<u8>,
 }
 
 impl UART {
     const fn new() -> UART {
         UART {
             registers: UART_BASE,
-            client: Cell::new(None),
-            tx_pin: Cell::new(None),
-            rx_pin: Cell::new(None),
+            client: OptionalCell::empty(),
+            tx_pin: OptionalCell::empty(),
+            rx_pin: OptionalCell::empty(),
         }
     }
 
@@ -87,20 +87,13 @@ impl UART {
     /// This function needs to be run before the UART module is initialized.
     /// Initializing the module without setting the pins will make the kernel panic.
     pub fn set_pins(&self, tx_pin: u8, rx_pin: u8) {
-        self.tx_pin.set(Some(tx_pin));
-        self.rx_pin.set(Some(rx_pin));
+        self.tx_pin.set(tx_pin);
+        self.rx_pin.set(rx_pin);
     }
 
     fn configure(&self, params: kernel::hil::uart::UARTParams) {
-        let tx_pin = match self.tx_pin.get() {
-            Some(pin) => pin,
-            None => panic!("Tx pin not configured for UART"),
-        };
-
-        let rx_pin = match self.rx_pin.get() {
-            Some(pin) => pin,
-            None => panic!("Rx pin not configured for UART"),
-        };
+        let tx_pin = self.tx_pin.expect("Tx pin not configured for UART");
+        let rx_pin = self.rx_pin.expect("Rx pin not configured for UART");
 
         unsafe {
             // Make sure the TX pin is output/high before assigning it to UART control
@@ -195,7 +188,7 @@ impl UART {
 
 impl kernel::hil::uart::UART for UART {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn init(&self, params: kernel::hil::uart::UARTParams) {
@@ -213,7 +206,7 @@ impl kernel::hil::uart::UART for UART {
             self.send_byte(tx_data[i]);
         }
 
-        self.client.get().map(move |client| {
+        self.client.map(move |client| {
             client.transmit_complete(tx_data, kernel::hil::uart::Error::CommandComplete);
         });
     }

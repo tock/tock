@@ -16,6 +16,14 @@ lto = true
 opt-level = "z"
 debug = true
 
+[[bin]]
+name = "launchxl"
+path = "src/main.rs"
+
+[[bin]]
+name = "launchxlccfg"
+path = "src/ccfg.rs"
+
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
