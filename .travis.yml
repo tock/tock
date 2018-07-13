@@ -2,15 +2,21 @@ sudo: false
 language: rust
 
 
-# bors configuration
+# bors default configuration:
+#branches:
+#  only:
+#    # This is where pull requests from "bors r+" are built.
+#    - staging
+#    # This is where pull requests from "bors try" are built.
+#    - trying
+#    # Uncomment this to enable building pull requests.
+#    - master
+#
+# Instead, I think we just want to disable to bors temp branch
 branches:
-  only:
-    # This is where pull requests from "bors r+" are built.
-    - staging
-    # This is where pull requests from "bors try" are built.
-    - trying
-    # Uncomment this to enable building pull requests.
-    - master
+  except:
+    - staging.tmp
+    - trying.tmp
 
 
 cache:
