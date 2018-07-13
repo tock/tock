@@ -10,7 +10,8 @@ use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
 use nrf5x::pinmux;
@@ -156,7 +157,7 @@ register_bitfields! [u32,
 // is exported outside this module it must be `pub`
 pub struct Uarte {
     registers: StaticRef<UarteRegisters>,
-    client: Cell<Option<&'static kernel::hil::uart::Client>>,
+    client: OptionalCell<&'static kernel::hil::uart::Client>,
     tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
     tx_remaining_bytes: Cell<usize>,
     rx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
@@ -179,7 +180,7 @@ impl Uarte {
     pub const fn new() -> Uarte {
         Uarte {
             registers: UARTE_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             tx_buffer: kernel::common::cells::TakeCell::empty(),
             tx_remaining_bytes: Cell::new(0),
             rx_buffer: kernel::common::cells::TakeCell::empty(),
@@ -288,7 +289,7 @@ impl Uarte {
             // All bytes have been transmitted
             if rem == 0 {
                 // Signal client write done
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
                         client.transmit_complete(
                             tx_buffer,
@@ -321,7 +322,7 @@ impl Uarte {
             // do the receive callback immediately.
             if self.rx_abort_in_progress.get() {
                 self.rx_abort_in_progress.set(false);
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.rx_buffer.take().map(|rx_buffer| {
                         client.receive_complete(
                             rx_buffer,
@@ -343,7 +344,7 @@ impl Uarte {
                 let rem = self.rx_remaining_bytes.get();
                 if rem == 0 {
                     // Signal client that the read is done
-                    self.client.get().map(|client| {
+                    self.client.map(|client| {
                         self.rx_buffer.take().map(|rx_buffer| {
                             client.receive_complete(
                                 rx_buffer,
@@ -412,7 +413,7 @@ impl Uarte {
 
 impl kernel::hil::uart::UART for Uarte {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {

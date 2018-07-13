@@ -5,7 +5,7 @@
 //! - Date: July 16, 2015
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
 use kernel::hil::Controller;

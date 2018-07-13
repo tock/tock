@@ -8,7 +8,7 @@ use core::cell::Cell;
 use core::ptr;
 use core::slice;
 use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::regs::{FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use pm;

@@ -8,7 +8,7 @@
 //! - Date: Aug 2, 2015
 
 use bscif;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
 pub enum Register {

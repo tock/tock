@@ -2,7 +2,7 @@
 
 /// The syscall number assignments.
 #[derive(Copy, Clone, Debug)]
-pub enum Syscall {
+crate enum Syscall {
     /// Return to the kernel to allow other processes to execute or to wait for
     /// interrupts and callbacks.
     YIELD = 0,

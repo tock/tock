@@ -3,8 +3,8 @@
 //! Generates a random number using hardware entropy.
 //!
 
-use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::rng;
 use prcm;
@@ -71,14 +71,14 @@ pub static mut TRNG: Trng = Trng::new();
 
 pub struct Trng {
     registers: StaticRef<RngRegisters>,
-    client: Cell<Option<&'static rng::Client>>,
+    client: OptionalCell<&'static rng::Client>,
 }
 
 impl Trng {
     const fn new() -> Trng {
         Trng {
             registers: RNG_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -140,7 +140,7 @@ impl Trng {
     }
 
     pub fn set_client(&self, client: &'static rng::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
