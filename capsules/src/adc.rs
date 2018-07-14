@@ -77,18 +77,10 @@ enum AdcMode {
 }
 
 /// Holds buffers that the application has passed us
+#[derive(Default)]
 pub struct App {
     app_buf1: Option<AppSlice<Shared, u8>>,
     app_buf2: Option<AppSlice<Shared, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            app_buf1: None,
-            app_buf2: None,
-        }
-    }
 }
 
 /// Buffers to use for DMA transfers
