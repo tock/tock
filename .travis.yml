@@ -28,7 +28,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2018-06-26
+  - nightly-2018-08-16
 
 before_script:
   - npm install -g markdown-toc
