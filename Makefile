@@ -47,6 +47,7 @@ ci-travis:
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@CI=true cd libraries/tock-cells && cargo test
+	@CI=true cd libraries/tock-register-interface && cargo test
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
