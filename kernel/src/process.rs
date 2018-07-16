@@ -450,6 +450,10 @@ impl Process<'a> {
         unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
     }
 
+    fn mem_break(&self) -> *const u8 {
+        self.kernel_memory_break.get()
+    }
+
     crate fn flash_start(&self) -> *const u8 {
         self.flash.as_ptr()
     }
@@ -790,10 +794,17 @@ impl Process<'a> {
         }
     }
 
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// are within the memory bounds currently exposed to the processes (i.e.
+    /// ending at `kernel_memory_break`. If this method returns true, the buffer
+    /// is guaranteed to be accessible to the process and to not overlap with
+    /// the grant region.
     crate fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize) -> bool {
-        let buf_end_addr = unsafe { buf_start_addr.offset(size as isize) };
+        let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
 
-        buf_start_addr >= self.mem_start() && buf_end_addr <= self.mem_end()
+        buf_end_addr >= buf_start_addr
+            && buf_start_addr >= self.mem_start()
+            && buf_end_addr <= self.mem_break()
     }
 
     crate unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
