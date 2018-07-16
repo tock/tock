@@ -47,7 +47,6 @@ see implications that others may not.
 
 **Upkeep pull requests** can be merged by any member of the core team. That
 person is responsible for the merge and backing out the merge if needed.
-This is the basic process we use now.
 
 **Significant pull requests** require review by the entire core team. Each
 core team member is expected to respond within one week. There are three

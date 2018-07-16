@@ -19,6 +19,7 @@ pub use tock_registers::{register_bitfields, register_bitmasks};
 
 #[macro_use]
 pub mod common;
+pub mod component;
 #[macro_use]
 pub mod debug;
 pub mod hil;
