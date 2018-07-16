@@ -40,13 +40,18 @@ Find example applications that run on top of the Tock kernel written in both
 [Rust](https://github.com/tock/libtock-rs) and
 [C](https://github.com/tock/libtock-c).
 
+
 ### Develop Tock
 
 Read our [getting started guide](doc/Getting_Started.md) to get the correct
 version of the Rust compiler, then look through the `/kernel`, `/capsules`,
 `/chips`, and `/boards` directories.
 
-We're happy to accept pull requests and look forward to seeing how Tock grows.
+We encourage contributions back to Tock and are happy to accept pull requests
+for anything from small documentation fixes to whole new platforms.
+For details, check out our [Contributing Guide](.github/CONTRIBUTING.md).
+To get started, please do not hesitate to submit a PR. We'll happily guide you
+through any needed changes.
 
 
 ### Keep Up To Date
@@ -71,21 +76,6 @@ Licensed under either of
   http://opensource.org/licenses/MIT)
 
 at your option.
-
-
-Contributions
--------------
-
-We welcome contributions from all. The Tock code review process is documented
-[here](doc/CodeReview.md), but to get started, just go ahead and submit a PR,
-we'll happily guide you through any needed changes.
-
-We use the bors-ng bot to merge PRs. In short, when someone replies `bors r+`,
-your PR has been scheduled for final tests and will be automatically merged. If
-a maintainer replies `bors delegate+`, then you have been granted the authority
-to merge your own PR (usually this will happen if there are some trivial
-changes required). For a full list of bors commands,
-[see the bors documentation](https://bors.tech/documentation/).
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall
