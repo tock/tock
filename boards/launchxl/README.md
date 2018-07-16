@@ -146,13 +146,20 @@ JLinkExe:
 $ make flash-jlink       # make and flash the kernel
 ```
 
-### Flashing apps
+### Flashing processes
 
-You can flash apps by navigating to their directory, and by invoking `make
-flash` once again, or call Tockloader directly:
+You can flash processes using Tockloader.
+
+OpenOCD:
 
 ```bash
-$ tockloader install --board launchxl-cc26x2r1 --openocd
+$ tockloader install --board launchxl-cc26x2r1 --openocd [PATH_TO_PROCESS]
+```
+
+JLinkExe:
+
+```bash
+$ tockloader install --board launchxl-cc26x2r1 --jlink [PATH_TO_PROCESS]
 ```
 
 ### Debugging
