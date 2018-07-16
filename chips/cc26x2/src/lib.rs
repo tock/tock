@@ -11,6 +11,7 @@ extern crate kernel;
 pub mod aon;
 pub mod chip;
 pub mod crt1;
+pub mod i2c;
 pub mod prcm;
 pub mod rtc;
 
