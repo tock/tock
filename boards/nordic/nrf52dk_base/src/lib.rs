@@ -192,7 +192,7 @@ pub unsafe fn setup_board(
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
 
-    nrf52::uart::UARTE0.configure(
+    nrf52::uart::UARTE0.initialize(
         nrf5x::pinmux::Pinmux::new(uart_pins.txd as u32),
         nrf5x::pinmux::Pinmux::new(uart_pins.rxd as u32),
         nrf5x::pinmux::Pinmux::new(uart_pins.cts as u32),

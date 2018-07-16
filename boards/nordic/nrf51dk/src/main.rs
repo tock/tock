@@ -229,7 +229,7 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    nrf51::uart::UART0.configure(
+    nrf51::uart::UART0.initialize(
         Pinmux::new(9),  /*. tx  */
         Pinmux::new(11), /* rx  */
         Pinmux::new(10), /* cts */

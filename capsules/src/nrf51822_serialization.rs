@@ -62,7 +62,7 @@ impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
+        self.uart.configure(uart::UARTParameters {
             baud_rate: 250000,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::Even,

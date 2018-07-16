@@ -42,6 +42,7 @@ impl Component for ConsoleComponent {
     type Output = &'static console::Console<'static, sam4l::usart::USART>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
         let console = static_init!(
             console::Console<sam4l::usart::USART>,
             console::Console::new(

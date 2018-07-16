@@ -7,6 +7,7 @@ use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::gpio::Pin;
 use kernel::hil::uart;
+use kernel::ReturnCode;
 use prcm;
 
 const MCU_CLOCK: u32 = 48_000_000;
@@ -82,44 +83,61 @@ impl UART {
         }
     }
 
-    /// Sets pin number for transmit and receive line.
+    /// Initialize the UART hardware.
     ///
-    /// This function needs to be run before the UART module is initialized.
-    /// Initializing the module without setting the pins will make the kernel panic.
-    pub fn set_pins(&self, tx_pin: u8, rx_pin: u8) {
+    /// This function needs to be run before the UART module is used.
+    pub fn initialize_and_set_pins(&self, tx_pin: u8, rx_pin: u8) {
         self.tx_pin.set(tx_pin);
         self.rx_pin.set(rx_pin);
+        self.power_and_clock();
+        self.disable_interrupts();
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParams) {
-        let tx_pin = self.tx_pin.expect("Tx pin not configured for UART");
-        let rx_pin = self.rx_pin.expect("Rx pin not configured for UART");
-
-        unsafe {
-            // Make sure the TX pin is output/high before assigning it to UART control
-            // to avoid falling edge glitches
-            gpio::PORT[tx_pin as usize].make_output();
-            gpio::PORT[tx_pin as usize].set();
-
-            // Map UART signals to IO pin
-            ioc::IOCFG[tx_pin as usize].enable_uart_tx();
-            ioc::IOCFG[rx_pin as usize].enable_uart_rx();
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != kernel::hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != kernel::hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
         }
 
-        // Disable the UART before configuring
-        self.disable();
+        self.tx_pin.map_or(ReturnCode::EOFF, |tx_pin| {
+            self.tx_pin.map_or(ReturnCode::EOFF, |rx_pin| {
+                unsafe {
+                    // Make sure the TX pin is output/high before assigning it to UART control
+                    // to avoid falling edge glitches
+                    gpio::PORT[*tx_pin as usize].make_output();
+                    gpio::PORT[*tx_pin as usize].set();
 
-        self.set_baud_rate(params.baud_rate);
+                    // Map UART signals to IO pin
+                    ioc::IOCFG[*tx_pin as usize].enable_uart_tx();
+                    ioc::IOCFG[*rx_pin as usize].enable_uart_rx();
+                }
 
-        // Set word length
-        let regs = &*self.registers;
-        regs.lcrh.write(LineControl::WORD_LENGTH::Len8);
+                // Disable the UART before configuring
+                self.disable();
 
-        self.fifo_enable();
+                self.set_baud_rate(params.baud_rate);
 
-        // Enable UART, RX and TX
-        regs.ctl
-            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
+                // Set word length
+                let regs = &*self.registers;
+                regs.lcrh.write(LineControl::WORD_LENGTH::Len8);
+
+                self.fifo_enable();
+
+                // Enable UART, RX and TX
+                regs.ctl.write(
+                    Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET,
+                );
+
+                ReturnCode::SUCCESS
+            })
+        })
     }
 
     fn power_and_clock(&self) {
@@ -191,10 +209,8 @@ impl kernel::hil::uart::UART for UART {
         self.client.set(client);
     }
 
-    fn init(&self, params: kernel::hil::uart::UARTParams) {
-        self.power_and_clock();
-        self.disable_interrupts();
-        self.configure(params);
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        self.configure(params)
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

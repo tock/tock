@@ -13,6 +13,7 @@ use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use kernel::ReturnCode;
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -190,7 +191,7 @@ impl Uarte {
     }
 
     /// Configure which pins the UART should use for txd, rxd, cts and rts
-    pub fn configure(
+    pub fn initialize(
         &self,
         txd: pinmux::Pinmux,
         rxd: pinmux::Pinmux,
@@ -202,6 +203,8 @@ impl Uarte {
         regs.pselrxd.write(Psel::PIN.val(rxd.into()));
         regs.pselcts.write(Psel::PIN.val(cts.into()));
         regs.pselrts.write(Psel::PIN.val(rts.into()));
+
+        self.enable_uart();
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -413,9 +416,22 @@ impl kernel::hil::uart::UART for Uarte {
         self.client.set(client);
     }
 
-    fn init(&self, params: kernel::hil::uart::UARTParams) {
-        self.enable_uart();
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != kernel::hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != kernel::hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
+
         self.set_baud_rate(params.baud_rate);
+
+        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

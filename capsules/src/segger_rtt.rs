@@ -93,6 +93,7 @@
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
+use kernel::ReturnCode;
 
 /// Buffer for transmitting to the host.
 pub static mut UP_BUFFER: [u8; 1024] = [0; 1024];
@@ -186,7 +187,9 @@ impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
         self.client.set(client);
     }
 
-    fn init(&self, _params: hil::uart::UARTParams) {}
+    fn configure(&self, _params: hil::uart::UARTParameters) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
         self.up_buffer.map(|buffer| {

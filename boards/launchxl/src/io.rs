@@ -17,7 +17,7 @@ impl Write for Writer {
         let uart = unsafe { &mut cc26xx::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.init(uart::UARTParams {
+            uart.configure(uart::UARTParameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
