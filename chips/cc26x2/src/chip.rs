@@ -1,11 +1,9 @@
-//! Configuration and interrupt handling.
-
 use cc26xx::gpio;
 use cc26xx::peripheral_interrupts;
-use cc26xx::rtc;
 use cc26xx::uart;
 use cortexm4::{self, nvic};
 use kernel;
+use rtc;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -33,7 +31,6 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
-
     fn service_pending_interrupts(&mut self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
@@ -44,7 +41,7 @@ impl kernel::Chip for Cc26X2 {
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     peripheral_interrupts::AON_PROG => (),
-                    _ => panic!("unhandled interrupt {:?}", interrupt),
+                    _ => panic!("unhandled interrupt {}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();
