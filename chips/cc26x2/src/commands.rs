@@ -298,19 +298,52 @@ pub struct CmdRxTest {
 // Continuous TX test, unimplemented
 #[repr(C)]
 pub struct CmdTxTest {
-    command_no: u16, // 0x0808
-    pub status: u16,
-    p_next_op: u32,
-    start_time: u32,
-    start_trigger: u8,
-    condition: RfcCondition,
+    // command_no 0x0808
+    common: CmdCommon,    
     config: u8,
     _reserved_a: u8,
     tx_word: u16,
     _reserved_b: u8,
-    end_trigger: u8,
+    end_trigger: RfcTrigger,
     sync_word: u32,
     end_time: u32,
+}
+
+impl CmdTxTest {
+    pub fn new(c: CmdCommon, trigger: RfcTrigger, time: u32) -> CmdTxTest {
+        CmdTxTest {
+            common: CmdCommon {
+                command_no: 0x0808,
+                status: c.status,
+                p_next_op: c.p_next_op,
+                start_time: c.start_time,
+                start_trigger: c.start_trigger,
+                condition: c.condition,
+            },
+            config: 0,
+            _reserved_a: 0,
+            tx_word: 0x8888,
+            _reserved_b: 0,
+            end_trigger: trigger,
+            sync_word: 0xDED13370,
+            end_time: time,
+        }
+    }
+}
+
+unsafe impl RadioCommand for CmdTxTest {
+    fn pack(&self, common: CmdCommon) -> CmdTxTest {
+        CmdTxTest {
+            common,
+            config: self.config,
+            _reserved_a: self._reserved_a,
+            tx_word: self.tx_word,
+            _reserved_b: self._reserved_b,
+            end_trigger: self.end_trigger,
+            sync_word: self.sync_word,
+            end_time: self.end_time,
+        }
+    }
 }
 
 // Stop radio RAT timer
