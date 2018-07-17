@@ -24,7 +24,7 @@ use commands as cmd;
 use core::cell::Cell;
 use fixedvec::FixedVec;
 use kernel::common::cells::TakeCell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 use prcm;

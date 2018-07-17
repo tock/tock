@@ -1,7 +1,7 @@
 //! RTC driver
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 

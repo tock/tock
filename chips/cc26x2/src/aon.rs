@@ -5,7 +5,7 @@
 //! The current configuration disables all wake-up selectors, since the
 //! MCU never go to sleep and is always active.
 use kernel::common::cells::VolatileCell;
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use rtc;
 
