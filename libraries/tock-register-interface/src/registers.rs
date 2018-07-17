@@ -1,10 +1,16 @@
 //! Implementation of registers and bitfields.
 //!
-//! Allows register maps to be specified like this:
+//! Provides efficient mechanisms to express and use type-checked memory mapped
+//! registers and bitfields.
 //!
 //! ```rust
-//! use common::regs::{ReadOnly, ReadWrite, WriteOnly};
+//! # #[macro_use]
+//! # extern crate tock_registers;
+//! # fn main() {}
 //!
+//! use tock_registers::registers::{ReadOnly, ReadWrite};
+//!
+//! // Register maps are specified like this:
 //! #[repr(C)]
 //! struct Registers {
 //!     // Control register: read-write
@@ -12,12 +18,22 @@
 //!     // Status register: read-only
 //!     s: ReadOnly<u32, Status::Register>,
 //! }
-//! ```
 //!
-//! and register fields and definitions to look like:
-//!
-//! ```rust
+//! // Register fields and definitions look like this:
 //! register_bitfields![u32,
+//!     // Simpler bitfields are expressed concisely:
+//!     Control [
+//!         /// Stop the Current Transfer
+//!         STOP 8,
+//!         /// Software Reset
+//!         SWRST 7,
+//!         /// Master Disable
+//!         MDIS 1,
+//!         /// Master Enable
+//!         MEN 0
+//!     ],
+//!
+//!     // More complex registers can express subtypes:
 //!     Status [
 //!         TXCOMPLETE  OFFSET(0) NUMBITS(1) [],
 //!         TXINTERRUPT OFFSET(1) NUMBITS(1) [],
@@ -48,8 +64,8 @@ pub trait IntLike:
     + BitOr<Output = Self>
     + Not<Output = Self>
     + Eq
-    + Shr<u32, Output = Self>
-    + Shl<u32, Output = Self>
+    + Shr<usize, Output = Self>
+    + Shl<usize, Output = Self>
     + Copy
     + Clone
 {
@@ -67,6 +83,12 @@ impl IntLike for u16 {
     }
 }
 impl IntLike for u32 {
+    fn zero() -> Self {
+        0
+    }
+}
+
+impl IntLike for u64 {
     fn zero() -> Self {
         0
     }
@@ -313,17 +335,23 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
     }
 }
 
+impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
+    fn from(r: LocalRegisterCopy<u64, R>) -> u64 {
+        r.value
+    }
+}
+
 /// Specific section of a register.
 #[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
     pub mask: T,
-    pub shift: u32,
+    pub shift: usize,
     associated_register: PhantomData<R>,
 }
 
 // For the Field, the mask is unshifted, ie. the LSB should always be set
 impl<R: RegisterLongName> Field<u8, R> {
-    pub const fn new(mask: u8, shift: u32) -> Field<u8, R> {
+    pub const fn new(mask: u8, shift: usize) -> Field<u8, R> {
         Field {
             mask: mask,
             shift: shift,
@@ -337,7 +365,7 @@ impl<R: RegisterLongName> Field<u8, R> {
 }
 
 impl<R: RegisterLongName> Field<u16, R> {
-    pub const fn new(mask: u16, shift: u32) -> Field<u16, R> {
+    pub const fn new(mask: u16, shift: usize) -> Field<u16, R> {
         Field {
             mask: mask,
             shift: shift,
@@ -351,7 +379,7 @@ impl<R: RegisterLongName> Field<u16, R> {
 }
 
 impl<R: RegisterLongName> Field<u32, R> {
-    pub const fn new(mask: u32, shift: u32) -> Field<u32, R> {
+    pub const fn new(mask: u32, shift: usize) -> Field<u32, R> {
         Field {
             mask: mask,
             shift: shift,
@@ -361,6 +389,20 @@ impl<R: RegisterLongName> Field<u32, R> {
 
     pub fn val(&self, value: u32) -> FieldValue<u32, R> {
         FieldValue::<u32, R>::new(self.mask, self.shift, value)
+    }
+}
+
+impl<R: RegisterLongName> Field<u64, R> {
+    pub const fn new(mask: u64, shift: usize) -> Field<u64, R> {
+        Field {
+            mask: mask,
+            shift: shift,
+            associated_register: PhantomData,
+        }
+    }
+
+    pub fn val(&self, value: u64) -> FieldValue<u64, R> {
+        FieldValue::<u64, R>::new(self.mask, self.shift, value)
     }
 }
 
@@ -377,7 +419,7 @@ pub struct FieldValue<T: IntLike, R: RegisterLongName> {
 // Necessary to split the implementation of u8 and u32 out because the bitwise
 // math isn't treated as const when the type is generic.
 impl<R: RegisterLongName> FieldValue<u8, R> {
-    pub const fn new(mask: u8, shift: u32, value: u8) -> Self {
+    pub const fn new(mask: u8, shift: usize, value: u8) -> Self {
         FieldValue {
             mask: mask << shift,
             value: (value << shift) & (mask << shift),
@@ -398,7 +440,7 @@ impl<R: RegisterLongName> From<FieldValue<u8, R>> for u8 {
 }
 
 impl<R: RegisterLongName> FieldValue<u16, R> {
-    pub const fn new(mask: u16, shift: u32, value: u16) -> Self {
+    pub const fn new(mask: u16, shift: usize, value: u16) -> Self {
         FieldValue {
             mask: mask << shift,
             value: (value << shift) & (mask << shift),
@@ -414,7 +456,7 @@ impl<R: RegisterLongName> From<FieldValue<u16, R>> for u16 {
 }
 
 impl<R: RegisterLongName> FieldValue<u32, R> {
-    pub const fn new(mask: u32, shift: u32, value: u32) -> Self {
+    pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
         FieldValue {
             mask: mask << shift,
             value: (value << shift) & (mask << shift),
@@ -430,6 +472,27 @@ impl<R: RegisterLongName> FieldValue<u32, R> {
 
 impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
     fn from(val: FieldValue<u32, R>) -> u32 {
+        val.value
+    }
+}
+
+impl<R: RegisterLongName> FieldValue<u64, R> {
+    pub const fn new(mask: u64, shift: usize, value: u64) -> Self {
+        FieldValue {
+            mask: mask << shift,
+            value: (value << shift) & (mask << shift),
+            associated_register: PhantomData,
+        }
+    }
+
+    /// Get the raw bitmask represented by this FieldValue.
+    pub fn mask(self) -> u64 {
+        self.mask as u64
+    }
+}
+
+impl<R: RegisterLongName> From<FieldValue<u64, R>> for u64 {
+    fn from(val: FieldValue<u64, R>) -> u64 {
         val.value
     }
 }

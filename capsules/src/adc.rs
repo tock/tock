@@ -31,7 +31,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
@@ -52,7 +52,7 @@ pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     // App state
     app: MapCell<App>,
     channel: Cell<usize>,
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
     app_buf_offset: Cell<usize>,
     samples_remaining: Cell<usize>,
     samples_outstanding: Cell<usize>,
@@ -77,18 +77,10 @@ enum AdcMode {
 }
 
 /// Holds buffers that the application has passed us
+#[derive(Default)]
 pub struct App {
     app_buf1: Option<AppSlice<Shared, u8>>,
     app_buf2: Option<AppSlice<Shared, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            app_buf1: None,
-            app_buf2: None,
-        }
-    }
 }
 
 /// Buffers to use for DMA transfers
@@ -126,7 +118,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
             // App state
             app: MapCell::new(App::default()),
             channel: Cell::new(0),
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -478,7 +470,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
             self.mode.set(AdcMode::NoMode);
 
             // perform callback
-            self.callback.get().map(|mut callback| {
+            self.callback.map(|callback| {
                 callback.schedule(
                     AdcMode::SingleSample as usize,
                     self.channel.get(),
@@ -489,7 +481,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> 
             // sample ready in continuous sampling operation, keep state
 
             // perform callback
-            self.callback.get().map(|mut callback| {
+            self.callback.map(|callback| {
                 callback.schedule(
                     AdcMode::ContinuousSample as usize,
                     self.channel.get(),
@@ -714,7 +706,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                     // if the app_buffer is filled, perform callback
                     if perform_callback {
                         // actually schedule the callback
-                        self.callback.get().map(|mut callback| {
+                        self.callback.map(|callback| {
                             let len_chan = ((app_buf.len() / 2) << 8) | (self.channel.get() & 0xFF);
                             callback.schedule(
                                 self.mode.get() as usize,
@@ -817,7 +809,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
             // subscribe to ADC sample done (from all types of sampling)
             0 => {
                 // set callback
-                self.callback.set(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 

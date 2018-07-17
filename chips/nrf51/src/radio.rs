@@ -13,6 +13,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
@@ -117,8 +118,8 @@ const RADIO_BASE: StaticRef<RadioRegisters> =
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: Cell<Option<&'static ble_advertising::RxClient>>,
-    tx_client: Cell<Option<&'static ble_advertising::TxClient>>,
+    rx_client: OptionalCell<&'static ble_advertising::RxClient>,
+    tx_client: OptionalCell<&'static ble_advertising::TxClient>,
 }
 
 impl Radio {
@@ -126,8 +127,8 @@ impl Radio {
         Radio {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
-            rx_client: Cell::new(None),
-            tx_client: Cell::new(None),
+            rx_client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
         }
     }
 
@@ -296,9 +297,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client
-                        .get()
-                        .map(|client| client.transmit_event(result));
+                    self.tx_client.map(|client| client.transmit_event(result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
@@ -306,7 +305,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
                     unsafe {
-                        self.rx_client.get().map(|client| {
+                        self.rx_client.map(|client| {
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                             // And because the length field is directly read from the packet
                             // We need to add 2 to length to get the total length
@@ -369,11 +368,11 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
     }
 
     fn set_receive_client(&self, client: &'static ble_advertising::RxClient) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
     }
 
     fn set_transmit_client(&self, client: &'static ble_advertising::TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 }
 

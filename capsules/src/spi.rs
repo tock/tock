@@ -21,6 +21,7 @@ pub const DRIVER_NUM: usize = 0x20001;
 // operation, while the index variable keeps track of the
 // index an ongoing operation is at in the buffers.
 
+#[derive(Default)]
 struct App {
     callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
@@ -29,21 +30,10 @@ struct App {
     index: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            app_read: None,
-            app_write: None,
-            len: 0,
-            index: 0,
-        }
-    }
-}
-
 // Since we provide an additional callback in slave mode for
 // when the chip is selected, we have added a "SlaveApp" struct
 // that includes this new callback field.
+#[derive(Default)]
 struct SlaveApp {
     callback: Option<Callback>,
     selected_callback: Option<Callback>,
@@ -51,19 +41,6 @@ struct SlaveApp {
     app_write: Option<AppSlice<Shared, u8>>,
     len: usize,
     index: usize,
-}
-
-impl Default for SlaveApp {
-    fn default() -> SlaveApp {
-        SlaveApp {
-            callback: None,
-            selected_callback: None,
-            app_read: None,
-            app_write: None,
-            len: 0,
-            index: 0,
-        }
-    }
 }
 
 pub struct Spi<'a, S: SpiMasterDevice> {

@@ -24,24 +24,13 @@ use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x80004;
 
+#[derive(Default)]
 struct App {
     callback: Option<Callback>,
     tx_buffer: Option<AppSlice<Shared, u8>>,
     rx_buffer: Option<AppSlice<Shared, u8>>,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
     rx_recv_total: usize,  // The total number of bytes we expect to receive.
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            tx_buffer: None,
-            rx_buffer: None,
-            rx_recv_so_far: 0,
-            rx_recv_total: 0,
-        }
-    }
 }
 
 // Local buffer for passing data between applications and the underlying
@@ -73,7 +62,7 @@ impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
+        self.uart.configure(uart::UARTParameters {
             baud_rate: 250000,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::Even,

@@ -24,7 +24,7 @@
 //!         usb_client, kernel::Grant::create()));
 //! ```
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -40,7 +40,7 @@ pub struct App {
 pub struct UsbSyscallDriver<'a, C: hil::usb::Client> {
     usbc_client: &'a C,
     apps: Grant<App>,
-    serving_app: Cell<Option<AppId>>,
+    serving_app: OptionalCell<AppId>,
 }
 
 impl<C> UsbSyscallDriver<'a, C>
@@ -51,12 +51,12 @@ where
         UsbSyscallDriver {
             usbc_client: usbc_client,
             apps: apps,
-            serving_app: Cell::new(None),
+            serving_app: OptionalCell::empty(),
         }
     }
 
     fn serve_waiting_apps(&self) {
-        if self.serving_app.get().is_some() {
+        if self.serving_app.is_some() {
             // An operation on the USBC client is in progress
             return;
         }

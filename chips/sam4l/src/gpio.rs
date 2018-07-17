@@ -4,7 +4,7 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::cells::OptionalCell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 
@@ -96,7 +96,7 @@ pub static INTERRUPT_COUNT: AtomicUsize = AtomicUsize::new(0);
 ///
 /// [^1]: Section 3.1, pages 10-18
 #[derive(Copy,Clone)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub enum Pin {
     PA00, PA01, PA02, PA03, PA04, PA05, PA06, PA07,
     PA08, PA09, PA10, PA11, PA12, PA13, PA14, PA15,

@@ -13,7 +13,7 @@ use dma::DMAClient;
 use dma::DMAPeripheral;
 use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
@@ -407,7 +407,7 @@ impl SpiHw {
     fn get_active_csr<'a>(
         &self,
         spi: &'a SpiRegisterManager,
-    ) -> &'a regs::ReadWrite<u32, ChipSelectParams::Register> {
+    ) -> &'a registers::ReadWrite<u32, ChipSelectParams::Register> {
         match self.get_active_peripheral(spi) {
             Peripheral::Peripheral0 => &spi.registers.csr[0],
             Peripheral::Peripheral1 => &spi.registers.csr[1],
@@ -629,7 +629,7 @@ impl spi::SpiMaster for SpiHw {
 impl spi::SpiSlave for SpiHw {
     // Set to None to disable the whole thing
     fn set_client(&self, client: Option<&'static SpiSlaveClient>) {
-        self.slave_client.replace(client);
+        self.slave_client.insert(client);
     }
 
     fn has_client(&self) -> bool {

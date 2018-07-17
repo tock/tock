@@ -1,8 +1,9 @@
-//! Driver for the Microchip MCP23008 I2C GPIO extender.
+//! Driver for the Microchip MCP230xx I2C GPIO extenders.
 //!
-//! <http://www.microchip.com/wwwproducts/en/MCP23008>
+//! - <https://www.microchip.com/wwwproducts/en/MCP23008>
+//! - <https://www.microchip.com/wwwproducts/en/MCP23017>
 //!
-//! Paraphrased from the website:
+//! Paraphrased from the website for the MCP23008:
 //!
 //! > The MCP23008 device provides 8-bit, general purpose, parallel I/O
 //! > expansion for I2C bus applications. The MCP23008 has three address pins
@@ -13,6 +14,9 @@
 //! > polarity of the Input Port register can be inverted with the Polarity
 //! > Inversion register. All registers can be read by the system master.
 //!
+//! This driver can support the MCP230xx series GPIO extenders with a
+//! configurable number of banks.
+//!
 //! Usage
 //! -----
 //! This capsule can either be used inside of the kernel or as an input to
@@ -22,27 +26,31 @@
 //! Example usage:
 //!
 //! ```rust
-//! // Configure the MCP23008. Device address 0x20.
+//! // Configure the MCP230xx. Device address 0x20.
 //! let mcp23008_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20));
 //! let mcp23008 = static_init!(
-//!     capsules::mcp23008::MCP23008<'static>,
-//!     capsules::mcp23008::MCP23008::new(mcp23008_i2c,
+//!     capsules::mcp230xx::MCP230xx<'static>,
+//!     capsules::mcp230xx::MCP230xx::new(mcp23008_i2c,
 //!                                       Some(&sam4l::gpio::PA[04]),
-//!                                       &mut capsules::mcp23008::BUFFER));
+//!                                       None,
+//!                                       &mut capsules::mcp23008::BUFFER,
+//!                                       8, // How many pins in a bank
+//!                                       1, // How many pin banks on the chip
+//!                                       ));
 //! mcp23008_i2c.set_client(mcp23008);
 //! sam4l::gpio::PA[04].set_client(mcp23008);
 //!
 //! // Create an array of the GPIO extenders so we can pass them to an
 //! // administrative layer that provides a single interface to them all.
 //! let async_gpio_ports = static_init!(
-//!     [&'static capsules::mcp23008::MCP23008; 1],
+//!     [&'static capsules::mcp230xx::MCP230xx; 1],
 //!     [mcp23008]);
 //!
 //! // `gpio_async` is the object that manages all of the extenders.
 //! let gpio_async = static_init!(
-//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp23008::MCP23008<'static>>,
+//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
 //!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports));
 //! // Setup the clients correctly.
 //! for port in async_gpio_ports.iter() {
@@ -51,10 +59,10 @@
 //! ```
 //!
 //! Note that if interrupts are not needed, a `None` can be passed in when the
-//! `mcp23008` object is created.
+//! `mcp230xx` object is created.
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::ReturnCode;
 
@@ -77,7 +85,7 @@ enum Registers {
     OLat = 0x0a,
 }
 
-/// States of the I2C protocol with the MCP23008.
+/// States of the I2C protocol with the MCP230xx.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum State {
     Idle,
@@ -85,18 +93,19 @@ enum State {
     // Setup input/output
     SelectIoDir(u8, Direction),
     ReadIoDir(u8, Direction),
-    SelectGpPu(u8, bool),
+    SelectIoDirForGpPu(u8, bool),
+    ReadIoDirForGpPu(u8, bool),
+    SetIoDirForGpPu(u8, bool),
     ReadGpPu(u8, bool),
-    SetGpPu(u8),
     SelectGpio(u8, PinState),
     ReadGpio(u8, PinState),
     SelectGpioToggle(u8),
     ReadGpioToggle(u8),
     SelectGpioRead(u8),
     ReadGpioRead(u8),
-    EnableInterruptSettings,
-    ReadInterruptSetup,
-    ReadInterruptValues,
+    EnableInterruptSettings(u8),
+    ReadInterruptSetup(u8),
+    ReadInterruptValues(u8),
 
     /// Disable I2C and release buffer
     Done,
@@ -114,57 +123,99 @@ enum PinState {
     Low = 0x00,
 }
 
-pub struct MCP23008<'a> {
+pub struct MCP230xx<'a> {
     i2c: &'a hil::i2c::I2CDevice,
     state: Cell<State>,
+    bank_size: u8,       // How many GPIO pins per bank (likely 8)
+    number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
     buffer: TakeCell<'static, [u8]>,
-    interrupt_pin: Option<&'static hil::gpio::Pin>,
-    interrupt_settings: Cell<u32>, // Whether the pin interrupt is enabled, and what mode it's in.
+    interrupt_pin_a: Option<&'static hil::gpio::Pin>,
+    interrupt_pin_b: Option<&'static hil::gpio::Pin>,
+    interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled
+    interrupts_mode: Cell<u32>,    // What interrupt mode the pin is in
     identifier: Cell<usize>,
-    client: Cell<Option<&'static hil::gpio_async::Client>>,
+    client: OptionalCell<&'static hil::gpio_async::Client>,
 }
 
-impl MCP23008<'a> {
+impl MCP230xx<'a> {
     pub fn new(
         i2c: &'a hil::i2c::I2CDevice,
-        interrupt_pin: Option<&'static hil::gpio::Pin>,
+        interrupt_pin_a: Option<&'static hil::gpio::Pin>,
+        interrupt_pin_b: Option<&'static hil::gpio::Pin>,
         buffer: &'static mut [u8],
-    ) -> MCP23008<'a> {
-        MCP23008 {
+        bank_size: u8,
+        number_of_banks: u8,
+    ) -> MCP230xx<'a> {
+        MCP230xx {
             i2c: i2c,
             state: Cell::new(State::Idle),
+            bank_size: bank_size,
+            number_of_banks: number_of_banks,
             buffer: TakeCell::new(buffer),
-            interrupt_pin: interrupt_pin,
-            interrupt_settings: Cell::new(0),
+            interrupt_pin_a: interrupt_pin_a,
+            interrupt_pin_b: interrupt_pin_b,
+            interrupts_enabled: Cell::new(0),
+            interrupts_mode: Cell::new(0),
             identifier: Cell::new(0),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
-    /// Set the client of this MCP23008 when commands finish or interrupts
+    /// Set the client of this MCP230xx when commands finish or interrupts
     /// occur. The `identifier` is simply passed back with the callback
     /// so that the upper layer can keep track of which device triggered.
     pub fn set_client<C: hil::gpio_async::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn enable_host_interrupt(&self) -> ReturnCode {
-        // We configure the MCP23008 to use an active high interrupt.
+        // We configure the MCP230xx to use an active high interrupt.
         // If we don't have an interrupt pin mapped to this driver then we
         // obviously can't do interrupts.
-        self.interrupt_pin
+        let first = self
+            .interrupt_pin_a
             .map_or(ReturnCode::FAIL, |interrupt_pin| {
                 interrupt_pin.make_input();
                 interrupt_pin.enable_interrupt(0, hil::gpio::InterruptMode::RisingEdge);
                 ReturnCode::SUCCESS
-            })
+            });
+        if first != ReturnCode::SUCCESS {
+            return first;
+        }
+        // Also do the other interrupt pin if it exists.
+        self.interrupt_pin_b.map(|interrupt_pin| {
+            interrupt_pin.make_input();
+            interrupt_pin.enable_interrupt(1, hil::gpio::InterruptMode::RisingEdge);
+        });
+        ReturnCode::SUCCESS
+    }
+
+    /// This calculates the actual register address to use based on the list of
+    /// registers in the `Registers` enum definitions. This is needed because
+    /// the addresses are different for single- and multi-port mcp230xx
+    /// extenders.
+    ///
+    /// If this is a single port extender then the register index is the same as
+    /// the `Registers` enum and what is passed in is returned. If the chip has
+    /// multiple banks then the register address is shifted based on the number
+    /// and size of the bank.
+    fn calc_register_addr(&self, register: Registers, pin_number: u8) -> u8 {
+        if self.number_of_banks == 1 {
+            pin_number as u8
+        } else {
+            // Calculate an offset based on which bank this pin is in.
+            let offset = pin_number / self.bank_size;
+            // The register index is then the original value multiplied by
+            // the number of banks, plus the offset.
+            (register as u8 * self.number_of_banks) + offset
+        }
     }
 
     fn set_direction(&self, pin_number: u8, direction: Direction) -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = Registers::IoDir as u8;
+            buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectIoDir(pin_number, direction));
 
@@ -177,9 +228,10 @@ impl MCP23008<'a> {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = Registers::IoDir as u8;
+            buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
             self.i2c.write(buffer, 1);
-            self.state.set(State::SelectGpPu(pin_number, enabled));
+            self.state
+                .set(State::SelectIoDirForGpPu(pin_number, enabled));
 
             ReturnCode::SUCCESS
         })
@@ -189,7 +241,7 @@ impl MCP23008<'a> {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = Registers::Gpio as u8;
+            buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpio(pin_number, value));
 
@@ -201,7 +253,7 @@ impl MCP23008<'a> {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = Registers::Gpio as u8;
+            buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpioToggle(pin_number));
 
@@ -213,7 +265,7 @@ impl MCP23008<'a> {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
-            buffer[0] = Registers::Gpio as u8;
+            buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
             self.i2c.write(buffer, 1);
             self.state.set(State::SelectGpioRead(pin_number));
 
@@ -230,7 +282,7 @@ impl MCP23008<'a> {
             self.i2c.enable();
 
             // Mark the settings that we have for this interrupt.
-            // Since the MCP23008 only seems to support level interrupts
+            // Since the MCP230xx only seems to support level interrupts
             // and both edge interrupts, we choose to use both edge interrupts
             // and then filter here in the driver if the user only asked
             // for one direction interrupts. To do this, we need to know what
@@ -238,11 +290,18 @@ impl MCP23008<'a> {
             self.save_pin_interrupt_state(pin_number, true, direction);
 
             // Setup interrupt configs that are true of all interrupts
-            buffer[0] = Registers::IntCon as u8;
-            buffer[1] = 0; // Make all pins toggle on every change.
-            buffer[2] = 0b00000010; // Make MCP23008 interrupt pin active high.
-            self.i2c.write(buffer, 3);
-            self.state.set(State::EnableInterruptSettings);
+            buffer[0] = self.calc_register_addr(Registers::IntCon, 0);
+            // Set all of the IntCon registers to zero.
+            let mut i: usize = 1;
+            for _ in 0..(self.number_of_banks as usize) {
+                buffer[i] = 0; // Make all pins toggle on every change.
+                i += 1;
+            }
+            // The next register is the IoCon (configuration) register, which
+            // we also want to set.
+            buffer[i] = 0b00000010; // Make MCP230xx interrupt pin active high.
+            self.i2c.write(buffer, (i + 1) as u8);
+            self.state.set(State::EnableInterruptSettings(pin_number));
 
             ReturnCode::SUCCESS
         })
@@ -256,8 +315,8 @@ impl MCP23008<'a> {
             self.remove_pin_interrupt_state(pin_number);
 
             // Just have to write the new interrupt settings.
-            buffer[0] = Registers::GpIntEn as u8;
-            buffer[1] = self.get_pin_interrupt_enabled_state();
+            buffer[0] = self.calc_register_addr(Registers::GpIntEn, pin_number);
+            buffer[1] = self.get_pin_interrupt_enabled_state(pin_number);
             self.i2c.write(buffer, 2);
             self.state.set(State::Done);
 
@@ -273,39 +332,45 @@ impl MCP23008<'a> {
         enabled: bool,
         direction: hil::gpio::InterruptMode,
     ) {
-        let mut current_state = self.interrupt_settings.get();
+        // Set the enabled bitmap.
+        let mut current_enabled = self.interrupts_enabled.get();
         // Clear out existing settings
-        current_state &= !(0x0F << (4 * pin_number));
+        current_enabled &= !(1 << pin_number);
+        // Set new value
+        current_enabled |= (enabled as u32) << pin_number;
+        self.interrupts_enabled.set(current_enabled);
+
+        // Set the direction bitmap.
+        let mut current_mode = self.interrupts_mode.get();
+        // Clear out existing settings
+        current_mode &= !(0x03 << (2 * pin_number));
         // Generate new settings
-        let new_settings = (((enabled as u8) | ((direction as u8) << 1)) & 0x0F) as u32;
+        let new_settings = (direction as u32) & 0x03;
         // Update settings
-        current_state |= new_settings << (4 * pin_number);
-        self.interrupt_settings.set(current_state);
+        current_mode |= new_settings << (2 * pin_number);
+        self.interrupts_mode.set(current_mode);
     }
 
     fn remove_pin_interrupt_state(&self, pin_number: u8) {
-        let new_settings = self.interrupt_settings.get() & !(0x0F << (4 * pin_number));
-        self.interrupt_settings.set(new_settings);
+        let new_enabled = self.interrupts_enabled.get() & !(1 << pin_number);
+        self.interrupts_enabled.set(new_enabled);
+        let new_mode = self.interrupts_mode.get() & !(0x03 << (2 * pin_number));
+        self.interrupts_mode.set(new_mode);
     }
 
     /// Create an 8 bit bitmask of which interrupts are enabled.
-    fn get_pin_interrupt_enabled_state(&self) -> u8 {
-        let current_state = self.interrupt_settings.get();
-        let mut interrupts_enabled: u8 = 0;
-        for i in 0..8 {
-            if ((current_state >> (4 * i)) & 0x01) == 0x01 {
-                interrupts_enabled |= 1 << i;
-            }
-        }
-        interrupts_enabled
+    fn get_pin_interrupt_enabled_state(&self, pin_number: u8) -> u8 {
+        let offset = (pin_number / self.bank_size) * self.bank_size;
+        let interrupts_enabled = self.interrupts_enabled.get();
+        (interrupts_enabled >> offset) as u8
     }
 
     fn check_pin_interrupt_enabled(&self, pin_number: u8) -> bool {
-        (self.interrupt_settings.get() >> (pin_number * 4)) & 0x01 == 0x01
+        (self.interrupts_enabled.get() >> pin_number) & 0x01 == 0x01
     }
 
     fn get_pin_interrupt_direction(&self, pin_number: u8) -> hil::gpio::InterruptMode {
-        let direction = self.interrupt_settings.get() >> ((pin_number * 4) + 1) & 0x03;
+        let direction = self.interrupts_mode.get() >> (pin_number * 2) & 0x03;
         match direction {
             0 => hil::gpio::InterruptMode::RisingEdge,
             1 => hil::gpio::InterruptMode::FallingEdge,
@@ -314,7 +379,7 @@ impl MCP23008<'a> {
     }
 }
 
-impl hil::i2c::I2CClient for MCP23008<'a> {
+impl hil::i2c::I2CClient for MCP230xx<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: hil::i2c::Error) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
@@ -327,29 +392,33 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                 } else {
                     buffer[1] = buffer[0] & !(1 << pin_number);
                 }
-                buffer[0] = Registers::IoDir as u8;
+                buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
                 self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
-            State::SelectGpPu(pin_number, enabled) => {
-                self.i2c.read(buffer, 7);
+            State::SelectIoDirForGpPu(pin_number, enabled) => {
+                self.i2c.read(buffer, 1);
+                self.state.set(State::ReadIoDirForGpPu(pin_number, enabled));
+            }
+            State::ReadIoDirForGpPu(pin_number, enabled) => {
+                // Make sure the pin is enabled.
+                buffer[1] = buffer[0] | (1 << pin_number);
+                buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
+                self.i2c.write(buffer, 2);
+                self.state.set(State::SetIoDirForGpPu(pin_number, enabled));
+            }
+            State::SetIoDirForGpPu(pin_number, enabled) => {
+                buffer[0] = self.calc_register_addr(Registers::GpPu, pin_number);
+                self.i2c.write(buffer, 1);
                 self.state.set(State::ReadGpPu(pin_number, enabled));
             }
             State::ReadGpPu(pin_number, enabled) => {
-                // Make sure the pin is enabled.
-                buffer[1] = buffer[0] | (1 << pin_number);
                 // Configure the pullup status and save it in the buffer.
                 let pullup = match enabled {
-                    true => buffer[6] | (1 << pin_number),
-                    false => buffer[6] & !(1 << pin_number),
+                    true => buffer[0] | (1 << pin_number),
+                    false => buffer[0] & !(1 << pin_number),
                 };
-                buffer[0] = Registers::IoDir as u8;
-                self.i2c.write(buffer, 2);
-                self.state.set(State::SetGpPu(pullup));
-            }
-            State::SetGpPu(pullup) => {
-                // Now write the pull up settings to the chip.
-                buffer[0] = Registers::GpPu as u8;
+                buffer[0] = self.calc_register_addr(Registers::GpPu, pin_number);
                 buffer[1] = pullup;
                 self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
@@ -363,7 +432,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                     PinState::High => buffer[0] | (1 << pin_number),
                     PinState::Low => buffer[0] & !(1 << pin_number),
                 };
-                buffer[0] = Registers::Gpio as u8;
+                buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
                 self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
@@ -373,7 +442,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
             }
             State::ReadGpioToggle(pin_number) => {
                 buffer[1] = buffer[0] ^ (1 << pin_number);
-                buffer[0] = Registers::Gpio as u8;
+                buffer[0] = self.calc_register_addr(Registers::Gpio, pin_number);
                 self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
@@ -384,7 +453,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
             State::ReadGpioRead(pin_number) => {
                 let pin_value = (buffer[0] >> pin_number) & 0x01;
 
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.done(pin_value as usize);
                 });
 
@@ -392,33 +461,36 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
             }
-            State::EnableInterruptSettings => {
+            State::EnableInterruptSettings(pin_number) => {
                 // Rather than read the current interrupts and write those
                 // back, just write the entire register with our saved state.
-                buffer[0] = Registers::GpIntEn as u8;
-                buffer[1] = self.get_pin_interrupt_enabled_state();
+                buffer[0] = self.calc_register_addr(Registers::GpIntEn, pin_number);
+                buffer[1] = self.get_pin_interrupt_enabled_state(pin_number);
                 self.i2c.write(buffer, 2);
                 self.state.set(State::Done);
             }
-            State::ReadInterruptSetup => {
+            State::ReadInterruptSetup(bank_number) => {
                 // Now read the interrupt flags and the state of the lines
                 self.i2c.read(buffer, 3);
-                self.state.set(State::ReadInterruptValues);
+                self.state.set(State::ReadInterruptValues(bank_number));
             }
-            State::ReadInterruptValues => {
+            State::ReadInterruptValues(bank_number) => {
                 let interrupt_flags = buffer[0];
                 let pins_status = buffer[2];
                 // Check each bit to see if that pin triggered an interrupt.
                 for i in 0..8 {
+                    // Calculate the actual pin number based on which bank we
+                    // are examining.
+                    let pin_number = i + (bank_number * self.bank_size);
                     // Check that this pin is actually enabled.
-                    if !self.check_pin_interrupt_enabled(i) {
+                    if !self.check_pin_interrupt_enabled(pin_number) {
                         continue;
                     }
                     if (interrupt_flags >> i) & 0x01 == 0x01 {
                         // Use the GPIO register to determine which way the
                         // interrupt went.
                         let pin_status = (pins_status >> i) & 0x01;
-                        let interrupt_direction = self.get_pin_interrupt_direction(i);
+                        let interrupt_direction = self.get_pin_interrupt_direction(pin_number);
                         // Check to see if this was an interrupt we want
                         // to report.
                         let fire_interrupt = match interrupt_direction {
@@ -428,11 +500,11 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                         };
                         if fire_interrupt {
                             // Signal this interrupt to the application.
-                            self.client.get().map(|client| {
+                            self.client.map(|client| {
                                 // Return both the pin that interrupted and
                                 // the identifier that was passed for
                                 // enable_interrupt.
-                                client.fired(i as usize, self.identifier.get());
+                                client.fired(pin_number as usize, self.identifier.get());
                             });
                             break;
                         }
@@ -443,7 +515,7 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
                 self.state.set(State::Idle);
             }
             State::Done => {
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.done(0);
                 });
 
@@ -456,35 +528,36 @@ impl hil::i2c::I2CClient for MCP23008<'a> {
     }
 }
 
-impl hil::gpio::Client for MCP23008<'a> {
-    fn fired(&self, _: usize) {
+impl hil::gpio::Client for MCP230xx<'a> {
+    fn fired(&self, bank_number: usize) {
         self.buffer.take().map(|buffer| {
             self.i2c.enable();
 
             // Need to read the IntF register which marks which pins
             // interrupted.
-            buffer[0] = Registers::IntF as u8;
+            buffer[0] =
+                self.calc_register_addr(Registers::IntF, bank_number as u8 * self.bank_size);
             self.i2c.write(buffer, 1);
-            self.state.set(State::ReadInterruptSetup);
+            self.state.set(State::ReadInterruptSetup(bank_number as u8));
         });
     }
 }
 
-impl hil::gpio_async::Port for MCP23008<'a> {
+impl hil::gpio_async::Port for MCP230xx<'a> {
     fn disable(&self, pin: usize) -> ReturnCode {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)
     }
 
     fn make_output(&self, pin: usize) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         self.set_direction(pin as u8, Direction::Output)
     }
 
     fn make_input(&self, pin: usize, mode: hil::gpio::InputMode) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         match mode {
@@ -498,28 +571,28 @@ impl hil::gpio_async::Port for MCP23008<'a> {
     }
 
     fn read(&self, pin: usize) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         self.read_pin(pin as u8)
     }
 
     fn toggle(&self, pin: usize) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         self.toggle_pin(pin as u8)
     }
 
     fn set(&self, pin: usize) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         self.set_pin(pin as u8, PinState::High)
     }
 
     fn clear(&self, pin: usize) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         self.set_pin(pin as u8, PinState::Low)
@@ -531,7 +604,7 @@ impl hil::gpio_async::Port for MCP23008<'a> {
         mode: hil::gpio::InterruptMode,
         identifier: usize,
     ) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         let ret = self.enable_host_interrupt();
@@ -545,7 +618,7 @@ impl hil::gpio_async::Port for MCP23008<'a> {
     }
 
     fn disable_interrupt(&self, pin: usize) -> ReturnCode {
-        if pin > 7 {
+        if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         self.disable_interrupt_pin(pin as u8)

@@ -34,15 +34,15 @@
 //! the driver. Successive writes must call `allow` each time a buffer is to be
 //! written.
 
-use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart::{self, Client, UART};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000001;
 
+#[derive(Default)]
 pub struct App {
     write_callback: Option<Callback>,
     write_buffer: Option<AppSlice<Shared, u8>>,
@@ -55,31 +55,15 @@ pub struct App {
     read_len: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
-            write_callback: None,
-            write_buffer: None,
-            write_len: 0,
-            write_remaining: 0,
-            pending_write: false,
-
-            read_callback: None,
-            read_buffer: None,
-            read_len: 0,
-        }
-    }
-}
-
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a, U: UART> {
     uart: &'a U,
     apps: Grant<App>,
-    tx_in_progress: Cell<Option<AppId>>,
+    tx_in_progress: OptionalCell<AppId>,
     tx_buffer: TakeCell<'static, [u8]>,
-    rx_in_progress: Cell<Option<AppId>>,
+    rx_in_progress: OptionalCell<AppId>,
     rx_buffer: TakeCell<'static, [u8]>,
     baud_rate: u32,
 }
@@ -95,16 +79,16 @@ impl<U: UART> Console<'a, U> {
         Console {
             uart: uart,
             apps: grant,
-            tx_in_progress: Cell::new(None),
+            tx_in_progress: OptionalCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
-            rx_in_progress: Cell::new(None),
+            rx_in_progress: OptionalCell::empty(),
             rx_buffer: TakeCell::new(rx_buffer),
             baud_rate: baud_rate,
         }
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
+        self.uart.configure(uart::UARTParameters {
             baud_rate: self.baud_rate,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
@@ -143,8 +127,8 @@ impl<U: UART> Console<'a, U> {
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
     fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
-        if self.tx_in_progress.get().is_none() {
-            self.tx_in_progress.set(Some(app_id));
+        if self.tx_in_progress.is_none() {
+            self.tx_in_progress.set(app_id);
             self.tx_buffer.take().map(|buffer| {
                 let mut transaction_len = app.write_remaining;
                 for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
@@ -194,7 +178,7 @@ impl<U: UART> Console<'a, U> {
                     // Note: We have ensured above that rx_buffer is present
                     app.read_len = read_len;
                     self.rx_buffer.take().map(|buffer| {
-                        self.rx_in_progress.set(Some(app_id));
+                        self.rx_in_progress.set(app_id);
                         self.uart.receive(buffer, app.read_len);
                     });
                     ReturnCode::SUCCESS
@@ -308,8 +292,7 @@ impl<U: UART> Client for Console<'a, U> {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
-        self.tx_in_progress.get().map(|appid| {
-            self.tx_in_progress.set(None);
+        self.tx_in_progress.take().map(|appid| {
             self.apps.enter(appid, |app, _| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
@@ -338,7 +321,7 @@ impl<U: UART> Client for Console<'a, U> {
 
         // If we are not printing more from the current AppSlice,
         // see if any other applications have pending messages.
-        if self.tx_in_progress.get().is_none() {
+        if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
                 let started_tx = cntr.enter(|app, _| {
                     if app.pending_write {
@@ -370,9 +353,7 @@ impl<U: UART> Client for Console<'a, U> {
 
     fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
         self.rx_buffer.replace(buffer);
-        self.rx_in_progress.get().map(|appid| {
-            self.rx_in_progress.set(None);
-
+        self.rx_in_progress.take().map(|appid| {
             self.apps
                 .enter(appid, |app, _| {
                     app.read_callback.map(|mut cb| {

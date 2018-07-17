@@ -27,7 +27,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
@@ -56,7 +56,7 @@ pub struct PCA9544A<'a> {
     i2c: &'a i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
 }
 
 impl PCA9544A<'a> {
@@ -65,7 +65,7 @@ impl PCA9544A<'a> {
             i2c: i2c,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
         }
     }
 
@@ -127,15 +127,14 @@ impl i2c::I2CClient for PCA9544A<'a> {
                 };
 
                 self.callback
-                    .get()
-                    .map(|mut cb| cb.schedule((field as usize) + 1, ret as usize, 0));
+                    .map(|cb| cb.schedule((field as usize) + 1, ret as usize, 0));
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
             }
             State::Done => {
-                self.callback.get().map(|mut cb| cb.schedule(0, 0, 0));
+                self.callback.map(|cb| cb.schedule(0, 0, 0));
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -161,7 +160,7 @@ impl Driver for PCA9544A<'a> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.callback.set(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
 

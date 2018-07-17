@@ -5,16 +5,23 @@ MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-TOOLCHAIN ?= arm-none-eabi
+TOOLCHAIN ?= llvm
 
 CARGO ?= cargo
-# This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
-RUSTFLAGS_FOR_CARGO_LINKING := "-C link-arg=-Tlayout.ld -C linker=lld -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic"
 
-SIZE      ?= $(TOOLCHAIN)-size
-OBJCOPY   ?= $(TOOLCHAIN)-objcopy
-OBJDUMP   ?= $(TOOLCHAIN)-objdump
-OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
+# This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
+# lld uses the page size to align program sections. It defaults to 4096 and this
+# puts a gap between before the .relocate section. `zmax-page-size=512` tells
+# lld the actual page size so it doesn't have to be conservative.
+RUSTFLAGS_FOR_CARGO_LINKING := -C link-arg=-Tlayout.ld -C linker=lld \
+-Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
+-C link-arg=-zmax-page-size=512
+
+# Disallow warnings for continuous integration builds. Disallowing them here
+# ensures that warnings during testing won't prevent compilation from succeeding.
+ifeq ($(CI),true)
+  RUSTFLAGS_FOR_CARGO_LINKING += -D warnings
+endif
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values,
@@ -32,6 +39,7 @@ __check_defined = \
 
 
 $(call check_defined, PLATFORM)
+$(call check_defined, TARGET)
 
 # If environment variable V is non-empty, be verbose
 ifneq ($(V),)
@@ -55,12 +63,28 @@ ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(M
   DUMMY := $(shell rustup update)
 endif
 
+LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools.*(installed)' -q; echo $$?)
+ifeq ($(LLVM_TOOLS_INSTALLED),1)
+  $(shell rustup component add llvm-tools)
+endif
 ifneq ($(shell rustup component list | grep rust-src),rust-src (installed))
   $(shell rustup component add rust-src)
 endif
 ifneq ($(shell rustup target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(shell rustup target add $(TARGET))
 endif
+
+ifeq ($(TOOLCHAIN),llvm)
+  # If the user is using the standard toolchain we need to get the full path.
+  # rustup should take care of this for us by putting in a proxy in .cargo/bin,
+  # but until that is setup we workaround it.
+  TOOLCHAIN = "$(shell dirname `rustup which llvm-size`)/llvm"
+endif
+
+SIZE      ?= $(TOOLCHAIN)-size
+OBJCOPY   ?= $(TOOLCHAIN)-objcopy
+OBJDUMP   ?= $(TOOLCHAIN)-objdump
+OBJDUMP_FLAGS += --disassemble-all --source --arch-name=thumb --section-headers
 
 # Dump configuration for verbose builds
 ifneq ($(V),)
@@ -82,11 +106,23 @@ ifneq ($(V),)
   $(info )
 endif
 
-.PHONY: all
-all: target/$(TARGET)/release/$(PLATFORM).bin
 
-.PHONY: lst
-lst: target/$(TARGET)/release/$(PLATFORM).lst
+# User-facing targets
+.PHONY: all
+all: release
+
+# `make check` runs the Rust compiler but does not actually output the final
+# binary. This makes checking for Rust errors much faster.
+.PHONY: check
+check:
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
+
+.PHONY: clean
+clean::
+	$(Q)$(CARGO) clean $(VERBOSE)
+
+.PHONY: release
+release: target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: debug
 debug: target/$(TARGET)/debug/$(PLATFORM).bin
@@ -94,56 +130,43 @@ debug: target/$(TARGET)/debug/$(PLATFORM).bin
 .PHONY: debug-lst
 debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
 
-target:
-	@mkdir -p target
-
 .PHONY: doc
 doc: | target
 	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
-target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
-	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
+.PHONY: lst
+lst: target/$(TARGET)/release/$(PLATFORM).lst
 
-target/$(TARGET)/release/$(PLATFORM).lst: target/$(TARGET)/release/$(PLATFORM).elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/release/$(PLATFORM).lst
+.PHONY: release
+release: target/$(TARGET)/release/$(PLATFORM).bin
+
+
+# Support rules
+
+target:
+	@mkdir -p target
+
+# Cargo outputs an elf file (just without a file extension)
+%.elf: %
+	$(Q)cp $< $@
+
+%.bin: %.elf
+	$(Q)$(OBJCOPY) -O=binary $^ $@
+
+%.lst: %.elf
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+
+
+# Cargo-drivers
+# We want to always invoke cargo (yay nested build systems), so these need to
+# be phony, which means they can't be pattern rules.
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
-
-target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
-	$(Q)cp target/$(TARGET)/debug/$(PLATFORM) target/$(TARGET)/debug/$(PLATFORM).elf
-
-target/$(TARGET)/debug/$(PLATFORM).lst: target/$(TARGET)/debug/$(PLATFORM).elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: target/$(TARGET)/debug/$(PLATFORM)
 target/$(TARGET)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) build $(VERBOSE) --target=$(TARGET)
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build $(VERBOSE) --target=$(TARGET)
 	$(Q)$(SIZE) $@
-
-target/$(TARGET)/release/$(PLATFORM).hex: target/$(TARGET)/release/$(PLATFORM).elf
-	$(Q)$(OBJCOPY) -Oihex $^ $@
-
-target/$(TARGET)/debug/$(PLATFORM).hex: target/$(TARGET)/debug/$(PLATFORM).elf
-	$(Q)$(OBJCOPY) -Oihex $^ $@
-
-target/$(TARGET)/release/$(PLATFORM).bin: target/$(TARGET)/release/$(PLATFORM).elf
-	$(Q)$(OBJCOPY) -Obinary $^ $@
-
-target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
-	$(Q)$(OBJCOPY) -Obinary $^ $@
-
-# `make check` runs the Rust compiler but does not actually output the final
-# binary. This makes checking for Rust errors much faster.
-.PHONY: check
-check:
-	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_CARGO_LINKING) $(CARGO) check --target=$(TARGET) $(VERBOSE) --release
-
-.PHONY: clean
-clean::
-	$(Q)$(CARGO) clean $(VERBOSE)
-
-.PHONY: debug
-debug: target/$(TARGET)/debug/$(PLATFORM).elf

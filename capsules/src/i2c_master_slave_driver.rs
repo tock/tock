@@ -24,24 +24,13 @@ pub static mut BUFFER3: [u8; 256] = [0; 256];
 
 pub const DRIVER_NUM: usize = 0x80020006;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
     master_tx_buffer: Option<AppSlice<Shared, u8>>,
     master_rx_buffer: Option<AppSlice<Shared, u8>>,
     slave_tx_buffer: Option<AppSlice<Shared, u8>>,
     slave_rx_buffer: Option<AppSlice<Shared, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            master_tx_buffer: None,
-            master_rx_buffer: None,
-            slave_tx_buffer: None,
-            slave_rx_buffer: None,
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq)]

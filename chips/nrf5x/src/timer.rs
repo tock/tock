@@ -22,8 +22,8 @@
 //! * Philip Levis <pal@cs.stanford.edu>
 //! * Date: August 18, 2016
 
-use core::cell::Cell;
-use kernel::common::regs::{self, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{self, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 
@@ -213,19 +213,19 @@ pub trait CompareClient {
 
 pub struct Timer {
     registers: StaticRef<TimerRegisters>,
-    client: Cell<Option<&'static CompareClient>>,
+    client: OptionalCell<&'static CompareClient>,
 }
 
 impl Timer {
     pub const fn new(instance: usize) -> Timer {
         Timer {
             registers: INSTANCES[instance],
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'static CompareClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     /// When an interrupt occurs, check if any of the 4 compares have
@@ -233,7 +233,7 @@ impl Timer {
     /// events that is passed to the client.
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             let mut val = 0;
             // For each of 4 possible compare events, if it's happened,
             // clear it and store its bit in val to pass in callback.
@@ -260,21 +260,21 @@ impl Timer {
 
 pub struct TimerAlarm {
     registers: StaticRef<TimerRegisters>,
-    client: Cell<Option<&'static hil::time::Client>>,
+    client: OptionalCell<&'static hil::time::Client>,
 }
 
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
 const ALARM_CAPTURE: usize = 0;
 const ALARM_COMPARE: usize = 1;
-const ALARM_INTERRUPT_BIT: regs::Field<u32, Inte::Register> = Inte::COMPARE1;
-const ALARM_INTERRUPT_BIT_SET: regs::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
+const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
+const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
 impl TimerAlarm {
     const fn new(instance: usize) -> TimerAlarm {
         TimerAlarm {
             registers: INSTANCES[instance],
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -284,12 +284,12 @@ impl TimerAlarm {
     }
 
     pub fn set_client(&self, client: &'static hil::time::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired();
         });
     }
