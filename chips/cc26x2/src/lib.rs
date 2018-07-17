@@ -9,6 +9,7 @@ extern crate cortexm4;
 extern crate kernel;
 #[macro_use]
 extern crate bitfield;
+extern crate fixedvec;
 
 pub mod aon;
 pub mod chip;

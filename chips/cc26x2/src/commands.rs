@@ -1,8 +1,5 @@
 #![allow(dead_code)]
-use kernel::common::regs::ReadOnly;
-
 // Radio and data commands bitfields
-
 bitfield! {
     #[derive(Copy, Clone)]
     pub struct RfcTrigger(u8);
@@ -35,31 +32,6 @@ bitfield! {
 // Radio Command structure headers, bitfields, and partial settings for the
 // bitfields
 
-#[derive(Clone, Copy)]
-pub enum TriggerType {
-    Now = 0,
-    Never = 1,
-    AbsTime = 2,
-    Submit = 3,
-    RelStart = 4,
-    RelPrevStart = 5,
-    RelFirstStart = 6,
-    RelPrevEnd = 7,
-    RelEvt1 = 8,
-    RelEvt2 = 9,
-    External = 10,
-}
-
-#[derive(Clone, Copy)]
-pub enum ConditionRules {
-    Always = 0,
-    Never = 1,
-    StopOnFalse = 2,
-    StopOnTrue = 3,
-    SkipOnFalse = 4,
-    SkipOnTrue = 5,
-}
-
 pub struct DataEntryQueue {
     p_curr_entry: *mut u32,
     p_last_entry: *mut u32,
@@ -89,15 +61,58 @@ impl DirectCommand {
     }
 }
 
-// Command and parameters for radio setup
+// Common command header for all radio commands
 #[repr(C)]
-pub struct CmdRadioSetup {
+#[derive(Debug, Clone, Copy)]
+pub struct CmdCommon {
     command_no: u16,
     pub status: u16,
-    p_next_op: u32, // Pointer to next command
+    p_next_op: u32,
     start_time: u32,
     start_trigger: u8,
     condition: RfcCondition,
+}
+
+impl CmdCommon {
+    pub fn new(
+        command_no: u16,
+        status: u16,
+        p_next_op: u32,
+        start_time: u32,
+        start_trigger: u8,
+        condition: RfcCondition,
+    ) -> CmdCommon {
+        CmdCommon {
+            command_no,
+            status,
+            p_next_op,
+            start_time,
+            start_trigger,
+            condition,
+        }
+    }
+}
+// Command and parameters for radio setup
+
+pub unsafe trait RadioCommand {
+    fn pack(&self, common: CmdCommon) -> Self;
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct RadioSetup {
+    common: CmdCommon,
+    mode: u8,
+    io_divider: u8,
+    config: RfcSetupConfig,
+    tx_power: u16,
+    reg_override: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct CmdRadioSetup {
+    common: CmdCommon,
     mode: u8,
     io_divider: u8,
     config: RfcSetupConfig,
@@ -106,20 +121,24 @@ pub struct CmdRadioSetup {
 }
 
 impl CmdRadioSetup {
-    pub fn new(reg_override: u32, mode: u8, tx_power: u16) -> CmdRadioSetup {
+    pub fn new(
+        c: CmdCommon,
+        io_divider: u8,
+        reg_override: u32,
+        mode: u8,
+        tx_power: u16,
+    ) -> CmdRadioSetup {
         CmdRadioSetup {
-            command_no: 0x802,
-            status: 0,
-            p_next_op: 0,
-            start_time: 0,
-            start_trigger: 0,
-            condition: {
-                let mut cond = RfcCondition(0);
-                cond.set_rule(0x01);
-                cond
+            common: CmdCommon {
+                command_no: c.command_no,
+                status: c.status,
+                p_next_op: c.p_next_op,
+                start_time: c.start_time,
+                start_trigger: c.start_trigger,
+                condition: c.condition,
             },
             mode,
-            io_divider: 0,
+            io_divider,
             config: {
                 let mut cfg = RfcSetupConfig(0);
                 cfg.set_frontend_mode(0);
@@ -132,19 +151,34 @@ impl CmdRadioSetup {
     }
 }
 
-// Common command header for all radio commands
-#[repr(C)]
-pub struct CmdCommon {
-    command_no: ReadOnly<u16>,
-    pub status: ReadOnly<u16>,
-    p_next_op: ReadOnly<u32>,
-    start_time: ReadOnly<u32>,
-    start_trigger: ReadOnly<u8>,
-    condition: RfcCondition,
+unsafe impl RadioCommand for CmdRadioSetup {
+    fn pack(&self, common: CmdCommon) -> CmdRadioSetup {
+        CmdRadioSetup {
+            common: CmdCommon {
+                command_no: common.command_no,
+                status: common.status,
+                p_next_op: common.p_next_op,
+                start_time: common.start_time,
+                start_trigger: common.start_trigger,
+                condition: common.condition,
+            },
+            mode: self.mode,
+            io_divider: self.io_divider,
+            config: {
+                let mut cfg = RfcSetupConfig(0);
+                cfg.set_frontend_mode(0);
+                cfg.set_bias_mode(false);
+                cfg
+            },
+            tx_power: self.tx_power,
+            reg_override: self.reg_override,
+        }
+    }
 }
 
 // Command for pinging radio, no operation
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct CmdNop {
     command_no: u16, //0x0801
     pub status: u16,
@@ -154,8 +188,26 @@ pub struct CmdNop {
     condition: RfcCondition,
 }
 
+impl CmdNop {
+    pub fn new() -> CmdNop {
+        CmdNop {
+            command_no: 0x0801,
+            status: 0,
+            p_next_op: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            },
+        }
+    }
+}
+
 // Power up frequency synthesizer
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct CmdFSPowerup {
     command_no: u16, //0x080C
     pub status: u16,
@@ -169,32 +221,40 @@ pub struct CmdFSPowerup {
 
 // Power down frequency synthesizer
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct CmdFSPowerdown {
-    command_no: u16, //0x080D
-    pub status: u16,
-    p_next_op: u32,
-    start_time: u32,
-    start_trigger: u8,
-    condition: RfcCondition,
+    common: CmdCommon,
 }
 
 impl CmdFSPowerdown {
-    pub fn new() -> CmdFSPowerdown {
+    pub fn new(c: CmdCommon) -> CmdFSPowerdown {
         CmdFSPowerdown {
-            command_no: 0x080D,
-            status: 0,
-            p_next_op: 0,
-            start_time: 0,
-            start_trigger: 0,
-            condition: {
-                let mut cond = RfcCondition(0);
-                cond.set_rule(0x01);
-                cond
+            common: CmdCommon {
+                command_no: 0x080D,
+                status: c.status,
+                p_next_op: c.p_next_op,
+                start_time: c.start_time,
+                start_trigger: c.start_trigger,
+                condition: c.condition,
             },
         }
     }
 }
 
+unsafe impl RadioCommand for CmdFSPowerdown {
+    fn pack(&self, common: CmdCommon) -> Self {
+        CmdFSPowerdown {
+            common: CmdCommon {
+                command_no: common.command_no,
+                status: common.status,
+                p_next_op: common.p_next_op,
+                start_time: common.start_time,
+                start_trigger: common.start_trigger,
+                condition: common.condition,
+            },
+        }
+    }
+}
 // Custom FS, unimplemented
 #[repr(C)]
 pub struct CmdFS {
@@ -255,29 +315,24 @@ pub struct CmdTxTest {
 
 // Stop radio RAT timer
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct CmdSyncStopRat {
-    command_no: u16, // 0x0809
-    pub status: u16,
-    p_next_op: u32,
-    start_time: u32,
-    start_trigger: u8,
-    condition: RfcCondition,
+    // command_no: u16, // 0x0809
+    common: CmdCommon,
     _reserved: u16,
     rat0: u32,
 }
 
 impl CmdSyncStopRat {
-    pub fn new(rat: u32) -> CmdSyncStopRat {
+    pub fn new(c: CmdCommon, rat: u32) -> CmdSyncStopRat {
         CmdSyncStopRat {
-            command_no: 0x0809,
-            status: 0,
-            p_next_op: 0,
-            start_time: 0,
-            start_trigger: 0,
-            condition: {
-                let mut cond = RfcCondition(0);
-                cond.set_rule(0x01);
-                cond
+            common: CmdCommon {
+                command_no: 0x0809,
+                status: c.status,
+                p_next_op: c.p_next_op,
+                start_time: c.start_time,
+                start_trigger: c.start_trigger,
+                condition: c.condition,
             },
             _reserved: 0x0000,
             rat0: rat,
@@ -285,34 +340,62 @@ impl CmdSyncStopRat {
     }
 }
 
+unsafe impl RadioCommand for CmdSyncStopRat {
+    fn pack(&self, common: CmdCommon) -> CmdSyncStopRat {
+        CmdSyncStopRat {
+            common: CmdCommon {
+                command_no: common.command_no,
+                status: common.status,
+                p_next_op: common.p_next_op,
+                start_time: common.start_time,
+                start_trigger: common.start_trigger,
+                condition: common.condition,
+            },
+            _reserved: 0x0000,
+            rat0: self.rat0,
+        }
+    }
+}
+
 // Start radio RAT timer
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct CmdSyncStartRat {
-    command_no: u16, // 0x080A
-    pub status: u16,
-    p_next_op: u32,
-    start_time: u32,
-    start_trigger: u8,
-    condition: RfcCondition,
+    common: CmdCommon,
     _reserved: u16,
     rat0: u32,
 }
 
 impl CmdSyncStartRat {
-    pub fn new(rat: u32) -> CmdSyncStartRat {
+    pub fn new(c: CmdCommon, rat: u32) -> CmdSyncStartRat {
         CmdSyncStartRat {
-            command_no: 0x0809,
-            status: 0,
-            p_next_op: 0,
-            start_time: 0,
-            start_trigger: 0,
-            condition: {
-                let mut cond = RfcCondition(0);
-                cond.set_rule(0x01);
-                cond
+            common: CmdCommon {
+                command_no: 0x080A,
+                status: c.status,
+                p_next_op: c.p_next_op,
+                start_time: c.start_time,
+                start_trigger: c.start_trigger,
+                condition: c.condition,
             },
             _reserved: 0x0000,
             rat0: rat,
+        }
+    }
+}
+
+unsafe impl RadioCommand for CmdSyncStartRat {
+    fn pack(&self, common: CmdCommon) -> CmdSyncStartRat {
+        CmdSyncStartRat {
+            common: CmdCommon {
+                command_no: common.command_no,
+                status: common.status,
+                p_next_op: common.p_next_op,
+                start_time: common.start_time,
+                start_trigger: common.start_trigger,
+                condition: common.condition,
+            },
+            _reserved: 0x0000,
+            rat0: self.rat0,
         }
     }
 }
