@@ -11,6 +11,7 @@ extern crate nrf5x;
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
+use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::hil;
 use nrf5x::rtc::Rtc;
 
@@ -69,7 +70,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, nrf52::uart::Uarte>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
@@ -192,6 +193,17 @@ pub unsafe fn setup_board(
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
 
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(&nrf52::uart::UARTE0, &mut capsules::virtual_uart::RX_BUF)
+    );
+    hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
+
     nrf52::uart::UARTE0.initialize(
         nrf5x::pinmux::Pinmux::new(uart_pins.txd as u32),
         nrf5x::pinmux::Pinmux::new(uart_pins.rxd as u32),
@@ -199,21 +211,36 @@ pub unsafe fn setup_board(
         nrf5x::pinmux::Pinmux::new(uart_pins.rts as u32),
     );
     let console = static_init!(
-        capsules::console::Console<nrf52::uart::Uarte>,
+        capsules::console::Console<UartDevice>,
         capsules::console::Console::new(
-            &nrf52::uart::UARTE0,
+            console_uart,
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
-    kernel::hil::uart::UART::set_client(&nrf52::uart::UARTE0, console);
+    kernel::hil::uart::UART::set_client(console_uart, console);
     console.initialize();
 
-    // Attach the kernel debug interface to this console
-    let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    kernel::debug::assign_console_driver(Some(console), kc);
+    // Create virtual device for kernel debug.
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
+
+    let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
