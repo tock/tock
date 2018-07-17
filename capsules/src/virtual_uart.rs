@@ -205,8 +205,7 @@ impl<'a> hil::uart::UART for UartDevice<'a> {
         self.mux.start_receive(rx_len);
     }
 
-    // This is not virtualized. Calling this will cause all receives to stop.
     fn abort_receive(&self) {
-        self.mux.uart.abort_receive();
+        unimplemented!();
     }
 }
