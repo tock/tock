@@ -1,103 +1,109 @@
 //! Interface for configuring the Memory Protection Unit.
 
-#[derive(Debug)]
-pub enum AccessPermission {
-    //                                 Privileged  Unprivileged
-    //                                 Access      Access
-    NoAccess = 0b000,               // --          --
-    PrivilegedOnly = 0b001,         // RW          --
-    UnprivilegedReadOnly = 0b010,   // RW          R-
-    ReadWrite = 0b011,              // RW          RW
-    Reserved = 0b100,               // undef       undef
-    PrivilegedOnlyReadOnly = 0b101, // R-          --
-    ReadOnly = 0b110,               // R-          R-
-    ReadOnlyAlias = 0b111,          // R-          R-
+#[derive(Copy, Clone)]
+pub enum Permission {
+    //                 Privileged  Unprivileged
+    //                 Access      Access
+    NoAccess,       // --          --
+    PrivilegedOnly, // V           --
+    Full,           // V           V
 }
 
-#[derive(Debug)]
-pub enum ExecutePermission {
-    ExecutionPermitted = 0b0,
-    ExecutionNotPermitted = 0b1,
-}
-
+#[derive(Copy, Clone)]
 pub struct Region {
-    base_address: u32,
-    attributes: u32,
+    start: usize,
+    len: usize,
+    read: Permission,
+    write: Permission,
+    execute: Permission,
 }
 
 impl Region {
-    pub unsafe fn new(base_address: u32, attributes: u32) -> Region {
+    pub fn new(
+        start: usize,
+        len: usize,
+        read: Permission,
+        write: Permission,
+        execute: Permission,
+    ) -> Region {
         Region {
-            base_address: base_address,
-            attributes: attributes,
+            start: start,
+            len: len,
+            read: read,
+            write: write,
+            execute: execute,
         }
     }
 
-    pub fn empty(region_num: usize) -> Region {
+    pub fn empty() -> Region {
         Region {
-            base_address: (region_num as u32) | 1 << 4,
-            attributes: 0,
+            start: 0,
+            len: 0,
+            read: Permission::NoAccess,
+            write: Permission::NoAccess,
+            execute: Permission::NoAccess,
         }
     }
 
-    pub fn base_address(&self) -> u32 {
-        self.base_address
+    pub fn get_start(&self) -> usize {
+        self.start
     }
 
-    pub fn attributes(&self) -> u32 {
-        self.attributes
+    pub fn get_len(&self) -> usize {
+        self.len
+    }
+
+    pub fn get_read_permission(&self) -> Permission {
+        self.read
+    }
+
+    pub fn get_write_permission(&self) -> Permission {
+        self.write
+    }
+
+    pub fn get_execute_permission(&self) -> Permission {
+        self.execute
     }
 }
 
 pub trait MPU {
-    /// Enable the MPU.
-    ///
-    /// Both privileged and unprivileged code are subject to the constraints of
-    /// the active MPU regions. However, while unprivileged code cannot access
-    /// any memory space that is is not explicitly authorized to, privileged
-    /// code can access all unprotected (background) memory.
+    /// Enables the MPU.
     fn enable_mpu(&self);
 
-    /// Completely disable the MPU.
+    /// Disables the MPU.
     fn disable_mpu(&self);
 
-    /// Creates a new MPU-specific memory protection region
-    ///
-    /// `region_num`: an MPU region number 0-7
-    /// `start_addr`: the region base address. Lower bits will be masked
-    ///               according to the region size.
-    /// `len`       : region size as a PowerOfTwo (e.g. `16` for 64KB)
-    /// `execute`   : whether to enable code execution from this region
-    /// `ap`        : access permissions as defined in Table 4.47 of the user
-    ///               guide.
-    fn create_region(
-        region_num: usize,
-        start: usize,
-        len: usize,
-        execute: ExecutePermission,
-        access: AccessPermission,
-    ) -> Option<Region>;
+    /// Returns the number of supported MPU regions.
+    fn num_supported_regions(&self) -> u32;
 
-    /// Sets the base address, size and access attributes of the given MPU
-    /// region number.
-    fn set_mpu(&self, region: Region);
+    /// Allocates memory protection regions.
+    ///
+    /// # Arguments
+    ///
+    /// `regions`: array of regions to be allocated. The index of the array
+    ///            encodes the priority of the region. In the event of an
+    ///            overlap between regions, the implementor must ensure
+    ///            that the permissions of the region with higher priority
+    ///            take precendence.
+    ///
+    /// # Return Value
+    ///
+    /// If it is infeasible to allocate a memory region, returns its index
+    /// wrapped in a Result.
+    fn allocate_regions(&self, regions: &[Region]) -> Result<(), usize>;
 }
 
-/// Noop implementation of MPU trait
+/// No-op implementation of MPU trait
 impl MPU for () {
     fn enable_mpu(&self) {}
 
     fn disable_mpu(&self) {}
 
-    fn create_region(
-        _: usize,
-        _: usize,
-        _: usize,
-        _: ExecutePermission,
-        _: AccessPermission,
-    ) -> Option<Region> {
-        Some(Region::empty(0))
+    fn num_supported_regions(&self) -> u32 {
+        8
     }
 
-    fn set_mpu(&self, _: Region) {}
+    fn allocate_regions(&self, _: &[Region]) -> Result<(), usize> {
+        Ok(())
+    }
 }
