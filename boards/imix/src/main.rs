@@ -18,7 +18,6 @@ extern crate cortexm4;
 extern crate sam4l;
 
 mod components;
-
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
@@ -75,6 +74,9 @@ mod aes_ccm_test;
 
 #[allow(dead_code)]
 mod power;
+
+#[allow(dead_code)]
+mod virtual_uart_rx_test;
 
 // State for loading apps.
 
@@ -261,7 +263,11 @@ pub unsafe fn reset_handler() {
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&sam4l::usart::USART3, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &sam4l::usart::USART3,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
 
@@ -356,6 +362,8 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
+    //    debug!("Starting virtual read test.");
+    //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {

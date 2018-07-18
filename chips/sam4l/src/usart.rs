@@ -904,7 +904,7 @@ impl hil::uart::UART for USART {
     fn abort_receive(&self) {
         let usart = &USARTRegManager::new(&self);
         self.disable_rx_timeout(usart);
-        self.abort_rx(usart, hil::uart::Error::CommandComplete);
+        self.abort_rx(usart, hil::uart::Error::Aborted);
     }
 }
 
