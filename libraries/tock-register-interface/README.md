@@ -170,11 +170,10 @@ let range: u8 = registers.cr.read(Control::RANGE);
 // Or one can read `range` as a enum and `match` over it.
 let range = registers.cr.read_as_enum(Control::RANGE);
 match range {
-    Some(Control::RANGE::Value::Zero) => { /* ... */ }
-    Some(Control::RANGE::Value::One) => { /* ... */ }
-    Some(Control::RANGE::Value::Two) => { /* ... */ }
-    Some(Control::RANGE::Value::Three) => { /* ... */ }
-    
+    Some(Control::RANGE::Value::VeryHigh) => { /* ... */ }
+    Some(Control::RANGE::Value::High) => { /* ... */ }
+    Some(Control::RANGE::Value::Low) => { /* ... */ }
+
     None => unreachable!("invalid value")
 }
 
@@ -250,7 +249,7 @@ let mode = registers.cr.read_as_enum(Status::MODE);
 match mode {
     Some(Status::MODE::FullDuplex) => { /* ... */ }
     Some(Status::MODE::HalfDuplex) => { /* ... */ }
-    
+
     None => unreachable!("invalid value")
 }
 
