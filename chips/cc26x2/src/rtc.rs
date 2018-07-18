@@ -89,6 +89,7 @@ impl Rtc {
         regs.sync.get();
     }
 
+    // This method is used by the RAT to sync the radio and MCU clocks when changing power modes
     pub fn sync(&self) {
         let regs = &*self.registers;
 

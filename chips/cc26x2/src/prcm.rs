@@ -14,8 +14,13 @@
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
+// The AON Power Management Control registers are required here to select the clock source for
+// wake up and power down control. If they are not initialized/deactivated properly when attempting
+// to power down and back up the radio module, the sleep and restart modes will fail. This is not
+// specifically stated in the techinical reference manual but can be found here via TI's web
+// resources: http://dev.ti.com/tirex/content/simplelink_cc13x2_sdk_1_60_00_29/docs/driverlib_cc13xx_cc26xx/cc13x2_cc26x2/register_descriptions/CPU_MMAP/AON_PMCTL.html
 #[repr(C)]
-struct AonWucRegisters {
+struct AonPMCtlRegisters {
     mcu_clk: ReadWrite<u32>,
 }
 
@@ -161,8 +166,8 @@ register_bitfields![
 
 const PRCM_BASE: StaticRef<PrcmRegisters> =
     unsafe { StaticRef::new(0x4008_2000 as *mut PrcmRegisters) };
-const AON_WUC_BASE: StaticRef<AonWucRegisters> =
-    unsafe { StaticRef::new(0x4009_1000 as *mut AonWucRegisters) };
+const AON_PMCTL_BASE: StaticRef<AonPMCtlRegisters> =
+    unsafe { StaticRef::new(0x4009_0010 as *mut AonPMCtlRegisters) };
 
 // In order to save changes to the PRCM, we need to
 // trigger the load register
@@ -369,7 +374,7 @@ impl Clock {
     }
 
     pub fn set_power_down_source(source: u32) {
-        let regs = AON_WUC_BASE;
+        let regs = AON_PMCTL_BASE;
         regs.mcu_clk.set(source & 0x01);
     }
 }

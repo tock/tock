@@ -222,6 +222,7 @@ pub unsafe fn reset_handler() {
         capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
         capsules::nrf51822_serialization::Nrf51822Serialization::new(
             &sam4l::usart::USART3,
+            &sam4l::gpio::PA[17],
             &mut capsules::nrf51822_serialization::WRITE_BUF,
             &mut capsules::nrf51822_serialization::READ_BUF
         )
@@ -470,21 +471,13 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    // Need to reset the nRF on boot
-    sam4l::gpio::PA[17].enable();
-    sam4l::gpio::PA[17].enable_output();
-    sam4l::gpio::PA[17].clear();
-    // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
-    for _ in 0..10 {
-        cortexm4::support::nop();
-    }
-    sam4l::gpio::PA[17].set();
-
     hail.console.initialize();
     // Attach the kernel debug interface to this console
     let kc = static_init!(capsules::console::App, capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(hail.console), kc);
 
+    // Reset the nRF and setup the UART bus.
+    hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
     // Uncomment to measure overheads for TakeCell and MapCell:

@@ -90,6 +90,9 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     } else {
         let _ = writer.write_fmt(format_args!("\r\n\nKernel panic:\r\n\t\""));
     }
+    if let Some(args) = panic_info.message() {
+        let _ = write(writer, *args);
+    }
     let _ = writer.write_str("\"\r\n");
 
     // Print version of the kernel

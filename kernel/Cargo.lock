@@ -3,7 +3,7 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "tock-cells 0.1.0",
- "tock-regs 0.1.0",
+ "tock-registers 0.1.0",
 ]
 
 [[package]]
@@ -11,6 +11,6 @@ name = "tock-cells"
 version = "0.1.0"
 
 [[package]]
-name = "tock-regs"
+name = "tock-registers"
 version = "0.1.0"
 

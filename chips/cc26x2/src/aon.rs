@@ -4,7 +4,6 @@
 //!
 //! The current configuration disables all wake-up selectors, since the
 //! MCU never go to sleep and is always active.
-use kernel::common::cells::VolatileCell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use rtc;
@@ -17,10 +16,10 @@ pub struct AonIocRegisters {
 
 #[repr(C)]
 pub struct AonEventRegisters {
-    mcu_wu_sel: VolatileCell<u32>,       // MCU Wake-up selector
-    aux_wu_sel: VolatileCell<u32>,       // AUX Wake-up selector
-    event_to_mcu_sel: VolatileCell<u32>, // Event selector for MCU Events
-    rtc_sel: VolatileCell<u32>,          // RTC Capture event selector for AON_RTC
+    mcu_wu_sel: ReadWrite<u32>,       // MCU Wake-up selector
+    aux_wu_sel: ReadWrite<u32>,       // AUX Wake-up selector
+    event_to_mcu_sel: ReadWrite<u32>, // Event selector for MCU Events
+    rtc_sel: ReadWrite<u32>,          // RTC Capture event selector for AON_RTC
 }
 
 #[repr(C)]
