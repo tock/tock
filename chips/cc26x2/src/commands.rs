@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 // Radio and data commands bitfields
 bitfield! {
     #[derive(Copy, Clone)]
@@ -8,7 +9,6 @@ bitfield! {
     pub _enable_cmd, _set_enable_cmd      : 4;
     pub _trigger_no, _set_trigger_no      : 6, 5;
     pub _past_trigger, _set_past_trigger  : 7;
-
 }
 
 bitfield! {
@@ -29,12 +29,18 @@ bitfield! {
     pub _no_fs_powerup, _set_no_fs_powerup: 10;
 }
 
-// Radio Command structure headers, bitfields, and partial settings for the
-// bitfields
+// Radio Command Operation Status
 
-pub struct DataEntryQueue {
-    p_curr_entry: *mut u32,
-    p_last_entry: *mut u32,
+#[derive(Debug, Clone, Copy)]
+pub enum RfcOperationStatus {
+    Idle,
+    Pending,
+    Active,
+    Skipped,
+    SendDone,
+    SendDirectDone,
+    CommandDone,
+    Invalid,
 }
 
 // Radio Commands
@@ -49,7 +55,7 @@ pub const RFC_SETUP: u16 = 0x0802;
 pub const RFC_STOP: u16 = 0x0402;
 pub const RFC_FS_POWERDOWN: u16 = 0x080D;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct DirectCommand {
     pub command_no: u16,
     pub params: u16,

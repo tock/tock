@@ -12,8 +12,8 @@ extern crate cc26xx;
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
 
-use cc26xx::aon;
-use cc26xx::prcm;
+use cc26x2::aon;
+use cc26x2::prcm;
 
 #[macro_use]
 pub mod io;
@@ -69,7 +69,7 @@ pub unsafe fn reset_handler() {
     cc26x2::init();
 
     // Setup AON event defaults
-    aon::AON_EVENT.setup();
+    aon::AON.setup();
 
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
