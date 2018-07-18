@@ -38,8 +38,10 @@ pub enum RfcOperationStatus {
     Active,
     Skipped,
     SendDone,
-    SendDirectDone,
     CommandDone,
+    LastCommandDone,
+    RxOk,
+    TxDone,
     Invalid,
 }
 
