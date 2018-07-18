@@ -12,43 +12,129 @@
 //! * Date: August 18, 2016
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::cells::VolatileCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
 pub static mut CLOCK: Clock = Clock::new();
 
 #[repr(C)]
 struct ClockRegisters {
-    tasks_hfclkstart: VolatileCell<u32>,    // 0x000
-    tasks_hfclkstop: VolatileCell<u32>,     // 0x004
-    tasks_lfclkstart: VolatileCell<u32>,    // 0x008
-    tasks_lfclkstop: VolatileCell<u32>,     // 0x00c
-    tasks_cal: VolatileCell<u32>,           // 0x010
-    tasks_cstart: VolatileCell<u32>,        // 0x014
-    tasks_cstop: VolatileCell<u32>,         // 0x018
-    _reserved1: [VolatileCell<u32>; 57],    // 0x01c - 0x100
-    events_hfclkstarted: VolatileCell<u32>, // 0x100
-    events_lfclkstarted: VolatileCell<u32>, // 0x104
-    _reserved2: VolatileCell<u32>,          // 0x108
-    events_done: VolatileCell<u32>,         // 0x10c
-    events_ctto: VolatileCell<u32>,         // 0x110
-    _reserved3: [VolatileCell<u32>; 124],   // 0x110 - 0x304
-    intenset: VolatileCell<u32>,            // 0x304
-    intenclr: VolatileCell<u32>,            // 0x308
-    _reserved4: [VolatileCell<u32>; 63],    // 0x308 - 0x408
-    hfclkrun: VolatileCell<u32>,            // 0x408
-    hfclkstat: VolatileCell<u32>,           // 0x40c
-    _reserved5: [VolatileCell<u32>; 1],     // 0x410
-    lfclkrun: VolatileCell<u32>,            // 0x414
-    lfclkstat: VolatileCell<u32>,           // 0x418
-    lfclksrccopy: VolatileCell<u32>,        // 0x41c
-    _reserved6: [VolatileCell<u32>; 62],    // 0x420 - 0x518
-    lfclksrc: VolatileCell<u32>,            // 0x518
-    _reserved7: [VolatileCell<u32>; 7],     // 0x51c - 0x538
-    ctiv: VolatileCell<u32>,                // 0x538
-    _reserved8: [VolatileCell<u32>; 5],     // 0x53c - 0x550
-    xtalfreq: VolatileCell<u32>,            // 0x550
+    hfclkstart: WriteOnly<u32, Task::Register>,      // 0x000
+    hfclkstop: WriteOnly<u32, Task::Register>,       // 0x004
+    lfclkstart: WriteOnly<u32, Task::Register>,      // 0x008
+    lfclkstop: WriteOnly<u32, Task::Register>,       // 0x00c
+    cal: WriteOnly<u32, Task::Register>,             // 0x010
+    cstart: WriteOnly<u32, Task::Register>,          // 0x014
+    cstop: WriteOnly<u32, Task::Register>,           // 0x018
+    _reserved1: [u32; 57],                           // 0x01c - 0x100
+    hfclkstarted: ReadWrite<u32, Event::Register>,   // 0x100
+    lfclkstarted: ReadWrite<u32, Event::Register>,   // 0x104
+    _reserved2: [u32; 1],                            // 0x108
+    done: ReadWrite<u32, Event::Register>,           // 0x10c
+    ctto: ReadWrite<u32, Event::Register>,           // 0x110
+    _reserved3: [u32; 124],                          // 0x110 - 0x304
+    intenset: ReadWrite<u32, Interrupt::Register>,   // 0x304
+    intenclr: ReadWrite<u32, Interrupt::Register>,   // 0x308
+    _reserved4: [u32; 63],                           // 0x308 - 0x408
+    hfclkrun: ReadOnly<u32, ClkRun::Register>,       // 0x408
+    hfclkstat: ReadOnly<u32, HfClkStat::Register>,   // 0x40c
+    _reserved5: [u32; 1],                            // 0x410
+    lfclkrun: ReadOnly<u32, ClkRun::Register>,       // 0x414
+    lfclkstat: ReadOnly<u32, LfClkStat::Register>,   // 0x418
+    lfclksrccopy: ReadOnly<u32, LfClkSrc::Register>, // 0x41c
+    _reserved6: [u32; 62],                           // 0x420 - 0x518
+    lfclksrc: ReadWrite<u32, LfClkSrc::Register>,    // 0x518
+    _reserved7: [u32; 7],                            // 0x51c - 0x538
+    ctiv: ReadWrite<u32, CalibrationTimerInterval::Register>, // 0x538
+    _reserved8: [u32; 5],                            // 0x53c - 0x550
+    xtalfreq: ReadWrite<u32, CrystalFrequency::Register>, // 0x550
 }
+
+register_bitfields![u32,
+    /// Tasks
+    Task [
+        EXECUTE 0
+    ],
+
+    /// Events.
+    Event [
+        READY 0
+    ],
+
+    /// Interrupts.
+    ///
+    /// Write '0' has no effect. When read this register will return the value of INTEN.
+    Interrupt [
+        HFCLKSTARTED 0,
+        LFCLKSTARTED 1,
+        DONE 3,
+        CTTO 4
+    ],
+
+    /// Is this clock running?
+    ClkRun [
+        STATUS 0
+    ],
+
+    HfClkStat [
+        /// Active clock source.
+        SRC OFFSET(0) NUMBITS(1) [
+            /// 16 MHz RC oscillator running and generating the HFCLK.
+            RC = 0,
+            /// 16 MHz HFCLK crystal oscillator running and generating the HFCLK.
+            Xtal = 1
+        ],
+        /// HFCLK State.
+        STATE OFFSET(16) NUMBITS(1) [
+            NotRunning = 0,
+            Running = 1
+        ]
+    ],
+
+    LfClkStat [
+        /// Active clock source.
+        SRC OFFSET(0) NUMBITS(2) [
+            /// 32.768 kHz RC oscillator running and generating the LFCLK.
+            RC = 0,
+            /// 32.768 kHz crystal oscillator running and generating the LFCLK.
+            Xtal = 1,
+            /// 32.768 kHz synthesizer synthesizing 32.768 kHz (from HFCLK) and generating the LFCLK.
+            Synth = 2
+        ],
+        /// LFCLK State.
+        STATE OFFSET(16) NUMBITS(1) [
+            NotRunning = 0,
+            Running = 1
+        ]
+    ],
+
+    LfClkSrc [
+        /// Clock source.
+        SRC OFFSET(0) NUMBITS(2) [
+            /// 32.768 kHz RC oscillator.
+            RC = 0,
+            /// 32.768 kHz crystal oscillator.
+            Xtal = 1,
+            /// 32.768 kHz synthesized from HFCLK.
+            Synth = 2
+        ]
+    ],
+
+    CalibrationTimerInterval [
+        /// Calibration timer interval in multiple of 0.25 seconds.
+        /// Range: 0.25 seconds to 31.75 seconds.
+        CTIV OFFSET(0) NUMBITS(7)
+    ],
+
+    CrystalFrequency [
+        /// Select nominal frequency of external crystal for HFCLK. This register
+        /// has to match the actual crystal used in design to enable correct behaviour.
+        XTALFREQ OFFSET(0) NUMBITS(8) [
+            SixteenMHz = 0xff,
+            ThirtyTwoMHz = 0x00
+        ]
+    ]
+];
 
 const CLOCK_BASE: StaticRef<ClockRegisters> =
     unsafe { StaticRef::new(0x40000000 as *const ClockRegisters) };
@@ -125,24 +211,25 @@ impl Clock {
 
     pub fn high_start(&self) {
         let regs = &*self.registers;
-        regs.tasks_hfclkstart.set(1);
+        regs.hfclkstart.write(Task::EXECUTE::SET);
     }
 
     pub fn high_stop(&self) {
         let regs = &*self.registers;
-        regs.tasks_hfclkstop.set(1);
+        regs.hfclkstop.write(Task::EXECUTE::SET);
     }
 
     pub fn high_started(&self) -> bool {
         let regs = &*self.registers;
-        regs.events_hfclkstarted.get() == 1
+        regs.hfclkstarted.is_set(Event::READY)
     }
 
     pub fn high_source(&self) -> HighClockSource {
         let regs = &*self.registers;
-        match regs.hfclkstat.get() & 1 {
-            0b0 => HighClockSource::RC,
-            _ => HighClockSource::XTAL,
+        match regs.hfclkstat.read_as_enum(HfClkStat::SRC) {
+            Some(HfClkStat::SRC::Value::RC) => HighClockSource::RC,
+            Some(HfClkStat::SRC::Value::Xtal) => HighClockSource::XTAL,
+            None => unreachable!("invalid value"),
         }
     }
 
@@ -168,17 +255,17 @@ impl Clock {
     #[inline(never)]
     pub fn low_start(&self) {
         let regs = &*self.registers;
-        regs.tasks_lfclkstart.set(1);
+        regs.lfclkstart.write(Task::EXECUTE::SET);
     }
 
     pub fn low_stop(&self) {
         let regs = &*self.registers;
-        regs.tasks_lfclkstop.set(1);
+        regs.lfclkstop.write(Task::EXECUTE::SET);
     }
 
     pub fn low_started(&self) -> bool {
         let regs = &*self.registers;
-        regs.events_lfclkstarted.get() == 1
+        regs.lfclkstarted.is_set(Event::READY)
     }
 
     pub fn low_source(&self) -> LowClockSource {
