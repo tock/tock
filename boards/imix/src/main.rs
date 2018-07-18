@@ -257,7 +257,8 @@ pub unsafe fn reset_handler() {
     let console = ConsoleComponent::new(&sam4l::usart::USART3, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
-    let nrf_serialization = Nrf51822Component::new(&sam4l::usart::USART2).finalize();
+    let nrf_serialization =
+        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize();
 
     // # TIMER
     let ast = &sam4l::ast::AST;
@@ -336,15 +337,7 @@ pub unsafe fn reset_handler() {
     let mut chip = sam4l::chip::Sam4l::new();
 
     // Need to reset the nRF on boot, toggle it's SWDIO
-    sam4l::gpio::PB[07].enable();
-    sam4l::gpio::PB[07].enable_output();
-    sam4l::gpio::PB[07].clear();
-    // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
-    for _ in 0..10 {
-        cortexm4::support::nop();
-    }
-    sam4l::gpio::PB[07].set();
-
+    imix.nrf51822.reset();
     imix.nrf51822.initialize();
 
     // These two lines need to be below the creation of the chip for

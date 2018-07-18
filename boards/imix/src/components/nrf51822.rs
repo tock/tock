@@ -21,11 +21,18 @@ use sam4l;
 
 pub struct Nrf51822Component {
     uart: &'static sam4l::usart::USART,
+    reset_pin: &'static sam4l::gpio::GPIOPin,
 }
 
 impl Nrf51822Component {
-    pub fn new(uart: &'static sam4l::usart::USART) -> Nrf51822Component {
-        Nrf51822Component { uart: uart }
+    pub fn new(
+        uart: &'static sam4l::usart::USART,
+        reset_pin: &'static sam4l::gpio::GPIOPin,
+    ) -> Nrf51822Component {
+        Nrf51822Component {
+            uart: uart,
+            reset_pin: reset_pin,
+        }
     }
 }
 
@@ -39,6 +46,7 @@ impl Component for Nrf51822Component {
             nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
             nrf51822_serialization::Nrf51822Serialization::new(
                 self.uart,
+                self.reset_pin,
                 &mut nrf51822_serialization::WRITE_BUF,
                 &mut nrf51822_serialization::READ_BUF
             )
