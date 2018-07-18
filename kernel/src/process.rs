@@ -98,7 +98,7 @@ pub trait ProcessType {
     fn set_fault_state(&self);
 
     /// Get the name of the process. Used for IPC.
-    fn get_process_name(&self) -> &[u8];
+    fn get_process_name(&self) -> &'static str;
 
     // memop operations
 
@@ -193,6 +193,20 @@ pub trait ProcessType {
 
     unsafe fn fault_fmt(&self, writer: &mut Write);
     unsafe fn process_detail_fmt(&self, writer: &mut Write);
+
+    // debug
+
+    /// Returns how many syscalls this app has called.
+    fn debug_syscall_count(&self) -> usize;
+
+    /// Returns how many callbacks for this process have been dropped.
+    fn debug_dropped_callback_count(&self) -> usize;
+
+    /// Returns how many times this process has been restarted.
+    fn debug_restart_count(&self) -> usize;
+
+    /// Returns how many times this process has exceeded its timeslice.
+    fn debug_timeslice_expiration_count(&self) -> usize;
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -698,8 +712,8 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
     }
 
-    fn get_process_name(&self) -> &[u8] {
-        self.process_name.as_bytes()
+    fn get_process_name(&self) -> &'static str {
+        self.process_name
     }
 
     unsafe fn get_syscall(&self) -> Option<Syscall> {
@@ -806,6 +820,23 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         });
 
         Some(switch_reason)
+    }
+
+    fn debug_syscall_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.syscall_count)
+    }
+
+    fn debug_dropped_callback_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.dropped_callback_count)
+    }
+
+    fn debug_restart_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.restart_count)
+    }
+
+    fn debug_timeslice_expiration_count(&self) -> usize {
+        self.debug
+            .map_or(0, |debug| debug.timeslice_expiration_count)
     }
 
     unsafe fn fault_fmt(&self, writer: &mut Write) {
