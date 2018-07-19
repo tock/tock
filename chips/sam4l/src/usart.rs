@@ -744,7 +744,6 @@ impl USART {
 impl dma::DMAClient for USART {
     fn transfer_done(&self, pid: dma::DMAPeripheral) {
         let usart = &USARTRegManager::new(&self);
-
         match self.usart_mode.get() {
             UsartMode::Uart => {
                 // determine if it was an RX or TX transfer
@@ -767,6 +766,7 @@ impl dma::DMAClient for USART {
                     self.client.map(|usartclient| {
                         buffer.map(|buf| {
                             let length = self.rx_len.get();
+                            self.rx_len.set(0);
                             match usartclient {
                                 UsartClient::Uart(client) => {
                                     client.receive_complete(
@@ -779,7 +779,6 @@ impl dma::DMAClient for USART {
                             }
                         });
                     });
-                    self.rx_len.set(0);
                 } else if pid == self.tx_dma_peripheral {
                     // TX transfer was completed
 
@@ -894,12 +893,11 @@ impl hil::uart::UART for USART {
         self.enable_rx(usart);
         self.enable_rx_error_interrupts(usart);
         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
-
         // set up dma transfer and start reception
         self.rx_dma.get().map(move |dma| {
             dma.enable();
+            self.rx_len.set(length);
             dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
-            self.rx_len.set(rx_len);
         });
     }
 
