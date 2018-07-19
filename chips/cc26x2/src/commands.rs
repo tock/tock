@@ -307,7 +307,7 @@ pub struct CmdRxTest {
 #[repr(C)]
 pub struct CmdTxTest {
     // command_no 0x0808
-    common: CmdCommon,    
+    common: CmdCommon,
     config: u8,
     _reserved_a: u8,
     tx_word: u16,

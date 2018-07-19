@@ -441,14 +441,11 @@ impl RFCore {
         dbell_regs
             ._rfhwifg
             .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
-        dbell_regs
-            .rfcpeifg
-            .set(0x7FFFFFFF);
+        dbell_regs.rfcpeifg.set(0x7FFFFFFF);
 
-        
         // Initialize radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40));
-        
+
         // Request bus
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1));
 
@@ -617,13 +614,11 @@ impl RFCore {
         }
         if dbell_regs.cmdr.get() == 0 {
             dbell_regs.cmdr.set(rf_command);
-            return ReturnCode::SUCCESS;    
-        }
-        else {
+            return ReturnCode::SUCCESS;
+        } else {
             self.push_state(State::Pending);
             return ReturnCode::EBUSY;
         }
-        
     }
 
     // Get status from active radio command
@@ -683,7 +678,7 @@ impl RFCore {
 
     fn send<T: cmd::RadioCommand>(&self, rf_command: &T) -> ReturnCode {
         let command = { (rf_command as *const T) as u32 };
-        
+
         return self.post_cmdr(command);
     }
 
@@ -702,7 +697,7 @@ impl RFCore {
 
         return self.wait_cmdr(command);
     }
-       
+
     pub fn handle_interrupt(&self, int: RfcInterrupt) {
         let dbell_regs = RFC_DBELL_BASE;
         match int {
@@ -720,19 +715,11 @@ impl RFCore {
                 self.client.get().map(|client| client.send_command_done());
             }
             RfcInterrupt::Cpe0 => {
-                let command_done = dbell_regs
-                    .rfcpeifg
-                    .is_set(CPEIntFlags::COMMAND_DONE);
+                let command_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE);
                 dbell_regs.rfcpeifg.set(0);
-                let last_command_done = dbell_regs
-                    .rfcpeifg
-                    .is_set(CPEIntFlags::LAST_COMMAND_DONE);
-                let tx_done = dbell_regs
-                    .rfcpeifg
-                    .is_set(CPEIntFlags::TX_DONE);
-                let rx_ok = dbell_regs
-                    .rfcpeifg
-                    .is_set(CPEIntFlags::RX_OK);
+                let last_command_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE);
+                let tx_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::TX_DONE);
+                let rx_ok = dbell_regs.rfcpeifg.is_set(CPEIntFlags::RX_OK);
                 if command_done {
                     self.client.get().map(|client| client.wait_command_done());
                 }
@@ -774,7 +761,7 @@ impl<'a> RFCoreClient for RFCoreDriver<'a> {
             .get()
             .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::SendDone as usize, 0, 0));
     }
-    
+
     fn last_command_done(&self) {
         self.callback
             .get()
@@ -797,7 +784,6 @@ impl<'a> RFCoreClient for RFCoreDriver<'a> {
             .get()
             .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::RxOk as usize, 0, 0));
     }
-
 }
 
 impl<'a> Driver for RFCoreDriver<'a> {
@@ -873,10 +859,8 @@ impl<'a> Driver for RFCoreDriver<'a> {
                     }
                 }
             }
-            cmd::RfcOperationStatus::Invalid => {
-                panic!("Invalid command status")
-            }
-            _ => panic!("Unimplemented!")
+            cmd::RfcOperationStatus::Invalid => panic!("Invalid command status"),
+            _ => panic!("Unimplemented!"),
         }
     }
 }
