@@ -42,7 +42,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, cc26xx::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
 }
@@ -179,23 +179,23 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    let rtc = &cc26xx::rtc::RTC;
+    let rtc = &cc26x2::rtc::RTC;
     rtc.start();
 
     let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, cc26xx::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&cc26xx::rtc::RTC)
+        capsules::virtual_alarm::MuxAlarm<'static, cc26x2::rtc::Rtc>,
+        capsules::virtual_alarm::MuxAlarm::new(&cc26x2::rtc::RTC)
     );
     rtc.set_client(mux_alarm);
 
     let virtual_alarm1 = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
         >,
         capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
     );
