@@ -23,6 +23,7 @@ use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -94,7 +95,7 @@ static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 struct Imix {
-    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -254,7 +255,15 @@ pub unsafe fn reset_handler() {
         trng: true,
     });
 
-    let console = ConsoleComponent::new(&sam4l::usart::USART3, 115200).finalize();
+    // Create a shared UART channel for the console and for kernel debug.
+    sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(&sam4l::usart::USART3, &mut capsules::virtual_uart::RX_BUF)
+    );
+    hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
+
+    let console = ConsoleComponent::new(uart_mux, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
     let nrf_serialization =

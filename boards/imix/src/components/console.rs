@@ -18,47 +18,64 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::console;
+use capsules::virtual_uart::{UartDevice, UartMux};
 use hil;
 use kernel;
 use kernel::component::Component;
 use kernel::Grant;
-use sam4l;
 
 pub struct ConsoleComponent {
-    uart: &'static sam4l::usart::USART,
+    uart_mux: &'static UartMux<'static>,
     baud_rate: u32,
 }
 
 impl ConsoleComponent {
-    pub fn new(uart: &'static sam4l::usart::USART, rate: u32) -> ConsoleComponent {
+    pub fn new(uart_mux: &'static UartMux, rate: u32) -> ConsoleComponent {
         ConsoleComponent {
-            uart: uart,
+            uart_mux: uart_mux,
             baud_rate: rate,
         }
     }
 }
 
 impl Component for ConsoleComponent {
-    type Output = &'static console::Console<'static, sam4l::usart::USART>;
+    type Output = &'static console::Console<'static, UartDevice<'static>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
-        sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
+        // Create virtual device for console.
+        let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
+        console_uart.setup();
         let console = static_init!(
-            console::Console<sam4l::usart::USART>,
+            console::Console<UartDevice>,
             console::Console::new(
-                self.uart,
+                console_uart,
                 self.baud_rate,
                 &mut console::WRITE_BUF,
                 &mut console::READ_BUF,
                 Grant::create()
             )
         );
-        hil::uart::UART::set_client(self.uart, console);
+        hil::uart::UART::set_client(console_uart, console);
         console.initialize();
 
-        // Attach the kernel debug interface to this console
-        let kc = static_init!(console::App, console::App::default());
-        kernel::debug::assign_console_driver(Some(console), kc);
+        // Create virtual device for kernel debug.
+        let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
+        debugger_uart.setup();
+        let debugger = static_init!(
+            kernel::debug::DebugWriter,
+            kernel::debug::DebugWriter::new(
+                debugger_uart,
+                &mut kernel::debug::OUTPUT_BUF,
+                &mut kernel::debug::INTERNAL_BUF,
+            )
+        );
+        hil::uart::UART::set_client(debugger_uart, debugger);
+
+        let debug_wrapper = static_init!(
+            kernel::debug::DebugWriterWrapper,
+            kernel::debug::DebugWriterWrapper::new(debugger)
+        );
+        kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
         console
     }
