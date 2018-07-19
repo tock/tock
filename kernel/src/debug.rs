@@ -6,7 +6,7 @@
 //!
 //! Before debug interfaces can be used, the board file must assign them hardware:
 //!
-//! ```rust
+//! ```ignore
 //! kernel::debug::assign_gpios(
 //!     Some(&sam4l::gpio::PA[13]),
 //!     Some(&sam4l::gpio::PA[15]),
@@ -22,13 +22,17 @@
 //! Example
 //! -------
 //!
-//! ```rust
+//! ```no_run
+//! # #[macro_use] extern crate kernel;
+//! # fn main() {
+//! # let i = 42;
 //! debug!("Yes the code gets here with value {}", i);
 //! debug_verbose!("got here"); // includes message count, file, and line
 //! debug_gpio!(0, toggle); // Toggles the first debug GPIO
+//! # }
 //! ```
 //!
-//! ```
+//! ```text
 //! Yes the code gets here with value 42
 //! TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: got here
 //! ```
