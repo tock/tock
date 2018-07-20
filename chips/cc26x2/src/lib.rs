@@ -16,6 +16,7 @@ pub mod commands;
 pub mod crt1;
 pub mod prcm;
 pub mod rfc;
+pub mod rat;
 pub mod rtc;
 
 pub use crt1::init;
