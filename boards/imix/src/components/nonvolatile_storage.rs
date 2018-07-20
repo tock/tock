@@ -67,7 +67,7 @@ impl Component for NonvolatileStorageComponent {
             NonvolatileStorage<'static>,
             NonvolatileStorage::new(
                 nv_to_page,
-                kernel::Grant::create(self.board_kernel),
+                self.board_kernel.create_grant(),
                 0x60000,      // Start address for userspace accessible region
                 0x20000,      // Length of userspace accessible region
                 kernel_start, // Start address of kernel region

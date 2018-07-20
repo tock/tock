@@ -27,7 +27,6 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
 use kernel;
 use kernel::component::Component;
-use kernel::Grant;
 use sam4l;
 
 pub struct SI7021Component {
@@ -92,7 +91,7 @@ impl Component for TemperatureComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let temp = static_init!(
             TemperatureSensor<'static>,
-            TemperatureSensor::new(self.si7021, Grant::create(self.board_kernel))
+            TemperatureSensor::new(self.si7021, self.board_kernel.create_grant())
         );
 
         hil::sensors::TemperatureDriver::set_client(self.si7021, temp);
@@ -123,7 +122,7 @@ impl Component for HumidityComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let hum = static_init!(
             HumiditySensor<'static>,
-            HumiditySensor::new(self.si7021, Grant::create(self.board_kernel))
+            HumiditySensor::new(self.si7021, self.board_kernel.create_grant())
         );
 
         hil::sensors::HumidityDriver::set_client(self.si7021, hum);

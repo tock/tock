@@ -114,7 +114,7 @@ impl Component for RadioComponent {
             capsules::ieee802154::RadioDriver<'static>,
             capsules::ieee802154::RadioDriver::new(
                 radio_mac,
-                kernel::Grant::create(self.board_kernel),
+                self.board_kernel.create_grant(),
                 &mut RADIO_BUF
             )
         );

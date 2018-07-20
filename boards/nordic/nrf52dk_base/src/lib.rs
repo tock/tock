@@ -161,7 +161,7 @@ pub unsafe fn setup_board(
     // Buttons
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create(board_kernel))
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -186,7 +186,7 @@ pub unsafe fn setup_board(
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         >,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create(board_kernel))
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
     let ble_radio_virtual_alarm = static_init!(
@@ -218,7 +218,7 @@ pub unsafe fn setup_board(
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create(board_kernel)
+            board_kernel.create_grant()
         )
     );
     kernel::hil::uart::UART::set_client(console_uart, console);
@@ -251,7 +251,7 @@ pub unsafe fn setup_board(
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf52::radio::RADIO,
-            kernel::Grant::create(board_kernel),
+            board_kernel.create_grant(),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
@@ -270,14 +270,14 @@ pub unsafe fn setup_board(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            kernel::Grant::create(board_kernel)
+            board_kernel.create_grant()
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create(board_kernel))
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, board_kernel.create_grant())
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -353,7 +353,7 @@ pub unsafe fn setup_board(
             capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
             capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
                 nv_to_page,
-                kernel::Grant::create(board_kernel),
+                board_kernel.create_grant(),
                 0x60000, // Start address for userspace accessible region
                 0x20000, // Length of userspace accessible region
                 0,       // Start address of kernel accessible region

@@ -53,10 +53,7 @@ impl Component for UsbComponent {
                 'static,
                 capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
             >,
-            capsules::usb_user::UsbSyscallDriver::new(
-                usb_client,
-                kernel::Grant::create(self.board_kernel)
-            )
+            capsules::usb_user::UsbSyscallDriver::new(usb_client, self.board_kernel.create_grant())
         );
 
         usb_driver

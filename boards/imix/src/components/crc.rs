@@ -38,10 +38,7 @@ impl Component for CrcComponent {
     unsafe fn finalize(&mut self) -> Self::Output {
         let crc = static_init!(
             crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-            crc::Crc::new(
-                &mut sam4l::crccu::CRCCU,
-                kernel::Grant::create(self.board_kernel)
-            )
+            crc::Crc::new(&mut sam4l::crccu::CRCCU, self.board_kernel.create_grant())
         );
 
         crc

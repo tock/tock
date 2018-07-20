@@ -22,7 +22,6 @@ use capsules::virtual_uart::{UartDevice, UartMux};
 use hil;
 use kernel;
 use kernel::component::Component;
-use kernel::Grant;
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
@@ -58,7 +57,7 @@ impl Component for ConsoleComponent {
                 self.baud_rate,
                 &mut console::WRITE_BUF,
                 &mut console::READ_BUF,
-                Grant::create(self.board_kernel)
+                self.board_kernel.create_grant()
             )
         );
         hil::uart::UART::set_client(console_uart, console);

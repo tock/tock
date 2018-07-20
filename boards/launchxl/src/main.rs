@@ -121,7 +121,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, cc26xx::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create(board_kernel))
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
@@ -149,7 +149,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create(board_kernel)
+            board_kernel.create_grant()
         )
     );
     kernel::hil::uart::UART::set_client(console_uart, console);
@@ -228,13 +228,13 @@ pub unsafe fn reset_handler() {
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
         >,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create(board_kernel))
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
-        capsules::rng::SimpleRng::new(&cc26xx::trng::TRNG, kernel::Grant::create(board_kernel))
+        capsules::rng::SimpleRng::new(&cc26xx::trng::TRNG, board_kernel.create_grant())
     );
     cc26xx::trng::TRNG.set_client(rng);
 

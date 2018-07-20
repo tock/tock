@@ -43,7 +43,7 @@ impl Component for ButtonComponent {
 
         let button = static_init!(
             button::Button<'static, sam4l::gpio::GPIOPin>,
-            button::Button::new(button_pins, kernel::Grant::create(self.board_kernel))
+            button::Button::new(button_pins, self.board_kernel.create_grant())
         );
         for &(btn, _) in button_pins.iter() {
             btn.set_client(button);

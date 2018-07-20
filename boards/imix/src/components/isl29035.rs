@@ -28,7 +28,6 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
 use kernel;
 use kernel::component::Component;
-use kernel::Grant;
 use sam4l;
 
 pub struct Isl29035Component {
@@ -112,7 +111,7 @@ impl Component for AmbientLightComponent {
         isl29035_virtual_alarm.set_client(isl29035);
         let ambient_light = static_init!(
             AmbientLight<'static>,
-            AmbientLight::new(isl29035, Grant::create(self.board_kernel))
+            AmbientLight::new(isl29035, self.board_kernel.create_grant())
         );
         hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
         ambient_light

@@ -47,7 +47,7 @@ impl Component for AlarmDriverComponent {
         );
         let alarm = static_init!(
             AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            AlarmDriver::new(virtual_alarm1, kernel::Grant::create(self.board_kernel))
+            AlarmDriver::new(virtual_alarm1, self.board_kernel.create_grant())
         );
 
         virtual_alarm1.set_client(alarm);

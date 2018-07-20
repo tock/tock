@@ -101,7 +101,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create(board_kernel)
+            board_kernel.create_grant()
         )
     );
     hil::uart::UART::set_client(console_uart, console);
@@ -139,7 +139,7 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, tm4c129x::gpt::AlarmTimer>>,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create(board_kernel))
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
@@ -189,7 +189,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, tm4c129x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create(board_kernel))
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);

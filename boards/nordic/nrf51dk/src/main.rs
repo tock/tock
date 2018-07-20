@@ -193,7 +193,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create(board_kernel))
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -258,7 +258,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create(board_kernel)
+            board_kernel.create_grant()
         )
     );
     UART::set_client(console_uart, console);
@@ -294,7 +294,7 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        AlarmDriver::new(virtual_alarm1, kernel::Grant::create(board_kernel))
+        AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
@@ -307,14 +307,14 @@ pub unsafe fn reset_handler() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            kernel::Grant::create(board_kernel)
+            board_kernel.create_grant()
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create(board_kernel))
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, board_kernel.create_grant())
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -326,7 +326,7 @@ pub unsafe fn reset_handler() {
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf51::radio::RADIO,
-            kernel::Grant::create(board_kernel),
+            board_kernel.create_grant(),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )

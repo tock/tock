@@ -97,7 +97,7 @@ impl Component for NineDofComponent {
 
         let ninedof = static_init!(
             NineDof<'static>,
-            NineDof::new(fxos8700, Grant::create(self.board_kernel))
+            NineDof::new(fxos8700, self.board_kernel.create_grant())
         );
         hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
