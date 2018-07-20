@@ -1,13 +1,21 @@
 //! Interface for reading, writing, and erasing flash storage pages.
 //!
 //! Operates on single pages. The page size is set by the associated type
-//! `page`. Here is an example of a page type:
+//! `page`. Here is an example of a page type and implementation of this trait:
 //!
 //! ```rust
+//! # #![feature(const_fn)]
+//! # extern crate core;
+//! # extern crate kernel;
+//! use core::ops::{Index, IndexMut};
+//!
+//! use kernel::hil;
+//! use kernel::ReturnCode;
+//!
 //! // Size in bytes
 //! const PAGE_SIZE: u32 = 1024;
 //!
-//! pub struct NewChipPage(pub [u8; PAGE_SIZE as usize]);
+//! struct NewChipPage(pub [u8; PAGE_SIZE as usize]);
 //!
 //! impl NewChipPage {
 //!     pub const fn new() -> NewChipPage {
@@ -38,34 +46,34 @@
 //!         &mut self.0
 //!     }
 //! }
-//! ```
 //!
-//! Then a basic implementation of this trait should look like:
+//! struct NewChipStruct {};
 //!
-//! ```rust
-//!
-//! impl hil::flash::HasClient for NewChipStruct {
+//! impl<'a, C> hil::flash::HasClient<'a, C> for NewChipStruct {
 //!     fn set_client(&'a self, client: &'a C) { }
 //! }
 //!
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { }
-//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { }
-//!     fn erase_page(&self, page_number: usize) -> ReturnCode { }
+//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { ReturnCode::FAIL }
+//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { ReturnCode::FAIL }
+//!     fn erase_page(&self, page_number: usize) -> ReturnCode { ReturnCode::FAIL }
 //! }
 //! ```
 //!
 //! A user of this flash interface might look like:
 //!
 //! ```rust
+//! use kernel::common::cells::TakeCell;
+//! use kernel::hil;
+//!
 //! pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
 //!     driver: &'a F,
 //!     buffer: TakeCell<'static, F::Page>,
 //! }
 //!
-//! impl<F: hil::flash::Flash > FlashUser<'a, F> {
+//! impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
 //!     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> FlashUser<'a, F> {
 //!         FlashUser {
 //!             driver: driver,
@@ -74,7 +82,7 @@
 //!     }
 //! }
 //!
-//! impl<F: hil::flash::Flash > hil::flash::Client<F> for FlashUser<'a, F> {
+//! impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
 //!     fn read_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) {}
 //!     fn write_complete(&self, buffer: &'static mut F::Page, error: hil::flash::Error) { }
 //!     fn erase_complete(&self, error: hil::flash::Error) {}
