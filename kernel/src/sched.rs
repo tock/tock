@@ -7,6 +7,7 @@ use core::ptr::NonNull;
 use callback;
 use callback::{AppId, Callback};
 use common::cells::NumericCellExt;
+use grant::Grant;
 use ipc;
 use mem::AppSlice;
 use memop;
@@ -30,6 +31,15 @@ pub struct Kernel {
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
     processes: &'static [Option<&'static Process<'static>>],
+    /// How many grant regions have been setup. This is incremented on every
+    /// call to `create_grant()`. We need to explicitly track this so that when
+    /// processes are created they can allocated pointers for each grant.
+    grant_counter: Cell<usize>,
+    /// Flag to mark that grants have been finalized. This means that the kernel
+    /// cannot support creating new grants because processes have already been
+    /// created and the data structures for grants have already been
+    /// established.
+    grants_finalized: Cell<bool>,
 }
 
 impl Kernel {
@@ -37,6 +47,8 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
+            grant_counter: Cell::new(0),
+            grants_finalized: Cell::new(false),
         }
     }
 
@@ -114,6 +126,36 @@ impl Kernel {
     /// Return how many processes this board supports.
     crate fn number_of_process_slots(&self) -> usize {
         self.processes.len()
+    }
+
+    /// Create a new grant. This is used in board initialization to setup grants
+    /// that capsules use to interact with processes.
+    ///
+    /// Grants **must** only be created _before_ processes are initialized.
+    /// Processes use the number of grants that have been allocated to correctly
+    /// initialize the process's memory with a pointer for each grant. If a
+    /// grant is created after processes are initialized this will panic.
+    pub fn create_grant<T: Default>(&'static self) -> Grant<T> {
+        if self.grants_finalized.get() {
+            panic!("Grants finalized. Cannot create a new grant.");
+        }
+
+        // Create and return a new grant.
+        let grant_index = self.grant_counter.get();
+        self.grant_counter.increment();
+        Grant::new(self, grant_index)
+    }
+
+    /// Returns the number of grants that have been setup in the system and
+    /// marks the grants as "finalized". This means that no more grants can
+    /// be created because data structures have been setup based on the number
+    /// of grants when this function is called.
+    ///
+    /// In practice, this is called when processes are created, and the process
+    /// memory is setup based on the number of current grants.
+    crate fn get_grant_count_and_finalize(&self) -> usize {
+        self.grants_finalized.set(true);
+        self.grant_counter.get()
     }
 
     /// Main loop.

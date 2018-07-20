@@ -3,13 +3,11 @@
 use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
-use core::ptr::{read_volatile, write_volatile, Unique};
+use core::ptr::Unique;
 
 use callback::AppId;
 use process::Error;
 use sched::Kernel;
-
-crate static mut CONTAINER_COUNTER: usize = 0;
 
 pub struct Grant<T: Default> {
     crate kernel: &'static Kernel,
@@ -133,12 +131,10 @@ impl<T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
 }
 
 impl<T: Default> Grant<T> {
-    pub unsafe fn create(kernel: &'static Kernel) -> Grant<T> {
-        let ctr = read_volatile(&CONTAINER_COUNTER);
-        write_volatile(&mut CONTAINER_COUNTER, ctr + 1);
+    crate fn new(kernel: &'static Kernel, grant_index: usize) -> Grant<T> {
         Grant {
             kernel: kernel,
-            grant_num: ctr,
+            grant_num: grant_index,
             ptr: PhantomData,
         }
     }

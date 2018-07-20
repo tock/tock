@@ -37,7 +37,7 @@ pub struct IPC {
 impl IPC {
     pub unsafe fn new(kernel: &'static Kernel) -> IPC {
         IPC {
-            data: Grant::create(kernel),
+            data: kernel.create_grant(),
         }
     }
 

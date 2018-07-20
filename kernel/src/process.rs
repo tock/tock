@@ -10,7 +10,6 @@ use core::{mem, ptr, slice, str};
 
 use common::cells::MapCell;
 use common::math;
-use grant;
 use platform::mpu;
 use returncode::ReturnCode;
 use sched::Kernel;
@@ -602,7 +601,7 @@ impl Process<'a> {
 
             // Make room for grant pointers.
             let grant_ptr_size = mem::size_of::<*const usize>();
-            let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+            let grant_ptrs_num = kernel.get_grant_count_and_finalize();
             let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
             // Allocate memory for callback ring buffer.
@@ -791,7 +790,7 @@ impl Process<'a> {
 
     /// Reset all `grant_ptr`s to NULL.
     unsafe fn grant_ptrs_reset(&self) {
-        let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
         for grant_num in 0..grant_ptrs_num {
             let grant_num = grant_num as isize;
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
