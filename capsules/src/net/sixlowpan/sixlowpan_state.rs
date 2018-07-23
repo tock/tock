@@ -312,8 +312,8 @@ pub trait SixlowpanState<'a> {
 /// frames; the `TxState` struct simply produces compressed MAC frames.
 pub struct TxState<'a> {
     // State for the current transmission
+    pub dst_pan: Cell<PanID>, // Pub to allow for setting to broadcast PAN and back
     src_pan: Cell<PanID>,
-    dst_pan: Cell<PanID>,
     src_mac_addr: Cell<MacAddress>,
     dst_mac_addr: Cell<MacAddress>,
     security: Cell<Option<(SecurityLevel, KeyId)>>,
@@ -372,6 +372,7 @@ impl<'a> TxState<'a> {
         &self,
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
+        radio_pan: u16,
         security: Option<(SecurityLevel, KeyId)>,
     ) -> ReturnCode {
         if self.busy.get() {
@@ -381,6 +382,11 @@ impl<'a> TxState<'a> {
             self.dst_mac_addr.set(dst_mac_addr);
             self.security.set(security);
             self.busy.set(false);
+
+            // ipv6_send ensures passed src pan matches src pan of the underlying 15.4 radio
+            // If we ever move to a multi-radio system this will need to change, for now
+            // this makes more sense as it prevents the values from becoming divorced.
+            self.src_pan.set(radio_pan);
             ReturnCode::SUCCESS
         }
     }

@@ -606,6 +606,7 @@ pub unsafe fn reset_handler() {
         sixlowpan_state::RxState<'static>, sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
     );
     sixlowpan_state.add_rx_state(default_rx_state);
+    sixlowpan_tx.dst_pan.set(0xABCD);
     udp_mac.set_receive_client(sixlowpan);
 
     let tr_hdr = TransportHeader::UDP(UDPHeader::new());
