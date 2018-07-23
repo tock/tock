@@ -21,16 +21,18 @@ int main(void) {
   printf("[Sensors] Starting Sensors App.\n");
   printf("[Sensors] All available sensors on the platform will be sampled.\n");
 
-  unsigned int humi;
-  int temp, lux;
+  unsigned int humi = 1;
+  int temp = 2;
+  int lux = 3;
   char packet[64];
 
   /*
   ieee802154_set_address(0x1540);
+  */
   ieee802154_set_pan(0xABCD);
   ieee802154_config_commit();
   ieee802154_up();
-  */
+
 
   ipv6_addr_t ifaces[10];
   udp_list_ifaces(ifaces, 10);
@@ -52,9 +54,12 @@ int main(void) {
   };
 
   while (1) {
+    // TODO: Below lines caused code to hang, commented out until fixed
+    /*
     temperature_read_sync(&temp);
     humidity_read_sync(&humi);
     ambient_light_read_intensity_sync(&lux);
+    */
 
     int len = snprintf(packet, sizeof(packet), "%d deg C; %d%%; %d lux;\n",
                        temp, humi, lux);
@@ -62,11 +67,11 @@ int main(void) {
     printf("Sending packet (length %d) --> ", len);
     print_ipv6(&(destination.addr));
     printf(" : %d\n", destination.port);
-    ssize_t bytes_sent = udp_send_to(&handle, packet, len, &destination);
-    if (bytes_sent < 0) {
-        printf("    UDP TX ERROR: %d\n", bytes_sent);
+    ssize_t result = udp_send_to(&handle, packet, len, &destination);
+    if (result < 0) {
+        printf("    UDP TX ERROR: %d\n", result);
     } else {
-        printf("    bytes sent: %d\n", bytes_sent);
+        printf("UDP TX Success \n");
     }
 
     /*

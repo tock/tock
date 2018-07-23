@@ -28,7 +28,7 @@ use net::sixlowpan::sixlowpan_state::TxState;
 // TODO: These should *not* be constants, and should be set at some other
 // point during the initialization of the IP stack
 const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(0xffff);
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802); //match 802154 rx userland app
 
 /// This trait must be implemented by upper layers in order to receive
 /// the `send_done` callback when a transmission has completed. The upper
@@ -121,7 +121,7 @@ impl<'a> IP6Sender<'a> for IP6SendStruct<'a> {
         transport_header: TransportHeader,
         payload: &[u8],
     ) -> ReturnCode {
-        self.sixlowpan.init(SRC_MAC_ADDR, DST_MAC_ADDR, self.radio.pan.get(), None);
+        self.sixlowpan.init(SRC_MAC_ADDR, DST_MAC_ADDR, self.radio.get_pan(), None);
         self.init_packet(dst, transport_header, payload);
         self.send_next_fragment()
     }

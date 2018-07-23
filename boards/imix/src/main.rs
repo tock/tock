@@ -35,6 +35,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 use kernel::hil::Controller;
+use capsules::net::ipv6::ip_utils::IPAddr;
 
 /// Support routines for debugging I/O.
 ///
@@ -66,6 +67,8 @@ mod power;
 // State for loading apps.
 
 const NUM_PROCS: usize = 2;
+//Source IP Address. TODO: Move somewhere else
+const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
@@ -576,7 +579,6 @@ pub unsafe fn reset_handler() {
     mac_device.set_device_procedure(radio_driver);
     radio_mac.set_transmit_client(radio_driver);
     radio_mac.set_receive_client(radio_driver);
-    radio_mac.set_pan(0xABCD);
     radio_mac.set_address(0x1008);
 
     // ** UDP **
@@ -623,6 +625,7 @@ pub unsafe fn reset_handler() {
         capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
         capsules::net::ipv6::ipv6_send::IP6SendStruct::new(ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)
     );
+    ip_send.set_addr(SRC_ADDR);
     udp_mac.set_transmit_client(ip_send);
 
     let udp_send = static_init!(
