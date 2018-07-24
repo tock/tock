@@ -10,6 +10,7 @@ extern crate kernel;
 #[macro_use]
 extern crate bitfield;
 extern crate fixedvec;
+
 pub mod aon;
 pub mod chip;
 pub mod commands;
@@ -20,3 +21,4 @@ pub mod rat;
 pub mod rtc;
 
 pub use crt1::init;
+

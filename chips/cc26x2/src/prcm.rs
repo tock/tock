@@ -85,7 +85,7 @@ struct PrcmRegisters {
     pub pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_peripheral: WriteOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved5: [ReadOnly<u8>; 0x04],
+    _reserved5: ReadOnly<u32>,
 
     // Power Domain Status 0
     pub pd_stat0: ReadOnly<u32, PowerDomainStatus0::Register>,
@@ -93,17 +93,22 @@ struct PrcmRegisters {
     pub pd_stat0_serial: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat0_periph: ReadOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved7: [ReadOnly<u8>; 0x2C],
-
     // Power Domain Control 1
     pub pd_ctl1: ReadWrite<u32, PowerDomain1::Register>,
+    pub pd_ctl1_cpu: ReadWrite<u32, PowerDomainSingle::Register>,
+    pub pd_ctl1_rfc: ReadWrite<u32, PowerDomainSingle::Register>,
+    pub pd_ctl1_vims: ReadWrite<u32, PowerDomainSingle::Register>,
 
-    _reserved8: [ReadOnly<u8>; 0x14],
+    _reserved6: [ReadOnly<u8>; 0x14],
 
     // Power Domain Status 1
     pub pd_stat1: ReadOnly<u32, PowerDomainStatus1::Register>,
+    pub pd_stat1_bus: ReadOnly<u32, PowerDomainSingle::Register>,
+    pub pd_stat1_rfc: ReadOnly<u32, PowerDomainSingle::Register>,
+    pub pd_stat1_cpu: ReadOnly<u32, PowerDomainSingle::Register>,
+    pub pd_stat1_vims: ReadOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved9: [ReadOnly<u8>; 0x38],
+    _reserved9: ReadOnly<u32>,
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
@@ -157,10 +162,11 @@ register_bitfields![
         CPU_ON      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomainStatus1 [
-        // RESERVED (bits 3-31)
-        VIMS_ON     OFFSET(2) NUMBITS(1) [],
-        RFC_ON      OFFSET(1) NUMBITS(1) [],
-        CPU_ON      OFFSET(0) NUMBITS(1) []
+        // RESERVED (bits 1 & 5-31)
+        BUS_ON      OFFSET(4) NUMBITS(1) [],
+        VIMS_ON     OFFSET(3) NUMBITS(1) [],
+        RFC_ON      OFFSET(2) NUMBITS(1) [],
+        CPU_ON      OFFSET(1) NUMBITS(1) []
     ]
 ];
 
@@ -288,8 +294,12 @@ impl Power {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
             PowerDomain::RFC => {
+                regs.pd_stat0_rfc.is_set(PowerDomainSingle::ON)
+                    && regs.pd_stat1_rfc.is_set(PowerDomainSingle::ON)
+                    /*
                 regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
                     && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                    */
             }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),

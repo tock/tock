@@ -14,9 +14,11 @@ extern crate kernel;
 
 use cc26x2::aon;
 use cc26x2::prcm;
+use cc26x2::rfc::RFCore;
 
 #[macro_use]
 pub mod io;
+pub mod rfc_dummy;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -76,6 +78,12 @@ pub unsafe fn reset_handler() {
 
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
+
+    // Power of RF Core
+    prcm::Power::enable_domain(prcm::PowerDomain::RFC);
+
+    // Wait for radio power domain to enable
+    while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
 
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();
@@ -205,7 +213,14 @@ pub unsafe fn reset_handler() {
         capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
         capsules::rng::SimpleRng::new(&cc26xx::trng::TRNG, kernel::Grant::create())
     );
+
     cc26xx::trng::TRNG.set_client(rng);
+    
+    // Power Radio
+    let radio_virtual_alarm = static_init!(
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)  
+    );
 
     let launchxl = Platform {
         console,
@@ -219,11 +234,12 @@ pub unsafe fn reset_handler() {
     let mut chip = cc26x2::chip::Cc26X2::new();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-
+        
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
+    
 
     kernel::procs::load_processes(
         board_kernel,

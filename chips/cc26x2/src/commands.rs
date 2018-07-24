@@ -42,6 +42,7 @@ pub enum RfcOperationStatus {
     LastCommandDone,
     RxOk,
     TxDone,
+    Setup,
     Invalid,
 }
 
