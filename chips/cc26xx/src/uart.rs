@@ -107,7 +107,7 @@ impl UART {
         }
 
         self.tx_pin.map_or(ReturnCode::EOFF, |tx_pin| {
-            self.tx_pin.map_or(ReturnCode::EOFF, |rx_pin| {
+            self.rx_pin.map_or(ReturnCode::EOFF, |rx_pin| {
                 unsafe {
                     // Make sure the TX pin is output/high before assigning it to UART control
                     // to avoid falling edge glitches
