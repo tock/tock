@@ -26,8 +26,8 @@ use kernel::hil::analog_comparator;
 use kernel::ReturnCode;
 use pm;
 
-pub static mut AC0: 0x00; // AdcChannel = AdcChannel::new(Channel::AC0);
-pub static mut AC1: 0x01; // AdcChannel = AdcChannel::new(Channel::AC1);
+pub static mut COMPARATOR_0: 0x00; // AdcChannel = AdcChannel::new(Channel::AC0);
+pub static mut COMPARATOR_1: 0x01; // AdcChannel = AdcChannel::new(Channel::AC1);
 // pub static mut WINDOW0: AdcChannel = AdcChannel::new(Window::WINDOW1);
 
 #[repr(C)]
