@@ -67,7 +67,7 @@ static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 impl Component for RadioComponent {
     type Output = &'static capsules::ieee802154::RadioDriver<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self) -> (Self::Output, &'static capsules::ieee802154::virtual_mac::MuxMac<'static>) {
         let aes_ccm = static_init!(
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
             capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
@@ -123,6 +123,6 @@ impl Component for RadioComponent {
         radio_mac.set_pan(self.pan_id);
         radio_mac.set_address(self.short_addr);
 
-        radio_driver
+        (radio_driver, mux_mac)
     }
 }

@@ -6,7 +6,7 @@
 
 // use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use core::cell::Cell; use core::{cmp, mem};
-use kernel::common::take_cell::{TakeCell};
+use kernel::common::cells::{TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ipv6::ip_utils::IPAddr;
 use net::udp::udp_send::{UDPSendClient, UDPSender};
