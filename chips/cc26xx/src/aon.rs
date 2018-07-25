@@ -5,18 +5,22 @@
 //! The current configuration disables all wake-up selectors, since the
 //! MCU never go to sleep and is always active.
 
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
+use kernel::common::StaticRef;
 
 #[repr(C)]
-pub struct AonEventRegisters {
+struct AonEventRegisters {
     mcu_wu_sel: VolatileCell<u32>,       // MCU Wake-up selector
     aux_wu_sel: VolatileCell<u32>,       // AUX Wake-up selector
     event_to_mcu_sel: VolatileCell<u32>, // Event selector for MCU Events
     rtc_sel: VolatileCell<u32>,          // RTC Capture event selector for AON_RTC
 }
 
+const AON_BASE: StaticRef<AonEventRegisters> =
+    unsafe { StaticRef::new(0x40093000 as *const AonEventRegisters) };
+
 pub struct AonEvent {
-    regs: *const AonEventRegisters,
+    registers: StaticRef<AonEventRegisters>,
 }
 
 pub static mut AON_EVENT: AonEvent = AonEvent::new();
@@ -24,12 +28,12 @@ pub static mut AON_EVENT: AonEvent = AonEvent::new();
 impl AonEvent {
     const fn new() -> AonEvent {
         AonEvent {
-            regs: 0x4009_3000 as *const AonEventRegisters,
+            registers: AON_BASE,
         }
     }
 
     pub fn setup(&self) {
-        let regs: &AonEventRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // Default to no events at all
         regs.aux_wu_sel.set(0x3F3F3F3F);

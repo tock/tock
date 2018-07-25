@@ -5,7 +5,7 @@
 //! > The TSL2560 and TSL2561 are light-to-digital converters that transform
 //! > light intensity to a digital signal output capable of direct I2C
 //! > interface. Each device combines one broadband photodiode (visible plus
-//! > infrared) and one infrared-responding photodiodeon a single CMOS
+//! > infrared) and one infrared-responding photodiode on a single CMOS
 //! > integrated circuit capable of providing a near-photopic response over an
 //! > effective 20-bit dynamic range (16-bit resolution). Two integrating ADCs
 //! > convert the photodiode currents to a digital output that represents the
@@ -14,7 +14,7 @@
 //! > using an empirical formula to approximate the human eye response.
 
 use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -203,12 +203,12 @@ enum State {
 pub struct TSL2561<'a> {
     i2c: &'a i2c::I2CDevice,
     interrupt_pin: &'a gpio::Pin,
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> TSL2561<'a> {
+impl TSL2561<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
         interrupt_pin: &'a gpio::Pin,
@@ -218,7 +218,7 @@ impl<'a> TSL2561<'a> {
         TSL2561 {
             i2c: i2c,
             interrupt_pin: interrupt_pin,
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -344,7 +344,7 @@ impl<'a> TSL2561<'a> {
     }
 }
 
-impl<'a> i2c::I2CClient for TSL2561<'a> {
+impl i2c::I2CClient for TSL2561<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectId => {
@@ -403,7 +403,7 @@ impl<'a> i2c::I2CClient for TSL2561<'a> {
 
                 let lux = self.calculate_lux(chan0, chan1);
 
-                self.callback.get().map(|mut cb| cb.schedule(0, lux, 0));
+                self.callback.map(|cb| cb.schedule(0, lux, 0));
 
                 buffer[0] = Registers::Control as u8 | COMMAND_REG;
                 buffer[1] = POWER_OFF;
@@ -421,7 +421,7 @@ impl<'a> i2c::I2CClient for TSL2561<'a> {
     }
 }
 
-impl<'a> gpio::Client for TSL2561<'a> {
+impl gpio::Client for TSL2561<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -435,7 +435,7 @@ impl<'a> gpio::Client for TSL2561<'a> {
     }
 }
 
-impl<'a> Driver for TSL2561<'a> {
+impl Driver for TSL2561<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -446,7 +446,7 @@ impl<'a> Driver for TSL2561<'a> {
             // Set a callback
             0 => {
                 // Set callback function
-                self.callback.set(callback);
+                self.callback.insert(callback);
                 ReturnCode::SUCCESS
             }
             // default

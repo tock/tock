@@ -8,14 +8,16 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: March 03, 2017
 
-use core::cell::Cell;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
-const TEMP_BASE: usize = 0x4000C000;
+const TEMP_BASE: StaticRef<TempRegisters> =
+    unsafe { StaticRef::new(0x4000C000 as *const TempRegisters) };
 
 #[repr(C)]
-struct TemperatureRegisters {
+struct TempRegisters {
     /// Start temperature measurement
     /// Address: 0x000 - 0x004
     pub task_start: WriteOnly<u32, Task::Register>,
@@ -41,7 +43,7 @@ struct TemperatureRegisters {
     pub _reserved3: [u32; 127],
     /// Temperature in °C (0.25° steps)
     /// Address: 0x508 - 0x50c
-    pub temp: ReadOnly<u32, Temp::Register>,
+    pub temp: ReadOnly<u32, Temperature::Register>,
     /// Reserved
     pub _reserved4: [u32; 5],
     /// Slope of piece wise linear function (nRF52 only)
@@ -82,7 +84,7 @@ register_bitfields! [u32,
     ],
 
     /// Temperature in °C (0.25° steps)
-    Temp [
+    Temperature [
         TEMP OFFSET(0) NUMBITS(32)
     ],
 
@@ -102,18 +104,18 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Temperature {
-    regs: *const TemperatureRegisters,
-    client: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
+pub struct Temp {
+    registers: StaticRef<TempRegisters>,
+    client: OptionalCell<&'static kernel::hil::sensors::TemperatureClient>,
 }
 
-pub static mut TEMP: Temperature = Temperature::new();
+pub static mut TEMP: Temp = Temp::new();
 
-impl Temperature {
-    const fn new() -> Temperature {
-        Temperature {
-            regs: TEMP_BASE as *const TemperatureRegisters,
-            client: Cell::new(None),
+impl Temp {
+    const fn new() -> Temp {
+        Temp {
+            registers: TEMP_BASE,
+            client: OptionalCell::empty(),
         }
     }
 
@@ -121,7 +123,7 @@ impl Temperature {
     pub fn handle_interrupt(&self) {
         // disable interrupts
         self.disable_interrupts();
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // get temperature
         // Result of temperature measurement in °C, 2's complement format, 0.25 °C
@@ -134,25 +136,23 @@ impl Temperature {
         self.disable_interrupts();
 
         // trigger callback with temperature
-        self.client
-            .get()
-            .map(|client| client.callback(temp as usize));
+        self.client.map(|client| client.callback(temp as usize));
     }
 
     fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.write(Intenset::DATARDY::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.write(Intenclr::DATARDY::SET);
     }
 }
 
-impl kernel::hil::sensors::TemperatureDriver for Temperature {
+impl kernel::hil::sensors::TemperatureDriver for Temp {
     fn read_temperature(&self) -> kernel::ReturnCode {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         self.enable_interrupts();
         regs.event_datardy.write(Event::READY::CLEAR);
         regs.task_start.write(Task::ENABLE::SET);
@@ -160,6 +160,6 @@ impl kernel::hil::sensors::TemperatureDriver for Temperature {
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }

@@ -72,7 +72,7 @@ pub trait Alarm: Time {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```ignore
     /// let delta = 1337;
     /// let tics = alarm.now().wrapping_add(delta);
     /// alarm.set_alarm(tics);

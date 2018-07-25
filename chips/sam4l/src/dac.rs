@@ -6,7 +6,8 @@
 //! - Date: May 26th, 2017
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 use pm::{self, Clock, PBAClock};
@@ -14,18 +15,18 @@ use pm::{self, Clock, PBAClock};
 #[repr(C)]
 pub struct DacRegisters {
     // From page 905 of SAM4L manual
-    pub cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
-    pub mr: ReadWrite<u32, Mode::Register>, //                Mode                          (0x04)
-    pub cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
-    pub ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
-    pub idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
-    pub imr: ReadOnly<u32, InterruptMask::Register>, //       Interrupt Mask Register       (0x14)
-    pub isr: ReadOnly<u32, InterruptStatus::Register>, //     Interrupt Status Register     (0x18)
+    cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
+    mr: ReadWrite<u32, Mode::Register>,    //                Mode                          (0x04)
+    cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
+    ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
+    idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
+    imr: ReadOnly<u32, InterruptMask::Register>, //       Interrupt Mask Register       (0x14)
+    isr: ReadOnly<u32, InterruptStatus::Register>, //     Interrupt Status Register     (0x18)
     _reserved0: [u32; 50], //                                                               (0x1c - 0xe0)
-    pub wpmr: ReadWrite<u32, WriteProtectMode::Register>, //  Write Protect Mode Register   (0xe4)
-    pub wpsr: ReadOnly<u32, WriteProtectStatus::Register>, // Write Protect Status Register (0xe8)
+    wpmr: ReadWrite<u32, WriteProtectMode::Register>, //  Write Protect Mode Register   (0xe4)
+    wpsr: ReadOnly<u32, WriteProtectStatus::Register>, // Write Protect Status Register (0xe8)
     _reserved1: [u32; 4], //                                                                (0xec - 0xf8)
-    pub version: ReadOnly<u32, Version::Register>, //         Version Register              (0xfc)
+    version: ReadOnly<u32, Version::Register>, //         Version Register              (0xfc)
 }
 
 register_bitfields![u32,
@@ -112,17 +113,18 @@ register_bitfields![u32,
 ];
 
 // Page 59 of SAM4L data sheet
-const BASE_ADDRESS: *mut DacRegisters = 0x4003C000 as *mut DacRegisters;
+const DAC_BASE: StaticRef<DacRegisters> =
+    unsafe { StaticRef::new(0x4003C000 as *const DacRegisters) };
 
 pub struct Dac {
-    registers: *mut DacRegisters,
+    registers: StaticRef<DacRegisters>,
     enabled: Cell<bool>,
 }
 
-pub static mut DAC: Dac = Dac::new(BASE_ADDRESS);
+pub static mut DAC: Dac = Dac::new(DAC_BASE);
 
 impl Dac {
-    const fn new(base_address: *mut DacRegisters) -> Dac {
+    const fn new(base_address: StaticRef<DacRegisters>) -> Dac {
         Dac {
             registers: base_address,
             enabled: Cell::new(false),
@@ -135,7 +137,7 @@ impl Dac {
 
 impl hil::dac::DacChannel for Dac {
     fn initialize(&self) -> ReturnCode {
-        let regs: &DacRegisters = unsafe { &*self.registers };
+        let regs: &DacRegisters = &*self.registers;
         if !self.enabled.get() {
             self.enabled.set(true);
 
@@ -151,15 +153,18 @@ impl hil::dac::DacChannel for Dac {
             // -clock divider from 48 MHz to 500 kHz (0x60)
             // -internal trigger
             // -enable dacc
-            let mr = Mode::WORD::HalfWordTransfer + Mode::STARTUP.val(0xff) + Mode::CLKDIV.val(0x60)
-                + Mode::TRGEN::InternalTrigger + Mode::DACEN::SET;
+            let mr = Mode::WORD::HalfWordTransfer
+                + Mode::STARTUP.val(0xff)
+                + Mode::CLKDIV.val(0x60)
+                + Mode::TRGEN::InternalTrigger
+                + Mode::DACEN::SET;
             regs.mr.write(mr);
         }
         ReturnCode::SUCCESS
     }
 
     fn set_value(&self, value: usize) -> ReturnCode {
-        let regs: &DacRegisters = unsafe { &*self.registers };
+        let regs: &DacRegisters = &*self.registers;
         if !self.enabled.get() {
             ReturnCode::EOFF
         } else {

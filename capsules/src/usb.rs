@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::convert::From;
 use core::fmt;
-use kernel::common::VolatileCell;
+use kernel::common::cells::VolatileCell;
 
 /// The datastructure sent in a SETUP handshake
 #[derive(Debug, Copy, Clone)]
@@ -390,11 +390,9 @@ pub struct ConfigurationAttributes(u8);
 impl ConfigurationAttributes {
     pub fn new(is_self_powered: bool, supports_remote_wakeup: bool) -> Self {
         ConfigurationAttributes(
-            (1 << 7) | if is_self_powered { 1 << 6 } else { 0 } | if supports_remote_wakeup {
-                1 << 5
-            } else {
-                0
-            },
+            (1 << 7)
+                | if is_self_powered { 1 << 6 } else { 0 }
+                | if supports_remote_wakeup { 1 << 5 } else { 0 },
         )
     }
 }
@@ -500,7 +498,7 @@ pub struct LanguagesDescriptor<'a> {
     pub langs: &'a [u16],
 }
 
-impl<'a> Descriptor for LanguagesDescriptor<'a> {
+impl Descriptor for LanguagesDescriptor<'a> {
     fn size(&self) -> usize {
         2 + (2 * self.langs.len())
     }
@@ -520,7 +518,7 @@ pub struct StringDescriptor<'a> {
     pub string: &'a str,
 }
 
-impl<'a> Descriptor for StringDescriptor<'a> {
+impl Descriptor for StringDescriptor<'a> {
     fn size(&self) -> usize {
         let mut len = 2;
         for ch in self.string.chars() {

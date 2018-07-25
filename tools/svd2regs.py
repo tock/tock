@@ -85,8 +85,8 @@ class CodeBlock(str):
 
 class Includes(CodeBlock):
     TEMPLATE = """
-use kernel::StaticRef;
-use kernel::common::regs::{{self, ReadOnly, ReadWrite, WriteOnly}};
+use kernel::common::StaticRef;
+use kernel::common::registers::{{self, ReadOnly, ReadWrite, WriteOnly}};
     """
 
 

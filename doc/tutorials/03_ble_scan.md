@@ -128,8 +128,8 @@ packet.
     ```
 
 6. **Run the app and see the packets!** To try this tutorial application, you
-can find it in the
-[tutorials app folder](../../userland/examples/tutorials/03_ble_scan).
+   can find it in the [tutorials app
+   folder](https://github.com/tock/libtock-c/tree/master/examples/tutorials/03_ble_scan).
 
     For any new applications, ensure that the following is in the makefile
     so that the BLE serialization library is included.

@@ -1,10 +1,23 @@
-// Non-Volatile Memory Controller
-// Used in order read and write to internal flash
-// Minimal implementation to support activation of the reset button
+//! Non-Volatile Memory Controller
+//!
+//! Used in order read and write to internal flash.
 
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use core::cell::Cell;
+use core::ops::{Index, IndexMut};
+use kernel::common::cells::OptionalCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::cells::VolatileCell;
+use kernel::common::deferred_call::DeferredCall;
+use kernel::common::registers::{ReadOnly, ReadWrite};
+use kernel::common::StaticRef;
+use kernel::hil;
+use kernel::ReturnCode;
 
-pub const NVMC_BASE: usize = 0x4001E400;
+use deferred_call_tasks::DeferredCallTask;
+
+const NVMC_BASE: StaticRef<NvmcRegisters> =
+    unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
+
 #[repr(C)]
 struct NvmcRegisters {
     /// Ready flag
@@ -59,11 +72,11 @@ register_bitfields! [u32,
         /// it invalidated.
         WEN OFFSET(0) NUMBITS(2) [
             /// Read only access
-            REN = 0,
-            /// Write Enabled 
-            WEN = 1,
+            Ren = 0,
+            /// Write Enabled
+            Wen = 1,
             /// Erase enabled
-            EEN = 2
+            Een = 2
         ]
     ],
     /// Register for erasing a page in Code area
@@ -85,7 +98,7 @@ register_bitfields! [u32,
     ],
     /// Register for erasing User Information Configuration Registers
     EraseUicr [
-        /// Register starting erase of all User Information Configuratio Registers. 
+        /// Register starting erase of all User Information Configuration Registers.
         /// Note that code erase has to be enabled by CONFIG.EEN before the UICR can be erased
         ERASEUICR OFFSET(0) NUMBITS(1) [
             /// No operation
@@ -94,7 +107,7 @@ register_bitfields! [u32,
             ERASE = 1
         ]
     ],
-    /// I-Code cache configuration register 
+    /// I-Code cache configuration register
     CacheConfiguration [
         /// Cache enabled
         CACHEEN OFFSET(0) NUMBITS(1) [
@@ -103,7 +116,7 @@ register_bitfields! [u32,
             /// Enable cache
             ENABLED = 1
         ],
-        /// Cache profiling enable 
+        /// Cache profiling enable
         CACHEPROFEN OFFSET(8) NUMBITS(1) [
             /// Disable cache profiling
             DISABLED = 0,
@@ -111,7 +124,7 @@ register_bitfields! [u32,
             ENABLED = 1
         ]
     ],
-    /// I-Code cache hit counter 
+    /// I-Code cache hit counter
     CacheHit [
         /// Number of cache hits
         HITS OFFSET(0) NUMBITS(32) []
@@ -123,24 +136,238 @@ register_bitfields! [u32,
     ]
 ];
 
+/// This mechanism allows us to schedule "interrupts" even if the hardware
+/// does not support them.
+static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
+    unsafe { DeferredCall::new(DeferredCallTask::Nvmc) };
+
+const PAGE_SIZE: usize = 4096;
+
+/// This is a wrapper around a u8 array that is sized to a single page for the
+/// nrf. Users of this module must pass an object of this type to use the
+/// `hil::flash::Flash` interface.
+///
+/// An example looks like:
+///
+/// ```
+/// static mut PAGEBUFFER: NrfPage = NrfPage::new();
+/// ```
+pub struct NrfPage(pub [u8; PAGE_SIZE as usize]);
+
+impl NrfPage {
+    pub const fn new() -> NrfPage {
+        NrfPage([0; PAGE_SIZE as usize])
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl Index<usize> for NrfPage {
+    type Output = u8;
+
+    fn index(&self, idx: usize) -> &u8 {
+        &self.0[idx]
+    }
+}
+
+impl IndexMut<usize> for NrfPage {
+    fn index_mut(&mut self, idx: usize) -> &mut u8 {
+        &mut self.0[idx]
+    }
+}
+
+impl AsMut<[u8]> for NrfPage {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// FlashState is used to track the current state and command of the flash.
+#[derive(Clone, Copy, PartialEq)]
+pub enum FlashState {
+    Ready, // Flash is ready to complete a command.
+    Read,  // Performing a read operation.
+    Write, // Performing a write operation.
+    Erase, // Performing an erase operation.
+}
+
+pub static mut NVMC: Nvmc = Nvmc::new();
+
 pub struct Nvmc {
-    regs: *const NvmcRegisters,
+    registers: StaticRef<NvmcRegisters>,
+    client: OptionalCell<&'static hil::flash::Client<Nvmc>>,
+    buffer: TakeCell<'static, NrfPage>,
+    state: Cell<FlashState>,
 }
 
 impl Nvmc {
     pub const fn new() -> Nvmc {
         Nvmc {
-            regs: NVMC_BASE as *const NvmcRegisters,
+            registers: NVMC_BASE,
+            client: OptionalCell::empty(),
+            buffer: TakeCell::empty(),
+            state: Cell::new(FlashState::Ready),
         }
     }
 
+    /// Configure the NVMC to allow writes to flash.
     pub fn configure_writeable(&self) {
-        let regs = unsafe { &*self.regs };
-        regs.config.set(1);
+        let regs = &*self.registers;
+        regs.config.write(Configuration::WEN::Wen);
     }
 
+    pub fn configure_eraseable(&self) {
+        let regs = &*self.registers;
+        regs.config.write(Configuration::WEN::Een);
+    }
+
+    pub fn erase_uicr(&self) {
+        let regs = &*self.registers;
+        regs.config.write(Configuration::WEN::Een);
+        while !self.is_ready() {}
+        regs.erasepage.write(ErasePage::ERASEPAGE.val(0x10001000));
+        while !self.is_ready() {}
+    }
+
+    /// Check if there is an ongoing operation with the NVMC peripheral.
     pub fn is_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.ready.is_set(Ready::READY)
+    }
+
+    pub fn handle_interrupt(&self) {
+        let state = self.state.get();
+        self.state.set(FlashState::Ready);
+
+        match state {
+            FlashState::Read => {
+                self.client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.read_complete(buffer, hil::flash::Error::CommandComplete);
+                    });
+                });
+            }
+            FlashState::Write => {
+                self.client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                    });
+                });
+            }
+            FlashState::Erase => {
+                self.client.map(|client| {
+                    client.erase_complete(hil::flash::Error::CommandComplete);
+                });
+            }
+            _ => {}
+        }
+    }
+
+    fn erase_page_helper(&self, page_number: usize) {
+        let regs = &*self.registers;
+
+        // Put the NVMC in erase mode.
+        regs.config.write(Configuration::WEN::Een);
+
+        // Tell the NVMC to erase the correct page by passing in the correct
+        // address.
+        regs.erasepage
+            .write(ErasePage::ERASEPAGE.val((page_number * PAGE_SIZE) as u32));
+
+        // Make sure that the NVMC is done. The CPU should be blocked while the
+        // erase is happening, but it doesn't hurt to check too.
+        while !regs.ready.is_set(Ready::READY) {}
+    }
+
+    fn read_range(&self, page_number: usize, buffer: &'static mut NrfPage) -> ReturnCode {
+        // Actually do a copy from flash into the buffer.
+        let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
+        unsafe {
+            for i in 0..buffer.len() {
+                buffer[i] = *byte;
+                byte = byte.offset(1);
+            }
+        }
+
+        // Hold on to the buffer for the callback.
+        self.buffer.replace(buffer);
+
+        // Mark the need for an interrupt so we can call the read done
+        // callback.
+        self.state.set(FlashState::Read);
+        DEFERRED_CALL.set();
+
+        ReturnCode::SUCCESS
+    }
+
+    fn write_page(&self, page_number: usize, data: &'static mut NrfPage) -> ReturnCode {
+        let regs = &*self.registers;
+
+        // Need to erase the page first.
+        self.erase_page_helper(page_number);
+
+        // Put the NVMC in write mode.
+        regs.config.write(Configuration::WEN::Wen);
+
+        for i in (0..data.len()).step_by(4) {
+            let word: u32 = (data[i + 0] as u32) << 0
+                | (data[i + 1] as u32) << 8
+                | (data[i + 2] as u32) << 16
+                | (data[i + 3] as u32) << 24;
+
+            let address = ((page_number * PAGE_SIZE) + i) as u32;
+            let location = unsafe { &*(address as *const VolatileCell<u32>) };
+            location.set(word);
+        }
+
+        // Make sure that the NVMC is done. The CPU should be blocked while the
+        // write is happening, but it doesn't hurt to check too.
+        while !regs.ready.is_set(Ready::READY) {}
+
+        // Save the buffer so we can return it with the callback.
+        self.buffer.replace(data);
+
+        // Mark the need for an interrupt so we can call the write done
+        // callback.
+        self.state.set(FlashState::Write);
+        DEFERRED_CALL.set();
+
+        ReturnCode::SUCCESS
+    }
+
+    fn erase_page(&self, page_number: usize) -> ReturnCode {
+        // Do the basic erase.
+        self.erase_page_helper(page_number);
+
+        // Mark that we want to trigger a pseudo interrupt so that we can issue
+        // the callback even though the NVMC is completely blocking.
+        self.state.set(FlashState::Erase);
+        DEFERRED_CALL.set();
+
+        ReturnCode::SUCCESS
+    }
+}
+
+impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for Nvmc {
+    fn set_client(&self, client: &'static C) {
+        self.client.set(client);
+    }
+}
+
+impl hil::flash::Flash for Nvmc {
+    type Page = NrfPage;
+
+    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+        self.read_range(page_number, buf)
+    }
+
+    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+        self.write_page(page_number, buf)
+    }
+
+    fn erase_page(&self, page_number: usize) -> ReturnCode {
+        self.erase_page(page_number)
     }
 }

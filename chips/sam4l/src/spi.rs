@@ -11,14 +11,16 @@ use core::cmp;
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
+use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use kernel::{ClockInterface, ReturnCode, StaticRef};
+use kernel::{ClockInterface, ReturnCode};
 use pm;
 
 #[repr(C)]
@@ -179,16 +181,16 @@ pub enum SpiRole {
 
 /// Abstraction of the SPI Hardware
 pub struct SpiHw {
-    client: Cell<Option<&'static SpiMasterClient>>,
-    dma_read: Cell<Option<&'static DMAChannel>>,
-    dma_write: Cell<Option<&'static DMAChannel>>,
+    client: OptionalCell<&'static SpiMasterClient>,
+    dma_read: OptionalCell<&'static DMAChannel>,
+    dma_write: OptionalCell<&'static DMAChannel>,
     // keep track of which how many DMA transfers are pending to correctly
     // issue completion event only after both complete.
     transfers_in_progress: Cell<u8>,
     dma_length: Cell<usize>,
 
     // Slave client is distinct from master client
-    slave_client: Cell<Option<&'static SpiSlaveClient>>,
+    slave_client: OptionalCell<&'static SpiSlaveClient>,
     role: Cell<SpiRole>,
 }
 
@@ -225,13 +227,13 @@ impl SpiHw {
     /// Creates a new SPI object, with peripheral 0 selected
     const fn new() -> SpiHw {
         SpiHw {
-            client: Cell::new(None),
-            dma_read: Cell::new(None),
-            dma_write: Cell::new(None),
+            client: OptionalCell::empty(),
+            dma_read: OptionalCell::empty(),
+            dma_write: OptionalCell::empty(),
             transfers_in_progress: Cell::new(0),
             dma_length: Cell::new(0),
 
-            slave_client: Cell::new(None),
+            slave_client: OptionalCell::empty(),
             role: Cell::new(SpiRole::SpiMaster),
         }
     }
@@ -276,8 +278,8 @@ impl SpiHw {
         // still in the TX buffer.
         while !spi.registers.sr.is_set(Status::TXEMPTY) {}
 
-        self.dma_read.get().map(|read| read.disable());
-        self.dma_write.get().map(|write| write.disable());
+        self.dma_read.map(|read| read.disable());
+        self.dma_write.map(|write| write.disable());
         spi.registers.cr.write(Control::SPIDIS::SET);
 
         if self.role.get() == SpiRole::SpiSlave {
@@ -405,7 +407,7 @@ impl SpiHw {
     fn get_active_csr<'a>(
         &self,
         spi: &'a SpiRegisterManager,
-    ) -> &'a regs::ReadWrite<u32, ChipSelectParams::Register> {
+    ) -> &'a registers::ReadWrite<u32, ChipSelectParams::Register> {
         match self.get_active_peripheral(spi) {
             Peripheral::Peripheral0 => &spi.registers.csr[0],
             Peripheral::Peripheral1 => &spi.registers.csr[1],
@@ -416,14 +418,14 @@ impl SpiHw {
 
     /// Set the DMA channels used for reading and writing.
     pub fn set_dma(&mut self, read: &'static DMAChannel, write: &'static DMAChannel) {
-        self.dma_read.set(Some(read));
-        self.dma_write.set(Some(write));
+        self.dma_read.set(read);
+        self.dma_write.set(write);
     }
 
     pub fn handle_interrupt(&self) {
         let spi = &SpiRegisterManager::new(&self);
 
-        self.slave_client.get().map(|client| {
+        self.slave_client.map(|client| {
             if spi.registers.sr.is_set(Status::NSSR) {
                 // NSSR
                 client.chip_selected()
@@ -434,8 +436,11 @@ impl SpiHw {
     }
 
     /// Asynchronous buffer read/write of SPI.
-    /// returns `SUCCESS` if operation starts (will receive callback through SpiMasterClient),
-    /// returns `EBUSY` if the operation does not start.
+    ///
+    /// Returns:
+    /// - `SUCCESS` if operation starts (will receive callback through
+    ///   SpiMasterClient)
+    /// - `EINVAL` if no buffers were passed in
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -444,25 +449,46 @@ impl SpiHw {
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) -> ReturnCode {
-        self.enable();
-
         if write_buffer.is_none() && read_buffer.is_none() {
-            return ReturnCode::SUCCESS;
+            return ReturnCode::EINVAL;
         }
 
-        let mut opt_len = None;
-        write_buffer.as_ref().map(|buf| opt_len = Some(buf.len()));
-        read_buffer.as_ref().map(|buf| {
-            let min_len = opt_len.map_or(buf.len(), |old_len| cmp::min(old_len, buf.len()));
-            opt_len = Some(min_len);
-        });
+        // Start by enabling the SPI driver.
+        self.enable();
 
-        let count = cmp::min(opt_len.unwrap_or(0), len);
+        // Determine how many bytes to move based on the shortest of the
+        // write_buffer length, the read_buffer length, and the user requested
+        // len.
+        let mut count: usize = len;
+        write_buffer
+            .as_ref()
+            .map(|buf| count = cmp::min(count, buf.len()));
+        read_buffer
+            .as_ref()
+            .map(|buf| count = cmp::min(count, buf.len()));
+
+        // Configure DMA to transfer that many bytes.
         self.dma_length.set(count);
 
         // Reset the number of transfers in progress. This is incremented
         // depending on the presence of the read/write below
         self.transfers_in_progress.set(0);
+
+        // Only setup the RX channel if we were passed a read_buffer inside
+        // of the option. `map()` checks this for us.
+        // The read DMA transfer has to be set up before the write because
+        // otherwise when the CPU speed is not significantly faster than the
+        // SPI's baud rate, transfer_done does not capture the interrupt
+        // signaling the RX is done - may be due to missing the first read
+        // byte when you start read after write.
+        read_buffer.map(|rbuf| {
+            self.transfers_in_progress
+                .set(self.transfers_in_progress.get() + 1);
+            self.dma_read.map(move |read| {
+                read.enable();
+                read.do_transfer(DMAPeripheral::SPI_RX, rbuf, count);
+            });
+        });
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
@@ -470,20 +496,9 @@ impl SpiHw {
         write_buffer.map(|wbuf| {
             self.transfers_in_progress
                 .set(self.transfers_in_progress.get() + 1);
-            self.dma_write.get().map(move |write| {
+            self.dma_write.map(move |write| {
                 write.enable();
-                write.do_xfer(DMAPeripheral::SPI_TX, wbuf, count);
-            });
-        });
-
-        // Only setup the RX channel if we were passed a read_buffer inside
-        // of the option. `map()` checks this for us.
-        read_buffer.map(|rbuf| {
-            self.transfers_in_progress
-                .set(self.transfers_in_progress.get() + 1);
-            self.dma_read.get().map(move |read| {
-                read.enable();
-                read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
+                write.do_transfer(DMAPeripheral::SPI_TX, wbuf, count);
             });
         });
 
@@ -495,7 +510,7 @@ impl spi::SpiMaster for SpiHw {
     type ChipSelect = u8;
 
     fn set_client(&self, client: &'static SpiMasterClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     /// By default, initialize SPI to operate at 40KHz, clock is
@@ -539,12 +554,14 @@ impl spi::SpiMaster for SpiHw {
         spi.registers.rdr.get() as u8
     }
 
-    /// Asynchronous buffer read/write of SPI.
-    /// write_buffer must  be Some; read_buffer may be None;
-    /// if read_buffer is Some, then length of read/write is the
-    /// minimum of two buffer lengths; returns `SUCCESS` if operation
-    /// starts (will receive callback through SpiMasterClient), returns
-    /// `EBUSY` if the operation does not start.
+    /// Asynchronous buffer read/write of SPI. `write_buffer` must be present;
+    /// `read_buffer` may be `None`. If read_buffer is present, then the length
+    /// of the read/write is the minimum of two buffer lengths.
+    ///
+    /// Returns:
+    /// - `SUCCESS` if operation starts (will receive callback through
+    ///   SpiMasterClient)
+    /// - `EBUSY` if the operation does not start
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
@@ -612,11 +629,11 @@ impl spi::SpiMaster for SpiHw {
 impl spi::SpiSlave for SpiHw {
     // Set to None to disable the whole thing
     fn set_client(&self, client: Option<&'static SpiSlaveClient>) {
-        self.slave_client.set(client);
+        self.slave_client.insert(client);
     }
 
     fn has_client(&self) -> bool {
-        self.slave_client.get().is_some()
+        self.slave_client.is_some()
     }
 
     fn init(&self) {
@@ -631,6 +648,11 @@ impl spi::SpiSlave for SpiHw {
         spi.registers.tdr.set(write_byte as u32);
     }
 
+    /// Setup buffers for a SPI transaction initiated by the master device.
+    ///
+    /// Returns:
+    /// - `SUCCESS` if the operation starts. A callback will be generated.
+    /// - `EINVAL` if neither the read or write buffer is provided.
     fn read_write_bytes(
         &self,
         write_buffer: Option<&'static mut [u8]>,
@@ -658,7 +680,7 @@ impl spi::SpiSlave for SpiHw {
 }
 
 impl DMAClient for SpiHw {
-    fn xfer_done(&self, _pid: DMAPeripheral) {
+    fn transfer_done(&self, _pid: DMAPeripheral) {
         // Only callback that the transfer is done if either:
         // 1) The transfer was TX only and TX finished
         // 2) The transfer was TX and RX, in that case wait for both of them to complete. Although
@@ -671,14 +693,14 @@ impl DMAClient for SpiHw {
 
         if self.transfers_in_progress.get() == 0 {
             self.disable();
-            let txbuf = self.dma_write.get().map_or(None, |dma| {
-                let buf = dma.abort_xfer();
+            let txbuf = self.dma_write.map_or(None, |dma| {
+                let buf = dma.abort_transfer();
                 dma.disable();
                 buf
             });
 
-            let rxbuf = self.dma_read.get().map_or(None, |dma| {
-                let buf = dma.abort_xfer();
+            let rxbuf = self.dma_read.map_or(None, |dma| {
+                let buf = dma.abort_transfer();
                 dma.disable();
                 buf
             });
@@ -688,14 +710,14 @@ impl DMAClient for SpiHw {
 
             match self.role.get() {
                 SpiRole::SpiMaster => {
-                    self.client.get().map(|cb| {
+                    self.client.map(|cb| {
                         txbuf.map(|txbuf| {
                             cb.read_write_done(txbuf, rxbuf, len);
                         });
                     });
                 }
                 SpiRole::SpiSlave => {
-                    self.slave_client.get().map(|cb| {
+                    self.slave_client.map(|cb| {
                         cb.read_write_done(txbuf, rxbuf, len);
                     });
                 }

@@ -9,8 +9,8 @@
 //! > view.
 
 use core::cell::Cell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math::{get_errno, sqrtf32};
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -100,12 +100,12 @@ pub struct TMP006<'a> {
     interrupt_pin: &'a Pin,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
-    callback: Cell<Option<Callback>>,
+    callback: OptionalCell<Callback>,
     protocol_state: Cell<ProtocolState>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> TMP006<'a> {
+impl TMP006<'a> {
     /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(
         i2c: &'a i2c::I2CDevice,
@@ -118,7 +118,7 @@ impl<'a> TMP006<'a> {
             interrupt_pin: interrupt_pin,
             sampling_period: Cell::new(DEFAULT_SAMPLING_RATE),
             repeated_mode: Cell::new(false),
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
             protocol_state: Cell::new(ProtocolState::Idle),
             buffer: TakeCell::new(buffer),
         }
@@ -189,7 +189,7 @@ fn calculate_temperature(sensor_voltage: i16, die_temperature: i16) -> f32 {
     t_celsius
 }
 
-impl<'a> i2c::I2CClient for TMP006<'a> {
+impl i2c::I2CClient for TMP006<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         // TODO(alevy): handle protocol errors
         match self.protocol_state.get() {
@@ -206,9 +206,8 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
                 self.protocol_state.set(ProtocolState::Idle);
                 temperature.map(|temp_val| {
                     self.callback
-                        .get()
+                        .take()
                         .map(|mut cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
-                    self.callback.set(None);
                 });
             }
             ProtocolState::SetRegSensorVoltage => {
@@ -246,8 +245,7 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
                 } else {
                     // send value to callback
                     self.callback
-                        .get()
-                        .map(|mut cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
+                        .map(|cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
 
                     self.i2c.disable();
                 }
@@ -257,7 +255,7 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
     }
 }
 
-impl<'a> Client for TMP006<'a> {
+impl Client for TMP006<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -271,7 +269,7 @@ impl<'a> Client for TMP006<'a> {
     }
 }
 
-impl<'a> Driver for TMP006<'a> {
+impl Driver for TMP006<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -285,7 +283,7 @@ impl<'a> Driver for TMP006<'a> {
                 self.repeated_mode.set(false);
 
                 // set callback function
-                self.callback.set(callback);
+                self.callback.insert(callback);
 
                 // enable sensor
                 //  turn up the sampling rate so we get the sample faster
@@ -300,7 +298,7 @@ impl<'a> Driver for TMP006<'a> {
                 self.repeated_mode.set(true);
 
                 // set callback function
-                self.callback.set(callback);
+                self.callback.insert(callback);
 
                 // enable temperature sensor
                 self.enable_sensor(self.sampling_period.get());
@@ -332,7 +330,7 @@ impl<'a> Driver for TMP006<'a> {
             // unsubscribe callback
             2 => {
                 // clear callback function
-                self.callback.set(None);
+                self.callback.clear();
 
                 // disable temperature sensor
                 self.disable_sensor(None);

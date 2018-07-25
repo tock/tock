@@ -1,10 +1,3 @@
-[root]
-name = "control-test"
-version = "0.1.0"
-dependencies = [
- "libusb 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
 [[package]]
 name = "bit-set"
 version = "0.2.0"
@@ -17,6 +10,13 @@ dependencies = [
 name = "bit-vec"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "control-test"
+version = "0.1.0"
+dependencies = [
+ "libusb 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "libc"

@@ -1,11 +1,11 @@
 //! Implementation of the SAM4L hardware watchdog timer.
 
 use core::cell::Cell;
+use cortexm4::support;
 use kernel::common::math::log_base_two_u64;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::support;
-use kernel::StaticRef;
 use pm::{self, Clock, PBDClock};
 
 #[repr(C)]
@@ -197,9 +197,11 @@ impl Wdt {
         let mult: u64 = f_clk_khz * (period as u64);
         let scaler = log_base_two_u64(mult); // prefer rounding for longer WD (thus no -1)
 
-        let control = Control::CEN::ClockEnable + Control::PSEL.val(scaler)
+        let control = Control::CEN::ClockEnable
+            + Control::PSEL.val(scaler)
             + Control::FCD::DoNotRedoCalibration
-            + Control::DAR::DisableAfterReset + Control::EN::Enable;
+            + Control::DAR::DisableAfterReset
+            + Control::EN::Enable;
         self.write_cr(control);
     }
 

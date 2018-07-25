@@ -21,10 +21,9 @@ Conduct][coc].
 
 ## What Goes Where?
 
-This repository contains the core Tock kernel, the main userland library and
-the officially supported hardware platforms. Drivers useful for these platforms,
-improvements to the core kernel, or changes to the main userland libraries live
-here.
+This repository contains the core Tock kernel and the officially supported
+hardware platforms. Drivers useful for these platforms and improvements to the
+core kernel live here.
 
 If you are porting Tock to a different hardware platform or building an
 application for an existing platform, that code should go in a [separate
@@ -209,9 +208,6 @@ for details. As rustfmt is under development, Tock pegs a specific version for
 use in formatting. The build system will automatically use (and install if needed)
 the correct rustfmt version when you invoke `make format`.
 
-For userland C/C++ code, Tock uses [uncrustify](https://github.com/uncrustify/uncrustify).
-Style configuration can be found in [userland/tools/uncrustify/](../userland/tools/uncrustify/uncrustify.cfg).
-
 The target `make formatall` in the root will automatically run all style checks
 and make any required changes. PRs must pass the formatting checks before landing.
 
@@ -221,6 +217,14 @@ In order to land, a Pull Request needs to be reviewed and
 [approved](#getting-approvals-for-your-pull-request) by at least one person with
 commit access to the Tock repository and pass the continuous integration tests.
 After that, as long as there are no objections, the Pull Request can be merged.
+
+We use the bors-ng bot to merge PRs. In short, when someone replies `bors r+`,
+your PR has been scheduled for final tests and will be automatically merged. If
+a maintainer replies `bors delegate+`, then you have been granted the authority
+to merge your own PR (usually this will happen if there are some trivial
+changes required). For more on bors,
+[see the bors documentation](https://bors.tech/documentation/).
+
 
 ## Issue Triage
 

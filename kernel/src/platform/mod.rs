@@ -1,7 +1,9 @@
+//! Interface for chips and boards.
+
 use driver::Driver;
 
 pub mod mpu;
-pub mod systick;
+crate mod systick;
 
 /// Interface for individual boards.
 pub trait Platform {
@@ -22,6 +24,9 @@ pub trait Chip {
     fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;
     fn sleep(&self);
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R;
 }
 
 /// Generic operations that clock-like things are expected to support.

@@ -6,79 +6,55 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(asm, core_intrinsics, unique, nonzero, ptr_internals)]
-#![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
-#![feature(nonnull_cast)]
+#![feature(asm, core_intrinsics, unique, ptr_internals, const_fn)]
+#![feature(use_extern_macros, try_from, used, panic_info_message)]
+#![feature(in_band_lifetimes, crate_visibility_modifier)]
+#![warn(unreachable_pub)]
 #![no_std]
+
+extern crate tock_cells;
+extern crate tock_registers;
+
+pub use tock_registers::{register_bitfields, register_bitmasks};
 
 #[macro_use]
 pub mod common;
-
-pub mod callback;
-pub mod grant;
+pub mod component;
 #[macro_use]
 pub mod debug;
-pub mod driver;
 pub mod hil;
 pub mod ipc;
-pub mod mem;
-pub mod memop;
-pub mod returncode;
 
-// Work around https://github.com/rust-lang-nursery/rustfmt/issues/6
-// It's a little sad that we have to skip the whole module, but that's
-// better than the unmaintainable pile 'o strings IMO
-#[cfg_attr(rustfmt, rustfmt_skip)]
-pub mod process;
-
-pub mod support;
-
-mod sched;
-
+mod callback;
+mod driver;
+mod grant;
+mod mem;
+mod memop;
 mod platform;
+mod process;
+mod returncode;
+mod sched;
 mod syscall;
+mod tbfheader;
 
 pub use callback::{AppId, Callback};
-pub use common::StaticRef;
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};
 pub use platform::systick::SysTick;
-pub use platform::{mpu, systick, Chip, Platform};
+pub use platform::{mpu, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
-pub use process::{Process, State};
 pub use returncode::ReturnCode;
+pub use sched::Kernel;
 
-/// Main loop.
-pub fn main<P: Platform, C: Chip>(
-    platform: &P,
-    chip: &mut C,
-    processes: &'static mut [Option<&mut process::Process<'static>>],
-    ipc: &ipc::IPC,
-) {
-    let processes = unsafe {
-        process::PROCS = processes;
-        &mut process::PROCS
-    };
+// These symbols must be exported for the arch crate to access them.
+pub use process::APP_FAULT;
+pub use process::SYSCALL_FIRED;
 
-    loop {
-        unsafe {
-            chip.service_pending_interrupts();
-
-            for (i, p) in processes.iter_mut().enumerate() {
-                p.as_mut().map(|process| {
-                    sched::do_process(platform, chip, process, AppId::new(i), ipc);
-                });
-                if chip.has_pending_interrupts() {
-                    break;
-                }
-            }
-
-            support::atomic(|| {
-                if !chip.has_pending_interrupts() && process::processes_blocked() {
-                    chip.sleep();
-                }
-            });
-        };
-    }
+// Export only select items from the process module. To remove the name conflict
+// this cannot be called `process`, so we use a shortened version. These
+// functions and types are used by board files to setup the platform and setup
+// processes.
+pub mod procs {
+    pub use process::{load_processes, FaultResponse, Process};
 }

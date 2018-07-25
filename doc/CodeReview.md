@@ -47,7 +47,6 @@ see implications that others may not.
 
 **Upkeep pull requests** can be merged by any member of the core team. That
 person is responsible for the merge and backing out the merge if needed.
-This is the basic process we use now.
 
 **Significant pull requests** require review by the entire core team. Each
 core team member is expected to respond within one week. There are three
@@ -82,10 +81,8 @@ The members of the core team are:
  * Hudson Ayers - [hudson-ayers](https://github.com/hudson-ayers)
  * Brad Campbell - [bradjc](https://github.com/bradjc)
  * Branden Ghena - [brghena](https://github.com/brghena)
- * Daniel Giffin - [daniel-scs](https://github.com/daniel-scs)
  * Philip Levis - [phil-levis](https://github.com/phil-levis)
  * Amit Levy - [alevy](https://github.com/alevy)
- * Olaf Landsiedel - [olafland](https://github.com/olafland)
  * Pat Pannuto - [ppannuto](https://github.com/ppannuto)
 
 ## 4. Release process

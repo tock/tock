@@ -4,14 +4,14 @@
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
     //                                 Access      Access
-    NoAccess = 0b000,               //.............. --          --
-    PrivilegedOnly = 0b001,         //........ RW          --
-    UnprivilegedReadOnly = 0b010,   //.. RW          R-
-    ReadWrite = 0b011,              //............. RW          RW
-    Reserved = 0b100,               //.............. undef       undef
+    NoAccess = 0b000,               // --          --
+    PrivilegedOnly = 0b001,         // RW          --
+    UnprivilegedReadOnly = 0b010,   // RW          R-
+    ReadWrite = 0b011,              // RW          RW
+    Reserved = 0b100,               // undef       undef
     PrivilegedOnlyReadOnly = 0b101, // R-          --
-    ReadOnly = 0b110,               //.............. R-          R-
-    ReadOnlyAlias = 0b111,          //......... R-          R-
+    ReadOnly = 0b110,               // R-          R-
+    ReadOnlyAlias = 0b111,          // R-          R-
 }
 
 #[derive(Debug)]

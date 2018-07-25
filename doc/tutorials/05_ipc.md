@@ -219,12 +219,13 @@ to do is set a flag to signal the end of the `yield_for`.
 Try It Out
 ----------
 
-To test this out, see the complete apps in the
-[IPC tutorial example](../../userland/examples/tutorials/05_ipc) folder.
+To test this out, see the complete apps in the [IPC tutorial
+example](https://github.com/tock/libtock-c/tree/master/examples/tutorials/05_ipc)
+folder.
 
 To install all of the apps on a board:
 
-    $ cd tock/userland/examples/tutorials/05_ipc
+    $ cd examples/tutorials/05_ipc
     $ tockloader erase-apps
     $ pushd led && make && tockloader install && popd
     $ pushd rng && make && tockloader install && popd

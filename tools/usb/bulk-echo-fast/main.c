@@ -2,7 +2,7 @@
  * This testing utility is designed to communicate with a device
  * running Tock.  In particular, it interacts with the usbc_client
  * capsule.  The USB controller and the client capsule must be enabled
- * from userspace; the application in `userland/examples/tests/usb/`
+ * from userspace; the application in `libtock-c/examples/tests/usb/`
  * will do this.
  *
  * This utility sends its stdin to a Bulk OUT endpoint on the attached
@@ -89,7 +89,7 @@ void handle_events(void);
 #define log(fmt, ...) \
     fprintf (stderr, LOG_STRING(fmt), LOG_ARGS, ##__VA_ARGS__)
 #else
-#define log(fmt, ...) 
+#define log(fmt, ...)
 #endif
 
 int main(int argc, char **argv) {

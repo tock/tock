@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::cmp::min;
 use ieee802154::{device, framer};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
 use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
@@ -98,7 +98,7 @@ fn decode_key_id(buf: &[u8]) -> SResult<KeyId> {
     }
 }
 
-impl<'a> From<&'a KeyId> for KeyIdModeUserland {
+impl From<&'a KeyId> for KeyIdModeUserland {
     fn from(key_id: &'a KeyId) -> Self {
         match *key_id {
             KeyId::Implicit => KeyIdModeUserland::Implicit,
@@ -185,13 +185,13 @@ pub struct RadioDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
-    current_app: Cell<Option<AppId>>,
+    current_app: OptionalCell<AppId>,
 
     /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
     kernel_tx: TakeCell<'static, [u8]>,
 }
 
-impl<'a> RadioDriver<'a> {
+impl RadioDriver<'a> {
     pub fn new(
         mac: &'a device::MacDevice<'a>,
         grant: Grant<App>,
@@ -204,7 +204,7 @@ impl<'a> RadioDriver<'a> {
             keys: MapCell::new(Default::default()),
             num_keys: Cell::new(0),
             apps: grant,
-            current_app: Cell::new(None),
+            current_app: OptionalCell::empty(),
             kernel_tx: TakeCell::new(kernel_tx),
         }
     }
@@ -375,7 +375,7 @@ impl<'a> RadioDriver<'a> {
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `AppId`.
     fn get_next_tx_if_idle(&self) -> Option<AppId> {
-        if self.current_app.get().is_some() {
+        if self.current_app.is_some() {
             return None;
         }
         let mut pending_app = None;
@@ -441,7 +441,8 @@ impl<'a> RadioDriver<'a> {
                 };
 
                 // Append the payload: there must be one
-                let result = app.app_write
+                let result = app
+                    .app_write
                     .take()
                     .as_ref()
                     .map(|payload| frame.append_payload(payload.as_ref()))
@@ -458,7 +459,7 @@ impl<'a> RadioDriver<'a> {
                 result
             });
             if result == ReturnCode::SUCCESS {
-                self.current_app.set(Some(appid));
+                self.current_app.set(appid);
             }
             result
         })
@@ -492,7 +493,7 @@ impl<'a> RadioDriver<'a> {
     }
 }
 
-impl<'a> framer::DeviceProcedure for RadioDriver<'a> {
+impl framer::DeviceProcedure for RadioDriver<'a> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])> {
@@ -508,7 +509,7 @@ impl<'a> framer::DeviceProcedure for RadioDriver<'a> {
     }
 }
 
-impl<'a> framer::KeyProcedure for RadioDriver<'a> {
+impl framer::KeyProcedure for RadioDriver<'a> {
     /// Gets the key corresponding to the key that matches the given security
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
@@ -522,7 +523,7 @@ impl<'a> framer::KeyProcedure for RadioDriver<'a> {
     }
 }
 
-impl<'a> Driver for RadioDriver<'a> {
+impl Driver for RadioDriver<'a> {
     /// Setup buffers to read/write from.
     ///
     /// ### `allow_num`
@@ -692,7 +693,8 @@ impl<'a> Driver for RadioDriver<'a> {
                     value: self.num_neighbors.get() + 1,
                 }
             }
-            15 => self.get_neighbor(arg1)
+            15 => self
+                .get_neighbor(arg1)
                 .map_or(ReturnCode::EINVAL, |neighbor| {
                     ReturnCode::SuccessWithValue {
                         value: (neighbor.short_addr as usize) + 1,
@@ -793,17 +795,16 @@ impl<'a> Driver for RadioDriver<'a> {
     }
 }
 
-impl<'a> device::TxClient for RadioDriver<'a> {
+impl device::TxClient for RadioDriver<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.kernel_tx.replace(spi_buf);
-        self.current_app.get().map(|appid| {
+        self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
                     .take()
                     .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
             });
         });
-        self.current_app.set(None);
         self.do_next_tx_async();
     }
 }
@@ -824,7 +825,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
     ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
-impl<'a> device::RxClient for RadioDriver<'a> {
+impl device::RxClient for RadioDriver<'a> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         self.apps.each(|app| {
             app.app_read.take().as_mut().map(|rbuf| {

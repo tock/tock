@@ -22,33 +22,178 @@
 //! * Philip Levis <pal@cs.stanford.edu>
 //! * Date: August 18, 2016
 
-use core::cell::Cell;
-use core::mem;
-use kernel::common::VolatileCell;
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{self, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil;
-use peripheral_registers;
 
-#[derive(Copy, Clone)]
-pub enum Location {
-    TIMER0,
-    TIMER1,
-    TIMER2,
+const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
+    [
+        StaticRef::new(0x40008000 as *const TimerRegisters),
+        StaticRef::new(0x40009000 as *const TimerRegisters),
+        StaticRef::new(0x4000A000 as *const TimerRegisters),
+    ]
+};
+
+#[repr(C)]
+struct TimerRegisters {
+    /// Start Timer
+    tasks_start: WriteOnly<u32, Task::Register>,
+    /// Stop Timer
+    tasks_stop: WriteOnly<u32, Task::Register>,
+    /// Increment Timer (Counter mode only)
+    tasks_count: WriteOnly<u32, Task::Register>,
+    /// Clear time
+    tasks_clear: WriteOnly<u32, Task::Register>,
+    /// Shut down timer
+    tasks_shutdown: WriteOnly<u32, Task::Register>,
+    _reserved0: [u8; 44],
+    /// Capture Timer value
+    tasks_capture: [WriteOnly<u32, Task::Register>; 4],
+    _reserved1: [u8; 240],
+    /// Compare event
+    events_compare: [ReadWrite<u32, Event::Register>; 4],
+    _reserved2: [u8; 176],
+    /// Shortcut register
+    shorts: ReadWrite<u32, Shorts::Register>,
+    _reserved3: [u8; 256],
+    /// Enable interrupt
+    intenset: ReadWrite<u32, Inte::Register>,
+    /// Disable interrupt
+    intenclr: ReadWrite<u32, Inte::Register>,
+    _reserved4: [u8; 504],
+    /// Timer mode selection
+    mode: ReadWrite<u32>,
+    /// Configure the number of bits used by the TIMER
+    bitmode: ReadWrite<u32, Bitmode::Register>,
+    _reserved5: [u8; 4],
+    /// Timer prescaler register
+    prescaler: ReadWrite<u32>,
+    _reserved6: [u8; 44],
+    /// Capture/Compare
+    cc: [ReadWrite<u32, CC::Register>; 4],
 }
 
-pub static mut TIMER0: Timer = Timer {
-    which: Location::TIMER0,
-    client: Cell::new(None),
-};
-
-pub static mut ALARM1: TimerAlarm = TimerAlarm {
-    which: Location::TIMER1,
-    client: Cell::new(None),
-};
-
-pub static mut TIMER2: Timer = Timer {
-    which: Location::TIMER2,
-    client: Cell::new(None),
-};
+register_bitfields![u32,
+    Shorts [
+        /// Shortcut between EVENTS_COMPARE\[0\] event and TASKS_CLEAR task
+        COMPARE0_CLEAR OFFSET(0) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[1\] event and TASKS_CLEAR task
+        COMPARE1_CLEAR OFFSET(1) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[2\] event and TASKS_CLEAR task
+        COMPARE2_CLEAR OFFSET(2) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[3\] event and TASKS_CLEAR task
+        COMPARE3_CLEAR OFFSET(3) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[4\] event and TASKS_CLEAR task
+        COMPARE4_CLEAR OFFSET(4) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[5\] event and TASKS_CLEAR task
+        COMPARE5_CLEAR OFFSET(5) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[0\] event and TASKS_STOP task
+        COMPARE0_STOP OFFSET(8) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[1\] event and TASKS_STOP task
+        COMPARE1_STOP OFFSET(9) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[2\] event and TASKS_STOP task
+        COMPARE2_STOP OFFSET(10) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[3\] event and TASKS_STOP task
+        COMPARE3_STOP OFFSET(11) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[4\] event and TASKS_STOP task
+        COMPARE4_STOP OFFSET(12) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ],
+        /// Shortcut between EVENTS_COMPARE\[5\] event and TASKS_STOP task
+        COMPARE5_STOP OFFSET(13) NUMBITS(1) [
+            /// Disable shortcut
+            DisableShortcut = 0,
+            /// Enable shortcut
+            EnableShortcut = 1
+        ]
+    ],
+    Inte [
+        /// Write '1' to Enable interrupt on EVENTS_COMPARE\[0\] event
+        COMPARE0 16,
+        /// Write '1' to Enable interrupt on EVENTS_COMPARE\[1\] event
+        COMPARE1 17,
+        /// Write '1' to Enable interrupt on EVENTS_COMPARE\[2\] event
+        COMPARE2 18,
+        /// Write '1' to Enable interrupt on EVENTS_COMPARE\[3\] event
+        COMPARE3 19,
+        /// Write '1' to Enable interrupt on EVENTS_COMPARE\[4\] event
+        COMPARE4 20,
+        /// Write '1' to Enable interrupt on EVENTS_COMPARE\[5\] event
+        COMPARE5 21
+    ],
+    Bitmode [
+        /// Timer bit width
+        BITMODE OFFSET(0) NUMBITS(2) [
+            Bit16 = 0,
+            Bit08 = 1,
+            Bit24 = 2,
+            Bit32 = 3
+        ]
+    ],
+    Task [
+        ENABLE 0
+    ],
+    Event [
+        READY 0
+    ],
+    CC [
+        CC OFFSET(0) NUMBITS(32)
+    ]
+];
 
 pub enum BitmodeValue {
     Size16Bits = 0,
@@ -57,12 +202,9 @@ pub enum BitmodeValue {
     Size32Bits = 3,
 }
 
-#[allow(non_snake_case)]
-fn TIMER(location: Location) -> &'static peripheral_registers::TIMER {
-    let ptr =
-        peripheral_registers::TIMER_BASE + (location as usize) * peripheral_registers::TIMER_SIZE;
-    unsafe { mem::transmute(ptr) }
-}
+pub static mut TIMER0: Timer = Timer::new(0);
+pub static mut ALARM1: TimerAlarm = TimerAlarm::new(1);
+pub static mut TIMER2: Timer = Timer::new(2);
 
 pub trait CompareClient {
     /// Passes a bitmask of which of the 4 compares/captures fired (0x0-0xf).
@@ -70,130 +212,20 @@ pub trait CompareClient {
 }
 
 pub struct Timer {
-    which: Location,
-    client: Cell<Option<&'static CompareClient>>,
+    registers: StaticRef<TimerRegisters>,
+    client: OptionalCell<&'static CompareClient>,
 }
 
 impl Timer {
-    fn timer(&self) -> &'static peripheral_registers::TIMER {
-        TIMER(self.which)
-    }
-
-    pub const fn new(location: Location) -> Timer {
+    pub const fn new(instance: usize) -> Timer {
         Timer {
-            which: location,
-            client: Cell::new(None),
+            registers: INSTANCES[instance],
+            client: OptionalCell::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'static CompareClient) {
-        self.client.set(Some(client));
-    }
-
-    pub fn start(&self) {
-        self.timer().task_start.set(1);
-    }
-    // Stops the timer and keeps the value
-    pub fn stop(&self) {
-        self.timer().task_stop.set(1);
-    }
-    // Stops the timer and clears the value
-    pub fn shutdown(&self) {
-        self.timer().task_shutdown.set(1);
-    }
-    // Clear the value
-    pub fn clear(&self) {
-        self.timer().task_clear.set(1);
-    }
-
-    ///Sets the number of bits used by the TIMER
-    pub fn set_bitmode(&self, bitmode: BitmodeValue) {
-        self.timer().bitmode.set(bitmode as u32);
-    }
-
-    /// Capture the current timer value into the CC register
-    /// specified by which, and return the value.
-    pub fn capture(&self, which: u8) -> u32 {
-        match which {
-            0 => {
-                self.timer().task_capture[0].set(1);
-                self.timer().cc[0].get()
-            }
-            1 => {
-                self.timer().task_capture[1].set(1);
-                self.timer().cc[1].get()
-            }
-            2 => {
-                self.timer().task_capture[2].set(1);
-                self.timer().cc[2].get()
-            }
-            _ => {
-                self.timer().task_capture[3].set(1);
-                self.timer().cc[3].get()
-            }
-        }
-    }
-
-    /// Capture the current value to the CC register specified by
-    /// which and do not return the value.
-    pub fn capture_to(&self, which: u8) {
-        let _ = self.capture(which);
-    }
-
-    /// Shortcuts can automatically stop or clear the timer on a particular
-    /// compare event; refer to section 18.3 of the nRF reference manual
-    /// for details. Implementation currently provides shortcuts as the
-    /// raw bitmask.
-    pub fn get_shortcuts(&self) -> u32 {
-        self.timer().shorts.get()
-    }
-    pub fn set_shortcuts(&self, shortcut: u32) {
-        self.timer().shorts.set(shortcut);
-    }
-
-    pub fn get_cc0(&self) -> u32 {
-        self.timer().cc[0].get()
-    }
-    pub fn set_cc0(&self, val: u32) {
-        self.timer().cc[0].set(val);
-    }
-    pub fn get_cc1(&self) -> u32 {
-        self.timer().cc[1].get()
-    }
-    pub fn set_cc1(&self, val: u32) {
-        self.timer().cc[1].set(val);
-    }
-    pub fn get_cc2(&self) -> u32 {
-        self.timer().cc[2].get()
-    }
-    pub fn set_cc2(&self, val: u32) {
-        self.timer().cc[2].set(val);
-    }
-    pub fn get_cc3(&self) -> u32 {
-        self.timer().cc[3].get()
-    }
-    pub fn set_cc3(&self, val: u32) {
-        self.timer().cc[3].set(val);
-    }
-
-    pub fn events_compare(&self) -> &[VolatileCell<u32>] {
-        &self.timer().event_compare
-    }
-
-    pub fn enable_interrupts(&self, interrupts: u32) {
-        self.timer().intenset.set(interrupts << 16);
-    }
-    pub fn disable_interrupts(&self, interrupts: u32) {
-        self.timer().intenclr.set(interrupts << 16);
-    }
-
-    pub fn set_prescaler(&self, val: u8) {
-        // Only bottom 4 bits are valid, so mask them
-        // nRF51822 reference manual, page 102
-        self.timer().prescaler.set((val & 0xf) as u32);
-    }
-    pub fn get_prescaler(&self) -> u8 {
-        self.timer().prescaler.get() as u8
+        self.client.set(client);
     }
 
     /// When an interrupt occurs, check if any of the 4 compares have
@@ -201,15 +233,24 @@ impl Timer {
     /// events that is passed to the client.
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             let mut val = 0;
             // For each of 4 possible compare events, if it's happened,
             // clear it and store its bit in val to pass in callback.
             for i in 0..4 {
-                if self.timer().event_compare[i].get() != 0 {
+                if self.registers.events_compare[i].is_set(Event::READY) {
                     val = val | 1 << i;
-                    self.timer().event_compare[i].set(0);
-                    self.disable_interrupts(1 << (i + 16));
+                    self.registers.events_compare[i].write(Event::READY::CLEAR);
+                    // Disable corresponding interrupt
+                    let interrupt_bit = match i {
+                        0 => Inte::COMPARE0::SET,
+                        1 => Inte::COMPARE1::SET,
+                        2 => Inte::COMPARE2::SET,
+                        3 => Inte::COMPARE3::SET,
+                        4 => Inte::COMPARE4::SET,
+                        _ => Inte::COMPARE5::SET,
+                    };
+                    self.registers.intenclr.write(interrupt_bit);
                 }
             }
             client.compare(val as u8);
@@ -218,57 +259,37 @@ impl Timer {
 }
 
 pub struct TimerAlarm {
-    which: Location,
-    client: Cell<Option<&'static hil::time::Client>>,
+    registers: StaticRef<TimerRegisters>,
+    client: OptionalCell<&'static hil::time::Client>,
 }
 
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
 const ALARM_CAPTURE: usize = 0;
 const ALARM_COMPARE: usize = 1;
-const ALARM_INTERRUPT_BIT: u32 = 1 << (16 + ALARM_COMPARE);
+const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
+const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
 impl TimerAlarm {
-    fn timer(&self) -> &'static peripheral_registers::TIMER {
-        TIMER(self.which)
-    }
-
-    pub const fn new(location: Location) -> TimerAlarm {
+    const fn new(instance: usize) -> TimerAlarm {
         TimerAlarm {
-            which: location,
-            client: Cell::new(None),
+            registers: INSTANCES[instance],
+            client: OptionalCell::empty(),
         }
     }
 
-    pub fn clear(&self) {
-        self.clear_alarm();
-        self.timer().task_clear.set(1);
-    }
-
-    pub fn clear_alarm(&self) {
-        self.timer().event_compare[ALARM_COMPARE].set(0);
+    fn clear_alarm(&self) {
+        self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
         self.disable_interrupts();
     }
 
     pub fn set_client(&self, client: &'static hil::time::Client) {
-        self.client.set(Some(client));
-    }
-
-    pub fn start(&self) {
-        // Make timer 32 bits wide
-        self.timer().bitmode.set(3);
-        // Clock is 16MHz, so scale down by 2^10 to 16KHz
-        self.timer().prescaler.set(10);
-        self.timer().task_start.set(1);
-    }
-
-    pub fn stop(&self) {
-        self.timer().task_stop.set(1);
+        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired();
         });
     }
@@ -276,21 +297,21 @@ impl TimerAlarm {
     // Enable and disable interrupts use the bottom 4 bits
     // for the 4 compare interrupts. These functions shift
     // those bits to the correct place in the register.
-    pub fn enable_interrupts(&self) {
-        self.timer().intenset.set(ALARM_INTERRUPT_BIT);
+    fn enable_interrupts(&self) {
+        self.registers.intenset.write(ALARM_INTERRUPT_BIT_SET);
     }
 
-    pub fn disable_interrupts(&self) {
-        self.timer().intenclr.set(ALARM_INTERRUPT_BIT);
+    fn disable_interrupts(&self) {
+        self.registers.intenclr.write(ALARM_INTERRUPT_BIT_SET);
     }
 
-    pub fn interrupts_enabled(&self) -> bool {
-        self.timer().intenset.get() == (ALARM_INTERRUPT_BIT)
+    fn interrupts_enabled(&self) -> bool {
+        self.registers.intenset.is_set(ALARM_INTERRUPT_BIT)
     }
 
-    pub fn value(&self) -> u32 {
-        self.timer().task_capture[ALARM_CAPTURE].set(1);
-        self.timer().cc[ALARM_CAPTURE].get()
+    fn value(&self) -> u32 {
+        self.registers.tasks_capture[ALARM_CAPTURE].write(Task::ENABLE::SET);
+        self.registers.cc[ALARM_CAPTURE].get()
     }
 }
 
@@ -313,12 +334,12 @@ impl hil::time::Alarm for TimerAlarm {
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
-        self.timer().cc[ALARM_COMPARE].set(tics);
+        self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
         self.clear_alarm();
         self.enable_interrupts();
     }
 
     fn get_alarm(&self) -> u32 {
-        self.timer().cc[ALARM_COMPARE].get()
+        self.registers.cc[ALARM_COMPARE].read(CC::CC)
     }
 }

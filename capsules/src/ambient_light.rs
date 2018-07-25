@@ -1,7 +1,9 @@
+//! Shared userland driver for light sensors.
+//!
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ```rust
-//! let ninedof = static_init!(
+//! let light = static_init!(
 //!     capsules::sensors::AmbientLight<'static>,
 //!     capsules::sensors::AmbientLight::new(isl29035,
 //!         kernel::Grant::create()));
@@ -15,7 +17,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60002;
 
-/// Per-process metdata
+/// Per-process metadata
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
@@ -28,7 +30,7 @@ pub struct AmbientLight<'a> {
     apps: Grant<App>,
 }
 
-impl<'a> AmbientLight<'a> {
+impl AmbientLight<'a> {
     pub fn new(sensor: &'a hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
@@ -55,7 +57,7 @@ impl<'a> AmbientLight<'a> {
     }
 }
 
-impl<'a> Driver for AmbientLight<'a> {
+impl Driver for AmbientLight<'a> {
     /// Subscribe to light intensity readings
     ///
     /// ### `subscribe`
@@ -69,7 +71,8 @@ impl<'a> Driver for AmbientLight<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
@@ -102,7 +105,7 @@ impl<'a> Driver for AmbientLight<'a> {
     }
 }
 
-impl<'a> hil::sensors::AmbientLightClient for AmbientLight<'a> {
+impl hil::sensors::AmbientLightClient for AmbientLight<'a> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
         self.apps.each(|app| {

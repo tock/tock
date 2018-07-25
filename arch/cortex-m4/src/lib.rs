@@ -2,17 +2,35 @@
 
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, naked_functions)]
+#![feature(asm, const_fn, core_intrinsics, naked_functions)]
 #![no_std]
 
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, register_bitfields, register_bitmasks)]
 extern crate kernel;
+extern crate cortexm;
 
 pub mod mpu;
-pub mod nvic;
-pub mod scb;
-pub mod systick;
+
+// Re-export the base generic cortex-m functions here as they are
+// valid on cortex-m4.
+pub use cortexm::support;
+
+pub use cortexm::nvic;
+pub use cortexm::scb;
+pub use cortexm::systick;
+
+extern "C" {
+    // _estack is not really a function, but it makes the types work
+    // You should never actually invoke it!!
+    fn _estack();
+
+    static mut _szero: u32;
+    static mut _ezero: u32;
+    static mut _etext: u32;
+    static mut _srelocate: u32;
+    static mut _erelocate: u32;
+}
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn systick_handler() {}
@@ -22,24 +40,23 @@ pub unsafe extern "C" fn systick_handler() {}
 pub unsafe extern "C" fn systick_handler() {
     asm!(
         "
-        /* Skip saving process state if not coming from user-space */
-        cmp lr, #0xfffffffd
-        bne _systick_handler_no_stacking
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _systick_handler_no_stacking
 
-        /* We need the most recent kernel's version of r1, which points */
-        /* to the Process struct's stored registers field. The kernel's r1 */
-        /* lives in the second word of the hardware stacked registers on MSP */
-        mov r1, sp
-        ldr r1, [r1, #4]
-        stmia r1, {r4-r11}
-    _systick_handler_no_stacking:
-        /* Set thread mode to privileged */
-        mov r0, #0
-        msr CONTROL, r0
+    /* We need the most recent kernel's version of r1, which points */
+    /* to the Process struct's stored registers field. The kernel's r1 */
+    /* lives in the second word of the hardware stacked registers on MSP */
+    mov r1, sp
+    ldr r1, [r1, #4]
+    stmia r1, {r4-r11}
+  _systick_handler_no_stacking:
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
 
-        movw LR, #0xFFF9
-        movt LR, #0xFFFF
-         "
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF"
     );
 }
 
@@ -69,7 +86,7 @@ pub unsafe extern "C" fn generic_isr() {
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-_ggeneric_isr_no_stacking:
+  _ggeneric_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
@@ -80,12 +97,12 @@ _ggeneric_isr_no_stacking:
      * High level:
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
-	lsrs	r2, r0, #5 /* r2 = r0 / 32 */
+    lsrs r2, r0, #5 /* r2 = r0 / 32 */
 
     /* r0 = 1 << (r0 & 31) */
-	movs r3, #1        /* r3 = 1 */
-	and	r0, r0, #31    /* r0 = r0 & 31 */
-	lsl	r0, r3, r0     /* r0 = r3 << r0 */
+    movs r3, #1        /* r3 = 1 */
+    and r0, r0, #31    /* r0 = r0 & 31 */
+    lsl r0, r3, r0     /* r0 = r3 << r0 */
 
     /* r3 = &NVIC.ICER */
     mov r3, #0xe180
@@ -102,7 +119,7 @@ _ggeneric_isr_no_stacking:
      *  `*(r3 + r2 * 4) = r0`
      *
      *  */
-	str	r0, [r3, r2, lsl #2]"
+    str r0, [r3, r2, lsl #2]"
     );
 }
 
@@ -114,27 +131,27 @@ pub unsafe extern "C" fn svc_handler() {}
 pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
-  cmp lr, #0xfffffff9
-  bne to_kernel
+    cmp lr, #0xfffffff9
+    bne to_kernel
 
-  /* Set thread mode to unprivileged */
-  mov r0, #1
-  msr CONTROL, r0
+    /* Set thread mode to unprivileged */
+    mov r0, #1
+    msr CONTROL, r0
 
-  movw lr, #0xfffd
-  movt lr, #0xffff
-  bx lr
-to_kernel:
-  ldr r0, =SYSCALL_FIRED
-  mov r1, #1
-  str r1, [r0, #0]
+    movw lr, #0xfffd
+    movt lr, #0xffff
+    bx lr
+  to_kernel:
+    ldr r0, =SYSCALL_FIRED
+    mov r1, #1
+    str r1, [r0, #0]
 
-  /* Set thread mode to privileged */
-  mov r0, #0
-  msr CONTROL, r0
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
 
-  movw LR, #0xFFF9
-  movt LR, #0xFFFF"
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF"
     );
 }
 
@@ -170,4 +187,219 @@ pub unsafe extern "C" fn switch_to_user(
     : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
+}
+
+pub unsafe extern "C" fn hard_fault_handler() {
+    use core::intrinsics::offset;
+
+    let faulting_stack: *mut u32;
+    let kernel_stack: bool;
+
+    asm!(
+        "mov    r1, 0                       \n\
+         tst    lr, #4                      \n\
+         itte   eq                          \n\
+         mrseq  r0, msp                     \n\
+         addeq  r1, 1                       \n\
+         mrsne  r0, psp                     "
+        : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
+        :
+        : "r0", "r1"
+        :
+        );
+
+    if kernel_stack {
+        let stacked_r0: u32 = *offset(faulting_stack, 0);
+        let stacked_r1: u32 = *offset(faulting_stack, 1);
+        let stacked_r2: u32 = *offset(faulting_stack, 2);
+        let stacked_r3: u32 = *offset(faulting_stack, 3);
+        let stacked_r12: u32 = *offset(faulting_stack, 4);
+        let stacked_lr: u32 = *offset(faulting_stack, 5);
+        let stacked_pc: u32 = *offset(faulting_stack, 6);
+        let stacked_xpsr: u32 = *offset(faulting_stack, 7);
+
+        let mode_str = "Kernel";
+
+        let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
+        let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
+        let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
+        let mmfar: u32 = core::ptr::read_volatile(0xE000ED34 as *const u32);
+        let bfar: u32 = core::ptr::read_volatile(0xE000ED38 as *const u32);
+
+        let iaccviol = (cfsr & 0x01) == 0x01;
+        let daccviol = (cfsr & 0x02) == 0x02;
+        let munstkerr = (cfsr & 0x08) == 0x08;
+        let mstkerr = (cfsr & 0x10) == 0x10;
+        let mlsperr = (cfsr & 0x20) == 0x20;
+        let mmfarvalid = (cfsr & 0x80) == 0x80;
+
+        let ibuserr = ((cfsr >> 8) & 0x01) == 0x01;
+        let preciserr = ((cfsr >> 8) & 0x02) == 0x02;
+        let impreciserr = ((cfsr >> 8) & 0x04) == 0x04;
+        let unstkerr = ((cfsr >> 8) & 0x08) == 0x08;
+        let stkerr = ((cfsr >> 8) & 0x10) == 0x10;
+        let lsperr = ((cfsr >> 8) & 0x20) == 0x20;
+        let bfarvalid = ((cfsr >> 8) & 0x80) == 0x80;
+
+        let undefinstr = ((cfsr >> 16) & 0x01) == 0x01;
+        let invstate = ((cfsr >> 16) & 0x02) == 0x02;
+        let invpc = ((cfsr >> 16) & 0x04) == 0x04;
+        let nocp = ((cfsr >> 16) & 0x08) == 0x08;
+        let unaligned = ((cfsr >> 16) & 0x100) == 0x100;
+        let divbysero = ((cfsr >> 16) & 0x200) == 0x200;
+
+        let vecttbl = (hfsr & 0x02) == 0x02;
+        let forced = (hfsr & 0x40000000) == 0x40000000;
+
+        let ici_it = (((stacked_xpsr >> 25) & 0x3) << 6) | ((stacked_xpsr >> 10) & 0x3f);
+        let thumb_bit = ((stacked_xpsr >> 24) & 0x1) == 1;
+        let exception_number = (stacked_xpsr & 0x1ff) as usize;
+
+        panic!(
+            "{} HardFault.\n\
+             \tKernel version {}\n\
+             \tr0  0x{:x}\n\
+             \tr1  0x{:x}\n\
+             \tr2  0x{:x}\n\
+             \tr3  0x{:x}\n\
+             \tr12 0x{:x}\n\
+             \tlr  0x{:x}\n\
+             \tpc  0x{:x}\n\
+             \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\n\
+             \tsp  0x{:x}\n\
+             \ttop of stack     0x{:x}\n\
+             \tbottom of stack  0x{:x}\n\
+             \tSHCSR 0x{:x}\n\
+             \tCFSR  0x{:x}\n\
+             \tHSFR  0x{:x}\n\
+             \tInstruction Access Violation:       {}\n\
+             \tData Access Violation:              {}\n\
+             \tMemory Management Unstacking Fault: {}\n\
+             \tMemory Management Stacking Fault:   {}\n\
+             \tMemory Management Lazy FP Fault:    {}\n\
+             \tInstruction Bus Error:              {}\n\
+             \tPrecise Data Bus Error:             {}\n\
+             \tImprecise Data Bus Error:           {}\n\
+             \tBus Unstacking Fault:               {}\n\
+             \tBus Stacking Fault:                 {}\n\
+             \tBus Lazy FP Fault:                  {}\n\
+             \tUndefined Instruction Usage Fault:  {}\n\
+             \tInvalid State Usage Fault:          {}\n\
+             \tInvalid PC Load Usage Fault:        {}\n\
+             \tNo Coprocessor Usage Fault:         {}\n\
+             \tUnaligned Access Usage Fault:       {}\n\
+             \tDivide By Zero:                     {}\n\
+             \tBus Fault on Vector Table Read:     {}\n\
+             \tForced Hard Fault:                  {}\n\
+             \tFaulting Memory Address: (valid: {}) {:#010X}\n\
+             \tBus Fault Address:       (valid: {}) {:#010X}\n\
+             ",
+            mode_str,
+            env!("TOCK_KERNEL_VERSION"),
+            stacked_r0,
+            stacked_r1,
+            stacked_r2,
+            stacked_r3,
+            stacked_r12,
+            stacked_lr,
+            stacked_pc,
+            stacked_xpsr,
+            (stacked_xpsr >> 31) & 0x1,
+            (stacked_xpsr >> 30) & 0x1,
+            (stacked_xpsr >> 29) & 0x1,
+            (stacked_xpsr >> 28) & 0x1,
+            (stacked_xpsr >> 27) & 0x1,
+            (stacked_xpsr >> 19) & 0x1,
+            (stacked_xpsr >> 18) & 0x1,
+            (stacked_xpsr >> 17) & 0x1,
+            (stacked_xpsr >> 16) & 0x1,
+            ici_it,
+            thumb_bit,
+            exception_number,
+            ipsr_isr_number_to_str(exception_number),
+            faulting_stack as u32,
+            (_estack as *const ()) as u32,
+            (&_ezero as *const u32) as u32,
+            shcsr,
+            cfsr,
+            hfsr,
+            iaccviol,
+            daccviol,
+            munstkerr,
+            mstkerr,
+            mlsperr,
+            ibuserr,
+            preciserr,
+            impreciserr,
+            unstkerr,
+            stkerr,
+            lsperr,
+            undefinstr,
+            invstate,
+            invpc,
+            nocp,
+            unaligned,
+            divbysero,
+            vecttbl,
+            forced,
+            mmfarvalid,
+            mmfar,
+            bfarvalid,
+            bfar
+        );
+    } else {
+        // hard fault occurred in an app, not the kernel. The app should be
+        //  marked as in an error state and handled by the kernel
+        asm!(
+            "ldr r0, =SYSCALL_FIRED
+              mov r1, #1
+              str r1, [r0, #0]
+
+              ldr r0, =APP_FAULT
+              str r1, [r0, #0]
+
+              /* Read the SCB registers. */
+              ldr r0, =SCB_REGISTERS
+              ldr r1, =0xE000ED14
+              ldr r2, [r1, #0] /* CCR */
+              str r2, [r0, #0]
+              ldr r2, [r1, #20] /* CFSR */
+              str r2, [r0, #4]
+              ldr r2, [r1, #24] /* HFSR */
+              str r2, [r0, #8]
+              ldr r2, [r1, #32] /* MMFAR */
+              str r2, [r0, #12]
+              ldr r2, [r1, #36] /* BFAR */
+              str r2, [r0, #16]
+
+              /* Set thread mode to privileged */
+              mov r0, #0
+              msr CONTROL, r0
+
+              movw LR, #0xFFF9
+              movt LR, #0xFFFF"
+        );
+    }
+}
+
+// Table 2.5
+// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
+pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
+    match isr_number {
+        0 => "Thread Mode",
+        1 => "Reserved",
+        2 => "NMI",
+        3 => "HardFault",
+        4 => "MemManage",
+        5 => "BusFault",
+        6 => "UsageFault",
+        7...10 => "Reserved",
+        11 => "SVCall",
+        12 => "Reserved for Debug",
+        13 => "Reserved",
+        14 => "PendSV",
+        15 => "SysTick",
+        16...255 => "IRQn",
+        _ => "(Unknown! Illegal value?)",
+    }
 }

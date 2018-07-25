@@ -1,6 +1,7 @@
 //! Implementation of the BPM peripheral.
 
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct BpmRegisters {
@@ -125,10 +126,9 @@ register_bitfields![u32,
     ]
 ];
 
-const BPM_BASE: usize = 0x400F0000;
 const BPM_UNLOCK_KEY: u32 = 0xAA;
 
-static mut BPM: *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;
+const BPM: StaticRef<BpmRegisters> = unsafe { StaticRef::new(0x400F0000 as *const BpmRegisters) };
 
 /// Which power scaling mode the chip should use for internal voltages
 ///
@@ -166,21 +166,19 @@ pub enum CK32Source {
 
 #[inline(never)]
 pub unsafe fn set_ck32source(source: CK32Source) {
-    let control = (*BPM).pmcon.extract();
+    let control = BPM.pmcon.extract();
     unlock_register(0x1c); // Control
-    (*BPM)
-        .pmcon
+    BPM.pmcon
         .modify_no_read(control, PowerModeControl::CK32S.val(source as u32));
 }
 
 unsafe fn unlock_register(register_offset: u32) {
-    (*BPM)
-        .unlock
+    BPM.unlock
         .write(Unlock::KEY.val(BPM_UNLOCK_KEY) + Unlock::ADDR.val(register_offset));
 }
 
 unsafe fn power_scaling_ok() -> bool {
-    (*BPM).sr.is_set(Status::PSOK)
+    BPM.sr.is_set(Status::PSOK)
 }
 
 // This approach based on `bpm_power_scaling_cpu` from ASF
@@ -189,15 +187,16 @@ pub unsafe fn set_power_scaling(ps_value: PowerScaling) {
     // doesn't as far as I can tell, but it seems like a good idea
     while !power_scaling_ok() {}
 
-    let control = (*BPM).pmcon.extract();
+    let control = BPM.pmcon.extract();
 
     // Unlock PMCON register
     unlock_register(0x1c); // Control
 
     // Actually change power scaling
-    (*BPM).pmcon.modify_no_read(
+    BPM.pmcon.modify_no_read(
         control,
-        PowerModeControl::PS.val(ps_value as u32) + PowerModeControl::PSCM::WithoutCpuHalt
+        PowerModeControl::PS.val(ps_value as u32)
+            + PowerModeControl::PSCM::WithoutCpuHalt
             + PowerModeControl::PSCREQ::PowerScalingRequested,
     );
 }

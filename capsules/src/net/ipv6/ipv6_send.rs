@@ -18,7 +18,7 @@
 
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, TxClient};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::ReturnCode;
 use net::ieee802154::MacAddress;
 use net::ipv6::ip_utils::IPAddr;
@@ -94,12 +94,12 @@ pub struct IP6SendStruct<'a> {
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a MacDevice<'a>,
-    client: Cell<Option<&'a IP6SendClient>>,
+    client: OptionalCell<&'a IP6SendClient>,
 }
 
-impl<'a> IP6Sender<'a> for IP6SendStruct<'a> {
+impl IP6Sender<'a> for IP6SendStruct<'a> {
     fn set_client(&self, client: &'a IP6SendClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn set_addr(&self, src_addr: IPAddr) {
@@ -127,7 +127,7 @@ impl<'a> IP6Sender<'a> for IP6SendStruct<'a> {
     }
 }
 
-impl<'a> IP6SendStruct<'a> {
+impl IP6SendStruct<'a> {
     pub fn new(
         ip6_packet: &'static mut IP6Packet<'static>,
         tx_buf: &'static mut [u8],
@@ -141,7 +141,7 @@ impl<'a> IP6SendStruct<'a> {
             tx_buf: TakeCell::new(tx_buf),
             sixlowpan: sixlowpan,
             radio: radio,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -184,13 +184,11 @@ impl<'a> IP6SendStruct<'a> {
     }
 
     fn send_completed(&self, result: ReturnCode) {
-        self.client
-            .get()
-            .map(move |client| client.send_done(result));
+        self.client.map(move |client| client.send_done(result));
     }
 }
 
-impl<'a> TxClient for IP6SendStruct<'a> {
+impl TxClient for IP6SendStruct<'a> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
         debug!("sendDone return code is: {:?}, acked: {}", result, acked);

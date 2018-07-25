@@ -3,8 +3,9 @@
 //! Generates a random number using hardware entropy.
 //!
 
-use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::rng;
 use prcm;
 
@@ -63,20 +64,21 @@ register_bitfields![
     ]
 ];
 
-const BASE_ADDRESS: *const RngRegisters = 0x4002_8000 as *const RngRegisters;
+const RNG_BASE: StaticRef<RngRegisters> =
+    unsafe { StaticRef::new(0x40028000 as *const RngRegisters) };
 
 pub static mut TRNG: Trng = Trng::new();
 
 pub struct Trng {
-    regs: *const RngRegisters,
-    client: Cell<Option<&'static rng::Client>>,
+    registers: StaticRef<RngRegisters>,
+    client: OptionalCell<&'static rng::Client>,
 }
 
 impl Trng {
     const fn new() -> Trng {
         Trng {
-            regs: BASE_ADDRESS,
-            client: Cell::new(None),
+            registers: RNG_BASE,
+            client: OptionalCell::empty(),
         }
     }
 
@@ -91,7 +93,7 @@ impl Trng {
         // Setup the clock
         prcm::Clock::enable_trng();
 
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         regs.ctl.set(0);
 
@@ -122,7 +124,7 @@ impl Trng {
     }
 
     pub fn read_number_blocking(&self) -> u64 {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         if !regs.ctl.is_set(Control::TRNG_EN) {
             self.enable();
@@ -138,7 +140,7 @@ impl Trng {
     }
 
     pub fn set_client(&self, client: &'static rng::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
@@ -146,7 +148,7 @@ impl Iterator for Trng {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         if regs.ctl.is_set(Control::TRNG_EN) {
             Some((self.read_number_blocking() & 0xFFFFFFFF) as u32)
         } else {

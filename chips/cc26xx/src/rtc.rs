@@ -1,11 +1,12 @@
 //! RTC driver, sensortag family
 
-use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite};
+use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 
 #[repr(C)]
-pub struct RtcRegisters {
+struct RtcRegisters {
     ctl: ReadWrite<u32, Control::Register>,
 
     // Event flags
@@ -56,11 +57,12 @@ register_bitfields![
     ]
 ];
 
-const RTC_BASE: *const RtcRegisters = 0x4009_2000 as *const RtcRegisters;
+const RTC_BASE: StaticRef<RtcRegisters> =
+    unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
 
 pub struct Rtc {
-    regs: *const RtcRegisters,
-    callback: Cell<Option<&'static time::Client>>,
+    registers: StaticRef<RtcRegisters>,
+    callback: OptionalCell<&'static time::Client>,
 }
 
 pub static mut RTC: Rtc = Rtc::new();
@@ -68,27 +70,27 @@ pub static mut RTC: Rtc = Rtc::new();
 impl Rtc {
     const fn new() -> Rtc {
         Rtc {
-            regs: RTC_BASE,
-            callback: Cell::new(None),
+            registers: RTC_BASE,
+            callback: OptionalCell::empty(),
         }
     }
 
     pub fn start(&self) {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.ctl.write(Control::ENABLE::SET);
 
         regs.sync.get();
     }
 
     pub fn stop(&self) {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.ctl.write(Control::ENABLE::CLEAR);
 
         regs.sync.get();
     }
 
     fn read_counter(&self) -> u32 {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         /*
             SEC can change during the SUBSEC read, so we need to be certain
@@ -107,12 +109,12 @@ impl Rtc {
     }
 
     pub fn is_running(&self) -> bool {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.channel_ctl.read(ChannelControl::CH1_EN) != 0
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // Event flag is cleared when you set it
         regs.evflags.write(EvFlags::CH1::SET);
@@ -121,11 +123,11 @@ impl Rtc {
 
         regs.sync.get();
 
-        self.callback.get().map(|cb| cb.fired());
+        self.callback.map(|cb| cb.fired());
     }
 
     pub fn set_client(&self, client: &'static time::Client) {
-        self.callback.set(Some(client));
+        self.callback.set(client);
     }
 }
 
@@ -144,7 +146,7 @@ impl Time for Rtc {
     type Frequency = RtcFreq;
 
     fn disable(&self) {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         regs.ctl.modify(Control::COMB_EV_MASK::NoEvent);
         regs.channel_ctl.modify(ChannelControl::CH1_EN::CLEAR);
@@ -163,7 +165,7 @@ impl Alarm for Rtc {
     }
 
     fn set_alarm(&self, tics: u32) {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         regs.ctl.modify(Control::COMB_EV_MASK::Channel1);
         regs.channel1_cmp.set(tics);
@@ -173,7 +175,7 @@ impl Alarm for Rtc {
     }
 
     fn get_alarm(&self) -> u32 {
-        let regs: &RtcRegisters = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.channel1_cmp.get()
     }
 }

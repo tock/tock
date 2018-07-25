@@ -16,12 +16,12 @@
 
 use core::cell::Cell;
 use kernel::hil::rng;
-use kernel::process::Error;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x40001;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
     buffer: Option<AppSlice<Shared, u8>>,
@@ -29,24 +29,13 @@ pub struct App {
     idx: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            buffer: None,
-            remaining: 0,
-            idx: 0,
-        }
-    }
-}
-
-pub struct SimpleRng<'a, RNG: rng::RNG + 'a> {
+pub struct SimpleRng<'a, RNG: rng::RNG> {
     rng: &'a RNG,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
 
-impl<'a, RNG: rng::RNG> SimpleRng<'a, RNG> {
+impl<RNG: rng::RNG> SimpleRng<'a, RNG> {
     pub fn new(rng: &'a RNG, grant: Grant<App>) -> SimpleRng<'a, RNG> {
         SimpleRng {
             rng: rng,
@@ -56,7 +45,7 @@ impl<'a, RNG: rng::RNG> SimpleRng<'a, RNG> {
     }
 }
 
-impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
+impl<RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
@@ -130,7 +119,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
     }
 }
 
-impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
+impl<RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
     fn allow(
         &self,
         appid: AppId,
@@ -139,7 +128,8 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
     ) -> ReturnCode {
         // pass buffer in from application
         match allow_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
@@ -156,7 +146,8 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
@@ -190,13 +181,7 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                             ReturnCode::ERESERVE
                         }
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

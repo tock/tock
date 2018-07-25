@@ -64,7 +64,7 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 
-pub struct LowpanTest<'a, A: time::Alarm + 'a> {
+pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: A,
     //sixlowpan_tx: TxState<'a>,
     //radio: &'a Mac<'a>,
@@ -160,7 +160,7 @@ impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanT
     }
 }
 
-impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
+impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     pub fn new(
         //sixlowpan_tx: TxState<'a>,
         //radio: &'a Mac<'a>,

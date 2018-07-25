@@ -16,22 +16,22 @@
 //! manager.report();
 //! ```
 
-use kernel::common::list::*;
+use kernel::common::list::{List, ListLink, ListNode};
 
 pub trait Funky<'a> {
     fn name(&self) -> &'static str;
-    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a> + 'a>;
+    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a>>;
 }
 
-impl<'a> ListNode<'a, Funky<'a> + 'a> for Funky<'a> + 'a {
-    fn next(&'a self) -> &'a ListLink<'a, Funky<'a> + 'a> {
+impl<'a> ListNode<'a, Funky<'a>> for Funky<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Funky<'a>> {
         &self.next_funky_thing()
     }
 }
 
 // A manager holds a list of funky things
 pub struct Manager<'a> {
-    funky_things: List<'a, Funky<'a> + 'a>,
+    funky_things: List<'a, Funky<'a>>,
 }
 
 impl<'a> Manager<'a> {
@@ -41,7 +41,7 @@ impl<'a> Manager<'a> {
         }
     }
 
-    pub fn manage(&mut self, thing: &'a (Funky<'a> + 'a)) {
+    pub fn manage(&mut self, thing: &'a (Funky<'a>)) {
         self.funky_things.push_head(thing);
     }
 
@@ -70,7 +70,7 @@ impl<'a> Funky<'a> for Jazz<'a> {
         "Jazz"
     }
 
-    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a> + 'a> {
+    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a>> {
         &self.next
     }
 }
@@ -92,7 +92,7 @@ impl<'a> Funky<'a> for Cheese<'a> {
     fn name(&self) -> &'static str {
         "Cheese"
     }
-    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a> + 'a> {
+    fn next_funky_thing(&'a self) -> &'a ListLink<'a, Funky<'a>> {
         &self.next
     }
 }

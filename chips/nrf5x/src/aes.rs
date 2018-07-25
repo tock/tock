@@ -21,7 +21,7 @@
 //!
 //! ### Things to highlight that can be improved:
 //!
-//! * ECB_DATA must be a static mut [u8] and can't be located in the struct
+//! * ECB_DATA must be a static mut \[u8\] and can't be located in the struct
 //! * PAYLOAD size is restricted to 128 bytes
 //!
 //! Authors
@@ -32,8 +32,10 @@
 
 use core::cell::Cell;
 use kernel;
-use kernel::common::regs::{ReadWrite, WriteOnly};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::OptionalCell;
+use kernel::common::cells::TakeCell;
+use kernel::common::registers::{ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
 use kernel::ReturnCode;
 
@@ -54,37 +56,39 @@ const CIPHERTEXT_START: usize = 33;
 #[allow(dead_code)]
 const CIPHERTEXT_END: usize = 47;
 const MAX_LENGTH: usize = 128;
-const AESECB_BASE: usize = 0x4000E000;
+
+const AESECB_BASE: StaticRef<AesEcbRegisters> =
+    unsafe { StaticRef::new(0x4000E000 as *const AesEcbRegisters) };
 
 #[repr(C)]
 struct AesEcbRegisters {
     /// Start ECB block encrypt
-    /// Address 0x000 - 0x004
-    pub task_startecb: WriteOnly<u32, Task::Register>,
+    /// - Address 0x000 - 0x004
+    task_startecb: WriteOnly<u32, Task::Register>,
     /// Abort a possible executing ECB operation
-    /// Address: 0x004 - 0x008
-    pub task_stopecb: WriteOnly<u32, Task::Register>,
+    /// - Address: 0x004 - 0x008
+    task_stopecb: WriteOnly<u32, Task::Register>,
     /// Reserved
-    pub _reserved1: [u32; 62],
+    _reserved1: [u32; 62],
     /// ECB block encrypt complete
-    /// Address: 0x100 - 0x104
-    pub event_endecb: ReadWrite<u32, Event::Register>,
+    /// - Address: 0x100 - 0x104
+    event_endecb: ReadWrite<u32, Event::Register>,
     /// ECB block encrypt aborted because of a STOPECB task or due to an error
-    /// Address: 0x104 - 0x108
-    pub event_errorecb: ReadWrite<u32, Event::Register>,
+    /// - Address: 0x104 - 0x108
+    event_errorecb: ReadWrite<u32, Event::Register>,
     /// Reserved
-    pub _reserved2: [u32; 127],
+    _reserved2: [u32; 127],
     /// Enable interrupt
-    /// Address: 0x304 - 0x308
-    pub intenset: ReadWrite<u32, Intenset::Register>,
+    /// - Address: 0x304 - 0x308
+    intenset: ReadWrite<u32, Intenset::Register>,
     /// Disable interrupt
-    /// Address: 0x308 - 0x30c
-    pub intenclr: ReadWrite<u32, Intenclr::Register>,
+    /// - Address: 0x308 - 0x30c
+    intenclr: ReadWrite<u32, Intenclr::Register>,
     /// Reserved
-    pub _reserved3: [u32; 126],
+    _reserved3: [u32; 126],
     /// ECB block encrypt memory pointers
-    /// Address: 0x504 - 0x508
-    pub ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
+    /// - Address: 0x504 - 0x508
+    ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
 }
 
 register_bitfields! [u32,
@@ -117,8 +121,8 @@ register_bitfields! [u32,
 ];
 
 pub struct AesECB<'a> {
-    regs: *const AesEcbRegisters,
-    client: Cell<Option<&'a kernel::hil::symmetric_encryption::Client<'a>>>,
+    registers: StaticRef<AesEcbRegisters>,
+    client: OptionalCell<&'a kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'a, [u8]>,
     output: TakeCell<'a, [u8]>,
@@ -131,11 +135,11 @@ pub struct AesECB<'a> {
 
 pub static mut AESECB: AesECB = AesECB::new();
 
-impl<'a> AesECB<'a> {
+impl AesECB<'a> {
     const fn new() -> AesECB<'a> {
         AesECB {
-            regs: AESECB_BASE as *const AesEcbRegisters,
-            client: Cell::new(None),
+            registers: AESECB_BASE,
+            client: OptionalCell::empty(),
             input: TakeCell::empty(),
             output: TakeCell::empty(),
             keystream: Cell::new([0; MAX_LENGTH]),
@@ -146,7 +150,7 @@ impl<'a> AesECB<'a> {
     }
 
     fn set_dma(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         unsafe {
             regs.ecbdataptr.set(ECB_DATA.as_ptr() as u32);
         }
@@ -166,7 +170,7 @@ impl<'a> AesECB<'a> {
     }
 
     fn crypt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         regs.event_endecb.write(Event::READY::CLEAR);
         regs.task_startecb.set(1);
@@ -176,7 +180,7 @@ impl<'a> AesECB<'a> {
 
     /// AesEcb Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // disable interrupts
         self.disable_interrupts();
@@ -227,7 +231,6 @@ impl<'a> AesECB<'a> {
                         }
 
                         self.client
-                            .get()
                             .map(move |client| client.crypt_done(Some(slice), buf));
                     });
                 });
@@ -238,31 +241,31 @@ impl<'a> AesECB<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset
             .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr
             .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     fn enable(&self) {
         self.set_dma();
     }
 
     fn disable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.task_stopecb.write(Task::ENABLE::CLEAR);
         self.disable_interrupts();
     }
 
     fn set_client(&'a self, client: &'a symmetric_encryption::Client<'a>) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
@@ -329,7 +332,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
     fn set_mode_aes128ctr(&self, _encrypting: bool) {
         ()

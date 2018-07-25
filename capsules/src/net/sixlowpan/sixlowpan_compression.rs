@@ -591,8 +591,9 @@ fn compress_multicast(
 }
 
 fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usize) -> u8 {
-    let src_port = udp_header.get_src_port();
-    let dst_port = udp_header.get_dst_port();
+    // Need to deal with fields in network byte order when writing directly to buf
+    let src_port = udp_header.get_src_port().to_be();
+    let dst_port = udp_header.get_dst_port().to_be();
 
     let mut udp_port_nhc = 0;
     if (src_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
@@ -630,7 +631,8 @@ fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usiz
 // NOTE: We currently only support (or intend to support) carrying the UDP
 // checksum inline.
 fn compress_udp_checksum(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usize) -> u8 {
-    let cksum = udp_header.get_cksum();
+    // get_cksum returns cksum in host byte order
+    let cksum = udp_header.get_cksum().to_be();
     buf[*written] = cksum as u8;
     buf[*written + 1] = (cksum >> 8) as u8;
     *written += 2;
@@ -772,13 +774,18 @@ pub fn decompress(
             }
             ip6_nh::UDP => {
                 // UDP length includes UDP header and data in bytes
-                let udp_length = (8 + (buf.len() - consumed)) as u16;
+                let udp_length = dgram_size - written as u16; //UDP nh must be last per 6282
+
                 // Decompress UDP header fields
                 let (src_port, dst_port) = decompress_udp_ports(nhc_header, &buf, &mut consumed);
                 // Fill in uncompressed UDP header
+                // TODO: The current implementation works, but I don't understand the calls to
+                // to_be(), because src_port.to_be() returns the src_port in little endian..
+                // Accordingly, the udp_length must also be written in little endian for this
+                // to work.
                 u16_to_slice(src_port.to_be(), &mut next_headers[0..2]);
                 u16_to_slice(dst_port.to_be(), &mut next_headers[2..4]);
-                u16_to_slice(udp_length.to_be(), &mut next_headers[4..6]);
+                u16_to_slice(udp_length, &mut next_headers[4..6]);
                 // Need to fill in header values before computing the checksum
                 let udp_checksum = decompress_udp_checksum(
                     nhc_header,
@@ -914,7 +921,8 @@ fn decompress_tf(ip6_header: &mut IP6Header, iphc_header: u8, buf: &[u8], consum
     if fl_compressed {
         ip6_header.set_flow_label(0);
     } else {
-        let flow = (((buf[*consumed] & 0x0f) as u32) << 16) | ((buf[*consumed + 1] as u32) << 8)
+        let flow = (((buf[*consumed] & 0x0f) as u32) << 16)
+            | ((buf[*consumed + 1] as u32) << 8)
             | (buf[*consumed + 2] as u32);
         *consumed += 3;
         ip6_header.set_flow_label(flow);

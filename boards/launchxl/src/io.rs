@@ -1,5 +1,7 @@
 use cc26xx;
-use core::fmt::{Arguments, Write};
+use core::fmt::Write;
+use core::panic::PanicInfo;
+use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
@@ -15,7 +17,7 @@ impl Write for Writer {
         let uart = unsafe { &mut cc26xx::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.init(uart::UARTParams {
+            uart.configure(uart::UARTParameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
@@ -31,13 +33,13 @@ impl Write for Writer {
 }
 
 #[cfg(not(test))]
-#[lang = "panic_fmt"]
+#[panic_implementation]
 #[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, line: u32) -> ! {
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // 6 = Red led, 7 = Green led
     const LED_PIN: usize = 6;
 
     let led = &mut led::LedLow::new(&mut cc26xx::gpio::PORT[LED_PIN]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
 }

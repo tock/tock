@@ -35,7 +35,7 @@
 
 use core::cell::Cell;
 use kernel;
-use kernel::common::take_cell::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
@@ -93,24 +93,24 @@ enum OnDeck {
     Humidity,
 }
 
-pub struct SI7021<'a, A: time::Alarm + 'a> {
+pub struct SI7021<'a, A: time::Alarm> {
     i2c: &'a i2c::I2CDevice,
     alarm: &'a A,
-    temp_callback: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
-    humidity_callback: Cell<Option<&'static kernel::hil::sensors::HumidityClient>>,
+    temp_callback: OptionalCell<&'static kernel::hil::sensors::TemperatureClient>,
+    humidity_callback: OptionalCell<&'static kernel::hil::sensors::HumidityClient>,
     state: Cell<State>,
     on_deck: Cell<OnDeck>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
+impl<A: time::Alarm> SI7021<'a, A> {
     pub fn new(i2c: &'a i2c::I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> SI7021<'a, A> {
         // setup and return struct
         SI7021 {
             i2c: i2c,
             alarm: alarm,
-            temp_callback: Cell::new(None),
-            humidity_callback: Cell::new(None),
+            temp_callback: OptionalCell::empty(),
+            humidity_callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             on_deck: Cell::new(OnDeck::Nothing),
             buffer: TakeCell::new(buffer),
@@ -147,7 +147,7 @@ impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
+impl<A: time::Alarm> i2c::I2CClient for SI7021<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectElectronicId1 => {
@@ -196,9 +196,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
                 let temp_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
                 let temp = (((temp_raw * 17572) / 65536) - 4685) as i16;
 
-                self.temp_callback
-                    .get()
-                    .map(|cb| cb.callback(temp as usize));
+                self.temp_callback.map(|cb| cb.callback(temp as usize));
 
                 match self.on_deck.get() {
                     OnDeck::Humidity => {
@@ -218,7 +216,6 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
                 let humidity = (((humidity_raw * 125 * 100) / 65536) - 600) as u16;
 
                 self.humidity_callback
-                    .get()
                     .map(|cb| cb.callback(humidity as usize));
                 match self.on_deck.get() {
                     OnDeck::Temperature => {
@@ -237,7 +234,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
+impl<A: time::Alarm> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
     fn read_temperature(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
@@ -261,11 +258,11 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
-        self.temp_callback.set(Some(client));
+        self.temp_callback.set(client);
     }
 }
 
-impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
+impl<A: time::Alarm> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
     fn read_humidity(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
@@ -289,11 +286,11 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensors::HumidityClient) {
-        self.humidity_callback.set(Some(client));
+        self.humidity_callback.set(client);
     }
 }
 
-impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
+impl<A: time::Alarm> time::Client for SI7021<'a, A> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands

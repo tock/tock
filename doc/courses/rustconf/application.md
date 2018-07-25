@@ -323,7 +323,7 @@ extern crate tock;
 use alloc::fmt::Write;
 use tock::console::Console;
 use tock::ipc::ble_ess::{self, ReadingType};
-use tock::sensors::*;
+use tock::sensors::{AmbientLightSensor, TemperatureSensor, HumiditySensor, Nindedof};
 
 #[inline(never)]
 fn main() {

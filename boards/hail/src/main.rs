@@ -5,18 +5,20 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items)]
+#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate sam4l;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::hil;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
@@ -39,22 +41,27 @@ static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 const NUM_PROCS: usize = 20;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, None, None,
 ];
 
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
-    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -194,24 +201,40 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
+    // Initialize USART0 for Uart
+    sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
+
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
+    );
+    hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
     let console = static_init!(
-        capsules::console::Console<sam4l::usart::USART>,
+        capsules::console::Console<UartDevice>,
         capsules::console::Console::new(
-            &sam4l::usart::USART0,
+            console_uart,
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
-    hil::uart::UART::set_client(&sam4l::usart::USART0, console);
+    hil::uart::UART::set_client(console_uart, console);
 
+    // Initialize USART3 for Uart
+    sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(
         capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
         capsules::nrf51822_serialization::Nrf51822Serialization::new(
             &sam4l::usart::USART3,
+            &sam4l::gpio::PA[17],
             &mut capsules::nrf51822_serialization::WRITE_BUF,
             &mut capsules::nrf51822_serialization::READ_BUF
         )
@@ -251,15 +274,13 @@ pub unsafe fn reset_handler() {
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create()),
-        96 / 8
+        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create())
     );
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create()),
-        96 / 8
+        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create())
     );
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
@@ -462,27 +483,37 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    // Need to reset the nRF on boot
-    sam4l::gpio::PA[17].enable();
-    sam4l::gpio::PA[17].enable_output();
-    sam4l::gpio::PA[17].clear();
-    // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
-    for _ in 0..10 {
-        kernel::support::nop();
-    }
-    sam4l::gpio::PA[17].set();
-
     hail.console.initialize();
-    // Attach the kernel debug interface to this console
-    let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    kernel::debug::assign_console_driver(Some(hail.console), kc);
 
+    // Create virtual device for kernel debug.
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
+
+    let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+
+    // Reset the nRF and setup the UART bus.
+    hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
-    // debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop");
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -490,11 +521,13 @@ pub unsafe fn reset_handler() {
         /// This symbol is defined in the linker script.
         static _sapps: u8;
     }
-    kernel::process::load_processes(
+
+    kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
+    board_kernel.kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
 }

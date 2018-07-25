@@ -20,14 +20,14 @@ attending the morning Intermediate Rust training is highly encouraged.
 ## Pre-requisites
 
 We will go over setting up a development environment during the training.
-However, because the WiFi might not be provide fastest Internet connection in
+However, because the WiFi might not provide the fastest Internet connection in
 the world, it would be useful to set up the following dependencies ahead of
 time:
 
 1. A laptop running Linux or OS X. Linux in a VM will work just fine, see below
    for a pre-made image with all the dependencies.
 
-2. Command line utilities: wget, sed, make, cmake, git
+2. Command line utilities: wget, make, cmake, git
 
 4. Python 3 and pip
 

@@ -1,8 +1,9 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, asm)]
+#![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
+extern crate cortexm4;
 
 extern crate cc26x2;
 extern crate cc26xx;
@@ -11,31 +12,39 @@ extern crate cc26xx;
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
 
-use cc26xx::aon;
-use cc26xx::prcm;
+use capsules::virtual_uart::{UartDevice, UartMux};
+use cc26x2::aon;
+use cc26x2::prcm;
+use kernel::hil;
 
 #[macro_use]
 pub mod io;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<&'static mut kernel::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
+    [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
 static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
 
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc26xx::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc26xx::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, cc26xx::uart::UART>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     button: &'static capsules::button::Button<'static, cc26xx::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
 }
@@ -62,7 +71,7 @@ pub unsafe fn reset_handler() {
     cc26x2::init();
 
     // Setup AON event defaults
-    aon::AON_EVENT.setup();
+    aon::AON.setup();
 
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
@@ -118,23 +127,51 @@ pub unsafe fn reset_handler() {
     }
 
     // UART
-    cc26xx::uart::UART0.set_pins(3, 2);
+
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(&cc26xx::uart::UART0, &mut capsules::virtual_uart::RX_BUF)
+    );
+    hil::uart::UART::set_client(&cc26xx::uart::UART0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
+
+    cc26xx::uart::UART0.initialize_and_set_pins(3, 2);
+
     let console = static_init!(
-        capsules::console::Console<cc26xx::uart::UART>,
+        capsules::console::Console<UartDevice>,
         capsules::console::Console::new(
-            &cc26xx::uart::UART0,
+            console_uart,
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             kernel::Grant::create()
         )
     );
-    kernel::hil::uart::UART::set_client(&cc26xx::uart::UART0, console);
+    kernel::hil::uart::UART::set_client(console_uart, console);
     console.initialize();
 
-    // Attach the kernel debug interface to this console
-    let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    kernel::debug::assign_console_driver(Some(console), kc);
+    // Create virtual device for kernel debug.
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
+
+    let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
@@ -172,23 +209,23 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    let rtc = &cc26xx::rtc::RTC;
+    let rtc = &cc26x2::rtc::RTC;
     rtc.start();
 
     let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, cc26xx::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&cc26xx::rtc::RTC)
+        capsules::virtual_alarm::MuxAlarm<'static, cc26x2::rtc::Rtc>,
+        capsules::virtual_alarm::MuxAlarm::new(&cc26x2::rtc::RTC)
     );
     rtc.set_client(mux_alarm);
 
     let virtual_alarm1 = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26xx::rtc::Rtc>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
         >,
         capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
     );
@@ -211,22 +248,25 @@ pub unsafe fn reset_handler() {
 
     let mut chip = cc26x2::chip::Cc26X2::new();
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
 
-    kernel::main(
+    board_kernel.kernel_loop(
         &launchxl,
         &mut chip,
         &mut PROCESSES,
-        &kernel::ipc::IPC::new(),
+        Some(&kernel::ipc::IPC::new()),
     );
 }

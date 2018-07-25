@@ -21,10 +21,13 @@
 //! * Date: March 01, 2017
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 
-const RNG_BASE: usize = 0x4000D000;
+const RNG_BASE: StaticRef<RngRegisters> =
+    unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
 
 #[repr(C)]
 pub struct RngRegisters {
@@ -101,19 +104,19 @@ register_bitfields! [u32,
 ];
 
 pub struct Trng<'a> {
-    regs: *const RngRegisters,
-    client: Cell<Option<&'a rng::Client>>,
+    registers: StaticRef<RngRegisters>,
+    client: OptionalCell<&'a rng::Client>,
     index: Cell<usize>,
     randomness: Cell<u32>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
 
-impl<'a> Trng<'a> {
+impl Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
-            regs: RNG_BASE as *const RngRegisters,
-            client: Cell::new(None),
+            registers: RNG_BASE,
+            client: OptionalCell::empty(),
             index: Cell::new(0),
             randomness: Cell::new(0),
         }
@@ -121,7 +124,7 @@ impl<'a> Trng<'a> {
 
     /// RNG Interrupt handler
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         self.disable_interrupts();
 
@@ -144,7 +147,7 @@ impl<'a> Trng<'a> {
             }
             // fetched 4 bytes of data generated, then notify the capsule
             4 => {
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     let result = client.randomness_available(&mut TrngIter(self));
                     if Continue::Done != result {
                         // need more randomness i.e generate more randomness
@@ -163,21 +166,21 @@ impl<'a> Trng<'a> {
 
     /// Configure client
     pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn enable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenset.write(Intenset::VALRDY::SET);
     }
 
     fn disable_interrupts(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.intenclr.write(Intenclr::VALRDY::SET);
     }
 
     fn start_rng(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
 
         // Reset `valrdy`
         regs.event_valrdy.write(Event::READY::CLEAR);
@@ -192,7 +195,7 @@ impl<'a> Trng<'a> {
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
 
-impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
+impl Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -208,7 +211,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl<'a> rng::RNG for Trng<'a> {
+impl rng::RNG for Trng<'a> {
     fn get(&self) {
         self.start_rng()
     }

@@ -1,7 +1,7 @@
 //! This testing utility is designed to communicate with a device
 //! running Tock.  In particular, it interacts with the usbc_client
 //! capsule.  The USB controller and the client capsule must be enabled
-//! from userspace; the application in `userland/examples/tests/usb/`
+//! from userspace; the application in `libtock-c/examples/tests/usb/`
 //! will do this.
 //!
 //! NOTE: A more flexible and performant variant of this utility can be
@@ -31,7 +31,7 @@
 
 extern crate libusb;
 
-use libusb::*;
+use libusb::{Context, Error};
 #[allow(unused_imports)]
 use std::io::{stderr, stdin, stdout, Read, Write};
 use std::time::Duration;
@@ -63,7 +63,8 @@ fn main() {
             dev = Some(d);
         }
     }
-    let mut dh = dev.expect("Matching device not found")
+    let mut dh = dev
+        .expect("Matching device not found")
         .open()
         .expect("Opening device");
     // dh.reset().expect("Reset");
@@ -76,7 +77,7 @@ fn main() {
     // (Note that an async interface *is* available for the underlying
     // libusb C library.)
 
-    let mut input_buf = &mut [0; 8];
+    let input_buf = &mut [0; 8];
     let mut input_buflen = 0;
     let mut out_bytes = 0;
     let mut in_bytes = 0;
@@ -128,7 +129,7 @@ fn main() {
             let endpoint = 1;
             let address = endpoint | 1 << 7; // IN endpoint
             let timeout = Duration::from_secs(3);
-            let mut buf = &mut [0; 8];
+            let buf = &mut [0; 8];
             match dh.read_bulk(address, buf, timeout) {
                 Ok(n) => {
                     debug!(

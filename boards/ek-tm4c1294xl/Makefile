@@ -13,11 +13,6 @@ include ../Makefile.common
 apps/$(APP)/build/$(TOCK_ARCH)/app.bin:
 	@make -C apps/$(APP) TOCK_ARCH=$(TOCK_ARCH)
 
-target/$(TARGET)/release/$(PLATFORM)-$(APP): target/$(TARGET)/release/$(PLATFORM) apps/$(APP)/build/$(TOCK_ARCH)/app.bin
-	@$(OBJCOPY) --update-section .apps=../../userland/examples/$(APP)/build/$(TOCK_ARCH)/app.bin \
-	  --set-section-flags .apps=alloc,code \
-	  target/$(TARGET)/release/$(PLATFORM) $@
-
 target/$(TARGET)/release/$(PLATFORM)-$(APP).hex: target/$(TARGET)/release/$(PLATFORM)-$(APP)
 	@$(OBJCOPY) -Oihex $^ $@
 

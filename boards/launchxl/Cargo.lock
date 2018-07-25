@@ -22,15 +22,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "cortexm4"
+name = "cortexm"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
 ]
 
 [[package]]
+name = "cortexm4"
+version = "0.1.0"
+dependencies = [
+ "cortexm 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "tock-cells 0.1.0",
+ "tock-registers 0.1.0",
+]
 
 [[package]]
 name = "launchxl"
@@ -42,4 +54,12 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "tock-cells"
+version = "0.1.0"
+
+[[package]]
+name = "tock-registers"
+version = "0.1.0"
 

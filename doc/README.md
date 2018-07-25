@@ -11,17 +11,20 @@ Tock Guides
 ### Overview and Design of Tock
 - **[Overview](Overview.md)** - Overview of the OS and this repository.
 - **[Design](Design.md)** - Design of the Tock primitives that make safety and security possible.
-- **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
 
 ### Tock Implementation
 - **[Lifetimes](Lifetimes.md)** - How Rust lifetimes are used in Tock.
 - **[Mutable References](Mutable_References.md)** - How Tock safely shares resources between components.
+- **[Soundness](Soundness.md)** - How Tock safely uses unsafe code.
 - **[Compilation](Compilation.md)** - How the kernel and applications are compiled.
 - **[Tock Binary Format](TockBinaryFormat.md)** - How Tock application binaries are specified.
-- **[Memory Layout](Memory_Layout.md)** - How the chip memory is divided for Tock.
+- **[Memory Layout](Memory_Layout.md)** - How memory is divided for Tock.
+- **[Memory Isolation](Memory_Isolation.md)** - How memory is isolated in Tock.
+- **[Registers](../libraries/tock-register-interface/README.md)** - How memory-mapped registers are handled in Tock.
 - **[Startup](Startup.md)** - What happens when Tock boots.
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
+- **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
 
 ### Interface Details
 - **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
@@ -36,6 +39,6 @@ Tock Guides
 ### Management of Tock
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 
-### Tutorials and Courses
-- **[Quick Tutorials](tutorials)** - Specific tutorials that walk through features of Tock.
-- **[Longer Courses](courses)** - Longer workshops on multiple aspects of Tock.
+### Courses and Tutorials
+- **[Courses](courses)** - Workshops on multiple aspects of Tock.
+- **[Tutorials](tutorials)** - Tutorials that walk through specific features of Tock.

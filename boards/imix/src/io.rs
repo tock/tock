@@ -1,4 +1,6 @@
-use core::fmt::*;
+use core::fmt::Write;
+use core::panic::PanicInfo;
+use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
@@ -16,7 +18,7 @@ impl Write for Writer {
         let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
-            uart.init(uart::UARTParams {
+            uart.configure(uart::UARTParameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
@@ -36,9 +38,9 @@ impl Write for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
-#[lang = "panic_fmt"]
-pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+#[panic_implementation]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut led::LedLow::new(&mut sam4l::gpio::PC[10]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
 }

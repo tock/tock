@@ -24,7 +24,7 @@
 //!         usb_client, kernel::Grant::create()));
 //! ```
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
@@ -37,13 +37,13 @@ pub struct App {
     awaiting: Option<Request>,
 }
 
-pub struct UsbSyscallDriver<'a, C: hil::usb::Client + 'a> {
+pub struct UsbSyscallDriver<'a, C: hil::usb::Client> {
     usbc_client: &'a C,
     apps: Grant<App>,
-    serving_app: Cell<Option<AppId>>,
+    serving_app: OptionalCell<AppId>,
 }
 
-impl<'a, C> UsbSyscallDriver<'a, C>
+impl<C> UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client,
 {
@@ -51,12 +51,12 @@ where
         UsbSyscallDriver {
             usbc_client: usbc_client,
             apps: apps,
-            serving_app: Cell::new(None),
+            serving_app: OptionalCell::empty(),
         }
     }
 
     fn serve_waiting_apps(&self) {
-        if self.serving_app.get().is_some() {
+        if self.serving_app.is_some() {
             // An operation on the USBC client is in progress
             return;
         }
@@ -98,7 +98,7 @@ enum Request {
     EnableAndAttach,
 }
 
-impl<'a, C> Driver for UsbSyscallDriver<'a, C>
+impl<C> Driver for UsbSyscallDriver<'a, C>
 where
     C: hil::usb::Client,
 {
@@ -110,7 +110,8 @@ where
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
@@ -127,7 +128,8 @@ where
 
             // Enable USB controller, attach to bus, and service default control endpoint
             1 => {
-                let result = self.apps
+                let result = self
+                    .apps
                     .enter(appid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
