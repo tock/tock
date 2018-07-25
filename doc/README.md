@@ -41,5 +41,4 @@ Tock Guides
 
 ### Courses and Tutorials
 - **[Courses](courses)** - Workshops on multiple aspects of Tock.
-- **[Tutorials](tutorials)** - Tutorials that walk through specific features of
-  Tock.
+- **[Tutorials](tutorials)** - Tutorials that walk through specific features of Tock.

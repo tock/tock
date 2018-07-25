@@ -34,7 +34,7 @@ lifetime of that reference. For example:
 
 ```rust
 struct Foo<'a> {
-  bar: &'a Bar  
+  bar: &'a Bar
 }
 ```
 
@@ -47,7 +47,7 @@ forever, regardless of how long the containing type (e.g. `Foo`) lives:
 
 ```rust
 struct Foo {
-  bar: &'static Bar  
+  bar: &'static Bar
 }
 ```
 

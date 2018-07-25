@@ -28,17 +28,16 @@ Applications in Tock are the user-level code meant to accomplish some type of
 task for the end user. Applications are distinguished from kernel code which
 handles device drivers, chip-specific details, and general operating system
 tasks. Unlike many existing embedded operating systems, in Tock applications
-are not built as one with the kernel. Instead they are entirely separate code
+are not compiled with the kernel. Instead they are entirely separate code
 that interact with the kernel and each other through [system
 calls](https://en.wikipedia.org/wiki/System_call).
 
 Since applications are not a part of the kernel, they may be written in any
-language that can be compiled into code capable of running on ARM Cortex-M
-processors. While the Tock kernel is written in Rust, applications are commonly
-written in C. Additionally, Tock supports running multiple applications
-concurrently. Co-operatively multiprogramming is the default, but applications
-may also be time sliced. Applications may talk to each other via Inter-Process
-Communication (IPC) through system calls.
+language that can be compiled into code capable of running on a microcontroller.
+Tock supports running multiple applications concurrently. Co-operatively
+multiprogramming is the default, but applications may also be time sliced.
+Applications may talk to each other via Inter-Process Communication (IPC)
+through system calls.
 
 Applications do not have compile-time knowledge of the address at which they
 will be installed and loaded. In the current design of Tock, applications must
@@ -49,9 +48,9 @@ of PIC for Tock apps is not a fundamental choice, future versions of the system
 may support run-time relocatable code.
 
 Applications are unprivileged code. They may not access all portions of memory
-and may, in fact, fault if they attempt to access memory outside of their
-boundaries (similarly to segmentation faults in Linux code). In order to
-interact with hardware, applications must make calls to the kernel.
+and will fault if they attempt to access memory outside of their boundaries
+(similarly to segmentation faults in Linux code). To interact with hardware,
+applications must make calls to the kernel.
 
 
 ## System Calls
@@ -96,30 +95,30 @@ timer fires. Specific state that you want the callback to act upon can be
 passed as the pointer `userdata`. After the application has started the timer,
 calls `yield`, and the timer fires, the callback function will be called.
 
-It is important to note that `yield` must be called in order for events to be
-serviced in the current implementation of Tock. Callbacks to the application
-will be queued when they occur but the application will not receive them until
-it yields. This is not fundamental to Tock, and future version may service
-callbacks on any system call or when performing application time slicing. After
-receiving and running the callback, application code will continue after the
-`yield`. Tock automatically calls `yield` continuously for applications that
-return from execution (for example, an application that returns from `main`).
+It is important to note that `yield` must be called for events to be serviced in
+the current implementation of Tock. Callbacks to the application will be queued
+when they occur but the application will not receive them until it yields. This
+is not fundamental to Tock, and future version may service callbacks on any
+system call or when performing application time slicing. After receiving and
+running the callback, application code will continue after the `yield`.
+Applications which are "finished" (i.e. have returned from `main()`) should call
+`yield` in a loop to avoid being scheduled by the kernel.
 
 
 ## Inter-Process Communication
 
 IPC allows for multiple applications to communicate directly through shared
 buffers. IPC in Tock is implemented with a service-client model. Each app can
-support one service and the service is identified by the `PACKAGE_NAME` variable
-set in its Makefile. An app can communicate with multiple services and will get
-a unique handle for each discovered service. Clients and services communicate
-through shared buffers. Each client can share some of its own application memory
-with the service and then notify the service to instruct it to parse the shared
-buffer.
+support one service and the service is identified by its package name which is
+included in the Tock Binary Format Header for the app. An app can communicate
+with multiple services and will get a unique handle for each discovered service.
+Clients and services communicate through shared buffers. Each client can share
+some of its own application memory with the service and then notify the service
+to instruct it to parse the shared buffer.
 
 ### Services
 
-Services are named by the `PACKAGE_NAME` variable in the application Makefile.
+Services are named by the package name included in the app's TBF header.
 To register a service, an app can call `ipc_register_svc()` to setup a callback.
 This callback will be called whenever a client calls notify on that service.
 

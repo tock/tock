@@ -130,11 +130,9 @@ An example version of this loop is in `kernel/src/process.rs` as the
 process from the starting address in flash and with a given amount of memory
 remaining. If the header is validated, it tries to load the process into memory
 and initialize all of the bookkeeping in the kernel associated with the process.
-This can fail if the process needs more memory than is available on the chip. As
-a part of this load process, the kernel can also perform PIC fixups for the
-process if it was requested in the TBF header. If the process is successfully
-loaded the kernel importantly notes the address of the application's entry
-function which is called when the process is started.
+This can fail if the process needs more memory than is available on the chip. If
+the process is successfully loaded the kernel importantly notes the address of
+the application's entry function which is called when the process is started.
 
 The load process loop ends when the kernel runs out of statically allocated
 memory to store processes in, available RAM for processes, or there is an
@@ -142,5 +140,5 @@ invalid TBF header in flash.
 
 ## Scheduler Execution
 
-The final thing that the reset handler must do is call `kernel::main()`. This
-starts the Tock scheduler and the main operation of the kernel.
+The final thing that the reset handler must do is call `kernel.kernel_loop()`.
+This starts the Tock scheduler and the main operation of the kernel.
