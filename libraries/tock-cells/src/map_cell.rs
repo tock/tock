@@ -16,10 +16,34 @@ pub struct MapCell<T> {
     occupied: Cell<bool>,
 }
 
+// This function allows us to mimic `mem::uninitialized` in a way that can be marked `const`.
+// Specifically, we just want to allocate some memory the size of some particular `T` and we don't
+// care what's there---this happens to not be marked `cost` in the core library right now since
+// it's an LLVM intrinsic.
+//
+// This uses an unsafe union to do basically the same thing: the union will have the size of the
+// larger of the two fields (`T`, since `()` is zero-sized). It then initializes the union with the
+// `none` variant (of type `()`), but returns the `some` variant (which is of type `T`), thus
+// giving us back something of type `T` with some uninitialized memory.
+//
+// This is of course wildly unsafe, and should be used with the utmost caution---the value returned
+// is _not_ valid!
+//
+// Credit to @japaric: https://github.com/rust-lang/rust/pull/50150
+const unsafe fn uninitialized<T>() -> T {
+    #[allow(unions_with_drop_fields)]
+    union U<T> {
+        none: (),
+        some: T,
+    }
+
+    U { none: () }.some
+}
+
 impl<T> MapCell<T> {
-    pub fn empty() -> MapCell<T> {
+    pub const fn empty() -> MapCell<T> {
         MapCell {
-            val: unsafe { mem::uninitialized() },
+            val: unsafe { uninitialized() },
             occupied: Cell::new(false),
         }
     }
