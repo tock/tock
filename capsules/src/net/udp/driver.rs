@@ -145,7 +145,6 @@ impl<'a> UDPDriver<'a> {
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
-        debug!("hi");
         self.apps
             .enter(appid, |app, _| {
                 app.app_rx_cfg
@@ -435,16 +434,21 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
 impl<'a> UDPRecvClient for UDPDriver<'a> {
     fn receive(&self, src_addr: IPAddr, dst_addr: IPAddr, src_port: u16, dst_port: u16, payload: &[u8]) {
         // debug!("payload: {:?}", payload);
+        debug!("got a payload.");
         self.apps.each(|app| {
             self.do_with_rx_cfg(app.appid(), payload.len(), |cfg| {
+                debug!("doing stuff with rx_cfg");
                 if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
+                    debug!("error with cfg size");
                     return ReturnCode::EINVAL;
                 }
 
                 self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()]).map(|socket_addr| {
                     self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]).map(|requested_addr| {
+                        debug!("About to check addr match");
                         if (socket_addr.addr == dst_addr && requested_addr.addr == src_addr &&
                            socket_addr.port == dst_port && requested_addr.port == src_port) || true {
+                            debug!("Address match!");
                             let mut app_read = app.app_read.take();
                             app_read.as_mut().map(|rbuf| {
                             //app.app_read.take().as_mut().map(|rbuf| {
