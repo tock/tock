@@ -294,12 +294,8 @@ impl Power {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
             PowerDomain::RFC => {
-                regs.pd_stat0_rfc.is_set(PowerDomainSingle::ON)
-                    && regs.pd_stat1_rfc.is_set(PowerDomainSingle::ON)
-                    /*
                 regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
                     && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
-                    */
             }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),

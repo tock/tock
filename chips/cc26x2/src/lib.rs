@@ -11,6 +11,7 @@ extern crate kernel;
 extern crate bitfield;
 extern crate fixedvec;
 
+pub mod osc;
 pub mod aon;
 pub mod chip;
 pub mod commands;

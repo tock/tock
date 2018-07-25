@@ -92,6 +92,8 @@ const AON_IOC_BASE: StaticRef<AonIocRegisters> =
 
 pub struct Aon {
     event_regs: StaticRef<AonEventRegisters>,
+    // pmctl_regs: StaticRef<AonPmCtlRegisters>,
+    // ioc_base: StaticRef<AonIocRegisters>,
 }
 
 pub const AON: Aon = Aon::new();
@@ -100,6 +102,8 @@ impl Aon {
     const fn new() -> Aon {
         Aon {
             event_regs: AON_EVENT_BASE,
+            //pmctl_regs: AON_PMCTL_BASE,
+            //ioc_base: AON_IOC_BASE,
         }
     }
 
@@ -154,7 +158,8 @@ impl Aon {
             }
         });
     }
-
+    
+    
     pub fn mcu_set_ram_retention(&self, on: bool) {
         let regs = AON_PMCTL_BASE;
         regs.ram_cfg.modify({
@@ -164,6 +169,11 @@ impl Aon {
                 RamCfg::BUS_SRAM_RET_EN::OFF
             }
         });
+    }
+
+    pub fn aux_disable_power_down_clock(&self) {
+        let regs = AON_PMCTL_BASE;
+        regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
     }
 
     pub fn shutdown(&self) {

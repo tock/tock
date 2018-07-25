@@ -18,7 +18,7 @@ use cc26x2::rfc::RFCore;
 
 #[macro_use]
 pub mod io;
-pub mod rfc_dummy;
+pub mod radio;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -78,12 +78,6 @@ pub unsafe fn reset_handler() {
 
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
-
-    // Power of RF Core
-    prcm::Power::enable_domain(prcm::PowerDomain::RFC);
-
-    // Wait for radio power domain to enable
-    while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
 
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();

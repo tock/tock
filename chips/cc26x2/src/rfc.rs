@@ -28,6 +28,7 @@ use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 use prcm;
+use rtc;
 
 // This section defines the register offsets of
 // RFC_DBELL component
@@ -293,7 +294,7 @@ pub enum RfcCMDSTA {
 }
 
 const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
-    unsafe { StaticRef::new(0x4004_000 as *const RfcPWCRegisters) };
+    unsafe { StaticRef::new(0x4004_0000 as *const RfcPWCRegisters) };
 const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> =
     unsafe { StaticRef::new(0x4004_1000 as *const RfcDBellRegisters) };
 pub static mut CMD_STACK: [RadioCommands; 6] = [
@@ -448,12 +449,13 @@ impl RFCore {
     pub fn enable(&self) {
         // Make sure RFC power is enabled
         let dbell_regs = RFC_DBELL_BASE;
-        if !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {
-            prcm::Power::enable_domain(prcm::PowerDomain::RFC);
-
-            while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
+        
+        prcm::Power::enable_domain(prcm::PowerDomain::RFC);
+        prcm::Clock::enable_rfc();
+        
+        unsafe {
+            rtc::RTC.set_upd_en(true);
         }
-
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
 
@@ -467,10 +469,9 @@ impl RFCore {
             ._rfhwifg
             .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
         dbell_regs.rfcpeifg.set(0x7FFFFFFF);
-        /*
         // Initialize radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40));
-
+        /*
         // Request bus
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1));
 
