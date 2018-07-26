@@ -1,5 +1,4 @@
 use kernel::common::registers::{ReadOnly, ReadWrite};
-use kernel::common::cells::VolatileCell;
 use kernel::common::StaticRef;
 
 pub struct DdiRegisters {
@@ -95,6 +94,25 @@ register_bitfields! [
     ]
 ];
 
+pub enum ClockType {
+    LF,
+    HF,
+}
+
+#[allow(non_camel_case_types)]
+pub enum SCLKLFSRC {
+    RCOSC_HF_DERIVED,
+    XOSC_HF_DERIVED,
+    RCOSC_LF,
+    XOSC_LF,
+}
+
+#[allow(non_camel_case_types)]
+pub enum SCLKHFSRC {
+    RCOSC_HF,
+    XOSC_HF,
+}
+
 const DDI0_BASE: StaticRef<DdiRegisters> = 
     unsafe { StaticRef::new(0x400C_A000 as *const DdiRegisters) };
 
@@ -111,8 +129,58 @@ impl Oscillator {
         }
     }
 
-    pub fn configure(&self) {
+    pub fn lfosc_config(&self, lf_clk: SCLKLFSRC) {
+        let regs = DDI0_BASE;
+        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
 
+        match lf_clk {
+            SCLKLFSRC::RCOSC_HF_DERIVED => {
+                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
+            }
+            SCLKLFSRC::RCOSC_LF => {
+                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_LF);
+            }
+            SCLKLFSRC::XOSC_HF_DERIVED => {
+                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_HF_DERIVED);
+            }
+            SCLKLFSRC::XOSC_LF => {
+                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_LF);
+            }
+        }
+    }
+
+    pub fn hfosc_config(&self, hf_clk: SCLKHFSRC) {
+        let regs = DDI0_BASE;
+        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+
+        match hf_clk {
+            SCLKHFSRC::RCOSC_HF => {
+                self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
+            }
+            SCLKHFSRC::XOSC_HF => {
+                self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::XOSC_HF);
+            }
+        }
+    }
+
+    pub fn disable_lfclk_qualifier(&self) {
+        while self.get_clock_source(ClockType::LF) != 0x02 {}
+
+        let regs = DDI0_BASE;
+
+        regs.ctl0.modify(Ctl0::BYPASS_XOSC_LF_CLK_QUAL::SET + Ctl0::BYPASS_RCOSC_LF_CLK_QUAL::SET);
+    }
+
+    pub fn get_clock_source(&self, source: ClockType) -> u8 {
+        let regs = DDI0_BASE;
+        match source {
+            ClockType::LF => {
+                regs.stat0.read(Stat0::SCLK_LF_SRC) as u8
+            }
+            ClockType::HF => {
+                regs.stat0.read(Stat0::SCLK_HF_SRC) as u8
+            }
+        }
     }
 }
 

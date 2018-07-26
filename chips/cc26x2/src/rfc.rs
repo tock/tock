@@ -22,11 +22,9 @@
 //!
 use commands as cmd;
 use core::cell::Cell;
-use fixedvec::FixedVec;
-use kernel::common::cells::TakeCell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::ReturnCode;
 use prcm;
 use rtc;
 
@@ -293,32 +291,36 @@ pub enum RfcCMDSTA {
     QueueBusy = 0x89,
 }
 
+/*
+    Power masks in order to enable certain clocks in the RFC
+*/
+const RFC_PWR_RFC: u32 = 0x01;
+// Main module
+// Command and Packet Engine (CPE)
+const RFC_PWR_CPE: u32 = 0x02;
+const RFC_PWR_CPERAM: u32 = 0x04;
+// Modem module
+const RFC_PWR_MDM: u32 = 0x08;
+const RFC_PWR_MDMRAM: u32 = 0x10;
+// RF Engine (RFE)
+const RFC_PWR_RFE: u32 = 0x20;
+const RFC_PWR_RFERAM: u32 = 0x40;
+// Radio Timer (RAT)
+const RFC_PWR_RAT: u32 = 0x80;
+// Packet Handling Accelerator (PHA)
+const RFC_PWR_PHA: u32 = 0x100;
+// Frequence Synthesizer Calibration Accelerator (FCSCA)
+const RFC_PWR_FSCA: u32 = 0x200;
+
 const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
     unsafe { StaticRef::new(0x4004_0000 as *const RfcPWCRegisters) };
 const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> =
     unsafe { StaticRef::new(0x4004_1000 as *const RfcDBellRegisters) };
-pub static mut CMD_STACK: [RadioCommands; 6] = [
-    RadioCommands::NotSupported,
-    RadioCommands::NotSupported,
-    RadioCommands::NotSupported,
-    RadioCommands::NotSupported,
-    RadioCommands::NotSupported,
-    RadioCommands::NotSupported,
-];
 
-pub static mut RFC_STACK: [State; 6] = [State::Start; 6];
+pub static mut RFC: RFCore = RFCore::new();
+
 pub const RFC_RAM_BASE: usize = 0x2100_0000;
 pub const DRIVER_NUM: usize = 0xCC1312;
-
-#[derive(Debug, Clone, Copy)]
-pub enum State {
-    Start,
-    Pending,
-    CommandStatus(RfcOperationStatus),
-    Command(RadioCommands),
-    Done,
-    Invalid,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub enum RfcInterrupt {
@@ -344,102 +346,27 @@ pub enum RfcOperationStatus {
     Invalid,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum RadioCommands {
-    Direct(cmd::DirectCommand),
-    RadioSetup(cmd::CmdRadioSetup),
-    NoOp(cmd::CmdNop),
-    FSPowerup(cmd::CmdFSPowerup),
-    FSPowerdown(cmd::CmdFSPowerdown),
-    StartRat(cmd::CmdSyncStartRat),
-    StopRat(cmd::CmdSyncStopRat),
-    NotSupported,
-}
-
-impl Default for RadioCommands {
-    fn default() -> RadioCommands {
-        RadioCommands::NoOp(cmd::CmdNop::new())
-    }
-}
-
 pub struct RFCore {
     client: Cell<Option<&'static RFCoreClient>>,
     mode: Cell<Option<RfcMode>>,
     rat: Cell<u32>,
-    cmd_stack: TakeCell<'static, FixedVec<'static, RadioCommands>>,
-    state_stack: TakeCell<'static, FixedVec<'static, State>>,
+    pub command: Cell<u32>,
 }
 
 impl RFCore {
-    pub fn new() -> RFCore {
-        let rfc_stack = unsafe { static_init!(
-            FixedVec<'static, State>,
-            FixedVec::new( &mut RFC_STACK )
-        )};
-
-        let cmd_stack = unsafe { static_init!(
-            FixedVec<'static, RadioCommands>,
-            FixedVec::new( &mut CMD_STACK )
-        )};
-
-        debug_assert_eq!(rfc_stack.len(), 0);
-        rfc_stack
-            .push(State::Start)
-            .expect("Rfc stack should be empty");
-        debug_assert_eq!(cmd_stack.len(), 0);
+    pub const fn new() -> RFCore {
         RFCore {
             client: Cell::new(None),
             mode: Cell::new(None),
             rat: Cell::new(0),
-            cmd_stack: TakeCell::new(cmd_stack),
-            state_stack: TakeCell::new(rfc_stack),
+            command: Cell::new(0),
         }
     }
 
     pub fn set_client(&self, client: &'static RFCoreClient) {
         self.client.set(Some(client));
     }
-
-    // Functions for pushing and popping the radio state from the state stack
-    fn push_state(&self, state: State) {
-        let state_stack = self
-            .state_stack
-            .take()
-            .expect("self.state_stack must be some here");
-        state_stack.push(state).expect("self.state_stack is full");
-        self.state_stack.replace(state_stack);
-    }
-
-    fn pop_state(&self) -> State {
-        let state_stack = self
-            .state_stack
-            .take()
-            .expect("self.state_stack must be some here");
-        let state = state_stack.pop().expect("self.state_stack is empty");
-        self.state_stack.replace(state_stack);
-        state
-    }
-
-    // Functions for pushing and popping radio commands from the command stack
-    fn push_cmd(&self, cmd: RadioCommands) {
-        let cmd_stack = self
-            .cmd_stack
-            .take()
-            .expect("self.cmd_stack must be some here");
-        cmd_stack.push(cmd).expect("self.cmd_stack is full");
-        self.cmd_stack.replace(cmd_stack);
-    }
-
-    fn pop_cmd(&self) -> RadioCommands {
-        let cmd_stack = self
-            .cmd_stack
-            .take()
-            .expect("self.cmd_stack must be some here");
-        let cmd = cmd_stack.pop().expect("self.cmd_stack is empty");
-        self.cmd_stack.replace(cmd_stack);
-        cmd
-    }
-
+    
     // Check if RFCore params are enabled
     pub fn is_enabled(&self) -> bool {
         prcm::Power::is_enabled(prcm::PowerDomain::RFC)
@@ -459,8 +386,11 @@ impl RFCore {
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
 
-        pwc_regs.pwmclken.set(0x7FF);
-
+        // pwc_regs.pwmclken.set(0x7FF);
+        
+        pwc_regs.pwmclken.set( RFC_PWR_RFC | RFC_PWR_CPE | RFC_PWR_CPERAM | RFC_PWR_FSCA | RFC_PWR_PHA | RFC_PWR_RAT
+                | RFC_PWR_RFE | RFC_PWR_RFERAM | RFC_PWR_MDM | RFC_PWR_MDMRAM,
+        );
         // Enable interrupts and clear flags
         self.enable_cpe_interrupts();
         self.enable_hw_interrupts();
@@ -471,13 +401,13 @@ impl RFCore {
         dbell_regs.rfcpeifg.set(0x7FFFFFFF);
         // Initialize radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40));
-        /*
+        
         // Request bus
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1));
 
         // Ping radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_PING, 0));
-        */
+        
     }
 
     // Disable RFCore
@@ -624,7 +554,7 @@ impl RFCore {
     // Set mode of RFCore
     pub fn set_mode(&self, mode: RfcMode) {
         let rf_mode = match mode {
-            RfcMode::NONPROP => 0x00,
+            RfcMode::PROPRF => 0x03,
             _ => panic!("Only HAL mode supported"),
         };
 
@@ -643,39 +573,39 @@ impl RFCore {
             dbell_regs.cmdr.set(rf_command);
             return ReturnCode::SUCCESS;
         } else {
-            self.push_state(State::Pending);
+            // self.push_state(State::Pending);
             return ReturnCode::EBUSY;
         }
     }
 
     // Get status from active radio command
-    fn wait_cmdr(&self, rf_command: u32) -> ReturnCode {
+    pub fn wait_cmdr(&self, rf_command: u32) -> ReturnCode {
         let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
         let command_status = command_op.status;
         match command_status {
             0x0000 => {
-                self.push_state(State::CommandStatus(RfcOperationStatus::Idle));
+                // self.push_state(State::CommandStatus(RfcOperationStatus::Idle));
                 return ReturnCode::EBUSY;
             }
             0x0001 => {
-                self.push_state(State::CommandStatus(RfcOperationStatus::Pending));
+                // self.push_state(State::CommandStatus(RfcOperationStatus::Pending));
                 return ReturnCode::EBUSY;
             }
             0x0002 => {
-                self.push_state(State::CommandStatus(RfcOperationStatus::Active));
+                // self.push_state(State::CommandStatus(RfcOperationStatus::Active));
                 return ReturnCode::EBUSY;
             }
             0x0003 => {
-                self.push_state(State::CommandStatus(RfcOperationStatus::Skipped));
+                // self.push_state(State::CommandStatus(RfcOperationStatus::Skipped));
                 return ReturnCode::ECANCEL;
             }
             // Operation finished normally
             0x0400 => {
-                self.push_state(State::CommandStatus(RfcOperationStatus::CommandDone));
+                // self.push_state(State::CommandStatus(RfcOperationStatus::CommandDone));
                 return ReturnCode::SUCCESS;
             }
             _ => {
-                self.push_state(State::CommandStatus(RfcOperationStatus::Invalid));
+                // self.push_state(State::CommandStatus(RfcOperationStatus::Invalid));
                 return ReturnCode::EINVAL;
             }
         }
@@ -684,20 +614,20 @@ impl RFCore {
     // Get status from CMDSTA register after ACK Interrupt flag has been thrown, then handle ACK
     // flag
     // Return CMDSTA register value
-    fn cmdsta(&self) -> ReturnCode {
+    pub fn cmdsta(&self) -> ReturnCode {
         let dbell_regs = RFC_DBELL_BASE;
         let status: u32 = dbell_regs.cmdsta.get();
         match status {
             0x00 => {
-                self.push_state(State::Pending);
+                // self.push_state(State::Pending);
                 return ReturnCode::EBUSY;
             }
             0x01 => {
-                self.push_state(State::Done);
+                // self.push_state(State::Done);
                 return ReturnCode::SUCCESS;
             }
             _ => {
-                self.push_state(State::Invalid);
+                // self.push_state(State::Invalid);
                 return ReturnCode::EINVAL;
             }
         }
@@ -706,6 +636,7 @@ impl RFCore {
     pub fn send<T: cmd::RadioCommand>(&self, rf_command: &T) -> ReturnCode {
         let command = { (rf_command as *const T) as u32 };
 
+        self.command.set(command);
         return self.post_cmdr(command);
     }
 
@@ -751,14 +682,17 @@ impl RFCore {
                     self.client.get().map(|client| client.wait_command_done());
                 }
                 if last_command_done {
-                    self.client.get().map(|client| client.last_command_done());
+                    // self.client.get().map(|client| client.last_command_done());
+                    self.client.get().map(|client| client.send_command_done());
                 }
+                /*
                 if tx_done {
                     self.client.get().map(|client| client.tx_done());
                 }
                 if rx_ok {
                     self.client.get().map(|client| client.rx_ok());
                 }
+                */
             }
             RfcInterrupt::Cpe1 => {
                 dbell_regs.rfcpeifg.set(0x7FFFFFFF);
@@ -769,146 +703,11 @@ impl RFCore {
     }
 }
 
-pub struct RFCoreDriver<'a> {
-    rfcore: &'a RFCore,
-    callback: Cell<Option<Callback>>,
-}
-
 pub trait RFCoreClient {
     fn send_command_done(&self);
-    fn last_command_done(&self);
+    // fn last_command_done(&self);
     fn wait_command_done(&self);
-    fn tx_done(&self);
-    fn rx_ok(&self);
+    // fn tx_done(&self);
+    // fn rx_ok(&self);
 }
 
-impl<'a> RFCoreClient for RFCoreDriver<'a> {
-    fn send_command_done(&self) {
-        self.callback
-            .get()
-            .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::SendDone as usize, 0, 0));
-    }
-
-    fn last_command_done(&self) {
-        self.callback
-            .get()
-            .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::LastCommandDone as usize, 0, 0));
-    }
-    fn wait_command_done(&self) {
-        self.callback
-            .get()
-            .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::CommandDone as usize, 0, 0));
-    }
-
-    fn tx_done(&self) {
-        self.callback
-            .get()
-            .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::TxDone as usize, 0, 0));
-    }
-
-    fn rx_ok(&self) {
-        self.callback
-            .get()
-            .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::RxOk as usize, 0, 0));
-    }
-}
-
-impl<'a> Driver for RFCoreDriver<'a> {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Option<Callback>,
-        _appid: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            // Callback for RFC Interrupt ready
-            0 => {
-                self.callback.set(callback);
-                return ReturnCode::SUCCESS;
-            }
-            // Default
-            _ => return ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn command(&self, minor_num: usize, _r2: usize, _r3: usize, _caller_id: AppId) -> ReturnCode {
-        let command_status: RfcOperationStatus = minor_num.into();
-
-        match command_status {
-            // Handle callback for CMDSTA after write to CMDR
-            RfcOperationStatus::SendDone => {
-                let current_command = self.rfcore.pop_cmd();
-                self.rfcore.push_state(State::CommandStatus(command_status));
-                match self.rfcore.cmdsta() {
-                    ReturnCode::SUCCESS => {
-                        self.rfcore.push_cmd(current_command);
-                        ReturnCode::SUCCESS
-                    }
-                    ReturnCode::EBUSY => {
-                        self.rfcore.push_cmd(current_command);
-                        ReturnCode::EBUSY
-                    }
-                    ReturnCode::EINVAL => {
-                        self.rfcore.pop_state();
-                        ReturnCode::EINVAL
-                    }
-                    _ => {
-                        self.rfcore.pop_state();
-                        self.rfcore.pop_cmd();
-                        ReturnCode::ENOSUPPORT
-                    }
-                }
-            }
-            // Handle callback for command status after command is finished
-            RfcOperationStatus::CommandDone => {
-                let current_command = self.rfcore.pop_cmd();
-                self.rfcore.push_state(State::CommandStatus(command_status));
-                match self.rfcore.wait(&current_command) {
-                    ReturnCode::SUCCESS => {
-                        self.rfcore.pop_state();
-                        ReturnCode::SUCCESS
-                    }
-                    ReturnCode::EBUSY => {
-                        self.rfcore.push_cmd(current_command);
-                        ReturnCode::EBUSY
-                    }
-                    ReturnCode::ECANCEL => {
-                        self.rfcore.pop_state();
-                        ReturnCode::ECANCEL
-                    }
-                    ReturnCode::FAIL => {
-                        self.rfcore.pop_state();
-                        ReturnCode::FAIL
-                    }
-                    _ => {
-                        self.rfcore.pop_state();
-                        ReturnCode::ENOSUPPORT
-                    }
-                }
-            }
-            RfcOperationStatus::Invalid => panic!("Invalid command status"),
-            _ => panic!("Unimplemented!"),
-        }
-    }
-}
-
-impl From<usize> for RfcOperationStatus {
-    fn from(val: usize) -> RfcOperationStatus {
-        match val {
-            0 => RfcOperationStatus::Idle,
-            1 => RfcOperationStatus::Pending,
-            2 => RfcOperationStatus::Active,
-            3 => RfcOperationStatus::Skipped,
-            4 => RfcOperationStatus::SendDone,
-            5 => RfcOperationStatus::TxDone,
-            6 => RfcOperationStatus::CommandDone,
-            7 => RfcOperationStatus::LastCommandDone,
-            8 => RfcOperationStatus::RxOk,
-            9 => RfcOperationStatus::TxDone,
-            val => {
-                debug_assert!(false, "{} does not represent a valid command.", val);
-                RfcOperationStatus::Invalid
-            }
-        }
-    }
-}

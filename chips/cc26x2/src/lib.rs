@@ -20,6 +20,7 @@ pub mod prcm;
 pub mod rfc;
 pub mod rat;
 pub mod rtc;
+pub mod aux;
 
 pub use crt1::init;
 

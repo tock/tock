@@ -9,7 +9,7 @@ use rtc;
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
     systick: cortexm4::systick::SysTick,
-    pub rf_core: rfc::RFCore,
+    // pub rf_core: rfc::RFCore,
 }
 
 impl Cc26X2 {
@@ -18,7 +18,7 @@ impl Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
             // The systick clocks with 48MHz by default
             systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
-            rf_core: rfc::RFCore::new(),
+            // rf_core: rfc::RFCore::new(),
         }
     }
 }
@@ -41,10 +41,10 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::GPIO => gpio::PORT.handle_interrupt(),
                     peripheral_interrupts::AON_RTC => rtc::RTC.handle_interrupt(),
                     peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
-                    peripheral_interrupts::RF_CORE_HW => self.rf_core.handle_interrupt(rfc::RfcInterrupt::Hardware),
-                    peripheral_interrupts::RF_CMD_ACK => self.rf_core.handle_interrupt(rfc::RfcInterrupt::CmdAck),
-                    peripheral_interrupts::RF_CORE_PE1 => self.rf_core.handle_interrupt(rfc::RfcInterrupt::Cpe0),
-                    peripheral_interrupts::RF_CORE_PE2 => self.rf_core.handle_interrupt(rfc::RfcInterrupt::Cpe1),
+                    peripheral_interrupts::RF_CORE_HW => rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Hardware),
+                    peripheral_interrupts::RF_CMD_ACK => rfc::RFC.handle_interrupt(rfc::RfcInterrupt::CmdAck),
+                    peripheral_interrupts::RF_CORE_PE1 => rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Cpe0),
+                    peripheral_interrupts::RF_CORE_PE2 => rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Cpe1),
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     peripheral_interrupts::AON_PROG => (),

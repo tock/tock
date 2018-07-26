@@ -7,7 +7,7 @@ extern crate cortexm4;
 
 extern crate cc26x2;
 extern crate cc26xx;
-
+extern crate fixedvec;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
@@ -19,6 +19,7 @@ use kernel::hil;
 
 #[macro_use]
 pub mod io;
+pub mod radio;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -47,6 +48,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26xx::trng::Trng>,
+    radio: &'static radio::Radio,
 }
 
 impl kernel::Platform for Platform {
@@ -61,6 +63,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            cc26x2::rfc::DRIVER_NUM => f(Some(self.radio)),
             _ => f(None),
         }
     }
@@ -237,6 +240,11 @@ pub unsafe fn reset_handler() {
     );
     cc26xx::trng::TRNG.set_client(rng);
 
+    let radio = static_init!(
+        radio::Radio,
+        radio::Radio::new(&cc26x2::rfc::RFC)
+    );
+ 
     let launchxl = Platform {
         console,
         gpio,
@@ -244,12 +252,13 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
+        radio,
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();
-
+    
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-
+    
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
