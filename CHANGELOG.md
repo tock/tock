@@ -1,6 +1,40 @@
 Since 1.2
 =========
 
+* Kernel debug module
+
+  - [#1036](https://github.com/tock/tock/pull/1036),
+    [#1029](https://github.com/tock/tock/pull/1036), and
+    [#997](https://github.com/tock/tock/pull/1036) change `debug::panic`'s
+    signature. First, instead of taking a single LED, `panic` takes a slice of LEDs
+    as its first argument. Second, the Rust now uses a `PanicInfo` struct to pass
+    along information about where a panic occured, and `debug::panic` adopts the
+    same structure. Finally, architecture specific assembly code was removed
+    from the kernel crate (including the debug module), requiring `debug::panic` to
+    take in a particlar implementation of the `nop` instruction.  Boards most
+    likely call `debug::panic` from their `panic_fmt` function:
+
+    ```rust
+    #[lang = "panic_fmt"]
+    pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+            let led = ...;
+            let writer = ...;
+            debug::panic(led, writer, args, file, line)
+    }
+    ```
+
+    should now be:
+    ```rust
+    use core::panic::PanicInfo;
+    ...
+    #[panic_implementation]
+    pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {[lang = "panic_fmt"]
+        let led = ...;
+        let writer = ...;
+
+        debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
+    ```
+
 * [#1044](https://github.com/tock/tock/pull/1044) creates a `Kernel` struct
   with a method for the kernel's main loop, instead of a global function in
   the kernel's base module. Board configurations (i.e. each board's
