@@ -4,12 +4,6 @@
 //! machine is somewhat complex, as it must interleave interrupt handling with
 //! requests and radio state management. See the SPI `read_write_done` handler
 //! for details.
-//!
-//! To do items:
-//!
-//! - Support TX power control
-//! - Support channel selection
-//! - Support link-layer acknowledgements
 //
 // Author: Philip Levis
 // Date: Jan 12 2017
