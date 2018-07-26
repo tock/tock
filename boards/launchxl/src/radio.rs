@@ -147,16 +147,15 @@ impl Radio {
     }
 
     pub fn power_up(&self) {
-        
         self.rfc.set_mode(rfc::RfcMode::PROPRF);
         
-        osc::OSC.hfosc_config(osc::SCLKHFSRC::XOSC_HF);
+        osc::OSC.hfosc_config(osc::SCLKHFSRC::RCOSC_HF);
 
         self.rfc.enable();
         
         self.rfc.start_rat();
 
-        osc::OSC.hfosc_config(osc::SCLKHFSRC::XOSC_HF);
+        osc::OSC.hfosc_config(osc::SCLKHFSRC::RCOSC_HF);
 
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
