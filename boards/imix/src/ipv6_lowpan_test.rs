@@ -167,7 +167,7 @@ pub unsafe fn initialize_all(
     let sixlowpan_state = sixlowpan as &SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
-    sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, None);
+    sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, radio_mac.get_pan(), None);
 
     let lowpan_frag_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,

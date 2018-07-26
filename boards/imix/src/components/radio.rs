@@ -11,7 +11,7 @@
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
+// Last modified: 7/25/2018 (by Hudson Ayers)
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
@@ -65,9 +65,10 @@ const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::M
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl Component for RadioComponent {
-    type Output = &'static capsules::ieee802154::RadioDriver<'static>;
+    type Output = (&'static capsules::ieee802154::RadioDriver<'static>,
+                   &'static capsules::ieee802154::virtual_mac::MuxMac<'static>);
 
-    unsafe fn finalize(&mut self) -> (Self::Output, &'static capsules::ieee802154::virtual_mac::MuxMac<'static>) {
+    unsafe fn finalize(&mut self) -> Self::Output {
         let aes_ccm = static_init!(
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
             capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)

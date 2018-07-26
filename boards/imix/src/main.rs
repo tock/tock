@@ -21,7 +21,6 @@ mod components;
 
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::device::MacDevice;
-use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::IP6Sender;
@@ -29,7 +28,6 @@ use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::udp::udp_send::{UDPSender, UDPSendStruct};
 use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::rf233::RF233;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -106,9 +104,6 @@ static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
-// Save some deep nesting
-type RF233Device =
-    capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
@@ -147,14 +142,8 @@ struct Imix {
 //      operations (one read, one write).
 
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut RF233_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-
-// The RF233 system call interface ("radio") requires one buffer, which it
-// copies application transmissions into or copies out to application buffers
-// for reception.
-static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
 // Same as above ^^ for the UDP syscall interface
 const UDP_HDR_SIZE: usize = 8;
