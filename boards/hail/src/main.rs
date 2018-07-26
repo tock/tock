@@ -48,7 +48,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [
+static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] = [
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, None, None,
 ];
@@ -192,6 +192,8 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&sam4l::gpio::PA[13]),
@@ -221,7 +223,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     hil::uart::UART::set_client(console_uart, console);
@@ -274,13 +276,13 @@ pub unsafe fn reset_handler() {
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create())
+        capsules::temperature::TemperatureSensor::new(si7021, board_kernel.create_grant())
     );
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create())
+        capsules::humidity::HumiditySensor::new(si7021, board_kernel.create_grant())
     );
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
@@ -303,7 +305,7 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
-        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create())
+        capsules::ambient_light::AmbientLight::new(isl29035, board_kernel.create_grant())
     );
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
@@ -314,7 +316,7 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
@@ -333,7 +335,7 @@ pub unsafe fn reset_handler() {
 
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create())
+        capsules::ninedof::NineDof::new(fxos8700, board_kernel.create_grant())
     );
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
@@ -396,7 +398,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
@@ -429,7 +431,7 @@ pub unsafe fn reset_handler() {
     // Setup RNG
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
-        capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Grant::create())
+        capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, board_kernel.create_grant())
     );
     sam4l::trng::TRNG.set_client(rng);
 
@@ -454,7 +456,7 @@ pub unsafe fn reset_handler() {
     // CRC
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create())
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, board_kernel.create_grant())
     );
     sam4l::crccu::CRCCU.set_client(crc);
 
@@ -478,7 +480,7 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         rng: rng,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel),
         crc: crc,
         dac: dac,
     };
@@ -513,8 +515,6 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
@@ -529,5 +529,5 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    board_kernel.kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
+    board_kernel.kernel_loop(&hail, &mut chip, Some(&hail.ipc));
 }

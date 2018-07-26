@@ -33,7 +33,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] =
     [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -81,6 +81,8 @@ pub unsafe fn reset_handler() {
     tm4c129x::sysctl::PSYSCTLM
         .setup_system_clock(tm4c129x::sysctl::SystemClockSource::PllPioscAt120MHz);
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
@@ -99,7 +101,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     hil::uart::UART::set_client(console_uart, console);
@@ -137,7 +139,7 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, tm4c129x::gpt::AlarmTimer>>,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
@@ -187,7 +189,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, tm4c129x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
@@ -215,7 +217,7 @@ pub unsafe fn reset_handler() {
         console: console,
         alarm: alarm,
         gpio: gpio,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel),
         led: led,
         button: button,
     };
@@ -225,8 +227,6 @@ pub unsafe fn reset_handler() {
     tm4c1294.console.initialize();
 
     debug!("Initialization complete. Entering main loop...\r");
-
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -241,5 +241,5 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    board_kernel.kernel_loop(&tm4c1294, &mut chip, &mut PROCESSES, Some(&tm4c1294.ipc));
+    board_kernel.kernel_loop(&tm4c1294, &mut chip, Some(&tm4c1294.ipc));
 }

@@ -10,7 +10,6 @@ use core::{mem, ptr, slice, str};
 
 use common::cells::MapCell;
 use common::math;
-use grant;
 use platform::mpu;
 use returncode::ReturnCode;
 use sched::Kernel;
@@ -38,8 +37,6 @@ extern "C" {
     crate fn switch_to_user(user_stack: *const u8, process_regs: &[usize; 8]) -> *mut u8;
 }
 
-crate static mut PROCS: &'static mut [Option<&mut Process<'static>>] = &mut [];
-
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
 /// is able to create its own `load_processes()` function and use that instead.
@@ -54,7 +51,7 @@ pub unsafe fn load_processes(
     kernel: &'static Kernel,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
-    procs: &mut [Option<&mut Process<'static>>],
+    procs: &mut [Option<&Process<'static>>],
     fault_response: FaultResponse,
 ) {
     let mut apps_in_flash_ptr = start_of_flash;
@@ -84,39 +81,6 @@ pub unsafe fn load_processes(
         apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
         app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
         app_memory_size -= memory_offset;
-    }
-}
-
-crate fn schedule(callback: FunctionCall, appid: AppId) -> bool {
-    let procs = unsafe { &mut PROCS };
-    let idx = appid.idx();
-    if idx >= procs.len() {
-        return false;
-    }
-
-    match procs[idx] {
-        None => false,
-        Some(ref mut p) => p.schedule(callback),
-    }
-}
-
-/// Returns the full address of the start and end of the flash region that the
-/// app owns and can write to. This includes the app's code and data and any
-/// padding at the end of the app. It does not include the TBF header, or any
-/// space that the kernel is using for any potential bookkeeping.
-crate fn get_editable_flash_range(app_idx: usize) -> (usize, usize) {
-    let procs = unsafe { &mut PROCS };
-    if app_idx >= procs.len() {
-        return (0, 0);
-    }
-
-    match procs[app_idx] {
-        None => (0, 0),
-        Some(ref mut p) => {
-            let start = p.flash_non_protected_start() as usize;
-            let end = p.flash_end() as usize;
-            (start, end)
-        }
     }
 }
 
@@ -156,7 +120,7 @@ pub enum IPCType {
     Client,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 crate enum Task {
     FunctionCall(FunctionCall),
     IPC((AppId, IPCType)),
@@ -611,7 +575,7 @@ impl Process<'a> {
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
-    ) -> (Option<&'static mut Process<'a>>, usize, usize) {
+    ) -> (Option<&'static Process<'a>>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
 
@@ -637,7 +601,7 @@ impl Process<'a> {
 
             // Make room for grant pointers.
             let grant_ptr_size = mem::size_of::<*const usize>();
-            let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+            let grant_ptrs_num = kernel.get_grant_count_and_finalize();
             let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
 
             // Allocate memory for callback ring buffer.
@@ -826,7 +790,7 @@ impl Process<'a> {
 
     /// Reset all `grant_ptr`s to NULL.
     unsafe fn grant_ptrs_reset(&self) {
-        let grant_ptrs_num = read_volatile(&grant::CONTAINER_COUNTER);
+        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
         for grant_num in 0..grant_ptrs_num {
             let grant_num = grant_num as isize;
             let ctr_ptr = (self.mem_end() as *mut *mut usize).offset(-(grant_num + 1));
