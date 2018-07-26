@@ -350,7 +350,6 @@ pub struct RFCore {
     client: Cell<Option<&'static RFCoreClient>>,
     mode: Cell<Option<RfcMode>>,
     rat: Cell<u32>,
-    pub command: Cell<u32>,
 }
 
 impl RFCore {
@@ -359,7 +358,6 @@ impl RFCore {
             client: Cell::new(None),
             mode: Cell::new(None),
             rat: Cell::new(0),
-            command: Cell::new(0),
         }
     }
 
@@ -636,7 +634,6 @@ impl RFCore {
     pub fn send<T: cmd::RadioCommand>(&self, rf_command: &T) -> ReturnCode {
         let command = { (rf_command as *const T) as u32 };
 
-        self.command.set(command);
         return self.post_cmdr(command);
     }
 
