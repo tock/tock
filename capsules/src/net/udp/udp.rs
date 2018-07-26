@@ -12,8 +12,7 @@ use net::stream::SResult;
 /// The `UDPHeader` struct follows the layout for the UDP packet header.
 /// Note that the implementation of this struct provides getters and setters
 /// for the various fields of the header, to avoid confusion with endian-ness.
-#[derive(Copy, Clone)]
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct UDPHeader {
     pub src_port: u16,
     pub dst_port: u16,

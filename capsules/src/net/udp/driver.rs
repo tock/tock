@@ -5,19 +5,26 @@
 //! hard-coded.
 
 // use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
-use core::cell::Cell; use core::{cmp, mem};
-use kernel::common::cells::{TakeCell};
+use core::cell::Cell;
+use core::{cmp, mem};
+use kernel::common::cells::TakeCell;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ipv6::ip_utils::IPAddr;
+use net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use net::udp::udp_send::{UDPSendClient, UDPSender};
-use net::udp::udp_recv::{UDPRecvClient, UDPReceiver};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
 
 const INTERFACES: [IPAddr; 2] = [
-    IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]),
-    IPAddr([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]),
+    IPAddr([
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f,
+    ]),
+    IPAddr([
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+        0x1f,
+    ]),
 ];
 
 #[derive(Debug)]
@@ -237,11 +244,14 @@ impl<'a> UDPDriver<'a> {
 
                 // Copy UDP payload to kernel memory
                 // TODO: handle if too big
-                let result = app.app_write.as_ref().map_or(ReturnCode::ENOMEM, |payload| {
+                let result = app
+                    .app_write
+                    .as_ref()
+                    .map_or(ReturnCode::ENOMEM, |payload| {
                         kbuf[..payload.len()].copy_from_slice(payload.as_ref());
-                        self.sender.send_to(dst_addr, dst_port, src_port, &kbuf[..payload.len()])
-                    }
-                );
+                        self.sender
+                            .send_to(dst_addr, dst_port, src_port, &kbuf[..payload.len()])
+                    });
                 result
             });
             if result == ReturnCode::SUCCESS {
@@ -281,9 +291,12 @@ impl<'a> UDPDriver<'a> {
 
     #[inline]
     fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<IPAddrPort> {
-
         if buf.len() != mem::size_of::<IPAddrPort>() {
-            debug!("[parse] len is {:?}, not {:?} as expected", buf.len(), mem::size_of::<IPAddrPort>());
+            debug!(
+                "[parse] len is {:?}, not {:?} as expected",
+                buf.len(),
+                mem::size_of::<IPAddrPort>()
+            );
             None
         } else {
             let (a, p) = buf.split_at(mem::size_of::<IPAddr>());
@@ -376,10 +389,12 @@ impl<'a> Driver for UDPDriver<'a> {
                 let n_ifaces_to_copy = cmp::min(arg1, INTERFACES.len());
                 let iface_size = mem::size_of::<IPAddr>();
                 for i in 0..n_ifaces_to_copy {
-                    cfg[i * iface_size .. (i+1) * iface_size].copy_from_slice(&INTERFACES[i].0);
+                    cfg[i * iface_size..(i + 1) * iface_size].copy_from_slice(&INTERFACES[i].0);
                 }
                 // Returns total number of interfaces
-                ReturnCode::SuccessWithValue { value: INTERFACES.len() }
+                ReturnCode::SuccessWithValue {
+                    value: INTERFACES.len(),
+                }
             }),
 
             // Transmits UDP packet stored in
@@ -395,10 +410,15 @@ impl<'a> Driver for UDPDriver<'a> {
                             return None;
                         }
 
-                        debug!("{:?}", self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]));
+                        debug!(
+                            "{:?}",
+                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
+                        );
 
-                        if let (Some(dst), Some(src)) = (self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]),
-                                                         self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()])) {
+                        if let (Some(dst), Some(src)) = (
+                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]),
+                            self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()]),
+                        ) {
                             Some([src, dst])
                         } else {
                             None
@@ -432,7 +452,14 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
 
 // how many levels of indentation before this starts to make no sense
 impl<'a> UDPRecvClient for UDPDriver<'a> {
-    fn receive(&self, src_addr: IPAddr, dst_addr: IPAddr, src_port: u16, dst_port: u16, payload: &[u8]) {
+    fn receive(
+        &self,
+        src_addr: IPAddr,
+        dst_addr: IPAddr,
+        src_port: u16,
+        dst_port: u16,
+        payload: &[u8],
+    ) {
         // debug!("payload: {:?}", payload);
         debug!("got a payload.");
         self.apps.each(|app| {
@@ -443,31 +470,36 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                     return ReturnCode::EINVAL;
                 }
 
-                self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()]).map(|socket_addr| {
-                    self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]).map(|requested_addr| {
-                        debug!("About to check addr match");
-                        if (socket_addr.addr == dst_addr && requested_addr.addr == src_addr &&
-                           socket_addr.port == dst_port && requested_addr.port == src_port) || true {
-                            debug!("Address match!");
-                            let mut app_read = app.app_read.take();
-                            app_read.as_mut().map(|rbuf| {
-                            //app.app_read.take().as_mut().map(|rbuf| {
-                                let rbuf = rbuf.as_mut();
-                                let len = payload.len();
-                                if rbuf.len() >= len { // silently ignore packets that don't fit?
-                                    rbuf[..len].copy_from_slice(&payload[..len]);
-                                    app.rx_callback
-                                        .map(|mut cb| cb.schedule(len, 0, 0));
+                self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()])
+                    .map(|socket_addr| {
+                        self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
+                            .map(|requested_addr| {
+                                debug!("About to check addr match");
+                                if (socket_addr.addr == dst_addr
+                                    && requested_addr.addr == src_addr
+                                    && socket_addr.port == dst_port
+                                    && requested_addr.port == src_port)
+                                    || true
+                                {
+                                    debug!("Address match!");
+                                    let mut app_read = app.app_read.take();
+                                    app_read.as_mut().map(|rbuf| {
+                                        //app.app_read.take().as_mut().map(|rbuf| {
+                                        let rbuf = rbuf.as_mut();
+                                        let len = payload.len();
+                                        if rbuf.len() >= len {
+                                            // silently ignore packets that don't fit?
+                                            rbuf[..len].copy_from_slice(&payload[..len]);
+                                            app.rx_callback.map(|mut cb| cb.schedule(len, 0, 0));
+                                        }
+                                    });
+                                    app.app_read = app_read;
                                 }
+                                ReturnCode::SUCCESS
                             });
-                            app.app_read = app_read;
-                        }
-                        ReturnCode::SUCCESS
                     });
-                });
                 ReturnCode::EINVAL
             });
         });
     }
 }
-

@@ -34,7 +34,7 @@ impl PartialEq for IPAddr {
     }
 }
 
-impl Eq for IPAddr { }
+impl Eq for IPAddr {}
 
 impl IPAddr {
     pub fn new() -> IPAddr {

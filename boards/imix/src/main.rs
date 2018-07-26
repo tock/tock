@@ -21,13 +21,13 @@ mod components;
 
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::device::MacDevice;
-use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
-use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::ipv6::ipv6_recv::IP6Receiver;
-use capsules::net::udp::udp_send::{UDPSender, UDPSendStruct};
-use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
+use capsules::net::ipv6::ipv6_send::IP6Sender;
+use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
+use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
+use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -90,7 +90,9 @@ mod power;
 
 const NUM_PROCS: usize = 2;
 //Source IP Address. TODO: Move somewhere else
-const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
+const SRC_ADDR: IPAddr = IPAddr([
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+]);
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -148,7 +150,7 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 // Same as above ^^ for the UDP syscall interface
 const UDP_HDR_SIZE: usize = 8;
 const PAYLOAD_LEN: usize = 200;
-const  DEFAULT_CTX_PREFIX_LEN: u8 = 8;
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 
 static mut IP_BUF: [u8; 1280] = [0x00; 1280];
@@ -358,7 +360,11 @@ pub unsafe fn reset_handler() {
     mux_mac.add_user(udp_mac);
 
     let sixlowpan = static_init!(
-        sixlowpan_state::Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
+        sixlowpan_state::Sixlowpan<
+            'static,
+            sam4l::ast::Ast<'static>,
+            sixlowpan_compression::Context,
+        >,
         sixlowpan_state::Sixlowpan::new(
             sixlowpan_compression::Context {
                 prefix: DEFAULT_CTX_PREFIX,
@@ -373,7 +379,8 @@ pub unsafe fn reset_handler() {
     let sixlowpan_state = sixlowpan as &sixlowpan_state::SixlowpanState;
     let sixlowpan_tx = sixlowpan_state::TxState::new(sixlowpan_state);
     let default_rx_state = static_init!(
-        sixlowpan_state::RxState<'static>, sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
+        sixlowpan_state::RxState<'static>,
+        sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
     );
     sixlowpan_state.add_rx_state(default_rx_state);
     sixlowpan_tx.dst_pan.set(0xABCD);
@@ -384,14 +391,16 @@ pub unsafe fn reset_handler() {
         header: tr_hdr,
         payload: &mut UDP_DGRAM,
     };
-    let ip6_dg = static_init!(
-        IP6Packet<'static>,
-        IP6Packet::new(ip_pyld)
-    );
+    let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
     let ip_send = static_init!(
         capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
-        capsules::net::ipv6::ipv6_send::IP6SendStruct::new(ip6_dg, &mut IP_BUF, sixlowpan_tx, udp_mac)
+        capsules::net::ipv6::ipv6_send::IP6SendStruct::new(
+            ip6_dg,
+            &mut IP_BUF,
+            sixlowpan_tx,
+            udp_mac
+        )
     );
     ip_send.set_addr(SRC_ADDR);
     udp_mac.set_transmit_client(ip_send);
@@ -408,15 +417,17 @@ pub unsafe fn reset_handler() {
     );
     sixlowpan_state.set_rx_client(ip_receive);
 
-    let udp_recv = static_init!(
-        UDPRecvStruct<'static>,
-        UDPRecvStruct::new()
-    );
+    let udp_recv = static_init!(UDPRecvStruct<'static>, UDPRecvStruct::new());
     ip_receive.set_client(udp_recv);
 
     let udp_driver = static_init!(
         capsules::net::udp::UDPDriver<'static>,
-        capsules::net::udp::UDPDriver::new(udp_send, udp_recv, kernel::Grant::create(), &mut UDP_BUF)
+        capsules::net::udp::UDPDriver::new(
+            udp_send,
+            udp_recv,
+            kernel::Grant::create(),
+            &mut UDP_BUF
+        )
     );
     udp_send.set_client(udp_driver);
     udp_recv.set_client(udp_driver);

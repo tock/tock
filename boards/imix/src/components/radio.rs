@@ -65,8 +65,10 @@ const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::M
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl Component for RadioComponent {
-    type Output = (&'static capsules::ieee802154::RadioDriver<'static>,
-                   &'static capsules::ieee802154::virtual_mac::MuxMac<'static>);
+    type Output = (
+        &'static capsules::ieee802154::RadioDriver<'static>,
+        &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    );
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let aes_ccm = static_init!(
