@@ -366,18 +366,13 @@ pub unsafe fn reset_handler() {
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
 
-    let syscall = static_init!(
-        cortexm4::syscall::SysCall,
-        cortexm4::syscall::SysCall::new()
-    );
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
-        syscall,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

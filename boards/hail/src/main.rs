@@ -526,14 +526,9 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
-    let syscall = static_init!(
-        cortexm4::syscall::SysCall,
-        cortexm4::syscall::SysCall::new()
-    );
-
     kernel::procs::load_processes(
         board_kernel,
-        syscall,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

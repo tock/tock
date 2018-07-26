@@ -400,18 +400,13 @@ pub unsafe fn setup_board(
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 
-    let syscall = static_init!(
-        cortexm4::syscall::SysCall,
-        cortexm4::syscall::SysCall::new()
-    );
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
-        syscall,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         app_memory,
         process_pointers,

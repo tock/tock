@@ -253,11 +253,6 @@ pub unsafe fn reset_handler() {
 
     let mut chip = cc26x2::chip::Cc26X2::new();
 
-    let syscall = static_init!(
-        cortexm4::syscall::SysCall,
-        cortexm4::syscall::SysCall::new()
-    );
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -265,7 +260,7 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
-        syscall,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

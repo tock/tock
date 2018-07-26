@@ -376,18 +376,13 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
-    let syscall = static_init!(
-        cortexm0::syscall::SysCall,
-        cortexm0::syscall::SysCall::new()
-    );
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
-        syscall,
+        &cortexm0::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
