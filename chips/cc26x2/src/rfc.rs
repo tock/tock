@@ -381,14 +381,15 @@ impl RFCore {
         unsafe {
             rtc::RTC.set_upd_en(true);
         }
+
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
 
-        // pwc_regs.pwmclken.set(0x7FF);
-        
+        // pwc_regs.pwmclken.set(0x7FF);        
         pwc_regs.pwmclken.set( RFC_PWR_RFC | RFC_PWR_CPE | RFC_PWR_CPERAM | RFC_PWR_FSCA | RFC_PWR_PHA | RFC_PWR_RAT
                 | RFC_PWR_RFE | RFC_PWR_RFERAM | RFC_PWR_MDM | RFC_PWR_MDMRAM,
         );
+
         // Enable interrupts and clear flags
         self.enable_cpe_interrupts();
         self.enable_hw_interrupts();

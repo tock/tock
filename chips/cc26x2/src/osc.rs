@@ -131,7 +131,6 @@ impl Oscillator {
 
     pub fn lfosc_config(&self, lf_clk: SCLKLFSRC) {
         let regs = DDI0_BASE;
-        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
 
         match lf_clk {
             SCLKLFSRC::RCOSC_HF_DERIVED => {
@@ -151,8 +150,7 @@ impl Oscillator {
 
     pub fn hfosc_config(&self, hf_clk: SCLKHFSRC) {
         let regs = DDI0_BASE;
-        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
-
+        
         match hf_clk {
             SCLKHFSRC::RCOSC_HF => {
                 self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
@@ -161,6 +159,11 @@ impl Oscillator {
                 self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::XOSC_HF);
             }
         }
+
+        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+
+        //let clock = get_clock_source(ClockType::HF);
+
     }
 
     pub fn disable_lfclk_qualifier(&self) {

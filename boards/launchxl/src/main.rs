@@ -244,6 +244,8 @@ pub unsafe fn reset_handler() {
         radio::Radio,
         radio::Radio::new(&cc26x2::rfc::RFC)
     );
+
+    radio.power_up();
  
     let launchxl = Platform {
         console,

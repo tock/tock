@@ -63,7 +63,7 @@ pub struct Aux {
 }
 
 impl Aux {
-    pub const fn new() -> Aux {
+    const fn new() -> Aux {
         Aux {
             sysif_regs: AUX_SYSIF_BASE,
         }
@@ -86,6 +86,8 @@ impl Aux {
             }
         }
     }
+
+    
 
     pub fn operation_mode_ack(&self) -> u8 {
         let regs = AUX_SYSIF_BASE;
