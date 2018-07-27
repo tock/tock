@@ -158,8 +158,7 @@ impl Aon {
             }
         });
     }
-    
-    
+
     pub fn mcu_set_ram_retention(&self, on: bool) {
         let regs = AON_PMCTL_BASE;
         regs.ram_cfg.modify({

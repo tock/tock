@@ -1,4 +1,4 @@
-use kernel::common::registers::{ReadWrite, ReadOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 pub struct AuxSysIfRegisters {
@@ -53,7 +53,7 @@ pub enum WUMode {
     PowerDownLowPower = 3,
 }
 
-const AUX_SYSIF_BASE: StaticRef<AuxSysIfRegisters> = 
+const AUX_SYSIF_BASE: StaticRef<AuxSysIfRegisters> =
     unsafe { StaticRef::new(0x400C_6000 as *const AuxSysIfRegisters) };
 
 pub const AUX_CTL: Aux = Aux::new();
@@ -87,17 +87,8 @@ impl Aux {
         }
     }
 
-    
-
     pub fn operation_mode_ack(&self) -> u8 {
         let regs = AUX_SYSIF_BASE;
         regs.op_mode_ack.read(Ack::ACK) as u8
     }
-
 }
-
-
-
-
-
-

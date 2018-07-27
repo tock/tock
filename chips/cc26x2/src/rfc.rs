@@ -364,7 +364,7 @@ impl RFCore {
     pub fn set_client(&self, client: &'static RFCoreClient) {
         self.client.set(Some(client));
     }
-    
+
     // Check if RFCore params are enabled
     pub fn is_enabled(&self) -> bool {
         prcm::Power::is_enabled(prcm::PowerDomain::RFC)
@@ -374,10 +374,10 @@ impl RFCore {
     pub fn enable(&self) {
         // Make sure RFC power is enabled
         let dbell_regs = RFC_DBELL_BASE;
-        
+
         prcm::Power::enable_domain(prcm::PowerDomain::RFC);
         prcm::Clock::enable_rfc();
-        
+
         unsafe {
             rtc::RTC.set_upd_en(true);
         }
@@ -385,9 +385,18 @@ impl RFCore {
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
 
-        // pwc_regs.pwmclken.set(0x7FF);        
-        pwc_regs.pwmclken.set( RFC_PWR_RFC | RFC_PWR_CPE | RFC_PWR_CPERAM | RFC_PWR_FSCA | RFC_PWR_PHA | RFC_PWR_RAT
-                | RFC_PWR_RFE | RFC_PWR_RFERAM | RFC_PWR_MDM | RFC_PWR_MDMRAM,
+        // pwc_regs.pwmclken.set(0x7FF);
+        pwc_regs.pwmclken.set(
+            RFC_PWR_RFC
+                | RFC_PWR_CPE
+                | RFC_PWR_CPERAM
+                | RFC_PWR_FSCA
+                | RFC_PWR_PHA
+                | RFC_PWR_RAT
+                | RFC_PWR_RFE
+                | RFC_PWR_RFERAM
+                | RFC_PWR_MDM
+                | RFC_PWR_MDMRAM,
         );
 
         // Enable interrupts and clear flags
@@ -400,13 +409,12 @@ impl RFCore {
         dbell_regs.rfcpeifg.set(0x7FFFFFFF);
         // Initialize radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40));
-        
+
         // Request bus
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1));
 
         // Ping radio module
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_PING, 0));
-        
     }
 
     // Disable RFCore
@@ -708,4 +716,3 @@ pub trait RFCoreClient {
     // fn tx_done(&self);
     // fn rx_ok(&self);
 }
-

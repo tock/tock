@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, nvic, svc_handler, hard_fault_handler, systick_handler};
+use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
 
 extern "C" {
     // Symbols defined in the linker file

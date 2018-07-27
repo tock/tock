@@ -1,5 +1,6 @@
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use oscfh;
 
 pub struct DdiRegisters {
     ctl0: ReadWrite<u32, Ctl0::Register>,
@@ -25,7 +26,7 @@ pub struct DdiRegisters {
     _stat2: ReadOnly<u32>,
 }
 
-register_bitfields! [ 
+register_bitfields! [
     u32,
     Ctl0 [
         XTAL_IS_24M              OFFSET(31) NUMBITS(1) [],
@@ -113,7 +114,7 @@ pub enum SCLKHFSRC {
     XOSC_HF,
 }
 
-const DDI0_BASE: StaticRef<DdiRegisters> = 
+const DDI0_BASE: StaticRef<DdiRegisters> =
     unsafe { StaticRef::new(0x400C_A000 as *const DdiRegisters) };
 
 pub const OSC: Oscillator = Oscillator::new();
@@ -124,9 +125,7 @@ pub struct Oscillator {
 
 impl Oscillator {
     pub const fn new() -> Oscillator {
-        Oscillator {
-            regs: DDI0_BASE,
-        }
+        Oscillator { regs: DDI0_BASE }
     }
 
     pub fn lfosc_config(&self, lf_clk: SCLKLFSRC) {
@@ -134,23 +133,29 @@ impl Oscillator {
 
         match lf_clk {
             SCLKLFSRC::RCOSC_HF_DERIVED => {
-                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
+                self.regs
+                    .ctl0
+                    .modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
             }
             SCLKLFSRC::RCOSC_LF => {
                 self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_LF);
             }
             SCLKLFSRC::XOSC_HF_DERIVED => {
-                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_HF_DERIVED);
+                self.regs
+                    .ctl0
+                    .modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_HF_DERIVED);
             }
             SCLKLFSRC::XOSC_LF => {
                 self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_LF);
             }
         }
+
+        // Switch for LF source unimplemented
     }
 
     pub fn hfosc_config(&self, hf_clk: SCLKHFSRC) {
         let regs = DDI0_BASE;
-        
+
         match hf_clk {
             SCLKHFSRC::RCOSC_HF => {
                 self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
@@ -161,9 +166,27 @@ impl Oscillator {
         }
 
         while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+    }
 
-        //let clock = get_clock_source(ClockType::HF);
+    pub fn enable_hfosc(&self, hf_clk: SCLKHFSRC) {
+        let regs = DDI0_BASE;
 
+        let clock = self.get_clock_source(ClockType::HF);
+
+        match hf_clk {
+            SCLKHFSRC::RCOSC_HF => {
+                if clock != 0x00 {
+                    while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+                    self.switch_osc();
+                }
+            }
+            SCLKHFSRC::XOSC_HF => {
+                if clock != 0x00 {
+                    while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+                    self.switch_osc();
+                }
+            }
+        }
     }
 
     pub fn disable_lfclk_qualifier(&self) {
@@ -171,27 +194,19 @@ impl Oscillator {
 
         let regs = DDI0_BASE;
 
-        regs.ctl0.modify(Ctl0::BYPASS_XOSC_LF_CLK_QUAL::SET + Ctl0::BYPASS_RCOSC_LF_CLK_QUAL::SET);
+        regs.ctl0
+            .modify(Ctl0::BYPASS_XOSC_LF_CLK_QUAL::SET + Ctl0::BYPASS_RCOSC_LF_CLK_QUAL::SET);
     }
 
     pub fn get_clock_source(&self, source: ClockType) -> u8 {
         let regs = DDI0_BASE;
         match source {
-            ClockType::LF => {
-                regs.stat0.read(Stat0::SCLK_LF_SRC) as u8
-            }
-            ClockType::HF => {
-                regs.stat0.read(Stat0::SCLK_HF_SRC) as u8
-            }
+            ClockType::LF => regs.stat0.read(Stat0::SCLK_LF_SRC) as u8,
+            ClockType::HF => regs.stat0.read(Stat0::SCLK_HF_SRC) as u8,
         }
     }
+
+    pub fn switch_osc(&self) {
+        unsafe { oscfh::source_switch() };
+    }
 }
-
-
-
-
-
-
-
-
-

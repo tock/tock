@@ -240,13 +240,10 @@ pub unsafe fn reset_handler() {
     );
     cc26xx::trng::TRNG.set_client(rng);
 
-    let radio = static_init!(
-        radio::Radio,
-        radio::Radio::new(&cc26x2::rfc::RFC)
-    );
+    let radio = static_init!(radio::Radio, radio::Radio::new(&cc26x2::rfc::RFC));
 
     radio.power_up();
- 
+
     let launchxl = Platform {
         console,
         gpio,
@@ -258,9 +255,9 @@ pub unsafe fn reset_handler() {
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();
-    
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-    
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

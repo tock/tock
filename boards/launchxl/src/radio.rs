@@ -1,11 +1,11 @@
 #![allow(unused_imports)]
 
-use cc26x2::{ rfc, rtc, osc };
 use cc26x2::commands as cmd;
-use kernel::common::cells::TakeCell;
-use fixedvec::FixedVec;
+use cc26x2::{osc, rfc, rtc};
 use core::cell::Cell;
-use kernel::{ Callback, ReturnCode, Driver, AppId };
+use fixedvec::FixedVec;
+use kernel::common::cells::TakeCell;
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
@@ -123,15 +123,15 @@ pub struct Radio {
 
 impl Radio {
     pub fn new(rfc: &'static rfc::RFCore) -> Radio {
-        let rfc_stack = unsafe { static_init!(
-            FixedVec<'static, State>,
-            FixedVec::new( &mut RFC_STACK )
-        )};
+        let rfc_stack =
+            unsafe { static_init!(FixedVec<'static, State>, FixedVec::new(&mut RFC_STACK)) };
 
-        let cmd_stack = unsafe { static_init!(
-            FixedVec<'static, RadioCommands>,
-            FixedVec::new( &mut CMD_STACK )
-        )};
+        let cmd_stack = unsafe {
+            static_init!(
+                FixedVec<'static, RadioCommands>,
+                FixedVec::new(&mut CMD_STACK)
+            )
+        };
         debug_assert_eq!(rfc_stack.len(), 0);
         rfc_stack
             .push(State::Start)
@@ -148,14 +148,14 @@ impl Radio {
 
     pub fn power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::PROPRF);
-        
+
         osc::OSC.hfosc_config(osc::SCLKHFSRC::RCOSC_HF);
 
         self.rfc.enable();
-        
+
         self.rfc.start_rat();
 
-        osc::OSC.hfosc_config(osc::SCLKHFSRC::RCOSC_HF);
+        osc::OSC.enable_hfosc(osc::SCLKHFSRC::RCOSC_HF);
 
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
@@ -166,7 +166,7 @@ impl Radio {
     pub fn power_down(&self) {
         self.rfc.disable();
     }
-    
+
     // Functions for pushing and popping the radio state from the state stack
     fn push_state(&self, state: State) {
         let state_stack = self
@@ -214,7 +214,7 @@ impl rfc::RFCoreClient for Radio {
             .get()
             .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::SendDone as usize, 0, 0));
     }
-/*
+    /*
     fn last_command_done(&self) {
         self.callback
             .get()
@@ -226,7 +226,7 @@ impl rfc::RFCoreClient for Radio {
             .get()
             .map(|mut cb| cb.schedule(cmd::RfcOperationStatus::CommandDone as usize, 0, 0));
     }
-/*
+    /*
     fn tx_done(&self) {
         self.callback
             .get()
@@ -293,7 +293,7 @@ impl Driver for Radio {
                 let current_command = self.pop_cmd();
                 self.push_state(State::CommandStatus(command_status));
                 match self.rfc.wait(&current_command) {
-                // match self.rfc.wait_cmdr(current_command) {
+                    // match self.rfc.wait_cmdr(current_command) {
                     ReturnCode::SUCCESS => {
                         self.pop_state();
                         ReturnCode::SUCCESS

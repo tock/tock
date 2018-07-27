@@ -11,16 +11,16 @@ extern crate kernel;
 extern crate bitfield;
 extern crate fixedvec;
 
-pub mod osc;
 pub mod aon;
+pub mod aux;
 pub mod chip;
 pub mod commands;
 pub mod crt1;
+pub mod osc;
+pub mod oscfh;
 pub mod prcm;
-pub mod rfc;
 pub mod rat;
+pub mod rfc;
 pub mod rtc;
-pub mod aux;
 
 pub use crt1::init;
-
