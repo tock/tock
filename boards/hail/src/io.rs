@@ -7,6 +7,8 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 use sam4l;
 
+use PROCESSES;
+
 struct Writer {
     initialized: bool,
 }
@@ -51,5 +53,11 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_red = &mut led::LedLow::new(&mut sam4l::gpio::PA[13]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led_red], writer, pi, &cortexm4::support::nop)
+    debug::panic(
+        &mut [led_red],
+        writer,
+        pi,
+        &cortexm4::support::nop,
+        &PROCESSES,
+    )
 }

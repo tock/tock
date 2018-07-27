@@ -93,7 +93,7 @@ const NUM_PROCS: usize = 1;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] = [None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -140,6 +140,8 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf51::init();
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // LEDs
     let led_pins = static_init!(
@@ -191,7 +193,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -256,7 +258,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     UART::set_client(console_uart, console);
@@ -292,7 +294,7 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
@@ -305,14 +307,14 @@ pub unsafe fn reset_handler() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create())
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, board_kernel.create_grant())
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -324,7 +326,7 @@ pub unsafe fn reset_handler() {
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf51::radio::RADIO,
-            kernel::Grant::create(),
+            board_kernel.create_grant(),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
@@ -370,8 +372,6 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -387,7 +387,6 @@ pub unsafe fn reset_handler() {
     board_kernel.kernel_loop(
         &platform,
         &mut chip,
-        &mut PROCESSES,
-        Some(&kernel::ipc::IPC::new()),
+        Some(&kernel::ipc::IPC::new(board_kernel)),
     );
 }

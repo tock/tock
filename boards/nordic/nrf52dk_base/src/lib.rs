@@ -111,6 +111,7 @@ impl kernel::Platform for Platform {
 /// Generic function for starting an nrf52dk board.
 #[inline]
 pub unsafe fn setup_board(
+    board_kernel: &'static kernel::Kernel,
     button_rst_pin: usize,
     gpio_pins: &'static mut [&'static nrf5x::gpio::GPIOPin],
     debug_pin1_index: usize,
@@ -123,7 +124,7 @@ pub unsafe fn setup_board(
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
     process_pointers: &'static mut [core::option::Option<
-        &'static mut kernel::procs::Process<'static>,
+        &'static kernel::procs::Process<'static>,
     >],
     app_fault_response: kernel::procs::FaultResponse,
 ) {
@@ -160,7 +161,7 @@ pub unsafe fn setup_board(
     // Buttons
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -185,7 +186,7 @@ pub unsafe fn setup_board(
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         >,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
     let ble_radio_virtual_alarm = static_init!(
@@ -217,7 +218,7 @@ pub unsafe fn setup_board(
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     kernel::hil::uart::UART::set_client(console_uart, console);
@@ -250,7 +251,7 @@ pub unsafe fn setup_board(
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf52::radio::RADIO,
-            kernel::Grant::create(),
+            board_kernel.create_grant(),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
@@ -269,14 +270,14 @@ pub unsafe fn setup_board(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create())
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, board_kernel.create_grant())
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -352,7 +353,7 @@ pub unsafe fn setup_board(
             capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
             capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
                 nv_to_page,
-                kernel::Grant::create(),
+                board_kernel.create_grant(),
                 0x60000, // Start address for userspace accessible region
                 0x20000, // Length of userspace accessible region
                 0,       // Start address of kernel accessible region
@@ -388,15 +389,13 @@ pub unsafe fn setup_board(
         temp: temp,
         alarm: alarm,
         nonvolatile_storage: nonvolatile_storage,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel),
     };
 
     let mut chip = nrf52::chip::NRF52::new();
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
-
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -410,5 +409,5 @@ pub unsafe fn setup_board(
         app_fault_response,
     );
 
-    board_kernel.kernel_loop(&platform, &mut chip, process_pointers, Some(&platform.ipc));
+    board_kernel.kernel_loop(&platform, &mut chip, Some(&platform.ipc));
 }
