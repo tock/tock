@@ -452,12 +452,12 @@ pub unsafe fn reset_handler() {
         capsules::dac::Dac::new(&mut sam4l::dac::DAC)
     );
 
-    // Setup AC.
-    let acifc_comparators = static_init!(
-        [&'static sam4l::acifc::Comparator; 2],
+    // Setup AC
+    let ac_channels = static_init!(
+        [&'static sam4l::acifc::AcChannel; 2],
         [
-            &sam4l::acifc::COMPARATOR_0, // PA06 + PA07, currently unused
-            &sam4l::acifc::COMPARATOR_1, // PB02 + PB03
+            &sam4l::acifc::CHANNEL_AC0, // PA06 + PA07, currently unused
+            &sam4l::acifc::CHANNEL_AC1, // PB02 + PB03
         ]
     );
     // ACIFC
@@ -465,7 +465,7 @@ pub unsafe fn reset_handler() {
         capsules::analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
         capsules::analog_comparator::AnalogComparator::new(
             &mut sam4l::acifc::ACIFC,
-            acifc_comparators
+            ac_channels
             )
     );
     sam4l::acifc::ACIFC.set_client(analog_comparator);

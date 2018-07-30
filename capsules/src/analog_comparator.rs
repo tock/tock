@@ -45,12 +45,17 @@ use kernel::{AppId, Callback, Driver, ReturnCode};
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator + 'a> {
     analog_comparator: &'a A,
     callback: Cell<Option<Callback>>,
+    channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
-    pub fn new(analog_comparator: &'a A) -> AnalogComparator<'a, A> {
+    pub fn new(
+        analog_comparator: &'a A,
+        channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel]
+    ) -> AnalogComparator<'a, A> {
         AnalogComparator {
             analog_comparator: analog_comparator,
+            channels: channels,
             callback: Cell::new(None),
         }
     }

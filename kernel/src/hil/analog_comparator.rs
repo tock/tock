@@ -6,6 +6,9 @@
 use returncode::ReturnCode;
 
 pub trait AnalogComparator {
+    /// The chip-dependent type of an analog comparator channel.
+    type Channel;
+
     /// Do a single comparison of two inputs, depending on the AC chosen. Output
     /// will be True (1) when one is higher than the other, and False (0)
     /// otherwise.  Specifically, the output is True when Vp > Vn (Vin positive

@@ -26,8 +26,32 @@ use kernel::hil::analog_comparator;
 use kernel::ReturnCode;
 use pm;
 
-pub static mut COMPARATOR_0: 0x00; // AdcChannel = AdcChannel::new(Channel::AC0);
-pub static mut COMPARATOR_1: 0x01; // AdcChannel = AdcChannel::new(Channel::AC1);
+/// Representation of an AC channel on the SAM4L.
+pub struct AcChannel {
+    chan_num: u32,
+}
+
+#[derive(Copy, Clone, Debug)]
+#[repr(u8)]
+enum Channel {
+    AC0 = 0x00,
+    AC1 = 0x01,
+}
+
+/// Initialization of an AC channel.
+impl AcChannel {
+    /// Create a new AC channel.
+    ///
+    /// - `channel`: Channel enum representing the channel number and whether it
+    const fn new(channel: Channel) -> AcChannel {
+        AcChannel {
+            chan_num: ((channel as u8) & 0x0F) as u32,
+        }
+    }
+}
+
+pub static mut CHANNEL_AC0: AcChannel = AcChannel::new(Channel::AC0);
+pub static mut CHANNEL_AC1: AcChannel = AcChannel::new(Channel::AC1);
 // pub static mut WINDOW0: AdcChannel = AdcChannel::new(Window::WINDOW1);
 
 #[repr(C)]
@@ -435,6 +459,8 @@ impl<'a> Acifc<'a> {
 }
 
 impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
+    type Channel = AcChannel;
+
     fn comparison(&self, ac: usize) -> bool {
         self.comparison(ac)
     }
