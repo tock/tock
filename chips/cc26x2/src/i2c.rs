@@ -167,7 +167,7 @@ impl<'a> I2CMaster<'a> {
     fn read_byte(&self, first: bool, last: bool) {
         self.registers.mstat_ctrl.ctrl().write(
             Control::RUN.val(1)
-                + Control::ACK.val(1)
+                + Control::RUN.val(1)
                 + Control::START.val(first as u32)
                 + Control::STOP.val(last as u32),
         );
@@ -194,16 +194,16 @@ impl<'a> I2CMaster<'a> {
                 });
                 return;
             }
-            
+
             match transfer.mode {
                 TransferMode::Transmit => {
+                    transfer.index += 1;
                     if transfer.len > transfer.index {
                         self.write_byte(
                             transfer.buf[transfer.index],
                             false,
                             transfer.len == transfer.index + 1,
                         );
-                        transfer.index += 1;
                         self.transfer.put(transfer);
                     } else {
                         self.client.map(move |client| {
@@ -212,8 +212,10 @@ impl<'a> I2CMaster<'a> {
                     }
                 }
                 TransferMode::Receive => {
+                    transfer.buf[transfer.index] = self.registers.mdr.get();
+                    transfer.index += 1;
                     if transfer.len > transfer.index {
-                        transfer.buf[transfer.index] = self.registers.mdr.get();
+                        transfer.index += 1;
                         self.read_byte(false, transfer.len == transfer.index + 1);
                         self.transfer.put(transfer);
                     } else {
@@ -223,20 +225,20 @@ impl<'a> I2CMaster<'a> {
                     }
                 }
                 TransferMode::TransmitThenReceive(read_len) => {
+                    transfer.index += 1;
                     if transfer.len > transfer.index {
                         self.write_byte(
                             transfer.buf[transfer.index],
                             false,
                             transfer.len == transfer.index + 1,
                         );
-                        transfer.index += 1;
                         self.transfer.put(transfer);
                     } else {
                         transfer.index = 0;
                         transfer.len = cmp::min(read_len, transfer.buf.len());
                         transfer.mode = TransferMode::Receive;
                         self.registers.msa.modify(Address::RS::Receive);
-                        self.read_byte(false, transfer.len == transfer.index + 1);
+                        self.read_byte(true, transfer.len == transfer.index + 1);
                         self.transfer.put(transfer);
                     }
                 }
@@ -245,12 +247,15 @@ impl<'a> I2CMaster<'a> {
     }
 }
 
+const MCU_CLOCK: u32 = 48_000_000;
+
 impl<'a> i2c::I2CMaster for I2CMaster<'a> {
     fn enable(&self) {
+        let tpr = ((MCU_CLOCK + (2 * 10 * 100_000) - 1) / (2 * 10 * 100_000)) - 1;
         self.registers.mcr.write(Configuration::MFE::SET);
         self.registers
             .mtpr
-            .write(TimerPeriod::WRITE::Valid + TimerPeriod::TPR.val(0xb));
+            .write(TimerPeriod::WRITE::Valid + TimerPeriod::TPR.val(tpr));
         self.registers.mimr.write(Interrupt::IM::SET);
     }
 
@@ -268,7 +273,7 @@ impl<'a> i2c::I2CMaster for I2CMaster<'a> {
             self.transfer.put(Transfer {
                 mode: TransferMode::TransmitThenReceive(read_len as usize),
                 buf: data,
-                index: 1,
+                index: 0,
                 len: len,
             });
         }
@@ -284,7 +289,7 @@ impl<'a> i2c::I2CMaster for I2CMaster<'a> {
             self.transfer.put(Transfer {
                 mode: TransferMode::Transmit,
                 buf: data,
-                index: 1,
+                index: 0,
                 len: len,
             });
         }
@@ -300,7 +305,7 @@ impl<'a> i2c::I2CMaster for I2CMaster<'a> {
             self.transfer.put(Transfer {
                 mode: TransferMode::Receive,
                 buf: buffer,
-                index: 1,
+                index: 0,
                 len: len,
             });
         }
