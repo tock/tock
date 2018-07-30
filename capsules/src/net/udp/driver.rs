@@ -4,7 +4,6 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded.
 
-// use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::common::cells::TakeCell;
@@ -33,6 +32,7 @@ struct IPAddrPort {
     port: u16,
 }
 
+#[derive(Default)]
 pub struct App {
     rx_callback: Option<Callback>,
     tx_callback: Option<Callback>,
@@ -41,20 +41,6 @@ pub struct App {
     app_cfg: Option<AppSlice<Shared, u8>>,
     app_rx_cfg: Option<AppSlice<Shared, u8>>,
     pending_tx: Option<[IPAddrPort; 2]>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            rx_callback: None,
-            tx_callback: None,
-            app_read: None,
-            app_write: None,
-            app_cfg: None,
-            app_rx_cfg: None,
-            pending_tx: None,
-        }
-    }
 }
 
 #[allow(dead_code)]
@@ -193,7 +179,7 @@ impl<'a> UDPDriver<'a> {
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `AppId`.
     fn get_next_tx_if_idle(&self) -> Option<AppId> {
-        if self.current_app.get().is_some() {
+        if self.current_app.get().is_some() { // Tx already in progress
             return None;
         }
         let mut pending_app = None;
@@ -286,7 +272,10 @@ impl<'a> UDPDriver<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::SUCCESS)
+            .unwrap_or(ReturnCode::SUCCESS) // This seems wrong. If get_next_tx_if_idle
+                                            // does not return an appid, that means a
+                                            // tx is already in progress, which means
+                                            // this tx cannot be performed synchronously
     }
 
     #[inline]
