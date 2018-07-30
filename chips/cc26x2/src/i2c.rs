@@ -27,7 +27,7 @@ mod regs {
         /// The control register modality
         ctrl: WriteOnly<u32, super::Control::Register>,
         /// The status register modality
-        stat: ReadOnly<u32, super::Status::Register>
+        stat: ReadOnly<u32, super::Status::Register>,
     }
 
     // This implements access to the union fields as methods, since access to untagged union fields is
