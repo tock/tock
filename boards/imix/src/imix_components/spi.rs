@@ -9,8 +9,8 @@
 //! Usage
 //! -----
 //! ```rust
-//! let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
-//! let rf233_spi = SpiComponent::new(mux_spi).finalize();
+//! let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize(());
+//! let rf233_spi = SpiComponent::new(mux_spi).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -38,9 +38,10 @@ impl SpiSyscallComponent {
 }
 
 impl Component for SpiSyscallComponent {
+    type StaticInput = ();
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let syscall_spi_device = static_init!(
             VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
             VirtualSpiMasterDevice::new(self.spi_mux, 3)
@@ -68,9 +69,10 @@ impl SpiComponent {
 }
 
 impl Component for SpiComponent {
+    type StaticInput = ();
     type Output = &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let spi_device = static_init!(
             VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
             VirtualSpiMasterDevice::new(self.spi_mux, 3)

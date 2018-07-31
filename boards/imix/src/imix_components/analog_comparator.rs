@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let ac = AcComponent::new().finalize();
+//! let ac = AcComponent::new().finalize(());
 //! ```
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
@@ -28,10 +28,11 @@ impl AcComponent {
 }
 
 impl Component for AcComponent {
+    type StaticInput = ();
     type Output =
         &'static analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc<'static>>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let ac_channels = static_init!(
             [&'static sam4l::acifc::AcChannel; 4],
             [

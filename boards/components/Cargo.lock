@@ -17,34 +17,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "cortexm"
-version = "0.1.0"
-dependencies = [
- "kernel 0.1.0",
-]
-
-[[package]]
-name = "cortexm4"
-version = "0.1.0"
-dependencies = [
- "cortexm 0.1.0",
- "kernel 0.1.0",
-]
-
-[[package]]
 name = "enum_primitive"
 version = "0.1.0"
-
-[[package]]
-name = "imix"
-version = "0.1.0"
-dependencies = [
- "capsules 0.1.0",
- "components 0.1.0",
- "cortexm4 0.1.0",
- "kernel 0.1.0",
- "sam4l 0.1.0",
-]
 
 [[package]]
 name = "kernel"
@@ -55,23 +29,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "sam4l"
-version = "0.1.0"
-dependencies = [
- "cortexm4 0.1.0",
- "kernel 0.1.0",
- "tock_rt0 0.1.0",
-]
-
-[[package]]
 name = "tock-cells"
 version = "0.1.0"
 
 [[package]]
 name = "tock-registers"
 version = "0.3.0"
-
-[[package]]
-name = "tock_rt0"
-version = "0.1.0"
 
