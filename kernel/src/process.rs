@@ -170,7 +170,7 @@ pub trait ProcessType {
     // functions for processes that are architecture specific
 
     /// Get why this process stopped running.
-    unsafe fn get_context_switch_reason(&self) -> syscall::ContextSwitchReason;
+    unsafe fn get_and_reset_context_switch_reason(&self) -> syscall::ContextSwitchReason;
 
     /// Get the syscall that the process called.
     unsafe fn get_syscall(&self) -> Option<Syscall>;
@@ -458,8 +458,6 @@ impl<S: SyscallInterface> ProcessType for Process<'a, S> {
                 let init_fn = app_flash_address
                     .offset(self.header.get_init_function_offset() as isize)
                     as usize;
-                // self.yield_pc.set(init_fn);
-                // self.psr.set(0x01000000);
                 self.state.set(State::Yielded);
 
                 // Need to reset the grant region.
@@ -709,8 +707,8 @@ impl<S: SyscallInterface> ProcessType for Process<'a, S> {
         self.package_name.as_bytes()
     }
 
-    unsafe fn get_context_switch_reason(&self) -> syscall::ContextSwitchReason {
-        self.syscall.get_context_switch_reason()
+    unsafe fn get_and_reset_context_switch_reason(&self) -> syscall::ContextSwitchReason {
+        self.syscall.get_and_reset_context_switch_reason()
     }
 
     unsafe fn get_syscall(&self) -> Option<Syscall> {
@@ -750,9 +748,9 @@ impl<S: SyscallInterface> ProcessType for Process<'a, S> {
         // Architecture-specific code handles actually doing the push since we
         // don't know the details of exactly what the stack frames look like.
         self.stored_state.map(|stored_state| {
-            let stack_bottom =
-                self.syscall
-                    .replace_function_call(self.sp(), callback, &stored_state);
+            let stack_bottom = self
+                .syscall
+                .push_function_call(self.sp(), callback, &stored_state);
 
             self.current_stack_pointer.set(stack_bottom as *mut u8);
             self.debug_set_max_stack_depth();

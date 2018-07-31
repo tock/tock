@@ -71,7 +71,7 @@ impl SysCall {
 impl kernel::syscall::SyscallInterface for SysCall {
     type StoredState = CortexMStoredState;
 
-    unsafe fn get_context_switch_reason(&self) -> kernel::syscall::ContextSwitchReason {
+    unsafe fn get_and_reset_context_switch_reason(&self) -> kernel::syscall::ContextSwitchReason {
         let app_fault = read_volatile(&APP_FAULT);
         // We are free to reset this immediately as this function will only get
         // called once.
@@ -150,7 +150,7 @@ impl kernel::syscall::SyscallInterface for SysCall {
         (stack_pointer as *mut usize).offset(8)
     }
 
-    unsafe fn replace_function_call(
+    unsafe fn push_function_call(
         &self,
         stack_pointer: *const usize,
         callback: kernel::procs::FunctionCall,

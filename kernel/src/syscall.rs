@@ -72,7 +72,7 @@ pub trait SyscallInterface {
     ///
     /// An implementor of this function is free to reset any state that was
     /// needed to gather this information when this function is called.
-    unsafe fn get_context_switch_reason(&self) -> ContextSwitchReason;
+    unsafe fn get_and_reset_context_switch_reason(&self) -> ContextSwitchReason;
 
     /// Get the syscall that the process called with the appropriate arguments.
     unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<Syscall>;
@@ -92,7 +92,7 @@ pub trait SyscallInterface {
     /// Add a stack frame with the new function call. This function
     /// is what should be executed when the process is resumed. Returns the new
     /// stack pointer.
-    unsafe fn replace_function_call(
+    unsafe fn push_function_call(
         &self,
         stack_pointer: *const usize,
         callback: process::FunctionCall,

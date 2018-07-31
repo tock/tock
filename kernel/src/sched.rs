@@ -251,7 +251,7 @@ impl Kernel {
             }
 
             // Check why the process stopped running, and handle it correctly.
-            let process_state = process.get_context_switch_reason();
+            let process_state = process.get_and_reset_context_switch_reason();
             match process_state {
                 ContextSwitchReason::Fault => {
                     // Let process deal with it as appropriate.

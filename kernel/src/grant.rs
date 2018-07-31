@@ -167,7 +167,39 @@ impl<T: Default> Grant<T> {
             appid
                 .kernel
                 .process_map_or(Err(Error::NoSuchApp), appid.idx(), |process| {
+                    // Here is an example of how the grants are laid out in a
+                    // process's memory:
+                    //
+                    // Mem. Addr.
+                    // 0x0040000  ┌────────────────────
+                    //            │   GrantPointer0 [0x003FFC8]
+                    //            │   GrantPointer1 [0x003FFC0]
+                    //            │   ...
+                    //            │   GrantPointerN [0x0000000 (NULL)]
+                    // 0x003FFE0  ├────────────────────
+                    //            │   GrantRegion0
+                    // 0x003FFC8  ├────────────────────
+                    //            │   GrantRegion1
+                    // 0x003FFC0  ├────────────────────
+                    //            │
+                    //            │   --unallocated--
+                    //            │
+                    //            └────────────────────
+                    //
+                    // An array of pointers (one per possible grant region)
+                    // point to where the actual grant memory is allocated
+                    // inside of the process. The grant memory is not allocated
+                    // until the actual grant region is actually used.
+                    //
+                    // This function provides the app access to the specific
+                    // grant memory, and allocates the grant region in the
+                    // process memory if needed.
+                    //
+                    // Get a pointer to where the grant pointer is stored in the
+                    // process memory.
                     let ctr_ptr = process.grant_ptr(self.grant_num) as *mut *mut T;
+                    // If the pointer at that location is NULL then the grant
+                    // memory needs to be allocated.
                     let new_grant = if (*ctr_ptr).is_null() {
                         process.alloc(size_of::<T>()).map(|root_arr| {
                             let root_ptr = root_arr.as_mut_ptr() as *mut T;
@@ -183,6 +215,9 @@ impl<T: Default> Grant<T> {
                         Some(*ctr_ptr)
                     };
 
+                    // If the grant region already exists or there was enough
+                    // memory to allocate it, call the passed in closure with
+                    // the borrowed grant region.
                     new_grant.map_or(Err(Error::OutOfMemory), move |root_ptr| {
                         let root_ptr = root_ptr as *mut T;
                         let mut root = Borrowed::new(&mut *root_ptr, appid);
