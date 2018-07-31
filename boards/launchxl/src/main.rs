@@ -20,6 +20,9 @@ use kernel::hil;
 #[macro_use]
 pub mod io;
 
+#[allow(dead_code)]
+mod i2c_tests;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -174,12 +177,15 @@ pub unsafe fn reset_handler() {
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
+    // TODO(alevy): Enable I2C, but it's not used anywhere yet. We need a system
+    // call driver
+    cc26x2::i2c::I2C0.initialize_and_set_pins(5, 4);
+
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static cc26xx::gpio::GPIOPin; 22],
+        [&'static cc26xx::gpio::GPIOPin; 21],
         [
             &cc26xx::gpio::PORT[1],
-            &cc26xx::gpio::PORT[5],
             &cc26xx::gpio::PORT[8],
             &cc26xx::gpio::PORT[9],
             &cc26xx::gpio::PORT[10],
@@ -254,6 +260,8 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
+    let ipc = &kernel::ipc::IPC::new(board_kernel);
+
     kernel::procs::load_processes(
         board_kernel,
         &_sapps as *const u8,
@@ -262,9 +270,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    board_kernel.kernel_loop(
-        &launchxl,
-        &mut chip,
-        Some(&kernel::ipc::IPC::new(board_kernel)),
-    );
+    board_kernel.kernel_loop(&launchxl, &mut chip, Some(&ipc));
 }

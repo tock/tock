@@ -1,10 +1,13 @@
 //! I2C driver, cc26x2 family
 
+use cc26xx::ioc;
 use core::cmp;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::i2c;
+
+use prcm;
 
 /// A wrapper module for interal register types.
 ///
@@ -245,17 +248,41 @@ impl<'a> I2CMaster<'a> {
             }
         }
     }
-}
 
-const MCU_CLOCK: u32 = 48_000_000;
+    // TODO(alevy): I think we should change this method of setting up power and pins, but I'm
+    // doing this to match the UART for now, until I revise the IOC module
+    // wholistically.
+    /// Initialize the power domain, frequency, and configure pins for I2C
+    ///
+    /// This _must_ be invoked before using the I2C
+    pub fn initialize_and_set_pins(&self, sda_pin: usize, scl_pin: usize) {
+        self.power_and_clock();
+        self.set_time_period(100_000);
+        ioc::IOCFG[sda_pin].enable_i2c_sda();
+        ioc::IOCFG[scl_pin].enable_i2c_scl();
+    }
 
-impl<'a> i2c::I2CMaster for I2CMaster<'a> {
-    fn enable(&self) {
-        let tpr = ((MCU_CLOCK + (2 * 10 * 100_000) - 1) / (2 * 10 * 100_000)) - 1;
-        self.registers.mcr.write(Configuration::MFE::SET);
+    // Computes the TPR register for the given frequency. Assumes a 48MHz main clock
+    fn set_time_period(&self, freq: u32) {
+        const MCU_CLOCK: u32 = 48_000_000;
+        // Forumla from 23.4, step 4, in the datasheet
+        let tpr = MCU_CLOCK / (2 * 10 * freq) - 1;
         self.registers
             .mtpr
             .write(TimerPeriod::WRITE::Valid + TimerPeriod::TPR.val(tpr));
+    }
+
+    // Enables the Serial power domain and I2C clock
+    fn power_and_clock(&self) {
+        prcm::Power::enable_domain(prcm::PowerDomain::Serial);
+        while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
+        prcm::Clock::enable_i2c();
+    }
+}
+
+impl<'a> i2c::I2CMaster for I2CMaster<'a> {
+    fn enable(&self) {
+        self.registers.mcr.write(Configuration::MFE::SET);
         self.registers.mimr.write(Interrupt::IM::SET);
     }
 
