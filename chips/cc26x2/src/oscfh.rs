@@ -31,33 +31,30 @@
 // Clock switching and source select code from Texas Instruments
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
-
-pub unsafe fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
+#![allow(non_snake_case)]
+pub unsafe extern "C" fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
     if ui32src_clk & 0x1u32 != 0 {
         ddi0::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0x1u32, 0u32, ui32osc as (u16));
-    }
-    if ui32src_clk & 0x2u32 != 0 {
-        ddi0::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0x2u32, 1u32, ui32osc as (u16));
     }
     if ui32src_clk & 0x4u32 != 0 {
         ddi0::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0xcu32, 2u32, ui32osc as (u16));
     }
 }
 
-pub unsafe fn clock_source_get(ui32src_clk: u32) -> u32 {
+pub unsafe extern "C" fn clock_source_get(ui32src_clk: u32) -> u32 {
     let ui32clock_source: u32;
     if ui32src_clk == 0x4u32 {
         ui32clock_source =
-            ddi0::ddi16bitfield_read(0x400ca000u32, 0x34u32, 0x60000000u32, 29u32) as (u32);
+            ddi0::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x60000000u32, 29u32) as (u32);
     } else {
         ui32clock_source =
-            ddi0::ddi16bitfield_read(0x400ca000u32, 0x34u32, 0x10000000u32, 28u32) as (u32);
+            ddi0::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x10000000u32, 28u32) as (u32);
     }
     ui32clock_source
 }
 #[allow(unused)]
 unsafe fn source_ready() -> bool {
-    (if ddi0::ddi16bitfield_read(0x400ca000u32, 0x34u32, 0x1u32, 0u32) != 0 {
+    (if ddi0::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x1u32, 0u32) != 0 {
         1i32
     } else {
         0i32
@@ -67,25 +64,25 @@ unsafe fn source_ready() -> bool {
 #[derive(Copy)]
 #[repr(C)]
 pub struct RomFuncTable {
-    pub _crc32: unsafe extern "C" fn(*mut u8, u32, u32) -> u32,
-    pub _flash_get_size: unsafe extern "C" fn() -> u32,
-    pub _get_chip_id: unsafe extern "C" fn() -> u32,
-    pub _reserved_location1: unsafe extern "C" fn(u32) -> u32,
-    pub _reserved_location2: unsafe extern "C" fn() -> u32,
-    pub _reserved_location3: unsafe extern "C" fn(*mut u8, u32, u32) -> u32,
-    pub _reset_device: unsafe extern "C" fn(),
-    pub _fletcher32: unsafe extern "C" fn(*mut u16, u16, u16) -> u32,
-    pub _min_value: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _max_value: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _mean_value: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _stand_deviation_value: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _reserved_location4: unsafe extern "C" fn(u32),
-    pub _reserved_location5: unsafe extern "C" fn(u32),
-    pub hfsource_safe_switch: unsafe extern "C" fn(),
-    pub _select_comp_ainput: unsafe extern "C" fn(u8),
-    pub _select_comp_aref: unsafe extern "C" fn(u8),
-    pub _select_adccomp_binput: unsafe extern "C" fn(u8),
-    pub _select_comp_bref: unsafe extern "C" fn(u8),
+    pub _Crc32: unsafe extern "C" fn(*mut u8, u32, u32) -> u32,
+    pub _FlashGetSize: unsafe extern "C" fn() -> u32,
+    pub _GetChipId: unsafe extern "C" fn() -> u32,
+    pub _ReservedLocation1: unsafe extern "C" fn(u32) -> u32,
+    pub _ReservedLocation2: unsafe extern "C" fn() -> u32,
+    pub _ReservedLocation3: unsafe extern "C" fn(*mut u8, u32, u32) -> u32,
+    pub _ResetDevice: unsafe extern "C" fn(),
+    pub _Fletcher32: unsafe extern "C" fn(*mut u16, u16, u16) -> u32,
+    pub _MinValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
+    pub _MaxValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
+    pub _MeanValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
+    pub _StandDeviationValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
+    pub _ReservedLocation4: unsafe extern "C" fn(u32),
+    pub _ReservedLocation5: unsafe extern "C" fn(u32),
+    pub HFSourceSafeSwitch: unsafe extern "C" fn(),
+    pub _SelectCompAInput: unsafe extern "C" fn(u8),
+    pub _SelectCompARef: unsafe extern "C" fn(u8),
+    pub _SelectADCCompBInput: unsafe extern "C" fn(u8),
+    pub _SelectDACVref: unsafe extern "C" fn(u8),
 }
 
 impl Clone for RomFuncTable {
@@ -94,90 +91,91 @@ impl Clone for RomFuncTable {
     }
 }
 
-/*
-    In order to switch oscillator sources we need to call a ROM
-    function (proprietary), due to a set of undocumented restrictions.
-*/
-
 pub unsafe fn source_switch() {
-    adi::safe_hapi_void((*(0x10000048i32 as (*mut RomFuncTable))).hfsource_safe_switch);
+    ((*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch);
 }
 
 pub mod ddi0 {
-
-    pub unsafe fn aux_ddi_write(addr: u32, data: u32, size: u32) {
-        'loop1: loop {
-            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
-                break;
-            }
-        }
-        if size == 2u32 {
-            *(addr as (*mut u16)) = data as (u16);
-        } else if size == 1u32 {
-            *(addr as (*mut u8)) = data as (u8);
-        } else {
-            *(addr as (*mut usize)) = data as (usize);
-        }
-        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
+    #[no_mangle]
+    pub unsafe extern "C" fn ddi32reg_write(ui32Base: u32, ui32Reg: u32, ui32Val: u32) {
+        *(ui32Base.wrapping_add(ui32Reg) as (*mut usize)) = ui32Val as (usize);
     }
 
-    pub unsafe fn aux_ddi_read(addr: u32, size: u32) -> u32 {
-        let ret: u32;
-
-        'loop1: loop {
-            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
-                break;
-            }
-        }
-        if size == 2u32 {
-            ret = *(addr as (*mut u16)) as (u32);
-        } else if size == 1u32 {
-            ret = *(addr as (*mut u8)) as (u32);
-        } else {
-            ret = *(addr as (*mut usize)) as (u32);
-        }
-        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
-        ret
-    }
-
-    pub unsafe fn ddi16bitfield_write(
-        ui32base: u32,
-        ui32reg: u32,
-        mut ui32mask: u32,
-        mut ui32shift: u32,
-        ui32data: u16,
+    #[no_mangle]
+    pub unsafe extern "C" fn ddi16bit_write(
+        ui32Base: u32,
+        ui32Reg: u32,
+        mut ui32Mask: u32,
+        ui32WrData: u32,
     ) {
-        let mut ui32reg_addr: u32;
-        ui32reg_addr = ui32base
-            .wrapping_add(ui32reg << 1i32)
-            .wrapping_add(0x200u32);
-        if ui32shift >= 16u32 {
-            ui32shift = ui32shift.wrapping_sub(16u32);
-            ui32reg_addr = ui32reg_addr.wrapping_add(4u32);
-            ui32mask = ui32mask >> 16i32;
+        let mut ui32RegAddr: u32;
+        let ui32Data: u32;
+        ui32RegAddr = ui32Base
+            .wrapping_add(ui32Reg << 1i32)
+            .wrapping_add(0x400u32);
+        if ui32Mask & 0xffff0000u32 != 0 {
+            ui32RegAddr = ui32RegAddr.wrapping_add(4u32);
+            ui32Mask = ui32Mask >> 16i32;
         }
-        let ui32wr_data: u32 = (ui32data as (i32) << ui32shift) as (u32);
-        aux_ddi_write(ui32reg_addr, ui32mask << 16i32 | ui32wr_data, 4u32);
+        ui32Data = if ui32WrData != 0 { ui32Mask } else { 0x0u32 };
+        *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32Data) as (usize);
     }
 
-    pub unsafe fn ddi16bitfield_read(
-        ui32base: u32,
-        ui32reg: u32,
-        mut ui32mask: u32,
-        mut ui32shift: u32,
-    ) -> u16 {
-        let mut ui32reg_addr: u32;
-        let mut ui16data: u16;
-        ui32reg_addr = ui32base.wrapping_add(ui32reg).wrapping_add(0x0u32);
-        if ui32shift >= 16u32 {
-            ui32shift = ui32shift.wrapping_sub(16u32);
-            ui32reg_addr = ui32reg_addr.wrapping_add(2u32);
-            ui32mask = ui32mask >> 16i32;
+    #[no_mangle]
+    pub unsafe extern "C" fn ddi16bitfield_write(
+        ui32Base: u32,
+        ui32Reg: u32,
+        mut ui32Mask: u32,
+        mut ui32Shift: u32,
+        ui32Data: u16,
+    ) {
+        let mut ui32RegAddr: u32;
+        let ui32WrData: u32;
+        ui32RegAddr = ui32Base
+            .wrapping_add(ui32Reg << 1i32)
+            .wrapping_add(0x400u32);
+        if ui32Shift >= 16u32 {
+            ui32Shift = ui32Shift.wrapping_sub(16u32);
+            ui32RegAddr = ui32RegAddr.wrapping_add(4u32);
+            ui32Mask = ui32Mask >> 16i32;
         }
-        ui16data = aux_ddi_read(ui32reg_addr, 2u32) as (u16);
-        ui16data = (ui16data as (u32) & ui32mask) as (u16);
-        ui16data = (ui16data as (i32) >> ui32shift) as (u16);
-        ui16data
+        ui32WrData = (ui32Data as (i32) << ui32Shift) as (u32);
+        *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32WrData) as (usize);
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn ddi16bit_read(ui32Base: u32, ui32Reg: u32, mut ui32Mask: u32) -> u16 {
+        let mut ui32RegAddr: u32;
+        let mut ui16Data: u16;
+        ui32RegAddr = ui32Base.wrapping_add(ui32Reg).wrapping_add(0x0u32);
+        if ui32Mask & 0xffff0000u32 != 0 {
+            ui32RegAddr = ui32RegAddr.wrapping_add(2u32);
+            ui32Mask = ui32Mask >> 16i32;
+        }
+        ui16Data = *(ui32RegAddr as (*mut u16));
+        ui16Data = (ui16Data as (u32) & ui32Mask) as (u16);
+        ui16Data
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn ddi16bitfield_read(
+        ui32Base: u32,
+        ui32Reg: u32,
+        mut ui32Mask: u32,
+        mut ui32Shift: u32,
+    ) -> u16 {
+        let mut ui32RegAddr: u32;
+        let mut ui16Data: u16;
+        ui32RegAddr = ui32Base.wrapping_add(ui32Reg).wrapping_add(0x0u32);
+        if ui32Shift >= 16u32 {
+            ui32Shift = ui32Shift.wrapping_sub(16u32);
+            ui32RegAddr = ui32RegAddr.wrapping_add(2u32);
+            ui32Mask = ui32Mask >> 16i32;
+        }
+        ui16Data = *(ui32RegAddr as (*mut u16));
+        ui16Data = (ui16Data as (u32) & ui32Mask) as (u16);
+        ui16Data = (ui16Data as (i32) >> ui32Shift) as (u16);
+        ui16Data
     }
 }
 

@@ -14,26 +14,6 @@
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
-// The AON Power Management Control registers are required here to select the clock source for
-// wake up and power down control. If they are not initialized/deactivated properly when attempting
-// to power down and back up the radio module, the sleep and restart modes will fail. This is not
-// specifically stated in the techinical reference manual but can be found here via TI's web
-// resources: http://dev.ti.com/tirex/content/simplelink_cc13x2_sdk_1_60_00_29/docs/driverlib_cc13xx_cc26xx/cc13x2_cc26x2/register_descriptions/CPU_MMAP/AON_PMCTL.html
-#[repr(C)]
-struct AonPMCtlRegisters {
-    mcu_clk: ReadWrite<u32>,
-}
-
-register_bitfields! [
-    u32,
-    MCUClockControl [
-        PWR_DWN_SRC OFFSET(0) NUMBITS(2) [
-            NO_CLOCK = 0b00,
-            SCLK_LF = 0b01
-        ]
-    ]
-];
-
 #[repr(C)]
 struct PrcmRegisters {
     // leaving INFRCLKDIVR/INFRCLKDIVRS/INFRCLKDIVD unimplemented for now
@@ -49,8 +29,10 @@ struct PrcmRegisters {
 
     // RFC Clock Gate
     pub rfc_clk_gate: ReadWrite<u32, ClockGate::Register>,
+    // VIMS Clock Gate
+    pub vims_clk_gate: ReadWrite<u32, ClockGate::Register>,
 
-    _reserved2: [ReadOnly<u8>; 0xC],
+    _reserved2: [ReadOnly<u8>; 0x8],
 
     // TRNG, Crypto, and UDMA
     pub sec_dma_clk_run: ReadWrite<u32, SECDMAClockGate::Register>,
@@ -113,7 +95,7 @@ struct PrcmRegisters {
     pub pd_stat1_cpu: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat1_vims: ReadOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved9: ReadOnly<u32>,
+    pub rfc_bits: ReadWrite<u32, AutoControl::Register>, // CPE auto check at boot for immediate start up tasks
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
@@ -172,13 +154,14 @@ register_bitfields![
         VIMS_ON     OFFSET(3) NUMBITS(1) [],
         RFC_ON      OFFSET(2) NUMBITS(1) [],
         CPU_ON      OFFSET(1) NUMBITS(1) []
+    ],
+    AutoControl [
+        Startup_Prefs OFFSET(0) NUMBITS(32) []
     ]
 ];
 
 const PRCM_BASE: StaticRef<PrcmRegisters> =
     unsafe { StaticRef::new(0x4008_2000 as *mut PrcmRegisters) };
-const AON_PMCTL_BASE: StaticRef<AonPMCtlRegisters> =
-    unsafe { StaticRef::new(0x4009_0010 as *mut AonPMCtlRegisters) };
 
 // In order to save changes to the PRCM, we need to
 // trigger the load register
@@ -366,6 +349,20 @@ impl Clock {
         prcm_commit();
     }
 
+    pub fn enable_vims() {
+        let regs = PRCM_BASE;
+        regs.vims_clk_gate.write(ClockGate::CLK_EN::SET);
+
+        prcm_commit();
+    }
+
+    pub fn disable_vims() {
+        let regs = PRCM_BASE;
+        regs.vims_clk_gate.write(ClockGate::CLK_EN::SET);
+
+        prcm_commit();
+    }
+
     pub fn enable_gpt() {
         let regs = PRCM_BASE;
         regs.gpt_clk_gate_run.write(ClockGate::CLK_EN::SET);
@@ -382,11 +379,6 @@ impl Clock {
         regs.gpt_clk_gate_deep_sleep.write(ClockGate::CLK_EN::CLEAR);
 
         prcm_commit();
-    }
-
-    pub fn set_power_down_source(source: u32) {
-        let regs = AON_PMCTL_BASE;
-        regs.mcu_clk.set(source & 0x01);
     }
 }
 

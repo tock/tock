@@ -38,14 +38,14 @@ register_bitfields! [
         CLK_DCDC_SRC_SEL         OFFSET(24) NUMBITS(1) [],
         // RESERVED 15-23
         HPOSC_MODE_ON            OFFSET(14) NUMBITS(1) [],
-        // RESERVED 14
+        // RESERVED 13
         RCOSC_LF_TRIMMED         OFFSET(12) NUMBITS(1) [],
         XOSC_HF_POWER_MODE       OFFSET(11) NUMBITS(1) [],
         XOSC_LF_DIG_BYPASS       OFFSET(10) NUMBITS(1) [],
 
         CLK_LOSS_EN              OFFSET(9) NUMBITS(1) [],
         ACLK_TDC_SRC_SEL         OFFSET(7) NUMBITS(2) [],
-        ACLK_REF_SRC_SEL         OFFSET(5) NUMBITS(2) [],
+        ACLK_REF_SRC_SEL         OFFSET(4) NUMBITS(3) [],
 
         SCLK_LF_SRC_SEL          OFFSET(2) NUMBITS(2) [
             RCOSC_HF_DERIVED = 0b00,
@@ -100,19 +100,13 @@ pub enum ClockType {
     HF,
 }
 
-#[allow(non_camel_case_types)]
-pub enum SCLKLFSRC {
-    RCOSC_HF_DERIVED,
-    XOSC_HF_DERIVED,
-    RCOSC_LF,
-    XOSC_LF,
-}
+pub const HF_RCOSC: u8 = 0x00;
+pub const HF_XOSC: u8 = 0x01;
 
-#[allow(non_camel_case_types)]
-pub enum SCLKHFSRC {
-    RCOSC_HF,
-    XOSC_HF,
-}
+pub const LF_DERIVED_RCOSC: u8 = 0x00;
+pub const LF_DERIVED_XOSC: u8 = 0x01;
+pub const LF_RCOSC: u8 = 0x02;
+pub const LF_XOSC: u8 = 0x03;
 
 const DDI0_BASE: StaticRef<DdiRegisters> =
     unsafe { StaticRef::new(0x400C_A000 as *const DdiRegisters) };
@@ -123,89 +117,126 @@ pub struct Oscillator {
     regs: StaticRef<DdiRegisters>,
 }
 
+pub fn set_24_mhz_clk() {
+    let regs = DDI0_BASE;
+
+    regs.ctl0.modify(Ctl0::XTAL_IS_24M::SET);
+}
+
 impl Oscillator {
     pub const fn new() -> Oscillator {
         Oscillator { regs: DDI0_BASE }
     }
 
-    pub fn lfosc_config(&self, lf_clk: SCLKLFSRC) {
-        let regs = DDI0_BASE;
-
+    pub fn config_lf_osc(&self, lf_clk: u8) {
         match lf_clk {
-            SCLKLFSRC::RCOSC_HF_DERIVED => {
+            LF_DERIVED_RCOSC => {
                 self.regs
                     .ctl0
                     .modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
             }
-            SCLKLFSRC::RCOSC_LF => {
+            LF_RCOSC => {
                 self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_LF);
             }
-            SCLKLFSRC::XOSC_HF_DERIVED => {
+            LF_DERIVED_XOSC => {
                 self.regs
                     .ctl0
                     .modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_HF_DERIVED);
             }
-            SCLKLFSRC::XOSC_LF => {
+            LF_XOSC => {
                 self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_LF);
             }
+            _ => panic!("Undefined LF OSC"),
         }
-
-        // Switch for LF source unimplemented
     }
 
-    pub fn hfosc_config(&self, hf_clk: SCLKHFSRC) {
+    pub fn config_hf_osc(&self, hf_clk: u8) {
         let regs = DDI0_BASE;
 
         match hf_clk {
-            SCLKHFSRC::RCOSC_HF => {
+            HF_RCOSC => {
                 self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
             }
-            SCLKHFSRC::XOSC_HF => {
+            HF_XOSC => {
                 self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::XOSC_HF);
             }
+            _ => panic!("Undefined HF OSC"),
         }
 
         while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
     }
 
-    pub fn enable_hfosc(&self, hf_clk: SCLKHFSRC) {
+    pub fn switch_to_rc_osc(&self) {
         let regs = DDI0_BASE;
 
-        let clock = self.get_clock_source(ClockType::HF);
+        if self.clock_source_get(ClockType::HF) != HF_RCOSC {
+            self.clock_source_set(ClockType::HF, HF_RCOSC);
+        }
+        while !self.regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
 
-        match hf_clk {
-            SCLKHFSRC::RCOSC_HF => {
-                if clock != 0x00 {
-                    while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
-                    self.switch_osc();
-                }
-            }
-            SCLKHFSRC::XOSC_HF => {
-                if clock != 0x00 {
-                    while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
-                    self.switch_osc();
-                }
-            }
+        self.clock_source_set(ClockType::LF, LF_RCOSC);
+        self.disable_lfclk_qualifier();
+    }
+
+    // Check if the current clock source is HF_XOSC. If not, set it.
+    pub fn request_switch_to_hf_xosc(&self) {
+        // self.configure();
+
+        if self.clock_source_get(ClockType::HF) != HF_XOSC {
+            self.clock_source_set(ClockType::HF, HF_XOSC);
+        }
+    }
+
+    // Check if current clock source is HF_XOSC. If not, wait until request is done, then set it in
+    // ddi
+    pub fn switch_to_hf_xosc(&self) {
+        let regs = DDI0_BASE;
+
+        if self.clock_source_get(ClockType::HF) != HF_XOSC {
+            while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+            self.switch_osc();
+        }
+    }
+
+    pub fn switch_to_hf_rcosc(&self) {
+        let regs = DDI0_BASE;
+
+        self.clock_source_set(ClockType::HF, HF_RCOSC);
+        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+        if self.clock_source_get(ClockType::HF) != HF_RCOSC {
+            self.switch_osc();
         }
     }
 
     pub fn disable_lfclk_qualifier(&self) {
-        while self.get_clock_source(ClockType::LF) != 0x02 {}
+        while self.clock_source_get(ClockType::LF) != LF_RCOSC {}
 
-        let regs = DDI0_BASE;
-
-        regs.ctl0
+        self.regs
+            .ctl0
             .modify(Ctl0::BYPASS_XOSC_LF_CLK_QUAL::SET + Ctl0::BYPASS_RCOSC_LF_CLK_QUAL::SET);
     }
 
-    pub fn get_clock_source(&self, source: ClockType) -> u8 {
-        let regs = DDI0_BASE;
+    // Get the current clock source of either LF or HF sources
+    pub fn clock_source_get(&self, source: ClockType) -> u8 {
         match source {
-            ClockType::LF => regs.stat0.read(Stat0::SCLK_LF_SRC) as u8,
-            ClockType::HF => regs.stat0.read(Stat0::SCLK_HF_SRC) as u8,
+            ClockType::LF => self.regs.stat0.read(Stat0::SCLK_LF_SRC) as u8,
+            ClockType::HF => self.regs.stat0.read(Stat0::SCLK_HF_SRC) as u8,
         }
     }
 
+    // Set the clock source in DDI_0_OSC
+    pub fn clock_source_set(&self, clock: ClockType, src: u8) {
+        match clock {
+            ClockType::LF => {
+                self.regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(src as u32));
+            }
+            ClockType::HF => {
+                self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(src as u32));
+            }
+        }
+    }
+
+    // Switch the source OSC in DDI0
     pub fn switch_osc(&self) {
         unsafe { oscfh::source_switch() };
     }

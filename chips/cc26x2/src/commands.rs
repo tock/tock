@@ -49,10 +49,10 @@ pub enum RfcOperationStatus {
 // Radio Commands
 
 // RFC Immediate commands
-pub const RFC_CMD0: u16 = 0x607;
+pub const RFC_CMD0: u16 = 0x801;
 pub const RFC_PING: u16 = 0x406;
 pub const RFC_BUS_REQUEST: u16 = 0x40E;
-pub const RFC_START_RAT_TIMER: u16 = 0x080A;
+pub const RFC_START_RAT_TIMER: u16 = 0x0405;
 pub const RFC_STOP_RAT_TIMER: u16 = 0x0809;
 pub const RFC_SETUP: u16 = 0x0802;
 pub const RFC_STOP: u16 = 0x0402;

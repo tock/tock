@@ -242,9 +242,7 @@ register_bitfields! {
 #[derive(Clone, Copy)]
 pub enum RfcMode {
     NONPROP = 0x00,
-    IEEE802144 = 0x01,
-    BLE = 0x02,
-    PROPRF = 0x03,
+    IEEE = 0x01,
     Unchanged = 0xFF,
 }
 
@@ -290,7 +288,7 @@ pub enum RfcCMDSTA {
     QueueError = 0x88,
     QueueBusy = 0x89,
 }
-
+/*
 /*
     Power masks in order to enable certain clocks in the RFC
 */
@@ -311,6 +309,7 @@ const RFC_PWR_RAT: u32 = 0x80;
 const RFC_PWR_PHA: u32 = 0x100;
 // Frequence Synthesizer Calibration Accelerator (FCSCA)
 const RFC_PWR_FSCA: u32 = 0x200;
+*/
 
 const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
     unsafe { StaticRef::new(0x4004_0000 as *const RfcPWCRegisters) };
@@ -385,7 +384,8 @@ impl RFCore {
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
 
-        // pwc_regs.pwmclken.set(0x7FF);
+        pwc_regs.pwmclken.set(0x7FF);
+        /*
         pwc_regs.pwmclken.set(
             RFC_PWR_RFC
                 | RFC_PWR_CPE
@@ -398,7 +398,7 @@ impl RFCore {
                 | RFC_PWR_MDM
                 | RFC_PWR_MDMRAM,
         );
-
+        */
         // Enable interrupts and clear flags
         self.enable_cpe_interrupts();
         self.enable_hw_interrupts();
@@ -407,8 +407,9 @@ impl RFCore {
             ._rfhwifg
             .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
         dbell_regs.rfcpeifg.set(0x7FFFFFFF);
+
         // Initialize radio module
-        self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40));
+        // self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40));
 
         // Request bus
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1));
@@ -561,7 +562,7 @@ impl RFCore {
     // Set mode of RFCore
     pub fn set_mode(&self, mode: RfcMode) {
         let rf_mode = match mode {
-            RfcMode::PROPRF => 0x03,
+            RfcMode::IEEE => 0x01,
             _ => panic!("Only HAL mode supported"),
         };
 

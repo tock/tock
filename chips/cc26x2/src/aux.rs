@@ -10,7 +10,7 @@ pub struct AuxSysIfRegisters {
     _prog_wu3_cfg: ReadWrite<u32, WUCfg::Register>,
     _wu_flags: ReadOnly<u32, WUFlags::Register>,
     _wu_flags_clr: ReadWrite<u32, WUFlags::Register>,
-    _wu_gate: ReadWrite<u32, WUGate::Register>,
+    wu_gate: ReadWrite<u32, WUGate::Register>,
     // remainder unimplemented
 }
 
@@ -90,5 +90,14 @@ impl Aux {
     pub fn operation_mode_ack(&self) -> u8 {
         let regs = AUX_SYSIF_BASE;
         regs.op_mode_ack.read(Ack::ACK) as u8
+    }
+
+    pub fn aux_wu_enable(&self, enable: bool) {
+        let regs = AUX_SYSIF_BASE;
+        if enable {
+            regs.wu_gate.modify(WUGate::EN::SET);
+        } else {
+            regs.wu_gate.modify(WUGate::EN::CLEAR);
+        }
     }
 }

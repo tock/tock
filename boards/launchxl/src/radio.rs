@@ -147,19 +147,19 @@ impl Radio {
     }
 
     pub fn power_up(&self) {
-        self.rfc.set_mode(rfc::RfcMode::PROPRF);
+        self.rfc.set_mode(rfc::RfcMode::IEEE);
 
-        osc::OSC.hfosc_config(osc::SCLKHFSRC::RCOSC_HF);
+        // osc::OSC.config_hf_osc(osc::HF_RCOSC);
+        osc::OSC.request_switch_to_hf_xosc();
 
         self.rfc.enable();
-
         self.rfc.start_rat();
 
-        osc::OSC.enable_hfosc(osc::SCLKHFSRC::RCOSC_HF);
-
+        osc::OSC.switch_to_hf_xosc();
+        // osc::OSC.config_hf_osc(osc::HF_RCOSC);
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides, 0x9F3F)
+            self.rfc.setup(reg_overrides, 0xFFFF)
         }
     }
 

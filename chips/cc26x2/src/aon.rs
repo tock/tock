@@ -17,19 +17,27 @@ pub struct AonIocRegisters {
 #[repr(C)]
 pub struct AonEventRegisters {
     mcu_wu_sel: ReadWrite<u32>,       // MCU Wake-up selector
-    aux_wu_sel: ReadWrite<u32>,       // AUX Wake-up selector
+    mcu_wu_sel1: ReadWrite<u32>,      // MCU1 Wake-up selector
     event_to_mcu_sel: ReadWrite<u32>, // Event selector for MCU Events
     rtc_sel: ReadWrite<u32>,          // RTC Capture event selector for AON_RTC
 }
 
 #[repr(C)]
 struct AonPmCtlRegisters {
+    _unknown: [ReadOnly<u8>; 0x4],
     aux_clk: ReadWrite<u32, AuxClk::Register>,
     ram_cfg: ReadWrite<u32, RamCfg::Register>,
+    _unknown2: [ReadOnly<u8>; 0x8],
     pwr_ctl: ReadWrite<u32, PwrCtl::Register>,
     pwr_stat: ReadOnly<u32, PwrStat::Register>,
     shutdown: ReadWrite<u32, Shutdown::Register>,
-    _recharge: [u32; 4],
+    _recharge_ctl: [u8; 4],
+    _recharge_stat: [u8; 4],
+    osc_cfg: ReadWrite<u32, OscCtl::Register>,
+    reset_ctl: ReadWrite<u32, ResetCtl::Register>,
+    sleep_ctl: ReadWrite<u32, SleepCtl::Register>,
+    _jtag_cfg: [u8; 0x04],
+    _jtag_usercode: [u8; 0x04],
 }
 
 register_bitfields![
@@ -79,8 +87,33 @@ register_bitfields![
     ],
     IocClk [
         EN  OFFSET(0) NUMBITS(1) []
+    ],
+    OscCtl [
+        // Reserved 8-31
+        PER_M OFFSET(3) NUMBITS(7) [],
+        PER_E OFFSET(0) NUMBITS(3) []
+    ],
+    ResetCtl [
+        // 0: No effect 1: Generate system reset
+        SYSRESET OFFSET(31) NUMBITS(1) [],
+        // Reserved 26-30
+        // 24/25 BOOT DET 0/1 CLR
+        // Reserved 18-23
+        WU_FROM_SD OFFSET(15) NUMBITS(1) [],
+        GPIO_WU_FROM_SD OFFSET(14) NUMBITS(1) [],
+        // 12/13 BOOT DET
+        // Reserved 9-11
+        VDDS_LOSS_EN OFFSET(8) NUMBITS(1) [],
+        VDDR_LOSS_EN OFFSET(7) NUMBITS(1) [],
+        VDD_LOSS_EN OFFSET(6) NUMBITS(1) [],
+        CLK_LOSS_EN OFFSET(5) NUMBITS(1) [],
+        MCU_WARM_RESET OFFSET(4) NUMBITS(1) [],
+        RESET_SRC OFFSET(1) NUMBITS(3) []
+        // Reserved 0
+    ],
+    SleepCtl [
+        IO_PAD_SLEEP_DIS OFFSET(0) NUMBITS(1) []
     ]
-
 ];
 
 const AON_EVENT_BASE: StaticRef<AonEventRegisters> =
@@ -90,10 +123,15 @@ const AON_PMCTL_BASE: StaticRef<AonPmCtlRegisters> =
 const AON_IOC_BASE: StaticRef<AonIocRegisters> =
     unsafe { StaticRef::new(0x4009_4000 as *const AonIocRegisters) };
 
+pub enum AuxSClk {
+    SClkHFDiv2,
+    SClkMF,
+}
+
 pub struct Aon {
     event_regs: StaticRef<AonEventRegisters>,
-    // pmctl_regs: StaticRef<AonPmCtlRegisters>,
-    // ioc_base: StaticRef<AonIocRegisters>,
+    pmctl_regs: StaticRef<AonPmCtlRegisters>,
+    ioc_regs: StaticRef<AonIocRegisters>,
 }
 
 pub const AON: Aon = Aon::new();
@@ -102,8 +140,8 @@ impl Aon {
     const fn new() -> Aon {
         Aon {
             event_regs: AON_EVENT_BASE,
-            //pmctl_regs: AON_PMCTL_BASE,
-            //ioc_base: AON_IOC_BASE,
+            pmctl_regs: AON_PMCTL_BASE,
+            ioc_regs: AON_IOC_BASE,
         }
     }
 
@@ -111,7 +149,7 @@ impl Aon {
         let regs = &*self.event_regs;
 
         // Default to no events at all
-        regs.aux_wu_sel.set(0x3F3F3F3F);
+        regs.mcu_wu_sel1.set(0x3F3F3F3F);
 
         // Set RTC CH1 as a wakeup source by default
         regs.mcu_wu_sel.set(0x3F3F3F24);
@@ -129,28 +167,27 @@ impl Aon {
     }
 
     pub fn set_dcdc_enabled(&self, enabled: bool) {
-        let regs = AON_PMCTL_BASE;
         if enabled {
-            regs.pwr_ctl
+            self.pmctl_regs
+                .pwr_ctl
                 .modify(PwrCtl::DCDC_ACTIVE::SET + PwrCtl::DCDC_EN::SET);
         } else {
-            regs.pwr_ctl
+            self.pmctl_regs
+                .pwr_ctl
                 .modify(PwrCtl::DCDC_ACTIVE::CLEAR + PwrCtl::DCDC_EN::CLEAR);
         }
     }
 
     pub fn lfclk_enable(&self, enable: bool) {
-        let regs = AON_IOC_BASE;
         if enable {
-            regs.ioc_clk32k_ctl.write(IocClk::EN::SET);
+            self.ioc_regs.ioc_clk32k_ctl.write(IocClk::EN::SET);
         } else {
-            regs.ioc_clk32k_ctl.write(IocClk::EN::CLEAR);
+            self.ioc_regs.ioc_clk32k_ctl.write(IocClk::EN::CLEAR);
         }
     }
 
     pub fn aux_set_ram_retention(&self, enabled: bool) {
-        let regs = AON_PMCTL_BASE;
-        regs.ram_cfg.modify({
+        self.pmctl_regs.ram_cfg.modify({
             if enabled {
                 RamCfg::AUX_SRAM_RET_EN::SET
             } else {
@@ -160,8 +197,7 @@ impl Aon {
     }
 
     pub fn mcu_set_ram_retention(&self, on: bool) {
-        let regs = AON_PMCTL_BASE;
-        regs.ram_cfg.modify({
+        self.pmctl_regs.ram_cfg.modify({
             if on {
                 RamCfg::BUS_SRAM_RET_EN::ON
             } else {
@@ -170,14 +206,21 @@ impl Aon {
         });
     }
 
+    pub fn aux_sceclk_select(&self, sclk: AuxSClk) {
+        match sclk {
+            AuxSClk::SClkHFDiv2 => self.pmctl_regs.aux_clk.modify(AuxClk::SRC::SCLK_HFDIV2),
+            AuxSClk::SClkMF => self.pmctl_regs.aux_clk.modify(AuxClk::SRC::SCLK_MF),
+        }
+    }
+
     pub fn aux_disable_power_down_clock(&self) {
-        let regs = AON_PMCTL_BASE;
-        regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
+        self.pmctl_regs
+            .aux_clk
+            .modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
     }
 
     pub fn shutdown(&self) {
-        let regs = AON_PMCTL_BASE;
-        regs.shutdown.modify(Shutdown::PWR_DWN_DIS::SET);
+        self.pmctl_regs.shutdown.modify(Shutdown::PWR_DWN_DIS::SET);
     }
     /// Await a cycle of the AON domain in order
     /// to sync with it.
