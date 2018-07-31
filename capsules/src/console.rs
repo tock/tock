@@ -358,7 +358,7 @@ impl<U: UART> Client for Console<'a, U> {
                 .enter(appid, |app, _| {
                     app.read_callback.map(|mut cb| {
                         let (result, len) = match error {
-                            uart::Error::CommandComplete => {
+                            uart::Error::CommandComplete | uart::Error::Aborted => {
                                 // Copy the data into the application buffer, if it exists
                                 match app.read_buffer.take() {
                                     Some(mut app_buffer) => {
@@ -373,7 +373,13 @@ impl<U: UART> Client for Console<'a, U> {
                                                 *c = buffer[i]
                                             }
                                         });
-                                        (ReturnCode::SUCCESS, rx_len)
+                                        match error {
+                                            uart::Error::CommandComplete => {
+                                                (ReturnCode::SUCCESS, rx_len)
+                                            }
+                                            uart::Error::Aborted => (ReturnCode::ECANCEL, rx_len),
+                                            _ => (ReturnCode::FAIL, rx_len), // should never be triggered
+                                        }
                                     }
                                     None => (ReturnCode::EINVAL, 0),
                                 }
