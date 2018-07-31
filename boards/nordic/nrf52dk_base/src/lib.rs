@@ -197,7 +197,11 @@ pub unsafe fn setup_board(
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&nrf52::uart::UARTE0, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &nrf52::uart::UARTE0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
 

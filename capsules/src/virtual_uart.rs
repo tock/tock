@@ -43,15 +43,19 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 
-pub static mut RX_BUF: [u8; 64] = [0; 64];
+const RX_BUF_LEN: usize = 64;
+pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 
 pub struct UartMux<'a> {
     uart: &'a hil::uart::UART,
+    speed: u32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    buffer: TakeCell<'static, [u8]>,
+    completing_read: Cell<bool>,
 }
 
 impl<'a> hil::uart::Client for UartMux<'a> {
@@ -63,36 +67,98 @@ impl<'a> hil::uart::Client for UartMux<'a> {
         self.do_next_op();
     }
 
-    fn receive_complete(
-        &self,
-        rx_buffer: &'static mut [u8],
-        rx_len: usize,
-        error: hil::uart::Error,
-    ) {
-        // Pass the data to each receiver that wants to receive messages.
+    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: hil::uart::Error) {
+        let mut next_read_len = RX_BUF_LEN;
+        let mut read_pending = false;
+        self.completing_read.set(true);
+        // Because clients may issue another read in their callback we need to first
+        // copy out all the data, then make the callbacks.
+        //
+        // Multiple client reads of different sizes can be pending. This code copies
+        // the underlying UART read into each of the client buffers; if the
+        // underlying read completes a client read, issue a callback to that
+        // client. In the meanwhile, compute the length of the next underlying
+        // UART read: if any client has more to read, issue another underlying
+        // read.
         self.devices.iter().for_each(|device| {
             if device.receiver {
                 device.rx_buffer.take().map(|rxbuf| {
-                    let len = cmp::min(rx_len, device.rx_len.get());
-                    for i in 0..len {
-                        rxbuf[i] = rx_buffer[i];
+                    let state = device.state.get();
+                    // Copy the read into the buffer starting at rx_position
+                    let position = device.rx_position.get();
+                    let remaining = device.rx_len.get() - position;
+                    let len = cmp::min(rx_len, remaining);
+                    if state == UartDeviceReceiveState::Receiving
+                        || state == UartDeviceReceiveState::Aborting
+                    {
+                        //                        debug!("Have {} bytes, copying in bytes {}-{}, {} remain", rx_len, position, position + len, remaining);
+                        for i in 0..len {
+                            rxbuf[position + i] = buffer[i];
+                        }
                     }
-                    device.receive_complete(rxbuf, len, error);
+                    device.rx_position.set(position + len);
+                    device.rx_buffer.replace(rxbuf);
                 });
             }
         });
-        self.rx_buffer.replace(rx_buffer);
+        self.buffer.replace(buffer);
+        self.devices.iter().for_each(|device| {
+            if device.receiver {
+                device.rx_buffer.take().map(|rxbuf| {
+                    let state = device.state.get();
+                    let position = device.rx_position.get();
+                    let remaining = device.rx_len.get() - position;
+                    // If this finishes the read, signal to the caller,
+                    // otherwise update state so next read will fill in
+                    // more data.
+                    if remaining == 0 {
+                        device.state.set(UartDeviceReceiveState::Idle);
+                        device.receive_complete(rxbuf, position, error);
+                        // Need to check if receive was called in callback
+                        if device.state.get() == UartDeviceReceiveState::Receiving {
+                            read_pending = true;
+                        }
+                    } else if state == UartDeviceReceiveState::Aborting {
+                        device.state.set(UartDeviceReceiveState::Idle);
+                        device.receive_complete(rxbuf, position, hil::uart::Error::Aborted);
+                        // Need to check if receive was called in callback
+                        if device.state.get() == UartDeviceReceiveState::Receiving {
+                            read_pending = true;
+                        }
+                    } else {
+                        device.rx_buffer.replace(rxbuf);
+                        next_read_len = cmp::min(next_read_len, remaining);
+                        read_pending = true;
+                    }
+                });
+            }
+        });
+        self.completing_read.set(false);
+        if read_pending {
+            self.start_receive(next_read_len);
+        }
     }
 }
 
 impl<'a> UartMux<'a> {
-    pub fn new(uart: &'a hil::uart::UART, rx_buffer: &'static mut [u8]) -> UartMux<'a> {
+    pub fn new(uart: &'a hil::uart::UART, buffer: &'static mut [u8], speed: u32) -> UartMux<'a> {
         UartMux {
             uart: uart,
+            speed: speed,
             devices: List::new(),
             inflight: OptionalCell::empty(),
-            rx_buffer: TakeCell::new(rx_buffer),
+            buffer: TakeCell::new(buffer),
+            completing_read: Cell::new(false),
         }
+    }
+
+    pub fn initialize(&self) {
+        self.uart.configure(uart::UARTParameters {
+            baud_rate: self.speed,
+            stop_bits: uart::StopBits::One,
+            parity: uart::Parity::None,
+            hw_flow_control: false,
+        });
     }
 
     fn do_next_op(&self) {
@@ -110,12 +176,34 @@ impl<'a> UartMux<'a> {
         }
     }
 
-    /// If we are not currently listening, start listening.
-    fn start_receive(&self, rx_len: usize) {
-        self.rx_buffer.take().map(|rxbuf| {
-            let len = cmp::min(rx_len, rxbuf.len());
-            self.uart.receive(rxbuf, len);
-        });
+    /// Starts a new UART reception, return value denotes whether starting
+    /// the reception will issue a callback before the new read. A callback
+    /// needs to be issued before the new read if a read was ongoing; the
+    /// callback finishes the current read so the new one can start.
+    /// Three cases:
+    ///    1) We are in the midst of completing a read: let it restart the
+    ///       reads if needed (return false)
+    ///    2) We are in the midst of a read: abort so we can start a new
+    ///       read now (return true)
+    ///    3) We are idle: start reading (return false)
+    fn start_receive(&self, rx_len: usize) -> bool {
+        self.buffer.take().map_or_else(
+            || {
+                // No rxbuf which means a read is ongoing
+                if self.completing_read.get() {
+                    // Do nothing, read completion will call start_receive when ready
+                    false
+                } else {
+                    self.uart.abort_receive();
+                    true
+                }
+            },
+            |rxbuf| {
+                let len = cmp::min(rx_len, rxbuf.len());
+                self.uart.receive(rxbuf, len);
+                false
+            },
+        )
     }
 }
 
@@ -124,11 +212,20 @@ enum Operation {
     Transmit { len: usize },
 }
 
+#[derive(Copy, Clone, PartialEq)]
+enum UartDeviceReceiveState {
+    Idle,
+    Receiving,
+    Aborting,
+}
+
 pub struct UartDevice<'a> {
+    state: Cell<UartDeviceReceiveState>,
     mux: &'a UartMux<'a>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
+    rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
     next: ListLink<'a, UartDevice<'a>>,
@@ -138,10 +235,12 @@ pub struct UartDevice<'a> {
 impl<'a> UartDevice<'a> {
     pub const fn new(mux: &'a UartMux<'a>, receiver: bool) -> UartDevice<'a> {
         UartDevice {
+            state: Cell::new(UartDeviceReceiveState::Idle),
             mux: mux,
             receiver: receiver,
             tx_buffer: TakeCell::empty(),
             rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             operation: OptionalCell::empty(),
             next: ListLink::empty(),
@@ -169,6 +268,7 @@ impl<'a> hil::uart::Client for UartDevice<'a> {
         error: hil::uart::Error,
     ) {
         self.client.map(move |client| {
+            self.state.set(UartDeviceReceiveState::Idle);
             client.receive_complete(rx_buffer, rx_len, error);
         });
     }
@@ -202,10 +302,16 @@ impl<'a> hil::uart::UART for UartDevice<'a> {
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
+        self.rx_position.set(0);
+        self.state.set(UartDeviceReceiveState::Idle);
         self.mux.start_receive(rx_len);
+        self.state.set(UartDeviceReceiveState::Receiving);
     }
 
+    // This virtualized device will abort its read: other devices
+    // devices will continue with their reads.
     fn abort_receive(&self) {
-        unimplemented!();
+        self.state.set(UartDeviceReceiveState::Aborting);
+        self.mux.uart.abort_receive();
     }
 }
