@@ -426,7 +426,6 @@ impl<'a> Driver for UDPDriver<'a> {
                         }
                     });
                     if next_tx.is_none() {
-                        debug!("TX IS NONE");
                         return ReturnCode::EINVAL;
                     }
                     app.pending_tx = next_tx;
@@ -462,12 +461,9 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         payload: &[u8],
     ) {
         // debug!("payload: {:?}", payload);
-        debug!("got a payload.");
         self.apps.each(|app| {
             self.do_with_rx_cfg(app.appid(), payload.len(), |cfg| {
-                debug!("doing stuff with rx_cfg");
                 if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
-                    debug!("error with cfg size");
                     return ReturnCode::EINVAL;
                 }
 
@@ -475,14 +471,12 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                     .map(|socket_addr| {
                         self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
                             .map(|requested_addr| {
-                                debug!("About to check addr match");
                                 if (socket_addr.addr == dst_addr
                                     && requested_addr.addr == src_addr
                                     && socket_addr.port == dst_port
                                     && requested_addr.port == src_port)
                                     || true
                                 {
-                                    debug!("Address match!");
                                     let mut app_read = app.app_read.take();
                                     app_read.as_mut().map(|rbuf| {
                                         //app.app_read.take().as_mut().map(|rbuf| {
