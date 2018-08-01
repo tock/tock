@@ -266,16 +266,18 @@ impl<'a> UDPDriver<'a> {
         self.get_next_tx_if_idle()
             .map(|appid| {
                 if appid == new_appid {
-                    self.perform_tx_sync(appid)
+                    let sync_result = self.perform_tx_sync(appid);
+                    if sync_result == ReturnCode::SUCCESS {
+                        return ReturnCode::SuccessWithValue{1}; //Indicates packet passed to radio
+                    }
+                    sync_result
                 } else {
                     self.perform_tx_async(appid);
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::SUCCESS) // This seems wrong. If get_next_tx_if_idle
-                                            // does not return an appid, that means a
-                                            // tx is already in progress, which means
-                                            // this tx cannot be performed synchronously
+            .unwrap_or(ReturnCode::SUCCESS)
+
     }
 
     #[inline]
@@ -367,7 +369,17 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
-    /// - `2`: Transmit payload
+    /// - `2`: Transmit payload returns EBUSY is this process already has a pending tx.
+    /// Returns EINVAL if no valid buffer has been loaded into the write buffer,
+    /// or if the config buffer is the wrong length, or if the destination and source
+    /// oirt/address pairs cannot be parsed.
+    /// Otherwise, returns the result of do_next_tx_sync(). Notably, a successful
+    /// transmit can produce two different success values. If success is returned,
+    /// this simply means that the packet was queued. However, if SuccessWithValue
+    /// is returned with value 1, this means the the packet was successfully passed
+    /// the radio without any errors, which tells the userland application that it can
+    /// immediately queue another packet without having to wait for a callback.
+
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
