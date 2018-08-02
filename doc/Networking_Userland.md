@@ -22,16 +22,95 @@ hope to improve developer experience while enabling the easy transition of
 networking code to Tock.
 
 ## Design
-In order to 
+#### Author: Hudson Ayers
+#### Last Updated: 8-1-2018
+
+udp.c and udp.h in libtock-c/libtock define the userland interface to the
+Tock networking stack. These files interact with capsules/src/net/udp/driver.rs
+in the main tock repository. driver.rs implements an interface for sending
+and receiving UDP messages. It also exposes a list of interace addresses to
+the application layer. The primary functionality embedded in the UDP driver
+is within the allow(), subscribe(), and command() calls which can be made to
+the driver.
+
+allow() is used to setup buffers to read/qrite from. This function takes in
+an `allow_num` and a slice. These allow\_nums determine which buffer is being
+setup as follows:
+
+ - `0`: Read buffer. Will contain the received payload.
+
+ - `1`: Write buffer. Contains the UDP payload to be transmitted.
+
+ - `2`: Config buffer. Used to contain miscellaneous data associated with
+        some commands, namely source/destination addresses and ports.
+
+ - `3`: Rx config buffer. Used to contain source/destination addresses
+        and ports for receives (separate from `2` because receives may
+        be waiting for an incoming packet asynchronously).
+
+subscribe() is used to setup callbacks for when frames are transmitted or received.
+It takes in a callback and a subscribe number. The subscribe number indicates the
+callback type:
+
+ - `0`: Setup callback for when frame is received.
+
+ - `1`: Setup callback for when frame is transmitted.
+
+command() is used to get the interface list or to transmit a payload. The action
+taken by the driver is determined by the passed command\_num:
+
+ - `0`: Driver check. (right now, always returns success)
+
+ - `1`: Get the interface list
+        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
+                       limited by `app_cfg` length.
+
+ - `2`: Transmit payload: returns EBUSY is this process already has a pending tx.
+        Returns EINVAL if no valid buffer has been loaded into the write buffer,
+        or if the config buffer is the wrong length, or if the destination and source
+        oirt/address pairs cannot be parsed.
+        Otherwise, returns the result of do_next_tx_sync(). Notably, a successful
+        transmit can produce two different success values. If success is returned,
+        this simply means that the packet was queued. However, if SuccessWithValue
+        is returned with value 1, this means the the packet was successfully passed
+        the radio without any errors, which tells the userland application that it can
+        immediately queue another packet without having to wait for a callback.
+
+udp.c and udp.h in libtock-c make it easy to interact with this driver interface.
+Important functions available to userland apps written in c include:
+
+`udp_socket()` - sets the port on which the app will receive udp packets,
+and sets the `src_port` of outgoing packets sent via that socket. Once socket
+binding is implemented in the kernel, this function will handle reserving ports
+to listen on and send from.
+
+`udp_close()` - currently just returns success, but once socket binding has been
+implemented in the kernel, this function will handle freeing bound ports.
+
+`udp_send_to()` - Sends a udp packet to a specified addr/port pair, returns the result
+of the tranmission once the radio has transmitted it (or once a failure has occured).
+
+`udp_recv_from_sync()` - Pass an interface to listen on and an incoming source address
+to listen for. Sets up a callback to wait for a received packet, and yeilds until that
+callback is triggered. This function never returns if a packet is not received.
+
+`udp_recv_from()` - Pass an interface to listen on and an incoming source address to
+listen for. However, this takes in a buffer to which the received packet should be placed,
+and returns the callback that will be triggered when a packet is received.
+
+`udp_list_ifaces()` Populates the passed pointer of ipv6 addresses with the available
+ipv6 addresses of the interfaces on the device. Right now this merely returns a constant
+hardcoded into the UDP driver, but should change to return the source IP addresses held
+in the network configuration file once that is created. Returns up to `len` addresses.
 
 ### POSIX Socket API Functions
 Below is a fairly comprehensive overview of the POSIX networking socket
 interface. Note that much of this functionality pertains to TCP or connection-
 based protocols, which we currently do not handle.
 
-- `socket(domain, type, protocol) -> int fd`  
-    - `domain`: AF\_INET, AF\_INET6, AF\_UNIX  
-    - `type`: SOCK\_STREAM (TCP), SOCK\_DGRAM (UDP), SOCK\_SEQPACKET (?), SOCK\_RAW  
+- `socket(domain, type, protocol) -> int fd`
+    - `domain`: AF\_INET, AF\_INET6, AF\_UNIX
+    - `type`: SOCK\_STREAM (TCP), SOCK\_DGRAM (UDP), SOCK\_SEQPACKET (?), SOCK\_RAW
     - `protocol`: IPPROTO\_TCP, IPPROTO\_SCTP, IPPROTO\_UDP, IPPROTO\_DCCP
 
 - `bind(socketfd, my_addr, addrlen) -> int success`

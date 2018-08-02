@@ -1,8 +1,10 @@
 //! UDP userspace interface for transmit and receive.
 //!
 //! Implements a userspace interface for sending and receiving UDP messages.
+//! Processes use this driver to send UDP packets from a common interface
+//! and bind to UDP ports for receiving packets.
 //! Also exposes a list of interface addresses to the application (currently
-//! hard-coded.
+//! hard-coded).
 
 use core::cell::Cell;
 use core::{cmp, mem};
