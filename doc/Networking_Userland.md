@@ -220,29 +220,29 @@ Below is a list of desired functionality for the libTock userland API.
     `ipv6_addr_t`: IPv6 address (single or ANY)  
     `port_t`: Transport level port (single or ANY)
 
-- `struct socket_struct_t`  
+- `struct sock_handle_t`  
     Opaque to the user; allocated in userland by malloc (or on the stack)
 
 - `list_ifaces() -> iface[]`  
     `ifaces`: A list of `ipv6_addr_t, name` pairs corresponding to all
     interfaces available
 
-- `udp_socket(socket_struct_t, sock_addr_t) -> int socketfd`  
+- `udp_socket(sock_handle_t, sock_addr_t) -> int socketfd`  
     `socketfd`: Socket object to be initialized as a UDP socket with the given
     address information  
     `sock_addr_t`: Contains an IPv6 address and a port
 
-- `udp_close(socketfd)`  
-    `socketfd`: Socket to close
+- `udp_close(sock_handle_t)`  
+    `sock_handle_t`: Socket to close
 
-- `send_to(socketfd, buffer, length, sock_addr_t)`  
-    - `socketfd`: Socket to send using  
+- `send_to(sock_handle_t, buffer, length, sock_addr_t)`  
+    - `sock_handle_t`: Socket to send using  
     - `buffer`: Buffer to send  
     - `length`: Length of buffer to send  
     - `sock_addr_t`: Address struct (IPv6 address, port) to send the packet from
 
-- `recv_from(socketfd, buffer, length, sock_addr_t)`  
-    - `socketfd`: Receiving socket  
+- `recv_from(sock_handle_t, buffer, length, sock_addr_t)`  
+    - `sock_handle_t`: Receiving socket  
     - `buffer`: Buffer to receive into  
     - `length`: Length of buffer  
     - `sock_addr_t`: Struct where the kernel writes the received packet's sender
@@ -260,44 +260,7 @@ as we can simply set the port number in the `sock_addr_t` struct when binding.
 I think one of the major questions is whether to adopt this convention, or to
 use the above definitions for at least the first iteration.
 
-### Example: `ip_sense` 
+### Example: `ip_sense`
 
-Given the work-in-progress API design above, here's what the `examples/ip_sense` application would look like.
+An example use of the networking stack can be found in libtock-c/examples/ip\_sense
 
-    #include <ip.h>
-
-    int main(void) {
-
-      // initialization
-      // ...
-      char packet[64];
-
-      // IP configuration
-      int sock = socket();
-      bind(sock, list_ifaces()[0]); // ??? TODO no idea here
-
-      while (1) {
-        
-        // read sensors
-        // ...
-
-        // prepare data packet
-        int len = snprintf(packet, sizeof(packet), "packet payload");
-
-        // send packet
-        int err = send_to(sock, packet, len, "10.0.0.6"); // TODO address fmt
-
-        switch (err) {
-          case TOCK_SUCCESS:
-            printf("Sent and acknowledged\n");
-            break;
-          case TOCK_ENOACK:
-            printf("Sent but not acknowledged\n");
-            break;
-          default:
-            printf("Error sending packet %d\n", err);
-        }
-
-        delay_ms(1000);
-      }
-    }
