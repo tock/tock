@@ -26,7 +26,7 @@ use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_recv::{UDPReceiver, UDPRecvStruct};
+use capsules::net::udp::udp_recv::{UDPReceiver};
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
@@ -417,7 +417,7 @@ pub unsafe fn reset_handler() {
     );
     sixlowpan_state.set_rx_client(ip_receive);
 
-    let udp_recv = static_init!(UDPRecvStruct<'static>, UDPRecvStruct::new());
+    let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
     ip_receive.set_client(udp_recv);
 
     let udp_driver = static_init!(

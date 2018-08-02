@@ -15,29 +15,23 @@ pub trait UDPRecvClient {
     );
 }
 
-pub trait UDPReceiver<'a> {
-    fn set_client(&self, client: &'a UDPRecvClient);
-}
-
-pub struct UDPRecvStruct<'a> {
+pub struct UDPReceiver<'a> {
     client: Cell<Option<&'a UDPRecvClient>>,
 }
 
-impl<'a> UDPReceiver<'a> for UDPRecvStruct<'a> {
-    fn set_client(&self, client: &'a UDPRecvClient) {
+impl<'a> UDPReceiver<'a> {
+    pub fn new() -> UDPReceiver<'a> {
+        UDPReceiver {
+            client: Cell::new(None),
+        }
+    }
+
+    pub fn set_client(&self, client: &'a UDPRecvClient) {
         self.client.set(Some(client));
     }
 }
 
-impl<'a> UDPRecvStruct<'a> {
-    pub fn new() -> UDPRecvStruct<'a> {
-        UDPRecvStruct {
-            client: Cell::new(None),
-        }
-    }
-}
-
-impl<'a> IP6RecvClient for UDPRecvStruct<'a> {
+impl<'a> IP6RecvClient for UDPReceiver<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
         debug!("[UDP_RecvClient] received something");
         match UDPHeader::decode(payload).done() {
