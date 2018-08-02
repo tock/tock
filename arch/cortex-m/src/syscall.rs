@@ -71,28 +71,6 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
-    unsafe fn get_and_reset_context_switch_reason(&self) -> kernel::syscall::ContextSwitchReason {
-        let app_fault = read_volatile(&APP_FAULT);
-        // We are free to reset this immediately as this function will only get
-        // called once.
-        write_volatile(&mut APP_FAULT, 0);
-
-        // Check to see if the svc_handler was called and the process called a
-        // syscall.
-        let syscall_fired = read_volatile(&SYSCALL_FIRED);
-        write_volatile(&mut SYSCALL_FIRED, 0);
-
-        if app_fault == 1 {
-            // APP_FAULT takes priority. This means we hit the hardfault handler
-            // and this process faulted.
-            kernel::syscall::ContextSwitchReason::Fault
-        } else if syscall_fired == 1 {
-            kernel::syscall::ContextSwitchReason::SyscallFired
-        } else {
-            kernel::syscall::ContextSwitchReason::TimesliceExpired
-        }
-    }
-
     /// Get the syscall that the process called.
     unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<kernel::syscall::Syscall> {
         // Get the four values that are passed with the syscall.
@@ -187,10 +165,36 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         stack_pointer: *const usize,
         state: &mut CortexMStoredState,
-    ) -> *mut usize {
-        switch_to_user(
+    ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
+        let new_stack_pointer = switch_to_user(
             stack_pointer as *const u8,
             &mut *(state as *mut CortexMStoredState as *mut [usize; 8]),
-        ) as *mut usize
+        );
+
+        // Determine why this returned and the process switched back to the
+        // kernel.
+
+        // Check to see if the fault handler was called while the process was
+        // running.
+        let app_fault = read_volatile(&APP_FAULT);
+        write_volatile(&mut APP_FAULT, 0);
+
+        // Check to see if the svc_handler was called and the process called a
+        // syscall.
+        let syscall_fired = read_volatile(&SYSCALL_FIRED);
+        write_volatile(&mut SYSCALL_FIRED, 0);
+
+        // Now decide the reason based on which flags were set.
+        let switch_reason = if app_fault == 1 {
+            // APP_FAULT takes priority. This means we hit the hardfault handler
+            // and this process faulted.
+            kernel::syscall::ContextSwitchReason::Fault
+        } else if syscall_fired == 1 {
+            kernel::syscall::ContextSwitchReason::SyscallFired
+        } else {
+            kernel::syscall::ContextSwitchReason::TimesliceExpired
+        };
+
+        (new_stack_pointer as *mut usize, switch_reason)
     }
 }

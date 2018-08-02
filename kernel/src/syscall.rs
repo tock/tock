@@ -66,14 +66,6 @@ pub trait UserspaceKernelBoundary {
     /// registers that aren't stored on the stack.
     type StoredState: Default;
 
-    /// Allows the kernel to query to see why the process stopped running. This
-    /// function can only be called once to get the last state of the process
-    /// and why the process context switched back to the kernel.
-    ///
-    /// An implementor of this function is free to reset any state that was
-    /// needed to gather this information when this function is called.
-    unsafe fn get_and_reset_context_switch_reason(&self) -> ContextSwitchReason;
-
     /// Get the syscall that the process called with the appropriate arguments.
     unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<Syscall>;
 
@@ -113,9 +105,13 @@ pub trait UserspaceKernelBoundary {
     ) -> Result<*mut usize, *mut usize>;
 
     /// Context switch to a specific process.
+    ///
+    /// This returns a tuple:
+    /// - The new stack pointer address of the process.
+    /// - Why the process stopped executing and switched back to the kernel.
     unsafe fn switch_to_process(
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
-    ) -> *mut usize;
+    ) -> (*mut usize, ContextSwitchReason);
 }

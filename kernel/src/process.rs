@@ -175,9 +175,6 @@ pub trait ProcessType {
 
     // functions for processes that are architecture specific
 
-    /// Get why this process stopped running.
-    unsafe fn get_and_reset_context_switch_reason(&self) -> syscall::ContextSwitchReason;
-
     /// Get the syscall that the process called.
     unsafe fn get_syscall(&self) -> Option<Syscall>;
 
@@ -193,7 +190,7 @@ pub trait ProcessType {
     unsafe fn push_function_call(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
-    unsafe fn switch_to(&self);
+    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
     unsafe fn fault_str(&self, writer: &mut Write);
     unsafe fn statistics_str(&self, writer: &mut Write);
@@ -699,10 +696,6 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         self.process_name.as_bytes()
     }
 
-    unsafe fn get_and_reset_context_switch_reason(&self) -> syscall::ContextSwitchReason {
-        self.syscall.get_and_reset_context_switch_reason()
-    }
-
     unsafe fn get_syscall(&self) -> Option<Syscall> {
         let last_syscall = self.syscall.get_syscall(self.sp());
 
@@ -784,12 +777,14 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         });
     }
 
-    unsafe fn switch_to(&self) {
+    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         self.stored_state.map(|mut stored_state| {
-            let stack_pointer = self.syscall.switch_to_process(self.sp(), &mut stored_state);
+            let (stack_pointer, switch_reason) =
+                self.syscall.switch_to_process(self.sp(), &mut stored_state);
             self.current_stack_pointer.set(stack_pointer as *const u8);
             self.debug_set_max_stack_depth();
-        });
+            switch_reason
+        })
     }
 
     unsafe fn fault_str(&self, writer: &mut Write) {
