@@ -173,7 +173,6 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
             }
         }
 
-        addr_match = true;
         if addr_match {
             self.rx_client.map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
