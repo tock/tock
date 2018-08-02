@@ -29,7 +29,7 @@ const INTERFACES: [IPAddr; 2] = [
 ];
 
 #[derive(Debug)]
-struct IPAddrPort {
+struct UDPEndpoint {
     addr: IPAddr,
     port: u16,
 }
@@ -42,7 +42,7 @@ pub struct App {
     app_write: Option<AppSlice<Shared, u8>>,
     app_cfg: Option<AppSlice<Shared, u8>>,
     app_rx_cfg: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<[IPAddrPort; 2]>,
+    pending_tx: Option<[UDPEndpoint; 2]>,
 }
 
 #[allow(dead_code)]
@@ -270,7 +270,7 @@ impl<'a> UDPDriver<'a> {
                 if appid == new_appid {
                     let sync_result = self.perform_tx_sync(appid);
                     if sync_result == ReturnCode::SUCCESS {
-                        return ReturnCode::SuccessWithValue{1}; //Indicates packet passed to radio
+                        return ReturnCode::SuccessWithValue { value: 1 }; //Indicates packet passed to radio
                     }
                     sync_result
                 } else {
@@ -283,12 +283,12 @@ impl<'a> UDPDriver<'a> {
     }
 
     #[inline]
-    fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<IPAddrPort> {
-        if buf.len() != mem::size_of::<IPAddrPort>() {
+    fn parse_ip_port_pair(&self, buf: &[u8]) -> Option<UDPEndpoint> {
+        if buf.len() != mem::size_of::<UDPEndpoint>() {
             debug!(
                 "[parse] len is {:?}, not {:?} as expected",
                 buf.len(),
-                mem::size_of::<IPAddrPort>()
+                mem::size_of::<UDPEndpoint>()
             );
             None
         } else {
@@ -296,7 +296,7 @@ impl<'a> UDPDriver<'a> {
             let mut addr = IPAddr::new();
             addr.0.copy_from_slice(a);
 
-            let pair = IPAddrPort {
+            let pair = UDPEndpoint {
                 addr: addr,
                 port: ((p[0] as u16) << 8) + (p[1] as u16),
             };
@@ -408,19 +408,19 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EBUSY;
                     }
                     let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
-                        if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
-                            // debug!("cfg len is {:?}, needed at least {:?}", cfg.len(), 2 * mem::size_of::<IPAddrPort>());
+                        if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
+                            // debug!("cfg len is {:?}, needed at least {:?}", cfg.len(), 2 * mem::size_of::<UDPEndpoint>());
                             return None;
                         }
 
                         debug!(
                             "{:?}",
-                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
+                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..])
                         );
 
                         if let (Some(dst), Some(src)) = (
-                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..]),
-                            self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()]),
+                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..]),
+                            self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<UDPEndpoint>()]),
                         ) {
                             Some([src, dst])
                         } else {
@@ -465,13 +465,13 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         // debug!("payload: {:?}", payload);
         self.apps.each(|app| {
             self.do_with_rx_cfg(app.appid(), payload.len(), |cfg| {
-                if cfg.len() != 2 * mem::size_of::<IPAddrPort>() {
+                if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
                     return ReturnCode::EINVAL;
                 }
 
-                self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<IPAddrPort>()])
+                self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<UDPEndpoint>()])
                     .map(|socket_addr| {
-                        self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<IPAddrPort>()..])
+                        self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..])
                             .map(|requested_addr| {
                                 if (socket_addr.addr == dst_addr
                                     && requested_addr.addr == src_addr
