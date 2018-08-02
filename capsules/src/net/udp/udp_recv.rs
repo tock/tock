@@ -4,6 +4,11 @@ use net::ipv6::ipv6::IP6Header;
 use net::ipv6::ipv6_recv::IP6RecvClient;
 use net::udp::udp::UDPHeader;
 
+/// The UDP driver implements this client interface trait to receive
+/// packets passed up the network stack to the UDPReceiver, and then
+/// distributes them to userland applications from there.
+/// Kernel apps can also instantiate structs that implement this trait
+/// in order to receive UDP packets
 pub trait UDPRecvClient {
     fn receive(
         &self,
@@ -15,6 +20,9 @@ pub trait UDPRecvClient {
     );
 }
 
+/// This struct is set as the client of an IP6Receiver, and passes
+/// received packets up to whatever app layer client assigns itself
+/// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
     client: Cell<Option<&'a UDPRecvClient>>,
 }
