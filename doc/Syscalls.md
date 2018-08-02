@@ -283,7 +283,7 @@ assembly wrapped as Rust function calls.
 ### Context Switch Interface
 
 The architecture crates (in the `/arch` folder) are responsible for implementing
-the `SyscallInterface` trait which defines the functions needed to allow the
+the `UserspaceKernelBoundary` trait which defines the functions needed to allow the
 kernel to correctly switch to userspace. These functions handle the
 architecture-specific details of how the context switch occurs, such as which
 registers are saved on the stack, where the stack pointer is stored, and how

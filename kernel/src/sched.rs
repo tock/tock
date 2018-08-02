@@ -277,7 +277,7 @@ impl Kernel {
                 }
                 Some(Syscall::YIELD) => {
                     process.yield_state();
-                    process.pop_syscall_stack();
+                    process.pop_syscall_stack_frame();
 
                     // There might be already enqueued callbacks
                     continue;

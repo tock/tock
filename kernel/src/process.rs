@@ -12,7 +12,7 @@ use common::{Queue, RingBuffer};
 use platform::mpu;
 use returncode::ReturnCode;
 use sched::Kernel;
-use syscall::{self, Syscall, SyscallInterface};
+use syscall::{self, Syscall, UserspaceKernelBoundary};
 use tbfheader;
 
 /// This is used in the hardfault handler.
@@ -30,7 +30,7 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub unsafe fn load_processes<S: SyscallInterface>(
+pub unsafe fn load_processes<S: UserspaceKernelBoundary>(
     kernel: &'static Kernel,
     syscall: &'static S,
     start_of_flash: *const u8,
@@ -180,7 +180,7 @@ pub trait ProcessType {
     unsafe fn set_syscall_return_value(&self, return_value: isize);
 
     /// Remove the last stack frame from the process.
-    unsafe fn pop_syscall_stack(&self);
+    unsafe fn pop_syscall_stack_frame(&self);
 
     /// Replace the last stack frame with the new function call. This function
     /// is what should be executed when the process is resumed.
@@ -276,7 +276,7 @@ struct ProcessDebug {
     restart_count: usize,
 }
 
-pub struct Process<'a, S: 'static + SyscallInterface> {
+pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
@@ -367,7 +367,7 @@ pub struct Process<'a, S: 'static + SyscallInterface> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<S: SyscallInterface> ProcessType for Process<'a, S> {
+impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     fn schedule(&self, callback: FunctionCall) -> bool {
         // If this app is in the `Fault` state then we shouldn't schedule
         // any work for it.
@@ -728,32 +728,67 @@ impl<S: SyscallInterface> ProcessType for Process<'a, S> {
             .set_syscall_return_value(self.sp(), return_value);
     }
 
-    unsafe fn pop_syscall_stack(&self) {
+    unsafe fn pop_syscall_stack_frame(&self) {
         self.stored_state.map(|mut stored_state| {
-            let new_stack_pointer = self.syscall.pop_syscall_stack(self.sp(), &mut stored_state);
+            let new_stack_pointer = self
+                .syscall
+                .pop_syscall_stack_frame(self.sp(), &mut stored_state);
             self.current_stack_pointer
                 .set(new_stack_pointer as *const u8);
         });
     }
 
     unsafe fn push_function_call(&self, callback: FunctionCall) {
-        // We are setting up a new callback to do, which means this process
-        // wants to execute, so we set that there is work to be done.
-        self.kernel.increment_work();
+        // First we need to get how much memory is available for this app's
+        // stack. Since the stack is at the bottom of the process's memory
+        // region, this is straightforward.
+        let remaining_stack_bytes = self.sp() as usize - self.memory.as_ptr() as usize;
 
-        // We unconditionally run this callback, so this process moves to the
-        // "running" state so the scheduler will schedule it.
-        self.state.set(State::Running);
-
-        // Architecture-specific code handles actually doing the push since we
-        // don't know the details of exactly what the stack frames look like.
+        // Next we should see if we can actually add the frame to the process's
+        // stack. Architecture-specific code handles actually doing the push
+        // since we don't know the details of exactly what the stack frames look
+        // like.
         self.stored_state.map(|stored_state| {
-            let stack_bottom = self
-                .syscall
-                .push_function_call(self.sp(), callback, &stored_state);
+            match self.syscall.push_function_call(
+                self.sp(),
+                remaining_stack_bytes,
+                callback,
+                &stored_state,
+            ) {
+                Ok(stack_bottom) => {
+                    // If we got an `Ok` with the new stack pointer we are all
+                    // set and should mark that this process is ready to be
+                    // scheduled.
 
-            self.current_stack_pointer.set(stack_bottom as *mut u8);
-            self.debug_set_max_stack_depth();
+                    // We just setup up a new callback to do, which means this
+                    // process wants to execute, so we set that there is work to
+                    // be done.
+                    self.kernel.increment_work();
+
+                    // Move this process to the "running" state so the scheduler
+                    // will schedule it.
+                    self.state.set(State::Running);
+
+                    // Update helpful debugging metadata.
+                    self.current_stack_pointer.set(stack_bottom as *mut u8);
+                    self.debug_set_max_stack_depth();
+                }
+
+                Err(bad_stack_bottom) => {
+                    // If we got an Error, then there was no room to add this
+                    // stack frame. This process has essentially faulted, so we
+                    // mark it as such. We also update the debugging metadata so
+                    // that if the process fault message prints then it should
+                    // be easier to debug that the process exceeded its stack.
+                    self.debug.map(|debug| {
+                        let bad_stack_bottom = bad_stack_bottom as *const u8;
+                        if bad_stack_bottom < debug.min_stack_pointer {
+                            debug.min_stack_pointer = bad_stack_bottom;
+                        }
+                    });
+                    self.fault_state();
+                }
+            }
         });
     }
 
@@ -1149,7 +1184,7 @@ impl<S: SyscallInterface> ProcessType for Process<'a, S> {
     }
 }
 
-impl<S: 'static + SyscallInterface> Process<'a, S> {
+impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
     crate unsafe fn create(
         kernel: &'static Kernel,
         syscall: &'static S,

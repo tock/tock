@@ -58,7 +58,7 @@ impl Default for CortexMStoredState {
     }
 }
 
-/// Implementation of the `SyscallInterface` for the Cortex-M non-floating point
+/// Implementation of the `UserspaceKernelBoundary` for the Cortex-M non-floating point
 /// architecture.
 pub struct SysCall();
 
@@ -68,7 +68,7 @@ impl SysCall {
     }
 }
 
-impl kernel::syscall::SyscallInterface for SysCall {
+impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
     unsafe fn get_and_reset_context_switch_reason(&self) -> kernel::syscall::ContextSwitchReason {
@@ -140,7 +140,7 @@ impl kernel::syscall::SyscallInterface for SysCall {
         write_volatile(sp, return_value);
     }
 
-    unsafe fn pop_syscall_stack(
+    unsafe fn pop_syscall_stack_frame(
         &self,
         stack_pointer: *const usize,
         state: &mut CortexMStoredState,
@@ -153,25 +153,34 @@ impl kernel::syscall::SyscallInterface for SysCall {
     unsafe fn push_function_call(
         &self,
         stack_pointer: *const usize,
+        remaining_stack_memory: usize,
         callback: kernel::procs::FunctionCall,
         state: &CortexMStoredState,
-    ) -> *mut usize {
-        // Fill in initial stack expected by SVC handler
-        // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
-        let stack_bottom = (stack_pointer as *mut usize).offset(-8);
-        write_volatile(stack_bottom.offset(7), state.psr);
-        write_volatile(stack_bottom.offset(6), callback.pc | 1);
+    ) -> Result<*mut usize, *mut usize> {
+        // We need 32 bytes to add this frame. Ensure that there are 32 bytes
+        // available on the stack.
+        if remaining_stack_memory < 32 {
+            // Not enough room on the stack to add a frame. Return an error
+            // and where the stack would be to help with debugging.
+            Err((stack_pointer as *mut usize).offset(-8))
+        } else {
+            // Fill in initial stack expected by SVC handler
+            // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
+            let stack_bottom = (stack_pointer as *mut usize).offset(-8);
+            write_volatile(stack_bottom.offset(7), state.psr);
+            write_volatile(stack_bottom.offset(6), callback.pc | 1);
 
-        // Set the LR register to the saved PC so the callback returns to
-        // wherever wait was called. Set lowest bit to one because of THUMB
-        // instruction requirements.
-        write_volatile(stack_bottom.offset(5), state.yield_pc | 0x1);
-        write_volatile(stack_bottom, callback.r0);
-        write_volatile(stack_bottom.offset(1), callback.r1);
-        write_volatile(stack_bottom.offset(2), callback.r2);
-        write_volatile(stack_bottom.offset(3), callback.r3);
+            // Set the LR register to the saved PC so the callback returns to
+            // wherever wait was called. Set lowest bit to one because of THUMB
+            // instruction requirements.
+            write_volatile(stack_bottom.offset(5), state.yield_pc | 0x1);
+            write_volatile(stack_bottom, callback.r0);
+            write_volatile(stack_bottom.offset(1), callback.r1);
+            write_volatile(stack_bottom.offset(2), callback.r2);
+            write_volatile(stack_bottom.offset(3), callback.r3);
 
-        stack_bottom
+            Ok(stack_bottom)
+        }
     }
 
     unsafe fn switch_to_process(

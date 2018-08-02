@@ -58,9 +58,9 @@ pub enum ContextSwitchReason {
 }
 
 /// This trait must be implemented by the architecture of the chip Tock is
-/// running on. It allows the kernel to manage processes in an
-/// architecture-agnostic manner.
-pub trait SyscallInterface {
+/// running on. It allows the kernel to manage switching to and from processes
+/// in an architecture-agnostic manner.
+pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
     /// registers that aren't stored on the stack.
@@ -83,21 +83,34 @@ pub trait SyscallInterface {
 
     /// Remove the last stack frame from the process and return the new stack
     /// pointer location.
-    unsafe fn pop_syscall_stack(
+    ///
+    /// This function assumes that `stack_pointer` is valid and at the end of
+    /// the process stack, that there is at least one stack frame on the
+    /// stack, and that that frame is the syscall.
+    unsafe fn pop_syscall_stack_frame(
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
     ) -> *mut usize;
 
     /// Add a stack frame with the new function call. This function
-    /// is what should be executed when the process is resumed. Returns the new
-    /// stack pointer.
+    /// is what should be executed when the process is resumed.
+    ///
+    /// `remaining_stack_memory` is the number of bytes below the
+    /// `stack_pointer` that is allocated for the process. This value is checked
+    /// by the implementer to ensure that there is room for this stack frame
+    /// without overflowing the stack.
+    ///
+    /// Returns `Ok` with the new stack pointer after adding the stack frame if
+    /// there was room for the stack frame, and an error with where the stack
+    /// would have ended up if the function call had been added otherwise.
     unsafe fn push_function_call(
         &self,
         stack_pointer: *const usize,
+        remaining_stack_memory: usize,
         callback: process::FunctionCall,
         state: &Self::StoredState,
-    ) -> *mut usize;
+    ) -> Result<*mut usize, *mut usize>;
 
     /// Context switch to a specific process.
     unsafe fn switch_to_process(
