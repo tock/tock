@@ -3,7 +3,7 @@
 use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
-use core::ptr::Unique;
+use core::ptr::{write, Unique};
 
 use callback::AppId;
 use process::Error;
@@ -90,9 +90,11 @@ impl Allocator {
                     process
                         .alloc(size_of::<T>())
                         .map_or(Err(Error::OutOfMemory), |arr| {
-                            let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, self.appid);
-                            *owned = data;
-                            Ok(owned)
+                            let ptr = arr.as_mut_ptr() as *mut T;
+                            // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
+                            // case `T` implements the `Drop` trait.
+                            write(ptr, data);
+                            Ok(Owned::new(ptr, self.appid))
                         })
                 })
         }
