@@ -71,29 +71,35 @@ pub unsafe fn load_processes<S: UserspaceKernelBoundary>(
 
 /// This trait is implemented by process structs.
 pub trait ProcessType {
-    /// Queue a callback for the process. This will be added to a per-process
-    /// buffer and passed to the process by the scheduler.
-    fn schedule(&self, callback: FunctionCall) -> bool;
+    /// Queue a `Task` for the process. This will be added to a per-process
+    /// buffer and executed by the scheduler. `Task`s are some function the app
+    /// should run, for example a callback or an IPC call.
+    ///
+    /// This function returns `true` if the `Task` was successfully enqueued,
+    /// and `false` otherwise. This is represented as a simple `bool` because
+    /// this is passed to the capsule that tried to schedule the `Task`.
+    fn enqueue_task(&self, task: Task) -> bool;
 
-    /// Queue an IPC operation for this process.
-    fn schedule_ipc(&self, from: AppId, cb_type: IPCType);
+    /// Remove the scheduled operation from the front of the queue and return it
+    /// to be handled by the scheduler.
+    ///
+    /// If there are no `Task`s in the queue for this process this will return
+    /// `None`.
+    fn dequeue_task(&self) -> Option<Task>;
 
-    /// Remove the scheduled operation from the front of the queue.
-    fn unschedule(&self) -> Option<Task>;
+    /// Returns the current state the process is in. Common states are "running"
+    /// or "yielded".
+    fn get_state(&self) -> State;
 
-    /// Returns the current state of the process. Common states are "running" or
-    /// "yielded".
-    fn current_state(&self) -> State;
-
-    /// Move this process from the running state to the yield state.
-    fn yield_state(&self);
+    /// Move this process from the running state to the yielded state.
+    fn set_yielded_state(&self);
 
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
-    unsafe fn fault_state(&self);
+    unsafe fn set_fault_state(&self);
 
     /// Get the name of the process. Used for IPC.
-    fn get_package_name(&self) -> &[u8];
+    fn get_process_name(&self) -> &[u8];
 
     // memop operations
 
@@ -235,13 +241,18 @@ pub enum Task {
     IPC((AppId, IPCType)),
 }
 
-/// Struct that defines a callback that can be passed to a process.
+/// Struct that defines a callback that can be passed to a process. The callback
+/// takes four arguments that are `Driver` and callback specific, so they are
+/// represented generically here.
+///
+/// Likely these four arguments will get passed as the first four register
+/// values, but this is architecture-dependent.
 #[derive(Copy, Clone, Debug)]
 pub struct FunctionCall {
-    pub r0: usize,
-    pub r1: usize,
-    pub r2: usize,
-    pub r3: usize,
+    pub argument0: usize,
+    pub argument1: usize,
+    pub argument2: usize,
+    pub argument3: usize,
     pub pc: usize,
 }
 
@@ -360,26 +371,24 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     /// process.
     tasks: MapCell<RingBuffer<'a, Task>>,
 
-    /// Name of the app. Public so that IPC can use it.
-    package_name: &'static str,
+    /// Name of the app.
+    process_name: &'static str,
 
     /// Values kept so that we can print useful debug messages when apps fault.
     debug: MapCell<ProcessDebug>,
 }
 
 impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
-    fn schedule(&self, callback: FunctionCall) -> bool {
+    fn enqueue_task(&self, task: Task) -> bool {
         // If this app is in the `Fault` state then we shouldn't schedule
         // any work for it.
-        if self.current_state() == State::Fault {
+        if self.state.get() == State::Fault {
             return false;
         }
 
         self.kernel.increment_work();
 
-        let ret = self
-            .tasks
-            .map_or(false, |tasks| tasks.enqueue(Task::FunctionCall(callback)));
+        let ret = self.tasks.map_or(false, |tasks| tasks.enqueue(task));
 
         // Make a note that we lost this callback if the enqueue function
         // fails.
@@ -392,41 +401,24 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         ret
     }
 
-    fn schedule_ipc(&self, from: AppId, cb_type: IPCType) {
-        self.kernel.increment_work();
-
-        let ret = self
-            .tasks
-            .map_or(false, |tasks| tasks.enqueue(Task::IPC((from, cb_type))));
-
-        // Make a note that we lost this callback if the enqueue function
-        // fails.
-        if ret == false {
-            self.debug.map(|debug| {
-                debug.dropped_callback_count += 1;
-            });
-        }
-    }
-
-    fn current_state(&self) -> State {
+    fn get_state(&self) -> State {
         self.state.get()
     }
 
-    fn yield_state(&self) {
-        let current_state = self.state.get();
-        if current_state == State::Running {
+    fn set_yielded_state(&self) {
+        if self.state.get() == State::Running {
             self.state.set(State::Yielded);
             self.kernel.decrement_work();
         }
     }
 
-    unsafe fn fault_state(&self) {
+    unsafe fn set_fault_state(&self) {
         self.state.set(State::Fault);
 
         match self.fault_response {
             FaultResponse::Panic => {
                 // process faulted. Panic and print status
-                panic!("Process {} had a fault", self.package_name);
+                panic!("Process {} had a fault", self.process_name);
             }
             FaultResponse::Restart => {
                 // Remove the tasks that were scheduled for the app from the
@@ -476,10 +468,10 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
                 self.tasks.map(|tasks| {
                     tasks.enqueue(Task::FunctionCall(FunctionCall {
                         pc: init_fn,
-                        r0: flash_app_start,
-                        r1: self.memory.as_ptr() as usize,
-                        r2: self.memory.len() as usize,
-                        r3: self.app_break.get() as usize,
+                        argument0: flash_app_start,
+                        argument1: self.memory.as_ptr() as usize,
+                        argument2: self.memory.len() as usize,
+                        argument3: self.app_break.get() as usize,
                     }));
                 });
 
@@ -488,7 +480,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         }
     }
 
-    fn unschedule(&self) -> Option<Task> {
+    fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.dequeue().map(|cb| {
                 self.kernel.decrement_work();
@@ -703,8 +695,8 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
     }
 
-    fn get_package_name(&self) -> &[u8] {
-        self.package_name.as_bytes()
+    fn get_process_name(&self) -> &[u8] {
+        self.process_name.as_bytes()
     }
 
     unsafe fn get_and_reset_context_switch_reason(&self) -> syscall::ContextSwitchReason {
@@ -786,7 +778,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
                             debug.min_stack_pointer = bad_stack_bottom;
                         }
                     });
-                    self.fault_state();
+                    self.set_fault_state();
                 }
             }
         });
@@ -1060,7 +1052,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
              App: {}   -   [{:?}]\
              \r\n Events Queued: {}   Syscall Count: {}   Dropped Callback Count: {}\
              \n Restart Count: {}\n",
-            self.package_name,
+            self.process_name,
             self.state.get(),
             events_queued,
             syscall_count,
@@ -1204,7 +1196,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
 
             // Otherwise, actually load the app.
             let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
-            let package_name = tbf_header.get_package_name(app_flash_address);
+            let process_name = tbf_header.get_package_name(app_flash_address);
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
@@ -1247,7 +1239,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             if app_ram_size > remaining_app_memory_size {
                 panic!(
                     "{:?} failed to load. Insufficient memory. Requested {} have {}",
-                    package_name, app_ram_size, remaining_app_memory_size
+                    process_name, app_ram_size, remaining_app_memory_size
                 );
             }
 
@@ -1315,7 +1307,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
                 Cell::new((ptr::null(), math::PowerOfTwo::zero())),
             ];
             process.tasks = MapCell::new(tasks);
-            process.package_name = package_name;
+            process.process_name = process_name;
 
             process.debug = MapCell::new(ProcessDebug {
                 app_heap_start_pointer: app_heap_start_pointer,
@@ -1331,7 +1323,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
                 panic!(
                     "{:?} process image invalid. \
                      init_fn address must end in 1 to be Thumb, got {:#X}",
-                    package_name, init_fn
+                    process_name, init_fn
                 );
             }
 
@@ -1341,10 +1333,10 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             process.tasks.map(|tasks| {
                 tasks.enqueue(Task::FunctionCall(FunctionCall {
                     pc: init_fn,
-                    r0: flash_app_start,
-                    r1: process.memory.as_ptr() as usize,
-                    r2: process.memory.len() as usize,
-                    r3: process.app_break.get() as usize,
+                    argument0: flash_app_start,
+                    argument1: process.memory.as_ptr() as usize,
+                    argument2: process.memory.len() as usize,
+                    argument3: process.app_break.get() as usize,
                 }));
             });
 

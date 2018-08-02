@@ -211,7 +211,7 @@ impl Kernel {
                 break;
             }
 
-            match process.current_state() {
+            match process.get_state() {
                 process::State::Running => {
                     process.setup_mpu(chip.mpu());
                     chip.mpu().enable_mpu();
@@ -220,7 +220,7 @@ impl Kernel {
                     systick.enable(false);
                     chip.mpu().disable_mpu();
                 }
-                process::State::Yielded => match process.unschedule() {
+                process::State::Yielded => match process.dequeue_task() {
                     None => break,
                     Some(cb) => {
                         match cb {
@@ -255,13 +255,13 @@ impl Kernel {
             match process_state {
                 ContextSwitchReason::Fault => {
                     // Let process deal with it as appropriate.
-                    process.fault_state();
+                    process.set_fault_state();
                     continue;
                 }
                 ContextSwitchReason::SyscallFired => {
                     // Keep running this function.
                 }
-                ContextSwitchReason::Other => {
+                ContextSwitchReason::TimesliceExpired => {
                     // break to handle other processes.
                     break;
                 }
@@ -276,7 +276,7 @@ impl Kernel {
                     process.set_syscall_return_value(res.into());
                 }
                 Some(Syscall::YIELD) => {
-                    process.yield_state();
+                    process.set_yielded_state();
                     process.pop_syscall_stack_frame();
 
                     // There might be already enqueued callbacks

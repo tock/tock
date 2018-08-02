@@ -89,7 +89,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         } else if syscall_fired == 1 {
             kernel::syscall::ContextSwitchReason::SyscallFired
         } else {
-            kernel::syscall::ContextSwitchReason::Other
+            kernel::syscall::ContextSwitchReason::TimesliceExpired
         }
     }
 
@@ -174,10 +174,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // wherever wait was called. Set lowest bit to one because of THUMB
             // instruction requirements.
             write_volatile(stack_bottom.offset(5), state.yield_pc | 0x1);
-            write_volatile(stack_bottom, callback.r0);
-            write_volatile(stack_bottom.offset(1), callback.r1);
-            write_volatile(stack_bottom.offset(2), callback.r2);
-            write_volatile(stack_bottom.offset(3), callback.r3);
+            write_volatile(stack_bottom, callback.argument0);
+            write_volatile(stack_bottom.offset(1), callback.argument1);
+            write_volatile(stack_bottom.offset(2), callback.argument2);
+            write_volatile(stack_bottom.offset(3), callback.argument3);
 
             Ok(stack_bottom)
         }

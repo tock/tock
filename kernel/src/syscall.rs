@@ -49,12 +49,12 @@ pub enum Syscall {
 
 /// Why the process stopped executing and execution returned to the kernel.
 pub enum ContextSwitchReason {
-    /// Process exceeded its timeslice, otherwise catch-all.
-    Other,
     /// Process called a syscall.
     SyscallFired,
     /// Process triggered the hardfault handler.
     Fault,
+    /// Process exceeded its timeslice.
+    TimesliceExpired,
 }
 
 /// This trait must be implemented by the architecture of the chip Tock is
