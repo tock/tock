@@ -80,28 +80,37 @@ udp.c and udp.h in libtock-c make it easy to interact with this driver interface
 Important functions available to userland apps written in c include:
 
 `udp_socket()` - sets the port on which the app will receive udp packets,
-and sets the `src_port` of outgoing packets sent via that socket. Once socket
-binding is implemented in the kernel, this function will handle reserving ports
-to listen on and send from.
+                 and sets the `src_port` of outgoing packets sent via that socket. Once socket
+                 binding is implemented in the kernel, this function will handle reserving ports
+                 to listen on and send from.
 
 `udp_close()` - currently just returns success, but once socket binding has been
-implemented in the kernel, this function will handle freeing bound ports.
+                implemented in the kernel, this function will handle freeing bound ports.
 
 `udp_send_to()` - Sends a udp packet to a specified addr/port pair, returns the result
-of the tranmission once the radio has transmitted it (or once a failure has occured).
+                  of the tranmission once the radio has transmitted it (or once a failure has occured).
 
 `udp_recv_from_sync()` - Pass an interface to listen on and an incoming source address
-to listen for. Sets up a callback to wait for a received packet, and yeilds until that
-callback is triggered. This function never returns if a packet is not received.
+                         to listen for. Sets up a callback to wait for a received packet, and yeilds until that
+                         callback is triggered. This function never returns if a packet is not received.
 
 `udp_recv_from()` - Pass an interface to listen on and an incoming source address to
-listen for. However, this takes in a buffer to which the received packet should be placed,
-and returns the callback that will be triggered when a packet is received.
+                    listen for. However, this takes in a buffer to which the received packet should be placed,
+                    and returns the callback that will be triggered when a packet is received.
 
-`udp_list_ifaces()` Populates the passed pointer of ipv6 addresses with the available
-ipv6 addresses of the interfaces on the device. Right now this merely returns a constant
-hardcoded into the UDP driver, but should change to return the source IP addresses held
-in the network configuration file once that is created. Returns up to `len` addresses.
+`udp_list_ifaces()` - Populates the passed pointer of ipv6 addresses with the available
+                      ipv6 addresses of the interfaces on the device. Right now this merely returns a constant
+                      hardcoded into the UDP driver, but should change to return the source IP addresses held
+                      in the network configuration file once that is created. Returns up to `len` addresses.
+
+Other design notes:
+
+The current design of the driver has a few limitations, these include:
+
+- Currently, any app can listen on any address/port pair
+
+- The current tx implementation allows for starvation, e.g. an app with an earlier app ID can
+  starve a later ID by sending constantly.
 
 ### POSIX Socket API Functions
 Below is a fairly comprehensive overview of the POSIX networking socket

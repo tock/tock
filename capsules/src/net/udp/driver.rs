@@ -372,15 +372,19 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
     /// - `2`: Transmit payload returns EBUSY is this process already has a pending tx.
-    /// Returns EINVAL if no valid buffer has been loaded into the write buffer,
-    /// or if the config buffer is the wrong length, or if the destination and source
-    /// oirt/address pairs cannot be parsed.
-    /// Otherwise, returns the result of do_next_tx_sync(). Notably, a successful
-    /// transmit can produce two different success values. If success is returned,
-    /// this simply means that the packet was queued. However, if SuccessWithValue
-    /// is returned with value 1, this means the the packet was successfully passed
-    /// the radio without any errors, which tells the userland application that it can
-    /// immediately queue another packet without having to wait for a callback.
+    ///        Returns EINVAL if no valid buffer has been loaded into the write buffer,
+    ///        or if the config buffer is the wrong length, or if the destination and source
+    ///        port/address pairs cannot be parsed.
+    ///        Otherwise, returns the result of do_next_tx_sync(). Notably, a successful
+    ///        transmit can produce two different success values. If success is returned,
+    ///        this simply means that the packet was queued. However, if SuccessWithValue
+    ///        is returned with value 1, this means the the packet was successfully passed
+    ///        the radio without any errors, which tells the userland application that it can
+    ///        immediately queue another packet without having to wait for a callback.
+    ///
+    ///        Notably, the currently transmit implementation allows for starvation - an
+    ///        an app with a lower app id can send constantly and starve an app with a
+    ///        later ID.
 
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
