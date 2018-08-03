@@ -377,10 +377,15 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        port/address pairs cannot be parsed.
     ///        Otherwise, returns the result of do_next_tx_sync(). Notably, a successful
     ///        transmit can produce two different success values. If success is returned,
-    ///        this simply means that the packet was queued. However, if SuccessWithValue
+    ///        this simply means that the packet was queued. In this case, the app still
+    ///        still needs to wait for a callback to check if any errors occurred before
+    ///        the packet was passed to the radio. However, if SuccessWithValue
     ///        is returned with value 1, this means the the packet was successfully passed
-    ///        the radio without any errors, which tells the userland application that it can
-    ///        immediately queue another packet without having to wait for a callback.
+    ///        the radio without any errors, which tells the userland application that it does
+    ///        not need to wait for a callback to check if any errors occured while the packet
+    ///        was being passed down to the radio. Any successful return value indicates that
+    ///        the app should wait for a send_done() callback before attempting to queue another
+    ///        packet.
     ///
     ///        Notably, the currently transmit implementation allows for starvation - an
     ///        an app with a lower app id can send constantly and starve an app with a
