@@ -5,6 +5,7 @@ use kernel::common::regs::{ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 use pm;
+use kernel::ReturnCode;
 
 #[repr(C)]
 struct TrngRegisters {
@@ -45,7 +46,7 @@ const BASE_ADDRESS: StaticRef<TrngRegisters> =
 
 pub struct Trng<'a> {
     regs: StaticRef<TrngRegisters>,
-    client: OptionalCell<&'a rng::Client>,
+    client: OptionalCell<&'a rng::Client32>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
@@ -68,7 +69,7 @@ impl Trng<'a> {
         regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
-            let result = client.randomness_available(&mut TrngIter(self));
+            let result = client.randomness_available(&mut TrngIter(self), ReturnCode::SUCCESS);
             if let Continue::Done = result {
                 // disable controller
                 regs.cr
@@ -80,9 +81,6 @@ impl Trng<'a> {
         });
     }
 
-    pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(client);
-    }
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
@@ -100,13 +98,23 @@ impl Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl rng::RNG for Trng<'a> {
-    fn get(&self) {
+impl rng::Rng32<'a> for Trng<'a> {
+    fn get(&self) -> ReturnCode {
         let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
         regs.cr
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
         regs.ier.write(Interrupt::DATRDY::SET);
+        ReturnCode::SUCCESS
     }
+
+    fn cancel(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn set_client(&'a self, client: &'a rng::Client32) {
+        self.client.set(client);
+    }
+
 }

@@ -15,7 +15,8 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::hil::rng;
+use kernel::common::cells::OptionalCell;
+use kernel::hil::rng::{self, Client32, Client8, Rng32, Rng8};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
@@ -29,14 +30,14 @@ pub struct App {
     idx: usize,
 }
 
-pub struct SimpleRng<'a, RNG: rng::RNG> {
-    rng: &'a RNG,
+pub struct SimpleRng<'a> {
+    rng: &'a Rng32<'a>,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
 
-impl<RNG: rng::RNG> SimpleRng<'a, RNG> {
-    pub fn new(rng: &'a RNG, grant: Grant<App>) -> SimpleRng<'a, RNG> {
+impl<'a> SimpleRng<'a> {
+    pub fn new(rng: &'a Rng32<'a>, grant: Grant<App>) -> SimpleRng<'a> {
         SimpleRng {
             rng: rng,
             apps: grant,
@@ -45,8 +46,10 @@ impl<RNG: rng::RNG> SimpleRng<'a, RNG> {
     }
 }
 
-impl<RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
-    fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
+impl<'a> Client32 for SimpleRng<'a> {
+    fn randomness_available(&self,
+                            randomness: &mut Iterator<Item = u32>,
+                            _error: ReturnCode) -> rng::Continue {
         let mut done = true;
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
@@ -119,7 +122,7 @@ impl<RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
     }
 }
 
-impl<RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
+impl<'a> Driver for SimpleRng<'a> {
     fn allow(
         &self,
         appid: AppId,
@@ -184,6 +187,102 @@ impl<RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                     .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+}
+
+
+pub struct Rng8to32<'a> {
+    rng: &'a Rng8<'a>,
+    client: OptionalCell<&'a rng::Client32>,
+    count: Cell<usize>,
+    bytes: Cell<u32>,
+
+}
+
+impl Rng8to32<'a> {
+    pub fn new(rng: &'a Rng8<'a>) -> Rng8to32<'a> {
+        Rng8to32 {
+            rng: rng,
+            client: OptionalCell::empty(),
+            count: Cell::new(0),
+            bytes: Cell::new(0),
+        }
+    }
+}
+
+impl Rng32<'a> for Rng8to32<'a> {
+    fn get(&self) -> ReturnCode {
+        self.rng.get()
+    }
+
+    /// Cancel acquisition of random numbers.
+    ///
+    /// There are three valid return values:
+    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///     or there was no oustanding request. No `randomness_available`
+    ///     callback will be issued.
+    ///   - FAIL: There will be a randomness_available callback, which
+    ///     may or may not return an error code.
+    fn cancel(&self) -> ReturnCode {
+        self.rng.cancel()
+    }
+
+    fn set_client(&'a self, client: &'a Client32) {
+        self.rng.set_client(self);
+        self.client.set(client);
+    }
+}
+
+impl<'a> Client8 for Rng8to32<'a> {
+    fn randomness_available(&self,
+                            randomness: &mut Iterator<Item = u8>,
+                            error: ReturnCode) -> rng::Continue {
+        self.client.map_or(rng::Continue::Done, |client|
+            {
+                if error != ReturnCode::SUCCESS {
+                    client.randomness_available(&mut Rng8to32Iter(self), error)
+                } else {
+                    let count = self.count.get();
+                    // Read in one byte at a time until we have 4;
+                    // return More if we need more, else return the value
+                    // of the upper randomness_available, as if it needs more
+                    // we'll need more from the underlying Rng8.
+                    while count < 4 {
+                        let byte = randomness.next();
+                        match byte {
+                            None => {
+                                return rng::Continue::More;
+                            },
+                            Some(val) => {
+                                let current = self.bytes.get();
+                                let bits = val as u32;
+                                let result = current | bits << (8 * count);
+                                self.count.set(count + 1);
+                                self.bytes.set(result)
+                            }
+                        }
+                    }
+                    client.randomness_available(&mut Rng8to32Iter(self),
+                                                ReturnCode::SUCCESS)
+                }
+            }
+        )
+    }
+}
+
+struct Rng8to32Iter<'a, 'b: 'a>(&'a Rng8to32<'b>);
+
+impl Iterator for Rng8to32Iter<'a, 'b> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        let count = self.0.count.get();
+        if count == 4 {
+            self.0.count.set(0);
+            Some(self.0.bytes.get())
+        } else {
+            None
         }
     }
 }

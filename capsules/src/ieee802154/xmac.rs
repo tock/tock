@@ -29,7 +29,7 @@
 //! which should fully encode frames before passing it to this layer.
 //!
 //! In general, given a radio driver `RF233Device`,
-//! a `kernel::hil::time::Alarm`, and a `kernel::hil::rng::RNG` device, the
+//! a `kernel::hil::time::Alarm`, and a `kernel::hil::rng::Rng32` device, the
 //! necessary modifications to the board configuration are shown below for `imix`s:
 //!
 //! ```rust
@@ -80,7 +80,7 @@ use core::cell::Cell;
 use ieee802154::mac::Mac;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
-use kernel::hil::rng::{self, RNG};
+use kernel::hil::rng::{self, Rng32};
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 use kernel::ReturnCode;
 use net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
@@ -145,7 +145,7 @@ pub struct XMacHeaderInfo {
 pub struct XMac<'a, R: radio::Radio, A: Alarm> {
     radio: &'a R,
     alarm: &'a A,
-    rng: &'a RNG,
+    rng: &'a Rng32<'a>,
     tx_client: OptionalCell<&'static radio::TxClient>,
     rx_client: OptionalCell<&'static radio::RxClient>,
     state: Cell<XMacState>,
@@ -163,7 +163,7 @@ pub struct XMac<'a, R: radio::Radio, A: Alarm> {
 }
 
 impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
-    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a RNG) -> XMac<'a, R, A> {
+    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a Rng32<'a>) -> XMac<'a, R, A> {
         XMac {
             radio: radio,
             alarm: alarm,
@@ -308,8 +308,10 @@ impl<R: radio::Radio, A: Alarm> XMac<'a, R, A> {
     }
 }
 
-impl<R: radio::Radio, A: Alarm> rng::Client for XMac<'a, R, A> {
-    fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
+impl<R: radio::Radio, A: Alarm> rng::Client32 for XMac<'a, R, A> {
+    fn randomness_available(&self,
+                            randomness: &mut Iterator<Item = u32>,
+                            _error: ReturnCode) -> rng::Continue {
         match randomness.next() {
             Some(random) => {
                 if self.state.get() == XMacState::TX_DELAY {
@@ -317,7 +319,7 @@ impl<R: radio::Radio, A: Alarm> rng::Client for XMac<'a, R, A> {
                     // detected, we backoff a random amount before sending our
                     // own data with no preamble. This assumes that the reciever
                     // will remain awake long enough to receive our transmission,
-                    // as it should with this implementation. Since RNG is
+                    // as it should with this implementation. Since Rng32 is
                     // asynchronous, we account for the time spent waiting for
                     // the callback and randomly determine the remaining time
                     // spent backing off.
@@ -581,7 +583,7 @@ impl<R: radio::Radio, A: Alarm> radio::RxClient for XMac<'a, R, A> {
                             if tx_dst_addr == dst_addr {
                                 // Randomize backoff - since the callback is asynchronous, set the
                                 // timer for the max and adjust later. As a result, we can't
-                                // backoff for more than the RNG generation time.
+                                // backoff for more than the Rng32 generation time.
                                 self.state.set(XMacState::TX_DELAY);
                                 self.rng.get();
                                 self.set_timer_ms::<A>(MAX_TX_BACKOFF_MS);
