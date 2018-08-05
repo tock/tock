@@ -192,7 +192,7 @@ impl<'a> Driver for SimpleRng<'a> {
 }
 
 
-pub struct Rng8to32<'a> {
+pub struct Rng8To32<'a> {
     rng: &'a Rng8<'a>,
     client: OptionalCell<&'a rng::Client32>,
     count: Cell<usize>,
@@ -200,9 +200,9 @@ pub struct Rng8to32<'a> {
 
 }
 
-impl Rng8to32<'a> {
-    pub fn new(rng: &'a Rng8<'a>) -> Rng8to32<'a> {
-        Rng8to32 {
+impl Rng8To32<'a> {
+    pub fn new(rng: &'a Rng8<'a>) -> Rng8To32<'a> {
+        Rng8To32 {
             rng: rng,
             client: OptionalCell::empty(),
             count: Cell::new(0),
@@ -211,7 +211,7 @@ impl Rng8to32<'a> {
     }
 }
 
-impl Rng32<'a> for Rng8to32<'a> {
+impl Rng32<'a> for Rng8To32<'a> {
     fn get(&self) -> ReturnCode {
         self.rng.get()
     }
@@ -234,16 +234,16 @@ impl Rng32<'a> for Rng8to32<'a> {
     }
 }
 
-impl<'a> Client8 for Rng8to32<'a> {
+impl<'a> Client8 for Rng8To32<'a> {
     fn randomness_available(&self,
                             randomness: &mut Iterator<Item = u8>,
                             error: ReturnCode) -> rng::Continue {
         self.client.map_or(rng::Continue::Done, |client|
             {
                 if error != ReturnCode::SUCCESS {
-                    client.randomness_available(&mut Rng8to32Iter(self), error)
+                    client.randomness_available(&mut Rng8To32Iter(self), error)
                 } else {
-                    let count = self.count.get();
+                    let mut count = self.count.get();
                     // Read in one byte at a time until we have 4;
                     // return More if we need more, else return the value
                     // of the upper randomness_available, as if it needs more
@@ -257,23 +257,27 @@ impl<'a> Client8 for Rng8to32<'a> {
                             Some(val) => {
                                 let current = self.bytes.get();
                                 let bits = val as u32;
-                                let result = current | bits << (8 * count);
-                                self.count.set(count + 1);
+                                let result = current | (bits << (8 * count));
+                                count = count + 1;
+                                //debug!("Count: {}, current: {:08x}, bits: {:08x}, result: {:08x}", count, current, bits, result);
+                                self.count.set(count);
                                 self.bytes.set(result)
                             }
                         }
                     }
-                    client.randomness_available(&mut Rng8to32Iter(self),
-                                                ReturnCode::SUCCESS)
+                    let rval = client.randomness_available(&mut Rng8To32Iter(self),
+                                                           ReturnCode::SUCCESS);
+                    self.bytes.set(0);
+                    rval
                 }
             }
         )
     }
 }
 
-struct Rng8to32Iter<'a, 'b: 'a>(&'a Rng8to32<'b>);
+struct Rng8To32Iter<'a, 'b: 'a>(&'a Rng8To32<'b>);
 
-impl Iterator for Rng8to32Iter<'a, 'b> {
+impl Iterator for Rng8To32Iter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -281,6 +285,94 @@ impl Iterator for Rng8to32Iter<'a, 'b> {
         if count == 4 {
             self.0.count.set(0);
             Some(self.0.bytes.get())
+        } else {
+            None
+        }
+    }
+}
+
+
+pub struct Rng32To8<'a> {
+    rng: &'a Rng32<'a>,
+    client: OptionalCell<&'a rng::Client8>,
+    randomness: Cell<u32>,
+    bytes_consumed: Cell<usize>,
+
+}
+
+impl Rng32To8<'a> {
+    pub fn new(rng: &'a Rng32<'a>) -> Rng32To8<'a> {
+        Rng32To8 {
+            rng: rng,
+            client: OptionalCell::empty(),
+            randomness: Cell::new(0),
+            bytes_consumed: Cell::new(0),
+        }
+    }
+}
+
+impl Rng8<'a> for Rng32To8<'a> {
+    fn get(&self) -> ReturnCode {
+        self.rng.get()
+    }
+
+    /// Cancel acquisition of random numbers.
+    ///
+    /// There are three valid return values:
+    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
+    ///     or there was no oustanding request. No `randomness_available`
+    ///     callback will be issued.
+    ///   - FAIL: There will be a randomness_available callback, which
+    ///     may or may not return an error code.
+    fn cancel(&self) -> ReturnCode {
+        self.rng.cancel()
+    }
+
+    fn set_client(&'a self, client: &'a Client8) {
+        self.rng.set_client(self);
+        self.client.set(client);
+    }
+}
+
+
+impl<'a> Client32 for Rng32To8<'a> {
+    fn randomness_available(&self,
+                            randomness: &mut Iterator<Item = u32>,
+                            error: ReturnCode) -> rng::Continue {
+        self.client.map_or(rng::Continue::Done, |client| {
+            if error != ReturnCode::SUCCESS {
+                client.randomness_available(&mut Rng32To8Iter(self), error)
+            } else {
+                let r = randomness.next();
+                match r {
+                    None => return rng::Continue::More,
+                    Some(val) => {
+                        self.randomness.set(val);
+                        self.bytes_consumed.set(0);
+                    }
+                }
+                client.randomness_available(&mut Rng32To8Iter(self),
+                                            ReturnCode::SUCCESS)
+            }
+        })
+    }
+}
+
+struct Rng32To8Iter<'a, 'b: 'a>(&'a Rng32To8<'b>);
+
+impl Iterator for Rng32To8Iter<'a, 'b> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        let bytes_consumed = self.0.bytes_consumed.get();
+        if bytes_consumed < 4 {
+            // Pull out a byte and right shift the u32 so its
+            // least significant byte is fresh randomness.
+            let randomness = self.0.randomness.get();
+            let byte = (randomness & 0xff) as u8;
+            self.0.randomness.set(randomness >> 8);
+            self.0.bytes_consumed.set(bytes_consumed + 1);
+            Some(byte)
         } else {
             None
         }

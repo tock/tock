@@ -57,6 +57,9 @@ mod aes_test;
 mod aes_ccm_test;
 
 #[allow(dead_code)]
+mod rng_test;
+
+#[allow(dead_code)]
 mod power;
 
 // State for loading apps.
@@ -655,6 +658,7 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
 
+    //rng_test::run_rng32();
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
