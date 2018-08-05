@@ -96,7 +96,7 @@ pub trait ProcessType {
 
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
-    unsafe fn set_fault_state(&self);
+    fn set_fault_state(&self);
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &[u8];
@@ -409,7 +409,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         }
     }
 
-    unsafe fn set_fault_state(&self) {
+    fn set_fault_state(&self) {
         self.state.set(State::Fault);
 
         match self.fault_response {
@@ -444,13 +444,16 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
                 // We are going to start this process over again, so need
                 // the init_fn location.
                 let app_flash_address = self.flash_start();
-                let init_fn = app_flash_address
-                    .offset(self.header.get_init_function_offset() as isize)
-                    as usize;
+                let init_fn = unsafe {
+                    app_flash_address.offset(self.header.get_init_function_offset() as isize)
+                        as usize
+                };
                 self.state.set(State::Yielded);
 
                 // Need to reset the grant region.
-                self.grant_ptrs_reset();
+                unsafe {
+                    self.grant_ptrs_reset();
+                }
                 self.kernel_memory_break
                     .set(self.original_kernel_memory_break);
 
