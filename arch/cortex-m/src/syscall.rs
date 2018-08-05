@@ -19,6 +19,13 @@ pub static mut SYSCALL_FIRED: usize = 0;
 #[used]
 pub static mut APP_FAULT: usize = 0;
 
+/// This is called in the systick handler. When set to 1 this means the process
+/// exceeded its timeslice. Marked `pub` because it is used in the cortex-m*
+/// specific handler.
+#[no_mangle]
+#[used]
+pub static mut SYSTICK_EXPIRED: usize = 0;
+
 #[allow(improper_ctypes)]
 extern "C" {
     pub fn switch_to_user(user_stack: *const u8, process_regs: &mut [usize; 8]) -> *mut u8;
@@ -184,6 +191,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let syscall_fired = read_volatile(&SYSCALL_FIRED);
         write_volatile(&mut SYSCALL_FIRED, 0);
 
+        // Check to see if the systick timer for the process expired.
+        let systick_expired = read_volatile(&SYSTICK_EXPIRED);
+        write_volatile(&mut SYSTICK_EXPIRED, 0);
+
         // Now decide the reason based on which flags were set.
         let switch_reason = if app_fault == 1 {
             // APP_FAULT takes priority. This means we hit the hardfault handler
@@ -191,8 +202,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             kernel::syscall::ContextSwitchReason::Fault
         } else if syscall_fired == 1 {
             kernel::syscall::ContextSwitchReason::SyscallFired
-        } else {
+        } else if systick_expired == 1 {
             kernel::syscall::ContextSwitchReason::TimesliceExpired
+        } else {
+            // If something else happened, which shouldn't, we fallback to this
+            // process having faulted.
+            kernel::syscall::ContextSwitchReason::Fault
         };
 
         (new_stack_pointer as *mut usize, switch_reason)
