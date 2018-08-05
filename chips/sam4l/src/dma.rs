@@ -4,7 +4,7 @@ use core::cell::Cell;
 use core::{cmp, intrinsics};
 use kernel::common::cells::VolatileCell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use pm;
 

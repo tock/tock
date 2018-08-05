@@ -7,7 +7,8 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use ioc;
-use kernel::common::regs::{ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 
@@ -37,7 +38,7 @@ pub struct GPIOPin {
     pin: usize,
     pin_mask: u32,
     client_data: Cell<usize>,
-    client: Cell<Option<&'static hil::gpio::Client>>,
+    client: OptionalCell<&'static hil::gpio::Client>,
 }
 
 impl GPIOPin {
@@ -47,7 +48,7 @@ impl GPIOPin {
             pin: pin,
             pin_mask: 1 << (pin % NUM_PINS),
             client_data: Cell::new(0),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -56,11 +57,11 @@ impl GPIOPin {
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired(self.client_data.get());
         });
     }

@@ -33,7 +33,7 @@
 //! * Francine Mäkelä
 //! * Date: May 04, 2018
 
-use kernel::common::regs::{FieldValue, ReadWrite};
+use kernel::common::registers::{FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 
 const PPI_BASE: StaticRef<PpiRegisters> =

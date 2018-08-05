@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
-use kernel::common::regs::{FieldValue, ReadWrite};
+use kernel::common::registers::{FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 

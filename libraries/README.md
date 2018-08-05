@@ -17,7 +17,7 @@ file. For example:
 
 ```toml
 [dependencies]
-tock-regs = { git = "https://github.com/tock/tock" }
+tock-registers = { git = "https://github.com/tock/tock" }
 ```
 
 Cargo will handle finding the correct folder inside of the tock repository.

@@ -42,6 +42,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000001;
 
+#[derive(Default)]
 pub struct App {
     write_callback: Option<Callback>,
     write_buffer: Option<AppSlice<Shared, u8>>,
@@ -52,22 +53,6 @@ pub struct App {
     read_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
     read_len: usize,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            write_callback: None,
-            write_buffer: None,
-            write_len: 0,
-            write_remaining: 0,
-            pending_write: false,
-
-            read_callback: None,
-            read_buffer: None,
-            read_len: 0,
-        }
-    }
 }
 
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
@@ -367,46 +352,45 @@ impl<U: UART> Client for Console<'a, U> {
     }
 
     fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
-        self.rx_buffer.replace(buffer);
-        self.rx_in_progress.take().map(|appid| {
-            self.apps
-                .enter(appid, |app, _| {
-                    app.read_callback.map(|mut cb| {
-                        let (result, len) = match error {
-                            uart::Error::CommandComplete => {
-                                // Copy the data into the application buffer, if it exists
-                                match app.read_buffer.take() {
-                                    Some(mut app_buffer) => {
-                                        // We used UART::receive(),
-                                        // so we received the requested length
-                                        self.rx_buffer.map(|buffer| {
-                                            // Copy our driver's buffer into the app's buffer
-                                            for (i, c) in app_buffer.as_mut()[0..rx_len]
-                                                .iter_mut()
-                                                .enumerate()
-                                            {
-                                                *c = buffer[i]
-                                            }
-                                        });
-                                        (ReturnCode::SUCCESS, rx_len)
+        self.rx_in_progress
+            .take()
+            .map(|appid| {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.read_callback.map(|mut cb| {
+                            // An iterator over the returned buffer yielding only the first `rx_len`
+                            // bytes
+                            let rx_buffer = buffer.iter().take(rx_len);
+                            match error {
+                                uart::Error::CommandComplete | uart::Error::Aborted => {
+                                    // Receive some bytes, signal error type and return bytes to process buffer
+                                    if let Some(mut app_buffer) = app.read_buffer.take() {
+                                        for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
+                                            *a = *b;
+                                        }
+                                        let rettype = if error == uart::Error::CommandComplete {
+                                            ReturnCode::SUCCESS
+                                        } else {
+                                            ReturnCode::ECANCEL
+                                        };
+                                        cb.schedule(From::from(rettype), rx_len, 0);
+                                    } else {
+                                        // Oops, no app buffer
+                                        cb.schedule(From::from(ReturnCode::EINVAL), 0, 0);
                                     }
-                                    None => (ReturnCode::EINVAL, 0),
+                                }
+                                _ => {
+                                    // Some UART error occurred
+                                    cb.schedule(From::from(ReturnCode::FAIL), 0, 0);
                                 }
                             }
-                            _ => {
-                                // Some UART error occurred
-                                (ReturnCode::FAIL, 0)
-                            }
-                        };
+                        });
+                    })
+                    .unwrap_or_default();
+            })
+            .unwrap_or_default();
 
-                        // Schedule the app's callback
-                        cb.schedule(From::from(result), len, 0);
-                    });
-
-                    // If the enter() above fails because the app has disappeared,
-                    // we simply drop the received data.
-                })
-                .unwrap_or_default();
-        });
+        // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
+        self.rx_buffer.replace(buffer);
     }
 }

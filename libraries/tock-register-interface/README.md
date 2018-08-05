@@ -13,7 +13,7 @@ Defining the registers is similar to the C-style approach, where each register
 is a field in a packed struct:
 
 ```rust
-use tock_regs::regs::{ReadOnly, ReadWrite, WriteOnly};
+use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
 
 #[repr(C)]
 struct Registers {
@@ -148,7 +148,7 @@ The first type parameter (the `IntLike` type) is `u8`, `u16`, `u32`, or `u64`.
 
 Assuming we have defined a `Registers` struct and the corresponding bitfields as
 in the previous two sections. We also have an immutable reference to the
-`Registers` struct, named `regs`.
+`Registers` struct, named `registers`.
 
 ```rust
 // -----------------------------------------------------------------------------
@@ -156,7 +156,7 @@ in the previous two sections. We also have an immutable reference to the
 // -----------------------------------------------------------------------------
 
 // Get or set the raw value of the register directly. Nothing fancy:
-regs.cr.set(regs.cr.get() + 1);
+registers.cr.set(registers.cr.get() + 1);
 
 
 // -----------------------------------------------------------------------------
@@ -165,21 +165,20 @@ regs.cr.set(regs.cr.get() + 1);
 
 // `range` will contain the value of the RANGE field, e.g. 0, 1, 2, or 3.
 // The type annotation is not necessary, but provided for clarity here.
-let range: u8 = regs.cr.read(Control::RANGE);
+let range: u8 = registers.cr.read(Control::RANGE);
 
 // Or one can read `range` as a enum and `match` over it.
-let range = regs.cr.read_as_enum(Control::RANGE);
+let range = registers.cr.read_as_enum(Control::RANGE);
 match range {
-    Some(Control::RANGE::Value::Zero) => { /* ... */ }
-    Some(Control::RANGE::Value::One) => { /* ... */ }
-    Some(Control::RANGE::Value::Two) => { /* ... */ }
-    Some(Control::RANGE::Value::Three) => { /* ... */ }
-    
+    Some(Control::RANGE::Value::VeryHigh) => { /* ... */ }
+    Some(Control::RANGE::Value::High) => { /* ... */ }
+    Some(Control::RANGE::Value::Low) => { /* ... */ }
+
     None => unreachable!("invalid value")
 }
 
 // `en` will be 0 or 1
-let en: u8 = regs.cr.read(Control::EN);
+let en: u8 = registers.cr.read(Control::EN);
 
 
 // -----------------------------------------------------------------------------
@@ -187,29 +186,29 @@ let en: u8 = regs.cr.read(Control::EN);
 // -----------------------------------------------------------------------------
 
 // Write a value to a bitfield without altering the values in other fields:
-regs.cr.modify(Control::RANGE.val(2)); // Leaves EN, INT unchanged
+registers.cr.modify(Control::RANGE.val(2)); // Leaves EN, INT unchanged
 
 // Named constants can be used instead of the raw values:
-regs.cr.modify(Control::RANGE::VeryHigh);
+registers.cr.modify(Control::RANGE::VeryHigh);
 
 // Another example of writing a field with a raw value:
-regs.cr.modify(Control::EN.val(0)); // Leaves RANGE, INT unchanged
+registers.cr.modify(Control::EN.val(0)); // Leaves RANGE, INT unchanged
 
 // For one-bit fields, the named values SET and CLEAR are automatically
 // defined:
-regs.cr.modify(Control::EN::SET);
+registers.cr.modify(Control::EN::SET);
 
 // Write multiple values at once, without altering other fields:
-regs.cr.modify(Control::EN::CLEAR + Control::RANGE::Low); // INT unchanged
+registers.cr.modify(Control::EN::CLEAR + Control::RANGE::Low); // INT unchanged
 
 // Any number of non-overlapping fields can be combined:
-regs.cr.modify(Control::EN::CLEAR + Control::RANGE::High + CR::INT::SET);
+registers.cr.modify(Control::EN::CLEAR + Control::RANGE::High + CR::INT::SET);
 
 // In some cases (such as a protected register) .modify() may not be appropriate.
 // To enable updating a register without coupling the read and write, use
 // modify_no_read():
-let original = regs.cr.extract();
-regs.cr.modify_no_read(original, Control::EN::CLEAR);
+let original = registers.cr.extract();
+registers.cr.modify_no_read(original, Control::EN::CLEAR);
 
 
 // -----------------------------------------------------------------------------
@@ -217,14 +216,14 @@ regs.cr.modify_no_read(original, Control::EN::CLEAR);
 // -----------------------------------------------------------------------------
 
 // Same interface as modify, except that all unspecified fields are overwritten to zero.
-regs.cr.write(Control::RANGE.val(1)); // implictly sets all other bits to zero
+registers.cr.write(Control::RANGE.val(1)); // implictly sets all other bits to zero
 
 // -----------------------------------------------------------------------------
 // BITFLAGS
 // -----------------------------------------------------------------------------
 
 // For one-bit fields, easily check if they are set or clear:
-let txcomplete: bool = regs.s.is_set(Status::TXCOMPLETE);
+let txcomplete: bool = registers.s.is_set(Status::TXCOMPLETE);
 
 // -----------------------------------------------------------------------------
 // MATCHING
@@ -233,24 +232,24 @@ let txcomplete: bool = regs.s.is_set(Status::TXCOMPLETE);
 // You can also query a specific register state easily with `matches_[any|all]`:
 
 // Doesn't care about the state of any field except TXCOMPLETE and MODE:
-let ready: bool = regs.s.matches_all(Status::TXCOMPLETE:SET +
+let ready: bool = registers.s.matches_all(Status::TXCOMPLETE:SET +
                                      Status::MODE::FullDuplex);
 
 // This is very useful for awaiting for a specific condition:
-while !regs.s.matches_all(Status::TXCOMPLETE::SET +
+while !registers.s.matches_all(Status::TXCOMPLETE::SET +
                           Status::RXCOMPLETE::SET +
                           Status::TXINTERRUPT::CLEAR) {}
 
 // Or for checking whether any interrupts are enabled:
-let any_ints = regs.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT);
+let any_ints = registers.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT);
 
 // Also you can read a register with set of enumerated values as a enum and `match` over it:
-let mode = regs.cr.read_as_enum(Status::MODE);
+let mode = registers.cr.read_as_enum(Status::MODE);
 
 match mode {
     Some(Status::MODE::FullDuplex) => { /* ... */ }
     Some(Status::MODE::HalfDuplex) => { /* ... */ }
-    
+
     None => unreachable!("invalid value")
 }
 
@@ -263,7 +262,7 @@ match mode {
 // local copy.
 
 // Create a copy of the register value as a local variable.
-let local = regs.cr.extract();
+let local = registers.cr.extract();
 
 // Now all the functions for a ReadOnly register work.
 let txcomplete: bool = local.is_set(Status::TXCOMPLETE);
@@ -290,13 +289,13 @@ with a register of the type `ReadWrite<_, Control>` (or `ReadOnly/WriteOnly`,
 etc). For instance, if we have the bitfields and registers as defined above,
 
 ```rust
-// This line compiles, because CR and regs.cr are both associated with the
+// This line compiles, because CR and registers.cr are both associated with the
 // Control group of bitfields.
-regs.cr.modify(Control::RANGE.val(1));
+registers.cr.modify(Control::RANGE.val(1));
 
 // This line will not compile, because CR is associated with the Control group,
-// while regs.s is associated with the Status group.
-regs.s.modify(Control::RANGE.val(1));
+// while registers.s is associated with the Status group.
+registers.s.modify(Control::RANGE.val(1));
 ```
 
 ## Naming conventions
@@ -305,7 +304,7 @@ There are several related names in the register definitions. Below is a
 description of the naming convention for each:
 
 ```rust
-use tock_regs::regs::ReadWrite;
+use tock_registers::registers::ReadWrite;
 
 #[repr(C)]
 struct Registers {

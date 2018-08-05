@@ -10,7 +10,7 @@
 
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};

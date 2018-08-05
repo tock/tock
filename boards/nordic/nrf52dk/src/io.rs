@@ -7,6 +7,8 @@ use kernel::hil::uart::{self, UART};
 use nrf52;
 use nrf5x;
 
+use PROCESSES;
+
 struct Writer {
     initialized: bool,
 }
@@ -44,5 +46,5 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     const LED1_PIN: usize = 17;
     let led = &mut led::LedLow::new(&mut nrf5x::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
 }

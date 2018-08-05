@@ -1,7 +1,7 @@
 //! RTC driver, nRF5X-family
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 use kernel::hil::Controller;

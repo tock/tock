@@ -2,7 +2,7 @@ Memory Layout
 =============
 
 This document describes how the memory in Tock is structured and used for the
-kernel, applications, and supporting state. 
+kernel, applications, and supporting state.
 
 <!-- npm i -g markdown-toc; markdown-toc -i Memory_Layout.md -->
 
@@ -59,7 +59,7 @@ valid process is set to all 0x00 or 0xFF.
 
 ## RAM
 
-The RAM holds the data currently being used by both the kernel and processes. 
+The RAM holds the data currently being used by both the kernel and processes.
 
 ### Kernel RAM
 The kernel RAM contains three major regions:

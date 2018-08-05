@@ -3,7 +3,7 @@ Tock Startup
 
 This document walks through how all of the components of Tock start up.
 
-<!-- npm i -g markdown-toc; markdown-toc -i Memory_Layout.md -->
+<!-- npm i -g markdown-toc; markdown-toc -i Startup.md -->
 
 <!-- toc -->
 
@@ -12,7 +12,7 @@ This document walks through how all of the components of Tock start up.
 - [Reset Handler](#reset-handler)
   * [Memory Initialization](#memory-initialization)
   * [MCU Setup](#mcu-setup)
-  * [Capsule Initialization](#capsule-initialization)
+  * [Peripheral and Capsule Initialization](#peripheral-and-capsule-initialization)
 - [Application Startup](#application-startup)
 - [Scheduler Execution](#scheduler-execution)
 
@@ -60,9 +60,9 @@ In C, a vector table will look something like this:
 ```c
 __attribute__ ((section(".vectors")))
 interrupt_function_t interrupt_table[] = {
-	(interrupt_function_t) (&_estack),
-	tock_kernel_reset_handler,
-	NMI_Handler,
+        (interrupt_function_t) (&_estack),
+        tock_kernel_reset_handler,
+        NMI_Handler,
 ```
 
 At the time of this writing (December 2017), the `sam4l` defines its vector
@@ -72,9 +72,10 @@ table in their respective `crt1.rs` files.
 
 ## Reset Handler
 
-On boot, the MCU calls the reset handler function defined in vector table. In
-Tock, the implementation of the reset handler function is platform-specific and
-defined in `boards/<board>/src/main.rs` for each board.
+On boot, the MCU calls the reset handler function defined in vector
+table. In Tock, the implementation of the reset handler function is
+platform-specific and defined in `boards/<board>/src/main.rs` for each
+board.
 
 ### Memory Initialization
 
@@ -84,16 +85,38 @@ copying it from flash. For the SAM4L, this is in the `init()` function in
 
 ### MCU Setup
 
-Any normal MCU initialization is typically handled next. This includes things
-like enabling the correct clocks or setting up DMA channels.
+Any normal MCU initialization is typically handled next. This includes
+things like enabling the correct clocks or setting up DMA channels.
 
-### Capsule Initialization
+### Peripheral and Capsule Initialization
 
-The board then initializes all of the capsules the kernel intends to support. In
-the common case, this only includes "chaining" callbacks between the underlying
-hardware drivers and the various capsules that use them. Sometimes, however, an
-additional "setup" function is required (often called `.initialize()`), and
-would be called inside of this reset handler at this point.
+After the MCU is set up, `reset_handler` initializes peripherals and
+capsules. Peripherals are on-chip subsystems, such as UARTs, ADCs, and
+SPI buses; they are chip-specific code that read and write
+memory-mapped I/O registers and are found in the corresponding `chips`
+directory. While peripherals are chip-specific implementations, they
+typically provide hardware-independent traits, called hardware
+independent layer (HIL) traits, found in `kernel/src/hil`.
+
+Capsules are software abstractions and services; they are
+chip-independent and found in the `capsules` directory. For example,
+on the imix and hail platforms, the SAM4L SPI peripheral is
+implemented in `chips/sam4l/src/spi.rs`, while the capsule that
+virtualizes the SPI so multiple capsules can share it is in
+`capsules/src/virtual_spi.rs`.  This virtualizer can be
+chip-independent because the chip-specific code implements the SPI HIL
+(`kernel/src/hil/spi.rs`). The capsule that implements a system call
+API to the SPI for processes is in `capsules/src/spi.rs`.
+
+Boards that initialize many peripherals and capsules use the `Component`
+trait to encapsulate this complexity from `reset_handler`. The `Component`
+trait (`kernel/src/component.rs`) encapsulates any initialization a
+particular peripheral, capsule, or set of capsules need inside a
+call to the function `finalize()`. Changing what the build of the kernel
+includes involve changing just which Components are initialized, rather
+than changing many lines of `reset_handler`. Components are typically
+found inside a `components` subdirectory of the board directory, e.g.
+`boards/imix/src/components`.
 
 ## Application Startup
 
@@ -107,11 +130,9 @@ An example version of this loop is in `kernel/src/process.rs` as the
 process from the starting address in flash and with a given amount of memory
 remaining. If the header is validated, it tries to load the process into memory
 and initialize all of the bookkeeping in the kernel associated with the process.
-This can fail if the process needs more memory than is available on the chip. As
-a part of this load process, the kernel can also perform PIC fixups for the
-process if it was requested in the TBF header. If the process is successfully
-loaded the kernel importantly notes the address of the application's entry
-function which is called when the process is started.
+This can fail if the process needs more memory than is available on the chip. If
+the process is successfully loaded the kernel importantly notes the address of
+the application's entry function which is called when the process is started.
 
 The load process loop ends when the kernel runs out of statically allocated
 memory to store processes in, available RAM for processes, or there is an
@@ -119,5 +140,5 @@ invalid TBF header in flash.
 
 ## Scheduler Execution
 
-The final thing that the reset handler must do is call `kernel::main()`. This
-starts the Tock scheduler and the main operation of the kernel.
+The final thing that the reset handler must do is call `kernel.kernel_loop()`.
+This starts the Tock scheduler and the main operation of the kernel.

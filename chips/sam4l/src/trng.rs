@@ -1,7 +1,7 @@
 //! Implementation of the SAM4L TRNG.
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::regs::{ReadOnly, WriteOnly};
+use kernel::common::registers::{ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 use pm;

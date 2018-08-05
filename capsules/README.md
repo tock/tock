@@ -114,6 +114,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
+- **[Virtual UART](src/virtual_uart.rs)**: Shared UART bus.
 
 
 ### Utility Capsules

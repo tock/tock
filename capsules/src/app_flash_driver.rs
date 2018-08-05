@@ -28,22 +28,12 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x50000;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
     buffer: Option<AppSlice<Shared, u8>>,
     pending_command: bool,
     flash_address: usize,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            buffer: None,
-            pending_command: false,
-            flash_address: 0,
-        }
-    }
 }
 
 pub struct AppFlash<'a> {

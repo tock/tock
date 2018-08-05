@@ -5,7 +5,7 @@
 //! Required to setup and configure IO pins to different modes - all depending on
 //! usage (eg. UART, GPIO, etc). It is used internally.
 
-use kernel::common::regs::ReadWrite;
+use kernel::common::registers::ReadWrite;
 use kernel::common::StaticRef;
 use kernel::hil;
 

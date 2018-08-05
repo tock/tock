@@ -17,31 +17,22 @@
 //! ```
 
 use core::cmp;
+
 use kernel::common::cells::{MapCell, TakeCell};
+use kernel::hil;
 use kernel::hil::uart::{self, Client, UARTReceiveAdvanced};
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x80004;
 
+#[derive(Default)]
 struct App {
     callback: Option<Callback>,
     tx_buffer: Option<AppSlice<Shared, u8>>,
     rx_buffer: Option<AppSlice<Shared, u8>>,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
     rx_recv_total: usize,  // The total number of bytes we expect to receive.
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            tx_buffer: None,
-            rx_buffer: None,
-            rx_recv_so_far: 0,
-            rx_recv_total: 0,
-        }
-    }
 }
 
 // Local buffer for passing data between applications and the underlying
@@ -53,6 +44,7 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 // application.
 pub struct Nrf51822Serialization<'a, U: UARTReceiveAdvanced> {
     uart: &'a U,
+    reset_pin: &'a hil::gpio::Pin,
     app: MapCell<App>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
@@ -61,11 +53,13 @@ pub struct Nrf51822Serialization<'a, U: UARTReceiveAdvanced> {
 impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     pub fn new(
         uart: &'a U,
+        reset_pin: &'a hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
     ) -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
+            reset_pin: reset_pin,
             app: MapCell::new(App::default()),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
@@ -79,6 +73,16 @@ impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
             parity: uart::Parity::Even,
             hw_flow_control: true,
         });
+    }
+
+    pub fn reset(&self) {
+        self.reset_pin.make_output();
+        self.reset_pin.clear();
+        // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
+        for _ in 0..10 {
+            self.reset_pin.clear();
+        }
+        self.reset_pin.set();
     }
 }
 
@@ -151,6 +155,7 @@ impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
+    /// - `2`: Reset the nRF51822.
     fn command(&self, command_type: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
         match command_type {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -171,6 +176,12 @@ impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
                         })
                     })
                 })
+            }
+
+            // Initialize the nRF51822 by resetting it.
+            2 => {
+                self.reset();
+                ReturnCode::SUCCESS
             }
 
             _ => ReturnCode::ENOSUPPORT,

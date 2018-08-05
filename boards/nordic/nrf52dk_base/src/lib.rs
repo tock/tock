@@ -11,6 +11,7 @@ extern crate nrf5x;
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
+use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::hil;
 use nrf5x::rtc::Rtc;
 
@@ -69,7 +70,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, nrf52::uart::Uarte>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
@@ -110,6 +111,7 @@ impl kernel::Platform for Platform {
 /// Generic function for starting an nrf52dk board.
 #[inline]
 pub unsafe fn setup_board(
+    board_kernel: &'static kernel::Kernel,
     button_rst_pin: usize,
     gpio_pins: &'static mut [&'static nrf5x::gpio::GPIOPin],
     debug_pin1_index: usize,
@@ -122,7 +124,7 @@ pub unsafe fn setup_board(
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
     process_pointers: &'static mut [core::option::Option<
-        &'static mut kernel::procs::Process<'static>,
+        &'static kernel::procs::Process<'static>,
     >],
     app_fault_response: kernel::procs::FaultResponse,
 ) {
@@ -159,7 +161,7 @@ pub unsafe fn setup_board(
     // Buttons
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -184,13 +186,28 @@ pub unsafe fn setup_board(
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         >,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
     let ble_radio_virtual_alarm = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
+
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(
+            &nrf52::uart::UARTE0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
+    );
+    hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
 
     nrf52::uart::UARTE0.initialize(
         nrf5x::pinmux::Pinmux::new(uart_pins.txd as u32),
@@ -199,21 +216,36 @@ pub unsafe fn setup_board(
         nrf5x::pinmux::Pinmux::new(uart_pins.rts as u32),
     );
     let console = static_init!(
-        capsules::console::Console<nrf52::uart::Uarte>,
+        capsules::console::Console<UartDevice>,
         capsules::console::Console::new(
-            &nrf52::uart::UARTE0,
+            console_uart,
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
-    kernel::hil::uart::UART::set_client(&nrf52::uart::UARTE0, console);
+    kernel::hil::uart::UART::set_client(console_uart, console);
     console.initialize();
 
-    // Attach the kernel debug interface to this console
-    let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    kernel::debug::assign_console_driver(Some(console), kc);
+    // Create virtual device for kernel debug.
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
+
+    let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
@@ -223,7 +255,7 @@ pub unsafe fn setup_board(
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf52::radio::RADIO,
-            kernel::Grant::create(),
+            board_kernel.create_grant(),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
@@ -242,14 +274,14 @@ pub unsafe fn setup_board(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create())
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, board_kernel.create_grant())
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -325,7 +357,7 @@ pub unsafe fn setup_board(
             capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
             capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
                 nv_to_page,
-                kernel::Grant::create(),
+                board_kernel.create_grant(),
                 0x60000, // Start address for userspace accessible region
                 0x20000, // Length of userspace accessible region
                 0,       // Start address of kernel accessible region
@@ -361,15 +393,13 @@ pub unsafe fn setup_board(
         temp: temp,
         alarm: alarm,
         nonvolatile_storage: nonvolatile_storage,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel),
     };
 
     let mut chip = nrf52::chip::NRF52::new();
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
-
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -383,5 +413,5 @@ pub unsafe fn setup_board(
         app_fault_response,
     );
 
-    board_kernel.kernel_loop(&platform, &mut chip, process_pointers, Some(&platform.ipc));
+    board_kernel.kernel_loop(&platform, &mut chip, Some(&platform.ipc));
 }

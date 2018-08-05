@@ -21,7 +21,7 @@ use core::{cmp, mem, slice};
 use dma;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;

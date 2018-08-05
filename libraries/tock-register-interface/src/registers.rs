@@ -1,10 +1,16 @@
 //! Implementation of registers and bitfields.
 //!
-//! Allows register maps to be specified like this:
+//! Provides efficient mechanisms to express and use type-checked memory mapped
+//! registers and bitfields.
 //!
 //! ```rust
-//! use common::regs::{ReadOnly, ReadWrite, WriteOnly};
+//! # #[macro_use]
+//! # extern crate tock_registers;
+//! # fn main() {}
 //!
+//! use tock_registers::registers::{ReadOnly, ReadWrite};
+//!
+//! // Register maps are specified like this:
 //! #[repr(C)]
 //! struct Registers {
 //!     // Control register: read-write
@@ -12,12 +18,22 @@
 //!     // Status register: read-only
 //!     s: ReadOnly<u32, Status::Register>,
 //! }
-//! ```
 //!
-//! and register fields and definitions to look like:
-//!
-//! ```rust
+//! // Register fields and definitions look like this:
 //! register_bitfields![u32,
+//!     // Simpler bitfields are expressed concisely:
+//!     Control [
+//!         /// Stop the Current Transfer
+//!         STOP 8,
+//!         /// Software Reset
+//!         SWRST 7,
+//!         /// Master Disable
+//!         MDIS 1,
+//!         /// Master Enable
+//!         MEN 0
+//!     ],
+//!
+//!     // More complex registers can express subtypes:
 //!     Status [
 //!         TXCOMPLETE  OFFSET(0) NUMBITS(1) [],
 //!         TXINTERRUPT OFFSET(1) NUMBITS(1) [],

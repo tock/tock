@@ -1,0 +1,7 @@
+h
+r
+loadbin target/thumbv7em-none-eabi/release/launchxl.bin, 0x0
+r
+h
+g
+q

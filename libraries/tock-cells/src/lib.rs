@@ -1,6 +1,6 @@
 //! Tock Cell types.
 
-#![feature(const_fn)]
+#![feature(const_fn, untagged_unions)]
 #![no_std]
 
 pub mod map_cell;
