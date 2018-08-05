@@ -62,7 +62,13 @@ macro_rules! storage_volume {
 
 /// Create an object with the given capability.
 ///
-///     let process_mgmt_cap = create_capability!(ProcessManagementCapability);
+/// ```ignore
+/// use kernel::capabilities::ProcessManagementCapability;
+/// #[macro_use(create_capability)]
+/// use kernel;
+///
+/// let process_mgmt_cap = create_capability!(ProcessManagementCapability);
+/// ```
 ///
 /// This helper macro can only be called in an `unsafe` block, and is used by
 /// trusted code to generate a capability that it can either use or pass to

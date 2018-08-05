@@ -23,6 +23,8 @@
 //! Creating an object that expresses a capability is straightforward:
 //!
 //! ```
+//! use kernel::capabilities::ProcessManagementCapability;
+//!
 //! struct ProcessMgmtCap;
 //! unsafe impl ProcessManagementCapability for ProcessMgmtCap {}
 //! ```
@@ -32,7 +34,7 @@
 //!
 //! Requiring a certain capability is also straightforward:
 //!
-//! ```
+//! ```ignore
 //! pub fn manage_process<C: ProcessManagementCapability>(_c: &C) {
 //!    unsafe {
 //!        ...
