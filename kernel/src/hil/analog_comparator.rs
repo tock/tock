@@ -1,7 +1,7 @@
 //! Interface for direct control of the analog comparators.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified 6/26/2018
+// Last modified August 7th, 2018
 
 use returncode::ReturnCode;
 
@@ -33,12 +33,13 @@ pub trait AnalogComparator {
     /// Vp_x.
     fn window_comparison(&self, usize) -> bool;
 
-    /// Enable interrupt-based comparison for the chosen AC (e.g. AC1). This
-    /// will make it listen and send an interrupt as soon as Vp > Vn.
-    fn enable_interrupts(&self, channel: &Self::Channel) -> ReturnCode;
+    /// Start interrupt-based comparison for the chosen channel (e.g. channel 1
+    /// for AC1). This will make it listen and send an interrupt as soon as
+    /// Vp > Vn.
+    fn start_comparing(&self, channel: &Self::Channel) -> ReturnCode;
 
-    /// Disable interrupt-based comparison for the chosen AC.
-    fn disable_interrupts(&self, channel: &Self::Channel) -> ReturnCode;
+    /// Stop interrupt-based comparison for the chosen channel.
+    fn stop_comparing(&self, channel: &Self::Channel) -> ReturnCode;
 }
 
 pub trait Client {

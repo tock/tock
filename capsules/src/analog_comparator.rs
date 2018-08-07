@@ -1,23 +1,25 @@
 //! Provides userspace access to the analog comparators on a board.
 //!
-//! ## Instantiation
+//! Usage
+//! -----
 //!
-//! ```rust let acifc = static_init!(
-//! capsules::analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
-//! capsules::analog_comparator::AnalogComparator::new(&mut
-//! sam4l::acifc::ACIFC)); ```
+//! ```
+//! let ac_channels = static_init!(
+//!     [&'static sam4l::acifc::AcChannel; 2],
+//!     [
+//!         &sam4l::acifc::CHANNEL_AC0,
+//!         &sam4l::acifc::CHANNEL_AC1,
+//!     ]
+//! );
+//! let analog_comparator = static_init!(
+//!     capsules::analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
+//!     capsules::analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC, ac_channels)
+//! );
+//! sam4l::acifc::ACIFC.set_client(analog_comparator);
+//! ```
 //!
 //! ## Number of Analog Comparators
-//! The number of analog comparators (ACs) available depends on the
-//! microcontroller used.  For example, the Atmel SAM4L is a commonly used
-//! microcontroller for Tock.  It comes in three different versions: a 48-pin, a
-//! 64-pin and a 100-pin version.  On the 48-pin version, one AC is available.
-//! On the 64-pin version, two ACs are available.  On the 100-pin version, four
-//! ACs are available.  The Hail is an example of a board with the 64-pin
-//! version of the SAM4L, and therefore supports two ACs.  These two ACs are
-//! addressable by AC0 or AC1.  On the other hand, the Imix has a 100-pin
-//! version of the SAM4L, and therefore supports four ACs.  These four ACs are
-//! addressable by AC0, AC1, AC2 and AC3.
+//! The number of analog comparators available depends on the microcontroller/board used. 
 //!
 //! ## Normal or Interrupt-based Comparison
 //! For a normal comparison or an interrupt-based comparison, just one analog
@@ -30,10 +32,10 @@
 //! this means the Hail has one window and the Imix has two windows.
 //!
 //! For more information on how this capsule works, please take a look at the
-//! readme: 00007_analog_comparator.md in doc/syscalls.
-
-// Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified August 7th, 2018
+//! README: 00007_analog_comparator.md in doc/syscalls.
+//!
+//! Author: Danilo Verhaert <verhaert@cs.stanford.edu>
+//! Last modified August 7th, 2018
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00007;
@@ -60,9 +62,10 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         }
     }
 
+    // Do a single comparison on a channel
     fn comparison(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            panic!("Please select a channel which exists on the current board/chip");
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -73,9 +76,10 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         };
     }
 
+    // Do a single window comparison on a channel
     fn window_comparison(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            panic!("Please select a channel which exists on the current board/chip");
         }
         // Convert channel index
         // let chan = self.channels[channel];
@@ -86,24 +90,26 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         };
     }
 
-    fn enable_interrupts(&self, channel: usize) -> ReturnCode {
+    // Start comparing on a channel
+    fn start_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            panic!("Please select a channel which exists on the current board/chip");
         }
         // Convert channel index
         let chan = self.channels[channel];
-        let result = self.analog_comparator.enable_interrupts(chan);
+        let result = self.analog_comparator.start_comparing(chan);
 
         return result;
     }
 
-    fn disable_interrupts(&self, channel: usize) -> ReturnCode {
+    // Stop comparing on a channel
+    fn stop_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            return ReturnCode::EINVAL;
+            panic!("Please select a channel which exists on the current board/chip");
         }
         // Convert channel index
         let chan = self.channels[channel];
-        let result = self.analog_comparator.disable_interrupts(chan);
+        let result = self.analog_comparator.stop_comparing(chan);
 
         return result;
     }
@@ -121,10 +127,10 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     /// - `2`: Perform a window comparison.
     ///        Input x chooses the desired window Windowx (e.g. 0 for hail,
     ///        0 or 1 for imix)
-    /// - `3`: Enable interrupt-based comparisons.
+    /// - `3`: Start interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    /// - `4`: Disable interrupt-based comparisons.
+    /// - `4`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
     fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
@@ -137,9 +143,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 
             2 => self.window_comparison(channel),
 
-            3 => self.enable_interrupts(channel),
+            3 => self.start_comparing(channel),
 
-            4 => self.disable_interrupts(channel),
+            4 => self.stop_comparing(channel),
 
             _ => return ReturnCode::ENOSUPPORT,
         }

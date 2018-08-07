@@ -2,22 +2,34 @@
 //!
 //! See datasheet section "37. Analog Comparator Interface (ACIFC)".
 //!
+//! Overview
+//! -----
 //! The SAM4L Analog Comparator Interface (ACIFC) controls a number of Analog
 //! Comparators (ACs) with identical behavior. Each Analog Comparator compares
 //! two voltages and gives an output depending on this comparison. A specific AC
 //! is referred to as ACx where x is any number from 0 to n and n is the index
-//! of last AC module. The ACIFC on the SAM4L supports a total of 8 ACs (and
-//! therefore 4 possible ACWs). However, note that the 64 pin SAM4L (e.g. on the
-//! Hail) has 2 ACs (ACA0 and ACB0), and the 100 pin SAM4L (e.g. on the Imix)
-//! has 4 ACs (ACA0, ACB0, ACA1, ACB1). Currently, no version of the SAM4L
-//! exists with all the 8 ACs implemented. Therefore a lot of the defined
-//! bitfields remain unused, but are initialized for a possible future scenario.
+//! of last AC module. 
+//! 
+//! The number of analog comparators (ACs) available depends on the board pr
+//! microcontroller used.  The SAM4Lmcomes in three different versions: a 48-pin, a
+//! 64-pin and a 100-pin version.  On the 48-pin version, one AC is available.
+//! On the 64-pin version, two ACs are available.  On the 100-pin version, four
+//! ACs are available.  
+//! The Hail is an example of a board with the 64-pin version of the SAM4L,
+//! and therefore supports two ACs. 
+//! The Imix is an example of a board with the 100-pin version of the SAM4L,
+//! and therefore supports four ACs. 
+//! Currently, no version of the SAM4L //! exists with all the 8 ACs
+//! implemented. Therefore a lot of the defined bitfields remain unused, but
+//! are initialized for a possible future scenario.
+//! 
 //! The ACIFC can be configured in normal mode using each comparator
 //! independently or in window mode using defined comparator pairs (ACx and
 //! ACx+1) to observe a window.
-//
-// Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified August 7th, 2018
+//!
+//!
+//! Author: Danilo Verhaert <verhaert@cs.stanford.edu>
+//! Last modified August 7th, 2018
 
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
@@ -336,32 +348,122 @@ impl<'a> Acifc<'a> {
     pub fn handle_interrupt(&mut self) {
         let regs = ACIFC_BASE;
 
-        // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
-        if !regs.imr.is_set(Interrupt::ACINT1) {
-            return;
+        // We check which AC generated the interrupt, and callback to the client accordingly
+        if regs.isr.is_set(Interrupt::ACINT0) { 
+            // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
+            if !regs.imr.is_set(Interrupt::ACINT0) {
+                return;
+            }
+
+            // Disable IMR, making sure no more interrupts can occur until we write
+            // to IER
+            regs.idr.write(Interrupt::ACINT0::SET);
+
+            // If Vinp > Vinn, throw an interrupt to the client and set the AC so
+            // that it will throw an interrupt when Vinn < Vinp instead.
+            if !regs.conf[0].is_set(ACConfiguration::IS) {
+                self.client.get().map(|client| {
+                    client.fired();
+                });
+                regs.conf[0].modify(ACConfiguration::IS::WhenVinpLtVinn);
+            }
+            // If Vinp < Vinn, set the AC so that it will throw an interrupt when
+            // Vinp > Vinn instead.
+            else {
+                regs.conf[0].modify(ACConfiguration::IS::WhenVinpGtVinn);
+            }
+
+            // Clear the interrupt request
+            regs.icr.write(Interrupt::ACINT0::SET);
+            regs.ier.write(Interrupt::ACINT0::SET);
+        } 
+        
+        else if regs.isr.is_set(Interrupt::ACINT1) { 
+            // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
+            if !regs.imr.is_set(Interrupt::ACINT1) {
+                return;
+            }
+
+            // Disable IMR, making sure no more interrupts can occur until we write
+            // to IER
+            regs.idr.write(Interrupt::ACINT1::SET);
+
+            // If Vinp > Vinn, throw an interrupt to the client and set the AC so
+            // that it will throw an interrupt when Vinn < Vinp instead.
+            if !regs.conf[1].is_set(ACConfiguration::IS) {
+                self.client.get().map(|client| {
+                    client.fired();
+                });
+                regs.conf[1].modify(ACConfiguration::IS::WhenVinpLtVinn);
+            }
+            // If Vinp < Vinn, set the AC so that it will throw an interrupt when
+            // Vinp > Vinn instead.
+            else {
+                regs.conf[1].modify(ACConfiguration::IS::WhenVinpGtVinn);
+            }
+
+            // Clear the interrupt request
+            regs.icr.write(Interrupt::ACINT1::SET);
+            regs.ier.write(Interrupt::ACINT1::SET);
+        } 
+
+        else if regs.isr.is_set(Interrupt::ACINT2) { 
+            // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
+            if !regs.imr.is_set(Interrupt::ACINT2) {
+                return;
+            }
+
+            // Disable IMR, making sure no more interrupts can occur until we write
+            // to IER
+            regs.idr.write(Interrupt::ACINT2::SET);
+
+            // If Vinp > Vinn, throw an interrupt to the client and set the AC so
+            // that it will throw an interrupt when Vinn < Vinp instead.
+            if !regs.conf[2].is_set(ACConfiguration::IS) {
+                self.client.get().map(|client| {
+                    client.fired();
+                });
+                regs.conf[2].modify(ACConfiguration::IS::WhenVinpLtVinn);
+            }
+            // If Vinp < Vinn, set the AC so that it will throw an interrupt when
+            // Vinp > Vinn instead.
+            else {
+                regs.conf[2].modify(ACConfiguration::IS::WhenVinpGtVinn);
+            }
+
+            // Clear the interrupt request
+            regs.icr.write(Interrupt::ACINT2::SET);
+            regs.ier.write(Interrupt::ACINT2::SET);
         }
 
-        // Disable IMR, making sure no more interrupts can occur until we write
-        // to IER
-        regs.idr.write(Interrupt::ACINT1::SET);
+        else if regs.isr.is_set(Interrupt::ACINT3) { 
+            // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
+            if !regs.imr.is_set(Interrupt::ACINT3) {
+                return;
+            }
 
-        // If Vinp > Vinn, throw an interrupt to the client and set the AC so
-        // that it will throw an interrupt when Vinn < Vinp instead.
-        if !regs.conf[1].is_set(ACConfiguration::IS) {
-            self.client.get().map(|client| {
-                client.fired();
-            });
-            regs.conf[1].modify(ACConfiguration::IS::WhenVinpLtVinn);
-        }
-        // If Vinp < Vinn, set the AC so that it will throw an interrupt when
-        // Vinp > Vinn instead.
-        else {
-            regs.conf[1].modify(ACConfiguration::IS::WhenVinpGtVinn);
-        }
+            // Disable IMR, making sure no more interrupts can occur until we write
+            // to IER
+            regs.idr.write(Interrupt::ACINT3::SET);
 
-        // Clear the interrupt request
-        regs.icr.write(Interrupt::ACINT1::SET);
-        regs.ier.write(Interrupt::ACINT1::SET);
+            // If Vinp > Vinn, throw an interrupt to the client and set the AC so
+            // that it will throw an interrupt when Vinn < Vinp instead.
+            if !regs.conf[3].is_set(ACConfiguration::IS) {
+                self.client.get().map(|client| {
+                    client.fired();
+                });
+                regs.conf[3].modify(ACConfiguration::IS::WhenVinpLtVinn);
+            }
+            // If Vinp < Vinn, set the AC so that it will throw an interrupt when
+            // Vinp > Vinn instead.
+            else {
+                regs.conf[3].modify(ACConfiguration::IS::WhenVinpGtVinn);
+            }
+
+            // Clear the interrupt request
+            regs.icr.write(Interrupt::ACINT3::SET);
+            regs.ier.write(Interrupt::ACINT3::SET);
+        }  
     }
 }
 
@@ -382,7 +484,7 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
         } else if channel.chan_num == 3 {
             result = regs.sr.is_set(Status::ACCS3);
         } else {
-            // Making sure the selected AC is on the board
+            // Should never get here, just making sure
             self.disable();
             panic!("PANIC! Please choose a comparator (value of ac) that this chip supports");
         }
@@ -401,15 +503,15 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
             regs.confw[1].write(WindowConfiguration::WFEN::SET);
             result = regs.sr.is_set(Status::WFCS1);
         } else {
-            // Should never get here, but just making sure
+            // Should never get here, just making sure
             self.disable();
             panic!("Please choose a window (value of window) that this chip supports");
         }
         return result;
     }
 
-    /// Enable interrupt-based comparisons
-    fn enable_interrupts(&self, channel: &Self::Channel) -> ReturnCode {
+    /// Start interrupt-based comparisons
+    fn start_comparing(&self, channel: &Self::Channel) -> ReturnCode {
         self.enable();
         let regs = ACIFC_BASE;
 
@@ -430,19 +532,19 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
             regs.ier.write(Interrupt::ACINT3::SET);
             return ReturnCode::SUCCESS;
         } else {
-            // Making sure the selected AC is on the board
+            // Should never get here, just making sure
             self.disable();
             debug!("Please choose a comparator (value of ac) that this chip supports");
             return ReturnCode::EINVAL;
         }
     }
 
-    /// Disable interrupt-based comparisons
-    fn disable_interrupts(&self, channel: &Self::Channel) -> ReturnCode {
+    /// Stop interrupt-based comparisons
+    fn stop_comparing(&self, channel: &Self::Channel) -> ReturnCode {
         let regs = ACIFC_BASE;
 
         if channel.chan_num == 0 {
-            // Enable interrupts.
+            // Disable interrupts.
             regs.ier.write(Interrupt::ACINT0::CLEAR);
             return ReturnCode::SUCCESS;
         } else if channel.chan_num == 1 {
@@ -458,7 +560,7 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
             regs.ier.write(Interrupt::ACINT3::CLEAR);
             return ReturnCode::SUCCESS;
         } else {
-            // Making sure the selected AC is on the board
+            // Should never get here, just making sure
             self.disable();
             debug!("Please choose a comparator (value of ac) that this chip supports");
             return ReturnCode::EINVAL;
