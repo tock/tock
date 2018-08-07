@@ -51,7 +51,7 @@ pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator + 'a
 impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
     pub fn new(
         analog_comparator: &'a A,
-        channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel]
+        channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
     ) -> AnalogComparator<'a, A> {
         AnalogComparator {
             analog_comparator: analog_comparator,
@@ -65,10 +65,12 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
             return ReturnCode::EINVAL;
         }
         // Convert channel index
-        let chan = self.channels[channel];    
+        let chan = self.channels[channel];
         let result = self.analog_comparator.comparison(chan);
 
-        return ReturnCode::SuccessWithValue {value: result as usize};
+        return ReturnCode::SuccessWithValue {
+            value: result as usize,
+        };
     }
 
     fn window_comparison(&self, channel: usize) -> ReturnCode {
@@ -76,10 +78,12 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
             return ReturnCode::EINVAL;
         }
         // Convert channel index
-        // let chan = self.channels[channel];    
+        // let chan = self.channels[channel];
         let result = self.analog_comparator.window_comparison(channel);
 
-        return ReturnCode::SuccessWithValue {value: result as usize};
+        return ReturnCode::SuccessWithValue {
+            value: result as usize,
+        };
     }
 
     fn enable_interrupts(&self, channel: usize) -> ReturnCode {
@@ -87,7 +91,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
             return ReturnCode::EINVAL;
         }
         // Convert channel index
-        let chan = self.channels[channel];    
+        let chan = self.channels[channel];
         let result = self.analog_comparator.enable_interrupts(chan);
 
         return result;
@@ -98,7 +102,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
             return ReturnCode::EINVAL;
         }
         // Convert channel index
-        let chan = self.channels[channel];    
+        let chan = self.channels[channel];
         let result = self.analog_comparator.disable_interrupts(chan);
 
         return result;

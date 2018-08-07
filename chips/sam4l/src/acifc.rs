@@ -328,7 +328,6 @@ impl<'a> Acifc<'a> {
         regs.ctrl.write(Control::EN::CLEAR);
     }
 
-
     /// Handling of interrupts. Currently set up so that an interrupt fires
     /// only once when the condition is true (e.g. Vinp > Vinn), and then
     /// doesn't fire anymore until the condition is false (e.g. Vinp < Vinn).

@@ -491,10 +491,7 @@ pub unsafe fn reset_handler() {
     // ACIFC
     let analog_comparator = static_init!(
         capsules::analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
-        capsules::analog_comparator::AnalogComparator::new(
-            &mut sam4l::acifc::ACIFC,
-            ac_channels
-            )
+        capsules::analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC, ac_channels)
     );
     sam4l::acifc::ACIFC.set_client(analog_comparator);
 

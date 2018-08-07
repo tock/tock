@@ -339,7 +339,7 @@ pub unsafe fn reset_handler() {
         capsules::analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC)
     );
     sam4l::acifc::ACIFC.set_client(analog_comparator);
-    
+
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let radio_driver = RadioComponent::new(board_kernel, rf233, 0xABCD, 0x1008).finalize();
