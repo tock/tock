@@ -1,7 +1,7 @@
 //! RTC driver, nRF5X-family
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 use kernel::hil::Controller;
@@ -25,7 +25,7 @@ struct RtcRegisters {
     /// Event on COUNTER overflow.
     events_ovrflw: ReadWrite<u32, Event::Register>,
     _reserved1: [u8; 56],
-    /// Compare event on CC[n] match.
+    /// Compare event on CC\[n\] match.
     events_compare: [ReadWrite<u32, Event::Register>; 4],
     _reserved2: [u8; 436],
     /// Interrupt enable set register.
@@ -59,13 +59,13 @@ register_bitfields![u32,
         TICK 0,
         /// Enable interrupt on OVRFLW event.
         OVRFLW 1,
-        /// Enable interrupt on COMPARE[0] event.
+        /// Enable interrupt on COMPARE\[0\] event.
         COMPARE0 16,
-        /// Enable interrupt on COMPARE[1] event.
+        /// Enable interrupt on COMPARE\[1\] event.
         COMPARE1 17,
-        /// Enable interrupt on COMPARE[2] event.
+        /// Enable interrupt on COMPARE\[2\] event.
         COMPARE2 18,
-        /// Enable interrupt on COMPARE[3] event.
+        /// Enable interrupt on COMPARE\[3\] event.
         COMPARE3 19
     ],
     Prescaler [

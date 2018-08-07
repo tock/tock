@@ -11,9 +11,9 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
@@ -546,7 +546,7 @@ pub struct I2CHw {
     slave_mmio_address: Option<StaticRef<TWISRegisters>>,
     master_clock: TWIMClock,
     slave_clock: TWISClock,
-    dma: Cell<Option<&'static DMAChannel>>,
+    dma: OptionalCell<&'static DMAChannel>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
     master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     slave_client: Cell<Option<&'static hil::i2c::I2CHwSlaveClient>>,
@@ -593,7 +593,8 @@ impl PeripheralManagement<TWISClock> for I2CHw {
     type RegisterType = TWISRegisters;
 
     fn get_registers<'a>(&'a self) -> &'a TWISRegisters {
-        &*self.slave_mmio_address
+        &*self
+            .slave_mmio_address
             .as_ref()
             .expect("Access of non-existent slave")
     }
@@ -674,7 +675,7 @@ impl I2CHw {
             slave_mmio_address: slave_base_addr,
             master_clock: clocks.0,
             slave_clock: clocks.1,
-            dma: Cell::new(None),
+            dma: OptionalCell::empty(),
             dma_pids: (dma_rx, dma_tx),
             master_client: Cell::new(None),
             slave_client: Cell::new(None),
@@ -715,7 +716,8 @@ impl I2CHw {
         let stasto = f_prescaled;
 
         twim.registers.cwgr.write(
-            ClockWaveformGenerator::EXP.val(exp) + ClockWaveformGenerator::DATA.val(data)
+            ClockWaveformGenerator::EXP.val(exp)
+                + ClockWaveformGenerator::DATA.val(data)
                 + ClockWaveformGenerator::STASTO.val(stasto)
                 + ClockWaveformGenerator::HIGH.val(high)
                 + ClockWaveformGenerator::LOW.val(low),
@@ -723,7 +725,7 @@ impl I2CHw {
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
-        self.dma.set(Some(dma));
+        self.dma.set(dma);
     }
 
     pub fn set_master_client(&self, client: &'static hil::i2c::I2CHwMasterClient) {
@@ -744,9 +746,13 @@ impl I2CHw {
 
             // Clear all status registers.
             twim.registers.scr.write(
-                StatusClear::HSMCACK::SET + StatusClear::STOP::SET + StatusClear::PECERR::SET
-                    + StatusClear::TOUT::SET + StatusClear::ARBLST::SET
-                    + StatusClear::DNAK::SET + StatusClear::ANAK::SET
+                StatusClear::HSMCACK::SET
+                    + StatusClear::STOP::SET
+                    + StatusClear::PECERR::SET
+                    + StatusClear::TOUT::SET
+                    + StatusClear::ARBLST::SET
+                    + StatusClear::DNAK::SET
+                    + StatusClear::ANAK::SET
                     + StatusClear::CCOMP::SET,
             );
 
@@ -786,14 +792,11 @@ impl I2CHw {
 
                 err.map(|err| {
                     self.master_client.get().map(|client| {
-                        let buf = match self.dma.get() {
-                            Some(dma) => {
-                                let b = dma.abort_transfer();
-                                self.dma.set(Some(dma));
-                                b
-                            }
-                            None => None,
-                        };
+                        let buf = self.dma.and_then(|dma| {
+                            let b = dma.abort_transfer();
+                            self.dma.set(dma);
+                            b
+                        });
                         buf.map(|buf| {
                             client.command_complete(buf, err);
                         });
@@ -828,14 +831,11 @@ impl I2CHw {
 
                     err.map(|err| {
                         self.master_client.get().map(|client| {
-                            let buf = match self.dma.get() {
-                                Some(dma) => {
-                                    let b = dma.abort_transfer();
-                                    self.dma.set(Some(dma));
-                                    b
-                                }
-                                None => None,
-                            };
+                            let buf = self.dma.and_then(|dma| {
+                                let b = dma.abort_transfer();
+                                self.dma.set(dma);
+                                b
+                            });
                             buf.map(|buf| {
                                 // Save the already read byte.
                                 buf[0] = the_byte;
@@ -848,11 +848,13 @@ impl I2CHw {
                         let twim = &TWIMRegisterManager::new(&self);
                         // Enable transaction error interrupts
                         twim.registers.ier.write(
-                            Interrupt::CCOMP::SET + Interrupt::ANAK::SET + Interrupt::DNAK::SET
+                            Interrupt::CCOMP::SET
+                                + Interrupt::ANAK::SET
+                                + Interrupt::DNAK::SET
                                 + Interrupt::ARBLST::SET,
                         );
                     }
-                    self.dma.get().map(|dma| {
+                    self.dma.map(|dma| {
                         let buf = dma.abort_transfer().unwrap();
                         dma.prepare_transfer(dma_periph, buf, len);
                         dma.start_transfer();
@@ -875,14 +877,19 @@ impl I2CHw {
 
         // Configure the command register with the settings for this transfer.
         twim.registers.cmdr.write(
-            Command::SADR.val(chip as u32) + flags + Command::VALID::SET
-                + Command::NBYTES.val(len as u32) + direction,
+            Command::SADR.val(chip as u32)
+                + flags
+                + Command::VALID::SET
+                + Command::NBYTES.val(len as u32)
+                + direction,
         );
         twim.registers.ncmdr.set(0);
 
         // Enable transaction error interrupts
         twim.registers.ier.write(
-            Interrupt::CCOMP::SET + Interrupt::ANAK::SET + Interrupt::DNAK::SET
+            Interrupt::CCOMP::SET
+                + Interrupt::ANAK::SET
+                + Interrupt::DNAK::SET
                 + Interrupt::ARBLST::SET,
         );
     }
@@ -899,8 +906,11 @@ impl I2CHw {
         twim.registers.cr.write(Control::MDIS::SET);
 
         twim.registers.ncmdr.write(
-            Command::SADR.val(chip as u32) + flags + Command::VALID::SET
-                + Command::NBYTES.val(len as u32) + direction,
+            Command::SADR.val(chip as u32)
+                + flags
+                + Command::VALID::SET
+                + Command::NBYTES.val(len as u32)
+                + direction,
         );
 
         // Enable
@@ -920,7 +930,7 @@ impl I2CHw {
         len: u8,
     ) {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.get().map(move |dma| {
+        self.dma.map(move |dma| {
             dma.enable();
             dma.prepare_transfer(self.dma_pids.1, data, len as usize);
             self.setup_transfer(twim, chip, flags, Command::READ::Transmit, len);
@@ -937,7 +947,7 @@ impl I2CHw {
         len: u8,
     ) {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.get().map(move |dma| {
+        self.dma.map(move |dma| {
             dma.enable();
             dma.prepare_transfer(self.dma_pids.0, data, len as usize);
             self.setup_transfer(twim, chip, flags, Command::READ::Receive, len);
@@ -948,7 +958,7 @@ impl I2CHw {
 
     fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
         let twim = &TWIMRegisterManager::new(&self);
-        self.dma.get().map(move |dma| {
+        self.dma.map(move |dma| {
             dma.enable();
             dma.prepare_transfer(self.dma_pids.1, data, split as usize);
             self.setup_transfer(
@@ -988,8 +998,11 @@ impl I2CHw {
 
             // Check for errors.
             if interrupts.matches_any(
-                StatusSlave::BUSERR::SET + StatusSlave::SMBPECERR::SET + StatusSlave::SMBTOUT::SET
-                    + StatusSlave::ORUN::SET + StatusSlave::URUN::SET,
+                StatusSlave::BUSERR::SET
+                    + StatusSlave::SMBPECERR::SET
+                    + StatusSlave::SMBTOUT::SET
+                    + StatusSlave::ORUN::SET
+                    + StatusSlave::URUN::SET,
             ) {
                 // From the datasheet: If a bus error (misplaced START or STOP)
                 // condition is detected, the SR.BUSERR bit is set and the TWIS
@@ -1020,7 +1033,8 @@ impl I2CHw {
                         .ier
                         .write(InterruptSlave::TCOMP::SET + InterruptSlave::BTF::SET);
                     twis.registers.ier.write(
-                        InterruptSlave::BUSERR::SET + InterruptSlave::SMBPECERR::SET
+                        InterruptSlave::BUSERR::SET
+                            + InterruptSlave::SMBPECERR::SET
                             + InterruptSlave::SMBTOUT::SET
                             + InterruptSlave::ORUN::SET
                             + InterruptSlave::URUN::SET,
@@ -1271,7 +1285,8 @@ impl I2CHw {
 
             // Enable and configure
             let control = ControlSlave::ADR.val((self.my_slave_address.get() as u32) & 0x7F)
-                + ControlSlave::SOAM::Stretch + ControlSlave::CUP::CountUp
+                + ControlSlave::SOAM::Stretch
+                + ControlSlave::CUP::CountUp
                 + ControlSlave::STREN::Enable
                 + ControlSlave::SMATCH::AckSlaveAddress;
             twis.registers.cr.write(control);
@@ -1304,7 +1319,8 @@ impl hil::i2c::I2CMaster for I2CHw {
 
         // slew
         twim.registers.srr.write(
-            SlewRate::FILTER::StandardOrFast + SlewRate::CLDRIVEL.val(7)
+            SlewRate::FILTER::StandardOrFast
+                + SlewRate::CLDRIVEL.val(7)
                 + SlewRate::DADRIVEL.val(7),
         );
 
@@ -1369,8 +1385,10 @@ impl hil::i2c::I2CSlave for I2CHw {
 
             // Also setup all of the error interrupts.
             twis.registers.ier.write(
-                InterruptSlave::BUSERR::SET + InterruptSlave::SMBPECERR::SET
-                    + InterruptSlave::SMBTOUT::SET + InterruptSlave::ORUN::SET
+                InterruptSlave::BUSERR::SET
+                    + InterruptSlave::SMBPECERR::SET
+                    + InterruptSlave::SMBTOUT::SET
+                    + InterruptSlave::ORUN::SET
                     + InterruptSlave::URUN::SET,
             );
         }

@@ -39,7 +39,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
@@ -56,7 +56,7 @@ pub static mut TXBUFFER: [u8; 515] = [0; 515];
 pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
-pub struct SDCard<'a, A: hil::time::Alarm + 'a> {
+pub struct SDCard<'a, A: hil::time::Alarm> {
     spi: &'a hil::spi::SpiMasterDevice,
     state: Cell<SpiState>,
     after_state: Cell<SpiState>,
@@ -73,7 +73,7 @@ pub struct SDCard<'a, A: hil::time::Alarm + 'a> {
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
 
-    client: Cell<Option<&'static SDCardClient>>,
+    client: OptionalCell<&'static SDCardClient>,
     client_buffer: TakeCell<'static, [u8]>,
     client_offset: Cell<usize>,
 }
@@ -189,7 +189,7 @@ pub trait SDCardClient {
 }
 
 /// Functions for initializing and accessing an SD card
-impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
+impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// Create a new SD card interface
     ///
     /// spi - virtualized SPI to use for communication with SD card
@@ -234,7 +234,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             detect_pin: Cell::new(pin),
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             client_buffer: TakeCell::empty(),
             client_offset: Cell::new(0),
         }
@@ -444,7 +444,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -515,7 +515,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -544,7 +544,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -612,7 +612,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -651,7 +651,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -674,7 +674,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -726,7 +726,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.is_initialized.set(true);
 
                     // perform callback
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.init_done(512, total_size);
                     });
                 } else {
@@ -736,7 +736,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::InitializationFailure as u32);
                     });
                 }
@@ -763,7 +763,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::ReadFailure as u32);
                     });
                 }
@@ -794,7 +794,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::ReadFailure as u32);
                     });
                 }
@@ -820,7 +820,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
                         // callback
                         let read_len = cmp::min(read_buffer.len(), cmp::min(buffer.len(), 512));
-                        self.client.get().map(move |client| {
+                        self.client.map(move |client| {
                             client.read_done(buffer, read_len);
                         });
                     });
@@ -853,7 +853,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::ReadFailure as u32);
                     });
                 }
@@ -904,7 +904,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
                     // read finished, perform callback
                     self.client_buffer.take().map(move |buffer| {
-                        self.client.get().map(move |client| {
+                        self.client.map(move |client| {
                             client.read_done(buffer, self.client_offset.get());
                         });
                     });
@@ -915,7 +915,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::ReadFailure as u32);
                     });
                 }
@@ -968,7 +968,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         self.state.set(SpiState::Idle);
                         self.alarm_state.set(AlarmState::Idle);
                         self.alarm_count.set(0);
-                        self.client.get().map(move |client| {
+                        self.client.map(move |client| {
                             client.error(ErrorCode::WriteFailure as u32);
                         });
                     }
@@ -979,7 +979,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::WriteFailure as u32);
                     });
                 }
@@ -1003,7 +1003,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_state.set(AlarmState::Idle);
                     self.alarm_count.set(0);
-                    self.client.get().map(move |client| {
+                    self.client.map(move |client| {
                         client.error(ErrorCode::WriteFailure as u32);
                     });
                 }
@@ -1020,7 +1020,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_count.set(0);
                     self.client_buffer.take().map(move |buffer| {
-                        self.client.get().map(move |client| {
+                        self.client.map(move |client| {
                             client.write_done(buffer);
                         });
                     });
@@ -1056,7 +1056,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             self.state.set(SpiState::Idle);
             self.alarm_state.set(AlarmState::Idle);
             self.alarm_count.set(0);
-            self.client.get().map(move |client| {
+            self.client.map(move |client| {
                 client.error(ErrorCode::TimeoutFailure as u32);
             });
         } else {
@@ -1066,7 +1066,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         match self.alarm_state.get() {
             AlarmState::DetectionChange => {
                 // perform callback
-                self.client.get().map(move |client| {
+                self.client.map(move |client| {
                     client.card_detection_changed(self.is_installed());
                 });
 
@@ -1182,7 +1182,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     }
 
     pub fn set_client<C: SDCardClient>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn is_installed(&self) -> bool {
@@ -1329,7 +1329,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 }
 
 /// Handle callbacks from the SPI peripheral
-impl<'a, A: hil::time::Alarm + 'a> hil::spi::SpiMasterClient for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(
         &self,
         mut write_buffer: &'static mut [u8],
@@ -1344,14 +1344,14 @@ impl<'a, A: hil::time::Alarm + 'a> hil::spi::SpiMasterClient for SDCard<'a, A> {
 }
 
 /// Handle callbacks from the timer
-impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::time::Client for SDCard<'a, A> {
     fn fired(&self) {
         self.process_alarm_states();
     }
 }
 
 /// Handle callbacks from the card detection pin
-impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
+impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
     fn fired(&self, _: usize) {
         // check if there was an open transaction with the sd card
         if self.alarm_state.get() != AlarmState::Idle || self.state.get() != SpiState::Idle {
@@ -1359,7 +1359,7 @@ impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
             //  send an error callback
             self.state.set(SpiState::Idle);
             self.alarm_state.set(AlarmState::Idle);
-            self.client.get().map(move |client| {
+            self.client.map(move |client| {
                 client.error(ErrorCode::CardStateChanged as u32);
             });
         }
@@ -1384,34 +1384,25 @@ impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
 /// This is used if the SDCard is going to be attached directly to userspace
 /// syscalls. SDCardDriver can be ignored if another capsule is going to build
 /// off of the SDCard instead
-pub struct SDCardDriver<'a, A: hil::time::Alarm + 'a> {
+pub struct SDCardDriver<'a, A: hil::time::Alarm> {
     sdcard: &'a SDCard<'a, A>,
     app: MapCell<App>,
     kernel_buf: TakeCell<'static, [u8]>,
 }
 
 /// Holds buffers and whatnot that the application has passed us.
+#[derive(Default)]
 struct App {
     callback: Option<Callback>,
     write_buffer: Option<AppSlice<Shared, u8>>,
     read_buffer: Option<AppSlice<Shared, u8>>,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            write_buffer: None,
-            read_buffer: None,
-        }
-    }
-}
-
 /// Buffer for SD card driver, assigned in board `main.rs` files
 pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
 
 /// Functions for SDCardDriver
-impl<'a, A: hil::time::Alarm + 'a> SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> SDCardDriver<'a, A> {
     /// Create new SD card userland interface
     ///
     /// sdcard - SDCard interface to provide application access to
@@ -1431,7 +1422,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardDriver<'a, A> {
 }
 
 /// Handle callbacks from SDCard
-impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
             app.callback.map(|mut cb| {
@@ -1495,7 +1486,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
 }
 
 /// Connections to userspace syscalls
-impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm> Driver for SDCardDriver<'a, A> {
     fn allow(
         &self,
         _appid: AppId,
@@ -1551,7 +1542,8 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
             2 => self.sdcard.initialize(),
 
             // read_block
-            3 => self.kernel_buf
+            3 => self
+                .kernel_buf
                 .take()
                 .map_or(ReturnCode::EBUSY, |kernel_buf| {
                     self.sdcard.read_blocks(kernel_buf, data as u32, 1)

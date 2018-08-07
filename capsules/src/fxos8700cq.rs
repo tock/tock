@@ -20,7 +20,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
@@ -179,10 +179,10 @@ pub struct Fxos8700cq<'a> {
     interrupt_pin1: &'a gpio::Pin,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: Cell<Option<&'static hil::sensors::NineDofClient>>,
+    callback: OptionalCell<&'static hil::sensors::NineDofClient>,
 }
 
-impl<'a> Fxos8700cq<'a> {
+impl Fxos8700cq<'a> {
     pub fn new(
         i2c: &'a I2CDevice,
         interrupt_pin1: &'a gpio::Pin,
@@ -193,7 +193,7 @@ impl<'a> Fxos8700cq<'a> {
             interrupt_pin1: interrupt_pin1,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
-            callback: Cell::new(None),
+            callback: OptionalCell::empty(),
         }
     }
 
@@ -224,7 +224,7 @@ impl<'a> Fxos8700cq<'a> {
     }
 }
 
-impl<'a> gpio::Client for Fxos8700cq<'a> {
+impl gpio::Client for Fxos8700cq<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin1.disable_interrupt();
@@ -238,7 +238,7 @@ impl<'a> gpio::Client for Fxos8700cq<'a> {
     }
 }
 
-impl<'a> I2CClient for Fxos8700cq<'a> {
+impl I2CClient for Fxos8700cq<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         match self.state.get() {
             State::ReadAccelSetup => {
@@ -286,7 +286,7 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|cb| {
+                self.callback.map(|cb| {
                     cb.callback(x as usize, y as usize, z as usize);
                 });
             }
@@ -308,7 +308,6 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.buffer.replace(buffer);
 
                 self.callback
-                    .get()
                     .map(|cb| cb.callback(x as usize, y as usize, z as usize));
             }
             _ => {}
@@ -316,9 +315,9 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
     }
 }
 
-impl<'a> hil::sensors::NineDof for Fxos8700cq<'a> {
+impl hil::sensors::NineDof for Fxos8700cq<'a> {
     fn set_client(&self, client: &'static hil::sensors::NineDofClient) {
-        self.callback.set(Some(client));
+        self.callback.set(client);
     }
 
     fn read_accelerometer(&self) -> ReturnCode {

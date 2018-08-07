@@ -30,7 +30,7 @@ These implement a driver to setup and read various physical sensors.
 
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
-- **[LPS29035](src/isl29035.rs)**: Pressure sensor.
+- **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[TMP006](src/tmp006.rs)**: Infrared temperature sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
@@ -41,6 +41,7 @@ These drivers provide support for various ICs.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP23008](src/mcp23008.rs)**: I2C GPIO extender.
+- **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 
@@ -113,6 +114,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
+- **[Virtual UART](src/virtual_uart.rs)**: Shared UART bus.
 
 
 ### Utility Capsules

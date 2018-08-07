@@ -9,8 +9,10 @@ if [ ! -x tools/run_cargo_fmt.sh ]; then
 	exit 1
 fi
 
-# Install formatting tools if needed. Source this script so it can modify PATH
-source tools/install_cargo_fmt.sh
+# Add the rustfmt component if needed.
+if ! rustup component list | grep 'rustfmt-preview.*(installed)' -q; then
+	rustup component add rustfmt-preview
+fi
 
 # Format overwrites changes, which is probably good, but it's nice to see
 # what it has done
@@ -42,23 +44,33 @@ set -e
 # Find folders with Cargo.toml files in them and run `cargo fmt`.
 if [ "$1" == "diff" ]; then
 	# Just print out diffs and count errors, used by Travis
-	for f in $(find . | grep Cargo.toml); do
-		pushd $(dirname $f) > /dev/null
-		cargo-fmt -- --write-mode=check || let FAIL=FAIL+1
-		popd > /dev/null
-	done
-	exit $FAIL
-else
-	for f in $(find . | grep Cargo.toml); do
-		pushd $(dirname $f) > /dev/null
-		cargo-fmt -- --write-mode=overwrite || let FAIL=FAIL+1
-		popd > /dev/null
-	done
-
-	if [[ $FAIL -ne 0 ]]; then
-		echo
-		echo "$(tput bold)Error running rustfmt.$(tput sgr0)"
-		echo "See above for details"
-	fi
-	exit $FAIL
+	CARGO_FMT_ARGS="-- --check"
 fi
+for f in $(find . | grep Cargo.toml); do
+	pushd $(dirname $f) > /dev/null
+	cargo-fmt $CARGO_FMT_ARGS || let FAIL=FAIL+1
+	popd > /dev/null
+done
+
+# rustfmt doesn't have an option for this, so do it manually
+# Find folders with Cargo.toml files in them and check them (avoids matching this script!)
+for f in $(find . | grep Cargo.toml); do
+	pushd $(dirname $f) > /dev/null
+	if $(git grep -q 'use .*\*;'); then
+		echo
+		echo "$(tput bold)Wildcard import(s) found in $(dirname $f).$(tput sgr0)"
+		echo "Tock style rules prohibit this use of wildcard imports."
+		echo
+		echo "The following wildcard imports were found:"
+		git grep 'use .*\*;'
+		let FAIL=FAIL+1
+	fi
+	popd > /dev/null
+done
+
+if [[ $FAIL -ne 0 ]]; then
+	echo
+	echo "$(tput bold)Formatting errors.$(tput sgr0)"
+	echo "See above for details"
+fi
+exit $FAIL

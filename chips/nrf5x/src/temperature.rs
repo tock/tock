@@ -8,9 +8,9 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: March 03, 2017
 
-use core::cell::Cell;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
 const TEMP_BASE: StaticRef<TempRegisters> =
@@ -106,7 +106,7 @@ register_bitfields! [u32,
 
 pub struct Temp {
     registers: StaticRef<TempRegisters>,
-    client: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
+    client: OptionalCell<&'static kernel::hil::sensors::TemperatureClient>,
 }
 
 pub static mut TEMP: Temp = Temp::new();
@@ -115,7 +115,7 @@ impl Temp {
     const fn new() -> Temp {
         Temp {
             registers: TEMP_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -136,9 +136,7 @@ impl Temp {
         self.disable_interrupts();
 
         // trigger callback with temperature
-        self.client
-            .get()
-            .map(|client| client.callback(temp as usize));
+        self.client.map(|client| client.callback(temp as usize));
     }
 
     fn enable_interrupts(&self) {
@@ -162,6 +160,6 @@ impl kernel::hil::sensors::TemperatureDriver for Temp {
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }

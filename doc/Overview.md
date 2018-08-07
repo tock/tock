@@ -106,6 +106,11 @@ specifications for internal interfaces and tutorials.
 such as the scheduler, processes, and memory management. This directory
 and arch are were where all core kernel code reside.
 
+- **libraries**: contains libraries that we use internally and share
+externally. Several primitives have been created for Tock that we think could
+also be useful to other projects. This is a location where each crate is
+located.
+
 - **tools**: contains associated tools to help in compilation and
 code maintenance, such as checking code formatting, converting binaries,
 and build scripts.

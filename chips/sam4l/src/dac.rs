@@ -6,7 +6,7 @@
 //! - Date: May 26th, 2017
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
@@ -153,8 +153,11 @@ impl hil::dac::DacChannel for Dac {
             // -clock divider from 48 MHz to 500 kHz (0x60)
             // -internal trigger
             // -enable dacc
-            let mr = Mode::WORD::HalfWordTransfer + Mode::STARTUP.val(0xff) + Mode::CLKDIV.val(0x60)
-                + Mode::TRGEN::InternalTrigger + Mode::DACEN::SET;
+            let mr = Mode::WORD::HalfWordTransfer
+                + Mode::STARTUP.val(0xff)
+                + Mode::CLKDIV.val(0x60)
+                + Mode::TRGEN::InternalTrigger
+                + Mode::DACEN::SET;
             regs.mr.write(mr);
         }
         ReturnCode::SUCCESS

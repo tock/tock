@@ -2,14 +2,17 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm, const_fn, lang_items)]
+#![feature(asm, const_fn, panic_implementation)]
+
 extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(debug, static_init)]
 extern crate kernel;
+extern crate cortexm4;
 extern crate tm4c129x;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::Platform;
@@ -30,13 +33,18 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] =
     [None, None, None, None];
+
+/// Dummy buffer that causes the linker to reserve enough space for the stack.
+#[no_mangle]
+#[link_section = ".stack_buffer"]
+pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct EkTm4c1294xl {
-    console: &'static capsules::console::Console<'static, tm4c129x::uart::UART>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, tm4c129x::gpt::AlarmTimer>,
@@ -73,18 +81,54 @@ pub unsafe fn reset_handler() {
     tm4c129x::sysctl::PSYSCTLM
         .setup_system_clock(tm4c129x::sysctl::SystemClockSource::PllPioscAt120MHz);
 
-    let console = static_init!(
-        capsules::console::Console<tm4c129x::uart::UART>,
-        capsules::console::Console::new(
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(
             &tm4c129x::uart::UART0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
+    );
+    hil::uart::UART::set_client(&tm4c129x::uart::UART0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
+
+    let console = static_init!(
+        capsules::console::Console<UartDevice>,
+        capsules::console::Console::new(
+            console_uart,
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant()
         )
     );
-    hil::uart::UART::set_client(&tm4c129x::uart::UART0, console);
+    hil::uart::UART::set_client(console_uart, console);
     tm4c129x::uart::UART0.specify_pins(&tm4c129x::gpio::PA[0], &tm4c129x::gpio::PA[1]);
+
+    // Create virtual device for kernel debug.
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
+
+    let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     // Alarm
     let alarm_timer = &tm4c129x::gpt::TIMER0;
@@ -99,7 +143,7 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, tm4c129x::gpt::AlarmTimer>>,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
     );
     virtual_alarm1.set_client(alarm);
 
@@ -149,7 +193,7 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, tm4c129x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(button_pins, board_kernel.create_grant())
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
@@ -177,7 +221,7 @@ pub unsafe fn reset_handler() {
         console: console,
         alarm: alarm,
         gpio: gpio,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel),
         led: led,
         button: button,
     };
@@ -185,10 +229,6 @@ pub unsafe fn reset_handler() {
     let mut chip = tm4c129x::chip::Tm4c129x::new();
 
     tm4c1294.console.initialize();
-
-    // Attach the kernel debug interface to this console
-    let kc = static_init!(capsules::console::App, capsules::console::App::default());
-    kernel::debug::assign_console_driver(Some(tm4c1294.console), kc);
 
     debug!("Initialization complete. Entering main loop...\r");
 
@@ -199,10 +239,11 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
     kernel::procs::load_processes(
+        board_kernel,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    kernel::kernel_loop(&tm4c1294, &mut chip, &mut PROCESSES, Some(&tm4c1294.ipc));
+    board_kernel.kernel_loop(&tm4c1294, &mut chip, Some(&tm4c1294.ipc));
 }

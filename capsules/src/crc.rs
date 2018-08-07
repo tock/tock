@@ -65,7 +65,7 @@
 //! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
@@ -86,13 +86,13 @@ pub struct App {
 
 /// Struct that holds the state of the CRC driver and implements the `Driver` trait for use by
 /// processes through the system call interface.
-pub struct Crc<'a, C: hil::crc::CRC + 'a> {
+pub struct Crc<'a, C: hil::crc::CRC> {
     crc_unit: &'a C,
     apps: Grant<App>,
-    serving_app: Cell<Option<AppId>>,
+    serving_app: OptionalCell<AppId>,
 }
 
-impl<'a, C: hil::crc::CRC> Crc<'a, C> {
+impl<C: hil::crc::CRC> Crc<'a, C> {
     /// Create a `Crc` driver
     ///
     /// The argument `crc_unit` must implement the abstract `CRC`
@@ -111,12 +111,12 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
         Crc {
             crc_unit: crc_unit,
             apps: apps,
-            serving_app: Cell::new(None),
+            serving_app: OptionalCell::empty(),
         }
     }
 
     fn serve_waiting_apps(&self) {
-        if self.serving_app.get().is_some() {
+        if self.serving_app.is_some() {
             // A computation is in progress
             return;
         }
@@ -130,7 +130,7 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
                         let r = self.crc_unit.compute(buffer.as_ref(), alg);
                         if r == ReturnCode::SUCCESS {
                             // The unit is now computing a CRC for this app
-                            self.serving_app.set(Some(app.appid()));
+                            self.serving_app.set(app.appid());
                             found = true;
                         } else {
                             // The app's request failed
@@ -164,7 +164,7 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
 /// the `subscribe` system call and `allow`s the driver access to the buffer over-which to compute.
 /// Then, it initiates a CRC computation using the `command` system call. See function-specific
 /// comments for details.
-impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
+impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     /// The `allow` syscall for this driver supports the single
     /// `allow_num` zero, which is used to provide a buffer over which
     /// to compute a CRC computation.
@@ -177,7 +177,8 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
@@ -212,7 +213,8 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
@@ -319,9 +321,9 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     }
 }
 
-impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
+impl<C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
     fn receive_result(&self, result: u32) {
-        if let Some(appid) = self.serving_app.get() {
+        self.serving_app.take().map(|appid| {
             self.apps
                 .enter(appid, |app, _| {
                     if let Some(mut callback) = app.callback {
@@ -331,11 +333,8 @@ impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                     ReturnCode::SUCCESS
                 })
                 .unwrap_or_else(|err| err.into());
-            self.serving_app.set(None);
             self.serve_waiting_apps();
-        } else {
-            // Ignore orphaned computation
-        }
+        });
     }
 }
 

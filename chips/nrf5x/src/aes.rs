@@ -21,7 +21,7 @@
 //!
 //! ### Things to highlight that can be improved:
 //!
-//! * ECB_DATA must be a static mut [u8] and can't be located in the struct
+//! * ECB_DATA must be a static mut \[u8\] and can't be located in the struct
 //! * PAYLOAD size is restricted to 128 bytes
 //!
 //! Authors
@@ -32,8 +32,9 @@
 
 use core::cell::Cell;
 use kernel;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
-use kernel::common::regs::{ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
 use kernel::ReturnCode;
@@ -121,7 +122,7 @@ register_bitfields! [u32,
 
 pub struct AesECB<'a> {
     registers: StaticRef<AesEcbRegisters>,
-    client: Cell<Option<&'a kernel::hil::symmetric_encryption::Client<'a>>>,
+    client: OptionalCell<&'a kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'a, [u8]>,
     output: TakeCell<'a, [u8]>,
@@ -134,11 +135,11 @@ pub struct AesECB<'a> {
 
 pub static mut AESECB: AesECB = AesECB::new();
 
-impl<'a> AesECB<'a> {
+impl AesECB<'a> {
     const fn new() -> AesECB<'a> {
         AesECB {
             registers: AESECB_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             input: TakeCell::empty(),
             output: TakeCell::empty(),
             keystream: Cell::new([0; MAX_LENGTH]),
@@ -230,7 +231,6 @@ impl<'a> AesECB<'a> {
                         }
 
                         self.client
-                            .get()
                             .map(move |client| client.crypt_done(Some(slice), buf));
                     });
                 });
@@ -253,7 +253,7 @@ impl<'a> AesECB<'a> {
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     fn enable(&self) {
         self.set_dma();
     }
@@ -265,7 +265,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     fn set_client(&'a self, client: &'a symmetric_encryption::Client<'a>) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
@@ -332,7 +332,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
+impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
     fn set_mode_aes128ctr(&self, _encrypting: bool) {
         ()

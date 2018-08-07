@@ -24,24 +24,13 @@ pub static mut BUFFER3: [u8; 256] = [0; 256];
 
 pub const DRIVER_NUM: usize = 0x80020006;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
     master_tx_buffer: Option<AppSlice<Shared, u8>>,
     master_rx_buffer: Option<AppSlice<Shared, u8>>,
     slave_tx_buffer: Option<AppSlice<Shared, u8>>,
     slave_rx_buffer: Option<AppSlice<Shared, u8>>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            master_tx_buffer: None,
-            master_rx_buffer: None,
-            slave_tx_buffer: None,
-            slave_rx_buffer: None,
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -61,7 +50,7 @@ pub struct I2CMasterSlaveDriver<'a> {
     app: MapCell<App>,
 }
 
-impl<'a> I2CMasterSlaveDriver<'a> {
+impl I2CMasterSlaveDriver<'a> {
     pub fn new(
         i2c: &'a hil::i2c::I2CMasterSlave,
         master_buffer: &'static mut [u8],
@@ -80,7 +69,7 @@ impl<'a> I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
+impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
         // Map I2C error to a number we can pass back to the application
         let err: isize = match error {
@@ -146,7 +135,7 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
+impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
@@ -218,7 +207,7 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl<'a> Driver for I2CMasterSlaveDriver<'a> {
+impl Driver for I2CMasterSlaveDriver<'a> {
     fn allow(
         &self,
         _appid: AppId,

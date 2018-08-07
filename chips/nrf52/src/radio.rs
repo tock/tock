@@ -36,7 +36,8 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
@@ -303,7 +304,7 @@ register_bitfields! [u32,
     /// Device address match index register
     DeviceAddressIndex [
         /// Device address match index
-        /// Index (n) of device address, see DAB[n] and DAP[n], that got an
+        /// Index (n) of device address, see DAB\[n\] and DAP\[n\], that got an
         /// address match
         INDEX OFFSET(0) NUMBITS(3)
     ],
@@ -532,8 +533,8 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: Cell<Option<&'static ble_advertising::RxClient>>,
-    tx_client: Cell<Option<&'static ble_advertising::TxClient>>,
+    rx_client: OptionalCell<&'static ble_advertising::RxClient>,
+    tx_client: OptionalCell<&'static ble_advertising::TxClient>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -543,8 +544,8 @@ impl Radio {
         Radio {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
-            rx_client: Cell::new(None),
-            tx_client: Cell::new(None),
+            rx_client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
         }
     }
 
@@ -628,9 +629,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client
-                        .get()
-                        .map(|client| client.transmit_event(result));
+                    self.tx_client.map(|client| client.transmit_event(result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
@@ -638,7 +637,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
                     unsafe {
-                        self.rx_client.get().map(|client| {
+                        self.rx_client.map(|client| {
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                             // And because the length field is directly read from the packet
                             // We need to add 2 to length to get the total length
@@ -656,7 +655,9 @@ impl Radio {
     pub fn enable_interrupts(&self) {
         let regs = &*self.registers;
         regs.intenset.write(
-            Interrupt::READY::SET + Interrupt::ADDRESS::SET + Interrupt::PAYLOAD::SET
+            Interrupt::READY::SET
+                + Interrupt::ADDRESS::SET
+                + Interrupt::PAYLOAD::SET
                 + Interrupt::END::SET,
         );
     }
@@ -740,14 +741,16 @@ impl Radio {
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
         regs.pcnf0.write(
-            PacketConfiguration0::LFLEN.val(8) + PacketConfiguration0::S0LEN.val(1)
+            PacketConfiguration0::LFLEN.val(8)
+                + PacketConfiguration0::S0LEN.val(1)
                 + PacketConfiguration0::S1LEN::CLEAR
                 + PacketConfiguration0::S1INCL::CLEAR
                 + PacketConfiguration0::PLEN::EIGHT,
         );
 
         regs.pcnf1.write(
-            PacketConfiguration1::WHITEEN::ENABLED + PacketConfiguration1::ENDIAN::LITTLE
+            PacketConfiguration1::WHITEEN::ENABLED
+                + PacketConfiguration1::ENDIAN::LITTLE
                 + PacketConfiguration1::BALEN.val(3)
                 + PacketConfiguration1::STATLEN::CLEAR
                 + PacketConfiguration1::MAXLEN.val(255),
@@ -810,11 +813,11 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
     }
 
     fn set_receive_client(&self, client: &'static ble_advertising::RxClient) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
     }
 
     fn set_transmit_client(&self, client: &'static ble_advertising::TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 }
 

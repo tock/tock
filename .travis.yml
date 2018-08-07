@@ -1,11 +1,26 @@
 sudo: false
 language: rust
 
+
+# bors default configuration:
+#branches:
+#  only:
+#    # This is where pull requests from "bors r+" are built.
+#    - staging
+#    # This is where pull requests from "bors try" are built.
+#    - trying
+#    # Uncomment this to enable building pull requests.
+#    - master
+#
+# Instead, I think we just want to disable to bors temp branch
+branches:
+  except:
+    - staging.tmp
+    - trying.tmp
+
+
 cache:
   cargo: true
-  directories:
-    - $HOME/gcc-arm-none-eabi-6_2-2016q4
-    - $HOME/local_cargo
 
 os:
   - linux
@@ -13,19 +28,12 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2018-04-19
-
-before_install:
-  - ./.travis-install-gcc
-  - export PATH="$PATH:$HOME/gcc-arm-none-eabi-6_2-2016q4/bin"
+  - nightly-2018-06-26
 
 before_script:
-  - tools/install_cargo_fmt.sh
   - npm install -g markdown-toc
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
-  - tools/run_cargo_fmt.sh diff
-  - make allboards
-  - tools/toc.sh
+  - make ci-travis
 

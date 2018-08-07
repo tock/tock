@@ -12,7 +12,7 @@
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
@@ -49,15 +49,15 @@ impl Default for App {
 pub struct NineDof<'a> {
     driver: &'a hil::sensors::NineDof,
     apps: Grant<App>,
-    current_app: Cell<Option<AppId>>,
+    current_app: OptionalCell<AppId>,
 }
 
-impl<'a> NineDof<'a> {
+impl NineDof<'a> {
     pub fn new(driver: &'a hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             driver: driver,
             apps: grant,
-            current_app: Cell::new(None),
+            current_app: OptionalCell::empty(),
         }
     }
 
@@ -67,8 +67,8 @@ impl<'a> NineDof<'a> {
     fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
-                if self.current_app.get().is_none() {
-                    self.current_app.set(Some(appid));
+                if self.current_app.is_none() {
+                    self.current_app.set(appid);
                     self.call_driver(command, arg1)
                 } else {
                     if app.pending_command == true {
@@ -94,15 +94,14 @@ impl<'a> NineDof<'a> {
     }
 }
 
-impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
+impl hil::sensors::NineDofClient for NineDof<'a> {
     fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
         // Notify the current application that the command finished.
         // Also keep track of what just finished to see if we can re-use
         // the result.
         let mut finished_command = NineDofCommand::Exists;
         let mut finished_command_arg = 0;
-        self.current_app.get().map(|appid| {
-            self.current_app.set(None);
+        self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.pending_command = false;
                 finished_command = app.command;
@@ -116,7 +115,8 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let started_command = cntr.enter(|app, _| {
-                if app.pending_command && app.command == finished_command
+                if app.pending_command
+                    && app.command == finished_command
                     && app.arg1 == finished_command_arg
                 {
                     // Don't bother re-issuing this command, just use
@@ -128,7 +128,7 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
                     false
                 } else if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(Some(app.appid()));
+                    self.current_app.set(app.appid());
                     self.call_driver(app.command, app.arg1) == ReturnCode::SUCCESS
                 } else {
                     false
@@ -141,7 +141,7 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
     }
 }
 
-impl<'a> Driver for NineDof<'a> {
+impl Driver for NineDof<'a> {
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -149,7 +149,8 @@ impl<'a> Driver for NineDof<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.apps
+            0 => self
+                .apps
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS

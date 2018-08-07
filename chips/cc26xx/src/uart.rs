@@ -1,18 +1,19 @@
 //! UART driver, cc26xx family
-use core::cell::Cell;
 use gpio;
 use ioc;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::gpio::Pin;
 use kernel::hil::uart;
+use kernel::ReturnCode;
 use prcm;
 
-const UART_BASE: usize = 0x4000_1000;
 const MCU_CLOCK: u32 = 48_000_000;
 
 #[repr(C)]
-struct Registers {
+struct UartRegisters {
     dr: ReadWrite<u32>,
     rsr_ecr: ReadWrite<u32>,
     _reserved0: [u32; 0x4],
@@ -62,68 +63,81 @@ register_bitfields![
     ]
 ];
 
+const UART_BASE: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const UartRegisters) };
+
 pub struct UART {
-    regs: *const Registers,
-    client: Cell<Option<&'static uart::Client>>,
-    tx_pin: Cell<Option<u8>>,
-    rx_pin: Cell<Option<u8>>,
+    registers: StaticRef<UartRegisters>,
+    client: OptionalCell<&'static uart::Client>,
+    tx_pin: OptionalCell<u8>,
+    rx_pin: OptionalCell<u8>,
 }
 
 impl UART {
     const fn new() -> UART {
         UART {
-            regs: UART_BASE as *const Registers,
-            client: Cell::new(None),
-            tx_pin: Cell::new(None),
-            rx_pin: Cell::new(None),
+            registers: UART_BASE,
+            client: OptionalCell::empty(),
+            tx_pin: OptionalCell::empty(),
+            rx_pin: OptionalCell::empty(),
         }
     }
 
-    /// Sets pin number for transmit and receive line.
+    /// Initialize the UART hardware.
     ///
-    /// This function needs to be run before the UART module is initialized.
-    /// Initializing the module without setting the pins will make the kernel panic.
-    pub fn set_pins(&self, tx_pin: u8, rx_pin: u8) {
-        self.tx_pin.set(Some(tx_pin));
-        self.rx_pin.set(Some(rx_pin));
+    /// This function needs to be run before the UART module is used.
+    pub fn initialize_and_set_pins(&self, tx_pin: u8, rx_pin: u8) {
+        self.tx_pin.set(tx_pin);
+        self.rx_pin.set(rx_pin);
+        self.power_and_clock();
+        self.disable_interrupts();
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParams) {
-        let tx_pin = match self.tx_pin.get() {
-            Some(pin) => pin,
-            None => panic!("Tx pin not configured for UART"),
-        };
-
-        let rx_pin = match self.rx_pin.get() {
-            Some(pin) => pin,
-            None => panic!("Rx pin not configured for UART"),
-        };
-
-        unsafe {
-            // Make sure the TX pin is output/high before assigning it to UART control
-            // to avoid falling edge glitches
-            gpio::PORT[tx_pin as usize].make_output();
-            gpio::PORT[tx_pin as usize].set();
-
-            // Map UART signals to IO pin
-            ioc::IOCFG[tx_pin as usize].enable_uart_tx();
-            ioc::IOCFG[rx_pin as usize].enable_uart_rx();
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != kernel::hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != kernel::hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
         }
 
-        // Disable the UART before configuring
-        self.disable();
+        self.tx_pin.map_or(ReturnCode::EOFF, |tx_pin| {
+            self.rx_pin.map_or(ReturnCode::EOFF, |rx_pin| {
+                unsafe {
+                    // Make sure the TX pin is output/high before assigning it to UART control
+                    // to avoid falling edge glitches
+                    gpio::PORT[*tx_pin as usize].make_output();
+                    gpio::PORT[*tx_pin as usize].set();
 
-        self.set_baud_rate(params.baud_rate);
+                    // Map UART signals to IO pin
+                    ioc::IOCFG[*tx_pin as usize].enable_uart_tx();
+                    ioc::IOCFG[*rx_pin as usize].enable_uart_rx();
+                }
 
-        // Set word length
-        let regs = unsafe { &*self.regs };
-        regs.lcrh.write(LineControl::WORD_LENGTH::Len8);
+                // Disable the UART before configuring
+                self.disable();
 
-        self.fifo_enable();
+                self.set_baud_rate(params.baud_rate);
 
-        // Enable UART, RX and TX
-        regs.ctl
-            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
+                // Set word length
+                let regs = &*self.registers;
+                regs.lcrh.write(LineControl::WORD_LENGTH::Len8);
+
+                self.fifo_enable();
+
+                // Enable UART, RX and TX
+                regs.ctl.write(
+                    Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET,
+                );
+
+                ReturnCode::SUCCESS
+            })
+        })
     }
 
     fn power_and_clock(&self) {
@@ -136,24 +150,24 @@ impl UART {
         // Fractional baud rate divider
         let div = (((MCU_CLOCK * 8) / baud_rate) + 1) / 2;
         // Set the baud rate
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.ibrd.write(IntDivisor::DIVISOR.val(div / 64));
         regs.fbrd.write(FracDivisor::DIVISOR.val(div % 64));
     }
 
     fn fifo_enable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.lcrh.modify(LineControl::FIFO_ENABLE::SET);
     }
 
     fn fifo_disable(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.lcrh.modify(LineControl::FIFO_ENABLE::CLEAR);
     }
 
     fn disable(&self) {
         self.fifo_disable();
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.ctl.modify(
             Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR + Control::RX_ENABLE::CLEAR,
         );
@@ -161,7 +175,7 @@ impl UART {
 
     fn disable_interrupts(&self) {
         // Disable all UART interrupts
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.imsc.modify(Interrupts::ALL_INTERRUPTS::CLEAR);
         // Clear all UART interrupts
         regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
@@ -169,7 +183,7 @@ impl UART {
 
     /// Clears all interrupts related to UART.
     pub fn handle_interrupt(&self) {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         // Clear interrupts
         regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
     }
@@ -179,26 +193,24 @@ impl UART {
         // Wait for space in FIFO
         while !self.tx_ready() {}
         // Put byte in data register
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         regs.dr.set(c as u32);
     }
 
     /// Checks if there is space in the transmit fifo queue.
     pub fn tx_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
+        let regs = &*self.registers;
         !regs.fr.is_set(Flags::TX_FIFO_FULL)
     }
 }
 
 impl kernel::hil::uart::UART for UART {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
-    fn init(&self, params: kernel::hil::uart::UARTParams) {
-        self.power_and_clock();
-        self.disable_interrupts();
-        self.configure(params);
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        self.configure(params)
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
@@ -210,7 +222,7 @@ impl kernel::hil::uart::UART for UART {
             self.send_byte(tx_data[i]);
         }
 
-        self.client.get().map(move |client| {
+        self.client.map(move |client| {
             client.transmit_complete(tx_data, kernel::hil::uart::Error::CommandComplete);
         });
     }

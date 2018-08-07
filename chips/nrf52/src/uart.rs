@@ -10,8 +10,10 @@ use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use kernel::ReturnCode;
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -155,7 +157,7 @@ register_bitfields! [u32,
 // is exported outside this module it must be `pub`
 pub struct Uarte {
     registers: StaticRef<UarteRegisters>,
-    client: Cell<Option<&'static kernel::hil::uart::Client>>,
+    client: OptionalCell<&'static kernel::hil::uart::Client>,
     tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
     tx_remaining_bytes: Cell<usize>,
     rx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
@@ -178,7 +180,7 @@ impl Uarte {
     pub const fn new() -> Uarte {
         Uarte {
             registers: UARTE_BASE,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             tx_buffer: kernel::common::cells::TakeCell::empty(),
             tx_remaining_bytes: Cell::new(0),
             rx_buffer: kernel::common::cells::TakeCell::empty(),
@@ -189,7 +191,7 @@ impl Uarte {
     }
 
     /// Configure which pins the UART should use for txd, rxd, cts and rts
-    pub fn configure(
+    pub fn initialize(
         &self,
         txd: pinmux::Pinmux,
         rxd: pinmux::Pinmux,
@@ -201,6 +203,8 @@ impl Uarte {
         regs.pselrxd.write(Psel::PIN.val(rxd.into()));
         regs.pselcts.write(Psel::PIN.val(cts.into()));
         regs.pselrts.write(Psel::PIN.val(rts.into()));
+
+        self.enable_uart();
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -285,7 +289,7 @@ impl Uarte {
             // All bytes have been transmitted
             if rem == 0 {
                 // Signal client write done
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
                         client.transmit_complete(
                             tx_buffer,
@@ -318,7 +322,7 @@ impl Uarte {
             // do the receive callback immediately.
             if self.rx_abort_in_progress.get() {
                 self.rx_abort_in_progress.set(false);
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     self.rx_buffer.take().map(|rx_buffer| {
                         client.receive_complete(
                             rx_buffer,
@@ -340,7 +344,7 @@ impl Uarte {
                 let rem = self.rx_remaining_bytes.get();
                 if rem == 0 {
                     // Signal client that the read is done
-                    self.client.get().map(|client| {
+                    self.client.map(|client| {
                         self.rx_buffer.take().map(|rx_buffer| {
                             client.receive_complete(
                                 rx_buffer,
@@ -409,12 +413,25 @@ impl Uarte {
 
 impl kernel::hil::uart::UART for Uarte {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
-    fn init(&self, params: kernel::hil::uart::UARTParams) {
-        self.enable_uart();
+    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != kernel::hil::uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != kernel::hil::uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
+
         self.set_baud_rate(params.baud_rate);
+
+        ReturnCode::SUCCESS
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

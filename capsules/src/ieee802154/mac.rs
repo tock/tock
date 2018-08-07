@@ -9,7 +9,7 @@
 //! the underlying kernel::hil::radio::Radio powered at all times and passing
 //! through each frame for transmission.
 
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::hil::radio;
 use kernel::ReturnCode;
 use net::ieee802154::{Header, MacAddress};
@@ -66,24 +66,24 @@ pub trait Mac {
 /// implementation and the underlying radio::Radio device. Does not change the power
 /// state of the radio during operation.
 ///
-pub struct AwakeMac<'a, R: radio::Radio + 'a> {
+pub struct AwakeMac<'a, R: radio::Radio> {
     radio: &'a R,
 
-    tx_client: Cell<Option<&'static radio::TxClient>>,
-    rx_client: Cell<Option<&'static radio::RxClient>>,
+    tx_client: OptionalCell<&'static radio::TxClient>,
+    rx_client: OptionalCell<&'static radio::RxClient>,
 }
 
-impl<'a, R: radio::Radio + 'a> AwakeMac<'a, R> {
+impl<R: radio::Radio> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
             radio: radio,
-            tx_client: Cell::new(None),
-            rx_client: Cell::new(None),
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
         }
     }
 }
 
-impl<'a, R: radio::Radio + 'a> Mac for AwakeMac<'a, R> {
+impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
     fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
         // do nothing, extra buffer unnecessary
         ReturnCode::SUCCESS
@@ -126,11 +126,11 @@ impl<'a, R: radio::Radio + 'a> Mac for AwakeMac<'a, R> {
     }
 
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 
     fn set_receive_client(&self, client: &'static radio::RxClient) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
@@ -146,15 +146,15 @@ impl<'a, R: radio::Radio + 'a> Mac for AwakeMac<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::TxClient for AwakeMac<'a, R> {
+impl<R: radio::Radio> radio::TxClient for AwakeMac<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.tx_client.get().map(move |c| {
+        self.tx_client.map(move |c| {
             c.send_done(buf, acked, result);
         });
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::RxClient for AwakeMac<'a, R> {
+impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
     fn receive(
         &self,
         buf: &'static mut [u8],
@@ -174,7 +174,7 @@ impl<'a, R: radio::Radio + 'a> radio::RxClient for AwakeMac<'a, R> {
         }
 
         if addr_match {
-            self.rx_client.get().map(move |c| {
+            self.rx_client.map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
             });
         } else {

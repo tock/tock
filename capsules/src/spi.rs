@@ -21,6 +21,7 @@ pub const DRIVER_NUM: usize = 0x20001;
 // operation, while the index variable keeps track of the
 // index an ongoing operation is at in the buffers.
 
+#[derive(Default)]
 struct App {
     callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
@@ -29,21 +30,10 @@ struct App {
     index: usize,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            app_read: None,
-            app_write: None,
-            len: 0,
-            index: 0,
-        }
-    }
-}
-
 // Since we provide an additional callback in slave mode for
 // when the chip is selected, we have added a "SlaveApp" struct
 // that includes this new callback field.
+#[derive(Default)]
 struct SlaveApp {
     callback: Option<Callback>,
     selected_callback: Option<Callback>,
@@ -53,20 +43,7 @@ struct SlaveApp {
     index: usize,
 }
 
-impl Default for SlaveApp {
-    fn default() -> SlaveApp {
-        SlaveApp {
-            callback: None,
-            selected_callback: None,
-            app_read: None,
-            app_write: None,
-            len: 0,
-            index: 0,
-        }
-    }
-}
-
-pub struct Spi<'a, S: SpiMasterDevice + 'a> {
+pub struct Spi<'a, S: SpiMasterDevice> {
     spi_master: &'a S,
     busy: Cell<bool>,
     app: MapCell<App>,
@@ -75,7 +52,7 @@ pub struct Spi<'a, S: SpiMasterDevice + 'a> {
     kernel_len: Cell<usize>,
 }
 
-pub struct SpiSlave<'a, S: SpiSlaveDevice + 'a> {
+pub struct SpiSlave<'a, S: SpiSlaveDevice> {
     spi_slave: &'a S,
     busy: Cell<bool>,
     app: MapCell<SlaveApp>,
@@ -84,7 +61,7 @@ pub struct SpiSlave<'a, S: SpiSlaveDevice + 'a> {
     kernel_len: Cell<usize>,
 }
 
-impl<'a, S: SpiMasterDevice> Spi<'a, S> {
+impl<S: SpiMasterDevice> Spi<'a, S> {
     pub fn new(spi_master: &'a S) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
@@ -126,7 +103,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
+impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn allow(
         &self,
         _appid: AppId,
@@ -276,7 +253,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
+impl<S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(
         &self,
         writebuf: &'static mut [u8],
@@ -313,7 +290,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiSlaveDevice> SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
     pub fn new(spi_slave: &'a S) -> SpiSlave<'a, S> {
         SpiSlave {
             spi_slave: spi_slave,
@@ -352,7 +329,7 @@ impl<'a, S: SpiSlaveDevice> SpiSlave<'a, S> {
     }
 }
 
-impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     /// Provide read/write buffers to SpiSlave
     ///
     /// - allow_num 0: Provides an app_read buffer to receive transfers into.
@@ -493,7 +470,7 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     }
 }
 
-impl<'a, S: SpiSlaveDevice> SpiSlaveClient for SpiSlave<'a, S> {
+impl<S: SpiSlaveDevice> SpiSlaveClient for SpiSlave<'a, S> {
     fn read_write_done(
         &self,
         writebuf: Option<&'static mut [u8]>,

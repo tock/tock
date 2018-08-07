@@ -3,7 +3,7 @@
 //! Minimal implementation to support activation of the reset button on
 //! nRF52-DK.
 
-use kernel::common::regs::ReadWrite;
+use kernel::common::registers::ReadWrite;
 use kernel::common::StaticRef;
 
 const UICR_BASE: StaticRef<UicrRegisters> =

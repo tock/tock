@@ -1,7 +1,7 @@
 //! ARM Cortex-M SysTick peripheral.
 
 use kernel;
-use kernel::common::regs::{ReadOnly, ReadWrite};
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 #[repr(C)]
@@ -146,7 +146,8 @@ impl kernel::SysTick for SysTick {
     fn enable(&self, with_interrupt: bool) {
         if with_interrupt {
             SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET + ControlAndStatus::TICKINT::SET
+                ControlAndStatus::ENABLE::SET
+                    + ControlAndStatus::TICKINT::SET
                     + ControlAndStatus::CLKSOURCE::SET,
             );
         } else {

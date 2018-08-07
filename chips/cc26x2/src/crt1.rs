@@ -23,8 +23,8 @@ unsafe extern "C" fn hard_fault_handler() {
 }
 
 #[link_section = ".vectors"]
-// no_mangle Ensures that the symbol is kept until the final binary
-#[no_mangle]
+// used Ensures that the symbol is kept until the final binary
+#[used]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
     _estack,
     reset_handler,

@@ -35,12 +35,28 @@
 //! PlaintextData before running CBC over both fields. The last step is to
 //! combine saved_tag and the unencrypted tag to form the encrypted tag and
 //! verify its correctness.
+//!
+//! Usage
+//! -----
+//!
+//! ```
+//! const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
+//! static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
+//!
+//! let aes_ccm = static_init!(
+//!     capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+//!     capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
+//! );
+//! sam4l::aes::AES.set_client(aes_ccm);
+//! sam4l::aes::AES.enable();
+//! ```
 
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
-                                        AES128_KEY_SIZE, CCM_NONCE_LENGTH};
+use kernel::hil::symmetric_encryption::{
+    AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
+};
 use kernel::ReturnCode;
 use net::stream::SResult;
 use net::stream::{encode_bytes, encode_u16};
@@ -52,12 +68,12 @@ enum CCMState {
     Encrypt,
 }
 
-pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
+pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     aes: &'a A,
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: Cell<Option<&'a symmetric_encryption::CCMClient>>,
+    crypt_client: OptionalCell<&'a symmetric_encryption::CCMClient>,
 
     state: Cell<CCMState>,
     confidential: Cell<bool>,
@@ -70,14 +86,14 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
     saved_tag: Cell<[u8; AES128_BLOCK_SIZE]>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
+impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
     pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> AES128CCM<'a, A> {
         AES128CCM {
             aes: aes,
             crypt_buf: TakeCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),
             crypt_enc_len: Cell::new(0),
-            crypt_client: Cell::new(None),
+            crypt_client: OptionalCell::empty(),
             state: Cell::new(CCMState::Idle),
             confidential: Cell::new(false),
             encrypting: Cell::new(false),
@@ -328,11 +344,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         });
 
         self.state.set(CCMState::Idle);
-        if let Some(client) = self.crypt_client.get() {
+        self.crypt_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
             });
-        }
+        });
     }
 
     fn reverse_end_ccm(&self) {
@@ -364,11 +380,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         });
 
         self.state.set(CCMState::Idle);
-        if let Some(client) = self.crypt_client.get() {
+        self.crypt_client.map(|client| {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
             });
-        }
+        });
     }
 
     fn save_tag_block(&self) {
@@ -398,11 +414,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES128CCM<'a>
+impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     for AES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
-        self.crypt_client.set(Some(client));
+        self.crypt_client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
@@ -476,9 +492,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
-    for AES128CCM<'a, A>
-{
+impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for AES128CCM<'a, A> {
     fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {
@@ -514,9 +528,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                     if res != ReturnCode::SUCCESS {
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
-                            if let Some(client) = self.crypt_client.get() {
+                            self.crypt_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
-                            }
+                            });
                         });
                         self.state.set(CCMState::Idle);
                     }
@@ -547,9 +561,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                     if res != ReturnCode::SUCCESS {
                         // Return client buffer to client
                         self.buf.take().map(|buf| {
-                            if let Some(client) = self.crypt_client.get() {
+                            self.crypt_client.map(move |client| {
                                 client.crypt_done(buf, res, false);
-                            }
+                            });
                         });
                         self.state.set(CCMState::Idle);
                     }

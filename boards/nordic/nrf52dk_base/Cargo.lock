@@ -8,6 +8,9 @@ dependencies = [
 [[package]]
 name = "cortexm"
 version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+]
 
 [[package]]
 name = "cortexm4"
@@ -20,6 +23,10 @@ dependencies = [
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "tock-cells 0.1.0",
+ "tock-registers 0.1.0",
+]
 
 [[package]]
 name = "nrf52"
@@ -47,4 +54,12 @@ version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "tock-cells"
+version = "0.1.0"
+
+[[package]]
+name = "tock-registers"
+version = "0.1.0"
 

@@ -1,0 +1,14 @@
+[package]
+name = "tock-registers"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+description = "Memory-Mapped I/O and register interface developed for Tock."
+homepage = "https://www.tockos.org/"
+repository = "https://github.com/tock/tock/tree/master/libraries/tock-register-interface"
+readme = "README.md"
+keywords = ["tock", "embedded", "registers", "mmio", "bare-metal"]
+categories = ["data-structures", "embedded", "no-std"]
+license = "MIT/Apache-2.0"
+
+[badges]
+travis-ci = { repository = "tock/tock", branch = "master" }

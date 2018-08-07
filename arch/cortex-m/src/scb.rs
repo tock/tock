@@ -13,7 +13,7 @@ struct ScbRegisters {
     aircr: VolatileCell<u32>,
     scr: VolatileCell<u32>,
     ccr: VolatileCell<u32>,
-    shp: [VolatileCell<u32>; 12],
+    shp: [VolatileCell<u32>; 3],
     shcsr: VolatileCell<u32>,
     cfsr: VolatileCell<u32>,
     hfsr: VolatileCell<u32>,

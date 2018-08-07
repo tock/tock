@@ -159,6 +159,6 @@ the Tock Standard Library:
     }
     ```
 
-5. **Explore more sensors**. This tutorial highlights only one sensor.
-See the [sensors](../../userland/examples/sensors) app for a more complete
-sensing application.
+5. **Explore more sensors**. This tutorial highlights only one sensor. See the
+   [sensors](https://github.com/tock/libtock-c/tree/master/examples/sensors) app
+   for a more complete sensing application.

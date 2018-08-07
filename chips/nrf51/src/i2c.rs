@@ -4,8 +4,10 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
-use kernel::common::regs::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 use kernel::hil::i2c;
 use {nrf5x, nrf5x::gpio, nrf5x::pinmux::Pinmux};
 
@@ -14,8 +16,8 @@ use {nrf5x, nrf5x::gpio, nrf5x::pinmux::Pinmux};
 /// A `TWIM` instance wraps a `registers::TWIM` together with
 /// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
-    registers: *const TwimRegisters,
-    client: Cell<Option<&'static i2c::I2CHwMasterClient>>,
+    registers: StaticRef<TwimRegisters>,
+    client: OptionalCell<&'static i2c::I2CHwMasterClient>,
     tx_len: Cell<u8>,
     rx_len: Cell<u8>,
     pos: Cell<usize>,
@@ -26,7 +28,7 @@ impl TWIM {
     const fn new(instance: usize) -> TWIM {
         TWIM {
             registers: TWIM_BASE[instance],
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
             pos: Cell::new(0),
@@ -35,12 +37,8 @@ impl TWIM {
     }
 
     pub fn set_client(&self, client: &'static i2c::I2CHwMasterClient) {
-        debug_assert!(self.client.get().is_none());
-        self.client.set(Some(client));
-    }
-
-    fn regs(&self) -> &TwimRegisters {
-        unsafe { &*self.registers }
+        debug_assert!(self.client.is_none());
+        self.client.set(client);
     }
 
     /// Configures an already constructed `TWIM`.
@@ -56,7 +54,7 @@ impl TWIM {
             sclpin.write_config(gpio::PinConfig::DRIVE::S0D1);
         }
 
-        let regs = self.regs();
+        let regs = &*self.registers;
         regs.psel_scl.set(scl_idx);
         regs.psel_sda.set(sda_idx);
     }
@@ -64,28 +62,32 @@ impl TWIM {
     /// Sets the I2C bus speed to one of three possible values
     /// enumerated in `Speed`.
     pub fn set_speed(&self, speed: FieldValue<u32, Frequency::Register>) {
-        self.regs().frequency.write(speed);
+        let regs = &*self.registers;
+        regs.frequency.write(speed);
     }
 
     /// Enables hardware TWIM peripheral.
     pub fn enable(&self) {
-        self.regs().enable.write(Twim::ENABLE::ON);
+        let regs = &*self.registers;
+        regs.enable.write(Twim::ENABLE::ON);
     }
 
     /// Disables hardware TWIM peripheral.
     pub fn disable(&self) {
-        self.regs().enable.write(Twim::ENABLE::OFF);
+        let regs = &*self.registers;
+        regs.enable.write(Twim::ENABLE::OFF);
     }
 
     fn start_read(&self) {
+        let regs = &*self.registers;
         if self.rx_len.get() == 1 {
-            self.regs().shorts.write(Shorts::BB_STOP::SET);
+            regs.shorts.write(Shorts::BB_STOP::SET);
         } else {
-            self.regs().shorts.write(Shorts::BB_SUSPEND::SET);
+            regs.shorts.write(Shorts::BB_SUSPEND::SET);
         }
         self.tx_len.set(0);
         self.pos.set(0);
-        let regs = self.regs();
+        let regs = regs;
         regs.intenset.write(InterruptEnable::RXREADY::SET);
         regs.intenset.write(InterruptEnable::ERROR::SET);
         // start the transfer
@@ -93,7 +95,7 @@ impl TWIM {
     }
 
     fn reply(&self, result: i2c::Error) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             self.buf.take().map(|buf| {
                 client.command_complete(buf, result);
             });
@@ -104,7 +106,7 @@ impl TWIM {
     /// correct handler by the service_pending_interrupts() routine in
     /// chip.rs based on which peripheral is enabled.
     pub fn handle_interrupt(&self) {
-        let regs = self.regs();
+        let regs = &*self.registers;
         if regs.events_rxdreceived.get() == 1 {
             regs.events_rxdreceived.set(0);
             let pos = self.pos.get();
@@ -161,7 +163,8 @@ impl TWIM {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.regs().enable.get() == 5
+        let regs = &*self.registers;
+        regs.enable.get() == 5
     }
 }
 
@@ -175,7 +178,7 @@ impl i2c::I2CMaster for TWIM {
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        let regs = self.regs();
+        let regs = &*self.registers;
         let buffer_len = cmp::min(data.len(), 255);
         self.tx_len.set(cmp::min(write_len, buffer_len as u8));
         self.rx_len.set(cmp::min(read_len, buffer_len as u8));
@@ -195,10 +198,11 @@ impl i2c::I2CMaster for TWIM {
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        self.regs().address.set(addr as u32);
+        let regs = &*self.registers;
+        regs.address.set(addr as u32);
         let buffer_len = cmp::min(buffer.len(), 255);
         self.rx_len.set(cmp::min(len, buffer_len as u8));
-        self.regs().tasks_resume.write(Task::ENABLE::SET);
+        regs.tasks_resume.write(Task::ENABLE::SET);
         self.start_read();
         self.buf.replace(buffer);
     }
@@ -286,114 +290,116 @@ register_bitfields! [
 ];
 
 /// Uninitialized `TWIM` instances.
-pub const TWIM_BASE: [*const TwimRegisters; 2] = [
-    0x40003000 as *const TwimRegisters,
-    0x40004000 as *const TwimRegisters,
-];
+const TWIM_BASE: [StaticRef<TwimRegisters>; 2] = unsafe {
+    [
+        StaticRef::new(0x40003000 as *const TwimRegisters),
+        StaticRef::new(0x40004000 as *const TwimRegisters),
+    ]
+};
 
 #[repr(C)]
-pub struct TwimRegisters {
+struct TwimRegisters {
     /// Start TWI receive sequence
     ///
     /// addr = base + 0x000
-    pub tasks_startrx: WriteOnly<u32, Task::Register>,
+    tasks_startrx: WriteOnly<u32, Task::Register>,
     _reserved_0: [u32; 1],
     /// Start TWI transmit sequence
     ///
     /// addr = base + 0x008
-    pub tasks_starttx: WriteOnly<u32, Task::Register>,
+    tasks_starttx: WriteOnly<u32, Task::Register>,
     _reserved_1: [u32; 2],
     /// Stop TWI transaction_ Must be issued while the TWI master is not suspended_
     ///
     /// addr = base + 0x014
-    pub tasks_stop: WriteOnly<u32, Task::Register>,
+    tasks_stop: WriteOnly<u32, Task::Register>,
     _reserved_2: [u32; 1],
     /// Suspend TWI transaction
     ///
     /// addr = base + 0x01C
-    pub tasks_suspend: WriteOnly<u32, Task::Register>,
+    tasks_suspend: WriteOnly<u32, Task::Register>,
     /// Resume TWI transaction
     ///
     /// addr = base + 0x020
-    pub tasks_resume: WriteOnly<u32, Task::Register>,
+    tasks_resume: WriteOnly<u32, Task::Register>,
     _reserved_3: [u32; 56],
     /// TWI stopped
     ///
     /// addr = base + 0x104
-    pub events_stopped: ReadWrite<u32, Event::Register>,
+    events_stopped: ReadWrite<u32, Event::Register>,
     /// TWI RXD byte received
     ///
     /// addr = base + 0x108
-    pub events_rxdreceived: ReadWrite<u32, Event::Register>,
+    events_rxdreceived: ReadWrite<u32, Event::Register>,
     _reserved_4: [u32; 4],
     /// TWI TXD byte sent
     ///
     /// addr = base + 0x11c
-    pub events_txdsent: ReadWrite<u32, Event::Register>,
+    events_txdsent: ReadWrite<u32, Event::Register>,
     _reserved_5: [u32; 1],
     /// TWI error
     ///
     /// addr = base + 0x124
-    pub events_error: ReadWrite<u32, Event::Register>,
+    events_error: ReadWrite<u32, Event::Register>,
     _reserved_6: [u32; 4],
     /// TWI byte boundary
     ///
     /// addr = base + 0x138
-    pub events_bb: ReadWrite<u32, Event::Register>,
+    events_bb: ReadWrite<u32, Event::Register>,
     _reserved_7: [u32; 49],
     /// Shortcut register
     ///
     /// addr = base + 0x200
-    pub shorts: ReadWrite<u32, Shorts::Register>,
+    shorts: ReadWrite<u32, Shorts::Register>,
     _reserved_8: [u32; 63],
     /// Enable or disable interrupt
     ///
     /// addr = base + 0x300
-    pub inten: ReadOnly<u32, InterruptEnable::Register>,
+    inten: ReadOnly<u32, InterruptEnable::Register>,
     /// Enable interrupt
     ///
     /// addr = base + 0x304
-    pub intenset: WriteOnly<u32, InterruptEnable::Register>,
+    intenset: WriteOnly<u32, InterruptEnable::Register>,
     /// Disable interrupt
     ///
     /// addr = base + 0x308
-    pub intenclr: WriteOnly<u32, InterruptEnable::Register>,
+    intenclr: WriteOnly<u32, InterruptEnable::Register>,
     _reserved_9: [u32; 110],
     /// Error source
     ///
     /// addr = base + 0x4C4
-    pub errorsrc: ReadWrite<u32, ErrorSrc::Register>,
+    errorsrc: ReadWrite<u32, ErrorSrc::Register>,
     _reserved_10: [u32; 14],
     /// Enable TWIM
     ///
     /// addr = base + 0x500
-    pub enable: ReadWrite<u32, Twim::Register>,
+    enable: ReadWrite<u32, Twim::Register>,
     _reserved_11: [u32; 1],
     /// Pin select for SCL signal
     ///
     /// addr = base + 0x508
-    pub psel_scl: ReadWrite<u32, Psel::Register>,
+    psel_scl: ReadWrite<u32, Psel::Register>,
     /// Pin select for SDA signal
     ///
     /// addr = base + 0x50C
-    pub psel_sda: ReadWrite<u32, Psel::Register>,
+    psel_sda: ReadWrite<u32, Psel::Register>,
     _reserved_12: [u32; 2],
     /// RXD register
     ///
     /// addr = base + 0x518
-    pub rxd: ReadOnly<u32, Data::Register>,
+    rxd: ReadOnly<u32, Data::Register>,
     /// TXD register
     ///
     /// addr = base + 0x51C
-    pub txd: ReadWrite<u32, Data::Register>,
+    txd: ReadWrite<u32, Data::Register>,
     _reserved_13: [u32; 1],
     /// TWI frequency
     ///
     /// addr = base + 0x524
-    pub frequency: ReadWrite<u32, Frequency::Register>,
+    frequency: ReadWrite<u32, Frequency::Register>,
     _reserved_14: [u32; 24],
     /// Address used in the TWI transfer
     ///
     /// addr = base + 0x588
-    pub address: ReadWrite<u32, Address::Register>,
+    address: ReadWrite<u32, Address::Register>,
 }

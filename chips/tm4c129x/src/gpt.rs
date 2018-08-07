@@ -1,10 +1,10 @@
-use core::cell::Cell;
-use kernel::common::cells::VolatileCell;
+use kernel::common::cells::{OptionalCell, VolatileCell};
+use kernel::common::StaticRef;
 use kernel::hil;
 use sysctl;
 
 #[repr(C)]
-struct Registers {
+struct GptRegisters {
     cfg: VolatileCell<u32>,
     tamr: VolatileCell<u32>,
     tbmr: VolatileCell<u32>,
@@ -39,38 +39,39 @@ struct Registers {
     cc: VolatileCell<u32>,
 }
 
-const TIMER0_BASE: usize = 0x40030000;
+const TIMER0_BASE: StaticRef<GptRegisters> =
+    unsafe { StaticRef::new(0x40030000 as *const GptRegisters) };
 
 pub static mut TIMER0: AlarmTimer =
     AlarmTimer::new(TIMER0_BASE, sysctl::Clock::TIMER(sysctl::RCGCTIMER::TIMER0));
 
 pub struct AlarmTimer {
-    registers: *mut Registers,
+    registers: StaticRef<GptRegisters>,
     clock: sysctl::Clock,
-    client: Cell<Option<&'static hil::time::Client>>,
+    client: OptionalCell<&'static hil::time::Client>,
 }
 
 impl AlarmTimer {
-    const fn new(base_addr: usize, clock: sysctl::Clock) -> AlarmTimer {
+    const fn new(base_addr: StaticRef<GptRegisters>, clock: sysctl::Clock) -> AlarmTimer {
         AlarmTimer {
-            registers: base_addr as *mut Registers,
+            registers: base_addr,
             clock: clock,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     fn disable_interrupts(&self) {
-        let regs: &Registers = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tamr.set(regs.tamr.get() & !(1 << 5)); // GPTM Timer A Match Interrupt
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &Registers = unsafe { &*self.registers };
+        let regs = &*self.registers;
         // check if caused by TAMMIS
         if regs.mis.get() & (1 << 4) != 0 {
             self.disable_interrupts();
             regs.icr.set(regs.icr.get() | (1 << 4));
-            self.client.get().map(|cb| {
+            self.client.map(|cb| {
                 cb.fired();
             });
         }
@@ -85,8 +86,8 @@ impl hil::Controller for AlarmTimer {
             sysctl::enable_clock(self.clock);
         }
 
-        self.client.set(Some(client));
-        let regs: &Registers = unsafe { &*self.registers };
+        self.client.set(client);
+        let regs = &*self.registers;
 
         regs.ctl.set(0x0);
         regs.cfg.set(0x0);
@@ -108,25 +109,25 @@ impl hil::time::Time for AlarmTimer {
     }
 
     fn is_armed(&self) -> bool {
-        let regs: &Registers = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tamr.get() & (1 << 5) != 0
     }
 }
 
 impl hil::time::Alarm for AlarmTimer {
     fn now(&self) -> u32 {
-        let regs: &Registers = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tar.get()
     }
 
     fn set_alarm(&self, tics: u32) {
-        let regs: &Registers = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tamatchr.set(tics);
         regs.tamr.set(regs.tamr.get() | (1 << 5));
     }
 
     fn get_alarm(&self) -> u32 {
-        let regs: &Registers = unsafe { &*self.registers };
+        let regs = &*self.registers;
         regs.tamatchr.get()
     }
 }

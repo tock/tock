@@ -1,7 +1,7 @@
 //! Implementation of the SAM4L TRNG.
 
-use core::cell::Cell;
-use kernel::common::regs::{ReadOnly, WriteOnly};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::rng::{self, Continue};
 use pm;
@@ -45,17 +45,17 @@ const BASE_ADDRESS: StaticRef<TrngRegisters> =
 
 pub struct Trng<'a> {
     regs: StaticRef<TrngRegisters>,
-    client: Cell<Option<&'a rng::Client>>,
+    client: OptionalCell<&'a rng::Client>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
 const KEY: u32 = 0x524e47;
 
-impl<'a> Trng<'a> {
+impl Trng<'a> {
     const fn new() -> Trng<'a> {
         Trng {
             regs: BASE_ADDRESS,
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -67,7 +67,7 @@ impl<'a> Trng<'a> {
         }
         regs.idr.write(Interrupt::DATRDY::SET);
 
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             let result = client.randomness_available(&mut TrngIter(self));
             if let Continue::Done = result {
                 // disable controller
@@ -81,13 +81,13 @@ impl<'a> Trng<'a> {
     }
 
     pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
 
-impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
+impl Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -100,7 +100,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl<'a> rng::RNG for Trng<'a> {
+impl rng::RNG for Trng<'a> {
     fn get(&self) {
         let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));

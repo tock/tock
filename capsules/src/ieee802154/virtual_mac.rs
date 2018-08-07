@@ -28,10 +28,10 @@
 
 use core::cell::Cell;
 use ieee802154::{device, framer};
-use kernel::common::cells::MapCell;
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::ReturnCode;
-use net::ieee802154::*;
+use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
 /// any pending transmission requests. Any received frames from the underlying
@@ -39,20 +39,19 @@ use net::ieee802154::*;
 pub struct MuxMac<'a> {
     mac: &'a device::MacDevice<'a>,
     users: List<'a, MacUser<'a>>,
-    inflight: Cell<Option<&'a MacUser<'a>>>,
+    inflight: OptionalCell<&'a MacUser<'a>>,
 }
 
-impl<'a> device::TxClient for MuxMac<'a> {
+impl device::TxClient for MuxMac<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.inflight.get().map(move |user| {
-            self.inflight.set(None);
+        self.inflight.take().map(move |user| {
             user.send_done(spi_buf, acked, result);
         });
         self.do_next_op_async();
     }
 }
 
-impl<'a> device::RxClient for MuxMac<'a> {
+impl device::RxClient for MuxMac<'a> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         for user in self.users.iter() {
             user.receive(buf, header, data_offset, data_len);
@@ -60,12 +59,12 @@ impl<'a> device::RxClient for MuxMac<'a> {
     }
 }
 
-impl<'a> MuxMac<'a> {
+impl MuxMac<'a> {
     pub const fn new(mac: &'a device::MacDevice<'a>) -> MuxMac<'a> {
         MuxMac {
             mac: mac,
             users: List::new(),
-            inflight: Cell::new(None),
+            inflight: OptionalCell::empty(),
         }
     }
 
@@ -78,24 +77,23 @@ impl<'a> MuxMac<'a> {
     /// Gets the next `MacUser` and operation to perform if an operation is not
     /// already underway.
     fn get_next_op_if_idle(&self) -> Option<(&'a MacUser<'a>, Op)> {
-        match self.inflight.get() {
-            Some(_) => None,
-            None => {
-                let mnode = self.users.iter().find(|node| {
-                    node.operation.take().map_or(false, |op| {
-                        let pending = op != Op::Idle;
-                        node.operation.replace(op);
-                        pending
-                    })
-                });
-                mnode.and_then(|node| {
-                    node.operation.take().map(|op| {
-                        node.operation.replace(Op::Idle);
-                        (node, op)
-                    })
-                })
-            }
+        if self.inflight.is_some() {
+            return None;
         }
+
+        let mnode = self.users.iter().find(|node| {
+            node.operation.take().map_or(false, |op| {
+                let pending = op != Op::Idle;
+                node.operation.replace(op);
+                pending
+            })
+        });
+        mnode.and_then(|node| {
+            node.operation.take().map(|op| {
+                node.operation.replace(Op::Idle);
+                (node, op)
+            })
+        })
     }
 
     /// Performs a non-idle operation on a `MacUser` asynchronously: that is, if the
@@ -109,7 +107,7 @@ impl<'a> MuxMac<'a> {
             mbuf.map(|buf| {
                 node.send_done(buf, false, result);
             }).unwrap_or_else(|| {
-                self.inflight.set(Some(node));
+                self.inflight.set(node);
             });
         }
     }
@@ -124,7 +122,7 @@ impl<'a> MuxMac<'a> {
         if let Op::Transmit(frame) = op {
             let (result, mbuf) = self.mac.transmit(frame);
             if result == ReturnCode::SUCCESS {
-                self.inflight.set(Some(node));
+                self.inflight.set(node);
             }
             Some((result, mbuf))
         } else {
@@ -192,7 +190,7 @@ pub struct MacUser<'a> {
     rx_client: Cell<Option<&'a device::RxClient>>,
 }
 
-impl<'a> MacUser<'a> {
+impl MacUser<'a> {
     pub const fn new(mux: &'a MuxMac<'a>) -> MacUser<'a> {
         MacUser {
             mux: mux,
@@ -204,7 +202,7 @@ impl<'a> MacUser<'a> {
     }
 }
 
-impl<'a> MacUser<'a> {
+impl MacUser<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_client
             .get()
@@ -218,13 +216,13 @@ impl<'a> MacUser<'a> {
     }
 }
 
-impl<'a> ListNode<'a, MacUser<'a>> for MacUser<'a> {
+impl ListNode<'a, MacUser<'a>> for MacUser<'a> {
     fn next(&'a self) -> &'a ListLink<'a, MacUser<'a>> {
         &self.next
     }
 }
 
-impl<'a> device::MacDevice<'a> for MacUser<'a> {
+impl device::MacDevice<'a> for MacUser<'a> {
     fn set_transmit_client(&self, client: &'a device::TxClient) {
         self.tx_client.set(Some(client));
     }

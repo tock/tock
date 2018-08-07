@@ -6,7 +6,8 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::common::regs::{FieldValue, ReadWrite};
+use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 
@@ -28,8 +29,8 @@ const GPIO_BASE: StaticRef<GpioRegisters> =
 /// requesting an interrupt can fail, if they are all already allocated.
 #[repr(C)]
 struct GpioteRegisters {
-    /// Task for writing to pin specified in CONFIG[n].PSEL.
-    /// Action on pin is configured in CONFIG[n].POLARITY
+    /// Task for writing to pin specified in CONFIG\[n\].PSEL.
+    /// Action on pin is configured in CONFIG\[n\].POLARITY
     ///
     /// - Address: 0x000 - 0x010 (nRF51)
     /// - Address: 0x000 - 0x020 (nRF52)
@@ -37,7 +38,7 @@ struct GpioteRegisters {
     /// Reserved
     // task_set and task_clear are not used on nRF52
     _reserved0: [u8; 0x100 - (0x0 + NUM_GPIOTE * 4)],
-    /// Event generated from pin specified in CONFIG[n].PSEL
+    /// Event generated from pin specified in CONFIG\[n\].PSEL
     ///
     /// - Address: 0x100 - 0x110 (nRF51)
     /// - Address: 0x100 - 0x120 (nRF52)
@@ -58,11 +59,11 @@ struct GpioteRegisters {
     intenclr: ReadWrite<u32, Intenclr::Register>,
     /// Reserved
     _reserved3: [u8; 0x204],
-    /// Configuration for OUT[n], SET[n] and CLR[n] tasks and IN[n] event
+    /// Configuration for OUT\[n\], SET\[n\] and CLR\[n\] tasks and IN\[n\] event
     ///
     /// - Adress: 0x510 - 0x520 (nRF51)
     /// - Adress: 0x510 - 0x530 (nRF52)
-    // Note, only IN[n] and OUT[n] are used in Tock
+    // Note, only IN\[n\] and OUT\[n\] are used in Tock
     config: [ReadWrite<u32, Config::Register>; NUM_GPIOTE],
 }
 
@@ -96,7 +97,7 @@ struct GpioRegisters {
     _reserved2: [u32; 120],
     #[cfg(feature = "nrf52")]
     /// Latch register indicating what GPIO pins that have met the criteria set in the
-    /// PIN_CNF[n].SENSE
+    /// PIN_CNF\[n\].SENSE
     /// - Address: 0x520 - 0x524
     #[cfg(feature = "nrf52")]
     latch: ReadWrite<u32, Latch::Register>,
@@ -115,14 +116,14 @@ struct GpioRegisters {
 register_bitfields! [u32,
     /// Write GPIO port
     Out [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - Low, Pin driver is low
         /// 1 - High, Pin driver is high
         PIN OFFSET(0) NUMBITS(32)
     ],
     /// Set individual bits in GPIO port
     OutSet [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
         /// Writing a '1' sets the pin high
@@ -131,7 +132,7 @@ register_bitfields! [u32,
     ],
     /// Clear individual bits in GPIO port
     OutClr [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
         /// Writing a '1' sets the pin low
@@ -140,7 +141,7 @@ register_bitfields! [u32,
     ],
     /// Read GPIO port
     In [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - Low
         /// 1 - High
         PIN OFFSET(0) NUMBITS(32)
@@ -153,7 +154,7 @@ register_bitfields! [u32,
     ],
     /// Configure direction of individual GPIO pins as output
     DirSet [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - Pin set as input
         /// 1 - Pin set as output
         /// Write: writing a '1' sets pin to output
@@ -162,7 +163,7 @@ register_bitfields! [u32,
     ],
     /// Configure direction of individual GPIO pins as input
     DirClr [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - Pin set as input
         /// 1 - Pin set as output
         /// Write: writing a '1' sets pin to input
@@ -170,9 +171,9 @@ register_bitfields! [u32,
         PIN OFFSET(0) NUMBITS(32)
     ],
     /// Latch register indicating what GPIO pins that have met the criteria set in the
-    /// PIN_CNF[n].SENSE registers
+    /// PIN_CNF\[n\].SENSE registers
     Latch [
-        /// Pin[n], each bit correspond to a pin 0 to 31
+        /// Pin\[n\], each bit correspond to a pin 0 to 31
         /// 0 - NotLatched
         /// 1 - Latched
         PIN OFFSET(0) NUMBITS(32)
@@ -187,7 +188,7 @@ register_bitfields! [u32,
         ]
     ],
     /// Configuration of GPIO pins
-    /// Pin[n], each bit correspond to a pin 0 to 31
+    /// Pin\[n\], each bit correspond to a pin 0 to 31
     PinConfig [
         /// Pin direction. Same physical register as DIR register
         DIR OFFSET(0) NUMBITS(1) [
@@ -238,8 +239,8 @@ register_bitfields! [u32,
 
 /// GpioTe
 register_bitfields! [u32,
-    /// Task for writing to pin specified in CONFIG[n].PSEL.
-    /// Action on pin is configured in CONFIG[n].POLARITY
+    /// Task for writing to pin specified in CONFIG\[n\].PSEL.
+    /// Action on pin is configured in CONFIG\[n\].POLARITY
     TasksOut [
         TASK OFFSET(0) NUMBITS(1) [
             Disable = 0,
@@ -247,7 +248,7 @@ register_bitfields! [u32,
         ]
     ],
 
-    /// Event generated from pin specified in CONFIG[n].PSEL
+    /// Event generated from pin specified in CONFIG\[n\].PSEL
     EventsIn [
         EVENT OFFSET(0) NUMBITS(1) [
             NotReady = 0,
@@ -277,7 +278,7 @@ register_bitfields! [u32,
         PORT OFFSET(31) NUMBITS(1)
     ],
 
-    /// Configuration for OUT[n], SET[n] and CLR[n] tasks and IN[n] event
+    /// Configuration for OUT\[n\], SET\[n\] and CLR\[n\] tasks and IN\[n\] event
     Config [
         /// Mode
         MODE OFFSET(0) NUMBITS(2) [
@@ -285,34 +286,34 @@ register_bitfields! [u32,
             /// GPIOTE module
             Disabled = 0,
             /// The pin specified by PSEL will be configured as an input and the
-            /// IN[n] event will be generated if operation specified in POLARITY
+            /// IN\[n\] event will be generated if operation specified in POLARITY
             /// occurs on the pin.
             Event = 1,
             ///The GPIO specified by PSEL will be configured as an output and
-            /// triggering the SET[n], CLR[n] or OUT[n] task will perform the
+            /// triggering the SET\[n\], CLR\[n\] or OUT\[n\] task will perform the
             /// operation specified by POLARITY on the pin. When enabled as a
             /// task the GPIOTE module will acquire the pin and the pin can no
             /// longer be written as a regular output pin from the GPIO module.
             Task = 3
         ],
-        /// GPIO number associated with SET[n], CLR[n] and OUT[n] tasks
-        /// and IN[n] event
+        /// GPIO number associated with SET\[n\], CLR\[n\] and OUT\[n\] tasks
+        /// and IN\[n\] event
         PSEL OFFSET(8) NUMBITS(5) [],
         /// When In task mode: Operation to be performed on output
-        /// when OUT[n] task is triggered. When In event mode: Operation
-        /// on input that shall trigger IN[n] event
+        /// when OUT\[n\] task is triggered. When In event mode: Operation
+        /// on input that shall trigger IN\[n\] event
         POLARITY OFFSET(16) NUMBITS(2) [
-            /// Task mode: No effect on pin from OUT[n] task. Event mode: no
-            /// IN[n] event generated on pin activity
+            /// Task mode: No effect on pin from OUT\[n\] task. Event mode: no
+            /// IN\[n\] event generated on pin activity
             Disabled = 0,
-            /// Task mode: Set pin from OUT[n] task. Event mode: Generate
-            /// IN[n] event when rising edge on pin
+            /// Task mode: Set pin from OUT\[n\] task. Event mode: Generate
+            /// IN\[n\] event when rising edge on pin
             LoToHi = 1,
-            /// Task mode: Clear pin from OUT[n] task. Event mode: Generate
-            /// IN[n] event when falling edge on pin
+            /// Task mode: Clear pin from OUT\[n\] task. Event mode: Generate
+            /// IN\[n\] event when falling edge on pin
             HiToLo = 2,
-            /// Task mode: Toggle pin from OUT[n]. Event mode: Generate
-            /// IN[n] when any change on pin
+            /// Task mode: Toggle pin from OUT\[n\]. Event mode: Generate
+            /// IN\[n\] when any change on pin
             Toggle = 3
         ],
         /// When in task mode: Initial value of the output when the GPIOTE
@@ -329,7 +330,7 @@ register_bitfields! [u32,
 pub struct GPIOPin {
     pin: u8,
     client_data: Cell<usize>,
-    client: Cell<Option<&'static hil::gpio::Client>>,
+    client: OptionalCell<&'static hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
@@ -339,14 +340,14 @@ impl GPIOPin {
         GPIOPin {
             pin: pin,
             client_data: Cell::new(0),
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
             gpio_registers: GPIO_BASE,
             gpiote_registers: GPIOTE_BASE,
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 
     pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
@@ -457,7 +458,7 @@ impl GPIOPin {
     }
 
     fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
+        self.client.map(|client| {
             client.fired(self.client_data.get());
         });
     }

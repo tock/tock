@@ -1,9 +1,13 @@
-use core::fmt::*;
+use core::fmt::Write;
+use core::panic::PanicInfo;
 use core::str;
+use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 use tm4c129x;
+
+use PROCESSES;
 
 pub struct Writer {
     initialized: bool,
@@ -16,7 +20,7 @@ impl Write for Writer {
         let uart = unsafe { &mut tm4c129x::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.init(uart::UARTParams {
+            uart.configure(uart::UARTParameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
@@ -38,9 +42,9 @@ impl Write for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
-#[lang = "panic_fmt"]
-pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+#[panic_implementation]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut led::LedLow::new(&mut tm4c129x::gpio::PF[0]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
 }

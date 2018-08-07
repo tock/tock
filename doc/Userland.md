@@ -18,17 +18,7 @@ thoughts behind how applications function.
 - [Application Entry Point](#application-entry-point)
 - [Stack and Heap](#stack-and-heap)
 - [Debugging](#debugging)
-- [C Applications](#c-applications)
-  * [Entry Point](#entry-point)
-  * [Stack and Heap](#stack-and-heap-1)
-  * [Libraries](#libraries)
-    + [Newlib](#newlib)
-    + [libtock](#libtock)
-    + [libc++](#libc)
-    + [libnrfserialization](#libnrfserialization)
-    + [lua53](#lua53)
-  * [Style & Format](#style--format)
-- [Rust Applications](#rust-applications)
+- [Applications](#applications)
 
 <!-- tocstop -->
 
@@ -38,17 +28,16 @@ Applications in Tock are the user-level code meant to accomplish some type of
 task for the end user. Applications are distinguished from kernel code which
 handles device drivers, chip-specific details, and general operating system
 tasks. Unlike many existing embedded operating systems, in Tock applications
-are not built as one with the kernel. Instead they are entirely separate code
+are not compiled with the kernel. Instead they are entirely separate code
 that interact with the kernel and each other through [system
 calls](https://en.wikipedia.org/wiki/System_call).
 
 Since applications are not a part of the kernel, they may be written in any
-language that can be compiled into code capable of running on ARM Cortex-M
-processors. While the Tock kernel is written in Rust, applications are commonly
-written in C. Additionally, Tock supports running multiple applications
-concurrently. Co-operatively multiprogramming is the default, but applications
-may also be time sliced. Applications may talk to each other via Inter-Process
-Communication (IPC) through system calls.
+language that can be compiled into code capable of running on a microcontroller.
+Tock supports running multiple applications concurrently. Co-operatively
+multiprogramming is the default, but applications may also be time sliced.
+Applications may talk to each other via Inter-Process Communication (IPC)
+through system calls.
 
 Applications do not have compile-time knowledge of the address at which they
 will be installed and loaded. In the current design of Tock, applications must
@@ -59,9 +48,9 @@ of PIC for Tock apps is not a fundamental choice, future versions of the system
 may support run-time relocatable code.
 
 Applications are unprivileged code. They may not access all portions of memory
-and may, in fact, fault if they attempt to access memory outside of their
-boundaries (similarly to segmentation faults in Linux code). In order to
-interact with hardware, applications must make calls to the kernel.
+and will fault if they attempt to access memory outside of their boundaries
+(similarly to segmentation faults in Linux code). To interact with hardware,
+applications must make calls to the kernel.
 
 
 ## System Calls
@@ -73,8 +62,7 @@ communication with other application code, and many others. In practice,
 system calls are made through library code and the application need not
 deal with them directly.
 
-For example the following is the system call handling the `gpio_set` command
-from [gpio.c](../userland/libtock/gpio.c):
+For example, consider the following system call that sets a GPIO pin high:
 
 ```c
 int gpio_set(GPIO_Pin_t pin) {
@@ -83,7 +71,7 @@ int gpio_set(GPIO_Pin_t pin) {
 ```
 
 The command system call itself is implemented as the ARM assembly instruction
-`svc` (service call) in [tock.c](../userland/libtock/tock.c):
+`svc` (service call):
 
 ```c
 int __attribute__((naked))
@@ -107,30 +95,30 @@ timer fires. Specific state that you want the callback to act upon can be
 passed as the pointer `userdata`. After the application has started the timer,
 calls `yield`, and the timer fires, the callback function will be called.
 
-It is important to note that `yield` must be called in order for events to be
-serviced in the current implementation of Tock. Callbacks to the application
-will be queued when they occur but the application will not receive them until
-it yields. This is not fundamental to Tock, and future version may service
-callbacks on any system call or when performing application time slicing. After
-receiving and running the callback, application code will continue after the
-`yield`. Tock automatically calls `yield` continuously for applications that
-return from execution (for example, an application that returns from `main`).
+It is important to note that `yield` must be called for events to be serviced in
+the current implementation of Tock. Callbacks to the application will be queued
+when they occur but the application will not receive them until it yields. This
+is not fundamental to Tock, and future version may service callbacks on any
+system call or when performing application time slicing. After receiving and
+running the callback, application code will continue after the `yield`.
+Applications which are "finished" (i.e. have returned from `main()`) should call
+`yield` in a loop to avoid being scheduled by the kernel.
 
 
 ## Inter-Process Communication
 
 IPC allows for multiple applications to communicate directly through shared
 buffers. IPC in Tock is implemented with a service-client model. Each app can
-support one service and the service is identified by the `PACKAGE_NAME` variable
-set in its Makefile. An app can communicate with multiple services and will get
-a unique handle for each discovered service. Clients and services communicate
-through shared buffers. Each client can share some of its own application memory
-with the service and then notify the service to instruct it to parse the shared
-buffer.
+support one service and the service is identified by its package name which is
+included in the Tock Binary Format Header for the app. An app can communicate
+with multiple services and will get a unique handle for each discovered service.
+Clients and services communicate through shared buffers. Each client can share
+some of its own application memory with the service and then notify the service
+to instruct it to parse the shared buffer.
 
 ### Services
 
-Services are named by the `PACKAGE_NAME` variable in the application Makefile.
+Services are named by the package name included in the app's TBF header.
 To register a service, an app can call `ipc_register_svc()` to setup a callback.
 This callback will be called whenever a client calls notify on that service.
 
@@ -143,7 +131,7 @@ client can call `ipc_notify_svc()`. If the app wants to get notifications from
 the service, it must call `ipc_register_client_cb()` to receive events from when
 the service when the service calls `ipc_notify_client()`.
 
-See `ipc.h` in `libtock` for more information on these functions.
+See `ipc.h` in `libtock-c` for more information on these functions.
 
 ## Application Entry Point
 
@@ -238,107 +226,9 @@ App: printf_long   -   [Yielded]
  in the app's folder.
 ```
 
-## C Applications
+## Applications
 
-The bulk of Tock applications are written in C.
+For example applications, see the language specific userland repos:
 
-### Entry Point
-
-Applications written in C that compile against libtock should define a `main`
-method with the following signature:
-
-```c
-int main(void);
-```
-
-Applications **should** return 0 from `main`. Returning non-zero is undefined and the
-behavior may change in future versions of `libtock`.
-Today, `main` is called from `_start` and includes an implicit `while()` loop:
-
-```c
-void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break) {
-  main();
-  while (1) {
-    yield();
-  }
-}
-```
-
-Applications should set up a series of event subscriptions in their `main`
-method and then return.
-
-### Stack and Heap
-
-Applications can specify their required stack and heap sizes by defining the
-make variables `STACK_SIZE` and `APP_HEAP_SIZE`, which default to 2K and 1K
-respectively as of this writing.
-
-`libtock` will set the stack pointer during startup. To allow each application
-to set its own stack size, the linker script expects a symbol `STACK_SIZE` to
-be defined. The Tock build system will define this symbol during linking, using
-the make variable `STACK_SIZE`. A consequence of this technique is that
-changing the stack size requires that any source file also be touched so that
-the app will re-link.
-
-### Libraries
-
-Application code does not need to stand alone, libraries are available that can
-be utilized!
-
-#### Newlib
-Application code written in C has access to most of the [C standard
-library](https://en.wikipedia.org/wiki/C_standard_library) which is implemented
-by [Newlib](https://en.wikipedia.org/wiki/Newlib). Newlib is focused on
-providing capabilities for embedded systems. It provides interfaces such as
-`printf`, `malloc`, and `memcpy`. Most, but not all features of the standard
-library are available to applications. The built configuration of Newlib is
-specified in [build.sh](../userland/newlib/build.sh).
-
-#### libtock
-In order to interact with the Tock kernel, application code can use the
-`libtock` library. The majority of `libtock` are wrappers for interacting
-with Tock drivers through system calls. They provide the user a meaningful
-function name and arguments and then internally translate these into a
-`command`, `subscribe`, etc. Where it makes sense, the libraries also provide
-a synchronous interface to a driver using an internal callback and `yield_for`
-(example:
-[`tmp006_read_sync`](https://github.com/tock/tock/blob/master/userland/libtock/tmp006.c#L19))
-
-`libtock` also provides the startup code for applications
-([`crt0.c`](../userland/libtock/crt0.c)),
-an implementation for the system calls
-([`tock.c`](../userland/libtock/tock.c)),
-and pin definitions for platforms.
-
-#### libc++
-Provides support for C++ apps. See `examples/cxx_hello`.
-
-#### libnrfserialization
-Provides a pre-compiled library for using the Nordic nRF serialization library
-for writing BLE apps.
-
-#### lua53
-Provides support for running a lua runtime as a Tock app. See
-`examples/lua-hello`.
-
-### Style & Format
-
-We try to keep a consistent style in mainline userland code. For C/C++, we use
-[uncrustify](https://github.com/uncrustify/uncrustify). High level:
-
-  - Two space character indents.
-  - Braces on the same line.
-  - Spaces around most operators.
-
-For details, see the [configuration](../userland/tools/uncrustify).
-
-Travis will automatically check formatting. You can format code locally using
-`make format`, or check the whole codebase with
-[format_all.sh](../userland/examples/format_all.sh). Formatting will overwrite
-files when it runs.
-
-
-## Rust Applications
-
-See the [libtock-rs](https://github.com/tock/libtock-rs) repo for more
-information on writing userland rust apps.
+- [libtock-c](https://github.com/tock/libtock-c): C and C++ apps.
+- [libtock-rs](https://github.com/tock/libtock-rs): Rust apps.

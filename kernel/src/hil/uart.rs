@@ -1,12 +1,14 @@
 //! Interfaces for UART communications.
 
-#[derive(Copy, Clone, Debug)]
+use returncode::ReturnCode;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum StopBits {
     One = 0,
     Two = 2,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Parity {
     None = 0,
     Odd = 1,
@@ -14,7 +16,7 @@ pub enum Parity {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct UARTParams {
+pub struct UARTParameters {
     pub baud_rate: u32, // baud rate in bit/s
     pub stop_bits: StopBits,
     pub parity: Parity,
@@ -22,7 +24,7 @@ pub struct UARTParams {
 }
 
 /// The type of error encountered during UART transaction.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Error {
     /// Parity error during receive
     ParityError,
@@ -39,6 +41,9 @@ pub enum Error {
     /// UART hardware was reset
     ResetError,
 
+    /// Read or write was aborted early
+    Aborted,
+
     /// No error occurred and the command completed successfully
     CommandComplete,
 }
@@ -48,10 +53,16 @@ pub trait UART {
     /// called when events finish.
     fn set_client(&self, client: &'static Client);
 
-    /// Initialize UART
+    /// Configure UART
     ///
-    /// Panics if UARTParams are invalid for the current chip.
-    fn init(&self, params: UARTParams);
+    /// Returns SUCCESS, or
+    ///
+    /// - EOFF: The underlying hardware is currently not available, perhaps
+    ///         because it has not been initialized or in the case of a shared
+    ///         hardware USART controller because it is set up for SPI.
+    /// - EINVAL: Impossible parameters (e.g. a `baud_rate` of 0)
+    /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
+    fn configure(&self, params: UARTParameters) -> ReturnCode;
 
     /// Transmit data.
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);

@@ -1,6 +1,6 @@
 //! Implementation of the BPM peripheral.
 
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
 #[repr(C)]
@@ -195,7 +195,8 @@ pub unsafe fn set_power_scaling(ps_value: PowerScaling) {
     // Actually change power scaling
     BPM.pmcon.modify_no_read(
         control,
-        PowerModeControl::PS.val(ps_value as u32) + PowerModeControl::PSCM::WithoutCpuHalt
+        PowerModeControl::PS.val(ps_value as u32)
+            + PowerModeControl::PSCM::WithoutCpuHalt
             + PowerModeControl::PSCREQ::PowerScalingRequested,
     );
 }

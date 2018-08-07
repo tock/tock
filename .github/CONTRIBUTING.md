@@ -218,6 +218,14 @@ In order to land, a Pull Request needs to be reviewed and
 commit access to the Tock repository and pass the continuous integration tests.
 After that, as long as there are no objections, the Pull Request can be merged.
 
+We use the bors-ng bot to merge PRs. In short, when someone replies `bors r+`,
+your PR has been scheduled for final tests and will be automatically merged. If
+a maintainer replies `bors delegate+`, then you have been granted the authority
+to merge your own PR (usually this will happen if there are some trivial
+changes required). For more on bors,
+[see the bors documentation](https://bors.tech/documentation/).
+
+
 ## Issue Triage
 
 Sometimes, an issue will stay open, even though the bug has been fixed. And

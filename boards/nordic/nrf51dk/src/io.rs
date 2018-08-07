@@ -1,9 +1,13 @@
-use core::fmt::{Arguments, Write};
+use core::fmt::Write;
+use core::panic::PanicInfo;
+use cortexm0;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 use nrf51;
 use nrf5x;
+
+use PROCESSES;
 
 struct Writer {
     initialized: bool,
@@ -16,7 +20,7 @@ impl Write for Writer {
         let uart = unsafe { &mut nrf51::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.init(uart::UARTParams {
+            uart.configure(uart::UARTParameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
@@ -36,11 +40,11 @@ impl Write for Writer {
 /// Panic handler
 #[cfg(not(test))]
 #[no_mangle]
-#[lang = "panic_fmt"]
-pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+#[panic_implementation]
+pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF51 DK LEDs (see back of board)
     const LED1_PIN: usize = 21;
     let led = &mut led::LedLow::new(&mut nrf5x::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
-    debug::panic(led, writer, args, file, line)
+    debug::panic(&mut [led], writer, pi, &cortexm0::support::nop, &PROCESSES)
 }
