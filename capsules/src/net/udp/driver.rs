@@ -136,7 +136,7 @@ impl<'a> UDPDriver<'a> {
     /// (quick and dirty ctrl-c, ctrl-v from above)
     #[inline]
     #[allow(dead_code)]
-    fn do_with_rx_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    fn do_with_rx_cfg<F>(&self, appid: AppId, closure: F) -> ReturnCode
     where
         F: FnOnce(&[u8]) -> ReturnCode,
     {
@@ -146,9 +146,6 @@ impl<'a> UDPDriver<'a> {
                     .take()
                     .as_ref()
                     .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
                         closure(cfg.as_ref())
                     })
             })
@@ -471,13 +468,11 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
-        // debug!("payload: {:?}", payload);
         self.apps.each(|app| {
-            self.do_with_rx_cfg(app.appid(), payload.len(), |cfg| {
+            self.do_with_rx_cfg(app.appid(), |cfg| {
                 if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
                     return ReturnCode::EINVAL;
                 }
-
                 self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<UDPEndpoint>()])
                     .map(|socket_addr| {
                         self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..])

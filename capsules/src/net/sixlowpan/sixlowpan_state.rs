@@ -942,6 +942,8 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                             let remaining = payload_len - consumed;
                             packet[written..written + remaining]
                                 .copy_from_slice(&payload[consumed..consumed + remaining]);
+                            // Want dgram_size to contain decompressed size of packet
+                            state.dgram_size.set((written + remaining) as u16);
                         }
                         Err(_) => {
                             return (None, ReturnCode::FAIL);

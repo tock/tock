@@ -70,7 +70,7 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
                 // correctness, length, etc.
                 self.client
                     .get()
-                    .map(|client| client.receive(header, &buf[offset..]));
+                    .map(|client| client.receive(header, &buf[offset..len]));
             }
             None => {
                 // TODO: Report the error somewhere...
