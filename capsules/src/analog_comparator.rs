@@ -33,7 +33,7 @@
 //! readme: 00007_analog_comparator.md in doc/syscalls.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified 6/26/2018
+// Last modified August 7th, 2018
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00007;
@@ -59,6 +59,50 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
             callback: Cell::new(None),
         }
     }
+
+    fn comparison(&self, channel: usize) -> ReturnCode {
+        if channel >= self.channels.len() {
+            return ReturnCode::EINVAL;
+        }
+        // Convert channel index
+        let chan = self.channels[channel];    
+        let result = self.analog_comparator.comparison(chan);
+
+        return ReturnCode::SuccessWithValue {value: result as usize};
+    }
+
+    fn window_comparison(&self, channel: usize) -> ReturnCode {
+        if channel >= self.channels.len() {
+            return ReturnCode::EINVAL;
+        }
+        // Convert channel index
+        // let chan = self.channels[channel];    
+        let result = self.analog_comparator.window_comparison(channel);
+
+        return ReturnCode::SuccessWithValue {value: result as usize};
+    }
+
+    fn enable_interrupts(&self, channel: usize) -> ReturnCode {
+        if channel >= self.channels.len() {
+            return ReturnCode::EINVAL;
+        }
+        // Convert channel index
+        let chan = self.channels[channel];    
+        let result = self.analog_comparator.enable_interrupts(chan);
+
+        return result;
+    }
+
+    fn disable_interrupts(&self, channel: usize) -> ReturnCode {
+        if channel >= self.channels.len() {
+            return ReturnCode::EINVAL;
+        }
+        // Convert channel index
+        let chan = self.channels[channel];    
+        let result = self.analog_comparator.disable_interrupts(chan);
+
+        return result;
+    }
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparator<'a, A> {
@@ -79,21 +123,19 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     /// - `4`: Disable interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    fn command(&self, command_num: usize, ac: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 => return ReturnCode::SUCCESS,
-
-            1 => ReturnCode::SuccessWithValue {
-                value: self.analog_comparator.comparison(ac) as usize,
+            0 => ReturnCode::SuccessWithValue {
+                value: self.channels.len() as usize,
             },
 
-            2 => ReturnCode::SuccessWithValue {
-                value: self.analog_comparator.window_comparison(ac) as usize,
-            },
+            1 => self.comparison(channel),
 
-            3 => self.analog_comparator.enable_interrupts(ac),
+            2 => self.window_comparison(channel),
 
-            4 => self.analog_comparator.disable_interrupts(ac),
+            3 => self.enable_interrupts(channel),
+
+            4 => self.disable_interrupts(channel),
 
             _ => return ReturnCode::ENOSUPPORT,
         }

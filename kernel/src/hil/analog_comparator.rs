@@ -13,7 +13,7 @@ pub trait AnalogComparator {
     /// will be True (1) when one is higher than the other, and False (0)
     /// otherwise.  Specifically, the output is True when Vp > Vn (Vin positive
     /// > Vin negative), and False if Vp < Vn.
-    fn comparison(&self, usize) -> bool;
+    fn comparison(&self, channel: &Self::Channel) -> bool;
 
     /// Do a comparison of three input voltages. Two analog comparators, ACx and
     /// ACx+1, are grouped for this comparison depending on the window chosen.
@@ -35,10 +35,10 @@ pub trait AnalogComparator {
 
     /// Enable interrupt-based comparison for the chosen AC (e.g. AC1). This
     /// will make it listen and send an interrupt as soon as Vp > Vn.
-    fn enable_interrupts(&self, usize) -> ReturnCode;
+    fn enable_interrupts(&self, channel: &Self::Channel) -> ReturnCode;
 
     /// Disable interrupt-based comparison for the chosen AC.
-    fn disable_interrupts(&self, usize) -> ReturnCode;
+    fn disable_interrupts(&self, channel: &Self::Channel) -> ReturnCode;
 }
 
 pub trait Client {

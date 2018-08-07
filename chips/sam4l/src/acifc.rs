@@ -17,7 +17,7 @@
 //! ACx+1) to observe a window.
 //
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified 6/26/2018
+// Last modified August 7th, 2018
 
 use core::cell::Cell;
 use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
@@ -36,13 +36,15 @@ pub struct AcChannel {
 enum Channel {
     AC0 = 0x00,
     AC1 = 0x01,
+    AC2 = 0x02,
+    AC3 = 0x03,
 }
 
 /// Initialization of an AC channel.
 impl AcChannel {
     /// Create a new AC channel.
     ///
-    /// - `channel`: Channel enum representing the channel number and whether it
+    /// - `channel`: Channel enum representing the channel number
     const fn new(channel: Channel) -> AcChannel {
         AcChannel {
             chan_num: ((channel as u8) & 0x0F) as u32,
@@ -50,9 +52,11 @@ impl AcChannel {
     }
 }
 
+// SAM4L has 2 or 4 possible channels. Hail has 2, Imix has 4.
 pub static mut CHANNEL_AC0: AcChannel = AcChannel::new(Channel::AC0);
 pub static mut CHANNEL_AC1: AcChannel = AcChannel::new(Channel::AC1);
-// pub static mut WINDOW0: AdcChannel = AdcChannel::new(Window::WINDOW1);
+pub static mut CHANNEL_AC2: AcChannel = AcChannel::new(Channel::AC2);
+pub static mut CHANNEL_AC3: AcChannel = AcChannel::new(Channel::AC3);
 
 #[repr(C)]
 struct AcifcRegisters {
@@ -324,102 +328,6 @@ impl<'a> Acifc<'a> {
         regs.ctrl.write(Control::EN::CLEAR);
     }
 
-    /// Do a single comparison
-    fn comparison(&self, ac: usize) -> bool {
-        self.enable();
-        let regs = ACIFC_BASE;
-        let result;
-        if ac == 0 {
-            result = regs.sr.is_set(Status::ACCS0);
-        } else if ac == 1 {
-            result = regs.sr.is_set(Status::ACCS1);
-        } else if ac == 2 {
-            result = regs.sr.is_set(Status::ACCS2);
-        } else if ac == 3 {
-            result = regs.sr.is_set(Status::ACCS3);
-        } else {
-            // Making sure the selected AC is on the board
-            self.disable();
-            panic!("PANIC! Please choose a comparator (value of ac) that this chip supports");
-        }
-        return result;
-    }
-
-    /// Do a window comparison (see docs for more info)
-    fn window_comparison(&self, window: usize) -> bool {
-        self.enable();
-        let regs = ACIFC_BASE;
-        let result;
-        if window == 0 {
-            regs.confw[0].write(WindowConfiguration::WFEN::SET);
-            result = regs.sr.is_set(Status::WFCS0);
-        } else if window == 1 {
-            regs.confw[1].write(WindowConfiguration::WFEN::SET);
-            result = regs.sr.is_set(Status::WFCS1);
-        } else {
-            // Making sure the selected window is on the board
-            self.disable();
-            panic!("PANIC! Please choose a window (value of window) that this chip supports");
-        }
-        return result;
-    }
-
-    /// Enable interrupt-based comparisons
-    fn enable_interrupts(&self, ac: usize) -> ReturnCode {
-        self.enable();
-        let regs = ACIFC_BASE;
-
-        if ac == 0 {
-            // Enable interrupts.
-            regs.ier.write(Interrupt::ACINT0::SET);
-            return ReturnCode::SUCCESS;
-        } else if ac == 1 {
-            // Repeat the same for ac == 1
-            regs.ier.write(Interrupt::ACINT1::SET);
-            return ReturnCode::SUCCESS;
-        } else if ac == 2 {
-            // Repeat the same for ac == 2
-            regs.ier.write(Interrupt::ACINT2::SET);
-            return ReturnCode::SUCCESS;
-        } else if ac == 3 {
-            // Repeat the same for ac == 3
-            regs.ier.write(Interrupt::ACINT3::SET);
-            return ReturnCode::SUCCESS;
-        } else {
-            // Making sure the selected AC is on the board
-            self.disable();
-            debug!("Please choose a comparator (value of ac) that this chip supports");
-            return ReturnCode::EINVAL;
-        }
-    }
-
-    /// Disable interrupt-based comparisons
-    fn disable_interrupts(&self, ac: usize) -> ReturnCode {
-        let regs = ACIFC_BASE;
-
-        if ac == 0 {
-            // Enable interrupts.
-            regs.ier.write(Interrupt::ACINT0::CLEAR);
-            return ReturnCode::SUCCESS;
-        } else if ac == 1 {
-            // Repeat the same for ac == 1
-            regs.ier.write(Interrupt::ACINT1::CLEAR);
-            return ReturnCode::SUCCESS;
-        } else if ac == 2 {
-            // Repeat the same for ac == 2
-            regs.ier.write(Interrupt::ACINT2::CLEAR);
-            return ReturnCode::SUCCESS;
-        } else if ac == 3 {
-            // Repeat the same for ac == 3
-            regs.ier.write(Interrupt::ACINT3::CLEAR);
-            return ReturnCode::SUCCESS;
-        } else {
-            // Making sure the selected AC is on the board
-            self.disable();
-            debug!("Please choose a comparator (value of ac) that this chip supports");
-            return ReturnCode::EINVAL;
-        }
-    }
 
     /// Handling of interrupts. Currently set up so that an interrupt fires
     /// only once when the condition is true (e.g. Vinp > Vinn), and then
@@ -461,20 +369,101 @@ impl<'a> Acifc<'a> {
 impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
     type Channel = AcChannel;
 
-    fn comparison(&self, ac: usize) -> bool {
-        self.comparison(ac)
+    /// Do a single comparison
+    fn comparison(&self, channel: &Self::Channel) -> bool {
+        self.enable();
+        let regs = ACIFC_BASE;
+        let result;
+        if channel.chan_num == 0 {
+            result = regs.sr.is_set(Status::ACCS0);
+        } else if channel.chan_num == 1 {
+            result = regs.sr.is_set(Status::ACCS1);
+        } else if channel.chan_num == 2 {
+            result = regs.sr.is_set(Status::ACCS2);
+        } else if channel.chan_num == 3 {
+            result = regs.sr.is_set(Status::ACCS3);
+        } else {
+            // Making sure the selected AC is on the board
+            self.disable();
+            panic!("PANIC! Please choose a comparator (value of ac) that this chip supports");
+        }
+        return result;
     }
 
-    fn window_comparison(&self, ac: usize) -> bool {
-        self.window_comparison(ac)
+    /// Do a window comparison (see docs for more info)
+    fn window_comparison(&self, window: usize) -> bool {
+        self.enable();
+        let regs = ACIFC_BASE;
+        let result;
+        if window == 0 {
+            regs.confw[0].write(WindowConfiguration::WFEN::SET);
+            result = regs.sr.is_set(Status::WFCS0);
+        } else if window == 1 {
+            regs.confw[1].write(WindowConfiguration::WFEN::SET);
+            result = regs.sr.is_set(Status::WFCS1);
+        } else {
+            // Should never get here, but just making sure
+            self.disable();
+            panic!("Please choose a window (value of window) that this chip supports");
+        }
+        return result;
     }
 
-    fn enable_interrupts(&self, ac: usize) -> ReturnCode {
-        self.enable_interrupts(ac)
+    /// Enable interrupt-based comparisons
+    fn enable_interrupts(&self, channel: &Self::Channel) -> ReturnCode {
+        self.enable();
+        let regs = ACIFC_BASE;
+
+        if channel.chan_num == 0 {
+            // Enable interrupts.
+            regs.ier.write(Interrupt::ACINT0::SET);
+            return ReturnCode::SUCCESS;
+        } else if channel.chan_num == 1 {
+            // Repeat the same for ac == 1
+            regs.ier.write(Interrupt::ACINT1::SET);
+            return ReturnCode::SUCCESS;
+        } else if channel.chan_num == 2 {
+            // Repeat the same for ac == 2
+            regs.ier.write(Interrupt::ACINT2::SET);
+            return ReturnCode::SUCCESS;
+        } else if channel.chan_num == 3 {
+            // Repeat the same for ac == 3
+            regs.ier.write(Interrupt::ACINT3::SET);
+            return ReturnCode::SUCCESS;
+        } else {
+            // Making sure the selected AC is on the board
+            self.disable();
+            debug!("Please choose a comparator (value of ac) that this chip supports");
+            return ReturnCode::EINVAL;
+        }
     }
 
-    fn disable_interrupts(&self, ac: usize) -> ReturnCode {
-        self.disable_interrupts(ac)
+    /// Disable interrupt-based comparisons
+    fn disable_interrupts(&self, channel: &Self::Channel) -> ReturnCode {
+        let regs = ACIFC_BASE;
+
+        if channel.chan_num == 0 {
+            // Enable interrupts.
+            regs.ier.write(Interrupt::ACINT0::CLEAR);
+            return ReturnCode::SUCCESS;
+        } else if channel.chan_num == 1 {
+            // Repeat the same for ac == 1
+            regs.ier.write(Interrupt::ACINT1::CLEAR);
+            return ReturnCode::SUCCESS;
+        } else if channel.chan_num == 2 {
+            // Repeat the same for ac == 2
+            regs.ier.write(Interrupt::ACINT2::CLEAR);
+            return ReturnCode::SUCCESS;
+        } else if channel.chan_num == 3 {
+            // Repeat the same for ac == 3
+            regs.ier.write(Interrupt::ACINT3::CLEAR);
+            return ReturnCode::SUCCESS;
+        } else {
+            // Making sure the selected AC is on the board
+            self.disable();
+            debug!("Please choose a comparator (value of ac) that this chip supports");
+            return ReturnCode::EINVAL;
+        }
     }
 }
 
