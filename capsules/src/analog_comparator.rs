@@ -25,12 +25,6 @@
 //! For a normal comparison or an interrupt-based comparison, just one analog
 //! comparator is necessary.
 //!
-//! ## Window Comparison
-//! To do a window comparison, two ACs are necessary.  Therefore, the number
-//! available windows on a microcontroller will be half the number of ACs.  For
-//! instance, looking at the above "Number of Analog Comparators" explanation,
-//! this means the Hail has one window and the Imix has two windows.
-//!
 //! For more information on how this capsule works, please take a look at the
 //! README: 00007_analog_comparator.md in doc/syscalls.
 
@@ -76,20 +70,6 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         };
     }
 
-    // Do a single window comparison on a channel
-    fn window_comparison(&self, channel: usize) -> ReturnCode {
-        if channel >= self.channels.len() {
-            panic!("Please select a channel which exists on the current board/chip");
-        }
-        // Convert channel index
-        // let chan = self.channels[channel];
-        let result = self.analog_comparator.window_comparison(channel);
-
-        return ReturnCode::SuccessWithValue {
-            value: result as usize,
-        };
-    }
-
     // Start comparing on a channel
     fn start_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
@@ -124,13 +104,10 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     /// - `1`: Perform a simple comparison.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    /// - `2`: Perform a window comparison.
-    ///        Input x chooses the desired window Windowx (e.g. 0 for hail,
-    ///        0 or 1 for imix)
-    /// - `3`: Start interrupt-based comparisons.
+    /// - `2`: Start interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
-    /// - `4`: Stop interrupt-based comparisons.
+    /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
     fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
@@ -141,11 +118,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 
             1 => self.comparison(channel),
 
-            2 => self.window_comparison(channel),
+            2 => self.start_comparing(channel),
 
-            3 => self.start_comparing(channel),
-
-            4 => self.stop_comparing(channel),
+            3 => self.stop_comparing(channel),
 
             _ => return ReturnCode::ENOSUPPORT,
         }

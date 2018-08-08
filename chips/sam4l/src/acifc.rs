@@ -19,13 +19,9 @@
 //! and therefore supports two ACs. 
 //! The Imix is an example of a board with the 100-pin version of the SAM4L,
 //! and therefore supports four ACs. 
-//! Currently, no version of the SAM4L //! exists with all the 8 ACs
+//! Currently, no version of the SAM4L exists with all the 8 ACs
 //! implemented. Therefore a lot of the defined bitfields remain unused, but
 //! are initialized for a possible future scenario.
-//! 
-//! The ACIFC can be configured in normal mode using each comparator
-//! independently or in window mode using defined comparator pairs (ACx and
-//! ACx+1) to observe a window.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
 // Last modified August 7th, 2018
@@ -486,25 +482,6 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
             // Should never get here, just making sure
             self.disable();
             panic!("PANIC! Please choose a comparator (value of ac) that this chip supports");
-        }
-        return result;
-    }
-
-    /// Do a window comparison (see docs for more info)
-    fn window_comparison(&self, window: usize) -> bool {
-        self.enable();
-        let regs = ACIFC_BASE;
-        let result;
-        if window == 0 {
-            regs.confw[0].write(WindowConfiguration::WFEN::SET);
-            result = regs.sr.is_set(Status::WFCS0);
-        } else if window == 1 {
-            regs.confw[1].write(WindowConfiguration::WFEN::SET);
-            result = regs.sr.is_set(Status::WFCS1);
-        } else {
-            // Should never get here, just making sure
-            self.disable();
-            panic!("Please choose a window (value of window) that this chip supports");
         }
         return result;
     }
