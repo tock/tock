@@ -132,9 +132,9 @@ unsafe fn set_pin_primary_functions() {
     PA[04].configure(Some(A)); // A0 - ADC0
     PA[05].configure(Some(A)); // A1 - ADC1
     PA[06].configure(Some(A)); // DAC
-    PA[07].configure(Some(A)); //... WKP - Wakeup
-                               // PA[06].configure(Some(E)); // ACAN0 - ACIFC
-                               // PA[07].configure(Some(E)); // ACAP0 - ACIFC
+    PA[07].configure(None); //... WKP - Wakeup
+                            // PA[06].configure(Some(E)); // ACAN0 - ACIFC
+                            // PA[07].configure(Some(E)); // ACAP0 - ACIFC
     PA[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
     PA[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
     PA[10].configure(None); //... unused
