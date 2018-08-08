@@ -133,7 +133,7 @@ unsafe fn set_pin_primary_functions() {
     PA[05].configure(Some(A)); // A1 - ADC1
     PA[06].configure(Some(A)); // DAC
     PA[07].configure(Some(A)); //... WKP - Wakeup
-                               // PA[06].configure(Some(E)); // ACAN0 - ACIFC 
+                               // PA[06].configure(Some(E)); // ACAN0 - ACIFC
                                // PA[07].configure(Some(E)); // ACAP0 - ACIFC
     PA[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
     PA[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
@@ -168,7 +168,7 @@ unsafe fn set_pin_primary_functions() {
     PB[02].configure(Some(A)); // A2 - ADC3
     PB[03].configure(Some(A)); // A3 - ADC4
                                // // ADC Mode
-                               // PB[02].configure(Some(E)); // ACBN0 - ACIFC 
+                               // PB[02].configure(Some(E)); // ACBN0 - ACIFC
                                // PB[03].configure(Some(E)); // ACBP0 - ACIFC
     PB[04].configure(Some(A)); // A4 - ADC5
     PB[05].configure(Some(A)); // A5 - ADC6

@@ -32,8 +32,8 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 
 use components::adc::AdcComponent;
-use components::analog_comparator::AcComponent;
 use components::alarm::AlarmDriverComponent;
+use components::analog_comparator::AcComponent;
 use components::button::ButtonComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;

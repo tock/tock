@@ -28,17 +28,18 @@ impl AcComponent {
 }
 
 impl Component for AcComponent {
-    type Output = &'static analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc<'static>>;
+    type Output =
+        &'static analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc<'static>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let ac_channels = static_init!(
-        [&'static sam4l::acifc::AcChannel; 4],
-        [
-            &sam4l::acifc::CHANNEL_AC0,
-            &sam4l::acifc::CHANNEL_AC1,
-            &sam4l::acifc::CHANNEL_AC2,
-            &sam4l::acifc::CHANNEL_AC3,
-        ]
+            [&'static sam4l::acifc::AcChannel; 4],
+            [
+                &sam4l::acifc::CHANNEL_AC0,
+                &sam4l::acifc::CHANNEL_AC1,
+                &sam4l::acifc::CHANNEL_AC2,
+                &sam4l::acifc::CHANNEL_AC3,
+            ]
         );
         let analog_comparator = static_init!(
             analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,

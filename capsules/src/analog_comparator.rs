@@ -19,7 +19,7 @@
 //! ```
 //!
 //! ## Number of Analog Comparators
-//! The number of analog comparators available depends on the microcontroller/board used. 
+//! The number of analog comparators available depends on the microcontroller/board used.
 //!
 //! ## Normal or Interrupt-based Comparison
 //! For a normal comparison or an interrupt-based comparison, just one analog

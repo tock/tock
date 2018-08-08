@@ -8,17 +8,17 @@
 //! Comparators (ACs) with identical behavior. Each Analog Comparator compares
 //! two voltages and gives an output depending on this comparison. A specific AC
 //! is referred to as ACx where x is any number from 0 to n and n is the index
-//! of last AC module. 
-//! 
+//! of last AC module.
+//!
 //! The number of analog comparators (ACs) available depends on the board pr
 //! microcontroller used.  The SAM4Lmcomes in three different versions: a 48-pin, a
 //! 64-pin and a 100-pin version.  On the 48-pin version, one AC is available.
 //! On the 64-pin version, two ACs are available.  On the 100-pin version, four
-//! ACs are available.  
+//! ACs are available.
 //! The Hail is an example of a board with the 64-pin version of the SAM4L,
-//! and therefore supports two ACs. 
+//! and therefore supports two ACs.
 //! The Imix is an example of a board with the 100-pin version of the SAM4L,
-//! and therefore supports four ACs. 
+//! and therefore supports four ACs.
 //! Currently, no version of the SAM4L exists with all the 8 ACs
 //! implemented. Therefore a lot of the defined bitfields remain unused, but
 //! are initialized for a possible future scenario.
@@ -344,7 +344,7 @@ impl<'a> Acifc<'a> {
         let regs = ACIFC_BASE;
 
         // We check which AC generated the interrupt, and callback to the client accordingly
-        if regs.isr.is_set(Interrupt::ACINT0) { 
+        if regs.isr.is_set(Interrupt::ACINT0) {
             // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
             if !regs.imr.is_set(Interrupt::ACINT0) {
                 return;
@@ -371,9 +371,7 @@ impl<'a> Acifc<'a> {
             // Clear the interrupt request
             regs.icr.write(Interrupt::ACINT0::SET);
             regs.ier.write(Interrupt::ACINT0::SET);
-        } 
-        
-        else if regs.isr.is_set(Interrupt::ACINT1) { 
+        } else if regs.isr.is_set(Interrupt::ACINT1) {
             // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
             if !regs.imr.is_set(Interrupt::ACINT1) {
                 return;
@@ -400,9 +398,7 @@ impl<'a> Acifc<'a> {
             // Clear the interrupt request
             regs.icr.write(Interrupt::ACINT1::SET);
             regs.ier.write(Interrupt::ACINT1::SET);
-        } 
-
-        else if regs.isr.is_set(Interrupt::ACINT2) { 
+        } else if regs.isr.is_set(Interrupt::ACINT2) {
             // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
             if !regs.imr.is_set(Interrupt::ACINT2) {
                 return;
@@ -429,9 +425,7 @@ impl<'a> Acifc<'a> {
             // Clear the interrupt request
             regs.icr.write(Interrupt::ACINT2::SET);
             regs.ier.write(Interrupt::ACINT2::SET);
-        }
-
-        else if regs.isr.is_set(Interrupt::ACINT3) { 
+        } else if regs.isr.is_set(Interrupt::ACINT3) {
             // Return if we had a pending interrupt while we already set IMR to 0 (edge case)
             if !regs.imr.is_set(Interrupt::ACINT3) {
                 return;
@@ -458,7 +452,7 @@ impl<'a> Acifc<'a> {
             // Clear the interrupt request
             regs.icr.write(Interrupt::ACINT3::SET);
             regs.ier.write(Interrupt::ACINT3::SET);
-        }  
+        }
     }
 }
 
