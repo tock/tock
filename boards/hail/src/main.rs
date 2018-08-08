@@ -126,13 +126,15 @@ impl Platform for Hail {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    use sam4l::gpio::PeripheralFunction::{A, B, E};
+    use sam4l::gpio::PeripheralFunction::{A, B};
     use sam4l::gpio::{PA, PB};
 
     PA[04].configure(Some(A)); // A0 - ADC0
     PA[05].configure(Some(A)); // A1 - ADC1
     PA[06].configure(Some(A)); // DAC
-    PA[07].configure(None); //... WKP - Wakeup
+    PA[07].configure(Some(A)); //... WKP - Wakeup
+                               // PA[06].configure(Some(E)); // ACAN0 - ACIFC 
+                               // PA[07].configure(Some(E)); // ACAP0 - ACIFC
     PA[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
     PA[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
     PA[10].configure(None); //... unused
@@ -163,11 +165,11 @@ unsafe fn set_pin_primary_functions() {
     PB[00].configure(Some(A)); // SENSORS_SDA - TWIMS1 SDA
     PB[01].configure(Some(A)); // SENSORS_SCL - TWIMS1 SCL
                                // Analog Comparator Mode
-    PB[02].configure(Some(E)); // A2 - ACIFC ACBN0
-    PB[03].configure(Some(E)); // A3 - ACIFC ACBP0
+    PB[02].configure(Some(A)); // A2 - ADC3
+    PB[03].configure(Some(A)); // A3 - ADC4
                                // // ADC Mode
-                               // PB[02].configure(Some(A)); // A2 - ADC3
-                               // PB[03].configure(Some(A)); // A3 - ADC4
+                               // PB[02].configure(Some(E)); // ACBN0 - ACIFC 
+                               // PB[03].configure(Some(E)); // ACBP0 - ACIFC
     PB[04].configure(Some(A)); // A4 - ADC5
     PB[05].configure(Some(A)); // A5 - ADC6
     PB[06].configure(Some(A)); // NRF_CTS - USART3 RTS
@@ -484,7 +486,7 @@ pub unsafe fn reset_handler() {
     let ac_channels = static_init!(
         [&'static sam4l::acifc::AcChannel; 2],
         [
-            &sam4l::acifc::CHANNEL_AC0, // PA06 + PA07, currently unused
+            &sam4l::acifc::CHANNEL_AC0, // PA06 + PA07
             &sam4l::acifc::CHANNEL_AC1, // PB02 + PB03
         ]
     );

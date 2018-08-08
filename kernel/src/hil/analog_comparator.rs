@@ -44,5 +44,5 @@ pub trait AnalogComparator {
 
 pub trait Client {
     /// Called when an interrupt occurs.
-    fn fired(&self);
+    fn fired(&self, usize);
 }

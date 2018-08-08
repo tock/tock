@@ -33,9 +33,9 @@
 //!
 //! For more information on how this capsule works, please take a look at the
 //! README: 00007_analog_comparator.md in doc/syscalls.
-//!
-//! Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-//! Last modified August 7th, 2018
+
+// Author: Danilo Verhaert <verhaert@cs.stanford.edu>
+// Last modified August 7th, 2018
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00007;
@@ -172,10 +172,10 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
     for AnalogComparator<'a, A>
 {
-    fn fired(&self) {
+    fn fired(&self, channel: usize) {
         // Callback to userland
         self.callback
             .get()
-            .map_or_else(|| false, |mut cb| cb.schedule(0, 0, 0));
+            .map_or_else(|| false, |mut cb| cb.schedule(channel, 0, 0));
     }
 }

@@ -26,10 +26,9 @@
 //! The ACIFC can be configured in normal mode using each comparator
 //! independently or in window mode using defined comparator pairs (ACx and
 //! ACx+1) to observe a window.
-//!
-//!
-//! Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-//! Last modified August 7th, 2018
+
+// Author: Danilo Verhaert <verhaert@cs.stanford.edu>
+// Last modified August 7th, 2018
 
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
@@ -363,7 +362,7 @@ impl<'a> Acifc<'a> {
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[0].is_set(ACConfiguration::IS) {
                 self.client.get().map(|client| {
-                    client.fired();
+                    client.fired(0);
                 });
                 regs.conf[0].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
@@ -392,7 +391,7 @@ impl<'a> Acifc<'a> {
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[1].is_set(ACConfiguration::IS) {
                 self.client.get().map(|client| {
-                    client.fired();
+                    client.fired(1);
                 });
                 regs.conf[1].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
@@ -421,7 +420,7 @@ impl<'a> Acifc<'a> {
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[2].is_set(ACConfiguration::IS) {
                 self.client.get().map(|client| {
-                    client.fired();
+                    client.fired(2);
                 });
                 regs.conf[2].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
@@ -450,7 +449,7 @@ impl<'a> Acifc<'a> {
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[3].is_set(ACConfiguration::IS) {
                 self.client.get().map(|client| {
-                    client.fired();
+                    client.fired(3);
                 });
                 regs.conf[3].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }

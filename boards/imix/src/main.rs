@@ -32,6 +32,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 
 use components::adc::AdcComponent;
+use components::analog_comparator::AcComponent;
 use components::alarm::AlarmDriverComponent;
 use components::button::ButtonComponent;
 use components::console::ConsoleComponent;
@@ -215,14 +216,14 @@ unsafe fn set_pin_primary_functions() {
     PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
                                //PC[09].configure(None); //... NRF GPIO    -- GPIO
                                //PC[10].configure(None); //... USER LED    -- GPIO
-    PC[09].configure(Some(E)); //... NRF GPIO    -- ACAN1
-    PC[10].configure(Some(E)); //... USER LED    -- ACAP1
+    PC[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
+    PC[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
     PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
     PC[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
                                //PC[13].configure(None); //... ACC_INT1    -- GPIO
                                //PC[14].configure(None); //... ACC_INT2    -- GPIO
-    PC[13].configure(Some(E)); //... ACC_INT1    -- ACBN1
-    PC[14].configure(Some(E)); //... ACC_INT2    -- ACBP1
+    PC[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
+    PC[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
     PC[16].configure(None); //... SENSE_PWR   --  GPIO pin
     PC[17].configure(None); //... NRF_PWR     --  GPIO pin
     PC[18].configure(None); //... RF233_PWR   --  GPIO pin
@@ -332,13 +333,7 @@ pub unsafe fn reset_handler() {
     let led = LedComponent::new().finalize();
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
-
-    // ACIFC
-    let analog_comparator = static_init!(
-        capsules::analog_comparator::AnalogComparator<'static, sam4l::acifc::Acifc>,
-        capsules::analog_comparator::AnalogComparator::new(&mut sam4l::acifc::ACIFC)
-    );
-    sam4l::acifc::ACIFC.set_client(analog_comparator);
+    let analog_comparator = AcComponent::new().finalize();
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);

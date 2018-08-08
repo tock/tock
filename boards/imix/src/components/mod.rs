@@ -1,4 +1,5 @@
 pub mod adc;
+pub mod analog_comparator;
 pub mod alarm;
 pub mod button;
 pub mod console;
@@ -16,6 +17,7 @@ pub mod spi;
 pub mod usb;
 
 pub use self::adc::AdcComponent;
+pub use self::analog_comparator::AcComponent;
 pub use self::alarm::AlarmDriverComponent;
 pub use self::button::ButtonComponent;
 pub use self::console::ConsoleComponent;
