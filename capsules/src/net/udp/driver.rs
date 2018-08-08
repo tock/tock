@@ -247,21 +247,21 @@ impl<'a> UDPDriver<'a> {
     }
 
     /// Schedule the next transmission if there is one pending. Performs the
-    /// transmission asynchronously, returning any errors via callbacks.
+    /// transmission eventually, returning any errors via asynchronous callbacks.
     #[inline]
     #[allow(dead_code)]
-    fn do_next_tx_async(&self) {
+    fn do_next_tx_queued(&self) {
         self.get_next_tx_if_idle()
             .map(|appid| self.perform_tx_async(appid));
     }
 
     /// Schedule the next transmission if there is one pending. If the next
     /// transmission happens to be the one that was just queued, then the
-    /// transmission is synchronous. Hence, errors must be returned immediately.
+    /// transmission is immediate. Hence, errors must be returned immediately.
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
+    fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
             .map(|appid| {
                 if appid == new_appid {
@@ -372,7 +372,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        Returns EINVAL if no valid buffer has been loaded into the write buffer,
     ///        or if the config buffer is the wrong length, or if the destination and source
     ///        port/address pairs cannot be parsed.
-    ///        Otherwise, returns the result of do_next_tx_sync(). Notably, a successful
+    ///        Otherwise, returns the result of do_next_tx_immediate(). Notably, a successful
     ///        transmit can produce two different success values. If success is returned,
     ///        this simply means that the packet was queued. In this case, the app still
     ///        still needs to wait for a callback to check if any errors occurred before
@@ -438,7 +438,7 @@ impl<'a> Driver for UDPDriver<'a> {
                     }
                     app.pending_tx = next_tx;
 
-                    self.do_next_tx_sync(appid)
+                    self.do_next_tx_immediate(appid)
                 })
             }
             _ => ReturnCode::ENOSUPPORT,

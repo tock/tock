@@ -906,7 +906,6 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 } else {
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
                 }
-                debug!("[RF233] Received packet, sending to client");
                 self.rx_client.map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
                     let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
