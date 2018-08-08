@@ -1,0 +1,9 @@
+[package]
+name = "e310x"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+riscv32i = { path = "../../arch/riscv32i" }
+kernel = { path = "../../kernel" }
+

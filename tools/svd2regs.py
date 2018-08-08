@@ -69,7 +69,10 @@ COMMENT_MAX_LENGTH = 80
 
 
 def comment(text):
-    return "/// {}".format(text[:COMMENT_MAX_LENGTH].strip())
+    if text:
+        return "/// {}".format(text[:COMMENT_MAX_LENGTH].strip())
+    else:
+        return ''
 
 
 class CodeBlock(str):
@@ -269,6 +272,8 @@ class BitfieldFieldEnum(CodeBlock):
     @staticmethod
     def fields(enum):
         def identifier(desc):
+            if not desc:
+                return None
             if any(desc.startswith(str(digit)) for digit in range(10)):
                 desc = "_{}".format(desc)
             i = pydentifier.upper_camel(desc)
