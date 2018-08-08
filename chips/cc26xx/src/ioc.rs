@@ -34,7 +34,9 @@ register_bitfields![
         PORT_ID     OFFSET(0) NUMBITS(6) [
             GPIO = 0x00,
             UART_RX = 0xF,
-            UART_TX = 0x10
+            UART_TX = 0x10,
+            I2C_MSSDA = 0xd,
+            I2C_MSSCL = 0xe
             // Add more as needed from datasheet p.1028
         ]
     ]
@@ -105,6 +107,36 @@ impl IocfgPin {
         let regs = IOC_BASE;
         let pin_ioc = &regs.iocfg[self.pin];
         pin_ioc.modify(IoConfiguration::EDGE_IRQ_EN::CLEAR);
+    }
+
+    /// Configures pin for I2C SDA
+    pub fn enable_i2c_sda(&self) {
+        let regs: &IocRegisters = &*IOC_BASE;
+        let pin_ioc = &regs.iocfg[self.pin];
+
+        pin_ioc.modify(
+            IoConfiguration::PORT_ID::I2C_MSSDA
+                + IoConfiguration::IO_MODE.val(0x4)
+                + IoConfiguration::PULL_CTL::PullUp,
+        );
+        self.enable_input();
+    }
+
+    /// Configures pin for I2C SDA
+    pub fn enable_i2c_scl(&self) {
+        let regs: &IocRegisters = &*IOC_BASE;
+        let pin_ioc = &regs.iocfg[self.pin];
+
+        pin_ioc.modify(
+            IoConfiguration::PORT_ID::I2C_MSSCL
+                + IoConfiguration::IO_MODE.val(0x4)
+                + IoConfiguration::PULL_CTL::PullUp,
+        );
+        // TODO(alevy): I couldn't find any justification for enabling input mode in the datasheet,
+        // but I2C master seems not to work without it. Maybe it's important for multi-master mode,
+        // or for allowing a slave to stretch the clock, but in any case, I2C master won't actually
+        // output anything without this line.
+        self.enable_input();
     }
 
     /// Configures pin for UART receive (RX).

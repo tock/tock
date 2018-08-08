@@ -1,4 +1,4 @@
-#![feature(const_fn, used)]
+#![feature(const_fn, untagged_unions, used)]
 #![no_std]
 #![crate_name = "cc26x2"]
 #![crate_type = "rlib"]
@@ -11,6 +11,7 @@ extern crate kernel;
 pub mod aon;
 pub mod chip;
 pub mod crt1;
+pub mod i2c;
 pub mod prcm;
 pub mod rtc;
 
