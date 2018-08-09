@@ -39,9 +39,12 @@ use kernel::hil;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator + 'a> {
+    // Analog Comparator driver
     analog_comparator: &'a A,
-    callback: Cell<Option<Callback>>,
     channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
+
+    // App state
+    callback: Cell<Option<Callback>>,
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
@@ -50,8 +53,11 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator>::Channel],
     ) -> AnalogComparator<'a, A> {
         AnalogComparator {
+            // Analog Comparator driver
             analog_comparator: analog_comparator,
             channels: channels,
+
+            // App state
             callback: Cell::new(None),
         }
     }
@@ -59,7 +65,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
     // Do a single comparison on a channel
     fn comparison(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            panic!("Please select a channel which exists on the current board/chip");
+            return ReturnCode::EINVAL;
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -73,7 +79,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
     // Start comparing on a channel
     fn start_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            panic!("Please select a channel which exists on the current board/chip");
+            return ReturnCode::EINVAL;
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -85,7 +91,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
     // Stop comparing on a channel
     fn stop_comparing(&self, channel: usize) -> ReturnCode {
         if channel >= self.channels.len() {
-            panic!("Please select a channel which exists on the current board/chip");
+            return ReturnCode::EINVAL;
         }
         // Convert channel index
         let chan = self.channels[channel];
@@ -147,6 +153,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
     for AnalogComparator<'a, A>
 {
+    // Fires when handle_interrupt is called, returning the channel where the
+    // interrupt occured.
     fn fired(&self, channel: usize) {
         // Callback to userland
         self.callback
