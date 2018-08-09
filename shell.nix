@@ -1,3 +1,16 @@
+# Shell expression for the Nix package manager
+#
+# This nix expression creates an environment with necessary packages installed:
+#
+#  * `tockloader`
+#  * arm-none-eabi toolchain
+#  * rustup
+#
+# To use:
+#
+#  $ nix-shell
+#
+
 { pkgs ? import <nixpkgs> {} }:
 
 with builtins;
@@ -22,7 +35,7 @@ let
 in
   with pkgs;
   stdenv.mkDerivation {
-    name = "moz_overlay_shell";
+    name = "tock-dev";
     buildInputs = [
       rustup
       gcc-arm-embedded
