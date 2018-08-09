@@ -15,9 +15,12 @@ pub static mut SYSCALL_FIRED: usize = 0;
 /// This is called in the hard fault handler. When set to 1 this means the hard
 /// fault handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
+///
+/// n.b. If the kernel hard faults, it immediately panic's. This flag is only
+/// for handling application hard faults.
 #[no_mangle]
 #[used]
-pub static mut APP_FAULT: usize = 0;
+pub static mut APP_HARD_FAULT: usize = 0;
 
 /// This is called in the systick handler. When set to 1 this means the process
 /// exceeded its timeslice. Marked `pub` because it is used in the cortex-m*
@@ -183,8 +186,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // Check to see if the fault handler was called while the process was
         // running.
-        let app_fault = read_volatile(&APP_FAULT);
-        write_volatile(&mut APP_FAULT, 0);
+        let app_fault = read_volatile(&APP_HARD_FAULT);
+        write_volatile(&mut APP_HARD_FAULT, 0);
 
         // Check to see if the svc_handler was called and the process called a
         // syscall.
@@ -197,8 +200,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // Now decide the reason based on which flags were set.
         let switch_reason = if app_fault == 1 {
-            // APP_FAULT takes priority. This means we hit the hardfault handler
-            // and this process faulted.
+            // APP_HARD_FAULT takes priority. This means we hit the hardfault
+            // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
         } else if syscall_fired == 1 {
             kernel::syscall::ContextSwitchReason::SyscallFired
