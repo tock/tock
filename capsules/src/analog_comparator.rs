@@ -153,8 +153,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
     for AnalogComparator<'a, A>
 {
-    // Fires when handle_interrupt is called, returning the channel where the
-    // interrupt occured.
+    // Fires when handle_interrupt is called, returning the channel on which
+    // the interrupt occured.
     fn fired(&self, channel: usize) {
         // Callback to userland
         self.callback
