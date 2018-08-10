@@ -1,7 +1,7 @@
 //! Interface for direct control of the analog comparators.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified August 7th, 2018
+// Last modified August 9th, 2018
 
 use returncode::ReturnCode;
 
@@ -25,6 +25,7 @@ pub trait AnalogComparator {
 }
 
 pub trait Client {
-    /// Called when an interrupt occurs.
+    /// Fires when handle_interrupt is called, returning the channel on which
+    /// the interrupt occurred.
     fn fired(&self, usize);
 }

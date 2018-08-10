@@ -29,7 +29,7 @@
 //! README: 00007_analog_comparator.md in doc/syscalls.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified August 7th, 2018
+// Last modified August 9th, 2018
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00007;
@@ -132,6 +132,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
         }
     }
 
+    /// Provides a callback which can be used to signal the application
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -153,10 +154,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
     for AnalogComparator<'a, A>
 {
-    // Fires when handle_interrupt is called, returning the channel on which
-    // the interrupt occured.
+    /// Callback to userland, signaling the application
     fn fired(&self, channel: usize) {
-        // Callback to userland
         self.callback
             .get()
             .map_or_else(|| false, |mut cb| cb.schedule(channel, 0, 0));

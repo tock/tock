@@ -24,7 +24,7 @@
 //! are initialized for a possible future scenario.
 
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
-// Last modified August 7th, 2018
+// Last modified August 8th, 2018
 
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
