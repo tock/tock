@@ -17,6 +17,7 @@ pub mod adc;
 pub mod aes_ccm;
 pub mod alarm;
 pub mod ambient_light;
+pub mod analog_comparator;
 pub mod app_flash_driver;
 pub mod ble_advertising_driver;
 pub mod button;

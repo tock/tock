@@ -1,5 +1,6 @@
 pub mod adc;
 pub mod alarm;
+pub mod analog_comparator;
 pub mod button;
 pub mod console;
 pub mod crc;
@@ -17,6 +18,7 @@ pub mod usb;
 
 pub use self::adc::AdcComponent;
 pub use self::alarm::AlarmDriverComponent;
+pub use self::analog_comparator::AcComponent;
 pub use self::button::ButtonComponent;
 pub use self::console::ConsoleComponent;
 pub use self::crc::CrcComponent;

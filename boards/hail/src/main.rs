@@ -125,8 +125,12 @@ unsafe fn set_pin_primary_functions() {
 
     PA[04].configure(Some(A)); // A0 - ADC0
     PA[05].configure(Some(A)); // A1 - ADC1
+                               // DAC/WKP mode
     PA[06].configure(Some(A)); // DAC
     PA[07].configure(None); //... WKP - Wakeup
+                            // // Analog Comparator Mode
+                            // PA[06].configure(Some(E)); // ACAN0 - ACIFC
+                            // PA[07].configure(Some(E)); // ACAP0 - ACIFC
     PA[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
     PA[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
     PA[10].configure(None); //... unused
@@ -145,7 +149,7 @@ unsafe fn set_pin_primary_functions() {
     PA[22].configure(Some(A)); // D2 - SPI MOSI
     PA[23].configure(Some(A)); // D4 - SPI SCK
     PA[24].configure(Some(A)); // D5 - SPI CS0
-                               // // I2C MODE
+                               // // I2C Mode
                                // PA[21].configure(None); // D3
                                // PA[22].configure(None); // D2
                                // PA[23].configure(Some(B)); // D4 - TWIMS0 SDA
@@ -156,8 +160,12 @@ unsafe fn set_pin_primary_functions() {
 
     PB[00].configure(Some(A)); // SENSORS_SDA - TWIMS1 SDA
     PB[01].configure(Some(A)); // SENSORS_SCL - TWIMS1 SCL
+                               // ADC Mode
     PB[02].configure(Some(A)); // A2 - ADC3
     PB[03].configure(Some(A)); // A3 - ADC4
+                               // // Analog Comparator Mode
+                               // PB[02].configure(Some(E)); // ACBN0 - ACIFC
+                               // PB[03].configure(Some(E)); // ACBP0 - ACIFC
     PB[04].configure(Some(A)); // A4 - ADC5
     PB[05].configure(Some(A)); // A5 - ADC6
     PB[06].configure(Some(A)); // NRF_CTS - USART3 RTS
