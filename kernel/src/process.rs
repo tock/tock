@@ -6,6 +6,7 @@ use core::ptr::write_volatile;
 use core::{mem, ptr, slice, str};
 
 use callback::AppId;
+use capabilities::ProcessManagementCapability;
 use common::cells::MapCell;
 use common::math;
 use common::{Queue, RingBuffer};
@@ -30,42 +31,45 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub unsafe fn load_processes<S: UserspaceKernelBoundary>(
+pub fn load_processes<S: UserspaceKernelBoundary>(
     kernel: &'static Kernel,
     syscall: &'static S,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
     procs: &'static mut [Option<&'static ProcessType>],
     fault_response: FaultResponse,
+    _capability: &ProcessManagementCapability,
 ) {
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
     for i in 0..procs.len() {
-        let (process, flash_offset, memory_offset) = Process::create(
-            kernel,
-            syscall,
-            apps_in_flash_ptr,
-            app_memory_ptr,
-            app_memory_size,
-            fault_response,
-        );
+        unsafe {
+            let (process, flash_offset, memory_offset) = Process::create(
+                kernel,
+                syscall,
+                apps_in_flash_ptr,
+                app_memory_ptr,
+                app_memory_size,
+                fault_response,
+            );
 
-        if process.is_none() {
-            // We did not get a valid process, but we may have gotten a disabled
-            // process or padding. Therefore we want to skip this chunk of flash
-            // and see if there is a valid app there. However, if we cannot
-            // advance the flash pointer, then we are done.
-            if flash_offset == 0 && memory_offset == 0 {
-                break;
+            if process.is_none() {
+                // We did not get a valid process, but we may have gotten a disabled
+                // process or padding. Therefore we want to skip this chunk of flash
+                // and see if there is a valid app there. However, if we cannot
+                // advance the flash pointer, then we are done.
+                if flash_offset == 0 && memory_offset == 0 {
+                    break;
+                }
+            } else {
+                procs[i] = process;
             }
-        } else {
-            procs[i] = process;
-        }
 
-        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
-        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
-        app_memory_size -= memory_offset;
+            apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
+            app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
+            app_memory_size -= memory_offset;
+        }
     }
 }
 

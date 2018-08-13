@@ -12,7 +12,7 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(debug, debug_gpio, static_init, create_capability)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
@@ -23,6 +23,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -259,6 +260,12 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    let main_cap = create_capability!(capabilities::MainLoopCapability);
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
     power::configure_submodules(power::SubmoduleConfig {
         rf233: true,
         nrf51422: true,
@@ -355,7 +362,7 @@ pub unsafe fn reset_handler() {
         analog_comparator: analog_comparator,
         crc: crc,
         spi: spi_syscalls,
-        ipc: kernel::ipc::IPC::new(board_kernel),
+        ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
         ninedof: ninedof,
         radio_driver: radio_driver,
         usb_driver: usb_driver,
@@ -389,7 +396,8 @@ pub unsafe fn reset_handler() {
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc));
+    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
 }
