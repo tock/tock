@@ -33,7 +33,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -240,6 +240,7 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

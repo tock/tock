@@ -9,6 +9,7 @@ extern crate kernel;
 pub use cortexm::support;
 
 pub use cortexm::nvic;
+pub use cortexm::syscall;
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn generic_isr() {}

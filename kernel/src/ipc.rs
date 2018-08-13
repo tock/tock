@@ -155,8 +155,11 @@ impl Driver for IPC {
         self.data
             .kernel
             .process_map_or(ReturnCode::EINVAL, target_id - 1, |target| {
-                target.schedule_ipc(appid, cb_type);
-                ReturnCode::SUCCESS
+                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                match ret {
+                    true => ReturnCode::SUCCESS,
+                    false => ReturnCode::FAIL,
+                }
             })
     }
 
@@ -183,7 +186,7 @@ impl Driver for IPC {
             match slice {
                 Some(slice_data) => {
                     let ret = self.data.kernel.process_each_enumerate_stop(|i, p| {
-                        let s = p.package_name.as_bytes();
+                        let s = p.get_process_name();
                         // are slices equal?
                         if s.len() == slice_data.len()
                             && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)

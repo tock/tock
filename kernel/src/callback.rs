@@ -69,13 +69,13 @@ impl Callback {
         self.app_id
             .kernel
             .process_map_or(false, self.app_id.idx(), |process| {
-                process.schedule(process::FunctionCall {
-                    r0: r0,
-                    r1: r1,
-                    r2: r2,
-                    r3: self.appdata,
+                process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                    argument3: self.appdata,
                     pc: self.fn_ptr.as_ptr() as usize,
-                })
+                }))
             })
     }
 }
