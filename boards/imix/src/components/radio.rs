@@ -21,6 +21,7 @@ use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioData;
@@ -71,6 +72,8 @@ impl Component for RadioComponent {
     type Output = &'static capsules::ieee802154::RadioDriver<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let aes_ccm = static_init!(
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
             capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
@@ -114,7 +117,7 @@ impl Component for RadioComponent {
             capsules::ieee802154::RadioDriver<'static>,
             capsules::ieee802154::RadioDriver::new(
                 radio_mac,
-                self.board_kernel.create_grant(),
+                self.board_kernel.create_grant(&grant_cap),
                 &mut RADIO_BUF
             )
         );

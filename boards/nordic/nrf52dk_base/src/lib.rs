@@ -5,7 +5,7 @@
 extern crate capsules;
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_verbose, debug_gpio, static_init)]
+#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;
@@ -13,6 +13,7 @@ extern crate nrf5x;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
 use kernel::hil;
 use nrf5x::rtc::Rtc;
 
@@ -136,6 +137,13 @@ pub unsafe fn setup_board(
     while !nrf52::nvmc::NVMC.is_ready() {}
     uicr.set_psel1_reset_pin(button_rst_pin);
 
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&nrf5x::gpio::PORT[debug_pin1_index]),
@@ -160,7 +168,10 @@ pub unsafe fn setup_board(
     // Buttons
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, board_kernel.create_grant())
+        capsules::button::Button::new(
+            button_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -185,7 +196,10 @@ pub unsafe fn setup_board(
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         >,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, board_kernel.create_grant())
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm1,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     virtual_alarm1.set_client(alarm);
     let ble_radio_virtual_alarm = static_init!(
@@ -221,7 +235,7 @@ pub unsafe fn setup_board(
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            board_kernel.create_grant()
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     kernel::hil::uart::UART::set_client(console_uart, console);
@@ -254,7 +268,7 @@ pub unsafe fn setup_board(
         >,
         capsules::ble_advertising_driver::BLE::new(
             &mut nrf52::radio::RADIO,
-            board_kernel.create_grant(),
+            board_kernel.create_grant(&memory_allocation_capability),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
@@ -273,14 +287,17 @@ pub unsafe fn setup_board(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
             &mut nrf5x::temperature::TEMP,
-            board_kernel.create_grant()
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, board_kernel.create_grant())
+        capsules::rng::SimpleRng::new(
+            &mut nrf5x::trng::TRNG,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     nrf5x::trng::TRNG.set_client(rng);
 
@@ -356,7 +373,7 @@ pub unsafe fn setup_board(
             capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
             capsules::nonvolatile_storage_driver::NonvolatileStorage::new(
                 nv_to_page,
-                board_kernel.create_grant(),
+                board_kernel.create_grant(&memory_allocation_capability),
                 0x60000, // Start address for userspace accessible region
                 0x20000, // Length of userspace accessible region
                 0,       // Start address of kernel accessible region
@@ -392,7 +409,7 @@ pub unsafe fn setup_board(
         temp: temp,
         alarm: alarm,
         nonvolatile_storage: nonvolatile_storage,
-        ipc: kernel::ipc::IPC::new(board_kernel),
+        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
     let mut chip = nrf52::chip::NRF52::new();
@@ -411,7 +428,13 @@ pub unsafe fn setup_board(
         app_memory,
         process_pointers,
         app_fault_response,
+        &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&platform, &mut chip, Some(&platform.ipc));
+    board_kernel.kernel_loop(
+        &platform,
+        &mut chip,
+        Some(&platform.ipc),
+        &main_loop_capability,
+    );
 }

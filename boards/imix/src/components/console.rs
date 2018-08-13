@@ -21,6 +21,7 @@ use capsules::console;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use hil;
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 
 pub struct ConsoleComponent {
@@ -47,9 +48,12 @@ impl Component for ConsoleComponent {
     type Output = &'static console::Console<'static, UartDevice<'static>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         // Create virtual device for console.
         let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
         console_uart.setup();
+
         let console = static_init!(
             console::Console<UartDevice>,
             console::Console::new(
@@ -57,7 +61,7 @@ impl Component for ConsoleComponent {
                 self.baud_rate,
                 &mut console::WRITE_BUF,
                 &mut console::READ_BUF,
-                self.board_kernel.create_grant()
+                self.board_kernel.create_grant(&grant_cap)
             )
         );
         hil::uart::UART::set_client(console_uart, console);
