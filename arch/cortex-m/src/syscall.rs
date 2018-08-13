@@ -208,9 +208,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         } else if systick_expired == 1 {
             kernel::syscall::ContextSwitchReason::TimesliceExpired
         } else {
-            // If something else happened, which shouldn't, we fallback to this
-            // process having faulted.
-            kernel::syscall::ContextSwitchReason::Fault
+            // Desired: If something else happened, which shouldn't, we fallback
+            // to this process having faulted.
+            //
+            // Currently: Defaulting to `Fault` is causing the first app to
+            // crash immediately. While that can be sorted, default to
+            // essentially a no-op so that Tock works again. Also this is (I
+            // think) the old behavior (before #1113).
+            kernel::syscall::ContextSwitchReason::TimesliceExpired
         };
 
         (new_stack_pointer as *mut usize, switch_reason)
