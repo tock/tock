@@ -71,6 +71,7 @@ pub trait MPU {
     /// `ap`        : access permissions as defined in Table 4.47 of the user
     ///               guide.
     fn create_region(
+        &self,
         region_num: usize,
         start: usize,
         len: usize,
@@ -90,6 +91,7 @@ impl MPU for () {
     fn disable_mpu(&self) {}
 
     fn create_region(
+        &self,
         _: usize,
         _: usize,
         _: usize,

@@ -15,6 +15,7 @@ extern crate kernel;
 
 mod deferred_call_tasks;
 
+pub mod acifc;
 pub mod adc;
 pub mod aes;
 pub mod ast;

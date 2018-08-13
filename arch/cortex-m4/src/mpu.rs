@@ -142,6 +142,7 @@ impl kernel::mpu::MPU for MPU {
     }
 
     fn create_region(
+        &self,
         region_num: usize,
         start: usize,
         len: usize,

@@ -33,7 +33,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -86,7 +86,11 @@ pub unsafe fn reset_handler() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&tm4c129x::uart::UART0, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &tm4c129x::uart::UART0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&tm4c129x::uart::UART0, uart_mux);
 
@@ -236,6 +240,7 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

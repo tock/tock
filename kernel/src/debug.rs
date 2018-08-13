@@ -48,7 +48,7 @@ use core::str;
 use common::cells::NumericCellExt;
 use common::cells::{MapCell, TakeCell};
 use hil;
-use process::Process;
+use process::ProcessType;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -61,7 +61,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &Fn(),
-    processes: &'static [Option<&'static Process<'static>>],
+    processes: &'static [Option<&'static ProcessType>],
 ) -> ! {
     panic_begin(nop);
     panic_banner(writer, panic_info);
@@ -112,7 +112,7 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<W: Write>(
-    procs: &'static [Option<&'static Process<'static>>],
+    procs: &'static [Option<&'static ProcessType>],
     writer: &mut W,
 ) {
     // Print fault status once

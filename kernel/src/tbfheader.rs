@@ -312,12 +312,10 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
             // Calculate checksum. The checksum is the XOR of each 4 byte word
             // in the header.
             let mut chunks = tbf_header_base.header_size as usize / 4;
-            let leftover_bytes = if chunks * 4 != tbf_header_base.header_size as usize {
+            let leftover_bytes = tbf_header_base.header_size as usize % 4;
+            if leftover_bytes != 0 {
                 chunks += 1;
-                tbf_header_base.header_size as usize - (chunks * 4)
-            } else {
-                0
-            };
+            }
             let mut checksum: u32 = 0;
             let header = slice::from_raw_parts(address as *const u32, chunks);
             for (i, chunk) in header.iter().enumerate() {

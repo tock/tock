@@ -21,12 +21,15 @@ use kernel::hil;
 pub mod io;
 pub mod radio;
 
+#[allow(dead_code)]
+mod i2c_tests;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -142,7 +145,11 @@ pub unsafe fn reset_handler() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&cc26xx::uart::UART0, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &cc26xx::uart::UART0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&cc26xx::uart::UART0, uart_mux);
 
@@ -184,12 +191,15 @@ pub unsafe fn reset_handler() {
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
+    // TODO(alevy): Enable I2C, but it's not used anywhere yet. We need a system
+    // call driver
+    cc26x2::i2c::I2C0.initialize_and_set_pins(5, 4);
+
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static cc26xx::gpio::GPIOPin; 22],
+        [&'static cc26xx::gpio::GPIOPin; 21],
         [
             &cc26xx::gpio::PORT[1],
-            &cc26xx::gpio::PORT[5],
             &cc26xx::gpio::PORT[8],
             &cc26xx::gpio::PORT[9],
             &cc26xx::gpio::PORT[10],
@@ -269,17 +279,16 @@ pub unsafe fn reset_handler() {
         static _sapps: u8;
     }
 
+    let ipc = &kernel::ipc::IPC::new(board_kernel);
+
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
 
-    board_kernel.kernel_loop(
-        &launchxl,
-        &mut chip,
-        Some(&kernel::ipc::IPC::new(board_kernel)),
-    );
+    board_kernel.kernel_loop(&launchxl, &mut chip, Some(&ipc));
 }

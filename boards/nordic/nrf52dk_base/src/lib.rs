@@ -3,6 +3,7 @@
 #![no_std]
 
 extern crate capsules;
+extern crate cortexm4;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
@@ -123,9 +124,7 @@ pub unsafe fn setup_board(
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
     app_memory: &mut [u8],
-    process_pointers: &'static mut [core::option::Option<
-        &'static kernel::procs::Process<'static>,
-    >],
+    process_pointers: &'static mut [Option<&'static kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
 ) {
     // Make non-volatile memory writable and activate the reset button
@@ -197,7 +196,11 @@ pub unsafe fn setup_board(
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&nrf52::uart::UARTE0, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &nrf52::uart::UARTE0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
 
@@ -403,6 +406,7 @@ pub unsafe fn setup_board(
     }
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         app_memory,
         process_pointers,
