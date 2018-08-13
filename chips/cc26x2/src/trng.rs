@@ -1,4 +1,4 @@
-//! TRNG - Random Number Generator for the cc26xx family
+//! TRNG - Random Number Generator for the cc26x2 family
 //!
 //! Generates a random number using hardware entropy.
 //!

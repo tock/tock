@@ -1,4 +1,4 @@
-//! UART driver, cc26xx family
+//! UART driver, cc26x2 family
 use gpio;
 use ioc;
 use kernel;
