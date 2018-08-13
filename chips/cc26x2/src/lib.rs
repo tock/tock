@@ -22,7 +22,7 @@ pub mod prcm;
 pub mod rat;
 pub mod rfc;
 pub mod rtc;
-pub mod setup;
+//pub mod setup;
 #[allow(unused, unused_mut)]
 //mod setup;
 pub use crt1::init;

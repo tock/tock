@@ -288,7 +288,7 @@ pub enum RfcCMDSTA {
     QueueError = 0x88,
     QueueBusy = 0x89,
 }
-/*
+
 /*
     Power masks in order to enable certain clocks in the RFC
 */
@@ -309,7 +309,7 @@ const RFC_PWR_RAT: u32 = 0x80;
 const RFC_PWR_PHA: u32 = 0x100;
 // Frequence Synthesizer Calibration Accelerator (FCSCA)
 const RFC_PWR_FSCA: u32 = 0x200;
-*/
+
 
 const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
     unsafe { StaticRef::new(0x4004_0000 as *const RfcPWCRegisters) };
@@ -384,8 +384,8 @@ impl RFCore {
         // Set power and clock regs for RFC
         let pwc_regs = RFC_PWC_BASE;
 
-        pwc_regs.pwmclken.set(0x7FF);
-        /*
+        // pwc_regs.pwmclken.set(0x7FF);
+        
         pwc_regs.pwmclken.set(
             RFC_PWR_RFC
                 | RFC_PWR_CPE
@@ -398,7 +398,7 @@ impl RFCore {
                 | RFC_PWR_MDM
                 | RFC_PWR_MDMRAM,
         );
-        */
+        
         // Enable interrupts and clear flags
         self.enable_cpe_interrupts();
         self.enable_hw_interrupts();

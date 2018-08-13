@@ -81,6 +81,13 @@ pub unsafe fn reset_handler() {
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
 
+    // Power on serial
+    prcm::Power::enable_domain(prcm::PowerDomain::Serial);
+
+    // Wait for serial to power on
+    while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
+
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // Enable the GPIO clocks

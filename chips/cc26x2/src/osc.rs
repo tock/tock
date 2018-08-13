@@ -155,10 +155,10 @@ impl Oscillator {
 
         match hf_clk {
             HF_RCOSC => {
-                self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
+                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
             }
             HF_XOSC => {
-                self.regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::XOSC_HF);
+                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::XOSC_HF);
             }
             _ => panic!("Undefined HF OSC"),
         }
@@ -172,7 +172,7 @@ impl Oscillator {
         if self.clock_source_get(ClockType::HF) != HF_RCOSC {
             self.clock_source_set(ClockType::HF, HF_RCOSC);
         }
-        while !self.regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
 
         self.clock_source_set(ClockType::LF, LF_RCOSC);
         self.disable_lfclk_qualifier();
@@ -209,11 +209,11 @@ impl Oscillator {
     }
 
     pub fn disable_lfclk_qualifier(&self) {
+        let regs = DDI0_BASE;
+
         while self.clock_source_get(ClockType::LF) != LF_RCOSC {}
 
-        self.regs
-            .ctl0
-            .modify(Ctl0::BYPASS_XOSC_LF_CLK_QUAL::SET + Ctl0::BYPASS_RCOSC_LF_CLK_QUAL::SET);
+        regs.ctl0.modify(Ctl0::BYPASS_XOSC_LF_CLK_QUAL::SET + Ctl0::BYPASS_RCOSC_LF_CLK_QUAL::SET);
     }
 
     // Get the current clock source of either LF or HF sources
