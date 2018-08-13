@@ -1,10 +1,10 @@
-use cc26xx::gpio;
-use cc26xx::peripheral_interrupts;
-use cc26xx::uart;
 use cortexm4::{self, nvic};
+use gpio;
 use i2c;
 use kernel;
+use peripheral_interrupts;
 use rtc;
+use uart;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
