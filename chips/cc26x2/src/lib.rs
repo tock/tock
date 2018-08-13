@@ -22,6 +22,7 @@ pub mod prcm;
 pub mod rat;
 pub mod rfc;
 pub mod rtc;
+pub mod i2c;
 //pub mod setup;
 #[allow(unused, unused_mut)]
 //mod setup;

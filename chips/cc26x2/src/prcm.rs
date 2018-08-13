@@ -380,6 +380,16 @@ impl Clock {
 
         prcm_commit();
     }
+
+    /// Enables I2C clocks for run, sleep and deep sleep mode.
+    pub fn enable_i2c() {
+        let regs = PRCM_BASE;
+        regs.i2c_clk_gate_run.modify(ClockGate::CLK_EN::SET);
+        regs.i2c_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
+        regs.i2c_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
+
+        prcm_commit();
+    }
 }
 
 pub fn rf_mode_sel(mode: u32) {

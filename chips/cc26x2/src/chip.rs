@@ -3,6 +3,7 @@ use cc26xx::peripheral_interrupts;
 use cc26xx::uart;
 use cortexm4::{self, nvic};
 use kernel;
+use i2c;
 use rfc;
 use rtc;
 
@@ -41,6 +42,7 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::GPIO => gpio::PORT.handle_interrupt(),
                     peripheral_interrupts::AON_RTC => rtc::RTC.handle_interrupt(),
                     peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
+                    peripheral_interrupts::I2C => i2c::I2C0.handle_interrupt(),
                     peripheral_interrupts::RF_CORE_HW => {
                         rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Hardware)
                     }

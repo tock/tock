@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
+use cortexm4::{generic_isr, nvic, svc_handler, systick_handler};
 // use setup;
 
 extern "C" {
@@ -16,6 +16,10 @@ extern "C" {
 }
 
 unsafe extern "C" fn unhandled_interrupt() {
+    'loop0: loop {}
+}
+
+unsafe extern "C" fn hard_fault_handler() {
     'loop0: loop {}
 }
 
