@@ -187,8 +187,8 @@ pub trait ProcessType {
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn fault_str(&self, writer: &mut Write);
-    unsafe fn statistics_str(&self, writer: &mut Write);
+    unsafe fn fault_fmt(&self, writer: &mut Write);
+    unsafe fn process_detail_fmt(&self, writer: &mut Write);
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -785,11 +785,11 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         })
     }
 
-    unsafe fn fault_str(&self, writer: &mut Write) {
-        self.syscall.fault_str(writer);
+    unsafe fn fault_fmt(&self, writer: &mut Write) {
+        self.syscall.fault_fmt(writer);
     }
 
-    unsafe fn statistics_str(&self, writer: &mut Write) {
+    unsafe fn process_detail_fmt(&self, writer: &mut Write) {
         // Flash
         let flash_end = self.flash.as_ptr().offset(self.flash.len() as isize) as usize;
         let flash_start = self.flash.as_ptr() as usize;
@@ -905,7 +905,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
 
         self.stored_state.map(|stored_state| {
             self.syscall
-                .print_process_arch_detail(self.sp(), &stored_state, writer);
+                .process_detail_fmt(self.sp(), &stored_state, writer);
         });
 
         let _ = writer.write_fmt(format_args!(
