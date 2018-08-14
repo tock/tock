@@ -74,14 +74,12 @@ struct Transaction {
     /// The total amount to transmit
     length: usize,
     /// The index of the byte currently being sent
-    index: usize
+    index: usize,
 }
 
 pub struct UART {
     registers: StaticRef<UartRegisters>,
     client: OptionalCell<&'static uart::Client>,
-    tx_pin: OptionalCell<u8>,
-    rx_pin: OptionalCell<u8>,
     transaction: MapCell<Transaction>,
 }
 
@@ -90,8 +88,6 @@ impl UART {
         UART {
             registers: UART_BASE,
             client: OptionalCell::empty(),
-            tx_pin: OptionalCell::empty(),
-            rx_pin: OptionalCell::empty(),
             transaction: MapCell::empty(),
         }
     }
@@ -100,8 +96,16 @@ impl UART {
     ///
     /// This function needs to be run before the UART module is used.
     pub fn initialize_and_set_pins(&self, tx_pin: u8, rx_pin: u8) {
-        self.tx_pin.set(tx_pin);
-        self.rx_pin.set(rx_pin);
+        unsafe {
+            // Make sure the TX pin is output/high before assigning it to UART control
+            // to avoid falling edge glitches
+            gpio::PORT[tx_pin as usize].make_output();
+            gpio::PORT[tx_pin as usize].set();
+
+            // Map UART signals to IO pin
+            ioc::IOCFG[tx_pin as usize].enable_uart_tx();
+            ioc::IOCFG[rx_pin as usize].enable_uart_rx();
+        }
         self.power_and_clock();
         self.enable_interrupts();
     }
@@ -119,37 +123,22 @@ impl UART {
             return ReturnCode::ENOSUPPORT;
         }
 
-        self.tx_pin.map_or(ReturnCode::EOFF, |tx_pin| {
-            self.rx_pin.map_or(ReturnCode::EOFF, |rx_pin| {
-                unsafe {
-                    // Make sure the TX pin is output/high before assigning it to UART control
-                    // to avoid falling edge glitches
-                    gpio::PORT[*tx_pin as usize].make_output();
-                    gpio::PORT[*tx_pin as usize].set();
+        // Disable the UART before configuring
+        self.disable();
 
-                    // Map UART signals to IO pin
-                    ioc::IOCFG[*tx_pin as usize].enable_uart_tx();
-                    ioc::IOCFG[*rx_pin as usize].enable_uart_rx();
-                }
+        self.set_baud_rate(params.baud_rate);
 
-                // Disable the UART before configuring
-                self.disable();
+        // Set word length
+        self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
 
-                self.set_baud_rate(params.baud_rate);
+        self.fifo_enable();
 
-                // Set word length
-                self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
+        // Enable UART, RX and TX
+        self.registers
+            .ctl
+            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
 
-                self.fifo_enable();
-
-                // Enable UART, RX and TX
-                self.registers.ctl.write(
-                    Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET,
-                );
-
-                ReturnCode::SUCCESS
-            })
-        })
+        ReturnCode::SUCCESS
     }
 
     fn power_and_clock(&self) {
@@ -163,7 +152,9 @@ impl UART {
         let div = (((MCU_CLOCK * 8) / baud_rate) + 1) / 2;
         // Set the baud rate
         self.registers.ibrd.write(IntDivisor::DIVISOR.val(div / 64));
-        self.registers.fbrd.write(FracDivisor::DIVISOR.val(div % 64));
+        self.registers
+            .fbrd
+            .write(FracDivisor::DIVISOR.val(div % 64));
     }
 
     fn fifo_enable(&self) {
@@ -198,7 +189,10 @@ impl UART {
                 self.transaction.put(transaction);
             } else {
                 self.client.map(move |client| {
-                    client.transmit_complete(transaction.buffer, kernel::hil::uart::Error::CommandComplete);
+                    client.transmit_complete(
+                        transaction.buffer,
+                        kernel::hil::uart::Error::CommandComplete,
+                    );
                 });
             }
         });
@@ -230,11 +224,10 @@ impl kernel::hil::uart::UART for UART {
             self.send_byte(tx_data[0]);
         }
 
-
         self.transaction.put(Transaction {
             buffer: tx_data,
             length: tx_len,
-            index: 0
+            index: 0,
         });
     }
 
