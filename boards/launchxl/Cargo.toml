@@ -29,5 +29,4 @@ cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 cc26x2 = { path = "../../chips/cc26x2" }
-cc26xx = { path = "../../chips/cc26xx" }
 fixedvec = "0.2.3"

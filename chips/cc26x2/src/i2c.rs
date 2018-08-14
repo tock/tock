@@ -1,7 +1,7 @@
 //! I2C driver, cc26x2 family
 
-use cc26xx::ioc;
 use core::cmp;
+use ioc;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;

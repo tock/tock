@@ -1,16 +1,15 @@
-use cc26xx::gpio;
-use cc26xx::peripheral_interrupts;
-use cc26xx::uart;
 use cortexm4::{self, nvic};
-use kernel;
+use gpio;
 use i2c;
-use rfc;
+use kernel;
+use peripheral_interrupts;
 use rtc;
+use uart;
+use rfc;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
     systick: cortexm4::systick::SysTick,
-    // pub rf_core: rfc::RFCore,
 }
 
 impl Cc26X2 {
@@ -19,7 +18,6 @@ impl Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
             // The systick clocks with 48MHz by default
             systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
-            // rf_core: rfc::RFCore::new(),
         }
     }
 }
