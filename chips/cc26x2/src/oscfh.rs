@@ -34,6 +34,7 @@
 #![allow(non_snake_case)]
 pub unsafe extern "C" fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
     if ui32src_clk & 0x1u32 != 0 {
+        // ui32Base, ui32Reg, ui32Mask, ui32Shift, ui32Data
         ddi0::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0x1u32, 0u32, ui32osc as (u16));
     }
     if ui32src_clk & 0x4u32 != 0 {

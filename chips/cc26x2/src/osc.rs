@@ -19,8 +19,9 @@ pub struct DdiRegisters {
 
     _xosc_hf_ctl: ReadOnly<u32>,
     _lf_osc_ctl: ReadOnly<u32>,
-    _rco_sc_hf_ctl: ReadOnly<u32>,
-
+    _rc_osc_hf_ctl: ReadOnly<u32>,
+    _rc_osc_mf_ctl: ReadOnly<u32>,
+    
     stat0: ReadOnly<u32, Stat0::Register>,
     _stat1: ReadOnly<u32>,
     _stat2: ReadOnly<u32>,
@@ -153,6 +154,7 @@ impl Oscillator {
     pub fn config_hf_osc(&self, hf_clk: u8) {
         let regs = DDI0_BASE;
 
+        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
         match hf_clk {
             HF_RCOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
