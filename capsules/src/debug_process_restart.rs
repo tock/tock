@@ -1,4 +1,4 @@
-//! Debug capsule to cause a button press to restart all apps.
+//! Debug capsule to cause a button press to make all apps fault.
 //!
 //! This is useful for debugging that capsules and apps work when they are
 //! restarted by the kernel.

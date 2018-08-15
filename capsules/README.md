@@ -132,4 +132,4 @@ These are selectively included on a board to help with testing and debugging
 various elements of Tock.
 
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
-  to enter a fault state and restart.
+  to enter a fault state when a button is pressed.
