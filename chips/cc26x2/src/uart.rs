@@ -1,5 +1,4 @@
 //! UART driver, cc26x2 family
-use gpio;
 use kernel;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
@@ -93,10 +92,7 @@ impl UART {
     /// Initialize the UART hardware.
     ///
     /// This function needs to be run before the UART module is used.
-    pub fn initialize_and_set_pins(&self, tx_pin: &gpio::GPIOPin, rx_pin: &gpio::GPIOPin) {
-        // Map UART signals to IO pin
-        tx_pin.enable_uart_tx();
-        rx_pin.enable_uart_rx();
+    pub fn initialize(&self) {
         self.power_and_clock();
         self.enable_interrupts();
     }
