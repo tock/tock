@@ -157,7 +157,7 @@ pub unsafe fn reset_handler() {
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
 
-    cc26x2::uart::UART0.initialize_and_set_pins(3, 2);
+    cc26x2::uart::UART0.initialize_and_set_pins(&cc26x2::gpio::PORT[3], &cc26x2::gpio::PORT[2]);
 
     let console = static_init!(
         capsules::console::Console<UartDevice>,
@@ -193,7 +193,7 @@ pub unsafe fn reset_handler() {
 
     // TODO(alevy): Enable I2C, but it's not used anywhere yet. We need a system
     // call driver
-    cc26x2::i2c::I2C0.initialize_and_set_pins(5, 4);
+    cc26x2::i2c::I2C0.initialize_and_set_pins(&cc26x2::gpio::PORT[5], &cc26x2::gpio::PORT[4]);
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(

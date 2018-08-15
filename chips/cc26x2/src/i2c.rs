@@ -1,13 +1,13 @@
 //! I2C driver, cc26x2 family
 
 use core::cmp;
-use ioc;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::i2c;
 
 use prcm;
+use gpio::GPIOPin;
 
 /// A wrapper module for interal register types.
 ///
@@ -255,11 +255,11 @@ impl<'a> I2CMaster<'a> {
     /// Initialize the power domain, frequency, and configure pins for I2C
     ///
     /// This _must_ be invoked before using the I2C
-    pub fn initialize_and_set_pins(&self, sda_pin: usize, scl_pin: usize) {
+    pub fn initialize_and_set_pins(&self, sda_pin: &GPIOPin, scl_pin: &GPIOPin) {
         self.power_and_clock();
         self.set_time_period(100_000);
-        ioc::IOCFG[sda_pin].enable_i2c_sda();
-        ioc::IOCFG[scl_pin].enable_i2c_scl();
+        sda_pin.enable_i2c_sda();
+        scl_pin.enable_i2c_scl();
     }
 
     // Computes the TPR register for the given frequency. Assumes a 48MHz main clock

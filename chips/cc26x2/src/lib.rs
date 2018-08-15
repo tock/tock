@@ -12,7 +12,6 @@ pub mod chip;
 pub mod crt1;
 pub mod gpio;
 pub mod i2c;
-pub mod ioc;
 pub mod peripheral_interrupts;
 pub mod prcm;
 pub mod rtc;
