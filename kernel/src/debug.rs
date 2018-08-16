@@ -118,7 +118,7 @@ pub unsafe fn panic_process_info<W: Write>(
     // Print fault status once
     if !procs.is_empty() {
         procs[0].as_ref().map(|process| {
-            process.fault_str(writer);
+            process.fault_fmt(writer);
         });
     }
 
@@ -126,7 +126,7 @@ pub unsafe fn panic_process_info<W: Write>(
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
     for idx in 0..procs.len() {
         procs[idx].as_ref().map(|process| {
-            process.statistics_str(writer);
+            process.process_detail_fmt(writer);
         });
     }
 }
