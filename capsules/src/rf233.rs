@@ -28,20 +28,20 @@ use rf233_const::{ExternalState, InteruptFlags, RF233BusCommand, RF233Register, 
 // over to the Tock register interface eventually, but this code does work as
 // written. Do not follow this as an example when implementing new code.
 use rf233_const::CSMA_SEED_1;
-use rf233_const::SHORT_ADDR_0;
-use rf233_const::SHORT_ADDR_1;
-use rf233_const::TRX_CTRL_1;
-use rf233_const::TRX_CTRL_2;
-use rf233_const::XAH_CTRL_0;
-use rf233_const::XAH_CTRL_1;
 use rf233_const::IRQ_MASK;
 use rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
 use rf233_const::PHY_CHANNEL;
 use rf233_const::PHY_RSSI_RX_CRC_VALID;
 use rf233_const::PHY_TX_PWR;
+use rf233_const::SHORT_ADDR_0;
+use rf233_const::SHORT_ADDR_1;
+use rf233_const::TRX_CTRL_1;
+use rf233_const::TRX_CTRL_2;
 use rf233_const::TRX_RPC;
 use rf233_const::TRX_TRAC_CHANNEL_ACCESS_FAILURE;
 use rf233_const::TRX_TRAC_MASK;
+use rf233_const::XAH_CTRL_0;
+use rf233_const::XAH_CTRL_1;
 
 const INTERRUPT_ID: usize = 0x2154;
 

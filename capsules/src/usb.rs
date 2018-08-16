@@ -451,10 +451,11 @@ pub struct EndpointAddress(u8);
 impl EndpointAddress {
     pub fn new(endpoint: usize, direction: TransferDirection) -> Self {
         EndpointAddress(
-            endpoint as u8 & 0xf | match direction {
-                TransferDirection::HostToDevice => 0,
-                TransferDirection::DeviceToHost => 1,
-            } << 7,
+            endpoint as u8 & 0xf
+                | match direction {
+                    TransferDirection::HostToDevice => 0,
+                    TransferDirection::DeviceToHost => 1,
+                } << 7,
         )
     }
 }

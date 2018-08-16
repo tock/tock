@@ -281,14 +281,16 @@ impl Kernel {
                                     let callback = callback_ptr
                                         .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
 
-                                    let res = platform.with_driver(driver_number, |driver| {
-                                        match driver {
-                                            Some(d) => {
-                                                d.subscribe(subdriver_number, callback, appid)
-                                            }
-                                            None => ReturnCode::ENODEVICE,
-                                        }
-                                    });
+                                    let res =
+                                        platform.with_driver(
+                                            driver_number,
+                                            |driver| match driver {
+                                                Some(d) => {
+                                                    d.subscribe(subdriver_number, callback, appid)
+                                                }
+                                                None => ReturnCode::ENODEVICE,
+                                            },
+                                        );
                                     process.set_syscall_return_value(res.into());
                                 }
                                 Some(Syscall::COMMAND {
@@ -297,14 +299,16 @@ impl Kernel {
                                     arg0,
                                     arg1,
                                 }) => {
-                                    let res = platform.with_driver(driver_number, |driver| {
-                                        match driver {
-                                            Some(d) => {
-                                                d.command(subdriver_number, arg0, arg1, appid)
-                                            }
-                                            None => ReturnCode::ENODEVICE,
-                                        }
-                                    });
+                                    let res =
+                                        platform.with_driver(
+                                            driver_number,
+                                            |driver| match driver {
+                                                Some(d) => {
+                                                    d.command(subdriver_number, arg0, arg1, appid)
+                                                }
+                                                None => ReturnCode::ENODEVICE,
+                                            },
+                                        );
                                     process.set_syscall_return_value(res.into());
                                 }
                                 Some(Syscall::ALLOW {

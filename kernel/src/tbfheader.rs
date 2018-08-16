@@ -261,27 +261,47 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
                         // This lets us skip unknown header types.
 
                         match tbf_tlv_header.tipe {
-                            TbfHeaderTypes::TbfHeaderMain => /* Main */ {
-                                if remaining_length >= mem::size_of::<TbfHeaderV2Main>() &&
-                                   tbf_tlv_header.length as usize == mem::size_of::<TbfHeaderV2Main>() {
-                                    let tbf_main = &*(address.offset(offset) as *const TbfHeaderV2Main);
+                            TbfHeaderTypes::TbfHeaderMain =>
+                            /* Main */
+                            {
+                                if remaining_length >= mem::size_of::<TbfHeaderV2Main>()
+                                    && tbf_tlv_header.length as usize
+                                        == mem::size_of::<TbfHeaderV2Main>()
+                                {
+                                    let tbf_main =
+                                        &*(address.offset(offset) as *const TbfHeaderV2Main);
                                     main_pointer = Some(tbf_main);
                                 }
                             }
-                            TbfHeaderTypes::TbfHeaderWriteableFlashRegions => /* Writeable Flash Regions */ {
+                            TbfHeaderTypes::TbfHeaderWriteableFlashRegions =>
+                            /* Writeable Flash Regions */
+                            {
                                 // Length must be a multiple of the size of a region definition.
-                                if tbf_tlv_header.length as usize % mem::size_of::<TbfHeaderV2WriteableFlashRegion>() == 0 {
-                                    let number_regions = tbf_tlv_header.length as usize / mem::size_of::<TbfHeaderV2WriteableFlashRegion>();
-                                    let region_start = &*(address.offset(offset) as *const TbfHeaderV2WriteableFlashRegion);
-                                    let regions = slice::from_raw_parts(region_start, number_regions);
+                                if tbf_tlv_header.length as usize
+                                    % mem::size_of::<TbfHeaderV2WriteableFlashRegion>()
+                                    == 0
+                                {
+                                    let number_regions = tbf_tlv_header.length as usize
+                                        / mem::size_of::<TbfHeaderV2WriteableFlashRegion>();
+                                    let region_start = &*(address.offset(offset)
+                                        as *const TbfHeaderV2WriteableFlashRegion);
+                                    let regions =
+                                        slice::from_raw_parts(region_start, number_regions);
                                     wfr_pointer = Some(regions);
                                 }
                             }
-                            TbfHeaderTypes::TbfHeaderPackageName => /* Package Name */ {
+                            TbfHeaderTypes::TbfHeaderPackageName =>
+                            /* Package Name */
+                            {
                                 if remaining_length >= tbf_tlv_header.length as usize {
-                                    let package_name_byte_array =
-                                        slice::from_raw_parts(address.offset(offset), tbf_tlv_header.length as usize);
-                                    let _ = str::from_utf8(package_name_byte_array).map(|name_str| { app_name_str = name_str; });
+                                    let package_name_byte_array = slice::from_raw_parts(
+                                        address.offset(offset),
+                                        tbf_tlv_header.length as usize,
+                                    );
+                                    let _ =
+                                        str::from_utf8(package_name_byte_array).map(|name_str| {
+                                            app_name_str = name_str;
+                                        });
                                 }
                             }
                             TbfHeaderTypes::Unused => {}
