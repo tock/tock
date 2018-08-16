@@ -29,30 +29,24 @@ use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
 use kernel::Kernel;
 
-pub struct DebugProcessRestart<'a, G: hil::gpio::Pin + 'a, C: ProcessManagementCapability> {
+pub struct DebugProcessRestart<C: ProcessManagementCapability> {
     kernel: &'static Kernel,
-    _pin: &'a G,
     capability: C,
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl, C: ProcessManagementCapability>
-    DebugProcessRestart<'a, G, C>
-{
-    pub fn new(kernel: &'static Kernel, pin: &'a G, cap: C) -> DebugProcessRestart<'a, G, C> {
+impl<'a, C: ProcessManagementCapability> DebugProcessRestart<C> {
+    pub fn new(kernel: &'static Kernel, pin: &'a hil::gpio::Pin, cap: C) -> DebugProcessRestart<C> {
         pin.make_input();
         pin.enable_interrupt(0, InterruptMode::RisingEdge);
 
         DebugProcessRestart {
             kernel: kernel,
-            _pin: pin,
             capability: cap,
         }
     }
 }
 
-impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl, C: ProcessManagementCapability> Client
-    for DebugProcessRestart<'a, G, C>
-{
+impl<'a, C: ProcessManagementCapability> Client for DebugProcessRestart<C> {
     fn fired(&self, _pin_num: usize) {
         self.kernel.hardfault_all_apps(&self.capability);
     }
