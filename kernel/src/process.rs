@@ -941,7 +941,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
 
             // Otherwise, actually load the app.
             let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
-            let process_name = tbf_header.get_package_name(app_flash_address);
+            let process_name = tbf_header.get_package_name();
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 

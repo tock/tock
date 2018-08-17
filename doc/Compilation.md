@@ -213,21 +213,6 @@ struct TbfHeaderMain {
     minimum_ram_size: u32,   // How much RAM the application is requesting
 }
 
-// Specifications for instructing the kernel to do PIC fixups for the application.
-struct TbfHeaderPicOption1Fields {
-    base: TbfHeaderTlv,
-    text_offset: u32,            // Offset in memory to start of text segment
-    data_offset: u32,            // Offset in memory to start of data
-    data_size: u32,              // Length of data segment in bytes
-    bss_memory_offset: u32,      // Offset in memory to start of BSS
-    bss_size: u32,               // Length of BSS segment in bytes
-    relocation_data_offset: u32, // Offset in memory to start of relocation data
-    relocation_data_size: u32,   // Length of relocation data segment in bytes
-    got_offset: u32,             // Offset in memory to start of GOT
-    got_size: u32,               // Length of GOT segment in bytes
-    minimum_stack_length: u32,   // Minimum stack size
-}
-
 // Optional package name for the app.
 struct TbfHeaderPackageName {
     base: TbfHeaderTlv,
