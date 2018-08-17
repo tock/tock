@@ -1,4 +1,4 @@
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::IP6Header;
 use net::ipv6::ipv6_recv::IP6RecvClient;
@@ -24,18 +24,18 @@ pub trait UDPRecvClient {
 /// received packets up to whatever app layer client assigns itself
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
-    client: Cell<Option<&'a UDPRecvClient>>,
+    client: OptionalCell<&'a UDPRecvClient>,
 }
 
 impl<'a> UDPReceiver<'a> {
     pub fn new() -> UDPReceiver<'a> {
         UDPReceiver {
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'a UDPRecvClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
@@ -49,7 +49,7 @@ impl<'a> IP6RecvClient for UDPReceiver<'a> {
                     debug!("[UDP_RECV] Error: UDP length too long");
                     return;
                 }
-                self.client.get().map(|client| {
+                self.client.map(|client| {
                     client.receive(
                         ip_header.get_src_addr(),
                         ip_header.get_dst_addr(),

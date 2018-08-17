@@ -311,7 +311,7 @@ pub trait SixlowpanState<'a> {
 /// Note that the upper layer is responsible for sending the compressed
 /// frames; the `TxState` struct simply produces compressed MAC frames.
 pub struct TxState<'a> {
-    // State for the current transmission
+    /// State for the current transmission
     pub dst_pan: Cell<PanID>, // Pub to allow for setting to broadcast PAN and back
     src_pan: Cell<PanID>,
     src_mac_addr: Cell<MacAddress>,

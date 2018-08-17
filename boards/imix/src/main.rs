@@ -26,7 +26,7 @@ use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_recv::{UDPReceiver};
+use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
@@ -151,7 +151,7 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 const UDP_HDR_SIZE: usize = 8;
 const PAYLOAD_LEN: usize = 200;
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
-static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0; 16];
 
 static mut IP_BUF: [u8; 1280] = [0x00; 1280];
 static mut UDP_BUF: [u8; PAYLOAD_LEN] = [0x00; PAYLOAD_LEN];
@@ -433,24 +433,24 @@ pub unsafe fn reset_handler() {
     udp_recv.set_client(udp_driver);
 
     let imix = Imix {
-        console: console,
-        alarm: alarm,
-        gpio: gpio,
-        temp: temp,
-        humidity: humidity,
-        ambient_light: ambient_light,
-        adc: adc,
-        led: led,
-        button: button,
-        crc: crc,
+        console,
+        alarm,
+        gpio,
+        temp,
+        humidity,
+        ambient_light,
+        adc,
+        led,
+        button,
+        crc,
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
-        ninedof: ninedof,
-        radio_driver: radio_driver,
-        udp_driver: udp_driver,
-        usb_driver: usb_driver,
+        ninedof,
+        radio_driver,
+        udp_driver,
+        usb_driver,
         nrf51822: nrf_serialization,
-        nonvolatile_storage: nonvolatile_storage,
+        nonvolatile_storage,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();

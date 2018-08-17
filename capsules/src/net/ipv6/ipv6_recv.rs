@@ -1,4 +1,4 @@
-use core::cell::Cell;
+use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
 use net::ipv6::ipv6::IP6Header;
 use net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
@@ -41,19 +41,19 @@ pub trait IP6Receiver<'a> {
 }
 
 pub struct IP6RecvStruct<'a> {
-    client: Cell<Option<&'a IP6RecvClient>>,
+    client: OptionalCell<&'a IP6RecvClient>,
 }
 
 impl<'a> IP6Receiver<'a> for IP6RecvStruct<'a> {
     fn set_client(&self, client: &'a IP6RecvClient) {
-        self.client.set(Some(client));
+        self.client.set(client);
     }
 }
 
 impl<'a> IP6RecvStruct<'a> {
     pub fn new() -> IP6RecvStruct<'a> {
         IP6RecvStruct {
-            client: Cell::new(None),
+            client: OptionalCell::empty(),
         }
     }
 }
@@ -69,7 +69,6 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
                 // TODO: Probably do some sanity checking, check for checksum
                 // correctness, length, etc.
                 self.client
-                    .get()
                     .map(|client| client.receive(header, &buf[offset..len]));
             }
             None => {
