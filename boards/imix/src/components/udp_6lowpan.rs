@@ -6,7 +6,11 @@
 //! Usage
 //! -----
 //! ```rust
-//! let udp_driver = UDPComponent::new().finalize();
+//! let udp_driver = UDPComponent::new(mux_mac,
+//!                                    DEFAULT_CTX_PREFIX_LEN,
+//!                                    DEFAULT_CTX_PREFIX,
+//!                                    DST_MAC_ADDR,
+//!                                    &LOCAL_IP_IFACES).finalize();
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
@@ -23,44 +27,53 @@ use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::net::ieee802154::MacAddress;
 
 use kernel;
 use kernel::component::Component;
+use kernel::hil::radio;
 use sam4l;
 
 pub struct UDPComponent {
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    ctx_pfix_len: u8,
+    ctx_pfix: [u8; 16],
+    dst_mac_addr: MacAddress,
+    src_mac_addr: MacAddress,
+    interface_list: &'static [IPAddr],
 }
 
 impl UDPComponent {
     pub fn new(
         mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+        ctx_pfix_len: u8,
+        ctx_pfix: [u8; 16],
+        dst_mac_addr: MacAddress,
+        src_mac_addr: MacAddress,
+        interface_list: &'static [IPAddr],
     ) -> UDPComponent {
         UDPComponent {
             mux_mac: mux_mac,
+            ctx_pfix_len: ctx_pfix_len,
+            ctx_pfix: ctx_pfix,
+            dst_mac_addr: dst_mac_addr,
+            src_mac_addr: src_mac_addr,
+            interface_list: interface_list,
         }
     }
 }
 
-// Some constants for configuring the 6LoWPAN stack
-const UDP_HDR_SIZE: usize = 8;
-const PAYLOAD_LEN: usize = 200;
-const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0; 16];
-
-//Source IP Address. TODO: Move somewhere else
-const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-]);
+const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
 
 // The UDP stack requires several packet buffers:
 //
-//   1. IP_BUF: buffer to hold full IP Packets before they are compressed by 6LoWPAN
+//   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
 //   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
-//   3. UDP_BUF: Buffer to hold maximum sized UDP payload that can be passed to userspace
-//   4. UDP_DGRAM: ???
+//   3. UDP_BUF: Kernel Buffer gien to the UDP driver which holds the UDP packet to be transmitted
+//   4. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
 
-static mut IP_BUF: [u8; 1280] = [0x00; 1280];
+const UDP_HDR_SIZE: usize = 8;
+static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 static mut UDP_BUF: [u8; PAYLOAD_LEN] = [0x00; PAYLOAD_LEN];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
@@ -84,8 +97,8 @@ impl Component for UDPComponent {
             >,
             sixlowpan_state::Sixlowpan::new(
                 sixlowpan_compression::Context {
-                    prefix: DEFAULT_CTX_PREFIX,
-                    prefix_len: DEFAULT_CTX_PREFIX_LEN,
+                    prefix: self.ctx_pfix,
+                    prefix_len: self.ctx_pfix_len,
                     id: 0,
                     compress: false,
                 },
@@ -100,7 +113,6 @@ impl Component for UDPComponent {
             sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
         );
         sixlowpan_state.add_rx_state(default_rx_state);
-        sixlowpan_tx.dst_pan.set(0xABCD);
         udp_mac.set_receive_client(sixlowpan);
 
         let tr_hdr = TransportHeader::UDP(UDPHeader::new());
@@ -114,12 +126,17 @@ impl Component for UDPComponent {
             capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
             capsules::net::ipv6::ipv6_send::IP6SendStruct::new(
                 ip6_dg,
-                &mut IP_BUF,
+                &mut RF233_BUF,
                 sixlowpan_tx,
-                udp_mac
+                udp_mac,
+                self.dst_mac_addr,
+                self.src_mac_addr
             )
         );
-        ip_send.set_addr(SRC_ADDR);
+
+        // Initially, set src IP of the sender to be the first IP in the Interface
+        // list. Userland apps can change this if they so choose.
+        ip_send.set_addr(self.interface_list[0]);
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
@@ -143,7 +160,8 @@ impl Component for UDPComponent {
                 udp_send,
                 udp_recv,
                 kernel::Grant::create(),
-                &mut UDP_BUF
+                &mut UDP_BUF,
+                self.interface_list
             )
         );
         udp_send.set_client(udp_driver);

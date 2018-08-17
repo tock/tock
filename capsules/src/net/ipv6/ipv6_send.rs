@@ -25,11 +25,6 @@ use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use net::sixlowpan::sixlowpan_state::TxState;
 
-// TODO: These should *not* be constants, and should be set at some other
-// point during the initialization of the IP stack
-const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802); //match 802154 rx userland app
-
 /// This trait must be implemented by upper layers in order to receive
 /// the `send_done` callback when a transmission has completed. The upper
 /// layer must then call `IP6Sender.set_client` in order to receive this
@@ -94,6 +89,8 @@ pub struct IP6SendStruct<'a> {
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a MacDevice<'a>,
+    dst_mac_addr: MacAddress,
+    src_mac_addr: MacAddress,
     client: OptionalCell<&'a IP6SendClient>,
 }
 
@@ -122,7 +119,7 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
         payload: &[u8],
     ) -> ReturnCode {
         self.sixlowpan
-            .init(SRC_MAC_ADDR, DST_MAC_ADDR, self.radio.get_pan(), None);
+            .init(self.src_mac_addr, self.dst_mac_addr, self.radio.get_pan(), None);
         self.init_packet(dst, transport_header, payload);
         self.send_next_fragment()
     }
@@ -134,14 +131,18 @@ impl IP6SendStruct<'a> {
         tx_buf: &'static mut [u8],
         sixlowpan: TxState<'a>,
         radio: &'a MacDevice<'a>,
+        dst_mac_addr: MacAddress,
+        src_mac_addr: MacAddress,
     ) -> IP6SendStruct<'a> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
             src_addr: Cell::new(IPAddr::new()),
-            gateway: Cell::new(DST_MAC_ADDR),
+            gateway: Cell::new(dst_mac_addr),
             tx_buf: TakeCell::new(tx_buf),
             sixlowpan: sixlowpan,
             radio: radio,
+            dst_mac_addr: dst_mac_addr,
+            src_mac_addr: src_mac_addr,
             client: OptionalCell::empty(),
         }
     }

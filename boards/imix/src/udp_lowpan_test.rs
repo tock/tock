@@ -36,6 +36,7 @@ use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::net::ieee802154::MacAddress;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::hil::radio;
@@ -55,6 +56,8 @@ pub const PAYLOAD_LEN: usize = 200;
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
+const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
@@ -123,7 +126,8 @@ pub unsafe fn initialize_all(
 
     let ip6_sender = static_init!(
         IP6SendStruct<'static>,
-        IP6SendStruct::new(ip6_dg, &mut RF233_BUF, sixlowpan_tx, radio_mac)
+        IP6SendStruct::new(ip6_dg, &mut RF233_BUF, sixlowpan_tx, radio_mac,
+                           DST_MAC_ADDR, SRC_MAC_ADDR)
     );
     radio_mac.set_transmit_client(ip6_sender);
 

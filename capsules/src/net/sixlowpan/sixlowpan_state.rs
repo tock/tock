@@ -359,6 +359,7 @@ impl TxState<'a> {
     ///
     /// `src_mac_addr` - The MAC address the frame will be sent from
     /// `dst_mac_addr` - The MAC address the frame will be sent to
+    /// `radio_pan` - The PAN ID held by the radio underlying this stack
     /// `security` - Any security options (necessary since the size of the
     /// produced MAC frame is dependent on the security options)
     ///
@@ -382,11 +383,8 @@ impl TxState<'a> {
             self.dst_mac_addr.set(dst_mac_addr);
             self.security.set(security);
             self.busy.set(false);
-
-            // ipv6_send ensures passed src pan matches src pan of the underlying 15.4 radio
-            // If we ever move to a multi-radio system this will need to change, for now
-            // this makes more sense as it prevents the values from becoming divorced.
             self.src_pan.set(radio_pan);
+            self.dst_pan.set(radio_pan);
             ReturnCode::SUCCESS
         }
     }

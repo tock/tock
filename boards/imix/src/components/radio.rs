@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let (radio, mux_mac) = RadioComponent::new().finalize();
+//! let (radio_driver, mux_mac) = RadioComponent::new(rf233, PAN_ID, 0x1008).finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>

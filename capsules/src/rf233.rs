@@ -30,7 +30,6 @@ use rf233_const::XAH_CTRL_0;
 use rf233_const::XAH_CTRL_1;
 use rf233_const::IRQ_MASK;
 use rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
-use rf233_const::PHY_CHANNEL;
 use rf233_const::PHY_RSSI_RX_CRC_VALID;
 use rf233_const::PHY_TX_PWR;
 use rf233_const::TRX_RPC;
@@ -1032,6 +1031,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
         sleep: &'a gpio::Pin,
         irq: &'a gpio::Pin,
         ctl: &'a gpio::PinCtl,
+        channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
             spi: spi,
@@ -1062,7 +1062,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
-            channel: Cell::new(PHY_CHANNEL),
+            channel: Cell::new(channel),
             spi_rx: TakeCell::empty(),
             spi_tx: TakeCell::empty(),
             spi_buf: TakeCell::empty(),

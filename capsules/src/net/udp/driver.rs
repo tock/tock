@@ -17,17 +17,6 @@ use net::udp::udp_send::{UDPSendClient, UDPSender};
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
 
-const INTERFACES: [IPAddr; 2] = [
-    IPAddr([
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-        0x0f,
-    ]),
-    IPAddr([
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
-        0x1f,
-    ]),
-];
-
 #[derive(Debug)]
 struct UDPEndpoint {
     addr: IPAddr,
@@ -60,6 +49,9 @@ pub struct UDPDriver<'a> {
 
     /// Buffer that stores the UDP frame to be transmitted.
     kernel_tx: TakeCell<'static, [u8]>,
+
+    /// List of IP Addresses of the interfaces on the device
+    interface_list: &'static [IPAddr],
 }
 
 impl<'a> UDPDriver<'a> {
@@ -68,6 +60,7 @@ impl<'a> UDPDriver<'a> {
         receiver: &'a UDPReceiver<'a>,
         grant: Grant<App>,
         kernel_tx: &'static mut [u8],
+        interface_list: &'static [IPAddr],
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -75,6 +68,7 @@ impl<'a> UDPDriver<'a> {
             apps: grant,
             current_app: Cell::new(None),
             kernel_tx: TakeCell::new(kernel_tx),
+            interface_list: interface_list,
         }
     }
 
@@ -395,14 +389,14 @@ impl<'a> Driver for UDPDriver<'a> {
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
             1 => self.do_with_cfg_mut(appid, arg1 * mem::size_of::<IPAddr>(), |cfg| {
-                let n_ifaces_to_copy = cmp::min(arg1, INTERFACES.len());
+                let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
                 let iface_size = mem::size_of::<IPAddr>();
                 for i in 0..n_ifaces_to_copy {
-                    cfg[i * iface_size..(i + 1) * iface_size].copy_from_slice(&INTERFACES[i].0);
+                    cfg[i * iface_size..(i + 1) * iface_size].copy_from_slice(&self.interface_list[i].0);
                 }
                 // Returns total number of interfaces
                 ReturnCode::SuccessWithValue {
-                    value: INTERFACES.len(),
+                    value: self.interface_list.len(),
                 }
             }),
 
