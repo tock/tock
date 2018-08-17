@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let radio = RadioComponetn::new().finalize();
+//! let (radio, mux_mac) = RadioComponent::new().finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>

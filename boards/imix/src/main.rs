@@ -20,14 +20,6 @@ extern crate sam4l;
 mod components;
 
 use capsules::alarm::AlarmDriver;
-use capsules::ieee802154::device::MacDevice;
-use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
-use capsules::net::ipv6::ipv6_recv::IP6Receiver;
-use capsules::net::ipv6::ipv6_send::IP6Sender;
-use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
-use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_recv::UDPReceiver;
-use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -52,12 +44,12 @@ use components::led::LedComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::radio::RadioComponent;
+use components::udp_6lowpan::UDPComponent;
 use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::usb::UsbComponent;
 
-use capsules::net::ipv6::ip_utils::IPAddr;
 
 /// Support routines for debugging I/O.
 ///
@@ -89,10 +81,6 @@ mod power;
 // State for loading apps.
 
 const NUM_PROCS: usize = 2;
-//Source IP Address. TODO: Move somewhere else
-const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-]);
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -146,17 +134,6 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-
-// Same as above ^^ for the UDP syscall interface
-const UDP_HDR_SIZE: usize = 8;
-const PAYLOAD_LEN: usize = 200;
-const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0; 16];
-
-static mut IP_BUF: [u8; 1280] = [0x00; 1280];
-static mut UDP_BUF: [u8; PAYLOAD_LEN] = [0x00; PAYLOAD_LEN];
-static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -352,85 +329,7 @@ pub unsafe fn reset_handler() {
     let nonvolatile_storage = NonvolatileStorageComponent::new().finalize();
 
     // ** UDP **
-
-    let udp_mac = static_init!(
-        capsules::ieee802154::virtual_mac::MacUser<'static>,
-        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
-    );
-    mux_mac.add_user(udp_mac);
-
-    let sixlowpan = static_init!(
-        sixlowpan_state::Sixlowpan<
-            'static,
-            sam4l::ast::Ast<'static>,
-            sixlowpan_compression::Context,
-        >,
-        sixlowpan_state::Sixlowpan::new(
-            sixlowpan_compression::Context {
-                prefix: DEFAULT_CTX_PREFIX,
-                prefix_len: DEFAULT_CTX_PREFIX_LEN,
-                id: 0,
-                compress: false,
-            },
-            &sam4l::ast::AST
-        )
-    );
-
-    let sixlowpan_state = sixlowpan as &sixlowpan_state::SixlowpanState;
-    let sixlowpan_tx = sixlowpan_state::TxState::new(sixlowpan_state);
-    let default_rx_state = static_init!(
-        sixlowpan_state::RxState<'static>,
-        sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
-    );
-    sixlowpan_state.add_rx_state(default_rx_state);
-    sixlowpan_tx.dst_pan.set(0xABCD);
-    udp_mac.set_receive_client(sixlowpan);
-
-    let tr_hdr = TransportHeader::UDP(UDPHeader::new());
-    let ip_pyld: IPPayload = IPPayload {
-        header: tr_hdr,
-        payload: &mut UDP_DGRAM,
-    };
-    let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
-
-    let ip_send = static_init!(
-        capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
-        capsules::net::ipv6::ipv6_send::IP6SendStruct::new(
-            ip6_dg,
-            &mut IP_BUF,
-            sixlowpan_tx,
-            udp_mac
-        )
-    );
-    ip_send.set_addr(SRC_ADDR);
-    udp_mac.set_transmit_client(ip_send);
-
-    let udp_send = static_init!(
-        UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>>,
-        UDPSendStruct::new(ip_send)
-    );
-    ip_send.set_client(udp_send);
-
-    let ip_receive = static_init!(
-        capsules::net::ipv6::ipv6_recv::IP6RecvStruct<'static>,
-        capsules::net::ipv6::ipv6_recv::IP6RecvStruct::new()
-    );
-    sixlowpan_state.set_rx_client(ip_receive);
-
-    let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
-    ip_receive.set_client(udp_recv);
-
-    let udp_driver = static_init!(
-        capsules::net::udp::UDPDriver<'static>,
-        capsules::net::udp::UDPDriver::new(
-            udp_send,
-            udp_recv,
-            kernel::Grant::create(),
-            &mut UDP_BUF
-        )
-    );
-    udp_send.set_client(udp_driver);
-    udp_recv.set_client(udp_driver);
+    let udp_driver = UDPComponent::new(mux_mac).finalize();
 
     let imix = Imix {
         console,
