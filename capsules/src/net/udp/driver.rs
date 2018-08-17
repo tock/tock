@@ -8,7 +8,6 @@
 
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::common::cells::TakeCell;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use net::ipv6::ip_utils::IPAddr;
 use net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
@@ -47,9 +46,6 @@ pub struct UDPDriver<'a> {
     /// ID of app whose transmission request is being processed.
     current_app: Cell<Option<AppId>>,
 
-    /// Buffer that stores the UDP frame to be transmitted.
-    kernel_tx: TakeCell<'static, [u8]>,
-
     /// List of IP Addresses of the interfaces on the device
     interface_list: &'static [IPAddr],
 }
@@ -59,7 +55,6 @@ impl<'a> UDPDriver<'a> {
         sender: &'a UDPSender<'a>,
         receiver: &'a UDPReceiver<'a>,
         grant: Grant<App>,
-        kernel_tx: &'static mut [u8],
         interface_list: &'static [IPAddr],
     ) -> UDPDriver<'a> {
         UDPDriver {
@@ -67,7 +62,6 @@ impl<'a> UDPDriver<'a> {
             receiver: receiver,
             apps: grant,
             current_app: Cell::new(None),
-            kernel_tx: TakeCell::new(kernel_tx),
             interface_list: interface_list,
         }
     }
@@ -216,23 +210,18 @@ impl<'a> UDPDriver<'a> {
                     return ReturnCode::SUCCESS;
                 }
             };
-            let result = self.kernel_tx.map_or(ReturnCode::ENOMEM, |kbuf| {
-                let dst_addr = addr_ports[1].addr;
-                let dst_port = addr_ports[1].port;
-                let src_port = addr_ports[0].port;
+            let dst_addr = addr_ports[1].addr;
+            let dst_port = addr_ports[1].port;
+            let src_port = addr_ports[0].port;
 
-                // Copy UDP payload to kernel memory
-                // TODO: handle if too big
-                let result = app
-                    .app_write
-                    .as_ref()
-                    .map_or(ReturnCode::ENOMEM, |payload| {
-                        kbuf[..payload.len()].copy_from_slice(payload.as_ref());
-                        self.sender
-                            .send_to(dst_addr, dst_port, src_port, &kbuf[..payload.len()])
-                    });
-                result
-            });
+            // Send UDP payload. Payload will be copied into IP6Packet in kernel mem.
+            let result = app
+                .app_write
+                .as_ref()
+                .map_or(ReturnCode::ENOMEM, |payload| {
+                    self.sender
+                        .send_to(dst_addr, dst_port, src_port, payload.as_ref())
+                });
             if result == ReturnCode::SUCCESS {
                 self.current_app.set(Some(appid));
             }
