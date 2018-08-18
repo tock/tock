@@ -246,35 +246,6 @@ pub enum RfcMode {
 }
 
 #[derive(Clone, Copy)]
-pub enum RFCommandStatus {
-    // Operation not finished
-    Idle = 0x0000,
-    Pending = 0x0001,
-    Active = 0x0002,
-    Skipped = 0x0003,
-    // Operation finished normally
-    DoneOK = 0x0400,
-    DoneCountdown = 0x0401,
-    DoneRxErr = 0x0402,
-    DoneTimeout = 0x0403,
-    DoneStopped = 0x0404,
-    DoneAbort = 0x0405,
-    // Operation finished with error
-    ErrorPastStart = 0x0800,
-    ErrorStartTrig = 0x0801,
-    ErrorCondition = 0x0802,
-    ErrorPar = 0x0803,
-    ErrorPointer = 0x0804,
-    ErrorCmdID = 0x0805,
-    ErrorNoSetup = 0x0807,
-    ErrorNoFS = 0x0808,
-    ErrorSynthProg = 0x0809,
-    ErrorTxUNF = 0x080A,
-    ErrorRxOVF = 0x080B,
-    ErrorNoRx = 0x080C,
-}
-
-#[derive(Clone, Copy)]
 pub enum RfcCMDSTA {
     Pending = 0x00,
     Done = 0x01,
@@ -330,17 +301,24 @@ pub enum RfcInterrupt {
 }
 
 pub struct RFCore {
+    dbell_regs: StaticRef<RfcDBellRegisters>,
+    pwc_regs: StaticRef<RfcPWCRegisters>,
     client: Cell<Option<&'static RFCoreClient>>,
-    mode: Cell<Option<RfcMode>>,
-    rat: Cell<u32>,
+    pub mode: Cell<Option<RfcMode>>,
+    pub rat: Cell<u32>,
+    status: Cell<u32>,
 }
 
 impl RFCore {
     pub const fn new() -> RFCore {
+        
         RFCore {
+            dbell_regs: RFC_DBELL_BASE,
+            pwc_regs: RFC_PWC_BASE,
             client: Cell::new(None),
             mode: Cell::new(None),
             rat: Cell::new(0),
+            status: Cell::new(0),
         }
     }
 
@@ -356,7 +334,7 @@ impl RFCore {
     // Enable RFCore
     pub fn enable(&self) {
         // Make sure RFC power is enabled
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
 
         prcm::Power::enable_domain(prcm::PowerDomain::RFC);
         prcm::Clock::enable_rfc();
@@ -366,7 +344,7 @@ impl RFCore {
         }
 
         // Set power and clock regs for RFC
-        let pwc_regs = RFC_PWC_BASE;
+        let pwc_regs = self.pwc_regs;
 
         // pwc_regs.pwmclken.set(0x7FF);
         
@@ -487,7 +465,7 @@ impl RFCore {
     }
     // Enable RFC HW interrupts
     fn enable_hw_interrupts(&self) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         // Enable all interrupts
         dbell_regs
             ._rfhwien
@@ -496,7 +474,7 @@ impl RFCore {
 
     // Disable RFC HW interrupts
     fn disable_hw_interrupts(&self) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         // Disable all RFHW interrupts
         dbell_regs
             ._rfhwien
@@ -509,7 +487,7 @@ impl RFCore {
 
     // Enable CPE interrupts
     fn enable_cpe_interrupts(&self) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         // Enable CPE interrupts
         dbell_regs
             .rfcpeien
@@ -518,7 +496,7 @@ impl RFCore {
 
     // Disable CPE interrupts
     fn disable_cpe_interrupts(&self) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         // Disable all CPE interrupts
         dbell_regs
             .rfcpeien
@@ -529,7 +507,7 @@ impl RFCore {
 
     // Select which CPE register to read from
     pub fn cpe_vec_select(&self, cpe: bool) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         // Select CPE0 or CPE1
         if !cpe {
             dbell_regs.rfcpeisl.modify(CPEVectorSelect::ALL::CLEAR);
@@ -543,6 +521,13 @@ impl RFCore {
         self.mode.get()
     }
 
+    pub fn status_ready(&self) -> bool {
+        let status = self.status.get();
+        match status {
+            0x0400 => true,
+            _ => false,
+        }
+    }
     // Set mode of RFCore
     pub fn set_mode(&self, mode: RfcMode) {
         let rf_mode = match mode {
@@ -557,7 +542,7 @@ impl RFCore {
 
     // Post command pointer to CMDR register
     fn post_cmdr(&self, rf_command: u32) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         if !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {
             panic!("RFC power domain is off");
         }
@@ -565,6 +550,37 @@ impl RFCore {
     }
 
     // Get status from active radio command
+    /*
+     * RADIO OPERATION COMMAND STATUS RESULTS
+     *
+     * Operation not finished
+     * Idle = 0x0000,
+     * Pending = 0x0001,
+     * Active = 0x0002,
+     * Skipped = 0x0003,
+     * 
+     * Operation finished normally
+     * DoneOK = 0x0400,
+     * DoneCountdown = 0x0401,
+     * DoneRxErr = 0x0402,
+     * DoneTimeout = 0x0403,
+     * DoneStopped = 0x0404,
+     * DoneAbort = 0x0405,
+     * 
+     * Operation finished with error
+     * ErrorPastStart = 0x0800,
+     * ErrorStartTrig = 0x0801,
+     * ErrorCondition = 0x0802,
+     * ErrorPar = 0x0803,
+     * ErrorPointer = 0x0804,
+     * ErrorCmdID = 0x0805,
+     * ErrorNoSetup = 0x0807,
+     * ErrorNoFS = 0x0808,
+     * ErrorSynthProg = 0x0809,
+     * ErrorTxUNF = 0x080A,
+     * ErrorRxOVF = 0x080B,
+     * ErrorNoRx = 0x080C,
+    */
     pub fn wait_cmdr(&self, rf_command: u32) -> RadioReturnCode {
         let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
         let command_status = command_op.status;
@@ -586,7 +602,7 @@ impl RFCore {
     // flag
     // Return CMDSTA register value
     pub fn cmdsta(&self) -> RadioReturnCode {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         let status: u32 = dbell_regs.cmdsta.get();
         match status & 0xFF {
             0x00 => {
@@ -617,14 +633,14 @@ impl RFCore {
         self.post_cmdr(command);
     }
 
-    pub fn wait<T>(&self, rf_command: &T) -> RadioReturnCode {
-        let command = { (rf_command as *const T) as u32 };
+    pub fn wait (&self, rf_command: &cmd::CmdCommon) -> RadioReturnCode {
+        let command = { (rf_command as *const cmd::CmdCommon) as u32 };
 
         return self.wait_cmdr(command);
     }
 
     pub fn handle_interrupt(&self, int: RfcInterrupt) {
-        let dbell_regs = RFC_DBELL_BASE;
+        let dbell_regs = self.dbell_regs;
         match int {
             // Hardware interrupt handler unimplemented
             /*
@@ -636,9 +652,13 @@ impl RFCore {
             */
             RfcInterrupt::CmdAck => {
                 // Clear the interrupt
-                self.cmdsta();
                 dbell_regs.rfackifg.set(0);
-                self.client.get().map(|client| client.send_command_done());
+                self.client.get().map(|client| client.command_done());
+                let status = self.cmdsta();
+                match status {
+                    Ok(()) => { self.status.set(0x01); () },
+                    Err(e) => self.status.set(e),
+                }
             }
             RfcInterrupt::Cpe0 => {
                 let command_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE);
@@ -647,20 +667,17 @@ impl RFCore {
                 let tx_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::TX_DONE);
                 let rx_ok = dbell_regs.rfcpeifg.is_set(CPEIntFlags::RX_OK);
                 if command_done {
-                    self.client.get().map(|client| client.wait_command_done());
+                    self.client.get().map(|client| client.radio_command_done());
                 }
                 if last_command_done {
-                    // self.client.get().map(|client| client.last_command_done());
-                    self.client.get().map(|client| client.send_command_done());
+                    self.client.get().map(|client| client.radio_command_done());
                 }
-                /*
                 if tx_done {
                     self.client.get().map(|client| client.tx_done());
                 }
                 if rx_ok {
                     self.client.get().map(|client| client.rx_ok());
                 }
-                */
             }
             RfcInterrupt::Cpe1 => {
                 dbell_regs.rfcpeifg.set(0x7FFFFFFF);
@@ -672,9 +689,8 @@ impl RFCore {
 }
 
 pub trait RFCoreClient {
-    fn send_command_done(&self);
-    // fn last_command_done(&self);
-    fn wait_command_done(&self);
-    // fn tx_done(&self);
-    // fn rx_ok(&self);
+    fn command_done(&self);
+    fn radio_command_done(&self);
+    fn tx_done(&self);
+    fn rx_ok(&self);
 }

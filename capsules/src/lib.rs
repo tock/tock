@@ -7,7 +7,6 @@
 #[allow(unused_imports)]
 #[macro_use(debug)]
 extern crate kernel;
-
 pub mod test;
 
 #[macro_use]

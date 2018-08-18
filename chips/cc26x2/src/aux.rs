@@ -70,7 +70,7 @@ impl Aux {
     }
 
     pub fn operation_mode_request(&self, new_mode: WUMode) {
-        let regs = AUX_SYSIF_BASE;
+        let regs = self.sysif_regs;
         match new_mode {
             WUMode::Active => {
                 regs.op_mode_req.modify(Req::REQ::Active);
@@ -88,12 +88,12 @@ impl Aux {
     }
 
     pub fn operation_mode_ack(&self) -> u8 {
-        let regs = AUX_SYSIF_BASE;
+        let regs = self.sysif_regs;
         regs.op_mode_ack.read(Ack::ACK) as u8
     }
 
     pub fn aux_wu_enable(&self, enable: bool) {
-        let regs = AUX_SYSIF_BASE;
+        let regs = self.sysif_regs;
         if enable {
             regs.wu_gate.modify(WUGate::EN::SET);
         } else {

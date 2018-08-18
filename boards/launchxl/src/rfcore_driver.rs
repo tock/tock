@@ -1,11 +1,11 @@
 #![allow(unused_imports)]
 use core::cell::Cell;
-use self::commands as cmd;
 use fixedvec::FixedVec;
 use kernel::common::cells::TakeCell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::hil::radio_client::{self, RadioConfig, RfcOperationStatus};
-use cc26x0::{osc, radio::rfc};
+use kernel::hil::radio_client::{self, RadioConfig};
+use cc26x2::{osc, rfc, commands as cmd};
+use rfcore_const::{RfcOperationStatus, State, RFCommandStatus, CMD_STACK, RadioCommands};
 
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
@@ -60,34 +60,7 @@ static mut RFPARAMS: [u32; 18] = [
     0xFFFFFFFF,
 ];
 
-// static mut PAYLOAD: [u8; 256] = [0; 256];
-#[derive(Debug, Clone, Copy)]
-pub enum State {
-    Start,
-    Pending,
-    CommandStatus(RfcOperationStatus),
-    Command(RadioCommands),
-    Done,
-    Invalid,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum RadioCommands {
-    Direct(cmd::DirectCommand),
-    RadioSetup(cmd::CmdRadioSetup),
-    Common(cmd::CmdNop),
-    FSPowerup(cmd::CmdFSPowerup),
-    FSPowerdown(cmd::CmdFsPowerdown),
-    StartRat(cmd::CmdSyncStartRat),
-    StopRat(cmd::CmdSyncStopRat),
-    NotSupported,
-}
-
-impl Default for RadioCommands {
-    fn default() -> RadioCommands {
-        RadioCommands::Common(cmd::CmdNop::new())
-    }
-}
+type CommandStatus = Result<u32, u32>;
 
 pub static mut RFC_STACK: [State; 6] = [State::Start; 6];
 
@@ -128,6 +101,8 @@ impl Radio {
             rx_radio_client: Cell::new(None),
             schedule_powerdown: Cell::new(false),
             tx_buf: TakeCell::empty(),
+            cmd_stack: TakeCell::new(cmd_stack),
+            state_stack: TakeCell::new(rfc_stack),
         }
     }
 
@@ -145,20 +120,12 @@ impl Radio {
         
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides)
+            self.rfc.setup(reg_overrides, 0xFFF)
         }
     }
 
     pub fn power_down(&self) {
         self.rfc.disable();
-    }
-
-    pub fn transmit(&self, buf: &'static mut [u8], len: usize) -> ReturnCode {
-        if !self.rfc.is_enabled() {
-            self.power_up();
-        }
-
-        // finish some transmit here
     }
     
     fn push_state(&self, state: State) {
@@ -181,7 +148,8 @@ impl Radio {
     }
 
     // Functions for pushing and popping radio commands from the command stack
-    fn push_cmd(&self, cmd: RadioCommands) {
+    fn push_cmd(&self, cmd: u32) {
+        // let cmd = { (rf_command as *const T) as u32 };
         let cmd_stack = self
             .cmd_stack
             .take()
@@ -190,7 +158,7 @@ impl Radio {
         self.cmd_stack.replace(cmd_stack);
     }
 
-    fn pop_cmd(&self) -> RadioCommands {
+    fn pop_cmd(&self) -> u32 {
         let cmd_stack = self
             .cmd_stack
             .take()
@@ -199,15 +167,77 @@ impl Radio {
         self.cmd_stack.replace(cmd_stack);
         cmd
     }
+
+    // Call commands to setup RFCore with optional register overrides and power output
+    pub fn setup(&self, reg_override: u32, tx_power: u16) {
+        let mode = self.rfc.mode.get().expect("No RF mode selected, cannot setup");
+        let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
+        let start_time = 0; // CMD STARTS IMMEDIATELY
+        let start_trigger = 0; // TRIGGER FOR NOW
+        let condition = {
+            let mut cond = cmd::RfcCondition(0);
+            cond.set_rule(0x01);
+            cond
+        };
+
+        let common =
+            cmd::CmdCommon::new(0x0802, 0, p_next_op, start_time, start_trigger, condition);
+
+        let radio_setup = cmd::CmdRadioSetup::new(common, 0, reg_override, mode as u8, tx_power);
+        cmd::RadioCommand::pack(&radio_setup, common);
+        
+        let command: RadioCommand = RadioCommands::Direct {c: radio_setup};
+        
+        self.push_cmd(command);
+        
+        self.rfc.send(&radio_setup);
+    }
+
+    pub fn start_rat(&self) {
+        let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
+        let start_time = 0; // CMD STARTS IMMEDIATELY
+        let start_trigger = 0; // TRIGGER FOR NOW
+        let condition = {
+            let mut cond = cmd::RfcCondition(0);
+            cond.set_rule(0x01);
+            cond
+        };
+        let common =
+            cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
+
+        let rf_command = cmd::CmdSyncStartRat::new(common, self.rfc.rat.get());
+        cmd::RadioCommand::pack(&rf_command, common);
+        
+        self.rfc.send(&rf_command);
+    }
+
+    pub fn stop_rat(&self) {
+        let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
+        let start_time = 0; // CMD STARTS IMMEDIATELY
+        let start_trigger = 0; // TRIGGER FOR NOW
+        let condition = {
+            let mut cond = cmd::RfcCondition(0);
+            cond.set_rule(0x01);
+            cond
+        };
+        let common =
+            cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
+
+        let rf_command = cmd::CmdSyncStopRat::new(common, self.rfc.rat.get());
+        cmd::RadioCommand::pack(&rf_command, common);
+
+        self.rfc.send(&rf_command);
+    }
 }
 
 impl rfc::RFCoreClient for Radio {
     fn command_done(&self) {
-        match self.state.get() {
-
-        }
+        
     }
 
+    fn radio_command_done(&self) {
+
+    }
     fn tx_done(&self) {
         
         if self.schedule_powerdown.get() {
@@ -221,6 +251,9 @@ impl rfc::RFCoreClient for Radio {
         self.tx_radio_client
             .get()
             .map(|client| client.send_done(buf.unwrap(), ReturnCode::SUCCESS));
+
+    }
+    fn rx_ok(&self) {
 
     }
 }
@@ -247,56 +280,20 @@ impl Driver for Radio {
         let command_status: RfcOperationStatus = minor_num.into();
 
         match command_status {
-            // Handle callback for CMDSTA after write to CMDR
-            RfcOperationStatus::SendDone => {
-                let current_command = self.pop_cmd();
-                self.push_state(State::CommandStatus(command_status));
-                match self.rfc.cmdsta() {
-                    ReturnCode::SUCCESS => {
-                        self.push_cmd(current_command);
-                        ReturnCode::SUCCESS
-                    }
-                    ReturnCode::EBUSY => {
-                        self.push_cmd(current_command);
-                        ReturnCode::EBUSY
-                    }
-                    ReturnCode::EINVAL => {
-                        self.pop_state();
-                        ReturnCode::EINVAL
-                    }
-                    _ => {
-                        self.pop_state();
-                        self.pop_cmd();
-                        ReturnCode::ENOSUPPORT
-                    }
-                }
-            }
             // Handle callback for command status after command is finished
             RfcOperationStatus::CommandDone => {
-                // let current_command = self.rfc.command.as_ptr() as u32;
-                let current_command = self.pop_cmd();
-                self.push_state(State::CommandStatus(command_status));
-                match self.rfc.wait(&current_command) {
-                    // match self.rfc.wait_cmdr(current_command) {
-                    ReturnCode::SUCCESS => {
-                        self.pop_state();
+                let cmd_ref = self.pop_cmd();
+                let current_command: &cmd::CmdCommon = unsafe { &*(cmd_ref as *const cmd::CmdCommon) };
+                
+                match self.rfc.wait(current_command) {
+                    Ok(()) => {
+                        self.push_cmd(current_command);
                         ReturnCode::SUCCESS
                     }
-                    ReturnCode::EBUSY => {
-                        self.push_cmd(current_command);
-                        ReturnCode::EBUSY
-                    }
-                    ReturnCode::ECANCEL => {
-                        self.pop_state();
-                        ReturnCode::ECANCEL
-                    }
-                    ReturnCode::FAIL => {
-                        self.pop_state();
+                    Err(e) => {
+                        self.push_state(e);
+                        self.pop_cmd();
                         ReturnCode::FAIL
-                    }
-                    _ => {
-                        self.pop_state();
-                        ReturnCode::ENOSUPPORT
                     }
                 }
             }
@@ -306,7 +303,7 @@ impl Driver for Radio {
     }
 }
 
-impl RadioDriver for Radio {
+impl RadioConfig for Radio {
     fn set_tx_client(&self, tx_client: &'static radio_client::TxClient) {
         self.tx_radio_client.set(Some(tx_client));
     }
@@ -320,6 +317,7 @@ impl RadioDriver for Radio {
     }
 }
 
+/*
 impl From<usize> for RfcOperationStatus {
     fn from(val: usize) -> RfcOperationStatus {
         match val {
@@ -340,7 +338,8 @@ impl From<usize> for RfcOperationStatus {
         }
     }
 }
-
+*/
+/*
 pub mod commands {
     use kernel::common::registers::ReadOnly;
 
@@ -558,3 +557,4 @@ pub mod commands {
         pub _no_fs_powerup, _set_no_fs_powerup: 10;
     }
 }
+*/
