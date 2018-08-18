@@ -6,13 +6,14 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, static_init)]
+#[macro_use(create_capability, debug, static_init)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate tm4c129x;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::Platform;
@@ -33,7 +34,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -81,10 +82,23 @@ pub unsafe fn reset_handler() {
     tm4c129x::sysctl::PSYSCTLM
         .setup_system_clock(tm4c129x::sysctl::SystemClockSource::PllPioscAt120MHz);
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&tm4c129x::uart::UART0, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &tm4c129x::uart::UART0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&tm4c129x::uart::UART0, uart_mux);
 
@@ -99,7 +113,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     hil::uart::UART::set_client(console_uart, console);
@@ -137,7 +151,10 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, tm4c129x::gpt::AlarmTimer>>,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm1,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     virtual_alarm1.set_client(alarm);
 
@@ -187,7 +204,10 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, tm4c129x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(
+            button_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
@@ -215,7 +235,7 @@ pub unsafe fn reset_handler() {
         console: console,
         alarm: alarm,
         gpio: gpio,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         button: button,
     };
@@ -226,8 +246,6 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop...\r");
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
@@ -236,10 +254,17 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        &process_management_capability,
     );
-    board_kernel.kernel_loop(&tm4c1294, &mut chip, &mut PROCESSES, Some(&tm4c1294.ipc));
+    board_kernel.kernel_loop(
+        &tm4c1294,
+        &mut chip,
+        Some(&tm4c1294.ipc),
+        &main_loop_capability,
+    );
 }

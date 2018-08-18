@@ -1,17 +1,69 @@
 Since 1.2
 =========
 
-* [#1044](https://github.com/tock/tock/pull/1044) creates a `Kernel` struct
-  with a method for the kernel's main loop, instead of a global function in
-  the kernel's base module. Board configurations (i.e. each board's
-  `main.rs`), as a result needs to instantiate a statically allocate this new
-  struct.  Arguments to the main loop haven't changed:
+* Kernel debug module
 
-  ```rust
-  let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+  - [#1036](https://github.com/tock/tock/pull/1036),
+    [#1029](https://github.com/tock/tock/pull/1036), and
+    [#997](https://github.com/tock/tock/pull/1036) change `debug::panic`'s
+    signature. First, instead of taking a single LED, `panic` takes a slice of LEDs
+    as its first argument. Second, the Rust now uses a `PanicInfo` struct to pass
+    along information about where a panic occured, and `debug::panic` adopts the
+    same structure. Third, architecture specific assembly code was removed
+    from the kernel crate (including the debug module), requiring `debug::panic` to
+    take in a particlar implementation of the `nop` instruction. Finally,
+    `debug::panic` takes a reference to the process array (it is permissible to
+    pass an empty array instead, but you won't get any information about process
+    state on panic).
 
-  board_kernel.kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
-  ```
+    Boards most likely call `debug::panic` from their `panic_fmt` function:
+
+    ```rust
+    #[lang = "panic_fmt"]
+    pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
+            let led = ...;
+            let writer = ...;
+            debug::panic(led, writer, args, file, line)
+    }
+    ```
+
+    should now be:
+    ```rust
+    use core::panic::PanicInfo;
+    ...
+    #[panic_implementation]
+    pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {[lang = "panic_fmt"]
+        let led = ...;
+        let writer = ...;
+
+        debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
+    ```
+
+* Kernel `struct`: [#1044](https://github.com/tock/tock/pull/1044) creates a
+  `Kernel` struct that needs to be instantiated by the board.
+
+  - `Kernel` has a method for the kernel's main loop, instead of a global function in
+    the kernel's base module. Board configurations (i.e. each board's
+    `main.rs`), as a result needs to instantiate a statically allocate this new
+    struct.  Arguments to the main loop haven't changed:
+
+    ```rust
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
+
+    board_kernel.kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
+    ```
+
+  - `load_processes` takes the `Kernel` struct as an additional first argument:
+
+    ```rust
+     kernel::procs::load_processes(
+        board_kernel,
+        &_sapps as *const u8,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+    );
+    ```
 
 
 * [#1032](https://github.com/tock/tock/pull/1032) updates the ADC HIL to

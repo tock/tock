@@ -29,6 +29,8 @@ tutorial on how to use them in drivers or applications.
     + [Arguments](#arguments-4)
     + [Return](#return-4)
 - [The Context Switch](#the-context-switch)
+  * [Context Switch Interface](#context-switch-interface)
+  * [Cortex-M Architecture Details](#cortex-m-architecture-details)
 - [How System Calls Connect to Drivers](#how-system-calls-connect-to-drivers)
 - [Allocated Driver Numbers](#allocated-driver-numbers)
 
@@ -278,6 +280,17 @@ in `lib.rs` within the `arch/` folder under the appropriate architecture. As
 this code deals with low-level functionality in the processor it is written in
 assembly wrapped as Rust function calls.
 
+### Context Switch Interface
+
+The architecture crates (in the `/arch` folder) are responsible for implementing
+the `UserspaceKernelBoundary` trait which defines the functions needed to allow the
+kernel to correctly switch to userspace. These functions handle the
+architecture-specific details of how the context switch occurs, such as which
+registers are saved on the stack, where the stack pointer is stored, and how
+data is passed for the Tock syscall interface.
+
+### Cortex-M Architecture Details
+
 Starting in the kernel before any application has been run but after the
 process has been created, the kernel calls `switch_to_user`. This code sets up
 registers for the application, including the PIC base register and the process
@@ -286,22 +299,18 @@ The `svc` handler code automatically determines if the system desired a switch
 to application or to kernel and sets the processor mode. Finally, the `svc`
 handler returns, directing the PC to the entry point of the app.
 
-The application runs in unprivileged mode performing whatever its true purpose
-is until it decides to make a call to the kernel. It calls `svc`. The `svc`
-handler determines that it should switch to the kernel from an app, sets the
-processor mode to privileged, and returns. Since the stack has changed to the
-kernel's stack pointer (rather than the process stack pointer), execution
+The application runs in unprivileged mode while executing. When it needs to use
+a kernel resource it issues a syscall by running `svc` instruction. The
+`svc_handler` determines that it should switch to the kernel from an app, sets
+the processor mode to privileged, and returns. Since the stack has changed to
+the kernel's stack pointer (rather than the process stack pointer), execution
 returns to `switch_to_user` immediately after the `svc` that led to the
-application starting. `switch_to_user` saves registers and returns to the
-kernel so the system call can be processed.
+application starting. `switch_to_user` saves registers and returns to the kernel
+so the system call can be processed.
 
 On the next `switch_to_user` call, the application will resume execution based
 on the process stack pointer, which points to the instruction after the system
 call that switched execution to the kernel.
-
-In summary, execution is handled so that the application resumes at the next
-instruction after a system call is complete and the kernel resumes operation
-whenever a system call is made.
 
 
 ## How System Calls Connect to Drivers

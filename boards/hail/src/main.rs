@@ -10,7 +10,7 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
@@ -19,6 +19,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
@@ -48,7 +49,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] = [
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, None, None,
 ];
@@ -125,8 +126,12 @@ unsafe fn set_pin_primary_functions() {
 
     PA[04].configure(Some(A)); // A0 - ADC0
     PA[05].configure(Some(A)); // A1 - ADC1
+                               // DAC/WKP mode
     PA[06].configure(Some(A)); // DAC
     PA[07].configure(None); //... WKP - Wakeup
+                            // // Analog Comparator Mode
+                            // PA[06].configure(Some(E)); // ACAN0 - ACIFC
+                            // PA[07].configure(Some(E)); // ACAP0 - ACIFC
     PA[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
     PA[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
     PA[10].configure(None); //... unused
@@ -145,7 +150,7 @@ unsafe fn set_pin_primary_functions() {
     PA[22].configure(Some(A)); // D2 - SPI MOSI
     PA[23].configure(Some(A)); // D4 - SPI SCK
     PA[24].configure(Some(A)); // D5 - SPI CS0
-                               // // I2C MODE
+                               // // I2C Mode
                                // PA[21].configure(None); // D3
                                // PA[22].configure(None); // D2
                                // PA[23].configure(Some(B)); // D4 - TWIMS0 SDA
@@ -156,8 +161,12 @@ unsafe fn set_pin_primary_functions() {
 
     PB[00].configure(Some(A)); // SENSORS_SDA - TWIMS1 SDA
     PB[01].configure(Some(A)); // SENSORS_SCL - TWIMS1 SCL
+                               // ADC Mode
     PB[02].configure(Some(A)); // A2 - ADC3
     PB[03].configure(Some(A)); // A3 - ADC4
+                               // // Analog Comparator Mode
+                               // PB[02].configure(Some(E)); // ACBN0 - ACIFC
+                               // PB[03].configure(Some(E)); // ACBP0 - ACIFC
     PB[04].configure(Some(A)); // A4 - ADC5
     PB[05].configure(Some(A)); // A5 - ADC6
     PB[06].configure(Some(A)); // NRF_CTS - USART3 RTS
@@ -192,6 +201,15 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&sam4l::gpio::PA[13]),
@@ -207,7 +225,11 @@ pub unsafe fn reset_handler() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &sam4l::usart::USART0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
 
@@ -221,7 +243,7 @@ pub unsafe fn reset_handler() {
             115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
-            kernel::Grant::create()
+            board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     hil::uart::UART::set_client(console_uart, console);
@@ -274,13 +296,19 @@ pub unsafe fn reset_handler() {
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021, kernel::Grant::create())
+        capsules::temperature::TemperatureSensor::new(
+            si7021,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021, kernel::Grant::create())
+        capsules::humidity::HumiditySensor::new(
+            si7021,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
@@ -303,7 +331,10 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
-        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create())
+        capsules::ambient_light::AmbientLight::new(
+            isl29035,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
@@ -314,7 +345,10 @@ pub unsafe fn reset_handler() {
     );
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create())
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm1,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     virtual_alarm1.set_client(alarm);
 
@@ -333,7 +367,10 @@ pub unsafe fn reset_handler() {
 
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create())
+        capsules::ninedof::NineDof::new(
+            fxos8700,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
@@ -396,7 +433,10 @@ pub unsafe fn reset_handler() {
     );
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create())
+        capsules::button::Button::new(
+            button_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
@@ -429,7 +469,10 @@ pub unsafe fn reset_handler() {
     // Setup RNG
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
-        capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Grant::create())
+        capsules::rng::SimpleRng::new(
+            &sam4l::trng::TRNG,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     sam4l::trng::TRNG.set_client(rng);
 
@@ -454,7 +497,10 @@ pub unsafe fn reset_handler() {
     // CRC
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create())
+        capsules::crc::Crc::new(
+            &mut sam4l::crccu::CRCCU,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     sam4l::crccu::CRCCU.set_client(crc);
 
@@ -463,6 +509,28 @@ pub unsafe fn reset_handler() {
         capsules::dac::Dac<'static>,
         capsules::dac::Dac::new(&mut sam4l::dac::DAC)
     );
+
+    // // DEBUG Restart All Apps
+    // //
+    // // Uncomment to enable a button press to restart all apps.
+    // //
+    // // Create a dummy object that provides the `ProcessManagementCapability` to
+    // // the `debug_process_restart` capsule.
+    // struct ProcessMgmtCap;
+    // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
+    // let debug_process_restart = static_init!(
+    //     capsules::debug_process_restart::DebugProcessRestart<
+    //         'static,
+    //         sam4l::gpio::GPIOPin,
+    //         ProcessMgmtCap,
+    //     >,
+    //     capsules::debug_process_restart::DebugProcessRestart::new(
+    //         board_kernel,
+    //         &sam4l::gpio::PA[16],
+    //         ProcessMgmtCap
+    //     )
+    // );
+    // sam4l::gpio::PA[16].set_client(debug_process_restart);
 
     let hail = Hail {
         console: console,
@@ -478,7 +546,7 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         rng: rng,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         crc: crc,
         dac: dac,
     };
@@ -513,8 +581,6 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
-
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
@@ -524,10 +590,12 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        &process_management_capability,
     );
-    board_kernel.kernel_loop(&hail, &mut chip, &mut PROCESSES, Some(&hail.ipc));
+    board_kernel.kernel_loop(&hail, &mut chip, Some(&hail.ipc), &main_loop_capability);
 }

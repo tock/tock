@@ -21,6 +21,7 @@ use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioData;
@@ -33,6 +34,7 @@ type RF233Device =
     capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 pub struct RadioComponent {
+    board_kernel: &'static kernel::Kernel,
     rf233: &'static RF233Device,
     pan_id: capsules::net::ieee802154::PanID,
     short_addr: u16,
@@ -40,11 +42,13 @@ pub struct RadioComponent {
 
 impl RadioComponent {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
         rf233: &'static RF233Device,
         pan_id: capsules::net::ieee802154::PanID,
         addr: u16,
     ) -> RadioComponent {
         RadioComponent {
+            board_kernel: board_kernel,
             rf233: rf233,
             pan_id: pan_id,
             short_addr: addr,
@@ -71,6 +75,8 @@ impl Component for RadioComponent {
     );
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let aes_ccm = static_init!(
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
             capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
@@ -114,7 +120,7 @@ impl Component for RadioComponent {
             capsules::ieee802154::RadioDriver<'static>,
             capsules::ieee802154::RadioDriver::new(
                 radio_mac,
-                kernel::Grant::create(),
+                self.board_kernel.create_grant(&grant_cap),
                 &mut RADIO_BUF
             )
         );

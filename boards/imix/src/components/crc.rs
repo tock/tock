@@ -17,14 +17,19 @@
 
 use capsules::crc;
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use sam4l;
 
-pub struct CrcComponent {}
+pub struct CrcComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl CrcComponent {
-    pub fn new() -> CrcComponent {
-        CrcComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> CrcComponent {
+        CrcComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -32,9 +37,14 @@ impl Component for CrcComponent {
     type Output = &'static crc::Crc<'static, sam4l::crccu::Crccu<'static>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let crc = static_init!(
             crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-            crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create())
+            crc::Crc::new(
+                &mut sam4l::crccu::CRCCU,
+                self.board_kernel.create_grant(&grant_cap)
+            )
         );
 
         crc

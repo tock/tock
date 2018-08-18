@@ -26,6 +26,8 @@ use capsules::fxos8700cq;
 use capsules::ninedof::NineDof;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
+use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::Grant;
 use sam4l;
@@ -63,16 +65,19 @@ impl Component for Fxos8700Component {
 }
 
 pub struct NineDofComponent {
+    board_kernel: &'static kernel::Kernel,
     i2c_mux: &'static MuxI2C<'static>,
     gpio: &'static sam4l::gpio::GPIOPin,
 }
 
 impl NineDofComponent {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
         i2c: &'static MuxI2C<'static>,
         gpio: &'static sam4l::gpio::GPIOPin,
     ) -> NineDofComponent {
         NineDofComponent {
+            board_kernel: board_kernel,
             i2c_mux: i2c,
             gpio: gpio,
         }
@@ -83,6 +88,8 @@ impl Component for NineDofComponent {
     type Output = &'static NineDof<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x1e));
         let fxos8700 = static_init!(
             fxos8700cq::Fxos8700cq<'static>,
@@ -91,7 +98,10 @@ impl Component for NineDofComponent {
         fxos8700_i2c.set_client(fxos8700);
         self.gpio.set_client(fxos8700);
 
-        let ninedof = static_init!(NineDof<'static>, NineDof::new(fxos8700, Grant::create()));
+        let ninedof = static_init!(
+            NineDof<'static>,
+            NineDof::new(fxos8700, self.board_kernel.create_grant(&grant_cap))
+        );
         hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
         ninedof

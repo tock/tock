@@ -12,18 +12,18 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(debug, debug_gpio, static_init, create_capability)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
 
 mod components;
-
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
@@ -36,6 +36,7 @@ use kernel::hil::Controller;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
+use components::analog_comparator::AcComponent;
 use components::button::ButtonComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
@@ -51,7 +52,6 @@ use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::usb::UsbComponent;
-
 
 /// Support routines for debugging I/O.
 ///
@@ -79,6 +79,9 @@ mod aes_ccm_test;
 
 #[allow(dead_code)]
 mod power;
+
+#[allow(dead_code)]
+mod virtual_uart_rx_test;
 
 // State for loading apps.
 
@@ -111,8 +114,8 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-static mut PROCESSES: [Option<&'static mut kernel::procs::Process<'static>>; NUM_PROCS] =
-    [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -128,6 +131,10 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+        'static,
+        sam4l::acifc::Acifc<'static>,
+    >,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
@@ -171,6 +178,7 @@ impl kernel::Platform for Imix {
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
@@ -233,12 +241,16 @@ unsafe fn set_pin_primary_functions() {
     PC[06].configure(Some(A)); // SCK         --  SPI CLK
     PC[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
     PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
-    PC[09].configure(None); //... NRF GPIO    -- GPIO
-    PC[10].configure(None); //... USER LED    -- GPIO
+                               //PC[09].configure(None); //... NRF GPIO    -- GPIO
+                               //PC[10].configure(None); //... USER LED    -- GPIO
+    PC[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
+    PC[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
     PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
     PC[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
-    PC[13].configure(None); //... ACC_INT1    -- GPIO
-    PC[14].configure(None); //... ACC_INT2    -- GPIO
+                               //PC[13].configure(None); //... ACC_INT1    -- GPIO
+                               //PC[14].configure(None); //... ACC_INT2    -- GPIO
+    PC[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
+    PC[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
     PC[16].configure(None); //... SENSE_PWR   --  GPIO pin
     PC[17].configure(None); //... NRF_PWR     --  GPIO pin
     PC[18].configure(None); //... RF233_PWR   --  GPIO pin
@@ -274,47 +286,58 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    let main_cap = create_capability!(capabilities::MainLoopCapability);
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
     power::configure_submodules(power::SubmoduleConfig {
         rf233: true,
         nrf51422: true,
         sensors: true,
         trng: true,
     });
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    // # CONSOLE
     // Create a shared UART channel for the console and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = static_init!(
         UartMux<'static>,
-        UartMux::new(&sam4l::usart::USART3, &mut capsules::virtual_uart::RX_BUF)
+        UartMux::new(
+            &sam4l::usart::USART3,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
     );
     hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
 
-    let console = ConsoleComponent::new(uart_mux, 115200).finalize();
+    let console = ConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
     let nrf_serialization =
         Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize();
 
     // # TIMER
-
     let ast = &sam4l::ast::AST;
-
     let mux_alarm = static_init!(
         MuxAlarm<'static, sam4l::ast::Ast>,
         MuxAlarm::new(&sam4l::ast::AST)
     );
     ast.configure(mux_alarm);
-    let alarm = AlarmDriverComponent::new(mux_alarm).finalize();
+    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm).finalize();
 
     // # I2C and I2C Sensors
-
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
-    let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
+    let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm).finalize();
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
-    let temp = TemperatureComponent::new(si7021).finalize();
-    let humidity = HumidityComponent::new(si7021).finalize();
-    let ninedof = NineDofComponent::new(mux_i2c, &sam4l::gpio::PC[13]).finalize();
+    let temp = TemperatureComponent::new(board_kernel, si7021).finalize();
+    let humidity = HumidityComponent::new(board_kernel, si7021).finalize();
+    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize();
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = static_init!(
@@ -342,15 +365,16 @@ pub unsafe fn reset_handler() {
     let adc = AdcComponent::new().finalize();
     let gpio = GpioComponent::new().finalize();
     let led = LedComponent::new().finalize();
-    let button = ButtonComponent::new().finalize();
-    let crc = CrcComponent::new().finalize();
+    let button = ButtonComponent::new(board_kernel).finalize();
+    let crc = CrcComponent::new(board_kernel).finalize();
+    let analog_comparator = AcComponent::new().finalize();
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) = RadioComponent::new(rf233, PAN_ID, SRC_MAC).finalize();
+    let (radio_driver, mux_mac) = RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
 
-    let usb_driver = UsbComponent::new().finalize();
-    let nonvolatile_storage = NonvolatileStorageComponent::new().finalize();
+    let usb_driver = UsbComponent::new(board_kernel).finalize();
+    let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
     // ** UDP **
 
@@ -373,13 +397,13 @@ pub unsafe fn reset_handler() {
         button,
         crc,
         spi: spi_syscalls,
-        ipc: kernel::ipc::IPC::new(),
+        ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
         ninedof,
         radio_driver,
         udp_driver,
         usb_driver,
         nrf51822: nrf_serialization,
-        nonvolatile_storage,
+        nonvolatile_storage: nonvolatile_storage,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
@@ -393,9 +417,9 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
+    //    debug!("Starting virtual read test.");
+    //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
-
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -403,11 +427,13 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, &mut PROCESSES, Some(&imix.ipc));
+    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
 }

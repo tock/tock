@@ -19,15 +19,20 @@ use capsules;
 use capsules::nonvolatile_storage_driver::NonvolatileStorage;
 use capsules::nonvolatile_to_pages::NonvolatileToPages;
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use sam4l;
 
-pub struct NonvolatileStorageComponent;
+pub struct NonvolatileStorageComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl NonvolatileStorageComponent {
-    pub fn new() -> Self {
-        NonvolatileStorageComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> Self {
+        NonvolatileStorageComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -35,6 +40,8 @@ impl Component for NonvolatileStorageComponent {
     type Output = &'static NonvolatileStorage<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         sam4l::flashcalw::FLASH_CONTROLLER.configure();
         pub static mut FLASH_PAGEBUFFER: sam4l::flashcalw::Sam4lPage =
             sam4l::flashcalw::Sam4lPage::new();
@@ -63,7 +70,7 @@ impl Component for NonvolatileStorageComponent {
             NonvolatileStorage<'static>,
             NonvolatileStorage::new(
                 nv_to_page,
-                kernel::Grant::create(),
+                self.board_kernel.create_grant(&grant_cap),
                 0x60000,      // Start address for userspace accessible region
                 0x20000,      // Length of userspace accessible region
                 kernel_start, // Start address of kernel region

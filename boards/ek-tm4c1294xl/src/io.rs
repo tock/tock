@@ -7,6 +7,8 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 use tm4c129x;
 
+use PROCESSES;
+
 pub struct Writer {
     initialized: bool,
 }
@@ -44,5 +46,5 @@ impl Write for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut led::LedLow::new(&mut tm4c129x::gpio::PF[0]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
 }
