@@ -378,7 +378,8 @@ pub unsafe fn reset_handler() {
 
     // ** UDP **
 
-    let udp_driver = UDPComponent::new(mux_mac,
+    let udp_driver = UDPComponent::new(board_kernel,
+                                       mux_mac,
                                        DEFAULT_CTX_PREFIX_LEN,
                                        DEFAULT_CTX_PREFIX,
                                        DST_MAC_ADDR,
@@ -395,6 +396,7 @@ pub unsafe fn reset_handler() {
         adc,
         led,
         button,
+        analog_comparator,
         crc,
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),

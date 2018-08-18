@@ -30,11 +30,13 @@ use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::net::ieee802154::MacAddress;
 
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use sam4l;
 
 pub struct UDPComponent {
+    board_kernel: &'static kernel::Kernel,
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
@@ -45,6 +47,7 @@ pub struct UDPComponent {
 
 impl UDPComponent {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
         mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
         ctx_pfix_len: u8,
         ctx_pfix: [u8; 16],
@@ -53,6 +56,7 @@ impl UDPComponent {
         interface_list: &'static [IPAddr],
     ) -> UDPComponent {
         UDPComponent {
+            board_kernel: board_kernel,
             mux_mac: mux_mac,
             ctx_pfix_len: ctx_pfix_len,
             ctx_pfix: ctx_pfix,
@@ -80,6 +84,7 @@ impl Component for UDPComponent {
     type Output = &'static capsules::net::udp::UDPDriver<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let udp_mac = static_init!(
             capsules::ieee802154::virtual_mac::MacUser<'static>,
@@ -157,7 +162,7 @@ impl Component for UDPComponent {
             capsules::net::udp::UDPDriver::new(
                 udp_send,
                 udp_recv,
-                kernel::Grant::create(),
+                self.board_kernel.create_grant(&grant_cap),
                 self.interface_list
             )
         );
