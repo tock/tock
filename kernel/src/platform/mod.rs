@@ -16,12 +16,10 @@ pub trait Platform {
 
 /// Interface for individual MCUs.
 pub trait Chip {
-    type MPU: mpu::MPU;
     type SysTick: systick::SysTick;
 
     fn service_pending_interrupts(&mut self);
     fn has_pending_interrupts(&self) -> bool;
-    fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;
     fn sleep(&self);
     unsafe fn atomic<F, R>(&self, f: F) -> R

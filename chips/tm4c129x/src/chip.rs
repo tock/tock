@@ -6,21 +6,18 @@ use kernel::Chip;
 use uart;
 
 pub struct Tm4c129x {
-    pub mpu: cortexm4::mpu::MPU,
     pub systick: cortexm4::systick::SysTick,
 }
 
 impl Tm4c129x {
     pub unsafe fn new() -> Tm4c129x {
         Tm4c129x {
-            mpu: cortexm4::mpu::MPU::new(),
             systick: cortexm4::systick::SysTick::new(),
         }
     }
 }
 
 impl Chip for Tm4c129x {
-    type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&mut self) {
@@ -48,10 +45,6 @@ impl Chip for Tm4c129x {
 
     fn has_pending_interrupts(&self) -> bool {
         unsafe { cortexm4::nvic::has_pending() }
-    }
-
-    fn mpu(&self) -> &cortexm4::mpu::MPU {
-        &self.mpu
     }
 
     fn systick(&self) -> &cortexm4::systick::SysTick {

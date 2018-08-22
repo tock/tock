@@ -391,6 +391,8 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
+    let mpu = static_init!((), ());
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
@@ -400,6 +402,7 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm0::syscall::SysCall::new(),
+        mpu,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -410,6 +413,7 @@ pub unsafe fn reset_handler() {
     board_kernel.kernel_loop(
         &platform,
         &mut chip,
+        mpu,
         Some(&kernel::ipc::IPC::new(
             board_kernel,
             &memory_allocation_capability,

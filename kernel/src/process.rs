@@ -8,9 +8,8 @@ use core::{mem, ptr, slice, str};
 use callback::AppId;
 use capabilities::ProcessManagementCapability;
 use common::cells::MapCell;
-use common::math;
 use common::{Queue, RingBuffer};
-use platform::mpu;
+use platform::mpu::{self, MPU};
 use returncode::ReturnCode;
 use sched::Kernel;
 use syscall::{self, Syscall, UserspaceKernelBoundary};
@@ -31,9 +30,10 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub fn load_processes<S: UserspaceKernelBoundary>(
+pub fn load_processes<S: UserspaceKernelBoundary, M: MPU>(
     kernel: &'static Kernel,
     syscall: &'static S,
+    mpu: &'static M,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
     procs: &'static mut [Option<&'static ProcessType>],
@@ -48,6 +48,7 @@ pub fn load_processes<S: UserspaceKernelBoundary>(
             let (process, flash_offset, memory_offset) = Process::create(
                 kernel,
                 syscall,
+                mpu,
                 apps_in_flash_ptr,
                 app_memory_ptr,
                 app_memory_size,
@@ -107,11 +108,12 @@ pub trait ProcessType {
 
     // memop operations
 
-    /// Change the location of the program break.
+    /// Change the location of the program break and reallocate the MPU region
+    /// covering program memory.
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
 
-    /// Change the location of the program break and return the previous break
-    /// address.
+    /// Change the location of the program break, reallocate the MPU region
+    /// covering program memory, and return the previous break address.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
     /// The start address of allocated RAM for this process.
@@ -163,13 +165,22 @@ pub trait ProcessType {
 
     // mpu
 
-    fn setup_mpu(&self, mpu: &mpu::MPU);
+    /// Configure the MPU to use the process's allocated regions.
+    fn setup_mpu(&self);
 
-    fn add_mpu_region(&self, base: *const u8, size: u32) -> bool;
+    /// Allocate a new MPU region for the process that is at least `min_region_size`
+    /// bytes and lies within the specified parent memory block.
+    fn add_mpu_region(
+        &self,
+        parent_start: *const u8,
+        parent_size: usize,
+        min_region_size: usize,
+    ) -> Option<(*const u8, usize)>;
 
     // grants
 
-    /// Create new memory in the grant region.
+    /// Create new memory in the grant region, and check that the MPU region
+    /// covering program memory does not extend past the kernel memory break.
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]>;
 
     unsafe fn free(&self, _: *mut u8);
@@ -288,7 +299,7 @@ struct ProcessDebug {
     restart_count: usize,
 }
 
-pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
+pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
@@ -355,18 +366,14 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     /// How to deal with Faults occurring in the process
     fault_response: FaultResponse,
 
+    /// Pointer to the MPU
+    mpu: &'static M,
+
+    /// Configuration data for the MPU
+    mpu_config: MapCell<M::MpuConfig>,
+
     /// MPU regions are saved as a pointer-size pair.
-    ///
-    /// size is encoded as X where
-    /// SIZE = 2<sup>(X + 1)</sup> and X >= 4.
-    ///
-    /// A null pointer represents an empty region.
-    ///
-    /// #### Invariants
-    ///
-    /// The pointer must be aligned to the size. E.g. if the size is 32 bytes, the pointer must be
-    /// 32-byte aligned.
-    mpu_regions: [Cell<(*const u8, math::PowerOfTwo)>; 5],
+    mpu_regions: [Cell<(*const u8, usize)>; 6],
 
     /// Essentially a list of callbacks that want to call functions in the
     /// process.
@@ -379,7 +386,7 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
+impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     fn enqueue_task(&self, task: Task) -> bool {
         // If this app is in the `Fault` state then we shouldn't schedule
         // any work for it.
@@ -545,111 +552,41 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         }
     }
 
-    fn setup_mpu(&self, mpu: &mpu::MPU) {
-        // Flash segment read/execute (no write)
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_len = self.flash.len();
-
-        match mpu.create_region(
-            0,
-            flash_start,
-            flash_len,
-            mpu::ExecutePermission::ExecutionPermitted,
-            mpu::AccessPermission::ReadOnly,
-        ) {
-            None => panic!(
-                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                flash_start, flash_len
-            ),
-            Some(region) => mpu.set_mpu(region),
-        }
-
-        let data_start = self.memory.as_ptr() as usize;
-        let data_len = self.memory.len();
-
-        match mpu.create_region(
-            1,
-            data_start,
-            data_len,
-            mpu::ExecutePermission::ExecutionPermitted,
-            mpu::AccessPermission::ReadWrite,
-        ) {
-            None => panic!(
-                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                data_start, data_len
-            ),
-            Some(region) => mpu.set_mpu(region),
-        }
-
-        // Disallow access to grant region
-        let grant_len = unsafe {
-            math::PowerOfTwo::ceiling(
-                self.memory.as_ptr().offset(self.memory.len() as isize) as u32
-                    - (self.kernel_memory_break.get() as u32),
-            ).as_num::<u32>()
-        };
-        let grant_base = unsafe {
-            self.memory
-                .as_ptr()
-                .offset(self.memory.len() as isize)
-                .offset(-(grant_len as isize))
-        };
-
-        match mpu.create_region(
-            2,
-            grant_base as usize,
-            grant_len as usize,
-            mpu::ExecutePermission::ExecutionNotPermitted,
-            mpu::AccessPermission::PrivilegedOnly,
-        ) {
-            None => panic!(
-                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                grant_base as usize, grant_len
-            ),
-            Some(region) => mpu.set_mpu(region),
-        }
-
-        // Setup IPC MPU regions
-        for (i, region) in self.mpu_regions.iter().enumerate() {
-            if region.get().0.is_null() {
-                mpu.set_mpu(mpu::Region::empty(i + 3));
-                continue;
-            }
-            match mpu.create_region(
-                i + 3,
-                region.get().0 as usize,
-                region.get().1.as_num::<u32>() as usize,
-                mpu::ExecutePermission::ExecutionPermitted,
-                mpu::AccessPermission::ReadWrite,
-            ) {
-                None => panic!(
-                    "Unexpected: Infeasible MPU allocation: Num: {}, \
-                     Base: {:#x}, Length: {:#x}",
-                    i + 3,
-                    region.get().0 as usize,
-                    region.get().1.as_num::<u32>()
-                ),
-                Some(region) => mpu.set_mpu(region),
-            }
-        }
+    fn setup_mpu(&self) {
+        self.mpu_config.map(|config| {
+            self.mpu.configure_mpu(&config);
+        });
     }
 
-    fn add_mpu_region(&self, base: *const u8, size: u32) -> bool {
-        if size >= 16 && size.count_ones() == 1 && (base as u32) % size == 0 {
-            let mpu_size = math::PowerOfTwo::floor(size);
-            for region in self.mpu_regions.iter() {
-                if region.get().0 == ptr::null() {
-                    region.set((base, mpu_size));
-                    return true;
-                } else if region.get().0 == base {
-                    if region.get().1 < mpu_size {
-                        region.set((base, mpu_size));
+    fn add_mpu_region(
+        &self,
+        parent_start: *const u8,
+        parent_size: usize,
+        min_region_size: usize,
+    ) -> Option<(*const u8, usize)> {
+        match self.mpu_config.map(|mut config| {
+            match self.mpu.allocate_region(
+                parent_start,
+                parent_size,
+                min_region_size,
+                mpu::Permissions::ReadWriteExecute,
+                &mut config,
+            ) {
+                Some((region_start, region_size)) => {
+                    for region in self.mpu_regions.iter() {
+                        if region.get().0 == ptr::null() {
+                            region.set((region_start, region_size));
+                            return Some((region_start, region_size));
+                        }
                     }
-                    return true;
+                    panic!("Not enough room in Process struct to store MPU region.");
                 }
+                None => None,
             }
+        }) {
+            Some(option) => option,
+            None => panic!("MPU config not found."),
         }
-        return false;
     }
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
@@ -658,14 +595,26 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
-        if new_break < self.mem_start() || new_break >= self.mem_end() {
-            Err(Error::AddressOutOfBounds)
-        } else if new_break > self.kernel_memory_break.get() {
-            Err(Error::OutOfMemory)
-        } else {
-            let old_break = self.app_break.get();
-            self.app_break.set(new_break);
-            Ok(old_break)
+        match self.mpu_config.map(|mut config| {
+            if new_break < self.mem_start() || new_break >= self.mem_end() {
+                Err(Error::AddressOutOfBounds)
+            } else if new_break > self.kernel_memory_break.get() {
+                Err(Error::OutOfMemory)
+            } else if let Err(_) = self.mpu.update_app_memory_region(
+                new_break,
+                self.kernel_memory_break.get(),
+                &mut config,
+            ) {
+                Err(Error::OutOfMemory)
+            } else {
+                let old_break = self.app_break.get();
+                self.app_break.set(new_break);
+                self.mpu.configure_mpu(&mut config);
+                Ok(old_break)
+            }
+        }) {
+            Some(error) => error,
+            None => panic!("MPU config not found."),
         }
     }
 
@@ -683,12 +632,22 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
-        let new_break = self.kernel_memory_break.get().offset(-(size as isize));
-        if new_break < self.app_break.get() {
-            None
-        } else {
-            self.kernel_memory_break.set(new_break);
-            Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
+        match self.mpu_config.map(|mut config| {
+            let new_break = self.kernel_memory_break.get().offset(-(size as isize));
+            if new_break < self.app_break.get() {
+                None
+            } else if let Err(_) =
+                self.mpu
+                    .update_app_memory_region(self.app_break.get(), new_break, &mut config)
+            {
+                None
+            } else {
+                self.kernel_memory_break.set(new_break);
+                Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
+            }
+        }) {
+            Some(option) => option,
+            None => panic!("MPU config not found."),
         }
     }
 
@@ -1178,10 +1137,11 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 }
 
-impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
+impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
     crate unsafe fn create(
         kernel: &'static Kernel,
         syscall: &'static S,
+        mpu: &'static M,
         app_flash_address: *const u8,
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
@@ -1197,16 +1157,29 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             }
 
             // Otherwise, actually load the app.
-            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
+            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
             let process_name = tbf_header.get_package_name(app_flash_address);
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
-            // Set the initial process stack and memory to 128 bytes.
-            let initial_stack_pointer = remaining_app_memory.offset(128);
-            let initial_sbrk_pointer = remaining_app_memory.offset(128);
+            // Initialize MPU region configuration.
+            let mut mpu_config: M::MpuConfig = Default::default();
 
-            // First determine how much space we need in the application's
+            // Allocate MPU region for flash.
+            if let None = mpu.allocate_region(
+                app_flash_address,
+                app_flash_size,
+                app_flash_size,
+                mpu::Permissions::ReadExecuteOnly,
+                &mut mpu_config,
+            ) {
+                panic!(
+                    "{:?} failed to load. Infeasible to allocate MPU region for flash",
+                    process_name
+                );
+            }
+
+            // Determine how much space we need in the application's
             // memory space just for kernel and grant state. We need to make
             // sure we allocate enough memory just for that.
 
@@ -1221,31 +1194,48 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             let callbacks_offset = callback_len * callback_size;
 
             // Make room to store this process's metadata.
-            let process_struct_offset = mem::size_of::<Process<S>>();
+            let process_struct_offset = mem::size_of::<Process<S, M>>();
 
-            // Need to make sure that the amount of memory we allocate for
-            // this process at least covers this state.
-            if min_app_ram_size
-                < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32
-            {
-                min_app_ram_size =
-                    (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
+            // Initial sizes of app and kernel memory.
+            let initial_kernel_memory_size =
+                grant_ptrs_offset + callbacks_offset + process_struct_offset;
+            let initial_app_memory_size = 128;
+
+            if min_app_ram_size < initial_app_memory_size {
+                min_app_ram_size = initial_app_memory_size;
             }
 
-            // TODO round app_ram_size up to a closer MPU unit.
-            // This is a very conservative approach that rounds up to power of
-            // two. We should be able to make this closer to what we actually need.
-            let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
+            // Minimum memory size for the process.
+            let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
-            // Check that we can actually give this app this much memory.
-            if app_ram_size > remaining_app_memory_size {
-                panic!(
-                    "{:?} failed to load. Insufficient memory. Requested {} have {}",
-                    process_name, app_ram_size, remaining_app_memory_size
-                );
-            }
+            // Determine where process memory will go and allocate MPU region for app memory.
+            let (memory_start, memory_size) = match mpu.allocate_app_memory_region(
+                remaining_app_memory as *const u8,
+                remaining_app_memory_size,
+                min_total_memory_size,
+                initial_app_memory_size,
+                initial_kernel_memory_size,
+                mpu::Permissions::ReadWriteExecute,
+                &mut mpu_config,
+            ) {
+                Some((memory_start, memory_size)) => (memory_start, memory_size),
+                None => {
+                    panic!(
+                        "{:?} failed to load. Insufficient memory. Requested {} have {}",
+                        process_name, min_total_memory_size, remaining_app_memory_size
+                    );
+                }
+            };
 
-            let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_ram_size);
+            // Compute how much padding before start of process memory.
+            let memory_padding_size = (memory_start as usize) - (remaining_app_memory as usize);
+
+            // Set up process memory.
+            let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
+
+            // Set the initial process stack and memory to 128 bytes.
+            let initial_stack_pointer = memory_start.offset(initial_app_memory_size as isize);
+            let initial_sbrk_pointer = memory_start.offset(initial_app_memory_size as isize);
 
             // Set up initial grant region.
             let mut kernel_memory_break = app_memory.as_mut_ptr().offset(app_memory.len() as isize);
@@ -1281,8 +1271,8 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             let mut app_stack_start_pointer = None;
 
             // Create the Process struct in the app grant region.
-            let mut process: &mut Process<S> =
-                &mut *(process_struct_memory_location as *mut Process<'static, S>);
+            let mut process: &mut Process<S, M> =
+                &mut *(process_struct_memory_location as *mut Process<'static, S, M>);
 
             process.kernel = kernel;
             process.syscall = syscall;
@@ -1301,12 +1291,15 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             process.state = Cell::new(State::Yielded);
             process.fault_response = fault_response;
 
+            process.mpu = mpu;
+            process.mpu_config = MapCell::new(mpu_config);
             process.mpu_regions = [
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                Cell::new((ptr::null(), 0)),
+                Cell::new((ptr::null(), 0)),
+                Cell::new((ptr::null(), 0)),
+                Cell::new((ptr::null(), 0)),
+                Cell::new((ptr::null(), 0)),
+                Cell::new((ptr::null(), 0)),
             ];
             process.tasks = MapCell::new(tasks);
             process.process_name = process_name;
@@ -1344,7 +1337,11 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
 
             kernel.increment_work();
 
-            return (Some(process), app_flash_size, app_ram_size);
+            return (
+                Some(process),
+                app_flash_size,
+                memory_padding_size + memory_size,
+            );
         }
         (None, 0, 0)
     }

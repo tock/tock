@@ -554,6 +554,8 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
+    let mpu = static_init!(cortexm4::mpu::MPU, cortexm4::mpu::MPU::new());
+
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
@@ -569,11 +571,18 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
+        mpu,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
     );
-    board_kernel.kernel_loop(&hail, &mut chip, Some(&hail.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(
+        &hail,
+        &mut chip,
+        mpu,
+        Some(&hail.ipc),
+        &main_loop_capability,
+    );
 }

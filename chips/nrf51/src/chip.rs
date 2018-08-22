@@ -16,12 +16,7 @@ impl NRF51 {
 }
 
 impl kernel::Chip for NRF51 {
-    type MPU = ();
     type SysTick = ();
-
-    fn mpu(&self) -> &Self::MPU {
-        &self.0
-    }
 
     fn systick(&self) -> &Self::SysTick {
         &self.0

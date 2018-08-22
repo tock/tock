@@ -414,6 +414,8 @@ pub unsafe fn setup_board(
 
     let mut chip = nrf52::chip::NRF52::new();
 
+    let mpu = static_init!(cortexm4::mpu::MPU, cortexm4::mpu::MPU::new());
+
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 
@@ -424,6 +426,7 @@ pub unsafe fn setup_board(
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
+        mpu,
         &_sapps as *const u8,
         app_memory,
         process_pointers,
@@ -434,6 +437,7 @@ pub unsafe fn setup_board(
     board_kernel.kernel_loop(
         &platform,
         &mut chip,
+        mpu,
         Some(&platform.ipc),
         &main_loop_capability,
     );

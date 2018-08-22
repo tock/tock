@@ -372,6 +372,8 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
+    let mpu = static_init!(cortexm4::mpu::MPU, cortexm4::mpu::MPU::new());
+
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();
     imix.nrf51822.initialize();
@@ -392,6 +394,7 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
+        mpu,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -399,5 +402,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, &mut chip, mpu, Some(&imix.ipc), &main_cap);
 }
