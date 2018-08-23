@@ -28,6 +28,8 @@ struct RtcRegisters {
     // A read request to the sync register will not return
     // until all outstanding writes have properly propagated to the RTC domain
     sync: ReadOnly<u32>,
+    time: ReadOnly<u32>,
+    synclf: ReadOnly<u32>,
 }
 
 register_bitfields![
@@ -40,6 +42,7 @@ register_bitfields![
             Channel2 = 0b11
         ],
         RESET       OFFSET(7) NUMBITS(1) [],
+        RTC_4KHZ_EN OFFSET(2) NUMBITS(1) [],
         RTC_UPD_EN  OFFSET(1) NUMBITS(1) [],
         ENABLE      OFFSET(0) NUMBITS(1) []
     ],
@@ -114,6 +117,22 @@ impl Rtc {
         return (current_sec << 16) | (current_subsec >> 16);
     }
 
+    pub fn rtc_enabled(&self) -> bool {
+        let reg = &*self.registers;
+        let enabled: bool = reg.ctl.matches_all(Control::RTC_UPD_EN::SET);
+
+        return enabled;
+    }
+
+    pub fn set_upd_en(&self, value: bool) {
+        let reg = &*self.registers;
+        if value {
+            reg.ctl.modify(Control::RTC_UPD_EN::SET);
+        } else {
+            reg.ctl.modify(Control::RTC_UPD_EN::CLEAR);
+        }
+    }
+
     pub fn is_running(&self) -> bool {
         let regs = &*self.registers;
         regs.channel_ctl.read(ChannelControl::CH1_EN) != 0
@@ -134,15 +153,6 @@ impl Rtc {
 
     pub fn set_client(&self, client: &'static time::Client) {
         self.callback.set(client);
-    }
-
-    pub fn set_upd_en(&self, value: bool) {
-        let regs = &*self.registers;
-        if value {
-            regs.ctl.set(regs.ctl.get() | 0x02);
-        } else {
-            regs.ctl.set(regs.ctl.get() & !0x02);
-        }
     }
 }
 

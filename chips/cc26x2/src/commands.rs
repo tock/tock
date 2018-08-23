@@ -1,5 +1,42 @@
 #![allow(dead_code)]
 
+#[derive(Debug, Clone, Copy)]
+pub enum RadioCommands {
+    Direct { c: DirectCommand },
+    RadioSetup { c: CmdRadioSetup },
+    Common { c: CmdNop },
+    FSPowerup { c: CmdFSPowerup },
+    FSPowerdown { c: CmdFSPowerdown },
+    StartRat { c: CmdSyncStartRat },
+    StopRat { c: CmdSyncStopRat },
+    NotSupported,
+}
+
+pub enum Commands {
+    Direct = 0,
+    RadioSetup = 1,
+    Common = 2,
+    FSPowerup = 3,
+    FSPowerdown = 4,
+    StartRat = 5,
+    StopRat = 6,
+    NotSupported,
+}
+/*
+macro_rules! offset_of {
+    ($($tt:tt)*) => {
+        {
+            let base = $($tt)*(unsafe { ::std::mem::uninitialized() });
+            let offset = match base {
+                $($tt)*(ref inner) => (inner as *const _ as usize) - (&base as *const _ as usize),
+                _ => unreachable!(),
+            };
+            ::std::mem::forget(base);
+            offset
+        }
+    }
+}
+*/
 // Radio and data commands bitfields
 bitfield! {
     #[derive(Copy, Clone)]
@@ -49,7 +86,7 @@ pub enum RfcOperationStatus {
 // Radio Commands
 
 // RFC Immediate commands
-pub const RFC_CMD0: u16 = 0x801;
+pub const RFC_CMD0: u16 = 0x607; // not a real cmd number
 pub const RFC_PING: u16 = 0x406;
 pub const RFC_BUS_REQUEST: u16 = 0x40E;
 pub const RFC_START_RAT_TIMER: u16 = 0x0405;
@@ -264,6 +301,7 @@ unsafe impl RadioCommand for CmdFSPowerdown {
         }
     }
 }
+
 // Custom FS, unimplemented
 #[repr(C)]
 pub struct CmdFS {

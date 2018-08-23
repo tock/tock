@@ -12,6 +12,24 @@ pub struct AuxSysIfRegisters {
     _wu_flags_clr: ReadWrite<u32, WUFlags::Register>,
     wu_gate: ReadWrite<u32, WUGate::Register>,
     // remainder unimplemented
+    _vec_cfg: [ReadOnly<u8>; 32],
+    _evsyncrate: [ReadOnly<u8>; 4],
+    _peroprate: [ReadOnly<u8>; 4],
+    _adc_clk_ctl: ReadOnly<u32>,
+    _tdc_clk_ctl: ReadOnly<u32>,
+    _tdc_ref_clk_ctl: ReadOnly<u32>,
+    _timer2: [ReadOnly<u32>; 4],
+    _reserved: ReadOnly<u32>,
+    _clk_shift_det: ReadOnly<u32>,
+    _recharge: [ReadOnly<u32>; 2],
+    _rtc_subsec_inc: [ReadOnly<u32>; 6],
+    _batmon_bat: ReadOnly<u32>,
+    _reserved2: ReadOnly<u32>,
+    _batmon_temp: ReadOnly<u32>,
+    _timer_halt: ReadOnly<u32>,
+    _reserved3: [ReadOnly<u32>; 3],
+    _timer2_bridge: ReadOnly<u32>,
+    _sw_pwr_prof: ReadOnly<u32>,
 }
 
 register_bitfields! [

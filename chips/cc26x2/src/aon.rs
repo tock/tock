@@ -24,10 +24,10 @@ pub struct AonEventRegisters {
 
 #[repr(C)]
 struct AonPmCtlRegisters {
-    _unknown: [ReadOnly<u8>; 0x4],
+    _unknown: ReadOnly<u32>,
     aux_clk: ReadWrite<u32, AuxClk::Register>,
     ram_cfg: ReadWrite<u32, RamCfg::Register>,
-    _unknown2: [ReadOnly<u8>; 0x8],
+    _unknown2: [ReadOnly<u8>; 8],
     pwr_ctl: ReadWrite<u32, PwrCtl::Register>,
     pwr_stat: ReadOnly<u32, PwrStat::Register>,
     shutdown: ReadWrite<u32, Shutdown::Register>,
@@ -36,8 +36,8 @@ struct AonPmCtlRegisters {
     osc_cfg: ReadWrite<u32, OscCtl::Register>,
     reset_ctl: ReadWrite<u32, ResetCtl::Register>,
     sleep_ctl: ReadWrite<u32, SleepCtl::Register>,
-    _jtag_cfg: [u8; 0x04],
-    _jtag_usercode: [u8; 0x04],
+    _jtag_cfg: [ReadOnly<u8>; 4],
+    _jtag_usercode: [ReadOnly<u8>; 4],
 }
 
 register_bitfields![
@@ -130,6 +130,8 @@ pub enum AuxSClk {
 
 pub struct Aon {
     event_regs: StaticRef<AonEventRegisters>,
+    pmctl_regs: StaticRef<AonPmCtlRegisters>,
+    ioc_regs: StaticRef<AonIocRegisters>,
 }
 
 pub const AON: Aon = Aon::new();
@@ -138,6 +140,8 @@ impl Aon {
     const fn new() -> Aon {
         Aon {
             event_regs: AON_EVENT_BASE,
+            pmctl_regs: AON_PMCTL_BASE,
+            ioc_regs: AON_IOC_BASE,
         }
     }
 
@@ -163,7 +167,7 @@ impl Aon {
     }
 
     pub fn set_dcdc_enabled(&self, enabled: bool) {
-        let regs = AON_PMCTL_BASE;
+        let regs = &*self.pmctl_regs;
         if enabled {
             regs.pwr_ctl
                 .modify(PwrCtl::DCDC_ACTIVE::SET + PwrCtl::DCDC_EN::SET);
@@ -174,7 +178,7 @@ impl Aon {
     }
 
     pub fn lfclk_enable(&self, enable: bool) {
-        let regs = AON_IOC_BASE;
+        let regs = &*self.ioc_regs;
         if enable {
             regs.ioc_clk32k_ctl.write(IocClk::EN::SET);
         } else {
@@ -183,7 +187,7 @@ impl Aon {
     }
 
     pub fn aux_set_ram_retention(&self, enabled: bool) {
-        let regs = AON_PMCTL_BASE;
+        let regs = &*self.pmctl_regs;
         regs.ram_cfg.modify({
             if enabled {
                 RamCfg::AUX_SRAM_RET_EN::SET
@@ -194,7 +198,7 @@ impl Aon {
     }
 
     pub fn mcu_set_ram_retention(&self, on: bool) {
-        let regs = AON_PMCTL_BASE;
+        let regs = &*self.pmctl_regs;
         regs.ram_cfg.modify({
             if on {
                 RamCfg::BUS_SRAM_RET_EN::ON
@@ -205,7 +209,7 @@ impl Aon {
     }
 
     pub fn aux_sceclk_select(&self, sclk: AuxSClk) {
-        let regs = AON_PMCTL_BASE;
+        let regs = &*self.pmctl_regs;
         match sclk {
             AuxSClk::SClkHFDiv2 => regs.aux_clk.modify(AuxClk::SRC::SCLK_HFDIV2),
             AuxSClk::SClkMF => regs.aux_clk.modify(AuxClk::SRC::SCLK_MF),
@@ -213,13 +217,12 @@ impl Aon {
     }
 
     pub fn aux_disable_power_down_clock(&self) {
-        let regs = AON_PMCTL_BASE;
-        regs.aux_clk
-            .modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
+        let regs = &*self.pmctl_regs;
+        regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
     }
 
     pub fn shutdown(&self) {
-        let regs = AON_PMCTL_BASE;
+        let regs = &*self.pmctl_regs;
         regs.shutdown.modify(Shutdown::PWR_DWN_DIS::SET);
     }
     /// Await a cycle of the AON domain in order

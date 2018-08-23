@@ -3,9 +3,9 @@
 #![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
+extern crate cc26x2;
 extern crate cortexm4;
 extern crate fixedvec;
-extern crate cc26x2;
 
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
@@ -19,10 +19,10 @@ use kernel::hil;
 
 #[macro_use]
 pub mod io;
-pub mod rfcore_driver;
-pub mod rfcore_const;
 #[allow(dead_code)]
 mod i2c_tests;
+pub mod rfcore_const;
+pub mod rfcore_driver;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -90,6 +90,10 @@ pub unsafe fn reset_handler() {
 
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
+
+    prcm::Power::enable_domain(prcm::PowerDomain::Serial);
+
+    while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -266,8 +270,11 @@ pub unsafe fn reset_handler() {
         )
     );
     cc26x2::trng::TRNG.set_client(rng);
-    
-    let radio = static_init!(rfcore_driver::Radio, rfcore_driver::Radio::new(&cc26x2::rfc::RFC));
+
+    let radio = static_init!(
+        rfcore_driver::Radio,
+        rfcore_driver::Radio::new(&cc26x2::rfc::RFC)
+    );
 
     radio.power_up();
 

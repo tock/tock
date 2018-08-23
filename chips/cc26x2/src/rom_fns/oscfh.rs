@@ -31,14 +31,16 @@
 // Clock switching and source select code from Texas Instruments
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
-#![allow(non_snake_case)]
+use rom_fns::ddi;
+
+#[allow(non_snake_case)]
 pub unsafe extern "C" fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
     if ui32src_clk & 0x1u32 != 0 {
         // ui32Base, ui32Reg, ui32Mask, ui32Shift, ui32Data
-        ddi0::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0x1u32, 0u32, ui32osc as (u16));
+        ddi::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0x1u32, 0u32, ui32osc as (u16));
     }
     if ui32src_clk & 0x4u32 != 0 {
-        ddi0::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0xcu32, 2u32, ui32osc as (u16));
+        ddi::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0xcu32, 2u32, ui32osc as (u16));
     }
 }
 
@@ -46,16 +48,16 @@ pub unsafe extern "C" fn clock_source_get(ui32src_clk: u32) -> u32 {
     let ui32clock_source: u32;
     if ui32src_clk == 0x4u32 {
         ui32clock_source =
-            ddi0::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x60000000u32, 29u32) as (u32);
+            ddi::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x60000000u32, 29u32) as (u32);
     } else {
         ui32clock_source =
-            ddi0::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x10000000u32, 28u32) as (u32);
+            ddi::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x10000000u32, 28u32) as (u32);
     }
     ui32clock_source
 }
 #[allow(unused)]
 unsafe fn source_ready() -> bool {
-    (if ddi0::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x1u32, 0u32) != 0 {
+    (if ddi::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x1u32, 0u32) != 0 {
         1i32
     } else {
         0i32
@@ -96,7 +98,52 @@ pub unsafe fn source_switch() {
     ((*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch);
 }
 
-pub mod ddi0 {
+/*
+pub mod ddi {
+    unsafe extern "C" fn aux_adi_ddi_safe_write(n_addr: u32, n_data: u32, n_size: u32) {
+        //let mut bIrqEnabled : bool = CPUcpsid() == 0;
+
+        'loop1: loop {
+            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
+                break;
+            }
+        }
+        if n_size == 2u32 {
+            *(n_addr as (*mut u16)) = n_data as (u16);
+        } else if n_size == 1u32 {
+            *(n_addr as (*mut u8)) = n_data as (u8);
+        } else {
+            *(n_addr as (*mut usize)) = n_data as (usize);
+        }
+        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
+
+        /*if bIrqEnabled {
+        CPUcpsie();
+    }*/
+    }
+
+    unsafe extern "C" fn aux_adi_ddi_safe_read(n_addr: u32, n_size: u32) -> u32 {
+        let mut ret: u32;
+        //let mut bIrqEnabled: bool = CPUcpsid() == 0;
+        'loop1: loop {
+            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
+                break;
+            }
+        }
+        if n_size == 2u32 {
+            ret = *(n_addr as (*mut u16)) as (u32);
+        } else if n_size == 1u32 {
+            ret = *(n_addr as (*mut u8)) as (u32);
+        } else {
+            ret = *(n_addr as (*mut usize)) as (u32);
+        }
+        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
+        /*if bIrqEnabled {
+            CPUcpsie();
+        }*/
+        ret
+    }
+
     #[no_mangle]
     pub unsafe extern "C" fn ddi32reg_write(ui32Base: u32, ui32Reg: u32, ui32Val: u32) {
         *(ui32Base.wrapping_add(ui32Reg) as (*mut usize)) = ui32Val as (usize);
@@ -205,3 +252,4 @@ pub mod adi {
         *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
     }
 }
+*/

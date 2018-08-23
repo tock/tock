@@ -1,5 +1,7 @@
 use cc26x2::commands as cmd;
 
+pub const RFC_RAM_BASE: u32 = 0x2100_0000;
+
 #[derive(Debug, Clone, Copy)]
 pub enum RfcOperationStatus {
     Idle,
@@ -22,6 +24,17 @@ pub enum State {
     CommandStatus(RfcOperationStatus),
     Done,
     Invalid,
+}
+
+pub enum RfcDriverCommands {
+    Direct = 0,
+    RadioSetup = 1,
+    Common = 2,
+    FSPowerup = 3,
+    FSPowerdown = 4,
+    StartRat = 5,
+    StopRat = 6,
+    NotSupported,
 }
 
 type CommandStatus = Result<u32, u32>;
@@ -70,7 +83,7 @@ pub enum RadioCommands {
     RadioSetup { c: cmd::CmdRadioSetup },
     Common { c: cmd::CmdNop },
     FSPowerup { c: cmd::CmdFSPowerup },
-    FSPowerdown{ c: cmd::CmdFSPowerdown },
+    FSPowerdown { c: cmd::CmdFSPowerdown },
     StartRat { c: cmd::CmdSyncStartRat },
     StopRat { c: cmd::CmdSyncStopRat },
     NotSupported,
@@ -100,6 +113,24 @@ impl From<usize> for RfcOperationStatus {
             val => {
                 debug_assert!(false, "{} does not represent a valid command.", val);
                 RfcOperationStatus::Invalid
+            }
+        }
+    }
+}
+
+impl From<usize> for RfcDriverCommands {
+    fn from(val: usize) -> RfcDriverCommands {
+        match val {
+            0 => RfcDriverCommands::Direct,
+            1 => RfcDriverCommands::RadioSetup,
+            2 => RfcDriverCommands::Common,
+            3 => RfcDriverCommands::FSPowerup,
+            4 => RfcDriverCommands::FSPowerdown,
+            5 => RfcDriverCommands::StartRat,
+            6 => RfcDriverCommands::StopRat,
+            val => {
+                debug_assert!(false, "{} does not represent a valid command.", val);
+                RfcDriverCommands::NotSupported
             }
         }
     }

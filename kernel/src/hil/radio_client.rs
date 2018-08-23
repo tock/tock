@@ -15,16 +15,30 @@ pub trait RadioConfig {
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 }
 
+pub trait CmdClient {
+    fn command_done(&self, command: *mut u32, result: ReturnCode);
+}
+
 pub trait TxClient {
     fn send_done(&self, buf: &'static mut [u8], result: ReturnCode);
 }
 
 pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, result: ReturnCode);
+    fn receive(
+        &self,
+        buf: &'static mut [u8],
+        frame_len: usize,
+        crc_valid: bool,
+        result: ReturnCode,
+    );
 }
 
 pub trait Radio: RadioConfig + RadioAttrs {}
 
 pub trait RadioAttrs {
-    fn transmit(&self, tx_buf: &'static mut [u8], frame_len: usize) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn transmit(
+        &self,
+        tx_buf: &'static mut [u8],
+        frame_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
 }

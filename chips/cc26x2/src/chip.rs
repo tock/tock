@@ -3,9 +3,9 @@ use gpio;
 use i2c;
 use kernel;
 use peripheral_interrupts;
+use rfc;
 use rtc;
 use uart;
-use rfc;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
