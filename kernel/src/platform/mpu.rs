@@ -26,62 +26,64 @@ pub trait MPU {
 
     /// Allocates a new MPU region.
     ///
-    /// An implementation must create an MPU region at least `min_region_size` bytes
-    /// in size within the specified parent region, with the specified user mode
-    /// permissions, and store it within `config`.
+    /// An implementation must allocate an MPU region at least `min_region_size` bytes
+    /// in size within the specified stretch of unallocated memory, and with the specified
+    /// user mode permissions, and store it in `config`. The allocated region may not
+    /// overlap any of the regions already stored in `config`.
     ///
     /// # Arguments
     ///
-    /// `parent_start`      : start of the parent region
-    /// `parent_size`       : size of the parent region
-    /// `min_region_size`   : minimum size of the region
-    /// `permissions`       : permissions for the MPU region
-    /// `config`            : MPU region configuration
+    /// `unallocated_memory_start`  : start of unallocated memory
+    /// `unallocated_memory_size`   : size of unallocated memory
+    /// `min_region_size`           : minimum size of the region
+    /// `permissions`               : permissions for the region
+    /// `config`                    : MPU region configuration
     ///
     /// # Return Value
     ///
-    /// Returns the start and size of the MPU region. If it is infeasible to allocate
-    /// the MPU region, returns None.
+    /// Returns the start and size of the allocated MPU region. If it is infeasible to
+    /// allocate the MPU region, returns None.
     #[allow(unused_variables)]
     fn allocate_region(
         &self,
-        parent_start: *const u8,
-        parent_size: usize,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
         min_region_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        if min_region_size > parent_size {
+        if min_region_size > unallocated_memory_size {
             None
         } else {
-            Some((parent_start, min_region_size))
+            Some((unallocated_memory_start, min_region_size))
         }
     }
 
     /// Chooses the location for a process's memory, and allocates an MPU region
-    /// covering the app-owned portion.
+    /// covering the app-owned part.
     ///
     /// An implementation must choose a contiguous block of memory that is at
     /// least `min_memory_size` bytes in size and lies completely within the
-    /// specified parent region.
+    /// specified stretch of unallocated memory.
     ///
     /// It must also allocate an MPU region with the following properties:
     ///
     /// 1.  The region covers at least the first `initial_app_memory_size` bytes at the
     ///     beginning of the memory block.
-    /// 2.  The region does not intersect with the last `initial_kernel_memory_size`
+    /// 2.  The region does not overlap the last `initial_kernel_memory_size`
     ///     bytes.
     /// 3.  The region has the user mode permissions specified by `permissions`.
     ///
     /// The end address of app-owned memory will increase in the future, so the
     /// implementation should choose the location of the process memory block such that
     /// it is possible for the MPU region to grow along with it. The implementation must
-    /// store state for the allocated region in `config`.
+    /// store the allocated region in `config`. The allocated region may not overlap
+    /// any of the regions already stored in `config`.
     ///
     /// # Arguments
     ///
-    /// `parent_start`              : start of the parent region
-    /// `parent_size`               : size of the parent region
+    /// `unallocated_memory_start`  : start of unallocated memory
+    /// `unallocated_memory_size`   : size of unallocated memory
     /// `min_memory_size`           : minimum total memory to allocate for process
     /// `initial_app_memory_size`   : initial size for app memory
     /// `initial_kernel_memory_size`: initial size for kernel memory
@@ -97,8 +99,8 @@ pub trait MPU {
     #[allow(unused_variables)]
     fn allocate_app_memory_region(
         &self,
-        parent_start: *const u8,
-        parent_size: usize,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
@@ -112,10 +114,10 @@ pub trait MPU {
                 min_memory_size
             }
         };
-        if memory_size > parent_size {
+        if memory_size > unallocated_memory_size {
             None
         } else {
-            Some((parent_start, memory_size))
+            Some((unallocated_memory_start, memory_size))
         }
     }
 
@@ -128,6 +130,7 @@ pub trait MPU {
     ///
     /// `app_memory_break`      : new address for the end of app memory
     /// `kernel_memory_break`   : new address for the start of kernel memory
+    /// `permissions`           : permissions for the MPU region
     /// `config`                : MPU region configuration
     ///
     /// # Return Value
@@ -139,6 +142,7 @@ pub trait MPU {
         &self,
         app_memory_break: *const u8,
         kernel_memory_break: *const u8,
+        permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
         if (app_memory_break as usize) > (kernel_memory_break as usize) {

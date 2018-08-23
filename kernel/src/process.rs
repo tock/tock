@@ -169,11 +169,11 @@ pub trait ProcessType {
     fn setup_mpu(&self);
 
     /// Allocate a new MPU region for the process that is at least `min_region_size`
-    /// bytes and lies within the specified parent memory block.
+    /// bytes and lies within the specified stretch of unallocated memory.
     fn add_mpu_region(
         &self,
-        parent_start: *const u8,
-        parent_size: usize,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<(*const u8, usize)>;
 
@@ -560,14 +560,14 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
 
     fn add_mpu_region(
         &self,
-        parent_start: *const u8,
-        parent_size: usize,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<(*const u8, usize)> {
         match self.mpu_config.map(|mut config| {
             match self.mpu.allocate_region(
-                parent_start,
-                parent_size,
+                unallocated_memory_start,
+                unallocated_memory_size,
                 min_region_size,
                 mpu::Permissions::ReadWriteExecute,
                 &mut config,
@@ -603,6 +603,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
             } else if let Err(_) = self.mpu.update_app_memory_region(
                 new_break,
                 self.kernel_memory_break.get(),
+                mpu::Permissions::ReadWriteExecute,
                 &mut config,
             ) {
                 Err(Error::OutOfMemory)
@@ -636,10 +637,12 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
             let new_break = self.kernel_memory_break.get().offset(-(size as isize));
             if new_break < self.app_break.get() {
                 None
-            } else if let Err(_) =
-                self.mpu
-                    .update_app_memory_region(self.app_break.get(), new_break, &mut config)
-            {
+            } else if let Err(_) = self.mpu.update_app_memory_region(
+                self.app_break.get(),
+                new_break,
+                mpu::Permissions::ReadWriteExecute,
+                &mut config,
+            ) {
                 None
             } else {
                 self.kernel_memory_break.set(new_break);

@@ -129,17 +129,12 @@ impl MPU {
 
 #[derive(Copy, Clone)]
 pub struct CortexMConfig {
-    memory_info: Option<ProcessMemoryInfo>,
     regions: [Region; 8],
-    next_region_num: usize,
 }
-
-const APP_MEMORY_REGION_NUM: usize = 0;
 
 impl Default for CortexMConfig {
     fn default() -> CortexMConfig {
         CortexMConfig {
-            memory_info: None,
             regions: [
                 Region::empty(0),
                 Region::empty(1),
@@ -150,29 +145,22 @@ impl Default for CortexMConfig {
                 Region::empty(6),
                 Region::empty(7),
             ],
-            next_region_num: 1, // Region 0 is reserved for app memory
         }
     }
 }
 
 #[derive(Copy, Clone)]
-pub struct ProcessMemoryInfo {
-    memory_start: *const u8,
-    memory_size: usize,
-    permissions: Permissions,
-}
-
-#[derive(Copy, Clone)]
 pub struct Region {
+    location: Option<(*const u8, usize)>,
     base_address: FieldValue<u32, RegionBaseAddress::Register>,
     attributes: FieldValue<u32, RegionAttributes::Register>,
 }
 
 impl Region {
     fn new(
-        address: u32,
-        size: u32,
-        region_num: u32,
+        start: *const u8,
+        size: usize,
+        region_num: usize,
         subregion_mask: Option<u32>,
         permissions: Permissions,
     ) -> Region {
@@ -199,15 +187,17 @@ impl Region {
         };
 
         // Base address register
-        let base_address = RegionBaseAddress::ADDR.val(address >> 5)
+        let base_address = RegionBaseAddress::ADDR.val((start as u32) >> 5)
             + RegionBaseAddress::VALID::UseRBAR
-            + RegionBaseAddress::REGION.val(region_num);
+            + RegionBaseAddress::REGION.val(region_num as u32);
 
-        let size = math::log_base_two(size) - 1;
+        let size_value = math::log_base_two(size as u32) - 1;
 
         // Attributes register
-        let mut attributes =
-            RegionAttributes::ENABLE::SET + RegionAttributes::SIZE.val(size) + access + execute;
+        let mut attributes = RegionAttributes::ENABLE::SET
+            + RegionAttributes::SIZE.val(size_value)
+            + access
+            + execute;
 
         // If using subregions, add the mask
         if let Some(mask) = subregion_mask {
@@ -215,19 +205,61 @@ impl Region {
         }
 
         Region {
-            base_address,
-            attributes,
+            location: Some((start, size)),
+            base_address: base_address,
+            attributes: attributes,
         }
     }
 
-    fn empty(region_num: u32) -> Region {
+    fn empty(region_num: usize) -> Region {
         Region {
+            location: None,
             base_address: RegionBaseAddress::VALID::UseRBAR
-                + RegionBaseAddress::REGION.val(region_num),
+                + RegionBaseAddress::REGION.val(region_num as u32),
             attributes: RegionAttributes::ENABLE::CLEAR,
         }
     }
+
+    fn location(&self) -> Option<(*const u8, usize)> {
+        self.location
+    }
+
+    fn base_address(&self) -> FieldValue<u32, RegionBaseAddress::Register> {
+        self.base_address
+    }
+
+    fn attributes(&self) -> FieldValue<u32, RegionAttributes::Register> {
+        self.attributes
+    }
+
+    fn overlaps(&self, other_start: *const u8, other_size: usize) -> bool {
+        let other_start = other_start as usize;
+        let other_end = other_start + other_size;
+
+        let (region_start, region_end) = match self.location {
+            Some((region_start, region_size)) => {
+                let region_start = region_start as usize;
+                let region_end = region_start + region_size;
+                (region_start, region_end)
+            }
+            None => return false,
+        };
+
+        // Start of region overlaps
+        if other_start <= region_start && region_start < other_end {
+            return true;
+        }
+
+        // End of region overlaps
+        if other_start < region_end && region_end <= other_end {
+            return true;
+        }
+
+        false
+    }
 }
+
+const APP_MEMORY_REGION_NUM: usize = 0;
 
 impl kernel::mpu::MPU for MPU {
     type MpuConfig = CortexMConfig;
@@ -253,21 +285,39 @@ impl kernel::mpu::MPU for MPU {
 
     fn allocate_region(
         &self,
-        parent_start: *const u8,
-        parent_size: usize,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
         min_region_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        let region_num = config.next_region_num;
+        // Check that no previously allocated regions overlap the unallocated memory.
+        for region in config.regions.iter() {
+            if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
+                return None;
+            }
+        }
 
-        // Cortex-M only supports 8 regions
-        if region_num >= 8 {
+        let mut region_num = config.regions.len();
+
+        // Look for an unused region number.
+        for (i, region) in config.regions.iter().enumerate() {
+            if i == APP_MEMORY_REGION_NUM {
+                continue;
+            }
+            if let None = region.location() {
+                region_num = i;
+                break;
+            }
+        }
+
+        // No unused region numbers.
+        if region_num == config.regions.len() {
             return None;
         }
 
         // Logical region
-        let mut start = parent_start as usize;
+        let mut start = unallocated_memory_start as usize;
         let mut size = min_region_size;
 
         // Physical MPU region
@@ -369,35 +419,41 @@ impl kernel::mpu::MPU for MPU {
         }
 
         // Check that our region fits in memory.
-        if start + size > (parent_start as usize) + parent_size {
+        if start + size > (unallocated_memory_start as usize) + unallocated_memory_size {
             return None;
         }
 
         let region = Region::new(
-            region_start as u32,
-            region_size as u32,
-            region_num as u32,
+            region_start as *const u8,
+            region_size,
+            region_num,
             subregion_mask,
             permissions,
         );
 
         config.regions[region_num] = region;
-        config.next_region_num += 1;
 
         Some((start as *const u8, size))
     }
 
     fn allocate_app_memory_region(
         &self,
-        parent_start: *const u8,
-        parent_size: usize,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        // Make sure there is enough memory for app memory and kernel memory
+        // Check that no previously allocated regions overlap the unallocated memory.
+        for region in config.regions.iter() {
+            if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
+                return None;
+            }
+        }
+
+        // Make sure there is enough memory for app memory and kernel memory.
         let memory_size = {
             if min_memory_size < initial_app_memory_size + initial_kernel_memory_size {
                 initial_app_memory_size + initial_kernel_memory_size
@@ -418,8 +474,8 @@ impl kernel::mpu::MPU for MPU {
             return None;
         }
 
-        // Ideally, the region will start at the start of the parent memory block
-        let mut region_start = parent_start as usize;
+        // Ideally, the region will start at the start of the unallocated memory.
+        let mut region_start = unallocated_memory_start as usize;
 
         // If the start and length don't align, move region up until it does
         if region_start % region_size != 0 {
@@ -448,29 +504,24 @@ impl kernel::mpu::MPU for MPU {
             subregions_used = (initial_app_memory_size * 8) / region_size + 1;
         }
 
-        // Make sure the region fits in the parent memory block
-        if region_start + region_size > (parent_start as usize) + parent_size {
+        // Make sure the region fits in the unallocated memory.
+        if region_start + region_size
+            > (unallocated_memory_start as usize) + unallocated_memory_size
+        {
             return None;
         }
 
         // For example: 11111111 & 11111110 = 11111110 --> Use only the first subregion (0 = enable)
         let subregion_mask = (0..subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
 
-        let memory_info = ProcessMemoryInfo {
-            memory_start: region_start as *const u8,
-            memory_size: region_size,
-            permissions: permissions,
-        };
-
         let region = Region::new(
-            region_start as u32,
-            region_size as u32,
-            APP_MEMORY_REGION_NUM as u32,
+            region_start as *const u8,
+            region_size,
+            APP_MEMORY_REGION_NUM,
             Some(subregion_mask),
             permissions,
         );
 
-        config.memory_info = Some(memory_info);
         config.regions[APP_MEMORY_REGION_NUM] = region;
 
         Some((region_start as *const u8, region_size))
@@ -480,21 +531,18 @@ impl kernel::mpu::MPU for MPU {
         &self,
         app_memory_break: *const u8,
         kernel_memory_break: *const u8,
+        permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        let (region_start, region_size, permissions) = match config.memory_info {
-            Some(memory_info) => (
-                memory_info.memory_start as u32,
-                memory_info.memory_size as u32,
-                memory_info.permissions,
-            ),
+        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM].location() {
+            Some((start, size)) => (start as usize, size),
             None => panic!(
                 "Error: Process tried to update app memory MPU region before it was created."
             ),
         };
 
-        let app_memory_break = app_memory_break as u32;
-        let kernel_memory_break = kernel_memory_break as u32;
+        let app_memory_break = app_memory_break as usize;
+        let kernel_memory_break = kernel_memory_break as usize;
 
         // Out of memory
         if app_memory_break > kernel_memory_break {
@@ -515,9 +563,9 @@ impl kernel::mpu::MPU for MPU {
         let subregion_mask = (0..num_subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
 
         let region = Region::new(
-            region_start,
+            region_start as *const u8,
             region_size,
-            APP_MEMORY_REGION_NUM as u32,
+            APP_MEMORY_REGION_NUM,
             Some(subregion_mask),
             permissions,
         );
@@ -532,8 +580,8 @@ impl kernel::mpu::MPU for MPU {
 
         // Set MPU regions
         for region in config.regions.iter() {
-            regs.rbar.write(region.base_address);
-            regs.rasr.write(region.attributes);
+            regs.rbar.write(region.base_address());
+            regs.rasr.write(region.attributes());
         }
     }
 }
