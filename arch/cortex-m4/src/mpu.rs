@@ -132,6 +132,8 @@ pub struct CortexMConfig {
     regions: [Region; 8],
 }
 
+const APP_MEMORY_REGION_NUM: usize = 0;
+
 impl Default for CortexMConfig {
     fn default() -> CortexMConfig {
         CortexMConfig {
@@ -149,6 +151,20 @@ impl Default for CortexMConfig {
     }
 }
 
+impl CortexMConfig {
+    fn unused_region_number(&self) -> Option<usize> {
+        for (number, region) in self.regions.iter().enumerate() {
+            if number == APP_MEMORY_REGION_NUM {
+                continue;
+            }
+            if let None = region.location() {
+                return Some(number);
+            }
+        }
+        None
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct Region {
     location: Option<(*const u8, usize)>,
@@ -158,8 +174,10 @@ pub struct Region {
 
 impl Region {
     fn new(
-        start: *const u8,
-        size: usize,
+        logical_start: *const u8,
+        logical_size: usize,
+        region_start: *const u8,
+        region_size: usize,
         region_num: usize,
         subregion_mask: Option<u32>,
         permissions: Permissions,
@@ -187,11 +205,11 @@ impl Region {
         };
 
         // Base address register
-        let base_address = RegionBaseAddress::ADDR.val((start as u32) >> 5)
+        let base_address = RegionBaseAddress::ADDR.val((region_start as u32) >> 5)
             + RegionBaseAddress::VALID::UseRBAR
             + RegionBaseAddress::REGION.val(region_num as u32);
 
-        let size_value = math::log_base_two(size as u32) - 1;
+        let size_value = math::log_base_two(region_size as u32) - 1;
 
         // Attributes register
         let mut attributes = RegionAttributes::ENABLE::SET
@@ -205,7 +223,7 @@ impl Region {
         }
 
         Region {
-            location: Some((start, size)),
+            location: Some((logical_start, logical_size)),
             base_address: base_address,
             attributes: attributes,
         }
@@ -259,8 +277,6 @@ impl Region {
     }
 }
 
-const APP_MEMORY_REGION_NUM: usize = 0;
-
 impl kernel::mpu::MPU for MPU {
     type MpuConfig = CortexMConfig;
 
@@ -298,32 +314,14 @@ impl kernel::mpu::MPU for MPU {
             }
         }
 
-        let mut region_num = config.regions.len();
-
-        // Look for an unused region number.
-        for (i, region) in config.regions.iter().enumerate() {
-            if i == APP_MEMORY_REGION_NUM {
-                continue;
-            }
-            if let None = region.location() {
-                region_num = i;
-                break;
-            }
-        }
-
-        // No unused region numbers.
-        if region_num == config.regions.len() {
-            return None;
-        }
+        let region_num = match config.unused_region_number() {
+            Some(number) => number,
+            None => return None,
+        };
 
         // Logical region
         let mut start = unallocated_memory_start as usize;
         let mut size = min_region_size;
-
-        // Physical MPU region
-        let mut region_start = start;
-        let mut region_size = size;
-        let mut subregion_mask = None;
 
         // Region start always has to align to 32 bytes
         if start % 32 != 0 {
@@ -334,6 +332,11 @@ impl kernel::mpu::MPU for MPU {
         if size < 32 {
             size = 32;
         }
+
+        // Physical MPU region (might be larger than logical region if some subregions are disabled)
+        let mut region_start = start;
+        let mut region_size = size;
+        let mut subregion_mask = None;
 
         // We can only create an MPU region if the size is a power of two and it divides
         // the start address. If this is not the case, the first thing we try to do to
@@ -413,17 +416,19 @@ impl kernel::mpu::MPU for MPU {
             }
         }
 
-        // Regions can't be greater than 4 GB.
-        if math::log_base_two(size as u32) >= 32 {
+        // Cortex-M regions can't be greater than 4 GB.
+        if math::log_base_two(region_size as u32) >= 32 {
             return None;
         }
 
-        // Check that our region fits in memory.
+        // Check that our logical region fits in memory.
         if start + size > (unallocated_memory_start as usize) + unallocated_memory_size {
             return None;
         }
 
         let region = Region::new(
+            start as *const u8,
+            size,
             region_start as *const u8,
             region_size,
             region_num,
@@ -517,6 +522,8 @@ impl kernel::mpu::MPU for MPU {
         let region = Region::new(
             region_start as *const u8,
             region_size,
+            region_start as *const u8,
+            region_size,
             APP_MEMORY_REGION_NUM,
             Some(subregion_mask),
             permissions,
@@ -563,6 +570,8 @@ impl kernel::mpu::MPU for MPU {
         let subregion_mask = (0..num_subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
 
         let region = Region::new(
+            region_start as *const u8,
+            region_size,
             region_start as *const u8,
             region_size,
             APP_MEMORY_REGION_NUM,
