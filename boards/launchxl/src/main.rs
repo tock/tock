@@ -71,6 +71,97 @@ impl kernel::Platform for Platform {
     }
 }
 
+/// Booster pack standard pinout
+///
+/// 1  -> 3v3
+/// 2  -> DIO23 (analog)
+/// 3  -> DIO3  (UARTRX)
+/// 4  -> DIO2  (UARTTX)
+/// 5  -> DIO22 (GPIO)
+/// 6  -> DIO24 (analog)
+/// 7  -> DIO10 (SPI CLK)
+/// 8  -> DIO21 (GPIO)
+/// 9  -> DIO4  (I2CSCL)
+/// 10 -> DIO5  (I2CSDA)
+///
+/// 11 -> DIO15 (GPIO)
+/// 12 -> DIO14 (SPI CS - other)
+/// 13 -> DIO13 (SPI CS - display)
+/// 14 -> DIO8  (SPI MISO)
+/// 15 -> DIO9  (SPI MOSI)
+/// 16 -> LPRST
+/// 17 -> unused
+/// 18 -> DIO11 (SPI CS - RF)
+/// 19 -> DIO12 (PWM)
+/// 20 -> GND
+///
+/// 21 -> 5v
+/// 22 -> GND
+/// 23 -> DIO25 (analog)
+/// 24 -> DIO26 (analog)
+/// 25 -> DIO17 (analog)
+/// 26 -> DIO28 (analog)
+/// 27 -> DIO29 (analog)
+/// 28 -> DIO30 (analog)
+/// 29 -> DIO0  (GPIO)
+/// 30 -> DIO1  (GPIO)
+///
+/// 31 -> DIO17
+/// 32 -> DIO16
+/// 33 -> TMS
+/// 34 -> TCK
+/// 35 -> BPRST
+/// 36 -> DIO18 (PWM)
+/// 37 -> DIO19 (PWM)
+/// 38 -> DIO20 (PWM)
+/// 39 -> DIO6  (PWM)
+/// 40 -> DIO7  (PWM)
+///
+unsafe fn configure_pins() {
+    cc26x2::gpio::PORT[0].enable_gpio();
+    cc26x2::gpio::PORT[1].enable_gpio();
+
+    cc26x2::gpio::PORT[2].enable_uart_rx();
+    cc26x2::gpio::PORT[3].enable_uart_tx();
+
+    cc26x2::gpio::PORT[4].enable_i2c_scl();
+    cc26x2::gpio::PORT[5].enable_i2c_sda();
+
+    cc26x2::gpio::PORT[6].enable_gpio(); // Red LED
+    cc26x2::gpio::PORT[7].enable_gpio(); // Green LED
+
+    // SPI MISO cc26x2::gpio::PORT[8]
+    // SPI MOSI cc26x2::gpio::PORT[9]
+    // SPI CLK  cc26x2::gpio::PORT[10]
+    // SPI CS   cc26x2::gpio::PORT[11]
+
+    // PWM      cc26x2::gpio::PORT[12]
+
+    cc26x2::gpio::PORT[13].enable_gpio();
+    cc26x2::gpio::PORT[14].enable_gpio();
+
+    cc26x2::gpio::PORT[15].enable_gpio();
+
+    // unused   cc26x2::gpio::PORT[16]
+    // unused   cc26x2::gpio::PORT[17]
+
+    // PWM      cc26x2::gpio::PORT[18]
+    // PWM      cc26x2::gpio::PORT[19]
+    // PWM      cc26x2::gpio::PORT[20]
+
+    cc26x2::gpio::PORT[21].enable_gpio();
+    cc26x2::gpio::PORT[22].enable_gpio();
+
+    // analog   cc26x2::gpio::PORT[23]
+    // analog   cc26x2::gpio::PORT[24]
+    // analog   cc26x2::gpio::PORT[25]
+    // analog   cc26x2::gpio::PORT[26]
+    // analog   cc26x2::gpio::PORT[27]
+    // analog   cc26x2::gpio::PORT[28]
+    // analog   cc26x2::gpio::PORT[29]
+    // analog   cc26x2::gpio::PORT[30]
+}
+
 #[no_mangle]
 pub unsafe fn reset_handler() {
     cc26x2::init();
@@ -99,6 +190,8 @@ pub unsafe fn reset_handler() {
 
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();
+
+    configure_pins();
 
     // LEDs
     let led_pins = static_init!(
@@ -129,11 +222,11 @@ pub unsafe fn reset_handler() {
             (
                 &cc26x2::gpio::PORT[13],
                 capsules::button::GpioMode::LowWhenPressed
-            ), // Button 2
+            ), // Button 1
             (
                 &cc26x2::gpio::PORT[14],
                 capsules::button::GpioMode::LowWhenPressed
-            ), // Button 1
+            ), // Button 2
         ]
     );
     let button = static_init!(
@@ -164,7 +257,7 @@ pub unsafe fn reset_handler() {
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
 
-    cc26x2::uart::UART0.initialize_and_set_pins(3, 2);
+    cc26x2::uart::UART0.initialize();
 
     let console = static_init!(
         capsules::console::Console<UartDevice>,
@@ -200,33 +293,19 @@ pub unsafe fn reset_handler() {
 
     // TODO(alevy): Enable I2C, but it's not used anywhere yet. We need a system
     // call driver
-    cc26x2::i2c::I2C0.initialize_and_set_pins(5, 4);
+    cc26x2::i2c::I2C0.initialize();
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static cc26x2::gpio::GPIOPin; 21],
+        [&'static cc26x2::gpio::GPIOPin; 5],
         [
-            &cc26x2::gpio::PORT[1],
-            &cc26x2::gpio::PORT[8],
-            &cc26x2::gpio::PORT[9],
-            &cc26x2::gpio::PORT[10],
-            &cc26x2::gpio::PORT[11],
-            &cc26x2::gpio::PORT[12],
-            &cc26x2::gpio::PORT[15],
-            &cc26x2::gpio::PORT[16],
-            &cc26x2::gpio::PORT[17],
-            &cc26x2::gpio::PORT[18],
-            &cc26x2::gpio::PORT[19],
-            &cc26x2::gpio::PORT[20],
-            &cc26x2::gpio::PORT[21],
+            // This is the order they appear on the launchxl headers.
+            // Pins 5, 8, 11, 29, 30
             &cc26x2::gpio::PORT[22],
-            &cc26x2::gpio::PORT[23],
-            &cc26x2::gpio::PORT[24],
-            &cc26x2::gpio::PORT[25],
-            &cc26x2::gpio::PORT[26],
-            &cc26x2::gpio::PORT[27],
-            &cc26x2::gpio::PORT[30],
-            &cc26x2::gpio::PORT[31],
+            &cc26x2::gpio::PORT[21],
+            &cc26x2::gpio::PORT[15],
+            &cc26x2::gpio::PORT[0],
+            &cc26x2::gpio::PORT[1],
         ]
     );
     let gpio = static_init!(

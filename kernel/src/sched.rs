@@ -163,6 +163,24 @@ impl Kernel {
         self.grant_counter.get()
     }
 
+    /// Cause all apps to fault.
+    ///
+    /// This will call `set_fault_state()` on each app, causing the app to enter
+    /// the state as if it had crashed (for example with an MPU violation). If
+    /// the process is configured to be restarted it will be.
+    ///
+    /// Only callers with the `ProcessManagementCapability` can call this
+    /// function. This restricts general capsules from being able to call this
+    /// function, since capsules should not be able to arbitrarily restart all
+    /// apps.
+    pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
+        for p in self.processes.iter() {
+            p.map(|process| {
+                process.set_fault_state();
+            });
+        }
+    }
+
     /// Main loop.
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,

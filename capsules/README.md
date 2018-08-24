@@ -124,3 +124,12 @@ Other capsules that implement reusable logic.
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
 - **[AES Encryption](src/aes_ccm.rs)**: AES-CCM encryption.
+
+
+### Debugging Capsules
+
+These are selectively included on a board to help with testing and debugging
+various elements of Tock.
+
+- **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
+  to enter a fault state when a button is pressed.

@@ -1,5 +1,7 @@
 //! Tock syscall number definitions and arch-agnostic interface trait.
 
+use core::fmt::Write;
+
 use process;
 
 /// The syscall number assignments.
@@ -114,4 +116,16 @@ pub trait UserspaceKernelBoundary {
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
     ) -> (*mut usize, ContextSwitchReason);
+
+    /// Display any general information about the fault.
+    unsafe fn fault_fmt(&self, writer: &mut Write);
+
+    /// Display architecture specific (e.g. CPU registers or status flags) data
+    /// for a process identified by its stack pointer.
+    unsafe fn process_detail_fmt(
+        &self,
+        stack_pointer: *const usize,
+        state: &Self::StoredState,
+        writer: &mut Write,
+    );
 }
