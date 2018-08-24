@@ -173,6 +173,14 @@ impl Oscillator {
         while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
     }
 
+    pub fn switch_to_lf_xosc(&self) {
+        let regs = &*self.r_regs;
+
+        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
+        regs.ctl0.modify(Ctl0::XOSC_LF_DIG_BYPASS::CLEAR);
+        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_LF);
+
+    }
     pub fn switch_to_rc_osc(&self) {
         let regs = &*self.r_regs;
 
@@ -235,7 +243,7 @@ impl Oscillator {
 
     // Set the clock source in DDI_0_OSC
     pub fn clock_source_set(&self, clock: ClockType, src: u8) {
-        let regs = &*self.wr_regs;
+        let regs = &*self.r_regs;
         match clock {
             ClockType::LF => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(src as u32));

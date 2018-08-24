@@ -1,3 +1,4 @@
+/*
 unsafe extern "C" fn aux_adi_ddi_safe_write(n_addr: u32, n_data: u32, n_size: u32) {
     //let mut bIrqEnabled : bool = CPUcpsid() == 0;
 
@@ -41,11 +42,12 @@ unsafe extern "C" fn aux_adi_ddi_safe_read(n_addr: u32, n_size: u32) -> u32 {
         }*/
     ret
 }
-
+*/
 pub unsafe extern "C" fn ddi32reg_write(ui32Base: u32, ui32Reg: u32, ui32Val: u32) {
     *(ui32Base.wrapping_add(ui32Reg) as (*mut usize)) = ui32Val as (usize);
 }
 
+/*
 pub unsafe extern "C" fn ddi16bit_write(
     ui32Base: u32,
     ui32Reg: u32,
@@ -64,7 +66,7 @@ pub unsafe extern "C" fn ddi16bit_write(
     ui32Data = if ui32WrData != 0 { ui32Mask } else { 0x0u32 };
     *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32Data) as (usize);
 }
-
+*/
 pub unsafe extern "C" fn ddi16bitfield_write(
     ui32Base: u32,
     ui32Reg: u32,
@@ -85,7 +87,7 @@ pub unsafe extern "C" fn ddi16bitfield_write(
     ui32WrData = (ui32Data as (i32) << ui32Shift) as (u32);
     *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32WrData) as (usize);
 }
-
+/*
 pub unsafe extern "C" fn ddi16bit_read(ui32Base: u32, ui32Reg: u32, mut ui32Mask: u32) -> u16 {
     let mut ui32RegAddr: u32;
     let mut ui16Data: u16;
@@ -98,7 +100,7 @@ pub unsafe extern "C" fn ddi16bit_read(ui32Base: u32, ui32Reg: u32, mut ui32Mask
     ui16Data = (ui16Data as (u32) & ui32Mask) as (u16);
     ui16Data
 }
-
+*/
 pub unsafe extern "C" fn ddi16bitfield_read(
     ui32Base: u32,
     ui32Reg: u32,

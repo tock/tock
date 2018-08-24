@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use cc26x2::{commands as cmd, osc, rfc};
+use cc26x2::{commands as cmd, osc, rfc, rom_fns::oscfh};
 use core::cell::Cell;
 use core::ptr;
 use fixedvec::FixedVec;
@@ -104,17 +104,22 @@ impl Radio {
     pub fn power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::IEEE);
 
-        osc::OSC.request_switch_to_hf_xosc();
+        unsafe { oscfh::OSCHF_TurnOnXosc() };
+        //osc::OSC.request_switch_to_hf_xosc();
 
-        self.rfc.enable();
-        self.rfc.start_rat();
+        //self.rfc.enable();
+        //self.rfc.start_rat();
 
-        osc::OSC.switch_to_hf_xosc();
-
+        //osc::OSC.switch_to_hf_xosc();
+        unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
+        
+        // let source = osc::OSC.clock_source_get(osc::ClockType::HF);
+        /*
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
             self.rfc.setup(reg_overrides, 0xFFF)
         }
+        */
     }
 
     pub fn power_down(&self) {
@@ -144,6 +149,7 @@ impl Radio {
 impl rfc::RFCoreClient for Radio {
     fn command_done(&self) {
         // Map standard callback to a command client.
+        self.push_state(State::Done);
     }
 
     fn tx_done(&self) {
@@ -159,6 +165,7 @@ impl rfc::RFCoreClient for Radio {
             .get()
             .map(|client| client.send_done(buf.unwrap(), ReturnCode::SUCCESS));
     }
+
     fn rx_ok(&self) {}
 }
 
@@ -180,8 +187,9 @@ impl Driver for Radio {
         }
     }
 
-    fn command(&self, minor_num: usize, r2: usize, _r3: usize, _caller_id: AppId) -> ReturnCode {
+    fn command(&self, minor_num: usize, _r2: usize, _r3: usize, _caller_id: AppId) -> ReturnCode {
         let command: RfcDriverCommands = minor_num.into();
+        let _state = self.pop_state();
         match command {
             // Handle callback for command status after command is finished
             RfcDriverCommands::Direct => {

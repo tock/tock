@@ -35,7 +35,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-use rom_fns::{aux_sysif, setup_rom};
+use rom_fns::setup_rom;
 
 #[allow(non_snake_case)]
 pub fn perform() {

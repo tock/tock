@@ -67,7 +67,7 @@ struct PrcmRegisters {
     pub pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_peripheral: WriteOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved5: ReadOnly<u32>,
+    _reserved5: [ReadOnly<u8>; 0x04],
 
     // Power Domain Status 0
     pub pd_stat0: ReadOnly<u32, PowerDomainStatus0::Register>,
@@ -75,18 +75,18 @@ struct PrcmRegisters {
     pub pd_stat0_serial: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat0_periph: ReadOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved_4: [u32; 11],
+    _reserved6: [ReadOnly<u8>; 0x2C],
 
     // Power Domain Control 1
     pub pd_ctl1: ReadWrite<u32, PowerDomain1::Register>,
 
-    _reserved_4_: u32,
+    _reserved7: [ReadOnly<u8>; 0x04],
 
     pub pd_ctl1_cpu: ReadWrite<u32, PowerDomainSingle::Register>,
     pub pd_ctl1_rfc: ReadWrite<u32, PowerDomainSingle::Register>,
     pub pd_ctl1_vims: ReadWrite<u32, PowerDomainSingle::Register>,
 
-    _reserved6: u32,
+    _reserved8: [ReadOnly<u8>; 0x04],
 
     // Power Domain Status 1
     pub pd_stat1: ReadOnly<u32, PowerDomainStatus1::Register>,

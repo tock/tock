@@ -64,12 +64,10 @@ register_bitfields! [
     ]
 ];
 
-pub enum WUMode {
-    Active = 0,
-    LowPower = 1,
-    PowerDownActive = 2,
-    PowerDownLowPower = 3,
-}
+pub const WUMODE_A: u8 = 0;
+pub const WUMODE_LP: u8 = 1;
+pub const WUMODE_PDA: u8 = 2;
+pub const WUMODE_PDLP: u8 = 3;
 
 const AUX_SYSIF_BASE: StaticRef<AuxSysIfRegisters> =
     unsafe { StaticRef::new(0x400C_6000 as *const AuxSysIfRegisters) };
@@ -87,31 +85,32 @@ impl Aux {
         }
     }
 
-    pub fn operation_mode_request(&self, new_mode: WUMode) {
-        let regs = self.sysif_regs;
+    pub fn operation_mode_request(&self, new_mode: u8) {
+        let regs = &*self.sysif_regs;
         match new_mode {
-            WUMode::Active => {
+            WUMODE_A => {
                 regs.op_mode_req.modify(Req::REQ::Active);
             }
-            WUMode::LowPower => {
+            WUMODE_LP => {
                 regs.op_mode_req.modify(Req::REQ::LowPower);
             }
-            WUMode::PowerDownActive => {
+            WUMODE_PDA => {
                 regs.op_mode_req.modify(Req::REQ::PowerDownActive);
             }
-            WUMode::PowerDownLowPower => {
+            WUMODE_PDLP => {
                 regs.op_mode_req.modify(Req::REQ::PowerDownLowPower);
             }
+            _ => panic!("Not a valid op mode")
         }
     }
-
+    
     pub fn operation_mode_ack(&self) -> u8 {
-        let regs = self.sysif_regs;
+        let regs = &*self.sysif_regs;
         regs.op_mode_ack.read(Ack::ACK) as u8
     }
 
     pub fn aux_wu_enable(&self, enable: bool) {
-        let regs = self.sysif_regs;
+        let regs = &*self.sysif_regs;
         if enable {
             regs.wu_gate.modify(WUGate::EN::SET);
         } else {

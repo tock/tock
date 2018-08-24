@@ -37,8 +37,6 @@ pub enum RfcDriverCommands {
     NotSupported,
 }
 
-type CommandStatus = Result<u32, u32>;
-
 #[derive(Clone, Copy)]
 pub enum RFCommandStatus {
     // Operation not finished

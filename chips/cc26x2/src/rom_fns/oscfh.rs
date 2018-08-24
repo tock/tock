@@ -31,7 +31,32 @@
 // Clock switching and source select code from Texas Instruments
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
-use rom_fns::ddi;
+use rom_fns::{adi, ddi};
+
+#[derive(Copy)]
+#[repr(C)]
+pub struct Struct1 {
+    pub previousStartupTimeInUs: u32,
+    pub timeXoscOff_CV: u32,
+    pub timeXoscOn_CV: u32,
+    pub timeXoscStable_CV: u32,
+    pub tempXoscOff: i32,
+}
+
+impl Clone for Struct1 {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+#[allow(non_upper_case_globals)]
+static mut oscHfGlobals: Struct1 = Struct1 {
+    previousStartupTimeInUs: 0u32,
+    timeXoscOff_CV: 0u32,
+    timeXoscOn_CV: 0u32,
+    timeXoscStable_CV: 0u32,
+    tempXoscOff: 0i32,
+};
 
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
@@ -95,161 +120,149 @@ impl Clone for RomFuncTable {
 }
 
 pub unsafe fn source_switch() {
-    ((*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch);
+    adi::safe_hapi_void((*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch);
 }
 
-/*
-pub mod ddi {
-    unsafe extern "C" fn aux_adi_ddi_safe_write(n_addr: u32, n_data: u32, n_size: u32) {
-        //let mut bIrqEnabled : bool = CPUcpsid() == 0;
+unsafe extern "C" fn AONRTCCurrentCompareValueGet() -> u32 {
+    *((0x40092000i32 + 0x30i32) as (*mut usize)) as (u32)
+}
 
-        'loop1: loop {
-            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
-                break;
-            }
-        }
-        if n_size == 2u32 {
-            *(n_addr as (*mut u16)) = n_data as (u16);
-        } else if n_size == 1u32 {
-            *(n_addr as (*mut u8)) = n_data as (u8);
-        } else {
-            *(n_addr as (*mut usize)) = n_data as (usize);
-        }
-        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
-
-        /*if bIrqEnabled {
-        CPUcpsie();
-    }*/
+#[no_mangle]
+pub unsafe extern "C" fn OSCHF_GetStartupTime(mut timeUntilWakeupInMs: u32) -> u32 {
+    let mut deltaTimeSinceXoscOnInMs: u32;
+    let mut deltaTempSinceXoscOn: i32;
+    let mut newStartupTimeInUs: u32;
+    deltaTimeSinceXoscOnInMs = 1000u32
+        .wrapping_mul(AONRTCCurrentCompareValueGet().wrapping_sub(oscHfGlobals.timeXoscOn_CV))
+        >> 16i32;
+    deltaTempSinceXoscOn = AONBatMonTemperatureGetDegC() - oscHfGlobals.tempXoscOff;
+    /*(*(*(0x10000180i32 as (*mut u32)).offset(27isize) as (*mut u32))
+        .offset(0isize) as (unsafe extern "C" fn() -> i32))()
+        - oscHfGlobals.tempXoscOff;
+        */
+    if deltaTempSinceXoscOn < 0i32 {
+        deltaTempSinceXoscOn = -deltaTempSinceXoscOn;
     }
-
-    unsafe extern "C" fn aux_adi_ddi_safe_read(n_addr: u32, n_size: u32) -> u32 {
-        let mut ret: u32;
-        //let mut bIrqEnabled: bool = CPUcpsid() == 0;
-        'loop1: loop {
-            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
-                break;
-            }
+    if timeUntilWakeupInMs.wrapping_add(deltaTimeSinceXoscOnInMs) > 3000u32
+        || deltaTempSinceXoscOn > 5i32
+        || oscHfGlobals.timeXoscStable_CV < oscHfGlobals.timeXoscOn_CV
+        || oscHfGlobals.previousStartupTimeInUs == 0u32
+    {
+        newStartupTimeInUs = 2000u32;
+        if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x1usize == 0usize {
+            newStartupTimeInUs = ((*((0x50003000i32 + 0x1faci32) as (*mut usize)) & 0xffusize)
+                >> 0i32)
+                .wrapping_mul(125usize) as (u32);
         }
-        if n_size == 2u32 {
-            ret = *(n_addr as (*mut u16)) as (u32);
-        } else if n_size == 1u32 {
-            ret = *(n_addr as (*mut u8)) as (u32);
-        } else {
-            ret = *(n_addr as (*mut usize)) as (u32);
+    } else {
+        newStartupTimeInUs = 1000000u32.wrapping_mul(
+            oscHfGlobals
+                .timeXoscStable_CV
+                .wrapping_sub(oscHfGlobals.timeXoscOn_CV),
+        ) >> 16i32;
+        newStartupTimeInUs = newStartupTimeInUs.wrapping_add(newStartupTimeInUs >> 2i32);
+        if newStartupTimeInUs < oscHfGlobals.previousStartupTimeInUs {
+            newStartupTimeInUs = oscHfGlobals.previousStartupTimeInUs;
         }
-        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
-        /*if bIrqEnabled {
-            CPUcpsie();
-        }*/
-        ret
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn ddi32reg_write(ui32Base: u32, ui32Reg: u32, ui32Val: u32) {
-        *(ui32Base.wrapping_add(ui32Reg) as (*mut usize)) = ui32Val as (usize);
+    if newStartupTimeInUs < 200u32 {
+        newStartupTimeInUs = 200u32;
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn ddi16bit_write(
-        ui32Base: u32,
-        ui32Reg: u32,
-        mut ui32Mask: u32,
-        ui32WrData: u32,
-    ) {
-        let mut ui32RegAddr: u32;
-        let ui32Data: u32;
-        ui32RegAddr = ui32Base
-            .wrapping_add(ui32Reg << 1i32)
-            .wrapping_add(0x400u32);
-        if ui32Mask & 0xffff0000u32 != 0 {
-            ui32RegAddr = ui32RegAddr.wrapping_add(4u32);
-            ui32Mask = ui32Mask >> 16i32;
-        }
-        ui32Data = if ui32WrData != 0 { ui32Mask } else { 0x0u32 };
-        *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32Data) as (usize);
+    if newStartupTimeInUs > 4000u32 {
+        newStartupTimeInUs = 4000u32;
     }
+    newStartupTimeInUs
+}
 
-    #[no_mangle]
-    pub unsafe extern "C" fn ddi16bitfield_write(
-        ui32Base: u32,
-        ui32Reg: u32,
-        mut ui32Mask: u32,
-        mut ui32Shift: u32,
-        ui32Data: u16,
-    ) {
-        let mut ui32RegAddr: u32;
-        let ui32WrData: u32;
-        ui32RegAddr = ui32Base
-            .wrapping_add(ui32Reg << 1i32)
-            .wrapping_add(0x400u32);
-        if ui32Shift >= 16u32 {
-            ui32Shift = ui32Shift.wrapping_sub(16u32);
-            ui32RegAddr = ui32RegAddr.wrapping_add(4u32);
-            ui32Mask = ui32Mask >> 16i32;
-        }
-        ui32WrData = (ui32Data as (i32) << ui32Shift) as (u32);
-        *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32WrData) as (usize);
-    }
+unsafe extern "C" fn OSCHfSourceReady() -> bool {
+    /*
+    (if (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(3isize)
+        as (unsafe extern "C" fn(u32, u32, u32, u32) -> u16))(
+        0x400ca000u32, 0x3cu32, 0x1u32, 0u32
+    ) != 0
+    */
+    (if ddi::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x1u32, 0u32) != 0 {
+        1i32
+    } else {
+        0i32
+    }) != 0
+}
 
-    #[no_mangle]
-    pub unsafe extern "C" fn ddi16bit_read(ui32Base: u32, ui32Reg: u32, mut ui32Mask: u32) -> u16 {
-        let mut ui32RegAddr: u32;
-        let mut ui16Data: u16;
-        ui32RegAddr = ui32Base.wrapping_add(ui32Reg).wrapping_add(0x0u32);
-        if ui32Mask & 0xffff0000u32 != 0 {
-            ui32RegAddr = ui32RegAddr.wrapping_add(2u32);
-            ui32Mask = ui32Mask >> 16i32;
-        }
-        ui16Data = *(ui32RegAddr as (*mut u16));
-        ui16Data = (ui16Data as (u32) & ui32Mask) as (u16);
-        ui16Data
-    }
+#[no_mangle]
+pub unsafe extern "C" fn OSCHF_TurnOnXosc() {
+    /*
+     * (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
+        as (unsafe extern "C" fn(u32, u32)))(0x1u32, 0x1u32);
+        */
+    clock_source_set(0x1u32, 0x1u32);
+    oscHfGlobals.timeXoscOn_CV = AONRTCCurrentCompareValueGet();
+}
 
-    #[no_mangle]
-    pub unsafe extern "C" fn ddi16bitfield_read(
-        ui32Base: u32,
-        ui32Reg: u32,
-        mut ui32Mask: u32,
-        mut ui32Shift: u32,
-    ) -> u16 {
-        let mut ui32RegAddr: u32;
-        let mut ui16Data: u16;
-        ui32RegAddr = ui32Base.wrapping_add(ui32Reg).wrapping_add(0x0u32);
-        if ui32Shift >= 16u32 {
-            ui32Shift = ui32Shift.wrapping_sub(16u32);
-            ui32RegAddr = ui32RegAddr.wrapping_add(2u32);
-            ui32Mask = ui32Mask >> 16i32;
+#[no_mangle]
+pub unsafe extern "C" fn OSCHF_AttemptToSwitchToXosc() -> bool {
+    let mut startupTimeInUs: u32;
+    let mut prevLimmit25InUs: u32;
+    if clock_source_get(0x1u32) == 0x1u32
+    /*
+    if (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(0isize)
+        as (unsafe extern "C" fn(u32) -> u32))(0x1u32) == 0x1u32
+        */
+    {
+        true
+    } else if OSCHfSourceReady() {
+        // OSCHfSourceSwitch();
+        source_switch();
+        oscHfGlobals.timeXoscStable_CV = AONRTCCurrentCompareValueGet();
+        startupTimeInUs = 1000000u32.wrapping_mul(
+            oscHfGlobals
+                .timeXoscStable_CV
+                .wrapping_sub(oscHfGlobals.timeXoscOn_CV),
+        ) >> 16i32;
+        prevLimmit25InUs = oscHfGlobals.previousStartupTimeInUs;
+        prevLimmit25InUs = prevLimmit25InUs.wrapping_sub(prevLimmit25InUs >> 2i32);
+        oscHfGlobals.previousStartupTimeInUs = startupTimeInUs;
+        if prevLimmit25InUs > startupTimeInUs {
+            oscHfGlobals.previousStartupTimeInUs = prevLimmit25InUs;
         }
-        ui16Data = *(ui32RegAddr as (*mut u16));
-        ui16Data = (ui16Data as (u32) & ui32Mask) as (u16);
-        ui16Data = (ui16Data as (i32) >> ui32Shift) as (u16);
-        ui16Data
+        true
+    } else {
+        false
     }
 }
 
-pub mod adi {
-    pub unsafe extern "C" fn safe_hapi_void(f_ptr: unsafe extern "C" fn()) {
-        'loop1: loop {
-            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
-                break;
-            }
-        }
-        f_ptr();
-        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
+#[no_mangle]
+pub unsafe extern "C" fn OSCHF_SwitchToRcOscTurnOffXosc() {
+    /*
+    (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
+        as (unsafe extern "C" fn(u32, u32)))(0x1u32, 0x0u32);
+        */
+    clock_source_set(0x1u32, 0x0u32);
+    /*
+    if (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(0isize)
+        as (unsafe extern "C" fn(u32) -> u32))(0x1u32) != 0x0u32
+        */
+    if clock_source_get(0x1u32) != 0x0u32 {
+        source_switch();
+        // OSCHfSourceSwitch();
     }
-
-    #[allow(unused)]
-    pub unsafe extern "C" fn safe_hapi_aux_adi_select(
-        f_ptr: unsafe extern "C" fn(u8),
-        mut ut8signal: u8,
-    ) {
-        'loop1: loop {
-            if !(*((0x400c8000i32 + 0x0i32) as (*mut usize)) == 0) {
-                break;
-            }
-        }
-        f_ptr(ut8signal);
-        *((0x400c8000i32 + 0x0i32) as (*mut usize)) = 1usize;
-    }
+    oscHfGlobals.timeXoscOff_CV = AONRTCCurrentCompareValueGet();
+    oscHfGlobals.tempXoscOff = AONBatMonTemperatureGetDegC();
+    /*
+        (*(*(0x10000180i32 as (*mut u32)).offset(27isize) as (*mut u32))
+        .offset(0isize) as (unsafe extern "C" fn() -> i32))();
+        */
 }
-*/
+
+#[no_mangle]
+pub unsafe extern "C" fn AONBatMonTemperatureGetDegC() -> i32 {
+    let mut signedTemp: i32;
+    let mut tempCorrection: i32;
+    let mut voltageSlope: i8;
+    signedTemp = *((0x40095000i32 + 0x30i32) as (*mut usize)) as (i32) << 32i32 - 9i32 - 8i32
+        >> 32i32 - 9i32 - 8i32;
+    voltageSlope = *((0x50001000i32 + 0x30ci32) as (*mut u8)) as (i8);
+    tempCorrection = voltageSlope as (i32)
+        * (*((0x40095000i32 + 0x28i32) as (*mut usize)) as (i32) - 0x300i32)
+        >> 4i32;
+    signedTemp - tempCorrection + 0x80i32 >> 8i32
+}
