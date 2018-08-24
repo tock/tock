@@ -17,7 +17,6 @@ pub mod commands;
 pub mod crt1;
 pub mod gpio;
 pub mod i2c;
-pub mod ioc;
 pub mod osc;
 pub mod peripheral_interrupts;
 pub mod prcm;
