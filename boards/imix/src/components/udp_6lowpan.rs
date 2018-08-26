@@ -14,6 +14,7 @@
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
+// Last Modified: 8/26/2018
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
@@ -73,7 +74,7 @@ const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by u
 //
 //   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
 //   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
-//   4. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
+//   3. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
 
 const UDP_HDR_SIZE: usize = 8;
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
