@@ -248,7 +248,7 @@ const FRAG_TIMEOUT: u32 = 60;
 /// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
 pub trait SixlowpanRxClient {
-    fn receive(&self, buf: &[u8], len: usize, result: ReturnCode);
+    fn receive<'a>(&self, buf: &'a [u8], len: usize, result: ReturnCode);
 }
 
 pub mod lowpan_frag {
@@ -423,8 +423,7 @@ impl TxState<'a> {
                 self.src_pan.get(),
                 self.src_mac_addr.get(),
                 self.security.get(),
-            )
-            .map_err(|frame| (ReturnCode::FAIL, frame))?;
+            ).map_err(|frame| (ReturnCode::FAIL, frame))?;
 
         // If this is the first fragment
         if !self.busy.get() {
@@ -952,8 +951,7 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                 }
                 state.packet.replace(packet);
                 (Some(state), ReturnCode::SUCCESS)
-            })
-            .unwrap_or((None, ReturnCode::ENOMEM))
+            }).unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     // This function returns an Err if an error occurred, returns Ok(Some(RxState))
@@ -1018,8 +1016,7 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                         }
                     }
                 }
-            })
-            .unwrap_or((None, ReturnCode::ENOMEM))
+            }).unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     #[allow(dead_code)]

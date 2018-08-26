@@ -269,10 +269,8 @@ impl App {
                             .transmit_advertisement(kernel_tx, total_len, channel);
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::FAIL)
-            })
-            .unwrap_or(ReturnCode::FAIL)
+                    }).unwrap_or(ReturnCode::FAIL)
+            }).unwrap_or(ReturnCode::FAIL)
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -460,8 +458,7 @@ where
                             for (dst, src) in userland.iter_mut().zip(buf[0..len as usize].iter()) {
                                 *dst = *src;
                             }
-                        })
-                        .is_some();
+                        }).is_some();
 
                     if success {
                         app.scan_callback.map(|mut cb| {
@@ -576,8 +573,7 @@ where
                     } else {
                         ReturnCode::EBUSY
                     }
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             // Stop periodic advertisements or passive scanning
             1 => self
@@ -588,8 +584,7 @@ where
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EBUSY,
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             // Configure transmitted power
             // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], section 3
@@ -618,8 +613,7 @@ where
                         } else {
                             ReturnCode::EBUSY
                         }
-                    })
-                    .unwrap_or_else(|err| err.into())
+                    }).unwrap_or_else(|err| err.into())
             }
 
             // Passive scanning mode
@@ -634,8 +628,7 @@ where
                     } else {
                         ReturnCode::EBUSY
                     }
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -659,8 +652,7 @@ where
                     } else {
                         ReturnCode::FAIL
                     }
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             // Passive scanning buffer
             1 => self
@@ -672,8 +664,7 @@ where
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EINVAL,
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             // Operation not supported
             _ => ReturnCode::ENOSUPPORT,
@@ -696,8 +687,7 @@ where
                         ReturnCode::SUCCESS
                     }
                     _ => ReturnCode::EINVAL,
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

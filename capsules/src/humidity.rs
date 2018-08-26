@@ -91,8 +91,7 @@ impl HumiditySensor<'a> {
                 } else {
                     ReturnCode::EBUSY
                 }
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> ReturnCode {
@@ -107,8 +106,7 @@ impl HumiditySensor<'a> {
             .enter(app_id, |app, _| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 }
 

@@ -74,7 +74,7 @@ use ieee802154::device::{MacDevice, RxClient, TxClient};
 use ieee802154::mac::Mac;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio;
-use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
+use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::ReturnCode;
 use net::ieee802154::{
     FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,

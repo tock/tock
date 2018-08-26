@@ -39,20 +39,14 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
 #[allow(improper_ctypes)]
 extern "C" {
-    pub fn switch_to_user(user_stack: *const u8, process_regs: &mut [usize; 8]) -> *mut u8;
+    pub fn switch_to_user(user_stack: *const usize, process_regs: &mut [usize; 8]) -> *const usize;
 }
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
+#[derive(Copy, Clone)]
 pub struct CortexMStoredState {
-    pub r4: usize,
-    pub r5: usize,
-    pub r6: usize,
-    pub r7: usize,
-    pub r8: usize,
-    pub r9: usize,
-    pub r10: usize,
-    pub r11: usize,
+    regs: [usize; 8],
     yield_pc: usize,
     psr: usize,
 }
@@ -61,14 +55,7 @@ pub struct CortexMStoredState {
 impl Default for CortexMStoredState {
     fn default() -> CortexMStoredState {
         CortexMStoredState {
-            r4: 0,
-            r5: 0,
-            r6: 0,
-            r7: 0,
-            r8: 0,
-            r9: 0,
-            r10: 0,
-            r11: 0,
+            regs: [0; 8],
             yield_pc: 0,
             // Set the Thumb bit and clear everything else
             psr: 0x01000000,
@@ -184,10 +171,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         stack_pointer: *const usize,
         state: &mut CortexMStoredState,
     ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
-        let new_stack_pointer = switch_to_user(
-            stack_pointer as *const u8,
-            &mut *(state as *mut CortexMStoredState as *mut [usize; 8]),
-        );
+        let new_stack_pointer = switch_to_user(stack_pointer, &mut state.regs);
 
         // Determine why this returned and the process switched back to the
         // kernel.
@@ -437,18 +421,18 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n YPC : {:#010X}\
              \r\n",
             r0,
-            state.r6,
+            state.regs[2],
             r1,
-            state.r7,
+            state.regs[3],
             r2,
-            state.r8,
+            state.regs[4],
             r3,
-            state.r10,
-            state.r4,
-            state.r11,
-            state.r5,
+            state.regs[6],
+            state.regs[0],
+            state.regs[7],
+            state.regs[1],
             r12,
-            state.r9,
+            state.regs[5],
             stack_pointer as usize,
             lr,
             pc,

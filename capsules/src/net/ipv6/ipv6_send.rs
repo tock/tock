@@ -181,8 +181,7 @@ impl IP6SendStruct<'a> {
                     ReturnCode::SUCCESS
                 }
                 None => ReturnCode::EBUSY,
-            })
-            .unwrap_or(ReturnCode::ENOMEM)
+            }).unwrap_or(ReturnCode::ENOMEM)
     }
 
     fn send_completed(&self, result: ReturnCode) {

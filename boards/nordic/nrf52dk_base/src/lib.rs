@@ -5,7 +5,13 @@
 extern crate capsules;
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
+#[macro_use(
+    create_capability,
+    debug,
+    debug_verbose,
+    debug_gpio,
+    static_init
+)]
 extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;

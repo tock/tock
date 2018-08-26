@@ -289,6 +289,13 @@ impl<T: IntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     }
 
     #[inline]
+    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
+        let val: T = self.read(field);
+
+        E::try_from(val)
+    }
+
+    #[inline]
     pub fn is_set(&self, field: Field<T, R>) -> bool {
         self.read(field) != T::zero()
     }
