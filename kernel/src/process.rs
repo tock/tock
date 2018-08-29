@@ -175,7 +175,7 @@ pub trait ProcessType {
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
         min_region_size: usize,
-    ) -> Option<(*const u8, usize)>;
+    ) -> Option<mpu::Region>;
 
     // grants
 
@@ -563,23 +563,28 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
         min_region_size: usize,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<mpu::Region> {
         match self.mpu_config.map(|mut config| {
-            if let Some(new_region) = self.mpu.allocate_region(
+            let new_region = self.mpu.allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
                 mpu::Permissions::ReadWriteExecute,
                 &mut config,
-            ) {
-                for region in self.mpu_regions.iter() {
-                    if region.get().is_none() {
-                        region.set(Some(new_region));
-                        return Some((new_region.start_address(), new_region.size()));
-                    }
-                }
-                debug!("Not enough room in Process struct to store MPU region.");
+            );
+
+            if new_region.is_none() {
+                return None;
             }
+
+            for region in self.mpu_regions.iter() {
+                if region.get().is_none() {
+                    region.set(new_region);
+                    return new_region;
+                }
+            }
+
+            debug!("Not enough room in Process struct to store MPU region.");
             None
         }) {
             Some(option) => option,
