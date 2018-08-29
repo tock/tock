@@ -4,7 +4,7 @@ use kernel;
 use kernel::common::math;
 use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::mpu::Permissions;
+use kernel::mpu;
 
 /// MPU Registers for the Cortex-M4 family
 ///
@@ -127,9 +127,10 @@ impl MPU {
     }
 }
 
+/// Struct storing region configuration for the Cortex-M MPU.
 #[derive(Copy, Clone)]
 pub struct CortexMConfig {
-    regions: [Region; 8],
+    regions: [CortexMRegion; 8],
 }
 
 const APP_MEMORY_REGION_NUM: usize = 0;
@@ -138,14 +139,14 @@ impl Default for CortexMConfig {
     fn default() -> CortexMConfig {
         CortexMConfig {
             regions: [
-                Region::empty(0),
-                Region::empty(1),
-                Region::empty(2),
-                Region::empty(3),
-                Region::empty(4),
-                Region::empty(5),
-                Region::empty(6),
-                Region::empty(7),
+                CortexMRegion::empty(0),
+                CortexMRegion::empty(1),
+                CortexMRegion::empty(2),
+                CortexMRegion::empty(3),
+                CortexMRegion::empty(4),
+                CortexMRegion::empty(5),
+                CortexMRegion::empty(6),
+                CortexMRegion::empty(7),
             ],
         }
     }
@@ -165,14 +166,15 @@ impl CortexMConfig {
     }
 }
 
+/// Struct storing configuration for a Cortex-M MPU region.
 #[derive(Copy, Clone)]
-pub struct Region {
+pub struct CortexMRegion {
     location: Option<(*const u8, usize)>,
     base_address: FieldValue<u32, RegionBaseAddress::Register>,
     attributes: FieldValue<u32, RegionAttributes::Register>,
 }
 
-impl Region {
+impl CortexMRegion {
     fn new(
         logical_start: *const u8,
         logical_size: usize,
@@ -180,26 +182,26 @@ impl Region {
         region_size: usize,
         region_num: usize,
         subregion_mask: Option<u32>,
-        permissions: Permissions,
-    ) -> Region {
+        permissions: mpu::Permissions,
+    ) -> CortexMRegion {
         // Determine access and execute permissions
         let (access, execute) = match permissions {
-            Permissions::ReadWriteExecute => (
+            mpu::Permissions::ReadWriteExecute => (
                 RegionAttributes::AP::ReadWrite,
                 RegionAttributes::XN::Enable,
             ),
-            Permissions::ReadWriteOnly => (
+            mpu::Permissions::ReadWriteOnly => (
                 RegionAttributes::AP::ReadWrite,
                 RegionAttributes::XN::Disable,
             ),
-            Permissions::ReadExecuteOnly => {
+            mpu::Permissions::ReadExecuteOnly => {
                 (RegionAttributes::AP::ReadOnly, RegionAttributes::XN::Enable)
             }
-            Permissions::ReadOnly => (
+            mpu::Permissions::ReadOnly => (
                 RegionAttributes::AP::ReadOnly,
                 RegionAttributes::XN::Disable,
             ),
-            Permissions::ExecuteOnly => {
+            mpu::Permissions::ExecuteOnly => {
                 (RegionAttributes::AP::NoAccess, RegionAttributes::XN::Enable)
             }
         };
@@ -222,15 +224,15 @@ impl Region {
             attributes += RegionAttributes::SRD.val(mask);
         }
 
-        Region {
+        CortexMRegion {
             location: Some((logical_start, logical_size)),
             base_address: base_address,
             attributes: attributes,
         }
     }
 
-    fn empty(region_num: usize) -> Region {
-        Region {
+    fn empty(region_num: usize) -> CortexMRegion {
+        CortexMRegion {
             location: None,
             base_address: RegionBaseAddress::VALID::UseRBAR
                 + RegionBaseAddress::REGION.val(region_num as u32),
@@ -304,9 +306,9 @@ impl kernel::mpu::MPU for MPU {
         unallocated_memory_start: *const u8,
         unallocated_memory_size: usize,
         min_region_size: usize,
-        permissions: Permissions,
+        permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<mpu::Region> {
         // Check that no previously allocated regions overlap the unallocated memory.
         for region in config.regions.iter() {
             if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
@@ -426,7 +428,7 @@ impl kernel::mpu::MPU for MPU {
             return None;
         }
 
-        let region = Region::new(
+        let region = CortexMRegion::new(
             start as *const u8,
             size,
             region_start as *const u8,
@@ -438,7 +440,7 @@ impl kernel::mpu::MPU for MPU {
 
         config.regions[region_num] = region;
 
-        Some((start as *const u8, size))
+        Some(mpu::Region::new(start as *const u8, size))
     }
 
     fn allocate_app_memory_region(
@@ -448,7 +450,7 @@ impl kernel::mpu::MPU for MPU {
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
-        permissions: Permissions,
+        permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
         // Check that no previously allocated regions overlap the unallocated memory.
@@ -519,7 +521,7 @@ impl kernel::mpu::MPU for MPU {
         // For example: 11111111 & 11111110 = 11111110 --> Use only the first subregion (0 = enable)
         let subregion_mask = (0..subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
 
-        let region = Region::new(
+        let region = CortexMRegion::new(
             region_start as *const u8,
             region_size,
             region_start as *const u8,
@@ -538,7 +540,7 @@ impl kernel::mpu::MPU for MPU {
         &self,
         app_memory_break: *const u8,
         kernel_memory_break: *const u8,
-        permissions: Permissions,
+        permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
         let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM].location() {
@@ -569,7 +571,7 @@ impl kernel::mpu::MPU for MPU {
 
         let subregion_mask = (0..num_subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
 
-        let region = Region::new(
+        let region = CortexMRegion::new(
             region_start as *const u8,
             region_size,
             region_start as *const u8,

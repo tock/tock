@@ -10,6 +10,30 @@ pub enum Permissions {
     ExecuteOnly,
 }
 
+/// MPU region.
+#[derive(Copy, Clone)]
+pub struct Region {
+    start_address: *const u8,
+    size: usize,
+}
+
+impl Region {
+    pub fn new(start_address: *const u8, size: usize) -> Region {
+        Region {
+            start_address: start_address,
+            size: size,
+        }
+    }
+
+    pub fn start_address(&self) -> *const u8 {
+        self.start_address
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
 pub trait MPU {
     type MpuConfig: Default = ();
 
@@ -51,11 +75,11 @@ pub trait MPU {
         min_region_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<Region> {
         if min_region_size > unallocated_memory_size {
             None
         } else {
-            Some((unallocated_memory_start, min_region_size))
+            Some(Region::new(unallocated_memory_start, min_region_size))
         }
     }
 
@@ -85,8 +109,8 @@ pub trait MPU {
     /// `unallocated_memory_start`  : start of unallocated memory
     /// `unallocated_memory_size`   : size of unallocated memory
     /// `min_memory_size`           : minimum total memory to allocate for process
-    /// `initial_app_memory_size`   : initial size for app memory
-    /// `initial_kernel_memory_size`: initial size for kernel memory
+    /// `initial_app_memory_size`   : initial size of app-owned memory
+    /// `initial_kernel_memory_size`: initial size of kernel-owned memory
     /// `permissions`               : permissions for the MPU region
     /// `config`                    : MPU region configuration
     ///
@@ -121,15 +145,15 @@ pub trait MPU {
         }
     }
 
-    /// Updates the MPU region for app memory.
+    /// Updates the MPU region for app-owned memory.
     ///
-    /// An implementation must reallocate the app memory MPU region stored in `config`
-    /// to maintain the 3 conditions described in `allocate_app_memory_region`.
+    /// An implementation must reallocate the MPU region for app-owned memory stored in
+    /// `config` to maintain the 3 conditions described in `allocate_app_memory_region`.
     ///
     /// # Arguments
     ///
-    /// `app_memory_break`      : new address for the end of app memory
-    /// `kernel_memory_break`   : new address for the start of kernel memory
+    /// `app_memory_break`      : new address for the end of app-owned memory
+    /// `kernel_memory_break`   : new address for the start of kernel-owned memory
     /// `permissions`           : permissions for the MPU region
     /// `config`                : MPU region configuration
     ///

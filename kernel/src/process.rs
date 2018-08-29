@@ -373,7 +373,7 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
     mpu_config: MapCell<M::MpuConfig>,
 
     /// MPU regions are saved as a pointer-size pair.
-    mpu_regions: [Cell<(*const u8, usize)>; 6],
+    mpu_regions: [Cell<Option<mpu::Region>>; 6],
 
     /// Essentially a list of callbacks that want to call functions in the
     /// process.
@@ -572,11 +572,11 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
                 mpu::Permissions::ReadWriteExecute,
                 &mut config,
             ) {
-                Some((region_start, region_size)) => {
+                Some(new_region) => {
                     for region in self.mpu_regions.iter() {
-                        if region.get().0 == ptr::null() {
-                            region.set((region_start, region_size));
-                            return Some((region_start, region_size));
+                        if region.get().is_none() {
+                            region.set(Some(new_region));
+                            return Some((new_region.start_address(), new_region.size()));
                         }
                     }
                     panic!("Not enough room in Process struct to store MPU region.");
@@ -1199,7 +1199,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             // Make room to store this process's metadata.
             let process_struct_offset = mem::size_of::<Process<S, M>>();
 
-            // Initial sizes of app and kernel memory.
+            // Initial sizes of the app-owned and kernel-owned parts of process memory.
             let initial_kernel_memory_size =
                 grant_ptrs_offset + callbacks_offset + process_struct_offset;
             let initial_app_memory_size = 128;
@@ -1211,7 +1211,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             // Minimum memory size for the process.
             let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
-            // Determine where process memory will go and allocate MPU region for app memory.
+            // Determine where process memory will go and allocate MPU region for app-owned memory.
             let (memory_start, memory_size) = match mpu.allocate_app_memory_region(
                 remaining_app_memory as *const u8,
                 remaining_app_memory_size,
@@ -1297,12 +1297,12 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             process.mpu = mpu;
             process.mpu_config = MapCell::new(mpu_config);
             process.mpu_regions = [
-                Cell::new((ptr::null(), 0)),
-                Cell::new((ptr::null(), 0)),
-                Cell::new((ptr::null(), 0)),
-                Cell::new((ptr::null(), 0)),
-                Cell::new((ptr::null(), 0)),
-                Cell::new((ptr::null(), 0)),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
             ];
             process.tasks = MapCell::new(tasks);
             process.process_name = process_name;
