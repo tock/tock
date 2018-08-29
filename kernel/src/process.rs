@@ -565,24 +565,22 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         min_region_size: usize,
     ) -> Option<(*const u8, usize)> {
         match self.mpu_config.map(|mut config| {
-            match self.mpu.allocate_region(
+            if let Some(new_region) = self.mpu.allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
                 mpu::Permissions::ReadWriteExecute,
                 &mut config,
             ) {
-                Some(new_region) => {
-                    for region in self.mpu_regions.iter() {
-                        if region.get().is_none() {
-                            region.set(Some(new_region));
-                            return Some((new_region.start_address(), new_region.size()));
-                        }
+                for region in self.mpu_regions.iter() {
+                    if region.get().is_none() {
+                        region.set(Some(new_region));
+                        return Some((new_region.start_address(), new_region.size()));
                     }
-                    panic!("Not enough room in Process struct to store MPU region.");
                 }
-                None => None,
+                debug!("Not enough room in Process struct to store MPU region.");
             }
+            None
         }) {
             Some(option) => option,
             None => panic!("MPU config not found."),
@@ -1176,10 +1174,11 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
                 mpu::Permissions::ReadExecuteOnly,
                 &mut mpu_config,
             ) {
-                panic!(
+                debug!(
                     "{:?} failed to load. Infeasible to allocate MPU region for flash",
                     process_name
                 );
+                return (None, app_flash_size, 0);
             }
 
             // Determine how much space we need in the application's
@@ -1223,10 +1222,11 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             ) {
                 Some((memory_start, memory_size)) => (memory_start, memory_size),
                 None => {
-                    panic!(
+                    debug!(
                         "{:?} failed to load. Insufficient memory. Requested {} have {}",
                         process_name, min_total_memory_size, remaining_app_memory_size
                     );
+                    return (None, app_flash_size, 0);
                 }
             };
 
