@@ -175,7 +175,7 @@ pub unsafe fn reset_handler() {
 
     // Setup AON event defaults
     aon::AON.setup();
-
+   
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
@@ -185,7 +185,7 @@ pub unsafe fn reset_handler() {
     prcm::Power::enable_domain(prcm::PowerDomain::Serial);
 
     while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
-
+    
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // Enable the GPIO clocks
@@ -349,10 +349,13 @@ pub unsafe fn reset_handler() {
         )
     );
     cc26x2::trng::TRNG.set_client(rng);
-
+    
     let radio = static_init!(
         rfcore_driver::Radio,
-        rfcore_driver::Radio::new(&cc26x2::rfc::RFC)
+        rfcore_driver::Radio::new(
+            &cc26x2::rfc::RFC)
+            //board_kernel.create_grant(&memory_allocation_capability)
+        //)
     );
 
     radio.power_up();

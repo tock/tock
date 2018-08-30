@@ -36,52 +36,39 @@
 */
 
 use rom_fns::setup_rom;
-
+// use rom_fns::aux_sysif;
 #[allow(non_snake_case)]
 pub fn perform() {
     unsafe { SetupTrimDevice() }
 }
-/*
-extern "C" {
-    fn AUXSYSIFOpModeChange(targetOpMode: u32);
-    fn SetupAfterColdResetWakeupFromShutDownCfg1(ccfg_ModeConfReg: u32);
-    fn SetupStepVddrTrimTo(toCode: u32);
-}
-*/
 
 #[no_mangle]
 pub unsafe extern "C" fn SetupTrimDevice() {
     let mut ui32Fcfg1Revision: u32;
     let mut ui32AonSysResetctl: u32;
     ui32Fcfg1Revision = *((0x50001000i32 + 0x31ci32) as (*mut usize)) as (u32);
-    if ui32Fcfg1Revision == 0xffffffffu32 {
-        ui32Fcfg1Revision = 0u32;
-    }
 
     *(((0x40030000i32 + 0x24i32) as (usize) & 0xf0000000usize
         | 0x2000000usize
         | ((0x40030000i32 + 0x24i32) as (usize) & 0xfffffusize) << 5i32
         | (1i32 << 2i32) as (usize)) as (*mut usize)) = 0usize;
-
-    /* points to ROM FUNC table which we dont have
-    (*(*(0x10000180i32 as (*mut u32)).offset(28isize) as (*mut u32)).offset(18isize)
-        as (unsafe extern "C" fn()))();
-    */
     setup_rom::SetupSetCacheModeAccordingToCcfgSetting();
-    if *(((0x40094000i32 + 0xci32) as (usize) & 0xf0000000usize
-        | 0x2000000usize
+    // Undocumented AON IOC Latch register, found in driverlib AON_IOC.h
+    if *(((0x40094000i32 + 0xci32) as (usize) & 0xf0000000usize | 0x2000000usize
         | ((0x40094000i32 + 0xci32) as (usize) & 0xfffffusize) << 5i32
         | (0i32 << 2i32) as (usize)) as (*mut usize)) == 0
     {
         TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
-    } else if *(((0x40090000i32 + 0x2ci32) as (usize) & 0xf0000000usize
+    } 
+    else if *(((0x40090000i32 + 0x2ci32) as (usize) & 0xf0000000usize
         | 0x2000000usize
         | ((0x40090000i32 + 0x2ci32) as (usize) & 0xfffffusize) << 5i32
         | (0i32 << 2i32) as (usize)) as (*mut usize)) == 0
     {
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
         TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
-    } else {
+    } 
+    else {
         TrimAfterColdReset();
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
         TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
@@ -222,7 +209,8 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     (*(*(0x10000180i32 as (*mut u32)).offset(28isize) as (*mut u32)).offset(2isize)
         as (unsafe extern "C" fn(u32)))(ccfg_ModeConfReg);
         */
-    aux_sysif::AUXSYSIFOpModeChange(0x2u32);
+
+    // aux_sysif::AUXSYSIFOpModeChange(0x2u32);
     *(((0x40030000i32 + 0x24i32) as (usize) & 0xf0000000usize
         | 0x2000000usize
         | ((0x40030000i32 + 0x24i32) as (usize) & 0xfffffusize) << 5i32

@@ -31,7 +31,7 @@
 // Clock switching and source select code from Texas Instruments
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
-use rom_fns::{adi, ddi};
+use rom_fns::ddi;
 
 #[derive(Copy)]
 #[repr(C)]
@@ -120,14 +120,13 @@ impl Clone for RomFuncTable {
 }
 
 pub unsafe fn source_switch() {
-    adi::safe_hapi_void((*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch);
+    (*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch;
 }
 
 unsafe extern "C" fn AONRTCCurrentCompareValueGet() -> u32 {
     *((0x40092000i32 + 0x30i32) as (*mut usize)) as (u32)
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn OSCHF_GetStartupTime(mut timeUntilWakeupInMs: u32) -> u32 {
     let mut deltaTimeSinceXoscOnInMs: u32;
     let mut deltaTempSinceXoscOn: i32;
@@ -136,10 +135,6 @@ pub unsafe extern "C" fn OSCHF_GetStartupTime(mut timeUntilWakeupInMs: u32) -> u
         .wrapping_mul(AONRTCCurrentCompareValueGet().wrapping_sub(oscHfGlobals.timeXoscOn_CV))
         >> 16i32;
     deltaTempSinceXoscOn = AONBatMonTemperatureGetDegC() - oscHfGlobals.tempXoscOff;
-    /*(*(*(0x10000180i32 as (*mut u32)).offset(27isize) as (*mut u32))
-        .offset(0isize) as (unsafe extern "C" fn() -> i32))()
-        - oscHfGlobals.tempXoscOff;
-        */
     if deltaTempSinceXoscOn < 0i32 {
         deltaTempSinceXoscOn = -deltaTempSinceXoscOn;
     }
@@ -175,12 +170,6 @@ pub unsafe extern "C" fn OSCHF_GetStartupTime(mut timeUntilWakeupInMs: u32) -> u
 }
 
 unsafe extern "C" fn OSCHfSourceReady() -> bool {
-    /*
-    (if (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(3isize)
-        as (unsafe extern "C" fn(u32, u32, u32, u32) -> u16))(
-        0x400ca000u32, 0x3cu32, 0x1u32, 0u32
-    ) != 0
-    */
     (if ddi::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x1u32, 0u32) != 0 {
         1i32
     } else {
@@ -188,29 +177,18 @@ unsafe extern "C" fn OSCHfSourceReady() -> bool {
     }) != 0
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn OSCHF_TurnOnXosc() {
-    /*
-     * (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
-        as (unsafe extern "C" fn(u32, u32)))(0x1u32, 0x1u32);
-        */
     clock_source_set(0x1u32, 0x1u32);
     oscHfGlobals.timeXoscOn_CV = AONRTCCurrentCompareValueGet();
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn OSCHF_AttemptToSwitchToXosc() -> bool {
     let mut startupTimeInUs: u32;
     let mut prevLimmit25InUs: u32;
     if clock_source_get(0x1u32) == 0x1u32
-    /*
-    if (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(0isize)
-        as (unsafe extern "C" fn(u32) -> u32))(0x1u32) == 0x1u32
-        */
     {
         true
     } else if OSCHfSourceReady() {
-        // OSCHfSourceSwitch();
         source_switch();
         oscHfGlobals.timeXoscStable_CV = AONRTCCurrentCompareValueGet();
         startupTimeInUs = 1000000u32.wrapping_mul(
@@ -230,30 +208,15 @@ pub unsafe extern "C" fn OSCHF_AttemptToSwitchToXosc() -> bool {
     }
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn OSCHF_SwitchToRcOscTurnOffXosc() {
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
-        as (unsafe extern "C" fn(u32, u32)))(0x1u32, 0x0u32);
-        */
     clock_source_set(0x1u32, 0x0u32);
-    /*
-    if (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(0isize)
-        as (unsafe extern "C" fn(u32) -> u32))(0x1u32) != 0x0u32
-        */
     if clock_source_get(0x1u32) != 0x0u32 {
         source_switch();
-        // OSCHfSourceSwitch();
     }
     oscHfGlobals.timeXoscOff_CV = AONRTCCurrentCompareValueGet();
-    oscHfGlobals.tempXoscOff = AONBatMonTemperatureGetDegC();
-    /*
-        (*(*(0x10000180i32 as (*mut u32)).offset(27isize) as (*mut u32))
-        .offset(0isize) as (unsafe extern "C" fn() -> i32))();
-        */
+    oscHfGlobals.tempXoscOff = AONBatMonTemperatureGetDegC();    
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn AONBatMonTemperatureGetDegC() -> i32 {
     let mut signedTemp: i32;
     let mut tempCorrection: i32;

@@ -59,10 +59,21 @@ struct PrcmRegisters {
     pub uart_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
     pub uart_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
-    _reserved4: [ReadOnly<u8>; 0xB4],
+    // SSI Clock Gates for run, sleep, and deep sleep modes
+    pub ssi_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
+    pub ssi_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
+    pub ssi_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
+
+    // I2S Clock Gates for run, sleep, and deep sleep modes
+    pub i2s_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
+    pub i2s_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
+    pub i2s_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>, // 0x8Ch offset
+
+    //_reserved4: [ReadOnly<u8>; 0xB4],
+    _reserved4: [ReadOnly<u8>; 0x9c],
 
     // Power Domain Control 0
-    pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>,
+    pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>, // 0x12Ch offset
     pub pd_ctl0_rfc: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_peripheral: WriteOnly<u32, PowerDomainSingle::Register>,
@@ -94,6 +105,8 @@ struct PrcmRegisters {
     pub pd_stat1_rfc: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat1_cpu: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat1_vims: ReadOnly<u32, PowerDomainSingle::Register>,
+
+    _reserved9: [ReadOnly<u8>; 0x24],
 
     pub rfc_bits: ReadWrite<u32, AutoControl::Register>, // CPE auto check at boot for immediate start up tasks
 
@@ -137,16 +150,16 @@ register_bitfields![
         ON          OFFSET(0) NUMBITS(1) []
     ],
     PowerDomainStatus0 [
-        // RESERVED (bits 1-31)
+        // RESERVED (bits 3-31)
         PERIPH_ON   OFFSET(2) NUMBITS(1) [],
         SERIAL_ON   OFFSET(1) NUMBITS(1) [],
         RFC_ON      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomain1 [
-        // RESERVED (bits 1-31)
-        VIMS_ON   OFFSET(2) NUMBITS(1) [],
-        RFC_ON   OFFSET(1) NUMBITS(1) [],
-        CPU_ON      OFFSET(0) NUMBITS(1) []
+        // RESERVED (bits 5-31)
+        VIMS_ON   OFFSET(3) NUMBITS(2) [],
+        RFC_ON   OFFSET(2) NUMBITS(1) [],
+        CPU_ON      OFFSET(1) NUMBITS(1) []
     ],
     PowerDomainStatus1 [
         // RESERVED (bits 1 & 5-31)
@@ -247,7 +260,7 @@ impl Power {
                 while !Power::is_enabled(PowerDomain::CPU) {}
             }
             PowerDomain::VIMS => {
-                regs.pd_ctl1.modify(PowerDomain1::VIMS_ON::SET);
+                regs.pd_ctl1.modify(PowerDomain1::VIMS_ON.val(0x02));
                 while !Power::is_enabled(PowerDomain::VIMS) {}
             }
         }

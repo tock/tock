@@ -3,13 +3,11 @@ use cc26x2::{commands as cmd, osc, rfc, rom_fns::oscfh};
 use core::cell::Cell;
 use core::ptr;
 use fixedvec::FixedVec;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{TakeCell, OptionalCell};
 use kernel::hil::radio_client::{self, RadioConfig};
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Grant, Shared};
 use rfcore_const::{
-    RFCommandStatus, RadioCommands, RfcDriverCommands, RfcOperationStatus, State, CMD_STACK,
-    RFC_RAM_BASE,
-};
+    RFCommandStatus, RadioCommands, RfcDriverCommands, RfcOperationStatus, State, CMD_STACK };
 
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
@@ -68,12 +66,21 @@ static mut RFPARAMS: [u32; 18] = [
 
 pub static mut RFC_STACK: [State; 6] = [State::Start; 6];
 
+#[derive(Default)]
+pub struct App {
+    callback: Option<Callback>,
+    tx_buffer: Option<AppSlice<Shared, u8>>,
+    rx_buffer: Option<AppSlice<Shared, u8>>,
+    len: usize,
+    idx: usize,
+}
+
 pub struct Radio {
     rfc: &'static rfc::RFCore,
-    // state: Cell<State>,
+    // apps: Grant<App>,
     callback: Cell<Option<Callback>>,
-    tx_radio_client: Cell<Option<&'static radio_client::TxClient>>,
-    rx_radio_client: Cell<Option<&'static radio_client::RxClient>>,
+    tx_radio_client: OptionalCell<&'static radio_client::TxClient>,
+    rx_radio_client: OptionalCell<&'static radio_client::RxClient>,
     schedule_powerdown: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     state_stack: TakeCell<'static, FixedVec<'static, State>>,
@@ -88,13 +95,12 @@ impl Radio {
         rfc_stack
             .push(State::Start)
             .expect("Rfc stack should be empty");
-
         Radio {
             rfc,
-            // state: Cell::new(State::Start),
+            // apps: grant,
             callback: Cell::new(None),
-            tx_radio_client: Cell::new(None),
-            rx_radio_client: Cell::new(None),
+            tx_radio_client: OptionalCell::empty(),
+            rx_radio_client: OptionalCell::empty(),
             schedule_powerdown: Cell::new(false),
             tx_buf: TakeCell::empty(),
             state_stack: TakeCell::new(rfc_stack),
@@ -104,16 +110,15 @@ impl Radio {
     pub fn power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::IEEE);
 
-        unsafe { oscfh::OSCHF_TurnOnXosc() };
-        //osc::OSC.request_switch_to_hf_xosc();
+        // unsafe { oscfh::OSCHF_TurnOnXosc() };
+        osc::OSC.request_switch_to_hf_xosc();
 
-        //self.rfc.enable();
-        //self.rfc.start_rat();
+        self.rfc.enable();
+        self.rfc.start_rat();
 
-        //osc::OSC.switch_to_hf_xosc();
-        unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
+        osc::OSC.switch_to_hf_xosc();
+        // unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
         
-        // let source = osc::OSC.clock_source_get(osc::ClockType::HF);
         /*
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
@@ -162,7 +167,7 @@ impl rfc::RFCoreClient for Radio {
 
         let buf = self.tx_buf.take();
         self.tx_radio_client
-            .get()
+            .take()
             .map(|client| client.send_done(buf.unwrap(), ReturnCode::SUCCESS));
     }
 
@@ -213,7 +218,7 @@ impl Driver for Radio {
 
 impl RadioConfig for Radio {
     fn set_tx_client(&self, tx_client: &'static radio_client::TxClient) {
-        self.tx_radio_client.set(Some(tx_client));
+        self.tx_radio_client.set(tx_client);
     }
 
     fn set_rx_client(
@@ -221,7 +226,7 @@ impl RadioConfig for Radio {
         rx_client: &'static radio_client::RxClient,
         _rx_buf: &'static mut [u8],
     ) {
-        self.rx_radio_client.set(Some(rx_client));
+        self.rx_radio_client.set(rx_client);
     }
 
     fn set_receive_buffer(&self, _rx_buf: &'static mut [u8]) {

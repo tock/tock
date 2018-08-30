@@ -5,7 +5,6 @@ use rom_fns::oscfh;
 pub struct DdiRegisters {
     ctl0: ReadWrite<u32, Ctl0::Register>,
     _ctl1: ReadOnly<u32>,
-
     _radc_ext_cfg: ReadOnly<u32>,
     _amp_comp_ctl: ReadOnly<u32>,
     _amp_comp_th1: ReadOnly<u32>,
@@ -195,8 +194,7 @@ impl Oscillator {
 
     // Check if the current clock source is HF_XOSC. If not, set it.
     pub fn request_switch_to_hf_xosc(&self) {
-        // self.configure();
-
+         
         if self.clock_source_get(ClockType::HF) != HF_XOSC {
             self.clock_source_set(ClockType::HF, HF_XOSC);
         }
@@ -206,8 +204,9 @@ impl Oscillator {
     // ddi
     pub fn switch_to_hf_xosc(&self) {
         let regs = &*self.r_regs;
-
-        if self.clock_source_get(ClockType::HF) != HF_XOSC {
+        let cur_source = self.clock_source_get(ClockType::HF);
+        if cur_source != HF_XOSC {
+            // Wait for source ready to switch
             while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
             self.switch_osc();
         }
@@ -250,6 +249,7 @@ impl Oscillator {
             }
             ClockType::HF => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(src as u32));
+                regs.ctl0.modify(Ctl0::ACLK_REF_SRC_SEL.val(src as u32));
             }
         }
     }

@@ -41,11 +41,11 @@ pub struct RfcDBellRegisters {
     // Interrupt Flags For RF HW Modules
     _rfhwien: ReadWrite<u32, RFHWInterrupts::Register>,
     // Interrupt Flags For CPE Generated Interrupts
-    rfcpeifg: ReadWrite<u32, CPEIntFlags::Register>,
+    rfcpeifg: ReadWrite<u32, CPEInterrupts::Register>,
     // Interrupt Enable For CPE Generated Interrupts
     rfcpeien: ReadWrite<u32, CPEInterrupts::Register>,
     // Interrupt Vector Selection for CPE
-    rfcpeisl: ReadWrite<u32, CPEVectorSelect::Register>,
+    rfcpeisl: ReadWrite<u32, CPEInterrupts::Register>,
     // Doorbell Command Acknowledgement Interrupt Flags
     rfackifg: ReadWrite<u32, DBellCmdAck::Register>,
     // RF Core General Purpose Output Control
@@ -78,9 +78,6 @@ register_bitfields! {
         RATCH7   OFFSET(19) NUMBITS(1) []                     // Radio timer channel 7 interrupt flag/enable
     ],
     CPEInterrupts [
-        ALL_INTERRUPTS OFFSET(0) NUMBITS(32) []
-    ],
-    CPEIntFlags [
         COMMAND_DONE         OFFSET(0) NUMBITS(1) [],         // A radio operation command in chain has finished
         LAST_COMMAND_DONE    OFFSET(1) NUMBITS(1) [],         // Last radio operation command in chain has finished
         FG_COMMAND_DONE      OFFSET(2) NUMBITS(1) [],         // IEEE 802.15.4 mode only. Foreground radio operation command finished
@@ -226,7 +223,9 @@ impl RFCore {
         unsafe {
             rtc::RTC.set_upd_en(true);
         }
-
+        
+        while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
+        
         // Set power and clock regs for RFC
         let pwc_regs = &*self.pwc_regs;
         pwc_regs.pwmclken.modify(
@@ -243,19 +242,27 @@ impl RFCore {
                 + RFCPWE::RFCTRC::SET,
         );
 
+        // Clear ack flag
+        dbell_regs.rfackifg.set(0);
+        
         // Enable interrupts and clear flags
-        self.enable_cpe_interrupts();
+        dbell_regs.rfcpeisl.write(CPEInterrupts::INTERNAL_ERROR::SET);
+        dbell_regs.rfcpeien.write(CPEInterrupts::INTERNAL_ERROR::SET + CPEInterrupts::COMMAND_DONE::SET + CPEInterrupts::TX_DONE::SET);
+        dbell_regs.rfcpeifg.set(0x00);
+        //self.enable_cpe_interrupts();
         self.enable_hw_interrupts();
 
+        /*
         dbell_regs
             ._rfhwifg
             .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
         // dbell_regs.rfcpeifg.set(0x7FFFFFFF);
-        dbell_regs.rfcpeifg.set(0x00);
+        */
+
         // Initialize radio module
-        //self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
-        //.ok()
-        //.expect("Could not initialize radio module");
+        self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
+        .ok()
+        .expect("Could not initialize radio module");
 
         // Request bus
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1))
@@ -270,11 +277,14 @@ impl RFCore {
 
     // Disable RFCore
     pub fn disable(&self) {
+        let dbell_regs = &*self.dbell_regs;
         self.send_direct(cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok()
             .expect("Could not stop RFC with direct command");
+        dbell_regs.rfcpeien.set(0x00);
+        dbell_regs.rfcpeifg.set(0x00);
+        dbell_regs.rfcpeisl.set(0x00);
 
-        self.disable_cpe_interrupts();
         self.disable_hw_interrupts();
 
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
@@ -385,37 +395,6 @@ impl RFCore {
         dbell_regs
             ._rfhwifg
             .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
-    }
-
-    // Enable CPE interrupts
-    fn enable_cpe_interrupts(&self) {
-        let dbell_regs = &*self.dbell_regs;
-        // Enable CPE interrupts
-        dbell_regs
-            .rfcpeien
-            .modify(CPEInterrupts::ALL_INTERRUPTS::SET);
-    }
-
-    // Disable CPE interrupts
-    fn disable_cpe_interrupts(&self) {
-        let dbell_regs = &*self.dbell_regs;
-        // Disable all CPE interrupts
-        dbell_regs
-            .rfcpeien
-            .modify(CPEInterrupts::ALL_INTERRUPTS::CLEAR);
-        // Clear all CPE interrupts
-        dbell_regs.rfcpeifg.set(0x7FFFFFFF);
-    }
-
-    // Select which CPE register to read from
-    pub fn cpe_vec_select(&self, cpe: bool) {
-        let dbell_regs = &*self.dbell_regs;
-        // Select CPE0 or CPE1
-        if !cpe {
-            dbell_regs.rfcpeisl.modify(CPEVectorSelect::ALL::CLEAR);
-        } else {
-            dbell_regs.rfcpeisl.modify(CPEVectorSelect::ALL::SET);
-        }
     }
 
     // Get current mode of RFCore
@@ -541,10 +520,10 @@ impl RFCore {
                 }
             }
             RfcInterrupt::Cpe0 => {
-                let command_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::COMMAND_DONE);
-                let last_command_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::LAST_COMMAND_DONE);
-                let tx_done = dbell_regs.rfcpeifg.is_set(CPEIntFlags::TX_DONE);
-                let rx_ok = dbell_regs.rfcpeifg.is_set(CPEIntFlags::RX_OK);
+                let command_done = dbell_regs.rfcpeifg.is_set(CPEInterrupts::COMMAND_DONE);
+                let last_command_done = dbell_regs.rfcpeifg.is_set(CPEInterrupts::LAST_COMMAND_DONE);
+                let tx_done = dbell_regs.rfcpeifg.is_set(CPEInterrupts::TX_DONE);
+                let rx_ok = dbell_regs.rfcpeifg.is_set(CPEInterrupts::RX_OK);
                 dbell_regs.rfcpeifg.set(0);
 
                 if command_done || last_command_done {

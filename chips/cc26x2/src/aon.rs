@@ -149,10 +149,10 @@ impl Aon {
         let regs = &*self.event_regs;
 
         // Default to no events at all
-        regs.mcu_wu_sel1.set(0x3F3F3F3F);
+        regs.mcu_wu_sel.set(0x3F3F3F24);
 
         // Set RTC CH1 as a wakeup source by default
-        regs.mcu_wu_sel.set(0x3F3F3F24);
+        regs.mcu_wu_sel1.set(0x3F3F3F24);
 
         // Disable RTC combined event
         regs.rtc_sel.set(0x0000003F);

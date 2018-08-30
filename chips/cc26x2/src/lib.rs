@@ -26,4 +26,5 @@ pub mod rom_fns;
 pub mod rtc;
 pub mod trng;
 pub mod uart;
+pub mod power_manager;
 pub use crt1::init;
