@@ -342,7 +342,7 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
-    stored_state: MapCell<S::StoredState>,
+    stored_state: Cell<S::StoredState>,
 
     /// Whether the scheduler can schedule this app.
     state: Cell<State>,
@@ -716,13 +716,13 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 
     unsafe fn pop_syscall_stack_frame(&self) {
-        self.stored_state.map(|mut stored_state| {
-            let new_stack_pointer = self
-                .syscall
-                .pop_syscall_stack_frame(self.sp(), &mut stored_state);
-            self.current_stack_pointer
-                .set(new_stack_pointer as *const u8);
-        });
+        let mut stored_state = self.stored_state.get();
+        let new_stack_pointer = self
+            .syscall
+            .pop_syscall_stack_frame(self.sp(), &mut stored_state);
+        self.current_stack_pointer
+            .set(new_stack_pointer as *const u8);
+        self.stored_state.set(stored_state);
     }
 
     unsafe fn push_function_call(&self, callback: FunctionCall) {
@@ -735,58 +735,58 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         // stack. Architecture-specific code handles actually doing the push
         // since we don't know the details of exactly what the stack frames look
         // like.
-        self.stored_state.map(|stored_state| {
-            match self.syscall.push_function_call(
-                self.sp(),
-                remaining_stack_bytes,
-                callback,
-                &stored_state,
-            ) {
-                Ok(stack_bottom) => {
-                    // If we got an `Ok` with the new stack pointer we are all
-                    // set and should mark that this process is ready to be
-                    // scheduled.
+        let stored_state = self.stored_state.get();
+        match self.syscall.push_function_call(
+            self.sp(),
+            remaining_stack_bytes,
+            callback,
+            &stored_state,
+        ) {
+            Ok(stack_bottom) => {
+                // If we got an `Ok` with the new stack pointer we are all
+                // set and should mark that this process is ready to be
+                // scheduled.
 
-                    // We just setup up a new callback to do, which means this
-                    // process wants to execute, so we set that there is work to
-                    // be done.
-                    self.kernel.increment_work();
+                // We just setup up a new callback to do, which means this
+                // process wants to execute, so we set that there is work to
+                // be done.
+                self.kernel.increment_work();
 
-                    // Move this process to the "running" state so the scheduler
-                    // will schedule it.
-                    self.state.set(State::Running);
+                // Move this process to the "running" state so the scheduler
+                // will schedule it.
+                self.state.set(State::Running);
 
-                    // Update helpful debugging metadata.
-                    self.current_stack_pointer.set(stack_bottom as *mut u8);
-                    self.debug_set_max_stack_depth();
-                }
-
-                Err(bad_stack_bottom) => {
-                    // If we got an Error, then there was no room to add this
-                    // stack frame. This process has essentially faulted, so we
-                    // mark it as such. We also update the debugging metadata so
-                    // that if the process fault message prints then it should
-                    // be easier to debug that the process exceeded its stack.
-                    self.debug.map(|debug| {
-                        let bad_stack_bottom = bad_stack_bottom as *const u8;
-                        if bad_stack_bottom < debug.min_stack_pointer {
-                            debug.min_stack_pointer = bad_stack_bottom;
-                        }
-                    });
-                    self.set_fault_state();
-                }
+                // Update helpful debugging metadata.
+                self.current_stack_pointer.set(stack_bottom as *mut u8);
+                self.debug_set_max_stack_depth();
             }
-        });
+
+            Err(bad_stack_bottom) => {
+                // If we got an Error, then there was no room to add this
+                // stack frame. This process has essentially faulted, so we
+                // mark it as such. We also update the debugging metadata so
+                // that if the process fault message prints then it should
+                // be easier to debug that the process exceeded its stack.
+                self.debug.map(|debug| {
+                    let bad_stack_bottom = bad_stack_bottom as *const u8;
+                    if bad_stack_bottom < debug.min_stack_pointer {
+                        debug.min_stack_pointer = bad_stack_bottom;
+                    }
+                });
+                self.set_fault_state();
+            }
+        }
+        self.stored_state.set(stored_state);
     }
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
-        self.stored_state.map(|mut stored_state| {
-            let (stack_pointer, switch_reason) =
-                self.syscall.switch_to_process(self.sp(), &mut stored_state);
-            self.current_stack_pointer.set(stack_pointer as *const u8);
-            self.debug_set_max_stack_depth();
-            switch_reason
-        })
+        let mut stored_state = self.stored_state.get();
+        let (stack_pointer, switch_reason) =
+            self.syscall.switch_to_process(self.sp(), &mut stored_state);
+        self.current_stack_pointer.set(stack_pointer as *const u8);
+        self.debug_set_max_stack_depth();
+        self.stored_state.set(stored_state);
+        Some(switch_reason)
     }
 
     unsafe fn fault_fmt(&self, writer: &mut Write) {
@@ -907,10 +907,8 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
   flash_protected_size,
   flash_start));
 
-        self.stored_state.map(|stored_state| {
-            self.syscall
-                .process_detail_fmt(self.sp(), &stored_state, writer);
-        });
+        self.syscall
+            .process_detail_fmt(self.sp(), &self.stored_state.get(), writer);
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1040,7 +1038,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
 
             process.flash = slice::from_raw_parts(app_flash_address, app_flash_size);
 
-            process.stored_state = MapCell::new(Default::default());
+            process.stored_state = Cell::new(Default::default());
             process.state = Cell::new(State::Yielded);
             process.fault_response = fault_response;
 
