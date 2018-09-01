@@ -52,8 +52,7 @@ impl AmbientLight<'a> {
                     }
                     ReturnCode::SUCCESS
                 }
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 }
 
@@ -76,8 +75,7 @@ impl Driver for AmbientLight<'a> {
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

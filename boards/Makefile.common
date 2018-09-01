@@ -13,7 +13,7 @@ CARGO ?= cargo
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-RUSTFLAGS_FOR_CARGO_LINKING := -C link-arg=-Tlayout.ld -C linker=lld \
+RUSTFLAGS_FOR_CARGO_LINKING := -C link-arg=-Tlayout.ld -C linker=rust-lld \
 -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
 -C link-arg=-zmax-page-size=512
 
@@ -63,9 +63,9 @@ ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(M
   DUMMY := $(shell rustup update)
 endif
 
-LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools.*(installed)' -q; echo $$?)
+LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools-preview.*(installed)' -q; echo $$?)
 ifeq ($(LLVM_TOOLS_INSTALLED),1)
-  $(shell rustup component add llvm-tools)
+  $(shell rustup component add llvm-tools-preview)
 endif
 ifneq ($(shell rustup component list | grep rust-src),rust-src (installed))
   $(shell rustup component add rust-src)
@@ -78,7 +78,7 @@ ifeq ($(TOOLCHAIN),llvm)
   # If the user is using the standard toolchain we need to get the full path.
   # rustup should take care of this for us by putting in a proxy in .cargo/bin,
   # but until that is setup we workaround it.
-  TOOLCHAIN = "$(shell dirname `rustup which llvm-size`)/llvm"
+  TOOLCHAIN = "$(shell dirname $(shell find `rustc --print sysroot` -name llvm-size))/llvm"
 endif
 
 SIZE      ?= $(TOOLCHAIN)-size
@@ -151,7 +151,7 @@ target:
 	$(Q)cp $< $@
 
 %.bin: %.elf
-	$(Q)$(OBJCOPY) -O=binary $^ $@
+	$(Q)$(OBJCOPY) --output-target=binary $^ $@
 
 %.lst: %.elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@

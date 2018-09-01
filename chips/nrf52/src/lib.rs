@@ -8,7 +8,13 @@ extern crate cortexm4;
 extern crate nrf5x;
 
 #[allow(unused)]
-#[macro_use(debug, debug_verbose, debug_gpio, register_bitfields, register_bitmasks)]
+#[macro_use(
+    debug,
+    debug_verbose,
+    debug_gpio,
+    register_bitfields,
+    register_bitmasks
+)]
 extern crate kernel;
 
 pub mod adc;
