@@ -510,6 +510,28 @@ pub unsafe fn reset_handler() {
         capsules::dac::Dac::new(&mut sam4l::dac::DAC)
     );
 
+    // // DEBUG Restart All Apps
+    // //
+    // // Uncomment to enable a button press to restart all apps.
+    // //
+    // // Create a dummy object that provides the `ProcessManagementCapability` to
+    // // the `debug_process_restart` capsule.
+    // struct ProcessMgmtCap;
+    // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
+    // let debug_process_restart = static_init!(
+    //     capsules::debug_process_restart::DebugProcessRestart<
+    //         'static,
+    //         sam4l::gpio::GPIOPin,
+    //         ProcessMgmtCap,
+    //     >,
+    //     capsules::debug_process_restart::DebugProcessRestart::new(
+    //         board_kernel,
+    //         &sam4l::gpio::PA[16],
+    //         ProcessMgmtCap
+    //     )
+    // );
+    // sam4l::gpio::PA[16].set_client(debug_process_restart);
+
     let hail = Hail {
         console: console,
         gpio: gpio,

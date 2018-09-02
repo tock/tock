@@ -1,5 +1,7 @@
 //! Tock syscall number definitions and arch-agnostic interface trait.
 
+use core::fmt::Write;
+
 use process;
 
 /// The syscall number assignments.
@@ -64,7 +66,7 @@ pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
     /// registers that aren't stored on the stack.
-    type StoredState: Default;
+    type StoredState: Default + Copy;
 
     /// Get the syscall that the process called with the appropriate arguments.
     unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<Syscall>;
@@ -114,4 +116,16 @@ pub trait UserspaceKernelBoundary {
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
     ) -> (*mut usize, ContextSwitchReason);
+
+    /// Display any general information about the fault.
+    unsafe fn fault_fmt(&self, writer: &mut Write);
+
+    /// Display architecture specific (e.g. CPU registers or status flags) data
+    /// for a process identified by its stack pointer.
+    unsafe fn process_detail_fmt(
+        &self,
+        stack_pointer: *const usize,
+        state: &Self::StoredState,
+        writer: &mut Write,
+    );
 }

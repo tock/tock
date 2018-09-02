@@ -6,7 +6,7 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(asm, core_intrinsics, unique, ptr_internals, const_fn)]
+#![feature(asm, core_intrinsics, ptr_internals, const_fn)]
 #![feature(use_extern_macros, try_from, used, panic_info_message)]
 #![feature(in_band_lifetimes, crate_visibility_modifier)]
 #![feature(associated_type_defaults)]
@@ -48,8 +48,6 @@ pub use platform::{mpu, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use returncode::ReturnCode;
 pub use sched::Kernel;
-
-pub use process::SCB_REGISTERS;
 
 // Export only select items from the process module. To remove the name conflict
 // this cannot be called `process`, so we use a shortened version. These

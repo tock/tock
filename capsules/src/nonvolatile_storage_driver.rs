@@ -271,8 +271,7 @@ impl NonvolatileStorage<'a> {
                                     ReturnCode::SUCCESS
                                 }
                             }
-                        })
-                        .unwrap_or_else(|err| err.into())
+                        }).unwrap_or_else(|err| err.into())
                 })
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
@@ -484,8 +483,7 @@ impl Driver for NonvolatileStorage<'a> {
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Setup callbacks.
@@ -508,8 +506,7 @@ impl Driver for NonvolatileStorage<'a> {
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Command interface.
@@ -526,29 +523,39 @@ impl Driver for NonvolatileStorage<'a> {
         let command_num = arg0 & 0xFF;
 
         match command_num {
-            0 => /* This driver exists. */ ReturnCode::SUCCESS,
+            0 =>
+            /* This driver exists. */
+            {
+                ReturnCode::SUCCESS
+            }
 
             // How many bytes are accessible from userspace.
-            1 => ReturnCode::SuccessWithValue { value: self.userspace_length },
+            1 => ReturnCode::SuccessWithValue {
+                value: self.userspace_length,
+            },
 
             // Issue a read
             2 => {
                 let length = (arg0 >> 8) & 0xFFFFFF;
                 let offset = arg1;
-                self.enqueue_command(NonvolatileCommand::UserspaceRead,
-                                     offset,
-                                     length,
-                                     Some(appid))
+                self.enqueue_command(
+                    NonvolatileCommand::UserspaceRead,
+                    offset,
+                    length,
+                    Some(appid),
+                )
             }
 
             // Issue a write
             3 => {
                 let length = (arg0 >> 8) & 0xFFFFFF;
                 let offset = arg1;
-                self.enqueue_command(NonvolatileCommand::UserspaceWrite,
-                                     offset,
-                                     length,
-                                     Some(appid))
+                self.enqueue_command(
+                    NonvolatileCommand::UserspaceWrite,
+                    offset,
+                    length,
+                    Some(appid),
+                )
             }
 
             _ => ReturnCode::ENOSUPPORT,

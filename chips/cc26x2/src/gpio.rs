@@ -6,13 +6,19 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use ioc;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::gpio::PinCtl;
 
 const NUM_PINS: usize = 32;
+
+const GPIO_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x40022000 as *const GpioRegisters) };
+
+const IOC_BASE: StaticRef<IocRegisters> =
+    unsafe { StaticRef::new(0x40081000 as *const IocRegisters) };
 
 #[repr(C)]
 struct GpioRegisters {
@@ -30,11 +36,9 @@ struct GpioRegisters {
     pub evflags: ReadWrite<u32>,
 }
 
-const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40022000 as *const GpioRegisters) };
-
 pub struct GPIOPin {
     registers: StaticRef<GpioRegisters>,
+    ioc_registers: StaticRef<IocRegisters>,
     pin: usize,
     pin_mask: u32,
     client_data: Cell<usize>,
@@ -45,15 +49,12 @@ impl GPIOPin {
     const fn new(pin: usize) -> GPIOPin {
         GPIOPin {
             registers: GPIO_BASE,
+            ioc_registers: IOC_BASE,
             pin: pin,
-            pin_mask: 1 << (pin % NUM_PINS),
+            pin_mask: 1 << pin,
             client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
-    }
-
-    fn enable_gpio(&self) {
-        ioc::IOCFG[self.pin].enable_gpio();
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
@@ -67,9 +68,136 @@ impl GPIOPin {
     }
 }
 
+#[repr(C)]
+struct IocRegisters {
+    iocfg: [ReadWrite<u32, IoConfiguration::Register>; 32],
+}
+
+register_bitfields![
+    u32,
+    IoConfiguration [
+        IE          OFFSET(29) NUMBITS(1) [], // Input Enable
+        IO_MODE     OFFSET(24) NUMBITS(3) [],
+        EDGE_IRQ_EN OFFSET(18) NUMBITS(1) [], // Interrupt enable
+        EDGE_DET    OFFSET(16) NUMBITS(2) [
+            None            = 0b00,
+            NegativeEdge    = 0b01,
+            PositiveEdge    = 0b10,
+            EitherEdge      = 0b11
+        ],
+        PULL_CTL    OFFSET(13) NUMBITS(2) [
+            PullDown = 0b01,
+            PullUp   = 0b10,
+            PullNone = 0b11
+        ],
+        PORT_ID     OFFSET(0) NUMBITS(6) [
+            GPIO = 0x00,
+            UART_RX = 0xF,
+            UART_TX = 0x10,
+            I2C_MSSDA = 0xd,
+            I2C_MSSCL = 0xe
+            // Add more as needed from datasheet p.1028
+        ]
+    ]
+];
+
+/// Pinmux implementation (IOC)
+impl GPIOPin {
+    pub fn enable_gpio(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        // In order to configure the pin for GPIO we need to clear
+        // the lower 6 bits.
+        pin_ioc.write(IoConfiguration::PORT_ID::GPIO);
+    }
+
+    pub fn enable_output(&self) {
+        // Enable by disabling input
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+        pin_ioc.modify(IoConfiguration::IE::CLEAR);
+    }
+
+    pub fn enable_input(&self) {
+        // Set IE (Input Enable) bit
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+        pin_ioc.modify(IoConfiguration::IE::SET);
+    }
+
+    pub fn enable_interrupt(&self, mode: hil::gpio::InterruptMode) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        let ioc_edge_mode = match mode {
+            hil::gpio::InterruptMode::FallingEdge => IoConfiguration::EDGE_DET::NegativeEdge,
+            hil::gpio::InterruptMode::RisingEdge => IoConfiguration::EDGE_DET::PositiveEdge,
+            hil::gpio::InterruptMode::EitherEdge => IoConfiguration::EDGE_DET::EitherEdge,
+        };
+
+        pin_ioc.modify(ioc_edge_mode + IoConfiguration::EDGE_IRQ_EN::SET);
+    }
+
+    pub fn disable_interrupt(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+        pin_ioc.modify(IoConfiguration::EDGE_IRQ_EN::CLEAR);
+    }
+
+    /// Configures pin for I2C SDA
+    pub fn enable_i2c_sda(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        pin_ioc.modify(
+            IoConfiguration::PORT_ID::I2C_MSSDA
+                + IoConfiguration::IO_MODE.val(0x4)
+                + IoConfiguration::PULL_CTL::PullUp,
+        );
+        self.enable_input();
+    }
+
+    /// Configures pin for I2C SDA
+    pub fn enable_i2c_scl(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        pin_ioc.modify(
+            IoConfiguration::PORT_ID::I2C_MSSCL
+                + IoConfiguration::IO_MODE.val(0x4)
+                + IoConfiguration::PULL_CTL::PullUp,
+        );
+        // TODO(alevy): I couldn't find any justification for enabling input mode in the datasheet,
+        // but I2C master seems not to work without it. Maybe it's important for multi-master mode,
+        // or for allowing a slave to stretch the clock, but in any case, I2C master won't actually
+        // output anything without this line.
+        self.enable_input();
+    }
+
+    /// Configures pin for UART receive (RX).
+    pub fn enable_uart_rx(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART_RX);
+        self.set_input_mode(hil::gpio::InputMode::PullNone);
+        self.enable_input();
+    }
+
+    /// Configures pin for UART transmit (TX).
+    pub fn enable_uart_tx(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART_TX);
+        self.set_input_mode(hil::gpio::InputMode::PullNone);
+        self.enable_output();
+    }
+}
+
 impl hil::gpio::PinCtl for GPIOPin {
     fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-        ioc::IOCFG[self.pin].set_input_mode(mode);
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        let field = match mode {
+            hil::gpio::InputMode::PullDown => IoConfiguration::PULL_CTL::PullDown,
+            hil::gpio::InputMode::PullUp => IoConfiguration::PULL_CTL::PullUp,
+            hil::gpio::InputMode::PullNone => IoConfiguration::PULL_CTL::PullNone,
+        };
+
+        pin_ioc.modify(field);
     }
 }
 
@@ -77,7 +205,7 @@ impl hil::gpio::Pin for GPIOPin {
     fn make_output(&self) {
         self.enable_gpio();
         // Disable input in the io configuration
-        ioc::IOCFG[self.pin].enable_output();
+        self.enable_output();
         // Enable data output
         let regs = &*self.registers;
         regs.doe.set(regs.doe.get() | self.pin_mask);
@@ -85,7 +213,7 @@ impl hil::gpio::Pin for GPIOPin {
 
     fn make_input(&self) {
         self.enable_gpio();
-        ioc::IOCFG[self.pin].enable_input();
+        self.enable_input();
     }
 
     fn disable(&self) {
@@ -114,11 +242,11 @@ impl hil::gpio::Pin for GPIOPin {
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
         self.client_data.set(client_data);
-        ioc::IOCFG[self.pin].enable_interrupt(mode);
+        self.enable_interrupt(mode);
     }
 
     fn disable_interrupt(&self) {
-        ioc::IOCFG[self.pin].disable_interrupt();
+        self.disable_interrupt();
     }
 }
 

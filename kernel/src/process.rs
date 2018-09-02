@@ -15,11 +15,6 @@ use sched::Kernel;
 use syscall::{self, Syscall, UserspaceKernelBoundary};
 use tbfheader;
 
-/// This is used in the hardfault handler.
-#[no_mangle]
-#[used]
-pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
-
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
 /// is able to create its own `load_processes()` function and use that instead.
@@ -207,8 +202,8 @@ pub trait ProcessType {
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn fault_str(&self, writer: &mut Write);
-    unsafe fn statistics_str(&self, writer: &mut Write);
+    unsafe fn fault_fmt(&self, writer: &mut Write);
+    unsafe fn process_detail_fmt(&self, writer: &mut Write);
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -358,7 +353,7 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
-    stored_state: MapCell<S::StoredState>,
+    stored_state: Cell<S::StoredState>,
 
     /// Whether the scheduler can schedule this app.
     state: Cell<State>,
@@ -686,13 +681,13 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     unsafe fn pop_syscall_stack_frame(&self) {
-        self.stored_state.map(|mut stored_state| {
-            let new_stack_pointer = self
-                .syscall
-                .pop_syscall_stack_frame(self.sp(), &mut stored_state);
-            self.current_stack_pointer
-                .set(new_stack_pointer as *const u8);
-        });
+        let mut stored_state = self.stored_state.get();
+        let new_stack_pointer = self
+            .syscall
+            .pop_syscall_stack_frame(self.sp(), &mut stored_state);
+        self.current_stack_pointer
+            .set(new_stack_pointer as *const u8);
+        self.stored_state.set(stored_state);
     }
 
     unsafe fn push_function_call(&self, callback: FunctionCall) {
@@ -705,240 +700,65 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         // stack. Architecture-specific code handles actually doing the push
         // since we don't know the details of exactly what the stack frames look
         // like.
-        self.stored_state.map(|stored_state| {
-            match self.syscall.push_function_call(
-                self.sp(),
-                remaining_stack_bytes,
-                callback,
-                &stored_state,
-            ) {
-                Ok(stack_bottom) => {
-                    // If we got an `Ok` with the new stack pointer we are all
-                    // set and should mark that this process is ready to be
-                    // scheduled.
+        let stored_state = self.stored_state.get();
+        match self.syscall.push_function_call(
+            self.sp(),
+            remaining_stack_bytes,
+            callback,
+            &stored_state,
+        ) {
+            Ok(stack_bottom) => {
+                // If we got an `Ok` with the new stack pointer we are all
+                // set and should mark that this process is ready to be
+                // scheduled.
 
-                    // We just setup up a new callback to do, which means this
-                    // process wants to execute, so we set that there is work to
-                    // be done.
-                    self.kernel.increment_work();
+                // We just setup up a new callback to do, which means this
+                // process wants to execute, so we set that there is work to
+                // be done.
+                self.kernel.increment_work();
 
-                    // Move this process to the "running" state so the scheduler
-                    // will schedule it.
-                    self.state.set(State::Running);
+                // Move this process to the "running" state so the scheduler
+                // will schedule it.
+                self.state.set(State::Running);
 
-                    // Update helpful debugging metadata.
-                    self.current_stack_pointer.set(stack_bottom as *mut u8);
-                    self.debug_set_max_stack_depth();
-                }
-
-                Err(bad_stack_bottom) => {
-                    // If we got an Error, then there was no room to add this
-                    // stack frame. This process has essentially faulted, so we
-                    // mark it as such. We also update the debugging metadata so
-                    // that if the process fault message prints then it should
-                    // be easier to debug that the process exceeded its stack.
-                    self.debug.map(|debug| {
-                        let bad_stack_bottom = bad_stack_bottom as *const u8;
-                        if bad_stack_bottom < debug.min_stack_pointer {
-                            debug.min_stack_pointer = bad_stack_bottom;
-                        }
-                    });
-                    self.set_fault_state();
-                }
+                // Update helpful debugging metadata.
+                self.current_stack_pointer.set(stack_bottom as *mut u8);
+                self.debug_set_max_stack_depth();
             }
-        });
+
+            Err(bad_stack_bottom) => {
+                // If we got an Error, then there was no room to add this
+                // stack frame. This process has essentially faulted, so we
+                // mark it as such. We also update the debugging metadata so
+                // that if the process fault message prints then it should
+                // be easier to debug that the process exceeded its stack.
+                self.debug.map(|debug| {
+                    let bad_stack_bottom = bad_stack_bottom as *const u8;
+                    if bad_stack_bottom < debug.min_stack_pointer {
+                        debug.min_stack_pointer = bad_stack_bottom;
+                    }
+                });
+                self.set_fault_state();
+            }
+        }
+        self.stored_state.set(stored_state);
     }
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
-        self.stored_state.map(|mut stored_state| {
-            let (stack_pointer, switch_reason) =
-                self.syscall.switch_to_process(self.sp(), &mut stored_state);
-            self.current_stack_pointer.set(stack_pointer as *const u8);
-            self.debug_set_max_stack_depth();
-            switch_reason
-        })
+        let mut stored_state = self.stored_state.get();
+        let (stack_pointer, switch_reason) =
+            self.syscall.switch_to_process(self.sp(), &mut stored_state);
+        self.current_stack_pointer.set(stack_pointer as *const u8);
+        self.debug_set_max_stack_depth();
+        self.stored_state.set(stored_state);
+        Some(switch_reason)
     }
 
-    unsafe fn fault_str(&self, writer: &mut Write) {
-        let _ccr = SCB_REGISTERS[0];
-        let cfsr = SCB_REGISTERS[1];
-        let hfsr = SCB_REGISTERS[2];
-        let mmfar = SCB_REGISTERS[3];
-        let bfar = SCB_REGISTERS[4];
-
-        let iaccviol = (cfsr & 0x01) == 0x01;
-        let daccviol = (cfsr & 0x02) == 0x02;
-        let munstkerr = (cfsr & 0x08) == 0x08;
-        let mstkerr = (cfsr & 0x10) == 0x10;
-        let mlsperr = (cfsr & 0x20) == 0x20;
-        let mmfarvalid = (cfsr & 0x80) == 0x80;
-
-        let ibuserr = ((cfsr >> 8) & 0x01) == 0x01;
-        let preciserr = ((cfsr >> 8) & 0x02) == 0x02;
-        let impreciserr = ((cfsr >> 8) & 0x04) == 0x04;
-        let unstkerr = ((cfsr >> 8) & 0x08) == 0x08;
-        let stkerr = ((cfsr >> 8) & 0x10) == 0x10;
-        let lsperr = ((cfsr >> 8) & 0x20) == 0x20;
-        let bfarvalid = ((cfsr >> 8) & 0x80) == 0x80;
-
-        let undefinstr = ((cfsr >> 16) & 0x01) == 0x01;
-        let invstate = ((cfsr >> 16) & 0x02) == 0x02;
-        let invpc = ((cfsr >> 16) & 0x04) == 0x04;
-        let nocp = ((cfsr >> 16) & 0x08) == 0x08;
-        let unaligned = ((cfsr >> 16) & 0x100) == 0x100;
-        let divbysero = ((cfsr >> 16) & 0x200) == 0x200;
-
-        let vecttbl = (hfsr & 0x02) == 0x02;
-        let forced = (hfsr & 0x40000000) == 0x40000000;
-
-        let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
-
-        if iaccviol {
-            let _ = writer.write_fmt(format_args!(
-                "Instruction Access Violation:       {}\r\n",
-                iaccviol
-            ));
-        }
-        if daccviol {
-            let _ = writer.write_fmt(format_args!(
-                "Data Access Violation:              {}\r\n",
-                daccviol
-            ));
-        }
-        if munstkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Memory Management Unstacking Fault: {}\r\n",
-                munstkerr
-            ));
-        }
-        if mstkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Memory Management Stacking Fault:   {}\r\n",
-                mstkerr
-            ));
-        }
-        if mlsperr {
-            let _ = writer.write_fmt(format_args!(
-                "Memory Management Lazy FP Fault:    {}\r\n",
-                mlsperr
-            ));
-        }
-
-        if ibuserr {
-            let _ = writer.write_fmt(format_args!(
-                "Instruction Bus Error:              {}\r\n",
-                ibuserr
-            ));
-        }
-        if preciserr {
-            let _ = writer.write_fmt(format_args!(
-                "Precise Data Bus Error:             {}\r\n",
-                preciserr
-            ));
-        }
-        if impreciserr {
-            let _ = writer.write_fmt(format_args!(
-                "Imprecise Data Bus Error:           {}\r\n",
-                impreciserr
-            ));
-        }
-        if unstkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Unstacking Fault:               {}\r\n",
-                unstkerr
-            ));
-        }
-        if stkerr {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Stacking Fault:                 {}\r\n",
-                stkerr
-            ));
-        }
-        if lsperr {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Lazy FP Fault:                  {}\r\n",
-                lsperr
-            ));
-        }
-
-        if undefinstr {
-            let _ = writer.write_fmt(format_args!(
-                "Undefined Instruction Usage Fault:  {}\r\n",
-                undefinstr
-            ));
-        }
-        if invstate {
-            let _ = writer.write_fmt(format_args!(
-                "Invalid State Usage Fault:          {}\r\n",
-                invstate
-            ));
-        }
-        if invpc {
-            let _ = writer.write_fmt(format_args!(
-                "Invalid PC Load Usage Fault:        {}\r\n",
-                invpc
-            ));
-        }
-        if nocp {
-            let _ = writer.write_fmt(format_args!(
-                "No Coprocessor Usage Fault:         {}\r\n",
-                nocp
-            ));
-        }
-        if unaligned {
-            let _ = writer.write_fmt(format_args!(
-                "Unaligned Access Usage Fault:       {}\r\n",
-                unaligned
-            ));
-        }
-        if divbysero {
-            let _ = writer.write_fmt(format_args!(
-                "Divide By Zero:                     {}\r\n",
-                divbysero
-            ));
-        }
-
-        if vecttbl {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Fault on Vector Table Read:     {}\r\n",
-                vecttbl
-            ));
-        }
-        if forced {
-            let _ = writer.write_fmt(format_args!(
-                "Forced Hard Fault:                  {}\r\n",
-                forced
-            ));
-        }
-
-        if mmfarvalid {
-            let _ = writer.write_fmt(format_args!(
-                "Faulting Memory Address:            {:#010X}\r\n",
-                mmfar
-            ));
-        }
-        if bfarvalid {
-            let _ = writer.write_fmt(format_args!(
-                "Bus Fault Address:                  {:#010X}\r\n",
-                bfar
-            ));
-        }
-
-        if cfsr == 0 && hfsr == 0 {
-            let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
-        } else {
-            let _ = writer.write_fmt(format_args!(
-                "Fault Status Register (CFSR):       {:#010X}\r\n",
-                cfsr
-            ));
-            let _ = writer.write_fmt(format_args!(
-                "Hard Fault Status Register (HFSR):  {:#010X}\r\n",
-                hfsr
-            ));
-        }
+    unsafe fn fault_fmt(&self, writer: &mut Write) {
+        self.syscall.fault_fmt(writer);
     }
 
-    unsafe fn statistics_str(&self, writer: &mut Write) {
+    unsafe fn process_detail_fmt(&self, writer: &mut Write) {
         // Flash
         let flash_end = self.flash.as_ptr().offset(self.flash.len() as isize) as usize;
         let flash_start = self.flash.as_ptr() as usize;
@@ -993,27 +813,6 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
         let restart_count = self.debug.map_or(0, |debug| debug.restart_count);
 
-        // register values
-        let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (
-            // self.r0(),
-            // self.r1(),
-            // self.r2(),
-            // self.r3(),
-            5,
-            6,
-            7,
-            8,
-            9,
-            // self.r12(),
-            self.sp() as usize,
-            10,
-            11,
-            12,
-            // self.lr(),
-            // self.pc(),
-            // self.xpsr(),
-        );
-
         let _ = writer.write_fmt(format_args!(
             "\
              App: {}   -   [{:?}]\
@@ -1055,18 +854,6 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
   \r\n  {:#010X} ┼─────────────────────────────────────────── A\
 \r\n             │ Protected    {:6}                        S\
   \r\n  {:#010X} ┴─────────────────────────────────────────── H\
-\r\n\
-  \r\n  R0 : {:#010X}    R6 : {:#010X}\
-  \r\n  R1 : {:#010X}    R7 : {:#010X}\
-  \r\n  R2 : {:#010X}    R8 : {:#010X}\
-  \r\n  R3 : {:#010X}    R10: {:#010X}\
-  \r\n  R4 : {:#010X}    R11: {:#010X}\
-  \r\n  R5 : {:#010X}    R12: {:#010X}\
-  \r\n  R9 : {:#010X} (Static Base Register)\
-  \r\n  SP : {:#010X} (Process Stack Pointer)\
-  \r\n  LR : {:#010X}\
-  \r\n  PC : {:#010X}\
-  \r\n YPC : {:#010X}\
 \r\n",
   sram_end,
   sram_grant_size, sram_grant_allocated, sram_grant_error_str,
@@ -1083,62 +870,16 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
   flash_app_size,
   flash_app_start,
   flash_protected_size,
-  flash_start,
-  // r0, self.stored_regs.r6,
-  // r1, self.stored_regs.r7,
-  // r2, self.stored_regs.r8,
-  // r3, self.stored_regs.r10,
-  // self.stored_regs.r4, self.stored_regs.r11,
-  // self.stored_regs.r5, r12,
-  // self.stored_regs.r9,
-  r0, 6,
-  r1, 7,
-  r2, 8,
-  r3, 10,
-  4, 11,
-  5, r12,
-  9,
-  sp,
-  lr,
-  pc,
-  // self.yield_pc.get(),
-  0
-  ));
+  flash_start));
+
+        self.syscall
+            .process_detail_fmt(self.sp(), &self.stored_state.get(), writer);
+
         let _ = writer.write_fmt(format_args!(
             "\
-             \r\n APSR: N {} Z {} C {} V {} Q {}\
-             \r\n       GE {} {} {} {}",
-            (xpsr >> 31) & 0x1,
-            (xpsr >> 30) & 0x1,
-            (xpsr >> 29) & 0x1,
-            (xpsr >> 28) & 0x1,
-            (xpsr >> 27) & 0x1,
-            (xpsr >> 19) & 0x1,
-            (xpsr >> 18) & 0x1,
-            (xpsr >> 17) & 0x1,
-            (xpsr >> 16) & 0x1,
-        ));
-        let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
-        let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n EPSR: ICI.IT {:#04x}\
-             \r\n       ThumbBit {} {}",
-            ici_it,
-            thumb_bit,
-            if thumb_bit {
-                ""
-            } else {
-                "!!ERROR - Cortex M Thumb only!"
-            },
-        ));
-        let _ = writer.write_fmt(format_args!("\r\n To debug, run "));
-        let _ = writer.write_fmt(format_args!(
-            "`make debug RAM_START={:#x} FLASH_INIT={:#x}`",
+             \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
+             \r\nin the app's folder and open the .lst file.\r\n\r\n",
             sram_start, flash_init_fn
-        ));
-        let _ = writer.write_fmt(format_args!(
-            "\r\n in the app's folder and open the .lst file.\r\n\r\n"
         ));
     }
 }
@@ -1164,7 +905,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
 
             // Otherwise, actually load the app.
             let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
-            let process_name = tbf_header.get_package_name(app_flash_address);
+            let process_name = tbf_header.get_package_name();
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
@@ -1295,7 +1036,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
 
             process.flash = slice::from_raw_parts(app_flash_address, app_flash_size);
 
-            process.stored_state = MapCell::new(Default::default());
+            process.stored_state = Cell::new(Default::default());
             process.state = Cell::new(State::Yielded);
             process.fault_response = fault_response;
 
