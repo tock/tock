@@ -133,8 +133,7 @@ impl<RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -151,8 +150,7 @@ impl<RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
@@ -161,28 +159,29 @@ impl<RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
 
     fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
-            0 => /* Check if exists */ ReturnCode::SUCCESS,
+            0 =>
+            /* Check if exists */
+            {
+                ReturnCode::SUCCESS
+            }
 
             // Ask for a given number of random bytes.
-            1 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.remaining = data;
-                        app.idx = 0;
+            1 => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.remaining = data;
+                    app.idx = 0;
 
-                        if app.callback.is_some() && app.buffer.is_some() {
-                            if !self.getting_randomness.get() {
-                                self.getting_randomness.set(true);
-                                self.rng.get();
-                            }
-                            ReturnCode::SUCCESS
+                    if app.callback.is_some() && app.buffer.is_some() {
+                        if !self.getting_randomness.get() {
+                            self.getting_randomness.set(true);
+                            self.rng.get();
                         }
-                        else {
-                            ReturnCode::ERESERVE
-                        }
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::ERESERVE
+                    }
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

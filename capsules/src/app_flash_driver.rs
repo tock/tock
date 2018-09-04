@@ -100,8 +100,7 @@ impl AppFlash<'a> {
                         ReturnCode::SUCCESS
                     }
                 }
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 }
 
@@ -175,8 +174,7 @@ impl Driver for AppFlash<'a> {
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -198,8 +196,7 @@ impl Driver for AppFlash<'a> {
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -212,7 +209,11 @@ impl Driver for AppFlash<'a> {
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
-            0 => /* This driver exists. */ ReturnCode::SUCCESS,
+            0 =>
+            /* This driver exists. */
+            {
+                ReturnCode::SUCCESS
+            }
 
             // Write to flash from the allowed buffer.
             1 => {

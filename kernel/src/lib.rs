@@ -6,7 +6,7 @@
 //!
 //! Most `unsafe` code is in this kernel crate.
 
-#![feature(asm, core_intrinsics, unique, ptr_internals, const_fn)]
+#![feature(asm, core_intrinsics, ptr_internals, const_fn)]
 #![feature(use_extern_macros, try_from, used, panic_info_message)]
 #![feature(in_band_lifetimes, crate_visibility_modifier)]
 #![warn(unreachable_pub)]

@@ -66,7 +66,7 @@ pub trait UserspaceKernelBoundary {
     /// Some architecture-specific struct containing per-process state that must
     /// be kept while the process is not running. For example, for keeping CPU
     /// registers that aren't stored on the stack.
-    type StoredState: Default;
+    type StoredState: Default + Copy;
 
     /// Get the syscall that the process called with the appropriate arguments.
     unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<Syscall>;

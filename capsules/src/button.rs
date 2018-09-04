@@ -137,8 +137,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                 .enter(app_id, |cntr, _| {
                     cntr.0 = callback;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into()),
+                }).unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
@@ -179,8 +178,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                                 .0
                                 .enable_interrupt(data, InterruptMode::EitherEdge);
                             ReturnCode::SUCCESS
-                        })
-                        .unwrap_or_else(|err| err.into())
+                        }).unwrap_or_else(|err| err.into())
                 } else {
                     ReturnCode::EINVAL /* impossible button */
                 }
@@ -196,8 +194,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                         .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS
-                        })
-                        .unwrap_or_else(|err| err.into());
+                        }).unwrap_or_else(|err| err.into());
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);

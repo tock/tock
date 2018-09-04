@@ -160,9 +160,9 @@ pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *con
 #[no_mangle]
 /// r0 is top of user stack, r1 Process GOT
 pub unsafe extern "C" fn switch_to_user(
-    mut user_stack: *const u8,
+    mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
-) -> *mut u8 {
+) -> *const usize {
     asm!("
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
@@ -178,11 +178,12 @@ pub unsafe extern "C" fn switch_to_user(
     /* regs field */
     stmia $2, {r4-r11}
 
+
     mrs $0, PSP /* PSP into r0 */"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
-    user_stack as *mut u8
+    user_stack
 }
 
 pub unsafe extern "C" fn hard_fault_handler() {
