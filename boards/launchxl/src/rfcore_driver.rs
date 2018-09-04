@@ -110,14 +110,14 @@ impl Radio {
     pub fn power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::IEEE);
 
-        // unsafe { oscfh::OSCHF_TurnOnXosc() };
-        osc::OSC.request_switch_to_hf_xosc();
+        unsafe { oscfh::OSCHF_TurnOnXosc() };
+        // osc::OSC.request_switch_to_hf_xosc();
 
         self.rfc.enable();
         self.rfc.start_rat();
 
-        osc::OSC.switch_to_hf_xosc();
-        // unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
+        // osc::OSC.switch_to_hf_xosc();
+        unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
         
         /*
         unsafe {

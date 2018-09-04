@@ -7,6 +7,25 @@ use rfc;
 use rtc;
 use uart;
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub enum SleepMode {
+    DeepSleep = 0,
+    Sleep = 1,
+    Active = 2,
+}
+
+impl From<u32> for SleepMode {
+    fn from(n: u32) -> Self {
+        match n {
+            0 => SleepMode::DeepSleep,
+            1 => SleepMode::Sleep,
+            2 => SleepMode::Active,
+            _ => unimplemented!(),
+        }
+    }
+}
+
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
     systick: cortexm4::systick::SysTick,

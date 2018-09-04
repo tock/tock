@@ -239,7 +239,6 @@ impl RFCore {
                 + RFCPWE::RAT::SET
                 + RFCPWE::PHA::SET
                 + RFCPWE::FSCA::SET
-                + RFCPWE::RFCTRC::SET,
         );
 
         // Clear ack flag
@@ -249,8 +248,8 @@ impl RFCore {
         dbell_regs.rfcpeisl.write(CPEInterrupts::INTERNAL_ERROR::SET);
         dbell_regs.rfcpeien.write(CPEInterrupts::INTERNAL_ERROR::SET + CPEInterrupts::COMMAND_DONE::SET + CPEInterrupts::TX_DONE::SET);
         dbell_regs.rfcpeifg.set(0x00);
-        //self.enable_cpe_interrupts();
-        self.enable_hw_interrupts();
+        // self.enable_cpe_interrupts();
+        // self.enable_hw_interrupts();
 
         /*
         dbell_regs
@@ -260,17 +259,17 @@ impl RFCore {
         */
 
         // Initialize radio module
-        self.send_direct(cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
+        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
         .ok()
         .expect("Could not initialize radio module");
 
         // Request bus
-        self.send_direct(cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1))
+        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1))
             .ok()
             .expect("Could not request bus on radio module");
 
         // Ping radio module
-        self.send_direct(cmd::DirectCommand::new(cmd::RFC_PING, 0))
+        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_PING, 0))
             .ok()
             .expect("Could not ping radio module");
     }
@@ -278,7 +277,7 @@ impl RFCore {
     // Disable RFCore
     pub fn disable(&self) {
         let dbell_regs = &*self.dbell_regs;
-        self.send_direct(cmd::DirectCommand::new(cmd::RFC_STOP, 0))
+        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok()
             .expect("Could not stop RFC with direct command");
         dbell_regs.rfcpeien.set(0x00);
@@ -479,9 +478,9 @@ impl RFCore {
         self.post_cmdr(command)
     }
 
-    pub fn send_direct(&self, dir_command: cmd::DirectCommand) -> RadioReturnCode {
+    pub fn send_direct(&self, dir_command: &cmd::DirectCommand) -> RadioReturnCode {
         let command = {
-            let cmd = dir_command.params as u32;
+            let cmd = dir_command.command_no as u32;
             let par = dir_command.params as u32;
             (cmd << 16) | (par & 0xFFFC) | 1
         };

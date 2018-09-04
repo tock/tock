@@ -22,21 +22,7 @@ pub enum Commands {
     StopRat = 6,
     NotSupported,
 }
-/*
-macro_rules! offset_of {
-    ($($tt:tt)*) => {
-        {
-            let base = $($tt)*(unsafe { ::std::mem::uninitialized() });
-            let offset = match base {
-                $($tt)*(ref inner) => (inner as *const _ as usize) - (&base as *const _ as usize),
-                _ => unreachable!(),
-            };
-            ::std::mem::forget(base);
-            offset
-        }
-    }
-}
-*/
+
 // Radio and data commands bitfields
 bitfield! {
     #[derive(Copy, Clone)]
@@ -86,10 +72,10 @@ pub enum RfcOperationStatus {
 // Radio Commands
 
 // RFC Immediate commands
-pub const RFC_CMD0: u16 = 0x607; // not a real cmd number
+pub const RFC_CMD0: u16 = 0x607; // found in driverlib SDK
 pub const RFC_PING: u16 = 0x406;
 pub const RFC_BUS_REQUEST: u16 = 0x40E;
-pub const RFC_START_RAT_TIMER: u16 = 0x0405;
+pub const RFC_START_RAT_TIMER: u16 = 0x080A;
 pub const RFC_STOP_RAT_TIMER: u16 = 0x0809;
 pub const RFC_SETUP: u16 = 0x0802;
 pub const RFC_STOP: u16 = 0x0402;

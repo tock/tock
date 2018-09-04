@@ -21,7 +21,7 @@ pub struct DdiRegisters {
     _rc_osc_hf_ctl: ReadOnly<u32>,
     _rc_osc_mf_ctl: ReadOnly<u32>,
 
-    _reserved: ReadOnly<u32>,
+    _reserved: [ReadOnly<u8>; 0x04],
 
     stat0: ReadOnly<u32, Stat0::Register>,
     _stat1: ReadOnly<u32>,
@@ -49,30 +49,14 @@ register_bitfields! [
         ACLK_TDC_SRC_SEL         OFFSET(7) NUMBITS(2) [],
         ACLK_REF_SRC_SEL         OFFSET(4) NUMBITS(3) [],
 
-        SCLK_LF_SRC_SEL          OFFSET(2) NUMBITS(2) [
-            RCOSC_HF_DERIVED = 0b00,
-            XOSC_HF_DERIVED  = 0b01,
-            RCOSC_LF         = 0b10,
-            XOSC_LF          = 0b11
-        ],
+        SCLK_LF_SRC_SEL          OFFSET(2) NUMBITS(2) [],
         // RESERVED 1
-        SCLK_HF_SRC_SEL OFFSET(0) NUMBITS(1) [
-            RCOSC_HF = 0b0,
-            XOSC_HF  = 0b1
-        ]
+        SCLK_HF_SRC_SEL     OFFSET(0) NUMBITS(1) []
     ],
     Stat0 [
         // RESERVED 31
-        SCLK_LF_SRC     OFFSET(29) NUMBITS(2) [
-            RCOSC_HF_DERIVED = 0b00,
-            XOSC_HF_DERIVED  = 0b01,
-            RCOSC_LF         = 0b10,
-            XOSC_LF          = 0b11
-        ],
-        SCLK_HF_SRC     OFFSET(28) NUMBITS(1) [
-            RCOSC_HF = 0b00,
-            XOSC_HF  = 0b01
-        ],
+        SCLK_LF_SRC     OFFSET(29) NUMBITS(2) [],
+        SCLK_HF_SRC     OFFSET(28) NUMBITS(1) [],
         // RESERVED 23-27
         RCOSC_HF_EN      OFFSET(22) NUMBITS(1) [],
         RCOSC_LF_EN      OFFSET(21) NUMBITS(1) [],
@@ -140,16 +124,16 @@ impl Oscillator {
         let regs = &*self.r_regs;
         match lf_clk {
             LF_DERIVED_RCOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
+                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x0));
             }
             LF_RCOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_LF);
+                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x2));
             }
             LF_DERIVED_XOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_HF_DERIVED);
+                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x1));
             }
             LF_XOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_LF);
+                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x3));
             }
             _ => panic!("Undefined LF OSC"),
         }
@@ -161,10 +145,10 @@ impl Oscillator {
         while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
         match hf_clk {
             HF_RCOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::RCOSC_HF);
+                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(0x0));
             }
             HF_XOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL::XOSC_HF);
+                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(0x1));
             }
             _ => panic!("Undefined HF OSC"),
         }
@@ -175,9 +159,9 @@ impl Oscillator {
     pub fn switch_to_lf_xosc(&self) {
         let regs = &*self.r_regs;
 
-        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::RCOSC_HF_DERIVED);
+        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x0));
         regs.ctl0.modify(Ctl0::XOSC_LF_DIG_BYPASS::CLEAR);
-        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL::XOSC_LF);
+        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x3));
 
     }
     pub fn switch_to_rc_osc(&self) {

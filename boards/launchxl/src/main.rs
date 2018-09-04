@@ -353,9 +353,9 @@ pub unsafe fn reset_handler() {
     let radio = static_init!(
         rfcore_driver::Radio,
         rfcore_driver::Radio::new(
-            &cc26x2::rfc::RFC)
+            &cc26x2::rfc::RFC
             //board_kernel.create_grant(&memory_allocation_capability)
-        //)
+        )
     );
 
     radio.power_up();
