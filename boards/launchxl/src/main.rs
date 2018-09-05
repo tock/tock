@@ -14,6 +14,7 @@ extern crate kernel;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
 use cc26x2::prcm;
+use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
 
@@ -21,8 +22,6 @@ use kernel::hil;
 pub mod io;
 #[allow(dead_code)]
 mod i2c_tests;
-pub mod rfcore_const;
-pub mod rfcore_driver;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -50,7 +49,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-    radio: &'static rfcore_driver::Radio,
+    radio: &'static radio::rfcore_driver::Radio,
 }
 
 impl kernel::Platform for Platform {
@@ -65,7 +64,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            cc26x2::rfc::DRIVER_NUM => f(Some(self.radio)),
+            radio::rfc::DRIVER_NUM => f(Some(self.radio)),
             _ => f(None),
         }
     }
@@ -184,14 +183,23 @@ pub unsafe fn reset_handler() {
 
     prcm::Power::enable_domain(prcm::PowerDomain::Serial);
 
-    while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
-    
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();
 
     configure_pins();
+
+    radio::RFC.set_client(&radio::RADIO);
+
+    let radio = static_init!(
+        radio::rfcore_driver::Radio,
+        radio::rfcore_driver::Radio::new(
+            &cc26x2::radio::rfc::RFC
+        )
+    );
+    
+    // radio.power_up();
 
     // LEDs
     let led_pins = static_init!(
@@ -349,17 +357,7 @@ pub unsafe fn reset_handler() {
         )
     );
     cc26x2::trng::TRNG.set_client(rng);
-    
-    let radio = static_init!(
-        rfcore_driver::Radio,
-        rfcore_driver::Radio::new(
-            &cc26x2::rfc::RFC
-            //board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    radio.power_up();
-
+        
     let launchxl = Platform {
         console,
         gpio,

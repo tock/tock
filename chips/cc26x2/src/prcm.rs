@@ -70,7 +70,7 @@ struct PrcmRegisters {
     pub i2s_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>, // 0x8Ch offset
 
     //_reserved4: [ReadOnly<u8>; 0xB4],
-    _reserved4: [ReadOnly<u8>; 0x9c],
+    _reserved4: [ReadOnly<u8>; 0x9C],
 
     // Power Domain Control 0
     pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>, // 0x12Ch offset
@@ -108,7 +108,7 @@ struct PrcmRegisters {
 
     _reserved9: [ReadOnly<u8>; 0x24],
 
-    pub rfc_bits: ReadWrite<u32, AutoControl::Register>, // CPE auto check at boot for immediate start up tasks
+    _rfc_bits: ReadOnly<u32, AutoControl::Register>, // CPE auto check at boot for immediate start up tasks
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
@@ -180,7 +180,7 @@ const PRCM_BASE: StaticRef<PrcmRegisters> =
 // trigger the load register
 
 fn prcm_commit() {
-    let regs = PRCM_BASE;
+    let regs = &*PRCM_BASE;
     regs.clk_load_ctl.write(ClockLoad::LOAD::SET);
     // Wait for the settings to take effect
     while !regs.clk_load_ctl.is_set(ClockLoad::LOAD_DONE) {}
@@ -246,9 +246,11 @@ impl Power {
         match domain {
             PowerDomain::Peripherals => {
                 regs.pd_ctl0.modify(PowerDomain0::PERIPH_ON::SET);
+                while !Power::is_enabled(PowerDomain::Peripherals) {}
             }
             PowerDomain::Serial => {
                 regs.pd_ctl0.modify(PowerDomain0::SERIAL_ON::SET);
+                while !Power::is_enabled(PowerDomain::Serial) {}
             }
             PowerDomain::RFC => {
                 regs.pd_ctl0.modify(PowerDomain0::RFC_ON::SET);
@@ -295,8 +297,8 @@ impl Power {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
             PowerDomain::RFC => {
-                regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
-                    && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                    && regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
             }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),
@@ -320,11 +322,12 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.sec_dma_clk_run
             .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
+        /*
         regs.sec_dma_clk_sleep
             .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
         regs.sec_dma_clk_deep_sleep
             .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
-
+*/
         prcm_commit();
     }
 

@@ -205,7 +205,7 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
         }
         if _currentBlock == 6 {
         } else {
-            *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x80000000usize;
+            *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x00000000usize;
         }
     }
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x8usize == 0usize {

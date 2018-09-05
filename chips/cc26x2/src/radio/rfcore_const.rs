@@ -1,4 +1,4 @@
-use cc26x2::commands as cmd;
+use radio::commands as cmd;
 
 pub const RFC_RAM_BASE: u32 = 0x2100_0000;
 

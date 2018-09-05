@@ -32,7 +32,6 @@
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
 use rom_fns::ddi;
-
 #[derive(Copy)]
 #[repr(C)]
 pub struct Struct1 {
@@ -123,51 +122,11 @@ pub unsafe fn source_switch() {
     (*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch;
 }
 
+/*
 unsafe extern "C" fn AONRTCCurrentCompareValueGet() -> u32 {
     *((0x40092000i32 + 0x30i32) as (*mut usize)) as (u32)
 }
-
-pub unsafe extern "C" fn OSCHF_GetStartupTime(mut timeUntilWakeupInMs: u32) -> u32 {
-    let mut deltaTimeSinceXoscOnInMs: u32;
-    let mut deltaTempSinceXoscOn: i32;
-    let mut newStartupTimeInUs: u32;
-    deltaTimeSinceXoscOnInMs = 1000u32
-        .wrapping_mul(AONRTCCurrentCompareValueGet().wrapping_sub(oscHfGlobals.timeXoscOn_CV))
-        >> 16i32;
-    deltaTempSinceXoscOn = AONBatMonTemperatureGetDegC() - oscHfGlobals.tempXoscOff;
-    if deltaTempSinceXoscOn < 0i32 {
-        deltaTempSinceXoscOn = -deltaTempSinceXoscOn;
-    }
-    if timeUntilWakeupInMs.wrapping_add(deltaTimeSinceXoscOnInMs) > 3000u32
-        || deltaTempSinceXoscOn > 5i32
-        || oscHfGlobals.timeXoscStable_CV < oscHfGlobals.timeXoscOn_CV
-        || oscHfGlobals.previousStartupTimeInUs == 0u32
-    {
-        newStartupTimeInUs = 2000u32;
-        if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x1usize == 0usize {
-            newStartupTimeInUs = ((*((0x50003000i32 + 0x1faci32) as (*mut usize)) & 0xffusize)
-                >> 0i32)
-                .wrapping_mul(125usize) as (u32);
-        }
-    } else {
-        newStartupTimeInUs = 1000000u32.wrapping_mul(
-            oscHfGlobals
-                .timeXoscStable_CV
-                .wrapping_sub(oscHfGlobals.timeXoscOn_CV),
-        ) >> 16i32;
-        newStartupTimeInUs = newStartupTimeInUs.wrapping_add(newStartupTimeInUs >> 2i32);
-        if newStartupTimeInUs < oscHfGlobals.previousStartupTimeInUs {
-            newStartupTimeInUs = oscHfGlobals.previousStartupTimeInUs;
-        }
-    }
-    if newStartupTimeInUs < 200u32 {
-        newStartupTimeInUs = 200u32;
-    }
-    if newStartupTimeInUs > 4000u32 {
-        newStartupTimeInUs = 4000u32;
-    }
-    newStartupTimeInUs
-}
+*/
 
 unsafe extern "C" fn OSCHfSourceReady() -> bool {
     (if ddi::ddi16bitfield_read(0x400ca000u32, 0x3cu32, 0x1u32, 0u32) != 0 {
@@ -179,7 +138,7 @@ unsafe extern "C" fn OSCHfSourceReady() -> bool {
 
 pub unsafe extern "C" fn OSCHF_TurnOnXosc() {
     clock_source_set(0x1u32, 0x1u32);
-    oscHfGlobals.timeXoscOn_CV = AONRTCCurrentCompareValueGet();
+    // oscHfGlobals.timeXoscOn_CV = AONRTCCurrentCompareValueGet();
 }
 
 pub unsafe extern "C" fn OSCHF_AttemptToSwitchToXosc() -> bool {
@@ -190,7 +149,7 @@ pub unsafe extern "C" fn OSCHF_AttemptToSwitchToXosc() -> bool {
         true
     } else if OSCHfSourceReady() {
         source_switch();
-        oscHfGlobals.timeXoscStable_CV = AONRTCCurrentCompareValueGet();
+        // oscHfGlobals.timeXoscStable_CV = AONRTCCurrentCompareValueGet();
         startupTimeInUs = 1000000u32.wrapping_mul(
             oscHfGlobals
                 .timeXoscStable_CV
@@ -213,7 +172,7 @@ pub unsafe extern "C" fn OSCHF_SwitchToRcOscTurnOffXosc() {
     if clock_source_get(0x1u32) != 0x0u32 {
         source_switch();
     }
-    oscHfGlobals.timeXoscOff_CV = AONRTCCurrentCompareValueGet();
+    // oscHfGlobals.timeXoscOff_CV = AONRTCCurrentCompareValueGet();
     oscHfGlobals.tempXoscOff = AONBatMonTemperatureGetDegC();    
 }
 

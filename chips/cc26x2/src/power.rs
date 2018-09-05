@@ -1,14 +1,14 @@
 use kernel::common::cells::VolatileCell;
 use prcm::{Power, PowerDomain};
-use PowerManager::{RegionManager, Resource, ResourceManager};
+use power_manager::{PowerManager, Resource, ResourceManager};
 use cortexm4::scb;
 
-use aux;
+// use aux;
 use aon;
 use prcm;
 use rtc;
 use osc;
-use gpio;
+// use gpio;
 
 pub static mut PM: PowerManager<RegionManager> = PowerManager::new(RegionManager);
 
@@ -45,14 +45,23 @@ pub fn switch_to_rc_osc(){
         osc::OSC.switch_to_hf_rcosc();
     }
     osc::OSC.clock_source_set(osc::ClockType::LF, 0x2);
-    osc::OSC.disable_lf_clock_qualifiers();
+    osc::OSC.disable_lfclk_qualifier();
+}
+
+fn vims_disable() {
+    const VIMS_BASE: u32 = 0x4003_4000;
+    const VIMS_O_CTL: u32 = 0x00000004;
+
+    let vims_ctl: &VolatileCell<u32> =
+        unsafe { &*((VIMS_BASE + VIMS_O_CTL) as *const VolatileCell<u32>) };
+    vims_ctl.set(0x00000003); // disable VIMS
 }
 
 /// Transition into deep sleep
 pub unsafe fn prepare_deep_sleep() {
-    gpio::set_pins_to_default_conf();
+    // gpio::set_pins_to_default_conf();
 
-    switch_to_rc_oscillator();
+    switch_to_rc_osc();
 
     prcm::Power::disable_domain(prcm::PowerDomain::CPU);
     prcm::Power::disable_domain(prcm::PowerDomain::RFC);
@@ -64,7 +73,7 @@ pub unsafe fn prepare_deep_sleep() {
     prcm::force_disable_dma_and_crypto();
 
     aon::AON.set_dcdc_enabled(true);
-    aon::AON.jtag_set_enabled(false);
+    // aon::AON.jtag_set_enabled(false);
     aon::AON.aux_disable_power_down_clock();
     aon::AON.aux_set_ram_retention(false);
     aon::AON.mcu_set_ram_retention(true);
@@ -78,7 +87,7 @@ pub unsafe fn prepare_deep_sleep() {
     //       Investigate this further, as the AUX domain draws ~70uA in sleep
     //aux_wuc::AUX_CTL.power_off();
 
-    while aon::AON.aux_is_on() {}
+    // while aon::AON.aux_is_on() {}
 
     // Configure power cycling (used to keep state in low power modes)
     vims_disable();
@@ -103,7 +112,7 @@ pub unsafe fn prepare_wakeup() {
     prcm::Power::enable_domain(prcm::PowerDomain::Serial);
 
     // Unlock IO pins and let them be controlled by GPIO
-    aon::AON.lock_io_pins(false);
+    // aon::AON.lock_io_pins(false);
 
     rtc::RTC.sync();
     scb::unset_sleepdeep();

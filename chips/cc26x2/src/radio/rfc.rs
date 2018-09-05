@@ -20,7 +20,7 @@
 //! payload are in the system RAM, the system CPU must remain powered. Otherwise, if everything is in the
 //! radio RAM, the system CPU may go into power-down mode to save current.
 //!
-use commands as cmd;
+use radio::commands as cmd;
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -37,9 +37,9 @@ pub struct RfcDBellRegisters {
     // RFC Command Status register
     cmdsta: ReadOnly<u32>,
     // Interrupt Flags From RF HW Modules
-    _rfhwifg: ReadWrite<u32, RFHWInterrupts::Register>,
+    _rfhwifg: ReadWrite<u32>,
     // Interrupt Flags For RF HW Modules
-    _rfhwien: ReadWrite<u32, RFHWInterrupts::Register>,
+    _rfhwien: ReadWrite<u32>,
     // Interrupt Flags For CPE Generated Interrupts
     rfcpeifg: ReadWrite<u32, CPEInterrupts::Register>,
     // Interrupt Enable For CPE Generated Interrupts
@@ -54,9 +54,6 @@ pub struct RfcDBellRegisters {
 
 register_bitfields! {
     u32,
-    RFHWInterrupts [
-        ALL_INTERRUPTS OFFSET(1) NUMBITS(19) []
-    ],
     RFHWIntFlags [
         FSCA     OFFSET(1) NUMBITS(1) [],                     // Frequency synthesizer calibration accelerator interrupt flag/enable
         MDMDONE  OFFSET(2) NUMBITS(1) [],                     // Modem command done interrupt flag/enable
@@ -251,13 +248,8 @@ impl RFCore {
         // self.enable_cpe_interrupts();
         // self.enable_hw_interrupts();
 
-        /*
-        dbell_regs
-            ._rfhwifg
-            .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
         // dbell_regs.rfcpeifg.set(0x7FFFFFFF);
-        */
-
+        
         // Initialize radio module
         self.send_direct(&cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
         .ok()
@@ -280,11 +272,12 @@ impl RFCore {
         self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok()
             .expect("Could not stop RFC with direct command");
+        
         dbell_regs.rfcpeien.set(0x00);
         dbell_regs.rfcpeifg.set(0x00);
         dbell_regs.rfcpeisl.set(0x00);
 
-        self.disable_hw_interrupts();
+        dbell_regs.rfackifg.set(0);
 
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
@@ -372,28 +365,6 @@ impl RFCore {
             .and_then(|_| self.wait(&rf_command))
             .ok()
             .expect("Stop RAT command returned Err");
-    }
-
-    // Enable RFC HW interrupts
-    fn enable_hw_interrupts(&self) {
-        let dbell_regs = &*self.dbell_regs;
-        // Enable all interrupts
-        dbell_regs
-            ._rfhwien
-            .modify(RFHWInterrupts::ALL_INTERRUPTS::SET);
-    }
-
-    // Disable RFC HW interrupts
-    fn disable_hw_interrupts(&self) {
-        let dbell_regs = &*self.dbell_regs;
-        // Disable all RFHW interrupts
-        dbell_regs
-            ._rfhwien
-            .modify(RFHWInterrupts::ALL_INTERRUPTS::CLEAR);
-        // Clear all RFHW interrupts
-        dbell_regs
-            ._rfhwifg
-            .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
     }
 
     // Get current mode of RFCore
@@ -498,13 +469,6 @@ impl RFCore {
         let dbell_regs = &*self.dbell_regs;
         match int {
             // Hardware interrupt handler unimplemented
-            /*
-            RfcInterrupt::Hardware => {
-                dbell_regs
-                    ._rfhwifg
-                    .write(RFHWInterrupts::ALL_INTERRUPTS::SET);
-            }
-            */
             RfcInterrupt::CmdAck => {
                 // Clear the interrupt
                 dbell_regs.rfackifg.set(0);

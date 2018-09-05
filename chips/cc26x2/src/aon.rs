@@ -48,8 +48,8 @@ register_bitfields![
             SCLK_MF = 0x01
         ],
         PWR_DWN_SRC OFFSET(8) NUMBITS(1) [
-            NO_CLOCK = 0b0,
-            SCLK_LF = 0b1
+            NO_CLOCK = 0x00,
+            SCLK_LF = 0x01
         ]
     ],
     RamCfg [
@@ -214,6 +214,11 @@ impl Aon {
             AuxSClk::SClkHFDiv2 => regs.aux_clk.modify(AuxClk::SRC::SCLK_HFDIV2),
             AuxSClk::SClkMF => regs.aux_clk.modify(AuxClk::SRC::SCLK_MF),
         }
+    }
+    
+    pub fn aux_set_power_down_clock(&self) {
+        let regs = &*self.pmctl_regs;
+        regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::SCLK_LF);
     }
 
     pub fn aux_disable_power_down_clock(&self) {

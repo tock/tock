@@ -3,7 +3,7 @@ use gpio;
 use i2c;
 use kernel;
 use peripheral_interrupts;
-use rfc;
+use radio;
 use rtc;
 use uart;
 
@@ -61,16 +61,16 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
                     peripheral_interrupts::I2C => i2c::I2C0.handle_interrupt(),
                     peripheral_interrupts::RF_CORE_HW => {
-                        rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Hardware)
+                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Hardware)
                     }
                     peripheral_interrupts::RF_CMD_ACK => {
-                        rfc::RFC.handle_interrupt(rfc::RfcInterrupt::CmdAck)
+                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck)
                     }
                     peripheral_interrupts::RF_CORE_PE1 => {
-                        rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Cpe0)
+                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0)
                     }
                     peripheral_interrupts::RF_CORE_PE2 => {
-                        rfc::RFC.handle_interrupt(rfc::RfcInterrupt::Cpe1)
+                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe1)
                     }
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
