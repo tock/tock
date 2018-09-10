@@ -95,8 +95,7 @@ impl<'a> UDPDriver<'a> {
                         }
                         closure(cfg.as_ref())
                     })
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's config buffer.
@@ -116,8 +115,7 @@ impl<'a> UDPDriver<'a> {
                         }
                         closure(cfg.as_mut())
                     })
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform an action using an app's RX config buffer.
@@ -133,11 +131,8 @@ impl<'a> UDPDriver<'a> {
                 app.app_rx_cfg
                     .take()
                     .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        closure(cfg.as_ref())
-                    })
-            })
-            .unwrap_or_else(|err| err.into())
+                    .map_or(ReturnCode::EINVAL, |cfg| closure(cfg.as_ref()))
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's RX config buffer.
@@ -159,14 +154,14 @@ impl<'a> UDPDriver<'a> {
                         }
                         closure(cfg.as_mut())
                     })
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
     /// pick an app with a pending transmission and return its `AppId`.
     fn get_next_tx_if_idle(&self) -> Option<AppId> {
-        if self.current_app.get().is_some() { // Tx already in progress
+        if self.current_app.get().is_some() {
+            // Tx already in progress
             return None;
         }
         let mut pending_app = None;
@@ -257,9 +252,7 @@ impl<'a> UDPDriver<'a> {
                     self.perform_tx_async(appid);
                     ReturnCode::SUCCESS
                 }
-            })
-            .unwrap_or(ReturnCode::SUCCESS)
-
+            }).unwrap_or(ReturnCode::SUCCESS)
     }
 
     #[inline]
@@ -381,7 +374,8 @@ impl<'a> Driver for UDPDriver<'a> {
                 let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
                 let iface_size = mem::size_of::<IPAddr>();
                 for i in 0..n_ifaces_to_copy {
-                    cfg[i * iface_size..(i + 1) * iface_size].copy_from_slice(&self.interface_list[i].0);
+                    cfg[i * iface_size..(i + 1) * iface_size]
+                        .copy_from_slice(&self.interface_list[i].0);
                 }
                 // Returns total number of interfaces
                 ReturnCode::SuccessWithValue {

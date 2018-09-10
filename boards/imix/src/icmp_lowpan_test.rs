@@ -32,12 +32,12 @@ extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::icmpv6::icmpv6::{ICMP6Header, ICMP6Type};
 use capsules::net::icmpv6::icmpv6_send::{ICMP6SendStruct, ICMP6Sender};
+use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
-use capsules::net::ieee802154::MacAddress;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::hil::radio;
@@ -110,8 +110,14 @@ pub unsafe fn initialize_all(
 
     let ip6_sender = static_init!(
         IP6SendStruct<'static>,
-        IP6SendStruct::new(ip6_dg, &mut RF233_BUF, sixlowpan_tx, radio_mac,
-                           DST_MAC_ADDR, SRC_MAC_ADDR)
+        IP6SendStruct::new(
+            ip6_dg,
+            &mut RF233_BUF,
+            sixlowpan_tx,
+            radio_mac,
+            DST_MAC_ADDR,
+            SRC_MAC_ADDR
+        )
     );
     radio_mac.set_transmit_client(ip6_sender);
 

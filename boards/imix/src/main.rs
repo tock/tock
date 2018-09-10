@@ -19,13 +19,13 @@ extern crate sam4l;
 
 mod components;
 use capsules::alarm::AlarmDriver;
+use capsules::net::ieee802154::MacAddress;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
-use capsules::net::ieee802154::MacAddress;
-use capsules::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -47,10 +47,10 @@ use components::led::LedComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::radio::RadioComponent;
-use components::udp_6lowpan::UDPComponent;
 use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
+use components::udp_6lowpan::UDPComponent;
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -106,7 +106,6 @@ static LOCAL_IP_IFACES: [IPAddr; 2] = [
         0x1f,
     ]),
 ];
-
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -371,20 +370,23 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) = RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
+    let (radio_driver, mux_mac) =
+        RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
     // ** UDP **
 
-    let udp_driver = UDPComponent::new(board_kernel,
-                                       mux_mac,
-                                       DEFAULT_CTX_PREFIX_LEN,
-                                       DEFAULT_CTX_PREFIX,
-                                       DST_MAC_ADDR,
-                                       SRC_MAC_ADDR,
-                                       &LOCAL_IP_IFACES).finalize();
+    let udp_driver = UDPComponent::new(
+        board_kernel,
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        SRC_MAC_ADDR,
+        &LOCAL_IP_IFACES,
+    ).finalize();
 
     let imix = Imix {
         console,

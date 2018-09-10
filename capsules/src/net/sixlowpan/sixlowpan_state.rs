@@ -763,8 +763,7 @@ impl RxState<'a> {
             self.packet
                 .map(|packet| {
                     client.receive(&packet, self.dgram_size.get() as usize, result);
-                })
-                .expect("Error: `packet` is None in call to end_receive.");
+                }).expect("Error: `packet` is None in call to end_receive.");
         });
     }
 }

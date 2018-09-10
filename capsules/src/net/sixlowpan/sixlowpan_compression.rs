@@ -775,8 +775,11 @@ pub fn decompress(
             ip6_nh::UDP => {
                 // UDP length includes UDP header and data in bytes
                 // Below line works bc udp nh must be last nh per 6282
-                let udp_length = if is_fragment {dgram_size - written as u16}
-                                 else {buf.len() as u16 - written as u16};
+                let udp_length = if is_fragment {
+                    dgram_size - written as u16
+                } else {
+                    buf.len() as u16 - written as u16
+                };
 
                 // Decompress UDP header fields
                 let (src_port, dst_port) = decompress_udp_ports(nhc_header, &buf, &mut consumed);

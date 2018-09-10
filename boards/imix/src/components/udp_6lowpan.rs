@@ -19,15 +19,15 @@
 
 use capsules;
 use capsules::ieee802154::device::MacDevice;
+use capsules::net::ieee802154::MacAddress;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_recv::IP6Receiver;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
-use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
-use capsules::net::ieee802154::MacAddress;
 
 use kernel;
 use kernel::capabilities;
@@ -169,5 +169,5 @@ impl Component for UDPComponent {
         udp_send.set_client(udp_driver);
         udp_recv.set_client(udp_driver);
         udp_driver
-        }
+    }
 }

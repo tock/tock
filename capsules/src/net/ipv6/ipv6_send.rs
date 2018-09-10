@@ -118,8 +118,12 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
         transport_header: TransportHeader,
         payload: &[u8],
     ) -> ReturnCode {
-        self.sixlowpan
-            .init(self.src_mac_addr, self.dst_mac_addr, self.radio.get_pan(), None);
+        self.sixlowpan.init(
+            self.src_mac_addr,
+            self.dst_mac_addr,
+            self.radio.get_pan(),
+            None,
+        );
         self.init_packet(dst, transport_header, payload);
         self.send_next_fragment()
     }
