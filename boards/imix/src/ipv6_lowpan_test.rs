@@ -167,7 +167,7 @@ pub unsafe fn initialize_all(
     let sixlowpan_state = sixlowpan as &SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
-    sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, None);
+    sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, radio_mac.get_pan(), None);
 
     let lowpan_frag_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
@@ -296,7 +296,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         }
     }
 
-    fn run_check_test(&self, test_id: usize, buf: &[u8], len: u16) {
+    fn run_check_test(&self, test_id: usize, buf: &[u8], len: usize) {
         debug!("Running test {}:", test_id);
         match test_id {
             // Change TF compression
@@ -427,7 +427,7 @@ impl<'a, A: time::Alarm> time::Client for LowpanTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm> SixlowpanRxClient for LowpanTest<'a, A> {
-    fn receive<'b>(&self, buf: &'b [u8], len: u16, retcode: ReturnCode) {
+    fn receive(&self, buf: &[u8], len: usize, retcode: ReturnCode) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
         self.test_counter.set((test_num + 1) % self.num_tests());
@@ -462,7 +462,7 @@ fn ipv6_check_receive_packet(
     sac: SAC,
     dac: DAC,
     recv_packet: &[u8],
-    len: u16,
+    len: usize,
 ) {
     ipv6_prepare_packet(tf, hop_limit, sac, dac);
     debug!("Checking received packet of length: {}", len);
@@ -566,7 +566,7 @@ fn ipv6_check_receive_packet(
 
         // Finally, check bytes of UDP Payload
         let mut payload_success = true;
-        for i in (IP6_HDR_SIZE + UDP_HDR_SIZE)..len as usize {
+        for i in (IP6_HDR_SIZE + UDP_HDR_SIZE)..len {
             if recv_packet[i] != UDP_DGRAM[i - (IP6_HDR_SIZE + UDP_HDR_SIZE)] {
                 test_success = false;
                 payload_success = false;

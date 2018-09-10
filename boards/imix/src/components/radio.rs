@@ -7,11 +7,11 @@
 //! Usage
 //! -----
 //! ```rust
-//! let radio = RadioComponetn::new().finalize();
+//! let (radio_driver, mux_mac) = RadioComponent::new(rf233, PAN_ID, 0x1008).finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
+// Last modified: 7/25/2018 (by Hudson Ayers)
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
@@ -69,7 +69,10 @@ const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::M
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl Component for RadioComponent {
-    type Output = &'static capsules::ieee802154::RadioDriver<'static>;
+    type Output = (
+        &'static capsules::ieee802154::RadioDriver<'static>,
+        &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    );
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -129,6 +132,6 @@ impl Component for RadioComponent {
         radio_mac.set_pan(self.pan_id);
         radio_mac.set_address(self.short_addr);
 
-        radio_driver
+        (radio_driver, mux_mac)
     }
 }

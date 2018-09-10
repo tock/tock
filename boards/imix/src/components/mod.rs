@@ -14,6 +14,7 @@ pub mod radio;
 pub mod rf233;
 pub mod si7021;
 pub mod spi;
+pub mod udp_6lowpan;
 pub mod usb;
 
 pub use self::adc::AdcComponent;
@@ -33,4 +34,5 @@ pub use self::rf233::RF233Component;
 pub use self::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 pub use self::spi::SpiComponent;
 pub use self::spi::SpiSyscallComponent;
+pub use self::udp_6lowpan::UDPComponent;
 pub use self::usb::UsbComponent;

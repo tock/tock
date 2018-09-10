@@ -29,6 +29,7 @@
 use capsules;
 extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
+use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
@@ -55,6 +56,8 @@ pub const PAYLOAD_LEN: usize = 200;
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
+const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
@@ -123,7 +126,14 @@ pub unsafe fn initialize_all(
 
     let ip6_sender = static_init!(
         IP6SendStruct<'static>,
-        IP6SendStruct::new(ip6_dg, &mut RF233_BUF, sixlowpan_tx, radio_mac)
+        IP6SendStruct::new(
+            ip6_dg,
+            &mut RF233_BUF,
+            sixlowpan_tx,
+            radio_mac,
+            DST_MAC_ADDR,
+            SRC_MAC_ADDR
+        )
     );
     radio_mac.set_transmit_client(ip6_sender);
 

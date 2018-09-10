@@ -12,7 +12,7 @@ use kernel::ReturnCode;
 use net::icmpv6::icmpv6::ICMP6Header;
 use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::TransportHeader;
-use net::ipv6::ipv6_send::{IP6Client, IP6Sender};
+use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 
 /// A trait for a client of an `ICMP6Sender`.
 pub trait ICMP6SendClient {
@@ -76,7 +76,7 @@ impl<T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
     }
 }
 
-impl<T: IP6Sender<'a>> IP6Client for ICMP6SendStruct<'a, T> {
+impl<T: IP6Sender<'a>> IP6SendClient for ICMP6SendStruct<'a, T> {
     /// Forwards callback received from the `IP6Sender` to the
     /// `ICMP6SendClient`.
     fn send_done(&self, result: ReturnCode) {
