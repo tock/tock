@@ -8,23 +8,8 @@
 //! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
-
-pub trait RadioConfig {
-    fn initialize(
-        &self,
-        spi_buf: &'static mut [u8],
-        reg_write: &'static mut [u8],
-        reg_read: &'static mut [u8],
-    ) -> ReturnCode;
-    fn reset(&self) -> ReturnCode;
-    fn start(&self) -> ReturnCode;
-    fn stop(&self) -> ReturnCode;
-    fn is_on(&self) -> bool;
-    fn busy(&self) -> bool;
-}
-
-pub trait CmdClient {
-    fn command_done(&self, command: *mut u32, result: ReturnCode);
+pub trait ConfigClient {
+    fn config_done(&self, result: ReturnCode);
 }
 
 pub trait TxClient {
@@ -41,17 +26,32 @@ pub trait RxClient {
     );
 }
 
-pub trait Radio: RadioConfig + RadioAttrs {}
+pub trait Radio: RadioConfig + RadioDriver {}
 
-pub trait RadioAttrs {
-    fn set_tx_client(&self, &'static TxClient);
-    fn set_rx_client(&self, &'static RxClient, receive_buffer: &'static mut [u8]);
+pub trait RadioConfig {
+    fn initialize(&self) -> ReturnCode;
+    fn reset(&self) -> ReturnCode;
+    fn stop(&self) -> ReturnCode;
+    fn is_on(&self) -> bool;
+    fn busy(&self) -> bool;
+
+    fn get_tx_power(&self) -> u32;
+    fn get_radio_status(&self) -> u32;
+    fn get_command_status(&self) -> u32;
+    // fn get_rat_time(&self) -> u32;
+
+    fn set_tx_power(&self, power: u32) -> ReturnCode;
+}
+
+pub trait RadioDriver {
+    fn set_transmit_client(&self, &'static TxClient);
+    fn set_receive_client(&self, &'static RxClient, receive_buffer: &'static mut [u8]);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
     fn transmit(
         &self,
         tx_buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>);
+    ) -> &'static mut [u8];
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]

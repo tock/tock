@@ -15,6 +15,7 @@ use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::radio;
+// use cc26x2::rtc;
 use kernel::capabilities;
 use kernel::hil;
 
@@ -22,7 +23,6 @@ use kernel::hil;
 pub mod io;
 #[allow(dead_code)]
 mod i2c_tests;
-
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -49,7 +49,15 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-    radio: &'static radio::rfcore_driver::Radio,
+    // radio: &'static radio::rfcore_driver::Radio,
+    /*
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        radio::ble::Ble,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, rtc::Rtc>,
+    >,
+    */
+    
 }
 
 impl kernel::Platform for Platform {
@@ -64,7 +72,8 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            radio::rfc::DRIVER_NUM => f(Some(self.radio)),
+            // radio::rfc::DRIVER_NUM => f(Some(self.radio)),
+            // capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -189,17 +198,6 @@ pub unsafe fn reset_handler() {
     prcm::Clock::enable_gpio();
 
     configure_pins();
-
-    radio::RFC.set_client(&radio::RADIO);
-
-    let radio = static_init!(
-        radio::rfcore_driver::Radio,
-        radio::rfcore_driver::Radio::new(
-            &cc26x2::radio::rfc::RFC
-        )
-    );
-    
-    // radio.power_up();
 
     // LEDs
     let led_pins = static_init!(
@@ -348,7 +346,6 @@ pub unsafe fn reset_handler() {
         )
     );
     virtual_alarm1.set_client(alarm);
-
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
         capsules::rng::SimpleRng::new(
@@ -356,8 +353,48 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    cc26x2::trng::TRNG.set_client(rng);
-        
+    /*
+    radio::RFC.set_client(&radio::BLE);
+
+    let ble_radio_virtual_alarm = static_init!(
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    let ble_radio = static_init!(
+        capsules::ble_advertising_driver::BLE<
+            'static,
+            radio::ble::Ble,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, rtc::Rtc>,
+        >,
+        capsules::ble_advertising_driver::BLE::new(
+            &mut radio::BLE,
+            board_kernel.create_grant(&memory_allocation_capability),
+            &mut capsules::ble_advertising_driver::BUF,
+            ble_radio_virtual_alarm
+        )
+    );
+    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
+        &radio::BLE,
+        ble_radio,
+    );
+    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
+        &radio::BLE,
+        ble_radio,
+    );
+    ble_radio_virtual_alarm.set_client(ble_radio);
+    */
+    /*
+    radio::RFC.set_client(&radio::RADIO);
+
+    let radio = static_init!(
+        radio::rfcore_driver::Radio,
+        radio::rfcore_driver::Radio::new(
+            &cc26x2::radio::rfc::RFC
+        )
+    );
+    */
+
     let launchxl = Platform {
         console,
         gpio,
@@ -365,7 +402,8 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
-        radio,
+        // radio,
+        // ble_radio,
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();

@@ -1,7 +1,9 @@
+#[no_mangle]
 pub unsafe extern "C" fn ddi32reg_write(ui32Base: u32, ui32Reg: u32, ui32Val: u32) {
     *(ui32Base.wrapping_add(ui32Reg) as (*mut usize)) = ui32Val as (usize);
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn ddi16bit_write(
     ui32Base: u32,
     ui32Reg: u32,
@@ -21,6 +23,7 @@ pub unsafe extern "C" fn ddi16bit_write(
     *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32Data) as (usize);
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn ddi16bitfield_write(
     ui32Base: u32,
     ui32Reg: u32,
@@ -42,6 +45,7 @@ pub unsafe extern "C" fn ddi16bitfield_write(
     *(ui32RegAddr as (*mut usize)) = (ui32Mask << 16i32 | ui32WrData) as (usize);
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn ddi16bit_read(ui32Base: u32, ui32Reg: u32, mut ui32Mask: u32) -> u16 {
     let mut ui32RegAddr: u32;
     let mut ui16Data: u16;
@@ -55,6 +59,7 @@ pub unsafe extern "C" fn ddi16bit_read(ui32Base: u32, ui32Reg: u32, mut ui32Mask
     ui16Data
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn ddi16bitfield_read(
     ui32Base: u32,
     ui32Reg: u32,

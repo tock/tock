@@ -6,13 +6,12 @@ use chip::SleepMode;
 use radio::rfc;
 use rom_fns::oscfh;
 use core::cell::Cell;
-use core::ptr;
 use fixedvec::FixedVec;
 use kernel::common::cells::{TakeCell, OptionalCell};
-use kernel::hil::radio_client::{self, RadioAttrs};
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Grant, Shared};
-use radio::rfcore_const::{
-    RFCommandStatus, RadioCommands, RfcDriverCommands, RfcOperationStatus, State, CMD_STACK };
+use kernel::hil::radio_client;
+use kernel::hil::time::{Alarm, Frequency};
+use kernel::{AppId, Callback, Driver, ReturnCode};
+use radio::rfcore_const::{RfcDriverCommands};
 
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
@@ -40,29 +39,14 @@ static mut RFPARAMS: [u32; 18] = [
     0x0A480583, // Synth: Set loop bandwidth after lock to 20 kHz
     0x7AB80603, // Synth: Set loop bandwidth after lock to 20 kHz
     0x00000623, // Synth: Set loop bandwidth after lock to 20 kHz
-    // Tx: Configure PA ramping, set wait time before turning off (0x1F ticks of 16/24 us = 20.7 us).
-    // HW_REG_OVERRIDE(0x6028,0x001F),
-    // Tx: Configure PA ramp time, PACTL2.RC=0x3 (in ADI0, set PACTL2[3]=1)
-    // ADI_HALFREG_OVERRIDE(0,16,0x8,0x8),
-    // Tx: Configure PA ramp time, PACTL2.RC=0x3 (in ADI0, set PACTL2[4]=1)
-    // ADI_HALFREG_OVERRIDE(0,17,0x1,0x1),
-    // Rx: Set AGC reference level to 0x1A (default: 0x2E)
-    // HW_REG_OVERRIDE(0x609C,0x001A),
     0x00018883, // Rx: Set LNA bias current offset to adjust +1 (default: 0)
     0x000288A3, // Rx: Set RSSI offset to adjust reported RSSI by -2 dB (default: 0)
-    // Rx: Set anti-aliasing filter bandwidth to 0xD (in ADI0, set IFAMPCTL3[7:4]=0xD)
-    // ADI_HALFREG_OVERRIDE(0,61,0xF,0xD),
-    // TX power override
-    // DC/DC regulator: In Tx with 14 dBm PA setting, use DCDCCTL5[3:0]=0xF (DITHER_EN=1 and IPEAK=7). In Rx, use DCDCCTL5[3:0]=0xC (DITHER_EN=1 and IPEAK=4).
-    0xFFFC08C3,
-    // Tx: Set PA trim to max to maximize its output power (in ADI0, set PACTL0=0xF8)
-    // ADI_REG_OVERRIDE(0,12,0xF8),
+    0xFFFC08C3, // DC/DC regulator: In Tx with 14 dBm PA setting, use DCDCCTL5[3:0]=0xF (DITHER_EN=1 and IPEAK=7). In Rx, use DCDCCTL5[3:0]=0xC (DITHER_EN=1 and IPEAK=4).
     0xFFFFFFFF,
 ];
 
 pub struct Radio {
     rfc: &'static rfc::RFCore,
-    callback: Cell<Option<Callback>>,
     tx_radio_client: OptionalCell<&'static radio_client::TxClient>,
     rx_radio_client: OptionalCell<&'static radio_client::RxClient>,
     schedule_powerdown: Cell<bool>,
@@ -73,15 +57,14 @@ impl Radio {
     pub const fn new(rfc: &'static rfc::RFCore) -> Radio {
         Radio {
             rfc,
-            callback: Cell::new(None),
             tx_radio_client: OptionalCell::empty(),
             rx_radio_client: OptionalCell::empty(),
             schedule_powerdown: Cell::new(false),
             tx_buf: TakeCell::empty(),
         }
     }
-
-    pub fn power_up(&self) {
+    
+    pub fn test_power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::IEEE);
 
         // unsafe { oscfh::OSCHF_TurnOnXosc() };
@@ -96,6 +79,31 @@ impl Radio {
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
             self.rfc.setup(reg_overrides, 0xFFF)
+        }
+    }
+
+    pub fn power_up(&self) -> ReturnCode {
+        self.rfc.set_mode(rfc::RfcMode::IEEE);
+
+        // unsafe { oscfh::OSCHF_TurnOnXosc() };
+        osc::OSC.request_switch_to_hf_xosc();
+
+        self.rfc.enable();
+        self.rfc.start_rat();
+
+        osc::OSC.switch_to_hf_xosc();
+        // unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
+        
+        unsafe {
+            let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
+            self.rfc.setup(reg_overrides, 0xFFF)
+        }
+
+        if self.rfc.check_enabled() {
+            ReturnCode::SUCCESS
+        }
+        else {
+            ReturnCode::FAIL
         }
     }
 
@@ -145,53 +153,12 @@ impl peripheral_manager::PowerClient for Radio {
     }
 }
 
-impl Driver for Radio {
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Option<Callback>,
-        _appid: AppId,
-    ) -> ReturnCode {
-        match subscribe_num {
-            // Callback for RFC Interrupt ready
-            0 => {
-                self.callback.set(callback);
-                return ReturnCode::SUCCESS;
-            }
-            // Default
-            _ => return ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn command(&self, minor_num: usize, _r2: usize, _r3: usize, _caller_id: AppId) -> ReturnCode {
-        let command: RfcDriverCommands = minor_num.into();
-        match command {
-            // Handle callback for command status after command is finished
-            RfcDriverCommands::Direct => {
-                /*
-                match self.rfc.wait(&r2) {
-                    Ok(()) => {
-                        ReturnCode::SUCCESS
-                    }
-                    Err(e) => {
-                        ReturnCode::FAIL
-                    }
-                }
-                */
-                ReturnCode::SUCCESS
-            }
-            RfcDriverCommands::NotSupported => panic!("Invalid command status"),
-            _ => panic!("Unimplemented!"),
-        }
-    }
-}
-
-impl RadioAttrs for Radio {
-    fn set_tx_client(&self, tx_client: &'static radio_client::TxClient) {
+impl radio_client::RadioDriver for Radio {
+    fn set_transmit_client(&self, tx_client: &'static radio_client::TxClient) {
         self.tx_radio_client.set(tx_client);
     }
 
-    fn set_rx_client(
+    fn set_receive_client(
         &self,
         rx_client: &'static radio_client::RxClient,
         _rx_buf: &'static mut [u8],
@@ -203,7 +170,59 @@ impl RadioAttrs for Radio {
         // maybe make a rx buf only when needed?
     }
 
-    fn transmit(&self, _tx_buf: &'static mut [u8], _frame_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::SUCCESS, None)
+    fn transmit(&self, tx_buf: &'static mut [u8], _frame_len: usize) -> &'static mut [u8] {
+        tx_buf
+    }
+}
+
+impl radio_client::RadioConfig for Radio {
+    fn initialize(&self) -> ReturnCode {
+        self.power_up()
+    }
+
+    fn reset(&self) -> ReturnCode {
+        self.power_down();
+        self.power_up()
+    }
+
+    fn stop(&self) -> ReturnCode {
+        let cmd_stop = cmd::DirectCommand::new(0x0402, 0);
+        let stopped = self.rfc.send_direct(&cmd_stop)
+            .is_ok();
+        if stopped {
+            ReturnCode::SUCCESS
+        }
+        else {
+            ReturnCode::FAIL
+        }
+    }
+
+    fn is_on(&self) -> bool {
+        self.rfc.check_enabled()
+    }
+
+    fn busy(&self) -> bool {
+        // TODO check cmd status of current command running
+        true
+    }
+
+    fn get_tx_power(&self) -> u32 {
+        // TODO get tx power radio command
+        0x00000000
+    }
+
+    fn get_radio_status(&self) -> u32 {
+        // TODO get power status of radio
+        0x00000000
+    }
+
+    fn get_command_status(&self) -> u32 {
+        // TODO get command status specifics
+        0x00000000
+    }
+
+    fn set_tx_power(&self, _power: u32) -> ReturnCode {
+        // TODO send direct command for TX power change
+        ReturnCode::ENOSUPPORT
     }
 }

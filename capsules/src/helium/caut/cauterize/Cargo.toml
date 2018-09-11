@@ -1,0 +1,19 @@
+[package]
+name = "cauterize"
+version = "0.1.0"
+authors = ["Jay Kickliter"]
+
+[lib]
+name = "cauterize"
+[features]
+default = ["std"]
+std = []
+
+[target.'cfg(not(feature = "std"))'.dependencies]
+byteorder = { version = "0.5", default-features = false }
+
+[target.'cfg(feature = "std")'.dependencies]
+byteorder = "0.5"
+
+[dev-dependencies]
+quickcheck = "0.6"

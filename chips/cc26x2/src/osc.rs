@@ -125,16 +125,16 @@ impl Oscillator {
         match lf_clk {
             LF_DERIVED_RCOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x0));
-            }
+            },
             LF_RCOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x2));
-            }
+            },
             LF_DERIVED_XOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x1));
-            }
+            },
             LF_XOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x3));
-            }
+            },
             _ => panic!("Undefined LF OSC"),
         }
     }
@@ -146,10 +146,10 @@ impl Oscillator {
         match hf_clk {
             HF_RCOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(0x0));
-            }
+            },
             HF_XOSC => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(0x1));
-            }
+            },
             _ => panic!("Undefined HF OSC"),
         }
 
@@ -230,11 +230,11 @@ impl Oscillator {
         match clock {
             ClockType::LF => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(src as u32));
-            }
+            },
             ClockType::HF => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(src as u32));
                 // regs.ctl0.modify(Ctl0::ACLK_REF_SRC_SEL.val(src as u32));
-            }
+            },
         }
     }
 

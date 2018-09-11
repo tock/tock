@@ -141,9 +141,9 @@ register_bitfields! {
     ]
 }
 
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum RfcMode {
-    NONPROP = 0x00,
+    BLE = 0x00,
     IEEE = 0x01,
 }
 
@@ -214,6 +214,8 @@ impl RFCore {
         // Make sure RFC power is enabled
         let dbell_regs = &*self.dbell_regs;
 
+        // Causes hard fault for some reason FUCKING SO GODDAMN STUPID
+        
         prcm::Power::enable_domain(prcm::PowerDomain::RFC);
         prcm::Clock::enable_rfc();
 
@@ -251,19 +253,29 @@ impl RFCore {
         // dbell_regs.rfcpeifg.set(0x7FFFFFFF);
         
         // Initialize radio module
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40))
+        let cmd_init = cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40);
+        self.send_direct(&cmd_init)
         .ok()
         .expect("Could not initialize radio module");
 
         // Request bus
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1))
+        let cmd_bus_req = cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1);
+        self.send_direct(&cmd_bus_req)
             .ok()
             .expect("Could not request bus on radio module");
 
         // Ping radio module
-        self.send_direct(&cmd::DirectCommand::new(cmd::RFC_PING, 0))
+        let cmd_ping = cmd::DirectCommand::new(cmd::RFC_PING, 0);
+        self.send_direct(&cmd_ping)
             .ok()
             .expect("Could not ping radio module");
+    }
+
+    pub fn check_enabled(&self) -> bool {
+        // Ping radio module
+        let cmd_ping = cmd::DirectCommand::new(cmd::RFC_PING, 0);
+        self.send_direct(&cmd_ping)
+            .is_ok()
     }
 
     // Disable RFCore
@@ -289,8 +301,8 @@ impl RFCore {
         };
         let common =
             cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
-        let fs_powerdown: cmd::CmdFSPowerdown = cmd::CmdFSPowerdown::new(common);
-        cmd::RadioCommand::pack(&fs_powerdown, common);
+        let mut fs_powerdown: cmd::CmdFSPowerdown = cmd::CmdFSPowerdown::new(common);
+        fs_powerdown = cmd::RadioCommand::pack(&fs_powerdown, common);
         self.send(&fs_powerdown)
             .ok()
             .expect("Could not send power down command");
@@ -317,8 +329,8 @@ impl RFCore {
         let common =
             cmd::CmdCommon::new(0x0802, 0, p_next_op, start_time, start_trigger, condition);
 
-        let radio_setup = cmd::CmdRadioSetup::new(common, 0, reg_override, mode as u8, tx_power);
-        cmd::RadioCommand::pack(&radio_setup, common);
+        let mut radio_setup = cmd::CmdRadioSetup::new(common, 0, reg_override, mode as u8, tx_power);
+        radio_setup = cmd::RadioCommand::pack(&radio_setup, common);
         self.send(&radio_setup)
             .and_then(|_| self.wait(&radio_setup))
             .ok()
@@ -337,8 +349,8 @@ impl RFCore {
         let common =
             cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
 
-        let rf_command = cmd::CmdSyncStartRat::new(common, self.rat.get());
-        cmd::RadioCommand::pack(&rf_command, common);
+        let mut rf_command = cmd::CmdSyncStartRat::new(common, self.rat.get());
+        rf_command = cmd::RadioCommand::pack(&rf_command, common);
 
         self.send(&rf_command)
             .and_then(|_| self.wait(&rf_command))
@@ -358,8 +370,8 @@ impl RFCore {
         let common =
             cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
 
-        let rf_command = cmd::CmdSyncStopRat::new(common, self.rat.get());
-        cmd::RadioCommand::pack(&rf_command, common);
+        let mut rf_command = cmd::CmdSyncStopRat::new(common, self.rat.get());
+        rf_command = cmd::RadioCommand::pack(&rf_command, common);
 
         self.send(&rf_command)
             .and_then(|_| self.wait(&rf_command))
@@ -417,7 +429,19 @@ impl RFCore {
     // Get status from active radio command
     pub fn wait_cmdr(&self, rf_command: u32) -> RadioReturnCode {
         let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
-        let command_status = command_op.status;
+        let mut status = 0;
+        let mut timeout: u32 = 0;
+        const MAX_TIMEOUT: u32 = 0x2FFFFFF;
+        while timeout < MAX_TIMEOUT {
+            status = command_op.status.get();
+            if status == 0x0400 {
+                return Ok(());
+            }
+
+            timeout += 1;
+        }
+        Err(status as u32)
+/*
         match command_status {
             // Operation finished normally
             0x0400 => Ok(()),
@@ -428,6 +452,7 @@ impl RFCore {
             0x0405 => Ok(()),
             _ => Err(command_status as u32),
         }
+        */
     }
 
     // Get status from CMDSTA register after ACK Interrupt flag has been thrown, then handle ACK

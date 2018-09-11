@@ -154,10 +154,6 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     ccfg_ModeConfReg = *((0x50003000i32 + 0x1fb4i32) as (*mut usize)) as (u32);
     setup_rom::SetupAfterColdResetWakeupFromShutDownCfg1(ccfg_ModeConfReg);
     setup_rom::SetupAfterColdResetWakeupFromShutDownCfg2(ui32Fcfg1Revision, ccfg_ModeConfReg);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(28isize) as (*mut u32)).offset(1isize)
-        as (unsafe extern "C" fn(u32, u32)))(ui32Fcfg1Revision, ccfg_ModeConfReg);
-        */
     let mut ui32EfuseData: u32;
     let mut orgResetCtl: u32;
     ui32EfuseData = *((0x50001000i32 + 0x3f8i32) as (*mut usize)) as (u32);
@@ -205,11 +201,6 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     *((0x400cb000i32 + 0x60i32 + 0x5i32 * 2i32) as (*mut u16)) =
         (0x38i32 << 8i32 | 3i32 << 3i32) as (u16);
     setup_rom::SetupAfterColdResetWakeupFromShutDownCfg3(ccfg_ModeConfReg);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(28isize) as (*mut u32)).offset(2isize)
-        as (unsafe extern "C" fn(u32)))(ccfg_ModeConfReg);
-        */
-
     // aux_sysif::AUXSYSIFOpModeChange(0x2u32);
     *(((0x40030000i32 + 0x24i32) as (usize) & 0xf0000000usize
         | 0x2000000usize

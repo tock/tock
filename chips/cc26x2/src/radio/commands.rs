@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-
+use kernel::common::cells::VolatileCell;
+/*
 #[derive(Debug, Clone, Copy)]
 pub enum RadioCommands {
     Direct { c: DirectCommand },
@@ -11,6 +12,7 @@ pub enum RadioCommands {
     StopRat { c: CmdSyncStopRat },
     NotSupported,
 }
+*/
 
 pub enum Commands {
     Direct = 0,
@@ -81,6 +83,7 @@ pub const RFC_SETUP: u16 = 0x0802;
 pub const RFC_STOP: u16 = 0x0402;
 pub const RFC_FS_POWERDOWN: u16 = 0x080D;
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct DirectCommand {
     pub command_no: u16,
@@ -95,14 +98,14 @@ impl DirectCommand {
 
 // Common command header for all radio commands
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdCommon {
-    command_no: u16,
-    pub status: u16,
-    p_next_op: u32,
-    start_time: u32,
-    start_trigger: u8,
-    condition: RfcCondition,
+    pub command_no: u16,
+    pub status: VolatileCell<u16>,
+    pub p_next_op: u32,
+    pub start_time: u32,
+    pub start_trigger: u8,
+    pub condition: RfcCondition,
 }
 
 impl CmdCommon {
@@ -116,7 +119,7 @@ impl CmdCommon {
     ) -> CmdCommon {
         CmdCommon {
             command_no,
-            status,
+            status: VolatileCell::new(status),
             p_next_op,
             start_time,
             start_trigger,
@@ -131,7 +134,7 @@ pub unsafe trait RadioCommand {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct RadioSetup {
     common: CmdCommon,
     mode: u8,
@@ -142,7 +145,7 @@ pub struct RadioSetup {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdRadioSetup {
     common: CmdCommon,
     mode: u8,
@@ -210,7 +213,7 @@ unsafe impl RadioCommand for CmdRadioSetup {
 
 // Command for pinging radio, no operation
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdNop {
     command_no: u16, //0x0801
     pub status: u16,
@@ -239,7 +242,7 @@ impl CmdNop {
 
 // Power up frequency synthesizer
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdFSPowerup {
     command_no: u16, //0x080C
     pub status: u16,
@@ -253,7 +256,7 @@ pub struct CmdFSPowerup {
 
 // Power down frequency synthesizer
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdFSPowerdown {
     common: CmdCommon,
 }
@@ -381,7 +384,7 @@ unsafe impl RadioCommand for CmdTxTest {
 
 // Stop radio RAT timer
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdSyncStopRat {
     // command_no: u16, // 0x0809
     common: CmdCommon,
@@ -425,7 +428,7 @@ unsafe impl RadioCommand for CmdSyncStopRat {
 
 // Start radio RAT timer
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CmdSyncStartRat {
     common: CmdCommon,
     _reserved: u16,

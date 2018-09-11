@@ -1,4 +1,4 @@
-use radio::commands as cmd;
+// use radio::commands as cmd;
 
 pub const RFC_RAM_BASE: u32 = 0x2100_0000;
 
@@ -65,7 +65,7 @@ pub enum RFCommandStatus {
     ErrorRxOVF = 0x080B,
     ErrorNoRx = 0x080C,
 }
-
+/*
 pub static mut CMD_STACK: [RadioCommands; 6] = [
     RadioCommands::NotSupported,
     RadioCommands::NotSupported,
@@ -74,7 +74,8 @@ pub static mut CMD_STACK: [RadioCommands; 6] = [
     RadioCommands::NotSupported,
     RadioCommands::NotSupported,
 ];
-
+*/
+/*
 #[derive(Debug, Clone, Copy)]
 pub enum RadioCommands {
     Direct { c: cmd::DirectCommand },
@@ -86,7 +87,7 @@ pub enum RadioCommands {
     StopRat { c: cmd::CmdSyncStopRat },
     NotSupported,
 }
-
+*/
 /*
 impl Default for RadioCommands {
     fn default() -> RadioCommands {

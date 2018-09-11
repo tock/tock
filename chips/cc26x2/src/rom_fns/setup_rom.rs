@@ -89,10 +89,6 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg2(
     let mut ui32Trim: u32;
     ui32Trim = SetupGetTrimForAnabypassValue1(ccfg_ModeConfReg);
     ddi::ddi32reg_write(0x400ca000u32, 0x18u32, ui32Trim);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0x18u32, ui32Trim);
-        */
     ui32Trim = SetupGetTrimForRcOscLfRtuneCtuneTrim();
     ddi::ddi16bitfield_write(
         0x400ca000u32,
@@ -101,41 +97,17 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg2(
         0u32,
         ui32Trim as (u16),
     );
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(1isize)
-        as (unsafe extern "C" fn(u32, u32, u32, u32, u16)))(
-        0x400ca000u32,
-        0x2cu32,
-        (0xffi32 | 0x300i32) as (u32),
-        0u32,
-        ui32Trim as (u16),
-    );
-    */
     ui32Trim = SetupGetTrimForXoscHfIbiastherm();
     ddi::ddi32reg_write(0x400ca000u32, 0x1cu32, ui32Trim << 0i32);
     /*
      * f() pointers to ROM functions
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0x1cu32, ui32Trim << 0i32);
     */
     ui32Trim = SetupGetTrimForAmpcompTh2();
     ddi::ddi32reg_write(0x400ca000u32, 0x14u32, ui32Trim);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0x14u32, ui32Trim);
-        */
     ui32Trim = SetupGetTrimForAmpcompTh1();
     ddi::ddi32reg_write(0x400ca000u32, 0x10u32, ui32Trim);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0x10u32, ui32Trim);
-        */
     ui32Trim = SetupGetTrimForAmpcompCtrl(ui32Fcfg1Revision);
     ddi::ddi32reg_write(0x400ca000u32, 0xcu32, ui32Trim);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0xcu32, ui32Trim);
-        */
     ui32Trim = SetupGetTrimForAdcShModeEn(ui32Fcfg1Revision);
     *((0x400ca000i32 + 0x200i32 + 0x24i32 * 2i32 + 1i32) as (*mut u8)) =
         (0x20u32 | ui32Trim << 1i32) as (u8);
@@ -144,10 +116,6 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg2(
         (0x10u32 | ui32Trim) as (u8);
     ui32Trim = SetupGetTrimForXoscHfCtl(ui32Fcfg1Revision);
     ddi::ddi32reg_write(0x400ca000u32, 0x28u32, ui32Trim);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0x28u32, ui32Trim);
-        */
     ui32Trim = SetupGetTrimForDblrLoopFilterResetVoltage(ui32Fcfg1Revision);
     *((0x400ca000i32 + 0x200i32 + 0x24i32 * 2i32 + 4i32) as (*mut u8)) =
         (0x60u32 | ui32Trim << 1i32) as (u8);
@@ -159,10 +127,6 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg2(
         (0xfc00u32 | ui32Trim << 2i32) as (u16);
     ui32Trim = SetupGetTrimForRadcExtCfg(ui32Fcfg1Revision);
     ddi::ddi32reg_write(0x400ca000u32, 0x8u32, ui32Trim);
-    /*
-    (*(*(0x10000180i32 as (*mut u32)).offset(9isize) as (*mut u32)).offset(4isize)
-        as (unsafe extern "C" fn(u32, u32, u32)))(0x400ca000u32, 0x8u32, ui32Trim);
-        */
 }
 
 unsafe extern "C" fn SysCtrlAonSync() {
@@ -219,20 +183,8 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
         _currentBlock = 17;
     } else if switch2 == 1u32 {
         currentHfClock = oscfh::clock_source_get(0x1u32);
-        /*
-            (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32))
-            .offset(0isize) as (unsafe extern "C" fn(u32) -> u32))(0x1u32);
-            */
         oscfh::clock_source_set(0x4u32, currentHfClock);
-        /*
-        (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
-            as (unsafe extern "C" fn(u32, u32)))(0x4u32, currentHfClock);
-            */
         'loop15: loop {
-            /* 
-             * !((*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(0isize)
-                as (unsafe extern "C" fn(u32) -> u32))(0x4u32) != currentHfClock)
-            */
             if oscfh::clock_source_get(0x4u32) != currentHfClock {
                 break;
             }
@@ -255,50 +207,20 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
                 | 0x20000000i32
                 | 0x40000000i32) as (u32),
         );
-        /*
-        (*(*(0x10000180i32 as (*mut u32)).offset(13isize) as (*mut u32)).offset(0isize)
-            as (unsafe extern "C" fn(u32, u32, u32)))(
-            (ccfgExtLfClk & 0xff000000u32) >> 24i32,
-            0x7u32,
-            (0x0i32
-                | 0x0i32
-                | 0x6000i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x20000000i32
-                | 0x40000000i32) as (u32),
-        );
-        */
 
         *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x400usize;
         _currentBlock = 17;
     } else {
         if switch2 == 0u32 {
             oscfh::clock_source_set(0x4u32, 0x1u32);
-            /*
-            (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
-                as (unsafe extern "C" fn(u32, u32)))(0x4u32, 0x1u32);
-                */
             SetupSetAonRtcSubSecInc(0x8637bdu32);
         } else {
             oscfh::clock_source_set(0x4u32, 0x2u32);
-            /*
-            (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
-                as (unsafe extern "C" fn(u32, u32)))(0x4u32, 0x2u32);
-                */
         }
         _currentBlock = 18;
     }
     if _currentBlock == 17 {
         oscfh::clock_source_set(0x4u32, 0x3u32);
-        /*
-        (*(*(0x10000180i32 as (*mut u32)).offset(24isize) as (*mut u32)).offset(1isize)
-            as (unsafe extern "C" fn(u32, u32)))(0x4u32, 0x3u32);
-            */
     }
     *((0x400cb000i32 + 0xbi32) as (*mut u8)) =
         (*((0x50001000i32 + 0x36ci32) as (*mut usize)) >> 0i32 << 0i32 & 0x3fusize) as (u8);

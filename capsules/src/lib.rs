@@ -5,12 +5,14 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 pub mod test;
 
 #[macro_use]
 pub mod net;
+extern crate fixedvec;
+extern crate msg;
 
 pub mod adc;
 pub mod aes_ccm;
@@ -28,6 +30,7 @@ pub mod fm25cl;
 pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;
+pub mod helium;
 pub mod humidity;
 pub mod i2c_master_slave_driver;
 pub mod ieee802154;
