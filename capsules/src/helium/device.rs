@@ -3,8 +3,12 @@
 //! - Preparing frames (data frame, command frames, beacon frames)
 //! - Transmitting and receiving frames
 //!
-use msg::Frame;
 use kernel::ReturnCode;
+
+pub struct Frame {
+    buf: &'static mut [u8],
+    seq: u8,
+}
 
 pub trait Device<'a> {
     /// Sets the transmission client of this MAC device
@@ -27,7 +31,7 @@ pub trait Device<'a> {
     fn prepare_data_frame(
         &self,
         buf: &'static mut [u8],
-        seq: &'static mut [u8],
+        seq: u8,
     ) -> Result<Frame, &'static mut [u8]>;
 
     /// Transmits a frame that has been prepared by the above process. If the

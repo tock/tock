@@ -8,7 +8,6 @@ use kernel::{AppId, AppSlice, Shared, Callback, Driver, ReturnCode, Grant};
 use kernel::hil::{radio_client, time::Alarm, time::Frequency, time::Client};
 use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use helium::device::Device;
-use msg;
 
 // static mut PAYLOAD: [u8; 256] = [0; 256];
 
@@ -61,10 +60,10 @@ pub struct App {
     alarm_data: AlarmData,
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
-    radio_cfg: Option<AppSlice<Shared, u8>>,
-    tx_data: Option<AppSlice<Shared, u8>>,
-    rx_data: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<(u16, Option<u32>)>, // Chane u32 to keyid and fec mode later on during implementation
+    app_cfg: Option<AppSlice<Shared, u8>>,
+    app_write: Option<AppSlice<Shared, u8>>,
+    app_read: Option<AppSlice<Shared, u8>>,
+    pending_tx: Option<(u16, Option<u32>)>, // Change u32 to keyid and fec mode later on during implementation
     tx_interval_ms: u32, // 400 ms is maximum per FCC
 }
 
@@ -75,9 +74,9 @@ impl Default for App {
             alarm_data: AlarmData::new(),
             tx_callback: None,
             rx_callback: None,
-            radio_cfg: None,
-            tx_data: None,
-            rx_data: None,
+            app_cfg: None,
+            app_write: None,
+            app_read: None,
             pending_tx: None,
             tx_interval_ms: 400,
         }
@@ -202,7 +201,7 @@ where
     {
         self.app
             .enter(appid, |app, _| {
-                app.radio_cfg
+                app.app_cfg
                     .take()
                     .as_ref()
                     .map_or(ReturnCode::EINVAL, |cfg| {
@@ -222,7 +221,7 @@ where
     {
         self.app
             .enter(appid, |app, _| {
-                app.radio_cfg
+                app.app_cfg
                     .take()
                     .as_mut()
                     .map_or(ReturnCode::EINVAL, |cfg| {
@@ -282,13 +281,21 @@ where
                     return ReturnCode::SUCCESS;
                 }
             };
+            
             let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
                 // Frame header implementation for Helium prep here. Currently unknown so removing
                 // 802154 stuff
-                let ping: u32 = 0;
-                let pingpong: msg::Pingpong = msg::Pingpong::Ping(ping);
-                let frame: msg::Frame = msg::Frame::Pingpong(pingpong);
-                
+                let seq: u8 = 0;
+                let mut frame = match self.device.prepare_data_frame(
+                    kbuf,
+                    seq,
+                ) {
+                    Ok(frame) => frame,
+                    Err(kbuf) => {
+                        self.kernel_tx.replace(kbuf);
+                        return ReturnCode::FAIL;
+                    }
+                };
                 // Finally, transmit the frame
                 let (result, mbuf) = self.device.transmit(frame);
                 if let Some(buf) = mbuf {
@@ -407,6 +414,9 @@ where
     D: Device<'a>,
 {
     /// Setup buffers to read/write from.
+    ///
+    ///  `allow_num`
+    ///
     /// - `0`: Read buffer. Will contain the received frame.
     /// - `1`: Write buffer. Contains the frame payload to be transmitted.
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
@@ -421,9 +431,9 @@ where
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
-                    0 => app.rx_data = slice,
-                    1 => app.tx_data = slice,
-                    2 => app.radio_cfg = slice,
+                    0 => app.app_read = slice,
+                    1 => app.app_write = slice,
+                    2 => app.app_cfg = slice,
                     _ => {}
                 }
                 ReturnCode::SUCCESS
@@ -433,6 +443,8 @@ where
     }
 
     /// Setup callbacks.
+    ///
+    ///  `subscribe_num`
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
     fn subscribe(
@@ -453,11 +465,29 @@ where
             _ => ReturnCode::ENOSUPPORT,
         }
     }
+    /// COMMANDS
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Driver check.
+    /// - `1`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `2`: Set transmission power.
+    /// - `3`: Get the transmission power.
 
     fn command(&self, command_num: usize, _r2: usize, _r3: usize, appid: AppId) -> ReturnCode {
         match command_num {
             // Handle callback for CMDSTA after write to CMDR
             0 => ReturnCode::SUCCESS,
+            1 => {
+                if self.device.is_on() {
+                    ReturnCode::SUCCESS
+                }
+                else {
+                    ReturnCode::EOFF
+                }
+            }
+            2 => ReturnCode::ENOSUPPORT, // Link to set tx power in radio
+            3 => ReturnCode::ENOSUPPORT, // Link to get tx power in radio
             _ => ReturnCode::ENOSUPPORT,
         }
     }
