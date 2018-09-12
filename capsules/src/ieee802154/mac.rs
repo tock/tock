@@ -174,7 +174,7 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
         }
 
         if addr_match {
-            debug!("match!!!!");
+            debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
             });
