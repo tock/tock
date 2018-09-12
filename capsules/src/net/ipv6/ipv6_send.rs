@@ -196,7 +196,7 @@ impl IP6SendStruct<'a> {
 impl TxClient for IP6SendStruct<'a> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
-        debug!("sendDone return code is: {:?}, acked: {}", result, acked);
+        debug!("Send result: {:?}, acked: {}", result, acked);
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
             self.send_completed(result);

@@ -19,7 +19,7 @@ use net::stream::SResult;
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UDPEndpoint {
     addr: IPAddr,
     port: u16,
@@ -350,7 +350,10 @@ impl<'a> Driver for UDPDriver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup callback for when frame is received.
-    /// - `1`: Setup callback for when frame is transmitted.
+    /// - `1`: Setup callback for when frame is transmitted. Notably,
+    ///        this callback receives the result of the send_done callback
+    ///        from udp_send.rs, which does not currently pass information
+    ///        regarding whether packets were acked at the link layer.
     fn subscribe(
         &self,
         subscribe_num: usize,
@@ -403,7 +406,12 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        This command should be called after allow() is called on the rx_cfg buffer, and
     ///        after subscribe() is used to set up the recv callback. If this command is called
     ///        and the address in rx_cfg is 0::0 : 0, this command will reset the option
-    ///        containing the bound port to None and set the rx callback to None.
+    ///        containing the bound port to None and set the rx callback to None. Notably,
+    ///        the current implementation of this only allows for each app to bind to a single
+    ///        port at a time, as such an implementation conserves memory (and is similar
+    ///        to the approach applied by TinyOS and Riot). Further, there is
+    ///        currently no mechanism for anything in the kernel to bind to ports, and there
+    ///        is no distinction between ephemeral ports and reserved ports.
 
 
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
@@ -438,11 +446,6 @@ impl<'a> Driver for UDPDriver<'a> {
                             return None;
                         }
 
-                        debug!(
-                            "{:?}",
-                            self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..])
-                        );
-
                         if let (Some(dst), Some(src)) = (
                             self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..]),
                             self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<UDPEndpoint>()]),
@@ -462,8 +465,7 @@ impl<'a> Driver for UDPDriver<'a> {
             },
             3 => {
                 self.do_with_app(appid, |app| {
-                    // TODO: Helper function for UDP endpoint comparisons
-                    // TODO: Move UDPEndpoint into udp.rs?
+                    // Move UDPEndpoint into udp.rs?
                     let mut requested_addr_opt = app.app_rx_cfg.as_ref().and_then(|cfg| {
                         if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
                             None
@@ -487,7 +489,16 @@ impl<'a> Driver for UDPDriver<'a> {
                             app.rcv_on = None;
                             return ReturnCode::SUCCESS;
                         }
-                        // TODO: Check that requested addr is a local interface
+                        // Check that requested addr is a local interface
+                        let mut requested_is_local = false;
+                        for i in 0..self.interface_list.len() {
+                            if requested_addr.addr == self.interface_list[i] {
+                                requested_is_local = true;
+                            }
+                        }
+                        if !requested_is_local {
+                            return ReturnCode::EINVAL;
+                        }
                         let mut addr_already_bound = false;
                         for app in self.apps.iter() {
                             app.enter(|other_app, _| {
@@ -495,7 +506,7 @@ impl<'a> Driver for UDPDriver<'a> {
                                     let other_addr_opt = other_app.rcv_on.clone();
                                     let other_addr = other_addr_opt.unwrap();
                                     if other_addr.port == requested_addr.port {
-                                        if other_addr.addr == requested_addr.addr { //TODO: Is the IPAddr eq trait correct
+                                        if other_addr.addr == requested_addr.addr {
                                             addr_already_bound = true;
                                         }
                                     }
