@@ -125,7 +125,9 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
             None,
         );
         self.init_packet(dst, transport_header, payload);
-        self.send_next_fragment()
+        let ret = self.send_next_fragment();
+        debug!("Done sending the next fragment");
+        ret
     }
 }
 
@@ -153,6 +155,7 @@ impl IP6SendStruct<'a> {
 
     fn init_packet(&self, dst_addr: IPAddr, transport_header: TransportHeader, payload: &[u8]) {
         self.ip6_packet.map(|ip6_packet| {
+            debug!("Mapping ip6_packet success");
             ip6_packet.header = IP6Header::default();
             ip6_packet.header.src_addr = self.src_addr.get();
             ip6_packet.header.dst_addr = dst_addr;
@@ -172,28 +175,49 @@ impl IP6SendStruct<'a> {
             x = x + i;
         }
         debug!("{}", x);
-        self.ip6_packet
+        debug!("Before sending, ip6Packetisnone: {:?}", self.ip6_packet.is_none());
+        // Originally send_complete() was called within the below closure.
+        // However, this led to a race condition where when multiple apps transmitted
+        // simultaneously, it was possible for send_complete to trigger another
+        // transmission before the below closure would exit, leading to this function
+        // being called again by another app before ip6_packet is replaced.
+        // To fix this, we pass a bool out of the closure to indicate whether send_completed()
+        // should be called once the closure exits
+        let (ret, call_send_complete) = self.ip6_packet
             .map(move |ip6_packet| match self.tx_buf.take() {
                 Some(tx_buf) => {
+                    let mut send = false;
+                    let mut send_complete_return = ReturnCode::SUCCESS;
                     let next_frame = self.sixlowpan.next_fragment(ip6_packet, tx_buf, self.radio);
                     match next_frame {
                         Ok((is_done, frame)) => {
                             if is_done {
                                 self.tx_buf.replace(frame.into_buf());
-                                self.send_completed(ReturnCode::SUCCESS);
+                                //self.send_completed(ReturnCode::SUCCESS);
+                                send = true;
+                                return (send_complete_return, send);
                             } else {
                                 self.radio.transmit(frame);
                             }
                         }
                         Err((retcode, buf)) => {
                             self.tx_buf.replace(buf);
-                            self.send_completed(retcode);
+                            //self.send_completed(retcode);
+                            send = true;
+                            send_complete_return = retcode;
                         }
                     }
-                    ReturnCode::SUCCESS
+                    (send_complete_return, send)
                 }
-                None => ReturnCode::EBUSY,
-            }).unwrap_or(ReturnCode::ENOMEM)
+                None => (ReturnCode::EBUSY, false),
+            }).unwrap_or((ReturnCode::ENOMEM, false));
+        if call_send_complete {
+            debug!("Calling send_complete!");
+            self.send_completed(ret);
+            return ReturnCode::SUCCESS;
+        }
+        debug!("After sending, ip6Packetisnone: {:?}", self.ip6_packet.is_none());
+        ret
     }
 
     fn send_completed(&self, result: ReturnCode) {
