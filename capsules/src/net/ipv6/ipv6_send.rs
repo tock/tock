@@ -163,11 +163,19 @@ impl IP6SendStruct<'a> {
 
     // Returns EBUSY if the tx_buf is not there
     fn send_next_fragment(&self) -> ReturnCode {
+        // Below code adds delay between fragments. Despite some efforts
+        // to fix this bug, I find that without it the receiving imix cannot
+        // receive more than 2 fragments in a single packet without hanging
+        // waiting for the third fragments.
+        let mut x = 0;
+        for i in 0..100000 {
+            x = x + i;
+        }
+        debug!("{}", x);
         self.ip6_packet
             .map(move |ip6_packet| match self.tx_buf.take() {
                 Some(tx_buf) => {
                     let next_frame = self.sixlowpan.next_fragment(ip6_packet, tx_buf, self.radio);
-
                     match next_frame {
                         Ok((is_done, frame)) => {
                             if is_done {

@@ -376,8 +376,6 @@ pub unsafe fn reset_handler() {
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
-    // ** UDP **
-
     let udp_driver = UDPComponent::new(
         board_kernel,
         mux_mac,
