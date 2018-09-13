@@ -12,6 +12,7 @@ pub mod test;
 #[macro_use]
 pub mod net;
 extern crate fixedvec;
+extern crate msg;
 
 pub mod adc;
 pub mod aes_ccm;

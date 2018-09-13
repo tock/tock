@@ -4,17 +4,14 @@
 //! - Transmitting and receiving frames
 //!
 use kernel::ReturnCode;
-
-pub struct Frame {
-    buf: &'static mut [u8],
-    seq: u8,
-}
+use helium::framer::{Frame, FecType};
 
 pub trait Device<'a> {
     /// Sets the transmission client of this MAC device
     fn set_transmit_client(&self, client: &'a TxClient);
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a RxClient);
+    fn config_commit(&self);
 
     /// Returns if the MAC device is currently on.
     fn is_on(&self) -> bool;
@@ -32,6 +29,7 @@ pub trait Device<'a> {
         &self,
         buf: &'static mut [u8],
         seq: u8,
+        fec_type: Option<FecType>,
     ) -> Result<Frame, &'static mut [u8]>;
 
     /// Transmits a frame that has been prepared by the above process. If the

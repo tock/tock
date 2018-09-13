@@ -1,28 +1,19 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil::radio_client;
 use kernel::ReturnCode;
-use net::ieee802154::{Header, MacAddress};
 
 pub trait Mac {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
     /// transmitted
     fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode;
     /// Sets the notified client for configuration changes
-    fn set_config_client(&self, client: &'static radio::ConfigClient);
+    fn set_config_client(&self, client: &'static radio_client::ConfigClient);
     /// Sets the notified client for transmission completions
-    fn set_transmit_client(&self, client: &'static radio::TxClient);
+    fn set_transmit_client(&self, client: &'static radio_client::TxClient);
     /// Sets the notified client for frame receptions
-    fn set_receive_client(&self, client: &'static radio::RxClient);
+    fn set_receive_client(&self, client: &'static radio_client::RxClient);
     /// Sets the buffer for packet reception
     fn set_receive_buffer(&self, buffer: &'static mut [u8]);
-    /// The short 16-bit address of the radio
-    fn get_address(&self) -> u16;
-    /// The long 64-bit address of the radio
-    fn get_address_long(&self) -> [u8; 8];
-    /// The key id of the radio
-    fn get_key(&self) -> u16;
-
-    fn set_key(&self, id: u16);
 
     /// Must be called after one or more calls to `set_*`. If
     /// `set_*` is called without calling `config_commit`, there is no guarantee
@@ -48,16 +39,16 @@ pub trait Mac {
 /// implementation and the underlying radio::Radio device. Does not change the power
 /// state of the radio during operation.
 ///
-pub struct AwakeMac<'a, R: radio::Radio> {
+pub struct VirtualMac<'a, R: radio_client::Radio> {
     radio: &'a R,
 
     tx_client: OptionalCell<&'static radio_client::TxClient>,
     rx_client: OptionalCell<&'static radio_client::RxClient>,
 }
 
-impl<R: radio_client::Radio> AwakeMac<'a, R> {
-    pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
-        AwakeMac {
+impl<R: radio_client::Radio> VirtualMac<'a, R> {
+    pub fn new(radio: &'a R) -> VirtualMac<'a, R> {
+        VirtualMac {
             radio: radio,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
@@ -65,7 +56,7 @@ impl<R: radio_client::Radio> AwakeMac<'a, R> {
     }
 }
 
-impl<R: radio_client::Radio> Mac for AwakeMac<'a, R> {
+impl<R: radio_client::Radio> Mac for VirtualMac<'a, R> {
     fn initialize(&self, _mac_buf: &'static mut [u8]) -> ReturnCode {
         // do nothing, extra buffer unnecessary
         ReturnCode::SUCCESS
@@ -75,23 +66,19 @@ impl<R: radio_client::Radio> Mac for AwakeMac<'a, R> {
         self.radio.is_on()
     }
     
-    fn set_key(&self, id: u16) {
-        self.radio.set_key(id)
-    }
-    
-    fn get_key(&self) -> u16 {
-        self.radio.get_key()
-    }
-
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'static radio_client::ConfigClient) {
         self.radio.set_config_client(client)
     }
 
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'static radio_client::TxClient) {
         self.tx_client.set(client);
     }
-
-    fn set_receive_client(&self, client: &'static radio::RxClient) {
+    
+    fn config_commit(&self) {
+        self.radio.config_commit()
+    }
+    
+    fn set_receive_client(&self, client: &'static radio_client::RxClient) {
         self.rx_client.set(client);
     }
 
@@ -101,22 +88,22 @@ impl<R: radio_client::Radio> Mac for AwakeMac<'a, R> {
 
     fn transmit(
         &self,
-        full_mac_frame: &'static mut [u8],
+        frame: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        self.radio.transmit(full_mac_frame, frame_len)
+        self.radio.transmit(frame, frame_len)
     }
 }
 
-impl<R: radio_client::Radio> radio::TxClient for AwakeMac<'a, R> {
+impl<R: radio_client::Radio> radio_client::TxClient for VirtualMac<'a, R> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
         self.tx_client.map(move |c| {
-            c.send_done(buf, acked, result);
+            c.transmit_event(buf, result);
         });
     }
 }
 
-impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
+impl<R: radio_client::Radio> radio_client::RxClient for VirtualMac<'a, R> {
     fn receive_event(
         &self,
         buf: &'static mut [u8],
@@ -125,15 +112,8 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
         result: ReturnCode,
     ) {
         // Filter packets by destination because radio is in promiscuous mode
-        let mut addr_match = false;
-        if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {
-            if let Some(dst_addr) = header.dst_addr {
-                addr_match = match dst_addr {
-                    MacAddress::Short(addr) => addr == self.radio.get_address(),
-                    MacAddress::Long(long_addr) => long_addr == self.radio.get_address_long(),
-                };
-            }
-        }
+        let addr_match = false;
+        // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE 
 
         if addr_match {
             self.rx_client.map(move |c| {

@@ -7,7 +7,7 @@ use kernel::common::cells::{TakeCell, OptionalCell, MapCell};
 use kernel::{AppId, AppSlice, Shared, Callback, Driver, ReturnCode, Grant};
 use kernel::hil::{radio_client, time::Alarm, time::Frequency, time::Client};
 use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
-use helium::device::Device;
+use helium::{device::TxClient, device::Device, framer, framer::FecType};
 
 // static mut PAYLOAD: [u8; 256] = [0; 256];
 
@@ -31,7 +31,7 @@ pub enum PowerMode {
     DeepSleep,
 }
 
-pub static mut RFC_STACK: [HeliumState; 6] = [HeliumState::NotInitialized; 6];
+// pub static mut RFC_STACK: [HeliumState; 6] = [HeliumState::NotInitialized; 6];
 
 #[derive(Copy, Clone)]
 enum Expiration {
@@ -63,7 +63,7 @@ pub struct App {
     app_cfg: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
     app_read: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<(u16, Option<u32>)>, // Change u32 to keyid and fec mode later on during implementation
+    pending_tx: Option<(u16, Option<FecType>)>, // Change u32 to keyid and fec mode later on during implementation
     tx_interval_ms: u32, // 400 ms is maximum per FCC
 }
 
@@ -275,7 +275,7 @@ where
     #[inline]
     fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
         self.do_with_app(appid, |app| {
-            let device_id = match app.pending_tx.take() {
+            let _device_id = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
                     return ReturnCode::SUCCESS;
@@ -286,9 +286,11 @@ where
                 // Frame header implementation for Helium prep here. Currently unknown so removing
                 // 802154 stuff
                 let seq: u8 = 0;
-                let mut frame = match self.device.prepare_data_frame(
+                let fec_type = None; 
+                let frame = match self.device.prepare_data_frame(
                     kbuf,
                     seq,
+                    fec_type, 
                 ) {
                     Ok(frame) => frame,
                     Err(kbuf) => {
@@ -422,12 +424,7 @@ where
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(
-        &self,
-        appid: AppId,
-        allow_num: usize,
-        slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
+    fn allow(&self, appid: AppId, allow_num: usize, slice: Option<AppSlice<Shared, u8>>) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
@@ -447,12 +444,7 @@ where
     ///  `subscribe_num`
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
-    fn subscribe(
-        &self,
-        subscribe_num: usize,
-        callback: Option<Callback>,
-        app_id: AppId,
-    ) -> ReturnCode {
+    fn subscribe(&self, subscribe_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         match subscribe_num {
             0 => self.do_with_app(app_id, |app| {
                 app.rx_callback = callback;
@@ -474,11 +466,12 @@ where
     /// - `2`: Set transmission power.
     /// - `3`: Get the transmission power.
 
-    fn command(&self, command_num: usize, _r2: usize, _r3: usize, appid: AppId) -> ReturnCode {
-        match command_num {
+    fn command(&self, command_num: usize, r2: usize, _r3: usize, appid: AppId) -> ReturnCode {
+        let command: HeliumCommand = command_num.into();
+        match command {
             // Handle callback for CMDSTA after write to CMDR
-            0 => ReturnCode::SUCCESS,
-            1 => {
+            HeliumCommand::DriverCheck => ReturnCode::SUCCESS,
+            HeliumCommand::GetRadioStatus => {
                 if self.device.is_on() {
                     ReturnCode::SUCCESS
                 }
@@ -486,11 +479,69 @@ where
                     ReturnCode::EOFF
                 }
             }
-            2 => ReturnCode::ENOSUPPORT, // Link to set tx power in radio
-            3 => ReturnCode::ENOSUPPORT, // Link to get tx power in radio
+            HeliumCommand::SetTxPower => ReturnCode::ENOSUPPORT, // Link to set tx power in radio
+            HeliumCommand::GetTxPower => ReturnCode::ENOSUPPORT, // Link to get tx power in radio
+            HeliumCommand::SetNextTx => {
+                self.do_with_app(appid, |app| {
+                    if app.pending_tx.is_some() {
+                        return ReturnCode::EBUSY;
+                    }
+                    let addr = r2 as u16;
+
+                    let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
+                        if cfg.len() != 11 {
+                            return None;
+                        }
+                        let fec = match FecType::from_slice(cfg.as_ref()[0]) {// The first entry `[0]` should be the encoding type
+                            Some(fec) => fec,
+                            None => {return None;}
+                        };
+                        
+                        if fec == FecType::None {
+                            return Some((addr, None));
+                        }
+                        Some((addr, Some(fec)))
+                    });
+                    if next_tx.is_none() {
+                        return ReturnCode::EINVAL;
+                    }
+                    app.pending_tx = next_tx;
+
+                    self.do_next_tx_sync(appid)
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
+}
+
+impl<R, A, D> TxClient for Helium<'a, R, A, D>
+where
+    R: radio_client::Radio,
+    A: Alarm,
+    D: Device<'a>,
+{
+    fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
+        self.kernel_tx.replace(buf);
+        self.current_app.take().map(|appid| {
+            let _ = self.app.enter(appid, |app, _| {
+                app.tx_callback
+                    .take()
+                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+            });
+        });
+        self.do_next_tx_async();
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum HeliumCommand {
+    DriverCheck = 0,
+    GetRadioStatus = 1,
+    SetTxPower = 2,
+    GetTxPower = 3,
+    SetNextTx = 4,
+    Invalid = 5,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -524,6 +575,28 @@ impl From<usize> for RfcOperationStatus {
             val => {
                 debug_assert!(false, "{} does not represent a valid command.", val);
                 RfcOperationStatus::Invalid
+            }
+        }
+    }
+}
+
+impl From<&'a HeliumCommand> for usize {
+    fn from(cmd: &HeliumCommand) -> usize {
+        *cmd as usize
+    }
+}
+
+impl From<usize> for HeliumCommand {
+    fn from(val: usize) -> HeliumCommand {
+        match val {
+            0 => HeliumCommand::DriverCheck,
+            1 => HeliumCommand::GetRadioStatus,
+            2 => HeliumCommand::SetTxPower,
+            3 => HeliumCommand::GetTxPower,
+            4 => HeliumCommand::SetNextTx,
+            val => {
+                debug_assert!(false, "{} does not represent a valid command.", val);
+                HeliumCommand::Invalid
             }
         }
     }

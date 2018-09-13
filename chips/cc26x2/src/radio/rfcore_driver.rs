@@ -49,6 +49,7 @@ pub struct Radio {
     rfc: &'static rfc::RFCore,
     tx_radio_client: OptionalCell<&'static radio_client::TxClient>,
     rx_radio_client: OptionalCell<&'static radio_client::RxClient>,
+    config_radio_client: OptionalCell<&'static radio_client::ConfigClient>,
     schedule_powerdown: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
 }
@@ -59,6 +60,7 @@ impl Radio {
             rfc,
             tx_radio_client: OptionalCell::empty(),
             rx_radio_client: OptionalCell::empty(),
+            config_radio_client: OptionalCell::empty(),
             schedule_powerdown: Cell::new(false),
             tx_buf: TakeCell::empty(),
         }
@@ -170,8 +172,12 @@ impl radio_client::RadioDriver for Radio {
         // maybe make a rx buf only when needed?
     }
 
-    fn transmit(&self, tx_buf: &'static mut [u8], _frame_len: usize) -> &'static mut [u8] {
-        tx_buf
+    fn set_config_client(&self, config_client: &'static radio_client::ConfigClient) {
+        self.config_radio_client.set(config_client);
+    }
+
+    fn transmit(&self, tx_buf: &'static mut [u8], _frame_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::SUCCESS, Some(tx_buf))
     }
 }
 
@@ -204,6 +210,10 @@ impl radio_client::RadioConfig for Radio {
     fn busy(&self) -> bool {
         // TODO check cmd status of current command running
         true
+    }
+
+    fn config_commit(&self) {
+        // TODO confirm set new config here    
     }
 
     fn get_tx_power(&self) -> u32 {

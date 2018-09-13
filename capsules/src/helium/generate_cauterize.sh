@@ -2,5 +2,5 @@
 
 set -e
 
-cauterize msg.scm caut/msg.spec
-caut-rust-ref --spec caut/msg.spec --output caut/
+cauterize msg.scm msg.spec
+caut-rust-ref --spec ./msg.spec --output ../../../caut-rust

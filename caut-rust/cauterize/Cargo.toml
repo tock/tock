@@ -1,0 +1,10 @@
+[package]
+name = "cauterize"
+version = "0.2.0"
+authors = ["Jay Kickliter"]
+
+[dependencies]
+byteorder = { version = "1.2.6", default-features = false }
+
+[dev-dependencies]
+quickcheck = "*"

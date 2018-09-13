@@ -41,17 +41,19 @@ pub trait RadioConfig {
     // fn get_rat_time(&self) -> u32;
 
     fn set_tx_power(&self, power: u32) -> ReturnCode;
+    fn config_commit(&self);
 }
 
 pub trait RadioDriver {
     fn set_transmit_client(&self, &'static TxClient);
     fn set_receive_client(&self, &'static RxClient, receive_buffer: &'static mut [u8]);
+    fn set_config_client(&self, &'static ConfigClient);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
     fn transmit(
         &self,
         tx_buf: &'static mut [u8],
         frame_len: usize,
-    ) -> &'static mut [u8];
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
