@@ -446,11 +446,11 @@ where
     /// - `1`: Setup callback for when frame is transmitted.
     fn subscribe(&self, subscribe_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
         match subscribe_num {
-            0 => self.do_with_app(app_id, |app| {
+            HeliumCallback::RxCallback => self.do_with_app(app_id, |app| {
                 app.rx_callback = callback;
                 ReturnCode::SUCCESS
             }),
-            1 => self.do_with_app(app_id, |app| {
+            HeliumCallback::TxCallback => self.do_with_app(app_id, |app| {
                 app.tx_callback = callback;
                 ReturnCode::SUCCESS
             }),
@@ -535,6 +535,12 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum HeliumCallback {
+    RxCallback = 0,
+    TxCallback = 1,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum HeliumCommand {
     DriverCheck = 0,
     GetRadioStatus = 1,
@@ -576,6 +582,21 @@ impl From<usize> for RfcOperationStatus {
                 debug_assert!(false, "{} does not represent a valid command.", val);
                 RfcOperationStatus::Invalid
             }
+        }
+    }
+}
+
+impl From<&'a HeliumCallback> for usize {
+    fn from(cmd: &HeliumCallback) -> usize {
+        *cmd as usize
+    }
+}
+
+impl From<usize> for HeliumCallback {
+    fn from(val: usize) -> HeliumCallback {
+        match val {
+            0 => HeliumCallback::RxCallback,
+            1 => HeliumCallback::TxCallback,
         }
     }
 }
