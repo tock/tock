@@ -36,6 +36,19 @@ use kernel::component::Component;
 use kernel::hil::radio;
 use sam4l;
 
+const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
+
+// The UDP stack requires several packet buffers:
+//
+//   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
+//   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
+//   3. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
+
+const UDP_HDR_SIZE: usize = 8;
+static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
+static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
 pub struct UDPComponent {
     board_kernel: &'static kernel::Kernel,
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
@@ -67,19 +80,6 @@ impl UDPComponent {
         }
     }
 }
-
-const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
-
-// The UDP stack requires several packet buffers:
-//
-//   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
-//   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
-//   3. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
-
-const UDP_HDR_SIZE: usize = 8;
-static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
-static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 impl Component for UDPComponent {
     type Output = &'static capsules::net::udp::UDPDriver<'static>;
@@ -164,7 +164,8 @@ impl Component for UDPComponent {
                 udp_send,
                 udp_recv,
                 self.board_kernel.create_grant(&grant_cap),
-                self.interface_list
+                self.interface_list,
+                PAYLOAD_LEN
             )
         );
         udp_send.set_client(udp_driver);

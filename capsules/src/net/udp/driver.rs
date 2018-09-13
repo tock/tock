@@ -82,6 +82,9 @@ pub struct UDPDriver<'a> {
 
     /// List of IP Addresses of the interfaces on the device
     interface_list: &'static [IPAddr],
+
+    /// Maximum length payload that an app can transmit via this driver
+    max_tx_pyld_len: usize,
 }
 
 impl<'a> UDPDriver<'a> {
@@ -90,6 +93,7 @@ impl<'a> UDPDriver<'a> {
         receiver: &'a UDPReceiver<'a>,
         grant: Grant<App>,
         interface_list: &'static [IPAddr],
+        max_tx_pyld_len: usize,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -97,6 +101,7 @@ impl<'a> UDPDriver<'a> {
             apps: grant,
             current_app: Cell::new(None),
             interface_list: interface_list,
+            max_tx_pyld_len: max_tx_pyld_len,
         }
     }
 
@@ -412,6 +417,9 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        to the approach applied by TinyOS and Riot). Further, there is
     ///        currently no mechanism for anything in the kernel to bind to ports, and there
     ///        is no distinction between ephemeral ports and reserved ports.
+    /// - `4`: Returns the maximum payload that can be transmitted by apps using this driver.
+    ///        This represents the size of the payload buffer in the kernel. Apps can use this
+    ///        syscall to ensure they do not attempt to send too-large messages.
 
 
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
@@ -525,6 +533,9 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                 })
+            },
+            4 => ReturnCode::SuccessWithValue {
+                    value: self.max_tx_pyld_len,
             },
             _ => ReturnCode::ENOSUPPORT,
         }
