@@ -83,76 +83,27 @@ impl Default for App {
     }
 }
 
-/*
-impl App {
-    fn configure_radio<'a, R, A> (&self, helium: &Helium<'a, R, A>) -> ReturnCode
-    where 
-        R: radio_client::Radio,
-        A: Alarm
-    {
-       // DO RADIO SETUP CALL HERE
-       ReturnCode::SUCCESS
-    }
-
-    fn transmit_packet<'a, R, A> (&self, helium: &Helium<'a, R, A>) -> ReturnCode  
-    where
-        R: radio_client::Radio,
-        A: Alarm,
-    {
-        self.tx_data
-            .as_ref()
-            .map(|tx_data| {
-                helium.kernel_tx
-                    .take()
-                    .map(|kernel_tx| {
-                        let packet_len = cmp::min(kernel_tx.len(), tx_data.len()); // May need to deduct some room for headers to packets here like LEN and ORDER
-                        let result = helium.radio.transmit(kernel_tx, packet_len);
-                        helium.kernel_tx.replace(result);
-                        ReturnCode::SUCCESS
-                    }).unwrap_or(ReturnCode::FAIL)
-            }).unwrap_or(ReturnCode::FAIL)
-    }
-    
-    // Set the next alarm for this app using the period and provided start time.
-    fn set_next_alarm<F: Frequency>(&mut self, now: u32) {
-        self.alarm_data.t0 = now;
-        let period_ms = (self.tx_interval_ms) * F::frequency() / 1000;
-        self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
-    }
-}
-*/
-
-pub struct Helium<'a, R, A, D> 
+pub struct Helium<'a, D> 
 where
-    R: radio_client::Radio,
-    A: Alarm,
     D: Device<'a>,
 {
-    radio: &'a R,
-    alarm: &'a A,
     app: Grant<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     current_app: OptionalCell<AppId>,
     device: &'a D,
 }
 
-impl<R, A, D> Helium<'a, R, A, D> 
+impl<D> Helium<'a, D> 
 where 
-    R: radio_client::Radio,
-    A: Alarm,
     D: Device<'a>,
 {
     pub fn new(
-        radio: &'a R,
-        alarm: &'a A, 
         container: Grant<App>,
         tx_buf: &'static mut [u8],
         device: &'a D,
-    ) -> Helium<'a, R, A, D> 
+    ) -> Helium<'a, D> 
     {   
         Helium {
-            radio: radio,
-            alarm: alarm,
             app: container,
             kernel_tx: TakeCell::new(tx_buf),
             current_app: OptionalCell::empty(),
@@ -160,28 +111,6 @@ where
         }
     }
 
-    fn reset_active_alarm(&self) {
-        let now = self.alarm.now();
-        let mut next_alarm = u32::max_value();
-        let mut next_dist = u32::max_value();
-        for app in self.app.iter() {
-            app.enter(|app, _| match app.alarm_data.expiration {
-                Expiration::Abs(exp) => {
-                    let t_dist = exp.wrapping_sub(now);
-                    if next_dist > t_dist {
-                        next_alarm = exp;
-                        next_dist = t_dist;
-                    }
-                }
-                Expiration::Disabled => {}
-            });
-        }
-        if next_alarm != u32::max_value() {
-            self.alarm.set_alarm(next_alarm);
-        }
-
-    }
-      
     /// Utility function to perform an action on an app in a system call.
     #[inline]
     fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
@@ -338,81 +267,10 @@ where
             }).unwrap_or(ReturnCode::SUCCESS)
     }
 }
-/*
-// Timer alarm
-impl<R, A> Client for Helium<'a, R, A>
+
+
+impl<D> Driver for Helium<'a, D>
 where
-    R: radio_client::Radio,
-    A: Alarm,
-{
-    // When an alarm is fired, we find which apps have expired timers. Expired
-    // timers indicate a desire to perform some operation (e.g. start a
-    // transmit operation). We know which operation based on the
-    // current app's state.
-    //
-    // TODO: a shit load
-    fn fired(&self) {
-        let now = self.alarm.now();
-
-        self.app.each(|app| {
-            if let Expiration::Abs(exp) = app.alarm_data.expiration {
-                let expired =
-                    now.wrapping_sub(app.alarm_data.t0) >= exp.wrapping_sub(app.alarm_data.t0);
-                if expired {
-                    if self.busy.get() {
-                        // The radio is currently busy, so we won't be able to start the
-                        // operation at the appropriate time. Instead, reschedule the
-                        // operation for later. This is _kind_ of simulating actual
-                        // on-air interference
-                        debug!("BLE: operation delayed for app {:?}", app.appid());
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
-                        return;
-                    }
-                    app.alarm_data.expiration = Expiration::Disabled;
-
-                    match app.process_status {
-                        Some(HeliumState::Pending(radio_client::RadioOperation::Enable)) => {
-                            self.busy.set(true);
-                            self.transmit_app.set(app.appid());
-                            
-                            app.configure_radio(&self, app.radio_config);
-                        },
-                        Some(HeliumState::Pending(radio_client::RadioOperation::Configure)) => {
-                            self.busy.set(true);
-                            self.transmit_app.set(app.appid()); // Not sure if configure needs its own handler or should be tied to transmit app
-
-                            app.configure_radio(&self, app.radio_config);
-                        }
-                        Some(HeliumState::Pending(radio_client::RadioOperation::Tx)) => {
-                            self.busy.set(true);
-                            self.transmit_app.set(app.appid());
-
-                            app.transmit_packet();
-                        }
-                        Some(HeliumState::Pending(radio_client::RadioOperation::Rx)) => {
-                            self.busy.set(true);
-                            self.receive_app.set(app.appid);
-
-                            self.radio.set_receive_buffer()
-                        }
-                        _ => debug!(
-                            "app: {:?} \t invalid state {:?}",
-                            app.appid(),
-                            app.process_status
-                        ),
-                    }
-                }
-            }
-        });
-        self.reset_active_alarm();
-    }
-}
-*/
-
-impl<R, A, D> Driver for Helium<'a, R, A, D>
-where
-    R: radio_client::Radio,
-    A: Alarm,
     D: Device<'a>,
 {
     /// Setup buffers to read/write from.
@@ -445,7 +303,8 @@ where
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
     fn subscribe(&self, subscribe_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        match subscribe_num {
+        let sub: HeliumCallback = subscribe_num.into();
+        match sub {
             HeliumCallback::RxCallback => self.do_with_app(app_id, |app| {
                 app.rx_callback = callback;
                 ReturnCode::SUCCESS
@@ -515,10 +374,8 @@ where
     }
 }
 
-impl<R, A, D> TxClient for Helium<'a, R, A, D>
+impl<D> TxClient for Helium<'a, D>
 where
-    R: radio_client::Radio,
-    A: Alarm,
     D: Device<'a>,
 {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
@@ -549,7 +406,7 @@ pub enum HeliumCommand {
     SetNextTx = 4,
     Invalid = 5,
 }
-
+/*
 #[derive(Debug, Clone, Copy)]
 pub enum RfcOperationStatus {
     Idle,
@@ -585,7 +442,7 @@ impl From<usize> for RfcOperationStatus {
         }
     }
 }
-
+*/
 impl From<&'a HeliumCallback> for usize {
     fn from(cmd: &HeliumCallback) -> usize {
         *cmd as usize
@@ -597,6 +454,7 @@ impl From<usize> for HeliumCallback {
         match val {
             0 => HeliumCallback::RxCallback,
             1 => HeliumCallback::TxCallback,
+            _ => panic!("Not a valid callback num")
         }
     }
 }

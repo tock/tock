@@ -9,10 +9,8 @@ use core::cell::Cell;
 use fixedvec::FixedVec;
 use kernel::common::cells::{TakeCell, OptionalCell};
 use kernel::hil::radio_client;
-use kernel::hil::time::{Alarm, Frequency};
-use kernel::{AppId, Callback, Driver, ReturnCode};
 use radio::rfcore_const::{RfcDriverCommands};
-
+use kernel::ReturnCode;
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
     0x02400403,
@@ -154,6 +152,9 @@ impl peripheral_manager::PowerClient for Radio {
         SleepMode::Sleep as u32
     }
 }
+
+
+impl radio_client::Radio for Radio {}
 
 impl radio_client::RadioDriver for Radio {
     fn set_transmit_client(&self, tx_client: &'static radio_client::TxClient) {
