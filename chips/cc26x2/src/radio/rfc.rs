@@ -37,17 +37,17 @@ pub struct RfcDBellRegisters {
     // RFC Command Status register
     cmdsta: ReadOnly<u32>,
     // Interrupt Flags From RF HW Modules
-    _rfhwifg: ReadWrite<u32>,
+    _rfhw_ifg: ReadWrite<u32>,
     // Interrupt Flags For RF HW Modules
-    _rfhwien: ReadWrite<u32>,
+    _rfhw_ien: ReadWrite<u32>,
     // Interrupt Flags For CPE Generated Interrupts
-    rfcpeifg: ReadWrite<u32, CPEInterrupts::Register>,
+    rfcpe_ifg: ReadWrite<u32, CPEInterrupts::Register>,
     // Interrupt Enable For CPE Generated Interrupts
-    rfcpeien: ReadWrite<u32, CPEInterrupts::Register>,
+    rfcpe_ien: ReadWrite<u32, CPEInterrupts::Register>,
     // Interrupt Vector Selection for CPE
-    rfcpeisl: ReadWrite<u32, CPEInterrupts::Register>,
+    rfcpe_isl: ReadWrite<u32, CPEInterrupts::Register>,
     // Doorbell Command Acknowledgement Interrupt Flags
-    rfackifg: ReadWrite<u32, DBellCmdAck::Register>,
+    rfack_ifg: ReadWrite<u32, DBellCmdAck::Register>,
     // RF Core General Purpose Output Control
     _sysgpoctl: ReadWrite<u32>,
 }
@@ -241,12 +241,12 @@ impl RFCore {
         );
 
         // Clear ack flag
-        dbell_regs.rfackifg.set(0);
+        dbell_regs.rfack_ifg.set(0);
         
         // Enable interrupts and clear flags
-        dbell_regs.rfcpeisl.write(CPEInterrupts::INTERNAL_ERROR::SET);
-        dbell_regs.rfcpeien.write(CPEInterrupts::INTERNAL_ERROR::SET + CPEInterrupts::COMMAND_DONE::SET + CPEInterrupts::TX_DONE::SET);
-        dbell_regs.rfcpeifg.set(0x00);
+        dbell_regs.rfcpe_isl.write(CPEInterrupts::INTERNAL_ERROR::SET);
+        dbell_regs.rfcpe_ien.write(CPEInterrupts::INTERNAL_ERROR::SET + CPEInterrupts::COMMAND_DONE::SET + CPEInterrupts::TX_DONE::SET + CPEInterrupts::BOOT_DONE::SET);
+        dbell_regs.rfcpe_ifg.set(0x0000);
         // self.enable_cpe_interrupts();
         // self.enable_hw_interrupts();
 
@@ -285,11 +285,11 @@ impl RFCore {
             .ok()
             .expect("Could not stop RFC with direct command");
         
-        dbell_regs.rfcpeien.set(0x00);
-        dbell_regs.rfcpeifg.set(0x00);
-        dbell_regs.rfcpeisl.set(0x00);
+        dbell_regs.rfcpe_ien.set(0x00);
+        dbell_regs.rfcpe_ifg.set(0x00);
+        dbell_regs.rfcpe_isl.set(0x00);
 
-        dbell_regs.rfackifg.set(0);
+        dbell_regs.rfack_ifg.set(0);
 
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
@@ -338,6 +338,7 @@ impl RFCore {
     }
 
     pub fn start_rat(&self) {
+        /*
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
         let start_trigger = 0; // TRIGGER FOR NOW
@@ -356,6 +357,26 @@ impl RFCore {
             .and_then(|_| self.wait(&rf_command))
             .ok()
             .expect("Start RAT command returned Err");
+        */
+        let rf_command_test = ::radio::rfc::test_commands::RfcCommandSyncRat {
+            command_no: 0x080D,
+            status: 0,
+            next_op: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = cmd::RfcCondition(0);
+                cond.set_rule(0x01); // COND_NEVER
+                cond
+            },
+            _reserved: 0,
+            rat0: self.rat.get(),
+        };
+        
+
+        self.send_test(&rf_command_test)
+            .and_then(|_| self.wait_test(&rf_command_test))
+            .ok();
     }
 
     pub fn stop_rat(&self) {
@@ -433,26 +454,15 @@ impl RFCore {
         let mut timeout: u32 = 0;
         const MAX_TIMEOUT: u32 = 0x2FFFFFF;
         while timeout < MAX_TIMEOUT {
+            
             status = command_op.status.get();
+            self.status.set(status.into());
             if status == 0x0400 {
                 return Ok(());
             }
-
             timeout += 1;
         }
         Err(status as u32)
-/*
-        match command_status {
-            // Operation finished normally
-            0x0400 => Ok(()),
-            0x0401 => Ok(()),
-            0x0402 => Ok(()),
-            0x0403 => Ok(()),
-            0x0404 => Ok(()),
-            0x0405 => Ok(()),
-            _ => Err(command_status as u32),
-        }
-        */
     }
 
     // Get status from CMDSTA register after ACK Interrupt flag has been thrown, then handle ACK
@@ -474,6 +484,12 @@ impl RFCore {
         self.post_cmdr(command)
     }
 
+    pub fn send_test<T> (&self, rf_command: &T) -> RadioReturnCode {
+        let command = { (rf_command as *const T) as u32 };
+
+        self.post_cmdr(command)
+    }
+
     pub fn send_direct(&self, dir_command: &cmd::DirectCommand) -> RadioReturnCode {
         let command = {
             let cmd = dir_command.command_no as u32;
@@ -489,6 +505,12 @@ impl RFCore {
 
         return self.wait_cmdr(command);
     }
+    
+    pub fn wait_test<T>(&self, rf_command: &T) -> RadioReturnCode {
+        let command = { (rf_command as *const T) as u32 };
+
+        return self.wait_cmdr(command);
+    }
 
     pub fn handle_interrupt(&self, int: RfcInterrupt) {
         let dbell_regs = &*self.dbell_regs;
@@ -496,23 +518,23 @@ impl RFCore {
             // Hardware interrupt handler unimplemented
             RfcInterrupt::CmdAck => {
                 // Clear the interrupt
-                dbell_regs.rfackifg.set(0);
+                dbell_regs.rfack_ifg.set(0);
                 self.client.get().map(|client| client.command_done());
                 let status = self.cmdsta();
                 match status {
                     Ok(()) => {
-                        self.status.set(0x01);
+                        self.status.set(0x0000);
                         ()
                     }
                     Err(e) => self.status.set(e),
                 }
             }
             RfcInterrupt::Cpe0 => {
-                let command_done = dbell_regs.rfcpeifg.is_set(CPEInterrupts::COMMAND_DONE);
-                let last_command_done = dbell_regs.rfcpeifg.is_set(CPEInterrupts::LAST_COMMAND_DONE);
-                let tx_done = dbell_regs.rfcpeifg.is_set(CPEInterrupts::TX_DONE);
-                let rx_ok = dbell_regs.rfcpeifg.is_set(CPEInterrupts::RX_OK);
-                dbell_regs.rfcpeifg.set(0);
+                let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);
+                let last_command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::LAST_COMMAND_DONE);
+                let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
+                let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
+                dbell_regs.rfcpe_ifg.set(0);
 
                 if command_done || last_command_done {
                     self.client.get().map(|client| client.command_done());
@@ -525,7 +547,7 @@ impl RFCore {
                 }
             }
             RfcInterrupt::Cpe1 => {
-                dbell_regs.rfcpeifg.set(0x7FFFFFFF);
+                dbell_regs.rfcpe_ifg.set(0x7FFFFFFF);
                 panic!("Internal occurred during radio command!\r");
             }
             _ => panic!("Unhandled RFC interrupt: {}\r", int as u8),
@@ -537,4 +559,19 @@ pub trait RFCoreClient {
     fn command_done(&self);
     fn tx_done(&self);
     fn rx_ok(&self);
+}
+
+mod test_commands {
+    use radio::commands as cmd;
+    #[repr(C)]
+    pub struct RfcCommandSyncRat {
+        pub command_no: u16,
+        pub status: u16,
+        pub next_op: u32,
+        pub start_time: u32,
+        pub start_trigger: u8,
+        pub condition: cmd::RfcCondition,
+        pub _reserved: u16,
+        pub rat0: u32,
+    }
 }

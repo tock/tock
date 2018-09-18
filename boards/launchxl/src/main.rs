@@ -24,6 +24,7 @@ use kernel::hil;
 pub mod io;
 #[allow(dead_code)]
 mod i2c_tests;
+mod radio_tests;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -51,13 +52,6 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
     radio: &'static capsules::virtual_rfcore::VirtualRadioDriver<'static, cc26x2::radio::rfcore_driver::Radio>,
-    /*
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        radio::ble::Ble,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, rtc::Rtc>,
-    >,
-    */
 }
 
 impl kernel::Platform for Platform {
@@ -73,7 +67,6 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::virtual_rfcore::DRIVER_NUM => f(Some(self.radio)),
-            // capsules::helium::DRIVER_NUM => f(Some(self.helium)),
             _ => f(None),
         }
     }
@@ -362,8 +355,10 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+    
+    radio::RFC.set_client(&radio::RADIO);
 
-    let radio = static_init!(
+    let virtual_radio = static_init!(
         capsules::virtual_rfcore::VirtualRadioDriver<'static, cc26x2::radio::rfcore_driver::Radio>,
         capsules::virtual_rfcore::VirtualRadioDriver::new(
             &cc26x2::radio::RADIO,
@@ -372,7 +367,11 @@ pub unsafe fn reset_handler() {
         )
     );
 
-    radio::RFC.set_client(&radio::RADIO);
+    kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
+    kernel::hil::radio_client::RadioDriver::set_receive_client(&radio::RADIO, virtual_radio, &mut HELIUM_BUF);
+
+    let rfc = &cc26x2::radio::RADIO;
+    rfc.test_power_up();
 
     let launchxl = Platform {
         console,
@@ -381,7 +380,7 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
-        radio,
+        radio: virtual_radio,
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();

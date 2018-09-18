@@ -66,10 +66,10 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::RF_CMD_ACK => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck)
                     }
-                    peripheral_interrupts::RF_CORE_PE1 => {
+                    peripheral_interrupts::RF_CORE_CPE0 => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0)
                     }
-                    peripheral_interrupts::RF_CORE_PE2 => {
+                    peripheral_interrupts::RF_CORE_CPE1 => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe1)
                     }
                     // AON Programmable interrupt

@@ -1,14 +1,14 @@
 #[allow(non_camel_case_types)]
 pub const GPIO: u32 = 0;
 pub const I2C: u32 = 1;
-pub const RF_CORE_PE1: u32 = 2;
+pub const RF_CORE_CPE1: u32 = 2;
 //UNASSIGNED 3
 pub const AON_RTC: u32 = 4;
 pub const UART0: u32 = 5;
 pub const UART1: u32 = 6;
 pub const SSI0: u32 = 7;
 pub const SSI1: u32 = 8;
-pub const RF_CORE_PE2: u32 = 9;
+pub const RF_CORE_CPE0: u32 = 9;
 pub const RF_CORE_HW: u32 = 10;
 pub const RF_CMD_ACK: u32 = 11;
 pub const I2S: u32 = 12;

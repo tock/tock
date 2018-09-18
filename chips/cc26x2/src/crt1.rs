@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, nvic, svc_handler, systick_handler};
+use cortexm4::{generic_isr, nvic, hard_fault_handler, svc_handler, systick_handler};
 // use rom_fns::setup;
 
 extern "C" {
@@ -19,9 +19,11 @@ unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
 }
 
+/*
 unsafe extern "C" fn hard_fault_handler() {
     'loop0: loop {}
 }
+*/
 
 #[link_section = ".vectors"]
 // used Ensures that the symbol is kept until the final binary

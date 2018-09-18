@@ -1,18 +1,5 @@
 #![allow(dead_code)]
 use kernel::common::cells::VolatileCell;
-/*
-#[derive(Debug, Clone, Copy)]
-pub enum RadioCommands {
-    Direct { c: DirectCommand },
-    RadioSetup { c: CmdRadioSetup },
-    Common { c: CmdNop },
-    FSPowerup { c: CmdFSPowerup },
-    FSPowerdown { c: CmdFSPowerdown },
-    StartRat { c: CmdSyncStartRat },
-    StopRat { c: CmdSyncStopRat },
-    NotSupported,
-}
-*/
 
 pub enum Commands {
     Direct = 0,
