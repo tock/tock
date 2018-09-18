@@ -265,17 +265,11 @@ impl CortexMRegion {
             None => return false,
         };
 
-        // Start of region overlaps
-        if other_start <= region_start && region_start < other_end {
-            return true;
+        if region_start < other_end && other_start < region_end {
+            true
+        } else {
+            false
         }
-
-        // End of region overlaps
-        if other_start < region_end && region_end <= other_end {
-            return true;
-        }
-
-        false
     }
 }
 
