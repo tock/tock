@@ -7,11 +7,11 @@
 //! Usage
 //! -----
 //! ```rust
-//! let radio = RadioComponetn::new().finalize();
+//! let (radio_driver, mux_mac) = RadioComponent::new(rf233, PAN_ID, 0x1008).finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
+// Last modified: 7/25/2018 (by Hudson Ayers)
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
@@ -21,6 +21,7 @@ use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioData;
@@ -68,9 +69,14 @@ const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::M
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl Component for RadioComponent {
-    type Output = &'static capsules::ieee802154::RadioDriver<'static>;
+    type Output = (
+        &'static capsules::ieee802154::RadioDriver<'static>,
+        &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    );
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let aes_ccm = static_init!(
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
             capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
@@ -114,7 +120,7 @@ impl Component for RadioComponent {
             capsules::ieee802154::RadioDriver<'static>,
             capsules::ieee802154::RadioDriver::new(
                 radio_mac,
-                self.board_kernel.create_grant(),
+                self.board_kernel.create_grant(&grant_cap),
                 &mut RADIO_BUF
             )
         );
@@ -126,6 +132,6 @@ impl Component for RadioComponent {
         radio_mac.set_pan(self.pan_id);
         radio_mac.set_address(self.short_addr);
 
-        radio_driver
+        (radio_driver, mux_mac)
     }
 }

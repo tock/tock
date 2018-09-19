@@ -4,12 +4,6 @@
 //! machine is somewhat complex, as it must interleave interrupt handling with
 //! requests and radio state management. See the SPI `read_write_done` handler
 //! for details.
-//!
-//! To do items:
-//!
-//! - Support TX power control
-//! - Support channel selection
-//! - Support link-layer acknowledgements
 //
 // Author: Philip Levis
 // Date: Jan 12 2017
@@ -28,20 +22,19 @@ use rf233_const::{ExternalState, InteruptFlags, RF233BusCommand, RF233Register, 
 // over to the Tock register interface eventually, but this code does work as
 // written. Do not follow this as an example when implementing new code.
 use rf233_const::CSMA_SEED_1;
+use rf233_const::IRQ_MASK;
+use rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
+use rf233_const::PHY_RSSI_RX_CRC_VALID;
+use rf233_const::PHY_TX_PWR;
 use rf233_const::SHORT_ADDR_0;
 use rf233_const::SHORT_ADDR_1;
 use rf233_const::TRX_CTRL_1;
 use rf233_const::TRX_CTRL_2;
-use rf233_const::XAH_CTRL_0;
-use rf233_const::XAH_CTRL_1;
-use rf233_const::IRQ_MASK;
-use rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
-use rf233_const::PHY_CHANNEL;
-use rf233_const::PHY_RSSI_RX_CRC_VALID;
-use rf233_const::PHY_TX_PWR;
 use rf233_const::TRX_RPC;
 use rf233_const::TRX_TRAC_CHANNEL_ACCESS_FAILURE;
 use rf233_const::TRX_TRAC_MASK;
+use rf233_const::XAH_CTRL_0;
+use rf233_const::XAH_CTRL_1;
 
 const INTERRUPT_ID: usize = 0x2154;
 
@@ -1038,6 +1031,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
         sleep: &'a gpio::Pin,
         irq: &'a gpio::Pin,
         ctl: &'a gpio::PinCtl,
+        channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
             spi: spi,
@@ -1068,7 +1062,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
-            channel: Cell::new(PHY_CHANNEL),
+            channel: Cell::new(channel),
             spi_rx: TakeCell::empty(),
             spi_tx: TakeCell::empty(),
             spi_buf: TakeCell::empty(),

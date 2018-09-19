@@ -18,6 +18,7 @@ pub use cortexm::support;
 
 pub use cortexm::nvic;
 pub use cortexm::scb;
+pub use cortexm::syscall;
 pub use cortexm::systick;
 
 extern "C" {
@@ -40,17 +41,12 @@ pub unsafe extern "C" fn systick_handler() {}
 pub unsafe extern "C" fn systick_handler() {
     asm!(
         "
-    /* Skip saving process state if not coming from user-space */
-    cmp lr, #0xfffffffd
-    bne _systick_handler_no_stacking
+    /* Mark that the systick handler was called meaning that the process */
+    /* stopped executing because it has exceeded its timeslice. */
+    ldr r0, =SYSTICK_EXPIRED
+    mov r1, #1
+    str r1, [r0, #0]
 
-    /* We need the most recent kernel's version of r1, which points */
-    /* to the Process struct's stored registers field. The kernel's r1 */
-    /* lives in the second word of the hardware stacked registers on MSP */
-    mov r1, sp
-    ldr r1, [r1, #4]
-    stmia r1, {r4-r11}
-  _systick_handler_no_stacking:
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
@@ -164,9 +160,9 @@ pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *con
 #[no_mangle]
 /// r0 is top of user stack, r1 Process GOT
 pub unsafe extern "C" fn switch_to_user(
-    mut user_stack: *const u8,
+    mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
-) -> *mut u8 {
+) -> *const usize {
     asm!("
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
@@ -182,11 +178,12 @@ pub unsafe extern "C" fn switch_to_user(
     /* regs field */
     stmia $2, {r4-r11}
 
+
     mrs $0, PSP /* PSP into r0 */"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
-    user_stack as *mut u8
+    user_stack
 }
 
 pub unsafe extern "C" fn hard_fault_handler() {
@@ -351,11 +348,8 @@ pub unsafe extern "C" fn hard_fault_handler() {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
         asm!(
-            "ldr r0, =SYSCALL_FIRED
-              mov r1, #1
-              str r1, [r0, #0]
-
-              ldr r0, =APP_FAULT
+            "ldr r0, =APP_HARD_FAULT
+              mov r1, #1 /* Fault */
               str r1, [r0, #0]
 
               /* Read the SCB registers. */

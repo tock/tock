@@ -1,6 +1,7 @@
 //! Public traits for interfaces between Tock components.
 
 pub mod adc;
+pub mod analog_comparator;
 pub mod ble_advertising;
 pub mod crc;
 pub mod dac;

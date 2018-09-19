@@ -325,8 +325,8 @@ impl<R: radio::Radio, A: Alarm> rng::Client32 for XMac<'a, R, A> {
                     // spent backing off.
                     let time_remaining_ms =
                         (((self.alarm.get_alarm().wrapping_sub(self.alarm.now())) as f32
-                            / <A::Frequency>::frequency() as f32) * 1000.0)
-                            as u32;
+                            / <A::Frequency>::frequency() as f32)
+                            * 1000.0) as u32;
                     self.set_timer_ms::<A>(random % time_remaining_ms);
                 }
                 rng::Continue::Done

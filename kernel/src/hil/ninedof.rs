@@ -11,11 +11,11 @@ use returncode::ReturnCode;
 /// A basic interface for a 9-DOF compatible chip.
 /// Not all functions must be implemented if not all features are supported
 /// (for instance some chips may not include a gyroscope).
-pub trait NineDof {
+pub trait NineDof<'a> {
     /// Set the client to be notified when the capsule has data ready or
     /// has finished some command. This is likely called in a board's main.rs
     /// and is set to the virtual_ninedof.rs driver.
-    fn set_client(&self, client: &'static NineDofClient);
+    fn set_client(&self, client: &'a NineDofClient);
 
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.

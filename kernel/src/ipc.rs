@@ -7,6 +7,7 @@
 pub const DRIVER_NUM: usize = 0x00010000;
 
 use callback::{AppId, Callback};
+use capabilities::MemoryAllocationCapability;
 use driver::Driver;
 use grant::Grant;
 use mem::{AppSlice, Shared};
@@ -35,9 +36,9 @@ pub struct IPC {
 }
 
 impl IPC {
-    pub unsafe fn new(kernel: &'static Kernel) -> IPC {
+    pub fn new(kernel: &'static Kernel, capability: &MemoryAllocationCapability) -> IPC {
         IPC {
-            data: kernel.create_grant(),
+            data: kernel.create_grant(capability),
         }
     }
 
@@ -75,12 +76,9 @@ impl IPC {
                                         callback.schedule(otherapp.idx() + 1, 0, 0);
                                     }
                                 }
-                            })
-                            .unwrap_or(());
-                    })
-                    .unwrap_or(());
-            })
-            .unwrap_or(());
+                            }).unwrap_or(());
+                    }).unwrap_or(());
+            }).unwrap_or(());
     }
 }
 
@@ -107,8 +105,7 @@ impl Driver for IPC {
                 .enter(app_id, |data, _| {
                     data.callback = callback;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or(ReturnCode::EBUSY),
+                }).unwrap_or(ReturnCode::EBUSY),
 
             // subscribe(>=1)
             //
@@ -125,8 +122,7 @@ impl Driver for IPC {
                         .enter(app_id, |data, _| {
                             data.client_callbacks[svc_id - 1] = callback;
                             ReturnCode::SUCCESS
-                        })
-                        .unwrap_or(ReturnCode::EBUSY)
+                        }).unwrap_or(ReturnCode::EBUSY)
                 }
             }
         }
@@ -155,8 +151,11 @@ impl Driver for IPC {
         self.data
             .kernel
             .process_map_or(ReturnCode::EINVAL, target_id - 1, |target| {
-                target.schedule_ipc(appid, cb_type);
-                ReturnCode::SUCCESS
+                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                match ret {
+                    true => ReturnCode::SUCCESS,
+                    false => ReturnCode::FAIL,
+                }
             })
     }
 
@@ -183,7 +182,7 @@ impl Driver for IPC {
             match slice {
                 Some(slice_data) => {
                     let ret = self.data.kernel.process_each_enumerate_stop(|i, p| {
-                        let s = p.package_name.as_bytes();
+                        let s = p.get_process_name();
                         // are slices equal?
                         if s.len() == slice_data.len()
                             && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)
@@ -212,9 +211,7 @@ impl Driver for IPC {
                     .map(|smem| {
                         *smem = slice;
                         ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
-            })
-            .unwrap_or(ReturnCode::EBUSY);
+                    }).unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
+            }).unwrap_or(ReturnCode::EBUSY);
     }
 }

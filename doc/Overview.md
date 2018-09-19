@@ -1,9 +1,9 @@
 # Tock Overview
 
 Tock is a secure, embedded operating system for Cortex-M microcontrollers.
-While it could potentially be ported to other architectures, its current
-design and implementation assumes a Cortex-M that has a memory protection
-unit (MPU). Systems without an MPU cannot simultaneously support untrusted
+It is designed to be architecture agnostic, but implementations only exist
+for the Cortex-M. Tock assumes the hardware includes a memory protection
+unit (MPU), as systems without an MPU cannot simultaneously support untrusted
 processes and retain Tock's safety and security properties. The Tock
 kernel and its extensions (called *capsules*) are written in Rust.
 

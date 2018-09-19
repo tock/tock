@@ -48,7 +48,7 @@ use core::str;
 use common::cells::NumericCellExt;
 use common::cells::{MapCell, TakeCell};
 use hil;
-use process::Process;
+use process::ProcessType;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -61,7 +61,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &Fn(),
-    processes: &'static [Option<&'static Process<'static>>],
+    processes: &'static [Option<&'static ProcessType>],
 ) -> ! {
     panic_begin(nop);
     panic_banner(writer, panic_info);
@@ -112,13 +112,13 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<W: Write>(
-    procs: &'static [Option<&'static Process<'static>>],
+    procs: &'static [Option<&'static ProcessType>],
     writer: &mut W,
 ) {
     // Print fault status once
     if !procs.is_empty() {
         procs[0].as_ref().map(|process| {
-            process.fault_str(writer);
+            process.fault_fmt(writer);
         });
     }
 
@@ -126,7 +126,7 @@ pub unsafe fn panic_process_info<W: Write>(
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
     for idx in 0..procs.len() {
         procs[idx].as_ref().map(|process| {
-            process.statistics_str(writer);
+            process.process_detail_fmt(writer);
         });
     }
 }

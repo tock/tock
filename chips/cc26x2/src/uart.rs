@@ -1,11 +1,8 @@
-//! UART driver, cc26xx family
-use gpio;
-use ioc;
+//! UART driver, cc26x2 family
 use kernel;
-use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::gpio::Pin;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 use prcm;
@@ -66,11 +63,21 @@ register_bitfields![
 const UART_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const UartRegisters) };
 
+/// Stores an ongoing TX transaction
+struct Transaction {
+    /// The buffer containing the bytes to transmit as it should be returned to
+    /// the client
+    buffer: &'static mut [u8],
+    /// The total amount to transmit
+    length: usize,
+    /// The index of the byte currently being sent
+    index: usize,
+}
+
 pub struct UART {
     registers: StaticRef<UartRegisters>,
     client: OptionalCell<&'static uart::Client>,
-    tx_pin: OptionalCell<u8>,
-    rx_pin: OptionalCell<u8>,
+    transaction: MapCell<Transaction>,
 }
 
 impl UART {
@@ -78,19 +85,16 @@ impl UART {
         UART {
             registers: UART_BASE,
             client: OptionalCell::empty(),
-            tx_pin: OptionalCell::empty(),
-            rx_pin: OptionalCell::empty(),
+            transaction: MapCell::empty(),
         }
     }
 
     /// Initialize the UART hardware.
     ///
     /// This function needs to be run before the UART module is used.
-    pub fn initialize_and_set_pins(&self, tx_pin: u8, rx_pin: u8) {
-        self.tx_pin.set(tx_pin);
-        self.rx_pin.set(rx_pin);
+    pub fn initialize(&self) {
         self.power_and_clock();
-        self.disable_interrupts();
+        self.enable_interrupts();
     }
 
     fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
@@ -106,38 +110,22 @@ impl UART {
             return ReturnCode::ENOSUPPORT;
         }
 
-        self.tx_pin.map_or(ReturnCode::EOFF, |tx_pin| {
-            self.rx_pin.map_or(ReturnCode::EOFF, |rx_pin| {
-                unsafe {
-                    // Make sure the TX pin is output/high before assigning it to UART control
-                    // to avoid falling edge glitches
-                    gpio::PORT[*tx_pin as usize].make_output();
-                    gpio::PORT[*tx_pin as usize].set();
+        // Disable the UART before configuring
+        self.disable();
 
-                    // Map UART signals to IO pin
-                    ioc::IOCFG[*tx_pin as usize].enable_uart_tx();
-                    ioc::IOCFG[*rx_pin as usize].enable_uart_rx();
-                }
+        self.set_baud_rate(params.baud_rate);
 
-                // Disable the UART before configuring
-                self.disable();
+        // Set word length
+        self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
 
-                self.set_baud_rate(params.baud_rate);
+        self.fifo_enable();
 
-                // Set word length
-                let regs = &*self.registers;
-                regs.lcrh.write(LineControl::WORD_LENGTH::Len8);
+        // Enable UART, RX and TX
+        self.registers
+            .ctl
+            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
 
-                self.fifo_enable();
-
-                // Enable UART, RX and TX
-                regs.ctl.write(
-                    Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET,
-                );
-
-                ReturnCode::SUCCESS
-            })
-        })
+        ReturnCode::SUCCESS
     }
 
     fn power_and_clock(&self) {
@@ -150,57 +138,62 @@ impl UART {
         // Fractional baud rate divider
         let div = (((MCU_CLOCK * 8) / baud_rate) + 1) / 2;
         // Set the baud rate
-        let regs = &*self.registers;
-        regs.ibrd.write(IntDivisor::DIVISOR.val(div / 64));
-        regs.fbrd.write(FracDivisor::DIVISOR.val(div % 64));
+        self.registers.ibrd.write(IntDivisor::DIVISOR.val(div / 64));
+        self.registers
+            .fbrd
+            .write(FracDivisor::DIVISOR.val(div % 64));
     }
 
     fn fifo_enable(&self) {
-        let regs = &*self.registers;
-        regs.lcrh.modify(LineControl::FIFO_ENABLE::SET);
+        self.registers.lcrh.modify(LineControl::FIFO_ENABLE::SET);
     }
 
     fn fifo_disable(&self) {
-        let regs = &*self.registers;
-        regs.lcrh.modify(LineControl::FIFO_ENABLE::CLEAR);
+        self.registers.lcrh.modify(LineControl::FIFO_ENABLE::CLEAR);
     }
 
     fn disable(&self) {
         self.fifo_disable();
-        let regs = &*self.registers;
-        regs.ctl.modify(
+        self.registers.ctl.modify(
             Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR + Control::RX_ENABLE::CLEAR,
         );
     }
 
-    fn disable_interrupts(&self) {
+    fn enable_interrupts(&self) {
         // Disable all UART interrupts
-        let regs = &*self.registers;
-        regs.imsc.modify(Interrupts::ALL_INTERRUPTS::CLEAR);
-        // Clear all UART interrupts
-        regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
+        self.registers.imsc.modify(Interrupts::ALL_INTERRUPTS::SET);
     }
 
     /// Clears all interrupts related to UART.
     pub fn handle_interrupt(&self) {
-        let regs = &*self.registers;
         // Clear interrupts
-        regs.icr.write(Interrupts::ALL_INTERRUPTS::SET);
+        self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
+
+        self.transaction.take().map(|mut transaction| {
+            transaction.index += 1;
+            if transaction.index < transaction.length {
+                self.send_byte(transaction.buffer[transaction.index]);
+                self.transaction.put(transaction);
+            } else {
+                self.client.map(move |client| {
+                    client.transmit_complete(
+                        transaction.buffer,
+                        kernel::hil::uart::Error::CommandComplete,
+                    );
+                });
+            }
+        });
     }
 
     /// Transmits a single byte if the hardware is ready.
     pub fn send_byte(&self, c: u8) {
-        // Wait for space in FIFO
-        while !self.tx_ready() {}
         // Put byte in data register
-        let regs = &*self.registers;
-        regs.dr.set(c as u32);
+        self.registers.dr.set(c as u32);
     }
 
     /// Checks if there is space in the transmit fifo queue.
     pub fn tx_ready(&self) -> bool {
-        let regs = &*self.registers;
-        !regs.fr.is_set(Flags::TX_FIFO_FULL)
+        !self.registers.fr.is_set(Flags::TX_FIFO_FULL)
     }
 }
 
@@ -214,16 +207,14 @@ impl kernel::hil::uart::UART for UART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        if tx_len == 0 {
-            return;
+        if tx_len > 0 && tx_data.len() > 0 {
+            self.send_byte(tx_data[0]);
         }
 
-        for i in 0..tx_len {
-            self.send_byte(tx_data[i]);
-        }
-
-        self.client.map(move |client| {
-            client.transmit_complete(tx_data, kernel::hil::uart::Error::CommandComplete);
+        self.transaction.put(Transaction {
+            buffer: tx_data,
+            length: tx_len,
+            index: 0,
         });
     }
 

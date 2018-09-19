@@ -1,5 +1,6 @@
 pub mod adc;
 pub mod alarm;
+pub mod analog_comparator;
 pub mod button;
 pub mod console;
 pub mod crc;
@@ -13,10 +14,12 @@ pub mod radio;
 pub mod rf233;
 pub mod si7021;
 pub mod spi;
+pub mod udp_6lowpan;
 pub mod usb;
 
 pub use self::adc::AdcComponent;
 pub use self::alarm::AlarmDriverComponent;
+pub use self::analog_comparator::AcComponent;
 pub use self::button::ButtonComponent;
 pub use self::console::ConsoleComponent;
 pub use self::crc::CrcComponent;
@@ -31,4 +34,5 @@ pub use self::rf233::RF233Component;
 pub use self::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 pub use self::spi::SpiComponent;
 pub use self::spi::SpiSyscallComponent;
+pub use self::udp_6lowpan::UDPComponent;
 pub use self::usb::UsbComponent;

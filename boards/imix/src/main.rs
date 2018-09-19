@@ -12,17 +12,20 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(debug, debug_gpio, static_init, create_capability)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
 
 mod components;
 use capsules::alarm::AlarmDriver;
+use capsules::net::ieee802154::MacAddress;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -33,6 +36,7 @@ use kernel::hil::Controller;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
+use components::analog_comparator::AcComponent;
 use components::button::ButtonComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
@@ -46,6 +50,7 @@ use components::radio::RadioComponent;
 use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
+use components::udp_6lowpan::UDPComponent;
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -85,13 +90,33 @@ mod virtual_uart_rx_test;
 
 const NUM_PROCS: usize = 2;
 
+// Constants related to the configuration of the 15.4 network stack
+const RADIO_CHANNEL: u8 = 26;
+const SRC_MAC: u16 = 0xf00f;
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
+const SRC_MAC_ADDR: MacAddress = MacAddress::Short(SRC_MAC);
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
+const PAN_ID: u16 = 0xABCD;
+
+static LOCAL_IP_IFACES: [IPAddr; 2] = [
+    IPAddr([
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f,
+    ]),
+    IPAddr([
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+        0x1f,
+    ]),
+];
+
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-static mut PROCESSES: [Option<&'static kernel::procs::Process<'static>>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -108,10 +133,15 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+        'static,
+        sam4l::acifc::Acifc<'static>,
+    >,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<
         'static,
@@ -150,6 +180,7 @@ impl kernel::Platform for Imix {
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
@@ -157,6 +188,7 @@ impl kernel::Platform for Imix {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -211,12 +243,16 @@ unsafe fn set_pin_primary_functions() {
     PC[06].configure(Some(A)); // SCK         --  SPI CLK
     PC[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
     PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
-    PC[09].configure(None); //... NRF GPIO    -- GPIO
-    PC[10].configure(None); //... USER LED    -- GPIO
+                               //PC[09].configure(None); //... NRF GPIO    -- GPIO
+                               //PC[10].configure(None); //... USER LED    -- GPIO
+    PC[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
+    PC[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
     PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
     PC[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
-    PC[13].configure(None); //... ACC_INT1    -- GPIO
-    PC[14].configure(None); //... ACC_INT2    -- GPIO
+                               //PC[13].configure(None); //... ACC_INT1    -- GPIO
+                               //PC[14].configure(None); //... ACC_INT2    -- GPIO
+    PC[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
+    PC[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
     PC[16].configure(None); //... SENSE_PWR   --  GPIO pin
     PC[17].configure(None); //... NRF_PWR     --  GPIO pin
     PC[18].configure(None); //... RF233_PWR   --  GPIO pin
@@ -251,6 +287,12 @@ pub unsafe fn reset_handler() {
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions();
+
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    let main_cap = create_capability!(capabilities::MainLoopCapability);
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     power::configure_submodules(power::SubmoduleConfig {
         rf233: true,
@@ -315,6 +357,7 @@ pub unsafe fn reset_handler() {
         &sam4l::gpio::PA[10], // sleep
         &sam4l::gpio::PA[08], // irq
         &sam4l::gpio::PA[08],
+        RADIO_CHANNEL,
     ).finalize();
 
     // Clear sensors enable pin to enable sensor rail
@@ -326,30 +369,46 @@ pub unsafe fn reset_handler() {
     let led = LedComponent::new().finalize();
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
+    let analog_comparator = AcComponent::new().finalize();
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let radio_driver = RadioComponent::new(board_kernel, rf233, 0xABCD, 0x1008).finalize();
+    let (radio_driver, mux_mac) =
+        RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
+    // ** UDP **
+
+    let udp_driver = UDPComponent::new(
+        board_kernel,
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        SRC_MAC_ADDR,
+        &LOCAL_IP_IFACES,
+    ).finalize();
+
     let imix = Imix {
-        console: console,
-        alarm: alarm,
-        gpio: gpio,
-        temp: temp,
-        humidity: humidity,
-        ambient_light: ambient_light,
-        adc: adc,
-        led: led,
-        button: button,
-        crc: crc,
+        console,
+        alarm,
+        gpio,
+        temp,
+        humidity,
+        ambient_light,
+        adc,
+        led,
+        button,
+        analog_comparator,
+        crc,
         spi: spi_syscalls,
-        ipc: kernel::ipc::IPC::new(board_kernel),
-        ninedof: ninedof,
-        radio_driver: radio_driver,
-        usb_driver: usb_driver,
+        ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
+        ninedof,
+        radio_driver,
+        udp_driver,
+        usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage: nonvolatile_storage,
     };
@@ -377,11 +436,13 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
+        &cortexm4::syscall::SysCall::new(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc));
+    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
 }

@@ -4,17 +4,31 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm, concat_idents, const_fn, core_intrinsics, try_from, used)]
+#![feature(
+    asm,
+    concat_idents,
+    const_fn,
+    core_intrinsics,
+    try_from,
+    used
+)]
 #![feature(in_band_lifetimes, tool_attributes)]
 #![no_std]
 
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
+#[macro_use(
+    debug,
+    debug_gpio,
+    static_init,
+    register_bitfields,
+    register_bitmasks
+)]
 extern crate kernel;
 
 mod deferred_call_tasks;
 
+pub mod acifc;
 pub mod adc;
 pub mod aes;
 pub mod ast;

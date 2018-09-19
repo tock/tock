@@ -86,8 +86,7 @@ impl<A: Alarm> Driver for AlarmDriver<'a, A> {
             .enter(app_id, |td, _allocator| {
                 td.callback = callback;
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Setup and read the alarm.
@@ -152,8 +151,7 @@ impl<A: Alarm> Driver for AlarmDriver<'a, A> {
                     self.reset_active_alarm(now);
                 }
                 return_code
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 }
 

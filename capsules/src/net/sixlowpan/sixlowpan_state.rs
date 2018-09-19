@@ -248,7 +248,7 @@ const FRAG_TIMEOUT: u32 = 60;
 /// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
 pub trait SixlowpanRxClient {
-    fn receive<'a>(&self, buf: &'a [u8], len: u16, result: ReturnCode);
+    fn receive<'a>(&self, buf: &'a [u8], len: usize, result: ReturnCode);
 }
 
 pub mod lowpan_frag {
@@ -311,9 +311,9 @@ pub trait SixlowpanState<'a> {
 /// Note that the upper layer is responsible for sending the compressed
 /// frames; the `TxState` struct simply produces compressed MAC frames.
 pub struct TxState<'a> {
-    // State for the current transmission
+    /// State for the current transmission
+    pub dst_pan: Cell<PanID>, // Pub to allow for setting to broadcast PAN and back
     src_pan: Cell<PanID>,
-    dst_pan: Cell<PanID>,
     src_mac_addr: Cell<MacAddress>,
     dst_mac_addr: Cell<MacAddress>,
     security: Cell<Option<(SecurityLevel, KeyId)>>,
@@ -359,6 +359,7 @@ impl TxState<'a> {
     ///
     /// `src_mac_addr` - The MAC address the frame will be sent from
     /// `dst_mac_addr` - The MAC address the frame will be sent to
+    /// `radio_pan` - The PAN ID held by the radio underlying this stack
     /// `security` - Any security options (necessary since the size of the
     /// produced MAC frame is dependent on the security options)
     ///
@@ -372,6 +373,7 @@ impl TxState<'a> {
         &self,
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
+        radio_pan: u16,
         security: Option<(SecurityLevel, KeyId)>,
     ) -> ReturnCode {
         if self.busy.get() {
@@ -381,6 +383,8 @@ impl TxState<'a> {
             self.dst_mac_addr.set(dst_mac_addr);
             self.security.set(security);
             self.busy.set(false);
+            self.src_pan.set(radio_pan);
+            self.dst_pan.set(radio_pan);
             ReturnCode::SUCCESS
         }
     }
@@ -419,8 +423,7 @@ impl TxState<'a> {
                 self.src_pan.get(),
                 self.src_mac_addr.get(),
                 self.security.get(),
-            )
-            .map_err(|frame| (ReturnCode::FAIL, frame))?;
+            ).map_err(|frame| (ReturnCode::FAIL, frame))?;
 
         // If this is the first fragment
         if !self.busy.get() {
@@ -759,9 +762,8 @@ impl RxState<'a> {
             // and thus the packet should always be here.
             self.packet
                 .map(|packet| {
-                    client.receive(&packet, self.dgram_size.get(), result);
-                })
-                .expect("Error: `packet` is None in call to end_receive.");
+                    client.receive(&packet, self.dgram_size.get() as usize, result);
+                }).expect("Error: `packet` is None in call to end_receive.");
         });
     }
 }
@@ -936,6 +938,8 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                             let remaining = payload_len - consumed;
                             packet[written..written + remaining]
                                 .copy_from_slice(&payload[consumed..consumed + remaining]);
+                            // Want dgram_size to contain decompressed size of packet
+                            state.dgram_size.set((written + remaining) as u16);
                         }
                         Err(_) => {
                             return (None, ReturnCode::FAIL);
@@ -946,8 +950,7 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                 }
                 state.packet.replace(packet);
                 (Some(state), ReturnCode::SUCCESS)
-            })
-            .unwrap_or((None, ReturnCode::ENOMEM))
+            }).unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     // This function returns an Err if an error occurred, returns Ok(Some(RxState))
@@ -1012,8 +1015,7 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                         }
                     }
                 }
-            })
-            .unwrap_or((None, ReturnCode::ENOMEM))
+            }).unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     #[allow(dead_code)]

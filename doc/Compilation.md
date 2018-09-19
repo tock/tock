@@ -111,10 +111,8 @@ libraries: `libtock` and `newlib` and built into a free-standing binary. The
 binary can then be uploaded onto a Tock platform with an already existing
 kernel to be loaded and run.
 
-Currently, all Tock platforms are ARM Cortex-M processors and all existing
-applications are written in C. Therefore, compilation uses `arm-none-eabi-gcc`.
-Alternative languages and compilers are all possible for building applications,
-as long as they build code following several requirements:
+Tock can support any programming language and compiler provided they meet
+the following requirements:
 
  1. The application must be built as position independent code (PIC).
 
@@ -125,9 +123,7 @@ as long as they build code following several requirements:
     sections in the binary.
 
 The first requirement is explained directly below while the second two are
-detailed in [Tock Binary Format](#tock-binary-format). Again, as with the
-kernel, the compilation process is handled by Makefiles and the user does not
-normally need to interact with it.
+detailed in [Tock Binary Format](#tock-binary-format).
 
 
 ### Position Independent Code
@@ -138,14 +134,13 @@ at which address they will be loaded. This problem is common to many computer
 systems and is typically addressed by dynamically linking and loading code at
 runtime.
 
-In Tock, however, we make a different choice and require applications to be
-compiled as position independent code. Compiling with PIC makes all control
-flow relative to the current PC, rather than using jumps to specified absolute
-addresses. All data accesses are relative to the start of the data segment for
-that app, and the address of the data segment is stored in a register referred
-to as the `base register`. This potentially allows the segments in Flash and
-RAM to be placed anywhere, and as long as the OS correctly initializes the base
-register, everything will work fine.
+Tock, however, makes a different choice and requires applications to be compiled
+as position independent code. Compiling with PIC makes all control flow relative
+to the current PC, rather than using jumps to specified absolute addresses. All
+data accesses are relative to the start of the data segment for that app, and
+the address of the data segment is stored in a register referred to as the `base
+register`. This allows the segments in Flash and RAM to be placed anywhere, and
+the OS only has to correctly initialize the base register.
 
 PIC code can be inefficient on some architectures such as x86, but the ARM
 instruction set is optimized for PIC operation and allows most code to execute
@@ -177,7 +172,7 @@ Each Tock application uses a linker script that places Flash at address
 `0x80000000` and SRAM at address `0x00000000`. This allows relocations pointing
 at Flash to be easily differentiated from relocations pointing at RAM.
 
-Each Tock application begins with a header that is today defined as:
+Each Tock application binary begins with a header that is today defined as:
 
 ```rust
 struct TbfHeader {
@@ -216,21 +211,6 @@ struct TbfHeaderMain {
     init_fn_offset: u32,     // The function to call to start the application
     protected_size: u32,     // The number of bytes the application cannot write
     minimum_ram_size: u32,   // How much RAM the application is requesting
-}
-
-// Specifications for instructing the kernel to do PIC fixups for the application.
-struct TbfHeaderPicOption1Fields {
-    base: TbfHeaderTlv,
-    text_offset: u32,            // Offset in memory to start of text segment
-    data_offset: u32,            // Offset in memory to start of data
-    data_size: u32,              // Length of data segment in bytes
-    bss_memory_offset: u32,      // Offset in memory to start of BSS
-    bss_size: u32,               // Length of BSS segment in bytes
-    relocation_data_offset: u32, // Offset in memory to start of relocation data
-    relocation_data_size: u32,   // Length of relocation data segment in bytes
-    got_offset: u32,             // Offset in memory to start of GOT
-    got_size: u32,               // Length of GOT segment in bytes
-    minimum_stack_length: u32,   // Minimum stack size
 }
 
 // Optional package name for the app.

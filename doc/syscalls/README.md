@@ -49,6 +49,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 |   | 0x00004       | [GPIO](00004_gpio.md)       | Set and read GPIO pins                     |
 | ✓ | 0x00005       | [ADC](00005_adc.md)         | Sample analog-to-digital converter pins    |
 |   | 0x00006       | DAC                         | Digital to analog converter                |
+|   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator       |
 
 ### Kernel
 
@@ -73,6 +74,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x30000       | BLE              | Bluetooth Low Energy                       |
 |   | 0x30001       | 802.15.4         | IEEE 802.15.4                              |
+|   | 0x30002       | [UDP](30002_udp.md)  | UDP / 6LoWPAN Interface                |
 
 ### Cryptography
 

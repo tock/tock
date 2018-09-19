@@ -6,6 +6,7 @@ use core::ptr::NonNull;
 
 use callback;
 use callback::{AppId, Callback};
+use capabilities;
 use common::cells::NumericCellExt;
 use grant::Grant;
 use ipc;
@@ -14,10 +15,9 @@ use memop;
 use platform::mpu::MPU;
 use platform::systick::SysTick;
 use platform::{Chip, Platform};
-use process;
-use process::{Process, Task};
+use process::{self, Task};
 use returncode::ReturnCode;
-use syscall::Syscall;
+use syscall::{ContextSwitchReason, Syscall};
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -30,7 +30,7 @@ pub struct Kernel {
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static Process<'static>>],
+    processes: &'static [Option<&'static process::ProcessType>],
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
@@ -43,7 +43,7 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static Process<'static>>]) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static process::ProcessType>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
@@ -75,26 +75,24 @@ impl Kernel {
     /// reference to the process.
     crate fn process_map_or<F, R>(&self, default: R, process_index: usize, closure: F) -> R
     where
-        F: FnOnce(&Process) -> R,
+        F: FnOnce(&process::ProcessType) -> R,
     {
         if process_index > self.processes.len() {
             return default;
         }
-        self.processes[process_index]
-            .as_ref()
-            .map_or(default, |process| closure(process))
+        self.processes[process_index].map_or(default, |process| closure(process))
     }
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
     crate fn process_each_enumerate<F>(&self, closure: F)
     where
-        F: Fn(usize, &Process),
+        F: Fn(usize, &process::ProcessType),
     {
         for (i, process) in self.processes.iter().enumerate() {
             match process {
-                Some(ref p) => {
-                    closure(i, p);
+                Some(p) => {
+                    closure(i, *p);
                 }
                 None => {}
             }
@@ -107,12 +105,12 @@ impl Kernel {
     /// of the array of processes will stop.
     crate fn process_each_enumerate_stop<F>(&self, closure: F) -> ReturnCode
     where
-        F: Fn(usize, &Process) -> ReturnCode,
+        F: Fn(usize, &process::ProcessType) -> ReturnCode,
     {
         for (i, process) in self.processes.iter().enumerate() {
             match process {
-                Some(ref p) => {
-                    let ret = closure(i, p);
+                Some(p) => {
+                    let ret = closure(i, *p);
                     if ret != ReturnCode::FAIL {
                         return ret;
                     }
@@ -135,7 +133,14 @@ impl Kernel {
     /// Processes use the number of grants that have been allocated to correctly
     /// initialize the process's memory with a pointer for each grant. If a
     /// grant is created after processes are initialized this will panic.
-    pub fn create_grant<T: Default>(&'static self) -> Grant<T> {
+    ///
+    /// Calling this function is restricted to only certain users, and to
+    /// enforce this calling this function requires the
+    /// `MemoryAllocationCapability` capability.
+    pub fn create_grant<T: Default>(
+        &'static self,
+        _capability: &capabilities::MemoryAllocationCapability,
+    ) -> Grant<T> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }
@@ -158,19 +163,38 @@ impl Kernel {
         self.grant_counter.get()
     }
 
+    /// Cause all apps to fault.
+    ///
+    /// This will call `set_fault_state()` on each app, causing the app to enter
+    /// the state as if it had crashed (for example with an MPU violation). If
+    /// the process is configured to be restarted it will be.
+    ///
+    /// Only callers with the `ProcessManagementCapability` can call this
+    /// function. This restricts general capsules from being able to call this
+    /// function, since capsules should not be able to arbitrarily restart all
+    /// apps.
+    pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
+        for p in self.processes.iter() {
+            p.map(|process| {
+                process.set_fault_state();
+            });
+        }
+    }
+
     /// Main loop.
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
         platform: &P,
         chip: &mut C,
         ipc: Option<&ipc::IPC>,
+        _capability: &capabilities::MainLoopCapability,
     ) {
         loop {
             unsafe {
                 chip.service_pending_interrupts();
 
                 for (i, p) in self.processes.iter().enumerate() {
-                    p.as_ref().map(|process| {
+                    p.map(|process| {
                         self.do_process(
                             platform,
                             chip,
@@ -197,7 +221,7 @@ impl Kernel {
         &self,
         platform: &P,
         chip: &mut C,
-        process: &Process,
+        process: &process::ProcessType,
         appid: AppId,
         ipc: Option<&::ipc::IPC>,
     ) {
@@ -214,117 +238,158 @@ impl Kernel {
                 break;
             }
 
-            match process.current_state() {
+            match process.get_state() {
                 process::State::Running => {
+                    // Running means that this process expects to be running,
+                    // so go ahead and set things up and switch to executing
+                    // the process.
                     process.setup_mpu(chip.mpu());
                     chip.mpu().enable_mpu();
                     systick.enable(true);
-                    process.switch_to();
+                    let context_switch_reason = process.switch_to();
                     systick.enable(false);
                     chip.mpu().disable_mpu();
+
+                    // Now the process has returned back to the kernel. Check
+                    // why and handle the process as appropriate.
+                    match context_switch_reason {
+                        Some(ContextSwitchReason::Fault) => {
+                            // Let process deal with it as appropriate.
+                            process.set_fault_state();
+                        }
+                        Some(ContextSwitchReason::SyscallFired) => {
+                            // Handle each of the syscalls.
+                            match process.get_syscall() {
+                                Some(Syscall::MEMOP { operand, arg0 }) => {
+                                    let res = memop::memop(process, operand, arg0);
+                                    process.set_syscall_return_value(res.into());
+                                }
+                                Some(Syscall::YIELD) => {
+                                    process.set_yielded_state();
+                                    process.pop_syscall_stack_frame();
+
+                                    // There might be already enqueued callbacks
+                                    continue;
+                                }
+                                Some(Syscall::SUBSCRIBE {
+                                    driver_number,
+                                    subdriver_number,
+                                    callback_ptr,
+                                    appdata,
+                                }) => {
+                                    let callback_ptr = NonNull::new(callback_ptr);
+                                    let callback = callback_ptr
+                                        .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
+
+                                    let res =
+                                        platform.with_driver(
+                                            driver_number,
+                                            |driver| match driver {
+                                                Some(d) => {
+                                                    d.subscribe(subdriver_number, callback, appid)
+                                                }
+                                                None => ReturnCode::ENODEVICE,
+                                            },
+                                        );
+                                    process.set_syscall_return_value(res.into());
+                                }
+                                Some(Syscall::COMMAND {
+                                    driver_number,
+                                    subdriver_number,
+                                    arg0,
+                                    arg1,
+                                }) => {
+                                    let res =
+                                        platform.with_driver(
+                                            driver_number,
+                                            |driver| match driver {
+                                                Some(d) => {
+                                                    d.command(subdriver_number, arg0, arg1, appid)
+                                                }
+                                                None => ReturnCode::ENODEVICE,
+                                            },
+                                        );
+                                    process.set_syscall_return_value(res.into());
+                                }
+                                Some(Syscall::ALLOW {
+                                    driver_number,
+                                    subdriver_number,
+                                    allow_address,
+                                    allow_size,
+                                }) => {
+                                    let res = platform.with_driver(driver_number, |driver| {
+                                        match driver {
+                                            Some(d) => {
+                                                if allow_address != ptr::null_mut() {
+                                                    if process.in_app_owned_memory(
+                                                        allow_address,
+                                                        allow_size,
+                                                    ) {
+                                                        let slice = AppSlice::new(
+                                                            allow_address,
+                                                            allow_size,
+                                                            appid,
+                                                        );
+                                                        d.allow(
+                                                            appid,
+                                                            subdriver_number,
+                                                            Some(slice),
+                                                        )
+                                                    } else {
+                                                        ReturnCode::EINVAL /* memory not allocated to process */
+                                                    }
+                                                } else {
+                                                    d.allow(appid, subdriver_number, None)
+                                                }
+                                            }
+                                            None => ReturnCode::ENODEVICE,
+                                        }
+                                    });
+                                    process.set_syscall_return_value(res.into());
+                                }
+                                _ => {}
+                            }
+                        }
+                        Some(ContextSwitchReason::TimesliceExpired) => {
+                            // break to handle other processes.
+                            break;
+                        }
+                        None => {
+                            // Something went wrong when switching to this
+                            // process. Indicate this by putting it in a fault
+                            // state.
+                            process.set_fault_state();
+                        }
+                    }
                 }
                 process::State::Yielded => match process.dequeue_task() {
+                    // If the process is yielded it might be waiting for a
+                    // callback. If there is a task scheduled for this process
+                    // go ahead and set the process to execute it.
                     None => break,
-                    Some(cb) => {
-                        match cb {
-                            Task::FunctionCall(ccb) => {
-                                process.push_function_call(ccb);
-                            }
-                            Task::IPC((otherapp, ipc_type)) => {
-                                ipc.map_or_else(
-                                    || {
-                                        assert!(
-                                            false,
-                                            "Kernel consistency error: IPC Task with no IPC"
-                                        );
-                                    },
-                                    |ipc| {
-                                        ipc.schedule_callback(appid, otherapp, ipc_type);
-                                    },
-                                );
-                            }
+                    Some(cb) => match cb {
+                        Task::FunctionCall(ccb) => {
+                            process.push_function_call(ccb);
                         }
-                        continue;
-                    }
+                        Task::IPC((otherapp, ipc_type)) => {
+                            ipc.map_or_else(
+                                || {
+                                    assert!(
+                                        false,
+                                        "Kernel consistency error: IPC Task with no IPC"
+                                    );
+                                },
+                                |ipc| {
+                                    ipc.schedule_callback(appid, otherapp, ipc_type);
+                                },
+                            );
+                        }
+                    },
                 },
                 process::State::Fault => {
-                    // we should never be scheduling a process in fault
+                    // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
                 }
-            }
-
-            if !process.syscall_fired() {
-                break;
-            }
-
-            // check if the app had a fault
-            if process.app_fault() {
-                // let process deal with it as appropriate
-                process.fault_state();
-                continue;
-            }
-
-            // process had a system call, count it
-            process.incr_syscall_count();
-            match process.svc_number() {
-                Some(Syscall::MEMOP) => {
-                    let res = memop::memop(process);
-                    process.set_return_code(res);
-                }
-                Some(Syscall::YIELD) => {
-                    process.yield_state();
-                    process.pop_syscall_stack();
-
-                    // There might be already enqueued callbacks
-                    continue;
-                }
-                Some(Syscall::SUBSCRIBE) => {
-                    let driver_num = process.r0();
-                    let subdriver_num = process.r1();
-                    let callback_ptr_raw = process.r2() as *mut ();
-                    let appdata = process.r3();
-
-                    let callback_ptr = NonNull::new(callback_ptr_raw);
-                    let callback =
-                        callback_ptr.map(|ptr| Callback::new(appid, appdata, ptr.cast()));
-
-                    let res = platform.with_driver(driver_num, |driver| match driver {
-                        Some(d) => d.subscribe(subdriver_num, callback, appid),
-                        None => ReturnCode::ENODEVICE,
-                    });
-                    process.set_return_code(res);
-                }
-                Some(Syscall::COMMAND) => {
-                    let res = platform.with_driver(process.r0(), |driver| match driver {
-                        Some(d) => d.command(process.r1(), process.r2(), process.r3(), appid),
-                        None => ReturnCode::ENODEVICE,
-                    });
-                    process.set_return_code(res);
-                }
-                Some(Syscall::ALLOW) => {
-                    let res = platform.with_driver(process.r0(), |driver| {
-                        match driver {
-                            Some(d) => {
-                                let start_addr = process.r2() as *mut u8;
-                                if start_addr != ptr::null_mut() {
-                                    let size = process.r3();
-                                    if process.in_exposed_bounds(start_addr, size) {
-                                        let slice =
-                                            AppSlice::new(start_addr as *mut u8, size, appid);
-                                        d.allow(appid, process.r1(), Some(slice))
-                                    } else {
-                                        ReturnCode::EINVAL /* memory not allocated to process */
-                                    }
-                                } else {
-                                    d.allow(appid, process.r1(), None)
-                                }
-                            }
-                            None => ReturnCode::ENODEVICE,
-                        }
-                    });
-                    process.set_return_code(res);
-                }
-                _ => {}
             }
         }
         systick.reset();

@@ -160,6 +160,14 @@ impl IP6Header {
         stream_done!(off, off);
     }
 
+    pub fn get_src_addr(&self) -> IPAddr {
+        self.src_addr
+    }
+
+    pub fn get_dst_addr(&self) -> IPAddr {
+        self.dst_addr
+    }
+
     // Version should always be 6
     pub fn get_version(&self) -> u8 {
         (self.version_class_flow[0] & 0xf0) >> 4
@@ -293,16 +301,18 @@ impl IPPayload<'a> {
         if self.payload.len() < payload.len() {
             // TODO: Error
         }
-        self.payload.copy_from_slice(&payload);
+        self.payload[..payload.len()].copy_from_slice(&payload);
         match transport_header {
             TransportHeader::UDP(mut udp_header) => {
                 let length = (payload.len() + udp_header.get_hdr_size()) as u16;
                 udp_header.set_len(length);
+                self.header = transport_header;
                 (ip6_nh::UDP, length)
             }
             TransportHeader::ICMP(mut icmp_header) => {
                 let length = (payload.len() + icmp_header.get_hdr_size()) as u16;
                 icmp_header.set_len(length);
+                self.header = transport_header;
                 (ip6_nh::ICMP, length)
             }
             _ => (ip6_nh::NO_NEXT, payload.len() as u16),
@@ -442,15 +452,7 @@ impl IP6Packet<'a> {
         self.header.set_payload_len(payload_len);
     }
 
-    // TODO: Currently, the receive path is unimplemented, and this function
-    // should *not* be called
-    pub fn decode(buf: &[u8], ip6_packet: &mut IP6Packet) -> Result<usize, ()> {
-        let (_offset, header) = IP6Header::decode(buf).done().ok_or(())?;
-        ip6_packet.header = header;
-        // TODO: Not sure how to convert an IP6Packet with a UDP payload to
-        // an IP6Packet with a TCP payload.
-        unimplemented!();
-    }
+    // TODO: Do we need a decode equivalent? I don't think so, but we might
 
     pub fn encode(&self, buf: &mut [u8]) -> SResult<usize> {
         let ip6_header = self.header;
