@@ -96,8 +96,8 @@ pub enum Continue {
 /// Generic interface for a 32-bit random number generator.
 ///
 /// Implementors should assume the client implements the
-/// [Client](trait.Client32.html) trait.
-pub trait Rng32<'a> {
+/// [Client](trait.Client.html) trait.
+pub trait Rng<'a> {
     /// Initiate the aquisition of new random number generation.
     ///
     /// There are three valid return values:
@@ -120,13 +120,13 @@ pub trait Rng32<'a> {
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
     fn cancel(&self) -> ReturnCode;
-    fn set_client(&'a self, &'a Client32);
+    fn set_client(&'a self, &'a Client);
 }
 
-/// An [Rng32](trait.Rng32.html) client
+/// An [Rng](trait.Rng.html) client
 ///
-/// Clients of an [Rng32](trait.Rng32.html) must implement this trait.
-pub trait Client32 {
+/// Clients of an [Rng](trait.Rng.html) must implement this trait.
+pub trait Client {
     /// Called by the (RNG)[trait.RNG.html] when there are one or more random
     /// numbers available
     ///
@@ -144,54 +144,5 @@ pub trait Client32 {
     /// random bits.
     fn randomness_available(&self,
                             randomness: &mut Iterator<Item = u32>,
-                            error: ReturnCode) -> Continue;
-}
-
-/// An 8-bit random number generator.
-///
-/// Implementors should assume the client implements the
-/// [Client8](trait.Client8.html) trait.
-pub trait Rng8<'a> {
-    /// Initiate the aquisition of new random number generation.
-    ///
-    /// There are three valid return values:
-    ///   - SUCCESS: a `randomness_available` callback will be called in
-    ///     the future when randomness is available.
-    ///   - FAIL: a `randomness_available` callback will not be called in
-    ///     the future, because random numbers cannot be generated. This
-    ///     is a general failure condition.
-    ///   - EOFF: a `randomness_available` callback will not be called in
-    ///     the future, because the random number generator is off/not
-    ///     powered.
-    fn get(&self) -> ReturnCode;
-
-    /// Cancel acquisition of random numbers.
-    ///
-    /// There are three valid return values:
-    ///   - SUCCESS: an outstanding request from `get` has been cancelled,
-    ///     or there was no oustanding request. No `randomness_available`
-    ///     callback will be issued.
-    ///   - FAIL:
-    fn cancel(&self) -> ReturnCode;
-    fn set_client(&'a self, &'a Client8);
-}
-
-/// An [Rng8](trait.Rng8.html) client
-///
-/// Clients of an [Rng8](trait.Rng8.html) must implement this trait.
-pub trait Client8 {
-    /// Called by the (RNG)[trait.RNG.html] when there are one or more random
-    /// numbers available
-    ///
-    /// `randomness` in an `Iterator` of available random numbers. The amount of
-    /// randomness available may increase if `randomness` is not consumed
-    /// quickly so clients should not rely on iterator termination to finish
-    /// consuming random numbers.
-    ///
-    /// The client returns either `Continue::More` if the iterator did not have
-    /// enough random values and the client would like to be called again when
-    /// more is available, or `Continue::Done`.
-    fn randomness_available(&self,
-                            randomness: &mut Iterator<Item = u8>,
                             error: ReturnCode) -> Continue;
 }

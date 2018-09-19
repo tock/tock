@@ -27,10 +27,10 @@
 //! generating numbers from a low-bandwidth hardware entropy source
 //! generator or when virtualized among many consumers.
 //!
-//! Entropy is yielded to the [Client](trait.Client.html) as an
-//! `Iterator` which only terminates when no more entropy is currently
-//! available. Clients can request more entropy if needed and will be
-//! called again when more is available.
+//! Entropy is yielded to a Client as an `Iterator` which only
+//! terminates when no more entropy is currently available. Clients
+//! can request more entropy if needed and will be called again when
+//! more is available.
 //!
 //! # Example
 //!
@@ -113,12 +113,12 @@ pub trait Entropy32<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&self, &'a Client32);
+    fn set_client(&'a self, &'a Client32);
 }
 
 /// An [Entropy32](trait.Entropy32.html) client
 ///
-/// Clients of an [Entropy32](trait.Entropy.html) must implement this trait.
+/// Clients of an [Entropy32](trait.Entropy32.html) must implement this trait.
 pub trait Client32{
     /// Called by the (Entropy)[trait.Entropy32.html] when there is entropy
     /// available.
@@ -172,15 +172,15 @@ pub trait Entropy8<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&self, &'a Client8);
+    fn set_client(&'a self, &'a Client8);
 }
 
 /// An [Entropy8](trait.Entropy8.html) client
 ///
 /// Clients of an [Entropy8](trait.Entropy8.html) must implement this trait.
 pub trait Client8 {
-    /// Called by the (Entropy)[trait.Entropy.html] when there are one or more random
-    /// numbers available
+    /// Called by the (Entropy)[trait.Entropy8.html] when there are
+    /// one or more bytes of entropy available.
     ///
     /// `entropy` in an `Iterator` of available entropy. The amount of
     /// entropy available may increase if `entropy` is not consumed

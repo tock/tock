@@ -16,7 +16,10 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::hil::rng::{self, Client32, Client8, Rng32, Rng8};
+use kernel::hil::rng;
+use kernel::hil::rng::Rng;
+use kernel::hil::entropy;
+use kernel::hil::entropy::{Entropy8, Entropy32};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
@@ -31,13 +34,13 @@ pub struct App {
 }
 
 pub struct SimpleRng<'a> {
-    rng: &'a Rng32<'a>,
+    rng: &'a Rng<'a>,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
 
 impl<'a> SimpleRng<'a> {
-    pub fn new(rng: &'a Rng32<'a>, grant: Grant<App>) -> SimpleRng<'a> {
+    pub fn new(rng: &'a Rng<'a>, grant: Grant<App>) -> SimpleRng<'a> {
         SimpleRng {
             rng: rng,
             apps: grant,
@@ -46,7 +49,7 @@ impl<'a> SimpleRng<'a> {
     }
 }
 
-impl<'a> Client32 for SimpleRng<'a> {
+impl<'a> rng::Client for SimpleRng<'a> {
     fn randomness_available(&self,
                             randomness: &mut Iterator<Item = u32>,
                             _error: ReturnCode) -> rng::Continue {
@@ -190,19 +193,79 @@ impl<'a> Driver for SimpleRng<'a> {
     }
 }
 
+pub struct Entropy32ToRandom<'a> {
+    egen: &'a Entropy32<'a>,
+    client: OptionalCell<&'a rng::Client>,
+}
 
-pub struct Rng8To32<'a> {
-    rng: &'a Rng8<'a>,
-    client: OptionalCell<&'a rng::Client32>,
+impl Entropy32ToRandom<'a> {
+    pub fn new(egen: &'a Entropy32<'a>) -> Entropy32ToRandom<'a> {
+        Entropy32ToRandom {
+            egen: egen,
+            client: OptionalCell::empty(),
+        }
+    }
+}
+
+impl Rng<'a> for Entropy32ToRandom<'a> {
+    fn get(&self) -> ReturnCode {
+        self.egen.get()
+    }
+
+    fn cancel(&self) -> ReturnCode {
+        self.egen.cancel()
+    }
+
+    fn set_client(&'a self, client: &'a rng::Client) {
+        self.egen.set_client(self);
+        self.client.set(client);
+    }
+}
+
+impl<'a> entropy::Client32 for Entropy32ToRandom<'a> {
+    fn entropy_available(&self,
+                         entropy: &mut Iterator<Item = u32>,
+                         error: ReturnCode) -> entropy::Continue {
+        self.client.map_or(entropy::Continue::Done, |client|
+                           {
+                               if error != ReturnCode::SUCCESS {
+                                   match client.randomness_available(&mut Entropy32ToRandomIter(entropy), error) {
+                                       rng::Continue::More => entropy::Continue::More,
+                                       rng::Continue::Done => entropy::Continue::Done
+                                   }
+                               } else {
+                                   match client.randomness_available(&mut Entropy32ToRandomIter(entropy),
+                                                                     ReturnCode::SUCCESS) {
+                                       rng::Continue::More => entropy::Continue::More,
+                                       rng::Continue::Done => entropy::Continue::Done
+                                   }
+                               }
+                           })
+    }
+}
+
+struct Entropy32ToRandomIter<'a>(&'a mut Iterator<Item = u32>);
+
+impl Iterator for Entropy32ToRandomIter<'a> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        self.0.next()
+    }
+}
+
+pub struct Entropy8To32<'a> {
+    egen: &'a Entropy8<'a>,
+    client: OptionalCell<&'a entropy::Client32>,
     count: Cell<usize>,
     bytes: Cell<u32>,
 
 }
 
-impl Rng8To32<'a> {
-    pub fn new(rng: &'a Rng8<'a>) -> Rng8To32<'a> {
-        Rng8To32 {
-            rng: rng,
+impl Entropy8To32<'a> {
+    pub fn new(egen: &'a Entropy8<'a>) -> Entropy8To32<'a> {
+        Entropy8To32 {
+            egen: egen,
             client: OptionalCell::empty(),
             count: Cell::new(0),
             bytes: Cell::new(0),
@@ -210,9 +273,9 @@ impl Rng8To32<'a> {
     }
 }
 
-impl Rng32<'a> for Rng8To32<'a> {
+impl Entropy32<'a> for Entropy8To32<'a> {
     fn get(&self) -> ReturnCode {
-        self.rng.get()
+        self.egen.get()
     }
 
     /// Cancel acquisition of random numbers.
@@ -224,48 +287,48 @@ impl Rng32<'a> for Rng8To32<'a> {
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
     fn cancel(&self) -> ReturnCode {
-        self.rng.cancel()
+        self.egen.cancel()
     }
 
-    fn set_client(&'a self, client: &'a Client32) {
-        self.rng.set_client(self);
+    fn set_client(&'a self, client: &'a entropy::Client32) {
+        self.egen.set_client(self);
         self.client.set(client);
     }
 }
 
-impl<'a> Client8 for Rng8To32<'a> {
-    fn randomness_available(&self,
-                            randomness: &mut Iterator<Item = u8>,
-                            error: ReturnCode) -> rng::Continue {
-        self.client.map_or(rng::Continue::Done, |client|
-            {
-                if error != ReturnCode::SUCCESS {
-                    client.randomness_available(&mut Rng8To32Iter(self), error)
-                } else {
-                    let mut count = self.count.get();
-                    // Read in one byte at a time until we have 4;
-                    // return More if we need more, else return the value
-                    // of the upper randomness_available, as if it needs more
-                    // we'll need more from the underlying Rng8.
-                    while count < 4 {
-                        let byte = randomness.next();
-                        match byte {
-                            None => {
-                                return rng::Continue::More;
-                            },
-                            Some(val) => {
-                                let current = self.bytes.get();
-                                let bits = val as u32;
-                                let result = current | (bits << (8 * count));
-                                count = count + 1;
-                                //debug!("Count: {}, current: {:08x}, bits: {:08x}, result: {:08x}", count, current, bits, result);
-                                self.count.set(count);
-                                self.bytes.set(result)
-                            }
-                        }
-                    }
-                    let rval = client.randomness_available(&mut Rng8To32Iter(self),
-                                                           ReturnCode::SUCCESS);
+impl<'a> entropy::Client8 for Entropy8To32<'a> {
+    fn entropy_available(&self,
+                         entropy: &mut Iterator<Item = u8>,
+                         error: ReturnCode) -> entropy::Continue {
+        self.client.map_or(entropy::Continue::Done, |client|
+                           {
+                               if error != ReturnCode::SUCCESS {
+                                   client.entropy_available(&mut Entropy8To32Iter(self), error)
+                               } else {
+                                   let mut count = self.count.get();
+                                   // Read in one byte at a time until we have 4;
+                                   // return More if we need more, else return the value
+                                   // of the upper randomness_available, as if it needs more
+                                   // we'll need more from the underlying Rng8.
+                                   while count < 4 {
+                                       let byte = entropy.next();
+                                       match byte {
+                                           None => {
+                                               return entropy::Continue::More;
+                                           },
+                                           Some(val) => {
+                                               let current = self.bytes.get();
+                                               let bits = val as u32;
+                                               let result = current | (bits << (8 * count));
+                                               count = count + 1;
+                                               //debug!("Count: {}, current: {:08x}, bits: {:08x}, result: {:08x}", count, current, bits, result);
+                                               self.count.set(count);
+                                               self.bytes.set(result)
+                                           }
+                                       }
+                                   }
+                                   let rval = client.entropy_available(&mut Entropy8To32Iter(self),
+                                                         ReturnCode::SUCCESS);
                     self.bytes.set(0);
                     rval
                 }
@@ -274,9 +337,9 @@ impl<'a> Client8 for Rng8To32<'a> {
     }
 }
 
-struct Rng8To32Iter<'a, 'b: 'a>(&'a Rng8To32<'b>);
+struct Entropy8To32Iter<'a, 'b: 'a>(&'a Entropy8To32<'b>);
 
-impl Iterator for Rng8To32Iter<'a, 'b> {
+impl Iterator for Entropy8To32Iter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -290,29 +353,28 @@ impl Iterator for Rng8To32Iter<'a, 'b> {
     }
 }
 
-
-pub struct Rng32To8<'a> {
-    rng: &'a Rng32<'a>,
-    client: OptionalCell<&'a rng::Client8>,
-    randomness: Cell<u32>,
+pub struct Entropy32To8<'a> {
+    egen: &'a Entropy32<'a>,
+    client: OptionalCell<&'a entropy::Client8>,
+    entropy: Cell<u32>,
     bytes_consumed: Cell<usize>,
 
 }
 
-impl Rng32To8<'a> {
-    pub fn new(rng: &'a Rng32<'a>) -> Rng32To8<'a> {
-        Rng32To8 {
-            rng: rng,
+impl Entropy32To8<'a> {
+    pub fn new(egen: &'a Entropy32<'a>) -> Entropy32To8<'a> {
+        Entropy32To8 {
+            egen: egen,
             client: OptionalCell::empty(),
-            randomness: Cell::new(0),
+            entropy: Cell::new(0),
             bytes_consumed: Cell::new(0),
         }
     }
 }
 
-impl Rng8<'a> for Rng32To8<'a> {
+impl Entropy8<'a> for Entropy32To8<'a> {
     fn get(&self) -> ReturnCode {
-        self.rng.get()
+        self.egen.get()
     }
 
     /// Cancel acquisition of random numbers.
@@ -324,42 +386,42 @@ impl Rng8<'a> for Rng32To8<'a> {
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
     fn cancel(&self) -> ReturnCode {
-        self.rng.cancel()
+        self.egen.cancel()
     }
 
-    fn set_client(&'a self, client: &'a Client8) {
-        self.rng.set_client(self);
+    fn set_client(&'a self, client: &'a entropy::Client8) {
+        self.egen.set_client(self);
         self.client.set(client);
     }
 }
 
 
-impl<'a> Client32 for Rng32To8<'a> {
-    fn randomness_available(&self,
-                            randomness: &mut Iterator<Item = u32>,
-                            error: ReturnCode) -> rng::Continue {
-        self.client.map_or(rng::Continue::Done, |client| {
+impl<'a> entropy::Client32 for Entropy32To8<'a> {
+    fn entropy_available(&self,
+                         entropy: &mut Iterator<Item = u32>,
+                         error: ReturnCode) -> entropy::Continue {
+        self.client.map_or(entropy::Continue::Done, |client| {
             if error != ReturnCode::SUCCESS {
-                client.randomness_available(&mut Rng32To8Iter(self), error)
+                client.entropy_available(&mut Entropy32To8Iter(self), error)
             } else {
-                let r = randomness.next();
+                let r = entropy.next();
                 match r {
-                    None => return rng::Continue::More,
+                    None => return entropy::Continue::More,
                     Some(val) => {
-                        self.randomness.set(val);
+                        self.entropy.set(val);
                         self.bytes_consumed.set(0);
                     }
                 }
-                client.randomness_available(&mut Rng32To8Iter(self),
-                                            ReturnCode::SUCCESS)
+                client.entropy_available(&mut Entropy32To8Iter(self),
+                                          ReturnCode::SUCCESS)
             }
         })
     }
 }
 
-struct Rng32To8Iter<'a, 'b: 'a>(&'a Rng32To8<'b>);
+struct Entropy32To8Iter<'a, 'b: 'a>(&'a Entropy32To8<'b>);
 
-impl Iterator for Rng32To8Iter<'a, 'b> {
+impl Iterator for Entropy32To8Iter<'a, 'b> {
     type Item = u8;
 
     fn next(&mut self) -> Option<u8> {
@@ -367,9 +429,9 @@ impl Iterator for Rng32To8Iter<'a, 'b> {
         if bytes_consumed < 4 {
             // Pull out a byte and right shift the u32 so its
             // least significant byte is fresh randomness.
-            let randomness = self.0.randomness.get();
-            let byte = (randomness & 0xff) as u8;
-            self.0.randomness.set(randomness >> 8);
+            let entropy = self.0.entropy.get();
+            let byte = (entropy & 0xff) as u8;
+            self.0.entropy.set(entropy >> 8);
             self.0.bytes_consumed.set(bytes_consumed + 1);
             Some(byte)
         } else {
