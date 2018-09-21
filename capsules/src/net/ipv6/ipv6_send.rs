@@ -108,8 +108,9 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
     }
 
     fn set_header(&mut self, ip6_header: IP6Header) {
-        self.ip6_packet
-            .map(|ip6_packet| ip6_packet.header = ip6_header);
+        self.ip6_packet.map(
+            |ip6_packet| ip6_packet.header = ip6_header,
+        );
     }
 
     fn send_to(
@@ -185,7 +186,8 @@ impl IP6SendStruct<'a> {
                     ReturnCode::SUCCESS
                 }
                 None => ReturnCode::EBUSY,
-            }).unwrap_or(ReturnCode::ENOMEM)
+            })
+            .unwrap_or(ReturnCode::ENOMEM)
     }
 
     fn send_completed(&self, result: ReturnCode) {

@@ -13,9 +13,7 @@ struct ScanClient {
     dev_id: Cell<u8>,
 }
 
-static mut SCAN_CLIENT: ScanClient = ScanClient {
-    dev_id: Cell::new(1),
-};
+static mut SCAN_CLIENT: ScanClient = ScanClient { dev_id: Cell::new(1) };
 
 impl hil::i2c::I2CHwMasterClient for ScanClient {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
@@ -70,9 +68,8 @@ struct AccelClient {
     state: Cell<AccelClientState>,
 }
 
-static mut ACCEL_CLIENT: AccelClient = AccelClient {
-    state: Cell::new(AccelClientState::ReadingWhoami),
-};
+static mut ACCEL_CLIENT: AccelClient =
+    AccelClient { state: Cell::new(AccelClientState::ReadingWhoami) };
 
 impl hil::i2c::I2CHwMasterClient for AccelClient {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
@@ -90,8 +87,8 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
             AccelClientState::Activating => {
                 debug!("Sensor Activated ({})", error);
                 buffer[0] = 0x01 as u8; // X-MSB register
-                                        // Reading 6 bytes will increment the register pointer through
-                                        // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                // Reading 6 bytes will increment the register pointer through
+                // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
                 dev.write_read(0x1e, buffer, 1, 6);
                 self.state.set(AccelClientState::ReadingAccelData);
             }
@@ -113,8 +110,8 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
                 );
 
                 buffer[0] = 0x01 as u8; // X-MSB register
-                                        // Reading 6 bytes will increment the register pointer through
-                                        // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                // Reading 6 bytes will increment the register pointer through
+                // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
                 dev.write_read(0x1e, buffer, 1, 6);
                 self.state.set(AccelClientState::ReadingAccelData);
             }
@@ -159,9 +156,7 @@ struct LiClient {
     state: Cell<LiClientState>,
 }
 
-static mut LI_CLIENT: LiClient = LiClient {
-    state: Cell::new(LiClientState::Enabling),
-};
+static mut LI_CLIENT: LiClient = LiClient { state: Cell::new(LiClientState::Enabling) };
 
 impl hil::i2c::I2CHwMasterClient for LiClient {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {

@@ -127,8 +127,10 @@ impl LPS25HB<'a> {
 
     pub fn take_measurement(&self) {
         self.interrupt_pin.make_input();
-        self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptMode::RisingEdge);
+        self.interrupt_pin.enable_interrupt(
+            0,
+            gpio::InterruptMode::RisingEdge,
+        );
 
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -178,15 +180,15 @@ impl i2c::I2CClient for LPS25HB<'a> {
                 self.state.set(State::GotMeasurement);
             }
             State::GotMeasurement => {
-                let pressure = (((buffer[2] as u32) << 16)
-                    | ((buffer[1] as u32) << 8)
-                    | (buffer[0] as u32)) as u32;
+                let pressure = (((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) |
+                                    (buffer[0] as u32)) as u32;
 
                 // Returned as microbars
                 let pressure_ubar = (pressure * 1000) / 4096;
 
-                self.callback
-                    .map(|cb| cb.schedule(pressure_ubar as usize, 0, 0));
+                self.callback.map(
+                    |cb| cb.schedule(pressure_ubar as usize, 0, 0),
+                );
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;

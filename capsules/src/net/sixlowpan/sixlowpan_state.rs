@@ -423,11 +423,16 @@ impl TxState<'a> {
                 self.src_pan.get(),
                 self.src_mac_addr.get(),
                 self.security.get(),
-            ).map_err(|frame| (ReturnCode::FAIL, frame))?;
+            )
+            .map_err(|frame| (ReturnCode::FAIL, frame))?;
 
         // If this is the first fragment
         if !self.busy.get() {
-            let frame = self.start_transmit(ip6_packet, frame, self.sixlowpan.get_ctx_store())?;
+            let frame = self.start_transmit(
+                ip6_packet,
+                frame,
+                self.sixlowpan.get_ctx_store(),
+            )?;
             Ok((false, frame))
         } else if self.is_transmit_done() {
             self.end_transmit();
@@ -672,11 +677,10 @@ impl RxState<'a> {
         dgram_size: u16,
         dgram_tag: u16,
     ) -> bool {
-        self.busy.get()
-            && (self.dgram_tag.get() == dgram_tag)
-            && (self.dgram_size.get() == dgram_size)
-            && (self.src_mac_addr.get() == src_mac_addr)
-            && (self.dst_mac_addr.get() == dst_mac_addr)
+        self.busy.get() && (self.dgram_tag.get() == dgram_tag) &&
+            (self.dgram_size.get() == dgram_size) &&
+            (self.src_mac_addr.get() == src_mac_addr) &&
+            (self.dst_mac_addr.get() == dst_mac_addr)
     }
 
     // Checks if a given RxState is free or expired (and thus, can be freed).
@@ -729,8 +733,10 @@ impl RxState<'a> {
                 true,
             ).map_err(|_| ReturnCode::FAIL)?;
             let remaining = payload_len - consumed;
-            packet[written..written + remaining]
-                .copy_from_slice(&payload[consumed..consumed + remaining]);
+            packet[written..written + remaining].copy_from_slice(
+                &payload
+                    [consumed..consumed + remaining],
+            );
             written + remaining
         } else {
             packet[dgram_offset..dgram_offset + payload_len]
@@ -740,7 +746,8 @@ impl RxState<'a> {
         self.packet.replace(packet);
         if !self.bitmap.map_or(false, |bitmap| {
             bitmap.set_bits(dgram_offset / 8, (dgram_offset + uncompressed_len) / 8)
-        }) {
+        })
+        {
             // If this fails, we received an overlapping fragment. We can simply
             // drop the packet in this case.
             Err(ReturnCode::FAIL)
@@ -763,7 +770,8 @@ impl RxState<'a> {
             self.packet
                 .map(|packet| {
                     client.receive(&packet, self.dgram_size.get() as usize, result);
-                }).expect("Error: `packet` is None in call to end_receive.");
+                })
+                .expect("Error: `packet` is None in call to end_receive.");
         });
     }
 }
@@ -903,10 +911,9 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
     ) -> (Option<&RxState<'a>>, ReturnCode) {
-        let rx_state = self
-            .rx_states
-            .iter()
-            .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
+        let rx_state = self.rx_states.iter().find(|state| {
+            !state.is_busy(self.clock.now(), A::Frequency::frequency())
+        });
         rx_state
             .map(|state| {
                 state.start_receive(
@@ -936,8 +943,10 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                     match decompressed {
                         Ok((consumed, written)) => {
                             let remaining = payload_len - consumed;
-                            packet[written..written + remaining]
-                                .copy_from_slice(&payload[consumed..consumed + remaining]);
+                            packet[written..written + remaining].copy_from_slice(
+                                &payload
+                                    [consumed..consumed + remaining],
+                            );
                             // Want dgram_size to contain decompressed size of packet
                             state.dgram_size.set((written + remaining) as u16);
                         }
@@ -950,7 +959,8 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                 }
                 state.packet.replace(packet);
                 (Some(state), ReturnCode::SUCCESS)
-            }).unwrap_or((None, ReturnCode::ENOMEM))
+            })
+            .unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     // This function returns an Err if an error occurred, returns Ok(Some(RxState))
@@ -967,17 +977,15 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         dgram_offset: usize,
     ) -> (Option<&RxState<'a>>, ReturnCode) {
         // First try to find an rx_state in the middle of assembly
-        let mut rx_state = self
-            .rx_states
-            .iter()
-            .find(|state| state.is_my_fragment(src_mac_addr, dst_mac_addr, dgram_size, dgram_tag));
+        let mut rx_state = self.rx_states.iter().find(|state| {
+            state.is_my_fragment(src_mac_addr, dst_mac_addr, dgram_size, dgram_tag)
+        });
 
         // Else find a free state
         if rx_state.is_none() {
-            rx_state = self
-                .rx_states
-                .iter()
-                .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
+            rx_state = self.rx_states.iter().find(|state| {
+                !state.is_busy(self.clock.now(), A::Frequency::frequency())
+            });
             // Initialize new state
             rx_state.map(|state| {
                 state.start_receive(
@@ -1015,7 +1023,8 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                         }
                     }
                 }
-            }).unwrap_or((None, ReturnCode::ENOMEM))
+            })
+            .unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     #[allow(dead_code)]

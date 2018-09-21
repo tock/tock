@@ -6,9 +6,7 @@ pub struct Bitmap {
 
 impl Bitmap {
     pub fn new() -> Bitmap {
-        Bitmap {
-            map: [0; BITMAP_SIZE],
-        }
+        Bitmap { map: [0; BITMAP_SIZE] }
     }
 
     pub fn clear(&mut self) {

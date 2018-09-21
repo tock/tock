@@ -58,13 +58,13 @@ fn main() {
         }
     }
 
-    let mut dh = dev
-        .expect("Matching device not found")
-        .open()
-        .expect("Opening device");
+    let mut dh = dev.expect("Matching device not found").open().expect(
+        "Opening device",
+    );
 
-    dh.set_active_configuration(0)
-        .expect("Setting active configuration");
+    dh.set_active_configuration(0).expect(
+        "Setting active configuration",
+    );
 
     dh.claim_interface(0).expect("Claiming interface");
 

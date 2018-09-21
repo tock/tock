@@ -178,23 +178,24 @@ impl NonvolatileStorage<'a> {
     ) -> ReturnCode {
         // Do bounds check.
         match command {
-            NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
+            NonvolatileCommand::UserspaceRead |
+            NonvolatileCommand::UserspaceWrite => {
                 // Userspace sees memory that starts at address 0 even if it
                 // is offset in the physical memory.
-                if offset >= self.userspace_length
-                    || length > self.userspace_length
-                    || offset + length > self.userspace_length
+                if offset >= self.userspace_length || length > self.userspace_length ||
+                    offset + length > self.userspace_length
                 {
                     return ReturnCode::EINVAL;
                 }
             }
-            NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
+            NonvolatileCommand::KernelRead |
+            NonvolatileCommand::KernelWrite => {
                 // Because the kernel uses the NonvolatileStorage interface,
                 // its calls are absolute addresses.
-                if offset < self.kernel_start_address
-                    || offset >= self.kernel_start_address + self.kernel_length
-                    || length > self.kernel_length
-                    || offset + length > self.kernel_start_address + self.kernel_length
+                if offset < self.kernel_start_address ||
+                    offset >= self.kernel_start_address + self.kernel_length ||
+                    length > self.kernel_length ||
+                    offset + length > self.kernel_start_address + self.kernel_length
                 {
                     return ReturnCode::EINVAL;
                 }
@@ -204,7 +205,8 @@ impl NonvolatileStorage<'a> {
         // Do very different actions if this is a call from userspace
         // or from the kernel.
         match command {
-            NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
+            NonvolatileCommand::UserspaceRead |
+            NonvolatileCommand::UserspaceWrite => {
                 app_id.map_or(ReturnCode::FAIL, |appid| {
                     self.apps
                         .enter(appid, |app, _| {
@@ -274,10 +276,11 @@ impl NonvolatileStorage<'a> {
                         }).unwrap_or_else(|err| err.into())
                 })
             }
-            NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
-                self.kernel_buffer
-                    .take()
-                    .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
+            NonvolatileCommand::KernelRead |
+            NonvolatileCommand::KernelWrite => {
+                self.kernel_buffer.take().map_or(
+                    ReturnCode::ENOMEM,
+                    |kernel_buffer| {
                         let active_len = cmp::min(length, kernel_buffer.len());
 
                         // Check if there is something going on.
@@ -306,7 +309,8 @@ impl NonvolatileStorage<'a> {
                                 ReturnCode::SUCCESS
                             }
                         }
-                    })
+                    },
+                )
             }
         }
     }
@@ -347,33 +351,35 @@ impl NonvolatileStorage<'a> {
                 self.current_user.set(NonvolatileUser::Kernel);
 
                 match self.kernel_command.get() {
-                    NonvolatileCommand::KernelRead => self.driver.read(
-                        kernel_buffer,
-                        self.kernel_readwrite_address.get(),
-                        self.kernel_readwrite_length.get(),
-                    ),
-                    NonvolatileCommand::KernelWrite => self.driver.write(
-                        kernel_buffer,
-                        self.kernel_readwrite_address.get(),
-                        self.kernel_readwrite_length.get(),
-                    ),
+                    NonvolatileCommand::KernelRead => {
+                        self.driver.read(
+                            kernel_buffer,
+                            self.kernel_readwrite_address.get(),
+                            self.kernel_readwrite_length.get(),
+                        )
+                    }
+                    NonvolatileCommand::KernelWrite => {
+                        self.driver.write(
+                            kernel_buffer,
+                            self.kernel_readwrite_address.get(),
+                            self.kernel_readwrite_length.get(),
+                        )
+                    }
                     _ => ReturnCode::FAIL,
                 }
             });
         } else {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
-                let started_command = cntr.enter(|app, _| {
-                    if app.pending_command {
-                        app.pending_command = false;
-                        self.current_user.set(NonvolatileUser::App {
-                            app_id: app.appid(),
-                        });
-                        self.userspace_call_driver(app.command, app.offset, app.length)
-                            == ReturnCode::SUCCESS
-                    } else {
-                        false
-                    }
+                let started_command = cntr.enter(|app, _| if app.pending_command {
+                    app.pending_command = false;
+                    self.current_user.set(NonvolatileUser::App {
+                        app_id: app.appid(),
+                    });
+                    self.userspace_call_driver(app.command, app.offset, app.length) ==
+                        ReturnCode::SUCCESS
+                } else {
+                    false
                 });
                 if started_command {
                     break;
@@ -483,7 +489,8 @@ impl Driver for NonvolatileStorage<'a> {
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Setup callbacks.
@@ -506,7 +513,8 @@ impl Driver for NonvolatileStorage<'a> {
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Command interface.

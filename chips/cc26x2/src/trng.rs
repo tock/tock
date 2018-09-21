@@ -111,9 +111,9 @@ impl Trng {
         let min_samples_per_cycle = 0;
         let cycles_per_sample = 0;
         regs.cfg0.write(
-            Config::MAX_REFILL_CYCLES.val(max_samples_per_cycle >> 8)
-                + Config::SMPL_DIV.val(cycles_per_sample)
-                + Config::MIN_REFILL_CYCLES.val(min_samples_per_cycle >> 6),
+            Config::MAX_REFILL_CYCLES.val(max_samples_per_cycle >> 8) +
+                Config::SMPL_DIV.val(cycles_per_sample) +
+                Config::MIN_REFILL_CYCLES.val(min_samples_per_cycle >> 6),
         );
 
         // Reset the alarm control

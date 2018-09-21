@@ -29,9 +29,7 @@ pub struct UDPReceiver<'a> {
 
 impl<'a> UDPReceiver<'a> {
     pub fn new() -> UDPReceiver<'a> {
-        UDPReceiver {
-            client: OptionalCell::empty(),
-        }
+        UDPReceiver { client: OptionalCell::empty() }
     }
 
     pub fn set_client(&self, client: &'a UDPRecvClient) {

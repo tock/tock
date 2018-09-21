@@ -47,10 +47,8 @@ impl IPAddr {
     }
 
     pub fn is_unicast_link_local(&self) -> bool {
-        self.0[0] == 0xfe
-            && (self.0[1] & 0xc0) == 0x80
-            && (self.0[1] & 0x3f) == 0
-            && self.0[2..8].iter().all(|&b| b == 0)
+        self.0[0] == 0xfe && (self.0[1] & 0xc0) == 0x80 && (self.0[1] & 0x3f) == 0 &&
+            self.0[2..8].iter().all(|&b| b == 0)
     }
 
     pub fn set_unicast_link_local(&mut self) {
@@ -161,11 +159,13 @@ pub fn compute_icmp_checksum(
 
     // add options
     match icmp_header.get_options() {
-        ICMP6HeaderOptions::Type1 { unused } | ICMP6HeaderOptions::Type3 { unused } => {
+        ICMP6HeaderOptions::Type1 { unused } |
+        ICMP6HeaderOptions::Type3 { unused } => {
             sum += unused >> 16; // upper 16 bits
             sum += unused & 0xffff; // lower 16 bits
         }
-        ICMP6HeaderOptions::Type128 { id, seqno } | ICMP6HeaderOptions::Type129 { id, seqno } => {
+        ICMP6HeaderOptions::Type128 { id, seqno } |
+        ICMP6HeaderOptions::Type129 { id, seqno } => {
             sum += id as u32;
             sum += seqno as u32;
         }

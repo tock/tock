@@ -71,9 +71,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         let chan = self.channels[channel];
         let result = self.analog_comparator.comparison(chan);
 
-        return ReturnCode::SuccessWithValue {
-            value: result as usize,
-        };
+        return ReturnCode::SuccessWithValue { value: result as usize };
     }
 
     // Start comparing on a channel
@@ -118,9 +116,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
     ///        hail, 0-3 for imix)
     fn command(&self, command_num: usize, channel: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 => ReturnCode::SuccessWithValue {
-                value: self.channels.len() as usize,
-            },
+            0 => ReturnCode::SuccessWithValue { value: self.channels.len() as usize },
 
             1 => self.comparison(channel),
 
@@ -152,12 +148,11 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 }
 
 impl<'a, A: hil::analog_comparator::AnalogComparator> hil::analog_comparator::Client
-    for AnalogComparator<'a, A>
-{
+    for AnalogComparator<'a, A> {
     /// Callback to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.callback
-            .get()
-            .map_or_else(|| false, |mut cb| cb.schedule(channel, 0, 0));
+        self.callback.get().map_or_else(|| false, |mut cb| {
+            cb.schedule(channel, 0, 0)
+        });
     }
 }

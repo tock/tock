@@ -66,9 +66,8 @@ impl AppFlash<'a> {
                 // Check that this is a valid range in the app's flash.
                 let flash_length = app.buffer.as_mut().map_or(0, |app_buffer| app_buffer.len());
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
-                if flash_address < app_flash_start
-                    || flash_address >= app_flash_end
-                    || flash_address + flash_length >= app_flash_end
+                if flash_address < app_flash_start || flash_address >= app_flash_end ||
+                    flash_address + flash_length >= app_flash_end
                 {
                     return ReturnCode::EINVAL;
                 }
@@ -76,9 +75,9 @@ impl AppFlash<'a> {
                 if self.current_app.is_none() {
                     self.current_app.set(appid);
 
-                    app.buffer
-                        .as_mut()
-                        .map_or(ReturnCode::ERESERVE, |app_buffer| {
+                    app.buffer.as_mut().map_or(
+                        ReturnCode::ERESERVE,
+                        |app_buffer| {
                             // Copy contents to internal buffer and write it.
                             self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
                                 let length = cmp::min(buffer.len(), app_buffer.len());
@@ -89,7 +88,8 @@ impl AppFlash<'a> {
 
                                 self.driver.write(buffer, flash_address, length)
                             })
-                        })
+                        },
+                    )
                 } else {
                     // Queue this request for later.
                     if app.pending_command == true {
@@ -100,7 +100,8 @@ impl AppFlash<'a> {
                         ReturnCode::SUCCESS
                     }
                 }
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
@@ -114,9 +115,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
         // Notify the current application that the command finished.
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.callback.map(|mut cb| {
-                    cb.schedule(0, 0, 0);
-                });
+                app.callback.map(|mut cb| { cb.schedule(0, 0, 0); });
             });
         });
 
@@ -140,8 +139,8 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
                                     *c = d[i];
                                 }
 
-                                self.driver.write(buffer, flash_address, length)
-                                    == ReturnCode::SUCCESS
+                                self.driver.write(buffer, flash_address, length) ==
+                                    ReturnCode::SUCCESS
                             }
                         })
                     })
@@ -169,12 +168,14 @@ impl Driver for AppFlash<'a> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            0 => self
-                .apps
-                .enter(appid, |app, _| {
-                    app.buffer = slice;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+            0 => {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.buffer = slice;
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| err.into())
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -191,12 +192,14 @@ impl Driver for AppFlash<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self
-                .apps
-                .enter(app_id, |app, _| {
-                    app.callback = callback;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+            0 => {
+                self.apps
+                    .enter(app_id, |app, _| {
+                        app.callback = callback;
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| err.into())
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }

@@ -54,9 +54,8 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
-};
+use kernel::hil::symmetric_encryption::{AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE,
+                                        AES128_KEY_SIZE, CCM_NONCE_LENGTH};
 use kernel::ReturnCode;
 use net::stream::SResult;
 use net::stream::{encode_bytes, encode_u16};
@@ -178,7 +177,8 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
         // The first block is flags | nonce | m length
         buf[0] = flags;
         buf[1..14].copy_from_slice(nonce.as_ref());
-        let mut off = enc_consume!(buf, 14; encode_u16,
+        let mut off =
+            enc_consume!(buf, 14; encode_u16,
                                             (m_data.len() as u16).to_le());
 
         // After that comes L(a) | a, where L(a) is the following
@@ -187,7 +187,8 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
             // L(a) is empty, and the Adata flag is zero
         } else if a_data.len() < 0xff00 as usize {
             // L(a) is l(a) in 2 bytes of little-endian
-            off = enc_consume!(buf, off; encode_u16,
+            off =
+                enc_consume!(buf, off; encode_u16,
                                          (a_data.len() as u16).to_le());
         } else {
             // These length encoding branches are defined in the specification
@@ -219,8 +220,8 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
     // Assumes that the state is Idle, which means that crypt_buf must be
     // present. Panics if this is not the case.
     fn start_ccm_auth(&self) -> ReturnCode {
-        if !(self.state.get() == CCMState::Idle)
-            && !(self.state.get() == CCMState::Encrypt && self.reversed())
+        if !(self.state.get() == CCMState::Idle) &&
+            !(self.state.get() == CCMState::Encrypt && self.reversed())
         {
             panic!("Called start_ccm_auth when not idle");
         }
@@ -264,8 +265,8 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
     }
 
     fn start_ccm_encrypt(&self) -> ReturnCode {
-        if !(self.state.get() == CCMState::Auth)
-            && !(self.state.get() == CCMState::Idle && self.reversed())
+        if !(self.state.get() == CCMState::Auth) &&
+            !(self.state.get() == CCMState::Idle && self.reversed())
         {
             return ReturnCode::FAIL;
         }
@@ -328,8 +329,9 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
                     let tag_off = auth_len - AES128_BLOCK_SIZE;
                     if self.encrypting.get() {
                         // Copy the encrypted tag to the end of the message
-                        buf[m_end..m_end + mic_len]
-                            .copy_from_slice(&cbuf[tag_off..tag_off + mic_len]);
+                        buf[m_end..m_end + mic_len].copy_from_slice(
+                            &cbuf[tag_off..tag_off + mic_len],
+                        );
                         true
                     } else {
                         // Compare the computed encrypted tag to the received
@@ -415,8 +417,7 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
 }
 
 impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
-    for AES128CCM<'a, A>
-{
+    for AES128CCM<'a, A> {
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
         self.crypt_client.set(client);
     }
@@ -515,12 +516,13 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for
 
                             // Then repopulate the plaintext data field
                             self.buf.map(|buf| {
-                                cbuf[auth_len..auth_len + m_len]
-                                    .copy_from_slice(&buf[m_off..m_off + m_len]);
+                                cbuf[auth_len..auth_len + m_len].copy_from_slice(
+                                    &buf[m_off..m_off + m_len],
+                                );
                             });
-                            cbuf[auth_len + m_len..enc_len]
-                                .iter_mut()
-                                .for_each(|b| *b = 0);
+                            cbuf[auth_len + m_len..enc_len].iter_mut().for_each(
+                                |b| *b = 0,
+                            );
                         });
                     }
 
@@ -548,8 +550,9 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for
                         let (_, m_off, m_len, _) = self.pos.get();
                         let auth_len = self.crypt_auth_len.get();
                         self.buf.map(|buf| {
-                            buf[m_off..m_off + m_len]
-                                .copy_from_slice(&cbuf[auth_len..auth_len + m_len]);
+                            buf[m_off..m_off + m_len].copy_from_slice(
+                                &cbuf[auth_len..auth_len + m_len],
+                            );
                         });
 
                         // Reset the rest of the padding

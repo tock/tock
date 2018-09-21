@@ -134,12 +134,12 @@ enum InternalState {
     // received but not the rest of the packet yet.
     RX,
     // The packet has been successfully received
-    RX_TURNING_OFF,       // Disabling packet reception
-    RX_READY_TO_READ,     // Reception disabled, handle interrupt and start reading
-    RX_START_READING,     // Starting to read a packet out of the radio
+    RX_TURNING_OFF, // Disabling packet reception
+    RX_READY_TO_READ, // Reception disabled, handle interrupt and start reading
+    RX_START_READING, // Starting to read a packet out of the radio
     RX_READING_FRAME_LEN, // We've read the length of the frame
     RX_READING_FRAME_LEN_DONE,
-    RX_READING_FRAME,      // Reading the packet out of the radio
+    RX_READING_FRAME, // Reading the packet out of the radio
     RX_READING_FRAME_DONE, // Now read a register to verify FCS
     RX_READING_FRAME_FCS_DONE,
     RX_ENABLING_RECEPTION, // Re-enabling reception
@@ -344,8 +344,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     if interrupt_included(interrupt, InteruptFlags::IRQ_0_PLL_LOCK) {
                         self.state.set(InternalState::ON_PLL_SET);
                     }
-                } else if state == InternalState::TX_TRANSMITTING
-                    && interrupt_included(interrupt, InteruptFlags::IRQ_3_TRX_END)
+                } else if state == InternalState::TX_TRANSMITTING &&
+                           interrupt_included(interrupt, InteruptFlags::IRQ_3_TRX_END)
                 {
                     self.state.set(InternalState::TX_DONE);
                 }
@@ -361,8 +361,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 //   1. we have a receive buffer: copy it out
                 //   2. no receive buffer, but transmission pending: send
                 //   3. no receive buffer, no transmission: return to waiting
-                if (interrupt_included(interrupt, InteruptFlags::IRQ_3_TRX_END)
-                    && self.receiving.get())
+                if (interrupt_included(interrupt, InteruptFlags::IRQ_3_TRX_END) &&
+                        self.receiving.get())
                 {
                     self.receiving.set(false);
                     if self.rx_buf.is_some() {
@@ -401,10 +401,10 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
         // receiving a frame.
         if self.interrupt_pending.get() {
             match self.state.get() {
-                InternalState::RX_TURNING_OFF
-                | InternalState::RX_START_READING
-                | InternalState::RX_READING_FRAME_DONE
-                | InternalState::RX_READING_FRAME_FCS_DONE => {}
+                InternalState::RX_TURNING_OFF |
+                InternalState::RX_START_READING |
+                InternalState::RX_READING_FRAME_DONE |
+                InternalState::RX_READING_FRAME_FCS_DONE => {}
                 _ => {
                     self.interrupt_pending.set(false);
                     self.handle_interrupt();
@@ -438,9 +438,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 } else if self.power_client_pending.get() {
                     // fixes bug where client would start transmitting before this state completed
                     self.power_client_pending.set(false);
-                    self.power_client.map(|p| {
-                        p.changed(self.radio_on.get());
-                    });
+                    self.power_client.map(
+                        |p| { p.changed(self.radio_on.get()); },
+                    );
                 }
             }
             // Starting state, begin start sequence.
@@ -475,8 +475,10 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 self.irq_pin.make_input();
                 self.irq_pin.clear();
                 self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
-                self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
+                self.irq_pin.enable_interrupt(
+                    INTERRUPT_ID,
+                    gpio::InterruptMode::RisingEdge,
+                );
 
                 self.state_transition_write(
                     RF233Register::TRX_CTRL_1,
@@ -500,11 +502,13 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     InternalState::START_PWR_SET,
                 );
             }
-            InternalState::START_PWR_SET => self.state_transition_write(
-                RF233Register::TRX_CTRL_2,
-                TRX_CTRL_2,
-                InternalState::START_CTRL2_SET,
-            ),
+            InternalState::START_PWR_SET => {
+                self.state_transition_write(
+                    RF233Register::TRX_CTRL_2,
+                    TRX_CTRL_2,
+                    InternalState::START_CTRL2_SET,
+                )
+            }
             InternalState::START_CTRL2_SET => {
                 self.state_transition_write(
                     RF233Register::IRQ_MASK,
@@ -679,9 +683,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 // Inform power client that the radio turned off successfully
                 } else {
                     self.state.set(InternalState::SLEEP);
-                    self.power_client.map(|p| {
-                        p.changed(self.radio_on.get());
-                    });
+                    self.power_client.map(
+                        |p| { p.changed(self.radio_on.get()); },
+                    );
                 }
             }
             // Do nothing; a call to start() is required to restart radio
@@ -698,9 +702,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::TX_STATUS_PRECHECK1 => {
-                if (status == ExternalState::BUSY_RX_AACK as u8
-                    || status == ExternalState::BUSY_TX_ARET as u8
-                    || status == ExternalState::BUSY_RX as u8)
+                if (status == ExternalState::BUSY_RX_AACK as u8 ||
+                        status == ExternalState::BUSY_TX_ARET as u8 ||
+                        status == ExternalState::BUSY_RX as u8)
                 {
                     self.state.set(InternalState::TX_PENDING);
                 } else {
@@ -718,9 +722,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::TX_STATUS_PRECHECK2 => {
-                if (status == ExternalState::BUSY_RX_AACK as u8
-                    || status == ExternalState::BUSY_TX_ARET as u8
-                    || status == ExternalState::BUSY_RX as u8)
+                if (status == ExternalState::BUSY_RX_AACK as u8 ||
+                        status == ExternalState::BUSY_TX_ARET as u8 ||
+                        status == ExternalState::BUSY_RX as u8)
                 {
                     self.receiving.set(true);
                     self.state.set(InternalState::RX);
@@ -786,12 +790,12 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::TX_RETURN_TO_RX => {
                 let ack: bool = (result & TRX_TRAC_MASK) == 0;
                 if status == ExternalState::RX_AACK_ON as u8 {
-                    let return_code = if (result & TRX_TRAC_MASK) == TRX_TRAC_CHANNEL_ACCESS_FAILURE
-                    {
-                        ReturnCode::FAIL
-                    } else {
-                        ReturnCode::SUCCESS
-                    };
+                    let return_code =
+                        if (result & TRX_TRAC_MASK) == TRX_TRAC_CHANNEL_ACCESS_FAILURE {
+                            ReturnCode::FAIL
+                        } else {
+                            ReturnCode::SUCCESS
+                        };
 
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
@@ -849,8 +853,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 // shorter frame read just drops these bytes.
                 let frame_len = result;
                 // If the packet isn't too long to fit in the SPI buffer, read it
-                if (frame_len <= radio::MAX_FRAME_SIZE as u8
-                    && frame_len >= radio::MIN_FRAME_SIZE as u8)
+                if (frame_len <= radio::MAX_FRAME_SIZE as u8 &&
+                        frame_len >= radio::MIN_FRAME_SIZE as u8)
                 {
                     self.state.set(InternalState::RX_READING_FRAME);
                     let rbuf = self.rx_buf.take().unwrap();
@@ -1008,9 +1012,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::CONFIG_DONE => {
                 self.config_pending.set(false);
                 self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
-                self.cfg_client.map(|c| {
-                    c.config_done(ReturnCode::SUCCESS);
-                });
+                self.cfg_client.map(
+                    |c| { c.config_done(ReturnCode::SUCCESS); },
+                );
             }
         }
     }
@@ -1219,14 +1223,15 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
     }
 
     fn stop(&self) -> ReturnCode {
-        if self.state.get() == InternalState::SLEEP
-            || self.state.get() == InternalState::SLEEP_TRX_OFF
+        if self.state.get() == InternalState::SLEEP ||
+            self.state.get() == InternalState::SLEEP_TRX_OFF
         {
             return ReturnCode::EALREADY;
         }
 
         match self.state.get() {
-            InternalState::READY | InternalState::ON_PLL_WAITING => {
+            InternalState::READY |
+            InternalState::ON_PLL_WAITING => {
                 self.radio_on.set(false);
                 self.state_transition_write(
                     RF233Register::TRX_STATE,

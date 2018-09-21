@@ -44,12 +44,46 @@ use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
-pub const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-]);
-pub const DST_ADDR: IPAddr = IPAddr([
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
-]);
+pub const SRC_ADDR: IPAddr = IPAddr(
+    [
+        0x00,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x09,
+        0x0a,
+        0x0b,
+        0x0c,
+        0x0d,
+        0x0e,
+        0x0f,
+    ],
+);
+pub const DST_ADDR: IPAddr = IPAddr(
+    [
+        0x20,
+        0x21,
+        0x22,
+        0x23,
+        0x24,
+        0x25,
+        0x26,
+        0x27,
+        0x28,
+        0x29,
+        0x2a,
+        0x2b,
+        0x2c,
+        0x2d,
+        0x2e,
+        0x2f,
+    ],
+);
 pub const PAYLOAD_LEN: usize = 200;
 
 /* 6LoWPAN Constants */
@@ -80,7 +114,10 @@ pub unsafe fn initialize_all(
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
-    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules::virtual_alarm::VirtualMuxAlarm<
+        'static,
+        sam4l::ast::Ast<'static>,
+    >,
 > {
     let sixlowpan = static_init!(
         Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
@@ -235,8 +272,12 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         let src_port: u16 = 12321;
         let dst_port: u16 = 32123;
         unsafe {
-            self.udp_sender
-                .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
+            self.udp_sender.send_to(
+                DST_ADDR,
+                src_port,
+                dst_port,
+                &UDP_PAYLOAD,
+            )
         };
     }
 }

@@ -255,7 +255,8 @@ impl LTC294X<'a> {
     fn get_voltage(&self) -> ReturnCode {
         // Not supported on all versions
         match self.model.get() {
-            ChipModel::LTC2942 | ChipModel::LTC2943 => {
+            ChipModel::LTC2942 |
+            ChipModel::LTC2943 => {
                 self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
                     self.i2c.enable();
 
@@ -273,14 +274,16 @@ impl LTC294X<'a> {
     fn get_current(&self) -> ReturnCode {
         // Not supported on all versions
         match self.model.get() {
-            ChipModel::LTC2943 => self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
-                self.i2c.enable();
+            ChipModel::LTC2943 => {
+                self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+                    self.i2c.enable();
 
-                self.i2c.read(buffer, 16);
-                self.state.set(State::ReadCurrent);
+                    self.i2c.read(buffer, 16);
+                    self.state.set(State::ReadCurrent);
 
-                ReturnCode::SUCCESS
-            }),
+                    ReturnCode::SUCCESS
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -340,9 +343,7 @@ impl i2c::I2CClient for LTC294X<'a> {
             State::ReadCharge => {
                 // Charge is calculated in user space
                 let charge = ((buffer[2] as u16) << 8) | (buffer[3] as u16);
-                self.client.map(|client| {
-                    client.charge(charge);
-                });
+                self.client.map(|client| { client.charge(charge); });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -350,9 +351,7 @@ impl i2c::I2CClient for LTC294X<'a> {
             }
             State::ReadVoltage => {
                 let voltage = ((buffer[8] as u16) << 8) | (buffer[9] as u16);
-                self.client.map(|client| {
-                    client.voltage(voltage);
-                });
+                self.client.map(|client| { client.voltage(voltage); });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -360,9 +359,7 @@ impl i2c::I2CClient for LTC294X<'a> {
             }
             State::ReadCurrent => {
                 let current = ((buffer[14] as u16) << 8) | (buffer[15] as u16);
-                self.client.map(|client| {
-                    client.current(current);
-                });
+                self.client.map(|client| { client.current(current); });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -379,9 +376,7 @@ impl i2c::I2CClient for LTC294X<'a> {
                 self.state.set(State::Done);
             }
             State::Done => {
-                self.client.map(|client| {
-                    client.done();
-                });
+                self.client.map(|client| { client.done(); });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -394,9 +389,7 @@ impl i2c::I2CClient for LTC294X<'a> {
 
 impl gpio::Client for LTC294X<'a> {
     fn fired(&self, _: usize) {
-        self.client.map(|client| {
-            client.interrupt();
-        });
+        self.client.map(|client| { client.interrupt(); });
     }
 }
 
@@ -418,9 +411,7 @@ impl LTC294XDriver<'a> {
 
 impl LTC294XClient for LTC294XDriver<'a> {
     fn interrupt(&self) {
-        self.callback.map(|cb| {
-            cb.schedule(0, 0, 0);
-        });
+        self.callback.map(|cb| { cb.schedule(0, 0, 0); });
     }
 
     fn status(
@@ -432,37 +423,34 @@ impl LTC294XClient for LTC294XDriver<'a> {
         accumulated_charge_overflow: bool,
     ) {
         self.callback.map(|cb| {
-            let ret = (undervolt_lockout as usize)
-                | ((vbat_alert as usize) << 1)
-                | ((charge_alert_low as usize) << 2)
-                | ((charge_alert_high as usize) << 3)
-                | ((accumulated_charge_overflow as usize) << 4);
+            let ret = (undervolt_lockout as usize) | ((vbat_alert as usize) << 1) |
+                ((charge_alert_low as usize) << 2) |
+                ((charge_alert_high as usize) << 3) |
+                ((accumulated_charge_overflow as usize) << 4);
             cb.schedule(1, ret, self.ltc294x.model.get() as usize);
         });
     }
 
     fn charge(&self, charge: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(2, charge as usize, 0);
-        });
+        self.callback.map(
+            |cb| { cb.schedule(2, charge as usize, 0); },
+        );
     }
 
     fn done(&self) {
-        self.callback.map(|cb| {
-            cb.schedule(3, 0, 0);
-        });
+        self.callback.map(|cb| { cb.schedule(3, 0, 0); });
     }
 
     fn voltage(&self, voltage: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(4, voltage as usize, 0);
-        });
+        self.callback.map(
+            |cb| { cb.schedule(4, voltage as usize, 0); },
+        );
     }
 
     fn current(&self, current: u16) {
-        self.callback.map(|cb| {
-            cb.schedule(5, current as usize, 0);
-        });
+        self.callback.map(
+            |cb| { cb.schedule(5, current as usize, 0); },
+        );
     }
 }
 
@@ -541,8 +529,11 @@ impl Driver for LTC294XDriver<'a> {
                     _ => VBatAlert::Off,
                 };
 
-                self.ltc294x
-                    .configure(int_pin_conf, prescaler as u8, vbat_alert)
+                self.ltc294x.configure(
+                    int_pin_conf,
+                    prescaler as u8,
+                    vbat_alert,
+                )
             }
 
             // Reset charge.

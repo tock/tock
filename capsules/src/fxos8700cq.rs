@@ -243,8 +243,10 @@ impl I2CClient for Fxos8700cq<'a> {
         match self.state.get() {
             State::ReadAccelSetup => {
                 // Setup the interrupt so we know when the sample is ready
-                self.interrupt_pin1
-                    .enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+                self.interrupt_pin1.enable_interrupt(
+                    0,
+                    gpio::InterruptMode::FallingEdge,
+                );
 
                 // Enable the accelerometer.
                 buffer[0] = Registers::CtrlReg1 as u8;
@@ -279,8 +281,11 @@ impl I2CClient for Fxos8700cq<'a> {
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0; // Set the active bit to 0.
                 self.i2c.write(buffer, 2);
-                self.state
-                    .set(State::ReadAccelDeactivating(x as i16, y as i16, z as i16));
+                self.state.set(State::ReadAccelDeactivating(
+                    x as i16,
+                    y as i16,
+                    z as i16,
+                ));
             }
             State::ReadAccelDeactivating(x, y, z) => {
                 self.i2c.disable();
@@ -307,8 +312,9 @@ impl I2CClient for Fxos8700cq<'a> {
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
 
-                self.callback
-                    .map(|cb| cb.callback(x as usize, y as usize, z as usize));
+                self.callback.map(|cb| {
+                    cb.callback(x as usize, y as usize, z as usize)
+                });
             }
             _ => {}
         }

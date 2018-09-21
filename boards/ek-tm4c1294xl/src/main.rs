@@ -48,7 +48,10 @@ struct EkTm4c1294xl {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, tm4c129x::gpt::AlarmTimer>,
+        VirtualMuxAlarm<
+            'static,
+            tm4c129x::gpt::AlarmTimer,
+        >,
     >,
     gpio: &'static capsules::gpio::GPIO<'static, tm4c129x::gpio::GPIOPin>,
     ipc: kernel::ipc::IPC,
@@ -79,8 +82,9 @@ impl Platform for EkTm4c1294xl {
 pub unsafe fn reset_handler() {
     tm4c129x::init();
 
-    tm4c129x::sysctl::PSYSCTLM
-        .setup_system_clock(tm4c129x::sysctl::SystemClockSource::PllPioscAt120MHz);
+    tm4c129x::sysctl::PSYSCTLM.setup_system_clock(
+        tm4c129x::sysctl::SystemClockSource::PllPioscAt120MHz,
+    );
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 

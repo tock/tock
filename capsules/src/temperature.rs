@@ -80,15 +80,14 @@ impl TemperatureSensor<'a> {
 
     fn enqueue_command(&self, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
-                if !self.busy.get() {
-                    app.subscribed = true;
-                    self.busy.set(true);
-                    self.driver.read_temperature()
-                } else {
-                    ReturnCode::EBUSY
-                }
-            }).unwrap_or_else(|err| err.into())
+            .enter(appid, |app, _| if !self.busy.get() {
+                app.subscribed = true;
+                self.busy.set(true);
+                self.driver.read_temperature()
+            } else {
+                ReturnCode::EBUSY
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
@@ -96,19 +95,18 @@ impl TemperatureSensor<'a> {
             .enter(app_id, |app, _| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
 impl hil::sensors::TemperatureClient for TemperatureSensor<'a> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
-                if app.subscribed {
-                    self.busy.set(false);
-                    app.subscribed = false;
-                    app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
-                }
+            cntr.enter(|app, _| if app.subscribed {
+                self.busy.set(false);
+                app.subscribed = false;
+                app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
             });
         }
     }

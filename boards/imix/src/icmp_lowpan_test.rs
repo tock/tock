@@ -45,12 +45,46 @@ use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
-pub const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-]);
-pub const DST_ADDR: IPAddr = IPAddr([
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
-]);
+pub const SRC_ADDR: IPAddr = IPAddr(
+    [
+        0x00,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x09,
+        0x0a,
+        0x0b,
+        0x0c,
+        0x0d,
+        0x0e,
+        0x0f,
+    ],
+);
+pub const DST_ADDR: IPAddr = IPAddr(
+    [
+        0x20,
+        0x21,
+        0x22,
+        0x23,
+        0x24,
+        0x25,
+        0x26,
+        0x27,
+        0x28,
+        0x29,
+        0x2a,
+        0x2b,
+        0x2c,
+        0x2d,
+        0x2e,
+        0x2f,
+    ],
+);
 
 /* 6LoWPAN Constants */
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
@@ -81,7 +115,10 @@ pub unsafe fn initialize_all(
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanICMPTest<
     'static,
-    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules::virtual_alarm::VirtualMuxAlarm<
+        'static,
+        sam4l::ast::Ast<'static>,
+    >,
 > {
     let sixlowpan = static_init!(
         Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
@@ -144,8 +181,7 @@ pub unsafe fn initialize_all(
 }
 
 impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
-    for LowpanICMPTest<'a, A>
-{
+    for LowpanICMPTest<'a, A> {
     fn send_done(&self, result: ReturnCode) {
         match result {
             ReturnCode::SUCCESS => {

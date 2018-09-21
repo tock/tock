@@ -157,9 +157,7 @@ pub static mut PPI: Ppi = Ppi::new();
 
 impl Ppi {
     pub const fn new() -> Ppi {
-        Ppi {
-            registers: PPI_BASE,
-        }
+        Ppi { registers: PPI_BASE }
     }
 
     pub fn enable(&self, channels: FieldValue<u32, Channel::Register>) {

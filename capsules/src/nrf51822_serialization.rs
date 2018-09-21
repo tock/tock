@@ -32,7 +32,7 @@ struct App {
     tx_buffer: Option<AppSlice<Shared, u8>>,
     rx_buffer: Option<AppSlice<Shared, u8>>,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
-    rx_recv_total: usize,  // The total number of bytes we expect to receive.
+    rx_recv_total: usize, // The total number of bytes we expect to receive.
 }
 
 // Local buffer for passing data between applications and the underlying
@@ -101,18 +101,22 @@ impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ) -> ReturnCode {
         match allow_type {
             // Provide an RX buffer.
-            0 => self.app.map_or(ReturnCode::FAIL, |app| {
-                app.rx_buffer = slice;
-                app.rx_recv_so_far = 0;
-                app.rx_recv_total = 0;
-                ReturnCode::SUCCESS
-            }),
+            0 => {
+                self.app.map_or(ReturnCode::FAIL, |app| {
+                    app.rx_buffer = slice;
+                    app.rx_recv_so_far = 0;
+                    app.rx_recv_total = 0;
+                    ReturnCode::SUCCESS
+                })
+            }
 
             // Provide a TX buffer.
-            1 => self.app.map_or(ReturnCode::FAIL, |app| {
-                app.tx_buffer = slice;
-                ReturnCode::SUCCESS
-            }),
+            1 => {
+                self.app.map_or(ReturnCode::FAIL, |app| {
+                    app.tx_buffer = slice;
+                    ReturnCode::SUCCESS
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -198,9 +202,7 @@ impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app.map(|appst| {
             // Call the callback after TX has finished
-            appst.callback.as_mut().map(|cb| {
-                cb.schedule(1, 0, 0);
-            });
+            appst.callback.as_mut().map(|cb| { cb.schedule(1, 0, 0); });
         });
     }
 
@@ -214,10 +216,8 @@ impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
                 let max_len = cmp::min(rx_len, rb.len());
 
                 // Copy over data to app buffer.
-                self.rx_buffer.map(|buffer| {
-                    for idx in 0..max_len {
-                        rb.as_mut()[idx] = buffer[idx];
-                    }
+                self.rx_buffer.map(|buffer| for idx in 0..max_len {
+                    rb.as_mut()[idx] = buffer[idx];
                 });
                 appst.callback.as_mut().map(|cb| {
                     // Notify the serialization library in userspace about the
@@ -230,8 +230,8 @@ impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // Restart the UART receive.
-        self.rx_buffer
-            .take()
-            .map(|buffer| self.uart.receive_automatic(buffer, 250));
+        self.rx_buffer.take().map(|buffer| {
+            self.uart.receive_automatic(buffer, 250)
+        });
     }
 }

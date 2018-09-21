@@ -27,9 +27,7 @@ pub struct CrcComponent {
 
 impl CrcComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> CrcComponent {
-        CrcComponent {
-            board_kernel: board_kernel,
-        }
+        CrcComponent { board_kernel: board_kernel }
     }
 }
 

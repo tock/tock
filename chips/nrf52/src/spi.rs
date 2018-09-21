@@ -55,47 +55,47 @@ const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
 
 #[repr(C)]
 struct SpimRegisters {
-    _reserved0: [u8; 16],                            // reserved
-    tasks_start: WriteOnly<u32, TASK::Register>,     // Start SPI transaction
-    tasks_stop: WriteOnly<u32, TASK::Register>,      // Stop SPI transaction
-    _reserved1: [u8; 4],                             // reserved
-    tasks_suspend: WriteOnly<u32, TASK::Register>,   // Suspend SPI transaction
-    tasks_resume: WriteOnly<u32, TASK::Register>,    // Resume SPI transaction
-    _reserved2: [u8; 224],                           // reserved
+    _reserved0: [u8; 16], // reserved
+    tasks_start: WriteOnly<u32, TASK::Register>, // Start SPI transaction
+    tasks_stop: WriteOnly<u32, TASK::Register>, // Stop SPI transaction
+    _reserved1: [u8; 4], // reserved
+    tasks_suspend: WriteOnly<u32, TASK::Register>, // Suspend SPI transaction
+    tasks_resume: WriteOnly<u32, TASK::Register>, // Resume SPI transaction
+    _reserved2: [u8; 224], // reserved
     events_stopped: ReadWrite<u32, EVENT::Register>, // SPI transaction has stopped
-    _reserved3: [u8; 8],                             // reserved
-    events_endrx: ReadWrite<u32, EVENT::Register>,   // End of RXD buffer reached
-    _reserved4: [u8; 4],                             // reserved
-    events_end: ReadWrite<u32, EVENT::Register>,     // End of RXD buffer and TXD buffer reached
-    _reserved5: [u8; 4],                             // reserved
-    events_endtx: ReadWrite<u32, EVENT::Register>,   // End of TXD buffer reached
-    _reserved6: [u8; 40],                            // reserved
+    _reserved3: [u8; 8], // reserved
+    events_endrx: ReadWrite<u32, EVENT::Register>, // End of RXD buffer reached
+    _reserved4: [u8; 4], // reserved
+    events_end: ReadWrite<u32, EVENT::Register>, // End of RXD buffer and TXD buffer reached
+    _reserved5: [u8; 4], // reserved
+    events_endtx: ReadWrite<u32, EVENT::Register>, // End of TXD buffer reached
+    _reserved6: [u8; 40], // reserved
     events_started: ReadWrite<u32, EVENT::Register>, // Transaction started
-    _reserved7: [u8; 176],                           // reserved
-    shorts: ReadWrite<u32>,                          // Shortcut register
-    _reserved8: [u8; 256],                           // reserved
-    intenset: ReadWrite<u32, INTE::Register>,        // Enable interrupt
-    intenclr: ReadWrite<u32, INTE::Register>,        // Disable interrupt
-    _reserved9: [u8; 500],                           // reserved
-    enable: ReadWrite<u32, ENABLE::Register>,        // Enable SPIM
-    _reserved10: [u8; 4],                            // reserved
-    psel_sck: VolatileCell<Pinmux>,                  // Pin select for SCK
-    psel_mosi: VolatileCell<Pinmux>,                 // Pin select for MOSI signal
-    psel_miso: VolatileCell<Pinmux>,                 // Pin select for MISO signal
-    _reserved11: [u8; 16],                           // reserved
-    frequency: ReadWrite<u32>,                       // SPI frequency
-    _reserved12: [u8; 12],                           // reserved
-    rxd_ptr: VolatileCell<*mut u8>,                  // Data pointer
-    rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>,    // Maximum number of bytes in receive buffer
-    rxd_amount: ReadWrite<u32>,                      // Number of bytes transferred
-    rxd_list: ReadWrite<u32>,                        // EasyDMA list type
-    txd_ptr: VolatileCell<*const u8>,                // Data pointer
-    txd_maxcnt: ReadWrite<u32, MAXCNT::Register>,    // Maximum number of bytes in transmit buffer
-    txd_amount: ReadWrite<u32>,                      // Number of bytes transferred
-    txd_list: ReadWrite<u32>,                        // EasyDMA list type
-    config: ReadWrite<u32, CONFIG::Register>,        // Configuration register
-    _reserved13: [u8; 104],                          // reserved
-    orc: ReadWrite<u32>,                             // Over-read character.
+    _reserved7: [u8; 176], // reserved
+    shorts: ReadWrite<u32>, // Shortcut register
+    _reserved8: [u8; 256], // reserved
+    intenset: ReadWrite<u32, INTE::Register>, // Enable interrupt
+    intenclr: ReadWrite<u32, INTE::Register>, // Disable interrupt
+    _reserved9: [u8; 500], // reserved
+    enable: ReadWrite<u32, ENABLE::Register>, // Enable SPIM
+    _reserved10: [u8; 4], // reserved
+    psel_sck: VolatileCell<Pinmux>, // Pin select for SCK
+    psel_mosi: VolatileCell<Pinmux>, // Pin select for MOSI signal
+    psel_miso: VolatileCell<Pinmux>, // Pin select for MISO signal
+    _reserved11: [u8; 16], // reserved
+    frequency: ReadWrite<u32>, // SPI frequency
+    _reserved12: [u8; 12], // reserved
+    rxd_ptr: VolatileCell<*mut u8>, // Data pointer
+    rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>, // Maximum number of bytes in receive buffer
+    rxd_amount: ReadWrite<u32>, // Number of bytes transferred
+    rxd_list: ReadWrite<u32>, // EasyDMA list type
+    txd_ptr: VolatileCell<*const u8>, // Data pointer
+    txd_maxcnt: ReadWrite<u32, MAXCNT::Register>, // Maximum number of bytes in transmit buffer
+    txd_amount: ReadWrite<u32>, // Number of bytes transferred
+    txd_list: ReadWrite<u32>, // EasyDMA list type
+    config: ReadWrite<u32, CONFIG::Register>, // Configuration register
+    _reserved13: [u8; 104], // reserved
+    orc: ReadWrite<u32>, // Over-read character.
 }
 
 register_bitfields![u32,

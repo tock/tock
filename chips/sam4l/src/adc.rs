@@ -414,9 +414,7 @@ impl Adc {
 
                     // single sample complete. Send value to client
                     let val = regs.lcv.read(SequencerLastConvertedValue::LCV) as u16;
-                    self.client.map(|client| {
-                        client.sample_ready(val);
-                    });
+                    self.client.map(|client| { client.sample_ready(val); });
 
                     // clean up state
                     if self.continuous.get() {
@@ -439,11 +437,8 @@ impl Adc {
             // we are inactive, why did we get an interrupt?
             // disable all interrupts, clear status, and just ignore it
             regs.idr.write(
-                Interrupt::TTO::SET
-                    + Interrupt::SMTRG::SET
-                    + Interrupt::WM::SET
-                    + Interrupt::LOVR::SET
-                    + Interrupt::SEOC::SET,
+                Interrupt::TTO::SET + Interrupt::SMTRG::SET + Interrupt::WM::SET +
+                    Interrupt::LOVR::SET + Interrupt::SEOC::SET,
             );
             self.clear_status();
         }
@@ -453,11 +448,8 @@ impl Adc {
     fn clear_status(&self) {
         let regs: &AdcRegisters = &*self.registers;
         regs.scr.write(
-            Interrupt::TTO::SET
-                + Interrupt::SMTRG::SET
-                + Interrupt::WM::SET
-                + Interrupt::LOVR::SET
-                + Interrupt::SEOC::SET,
+            Interrupt::TTO::SET + Interrupt::SMTRG::SET + Interrupt::WM::SET +
+                Interrupt::LOVR::SET + Interrupt::SEOC::SET,
         );
     }
 
@@ -539,14 +531,15 @@ impl Adc {
                 let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
                 clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
                 clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                self.adc_clk_freq
-                    .set(cpu_frequency / (1 << (clock_divisor + 2)));
+                self.adc_clk_freq.set(
+                    cpu_frequency / (1 << (clock_divisor + 2)),
+                );
             }
 
             // configure the ADC
-            let mut cfg_val = Configuration::PRESCAL.val(clock_divisor)
-                + Configuration::SPEED::ksps300
-                + Configuration::REFSEL::VccX0p5;
+            let mut cfg_val = Configuration::PRESCAL.val(clock_divisor) +
+                Configuration::SPEED::ksps300 +
+                Configuration::REFSEL::VccX0p5;
 
             if self.cpu_clock.get() {
                 cfg_val += Configuration::CLKSEL::ApbClock
@@ -579,14 +572,16 @@ impl Adc {
 
             // enable Bandgap buffer and Reference buffer. I don't actually
             // know what these do, but you need to turn them on
-            regs.cr
-                .write(Control::BGREQEN::SET + Control::REFBUFEN::SET);
+            regs.cr.write(
+                Control::BGREQEN::SET + Control::REFBUFEN::SET,
+            );
 
             // wait until buffers are enabled
             timeout = 100000;
-            while !regs
-                .sr
-                .matches_all(Status::BGREQ::SET + Status::REFBUF::SET + Status::EN::SET)
+            while !regs.sr.matches_all(
+                Status::BGREQ::SET + Status::REFBUF::SET +
+                    Status::EN::SET,
+            )
             {
                 timeout -= 1;
                 if timeout == 0 {
@@ -628,14 +623,14 @@ impl hil::adc::Adc for Adc {
             self.timer_counts.set(0);
 
             let cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
-                + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
-                + SequencerConfig::RES::Bits12
-                + SequencerConfig::TRGSEL::Software
-                + SequencerConfig::GCOMP::Disable
-                + SequencerConfig::GAIN::Gain0p5x
-                + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Enable;
+                SequencerConfig::MUXPOS.val(channel.chan_num) +
+                SequencerConfig::INTERNAL.val(0x2 | channel.internal) +
+                SequencerConfig::RES::Bits12 +
+                SequencerConfig::TRGSEL::Software +
+                SequencerConfig::GCOMP::Disable +
+                SequencerConfig::GAIN::Gain0p5x +
+                SequencerConfig::BIPOLAR::Disable +
+                SequencerConfig::HWLA::Enable;
             regs.seqcfg.write(cfg);
 
             // clear any current status
@@ -680,13 +675,13 @@ impl hil::adc::Adc for Adc {
 
             // adc sequencer configuration
             let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
-                + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
-                + SequencerConfig::RES::Bits12
-                + SequencerConfig::GCOMP::Disable
-                + SequencerConfig::GAIN::Gain0p5x
-                + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Enable;
+                SequencerConfig::MUXPOS.val(channel.chan_num) +
+                SequencerConfig::INTERNAL.val(0x2 | channel.internal) +
+                SequencerConfig::RES::Bits12 +
+                SequencerConfig::GCOMP::Disable +
+                SequencerConfig::GAIN::Gain0p5x +
+                SequencerConfig::BIPOLAR::Disable +
+                SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
@@ -836,11 +831,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         length1: usize,
         buffer2: &'static mut [u16],
         length2: usize,
-    ) -> (
-        ReturnCode,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> (ReturnCode, Option<&'static mut [u16]>, Option<&'static mut [u16]>) {
         let regs: &AdcRegisters = &*self.registers;
 
         let res = self.config_and_enable(frequency);
@@ -870,13 +861,13 @@ impl hil::adc::AdcHighSpeed for Adc {
 
             // adc sequencer configuration
             let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
-                + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
-                + SequencerConfig::RES::Bits12
-                + SequencerConfig::GCOMP::Disable
-                + SequencerConfig::GAIN::Gain0p5x
-                + SequencerConfig::BIPOLAR::Disable
-                + SequencerConfig::HWLA::Enable;
+                SequencerConfig::MUXPOS.val(channel.chan_num) +
+                SequencerConfig::INTERNAL.val(0x2 | channel.internal) +
+                SequencerConfig::RES::Bits12 +
+                SequencerConfig::GCOMP::Disable +
+                SequencerConfig::GAIN::Gain0p5x +
+                SequencerConfig::BIPOLAR::Disable +
+                SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
@@ -962,11 +953,7 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// This is expected to be called after `stop_sampling`.
     fn retrieve_buffers(
         &self,
-    ) -> (
-        ReturnCode,
-        Option<&'static mut [u16]>,
-        Option<&'static mut [u16]>,
-    ) {
+    ) -> (ReturnCode, Option<&'static mut [u16]>, Option<&'static mut [u16]>) {
         if self.active.get() {
             // cannot return buffers while running
             (ReturnCode::EINVAL, None, None)

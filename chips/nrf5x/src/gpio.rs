@@ -414,8 +414,9 @@ impl hil::gpio::Pin for GPIOPin {
                 hil::gpio::InterruptMode::FallingEdge => Config::POLARITY::HiToLo,
             };
             let regs = &*self.gpiote_registers;
-            regs.config[channel]
-                .write(Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity);
+            regs.config[channel].write(
+                Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity,
+            );
             regs.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
@@ -425,8 +426,9 @@ impl hil::gpio::Pin for GPIOPin {
     fn disable_interrupt(&self) {
         if let Ok(channel) = self.find_channel(self.pin) {
             let regs = &*self.gpiote_registers;
-            regs.config[channel]
-                .write(Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR);
+            regs.config[channel].write(
+                Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR,
+            );
             regs.intenclr.set(1 << channel);
         }
     }

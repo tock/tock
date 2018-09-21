@@ -46,9 +46,8 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
 use capsules::net::sixlowpan::sixlowpan_compression;
-use capsules::net::sixlowpan::sixlowpan_state::{
-    RxState, Sixlowpan, SixlowpanRxClient, SixlowpanState, TxState,
-};
+use capsules::net::sixlowpan::sixlowpan_state::{RxState, Sixlowpan, SixlowpanRxClient,
+                                                SixlowpanState, TxState};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
@@ -66,12 +65,46 @@ pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 pub const DST_ADDR: IPAddr = IPAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                      0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);*/
 
-pub const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-]);
-pub const DST_ADDR: IPAddr = IPAddr([
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
-]);
+pub const SRC_ADDR: IPAddr = IPAddr(
+    [
+        0x00,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+        0x09,
+        0x0a,
+        0x0b,
+        0x0c,
+        0x0d,
+        0x0e,
+        0x0f,
+    ],
+);
+pub const DST_ADDR: IPAddr = IPAddr(
+    [
+        0x20,
+        0x21,
+        0x22,
+        0x23,
+        0x24,
+        0x25,
+        0x26,
+        0x27,
+        0x28,
+        0x29,
+        0x2a,
+        0x2b,
+        0x2c,
+        0x2d,
+        0x2e,
+        0x2f,
+    ],
+);
 pub const SRC_MAC_ADDR: MacAddress =
     MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
 //pub const DST_MAC_ADDR: MacAddress =
@@ -147,7 +180,10 @@ pub unsafe fn initialize_all(
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
-    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules::virtual_alarm::VirtualMuxAlarm<
+        'static,
+        sam4l::ast::Ast<'static>,
+    >,
 > {
     let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
 
@@ -322,14 +358,16 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             11 => {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::LLPIID, DAC::Inline, buf, len)
             }
-            12 => ipv6_check_receive_packet(
-                TF::TrafficFlow,
-                42,
-                SAC::Unspecified,
-                DAC::Inline,
-                buf,
-                len,
-            ),
+            12 => {
+                ipv6_check_receive_packet(
+                    TF::TrafficFlow,
+                    42,
+                    SAC::Unspecified,
+                    DAC::Inline,
+                    buf,
+                    len,
+                )
+            }
             13 => ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::Ctx64, DAC::Inline, buf, len),
             14 => ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::Ctx16, DAC::Inline, buf, len),
             15 => {
@@ -350,14 +388,16 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             22 => {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::CtxIID, DAC::CtxIID, buf, len)
             }
-            23 => ipv6_check_receive_packet(
-                TF::TrafficFlow,
-                42,
-                SAC::CtxIID,
-                DAC::McastInline,
-                buf,
-                len,
-            ),
+            23 => {
+                ipv6_check_receive_packet(
+                    TF::TrafficFlow,
+                    42,
+                    SAC::CtxIID,
+                    DAC::McastInline,
+                    buf,
+                    len,
+                )
+            }
             24 => {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::CtxIID, DAC::Mcast48, buf, len)
             }
@@ -389,10 +429,11 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         unsafe {
             match IP6_DG_OPT {
                 Some(ref ip6_packet) => {
-                    match self
-                        .sixlowpan_tx
-                        .next_fragment(&ip6_packet, tx_buf, self.radio)
-                    {
+                    match self.sixlowpan_tx.next_fragment(
+                        &ip6_packet,
+                        tx_buf,
+                        self.radio,
+                    ) {
                         Ok((is_done, frame)) => {
                             //TODO: Fix ordering so that debug output does not indicate extra frame sent
                             debug!("Sent frame!");
@@ -471,8 +512,9 @@ fn ipv6_check_receive_packet(
         // First, need to check header fields match:
         // Do this by casting first 48 bytes of rcvd packet as IP/UDP headers
         let rcvip6hdr: IP6Header = ptr::read(recv_packet.as_ptr() as *const _);
-        let rcvudphdr: UDPHeader =
-            ptr::read((recv_packet.as_ptr().offset(IP6_HDR_SIZE as isize)) as *const _);
+        let rcvudphdr: UDPHeader = ptr::read(
+            (recv_packet.as_ptr().offset(IP6_HDR_SIZE as isize)) as *const _,
+        );
 
         // Now compare to the headers that would be being sent by prepare packet
         // (as we know prepare packet is running in parallel on sender to generate tx packets)
@@ -746,7 +788,7 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
                         }
                     }
                 } //This bracket ends mutable borrow of ip6_packet for header
-                  //Now that packet is fully prepared, set checksum
+                //Now that packet is fully prepared, set checksum
                 ip6_packet.set_transport_checksum(); //calculates and sets UDP cksum
             } //End of Some{}
             None => debug!("Error! tried to prepare uninitialized IP6Packet"),
@@ -755,6 +797,9 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
 
     debug!(
         "Packet with tf={:?} hl={} sac={:?} dac={:?}",
-        tf, hop_limit, sac, dac
+        tf,
+        hop_limit,
+        sac,
+        dac
     );
 }

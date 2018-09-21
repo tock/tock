@@ -91,9 +91,10 @@ impl TWIM {
         if self.registers.events_error.is_set(EVENT::EVENT) {
             self.registers.events_error.write(EVENT::EVENT::CLEAR);
             let errorsrc = self.registers.errorsrc.extract();
-            self.registers
-                .errorsrc
-                .write(ERRORSRC::ANACK::ErrorDidNotOccur + ERRORSRC::DNACK::ErrorDidNotOccur);
+            self.registers.errorsrc.write(
+                ERRORSRC::ANACK::ErrorDidNotOccur +
+                    ERRORSRC::DNACK::ErrorDidNotOccur,
+            );
             self.client.map(|client| match self.buf.take() {
                 None => (),
                 Some(buf) => {
@@ -131,69 +132,73 @@ impl hil::i2c::I2CMaster for TWIM {
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.registers
-            .address
-            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+        self.registers.address.write(ADDRESS::ADDRESS.val(
+            (addr >> 1) as u32,
+        ));
         self.registers.txd_ptr.set(data.as_mut_ptr());
-        self.registers
-            .txd_maxcnt
-            .write(MAXCNT::MAXCNT.val(write_len as u32));
+        self.registers.txd_maxcnt.write(MAXCNT::MAXCNT.val(
+            write_len as u32,
+        ));
         self.registers.rxd_ptr.set(data.as_mut_ptr());
-        self.registers
-            .rxd_maxcnt
-            .write(MAXCNT::MAXCNT.val(read_len as u32));
+        self.registers.rxd_maxcnt.write(
+            MAXCNT::MAXCNT.val(read_len as u32),
+        );
         // Use the NRF52 shortcut register to configure the peripheral to
         // switch to RX after TX is complete, and then to switch to the STOP
         // state once RX is done. This avoids us having to juggle tasks in
         // the interrupt handler.
-        self.registers
-            .shorts
-            .write(SHORTS::LASTTX_STARTRX::EnableShortcut + SHORTS::LASTRX_STOP::EnableShortcut);
-        self.registers
-            .intenset
-            .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
+        self.registers.shorts.write(
+            SHORTS::LASTTX_STARTRX::EnableShortcut +
+                SHORTS::LASTRX_STOP::EnableShortcut,
+        );
+        self.registers.intenset.write(
+            INTE::STOPPED::Enable +
+                INTE::ERROR::Enable,
+        );
         // start the transfer
         self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        self.registers
-            .address
-            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+        self.registers.address.write(ADDRESS::ADDRESS.val(
+            (addr >> 1) as u32,
+        ));
         self.registers.txd_ptr.set(data.as_mut_ptr());
-        self.registers
-            .txd_maxcnt
-            .write(MAXCNT::MAXCNT.val(len as u32));
+        self.registers.txd_maxcnt.write(
+            MAXCNT::MAXCNT.val(len as u32),
+        );
         // Use the NRF52 shortcut register to switch to the STOP state once
         // the TX is complete.
-        self.registers
-            .shorts
-            .write(SHORTS::LASTTX_STOP::EnableShortcut);
-        self.registers
-            .intenset
-            .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
+        self.registers.shorts.write(
+            SHORTS::LASTTX_STOP::EnableShortcut,
+        );
+        self.registers.intenset.write(
+            INTE::STOPPED::Enable +
+                INTE::ERROR::Enable,
+        );
         // start the transfer
         self.registers.tasks_starttx.write(TASK::TASK::SET);
         self.buf.replace(data);
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        self.registers
-            .address
-            .write(ADDRESS::ADDRESS.val((addr >> 1) as u32));
+        self.registers.address.write(ADDRESS::ADDRESS.val(
+            (addr >> 1) as u32,
+        ));
         self.registers.rxd_ptr.set(buffer.as_mut_ptr());
-        self.registers
-            .rxd_maxcnt
-            .write(MAXCNT::MAXCNT.val(len as u32));
+        self.registers.rxd_maxcnt.write(
+            MAXCNT::MAXCNT.val(len as u32),
+        );
         // Use the NRF52 shortcut register to switch to the STOP state once
         // the RX is complete.
-        self.registers
-            .shorts
-            .write(SHORTS::LASTRX_STOP::EnableShortcut);
-        self.registers
-            .intenset
-            .write(INTE::STOPPED::Enable + INTE::ERROR::Enable);
+        self.registers.shorts.write(
+            SHORTS::LASTRX_STOP::EnableShortcut,
+        );
+        self.registers.intenset.write(
+            INTE::STOPPED::Enable +
+                INTE::ERROR::Enable,
+        );
         // start the transfer
         self.registers.tasks_startrx.write(TASK::TASK::SET);
         self.buf.replace(buffer);

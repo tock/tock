@@ -100,14 +100,46 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 const PAN_ID: u16 = 0xABCD;
 
 static LOCAL_IP_IFACES: [IPAddr; 2] = [
-    IPAddr([
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-        0x0f,
-    ]),
-    IPAddr([
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
-        0x1f,
-    ]),
+    IPAddr(
+        [
+            0x00,
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0a,
+            0x0b,
+            0x0c,
+            0x0d,
+            0x0e,
+            0x0f,
+        ],
+    ),
+    IPAddr(
+        [
+            0x10,
+            0x11,
+            0x12,
+            0x13,
+            0x14,
+            0x15,
+            0x16,
+            0x17,
+            0x18,
+            0x19,
+            0x1a,
+            0x1b,
+            0x1c,
+            0x1d,
+            0x1e,
+            0x1f,
+        ],
+    ),
 ];
 
 // how should the kernel respond when a process faults
@@ -243,14 +275,14 @@ unsafe fn set_pin_primary_functions() {
     PC[06].configure(Some(A)); // SCK         --  SPI CLK
     PC[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
     PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
-                               //PC[09].configure(None); //... NRF GPIO    -- GPIO
-                               //PC[10].configure(None); //... USER LED    -- GPIO
+    //PC[09].configure(None); //... NRF GPIO    -- GPIO
+    //PC[10].configure(None); //... USER LED    -- GPIO
     PC[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
     PC[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
     PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
     PC[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
-                               //PC[13].configure(None); //... ACC_INT1    -- GPIO
-                               //PC[14].configure(None); //... ACC_INT2    -- GPIO
+    //PC[13].configure(None); //... ACC_INT1    -- GPIO
+    //PC[14].configure(None); //... ACC_INT2    -- GPIO
     PC[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
     PC[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
     PC[16].configure(None); //... SENSE_PWR   --  GPIO pin
@@ -319,8 +351,8 @@ pub unsafe fn reset_handler() {
     let console = ConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
-    let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize();
+    let nrf_serialization = Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07])
+        .finalize();
 
     // # TIMER
     let ast = &sam4l::ast::AST;
@@ -373,8 +405,8 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
+    let (radio_driver, mux_mac) = RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC)
+        .finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();

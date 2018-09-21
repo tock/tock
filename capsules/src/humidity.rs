@@ -83,15 +83,14 @@ impl HumiditySensor<'a> {
 
     fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| {
-                if !self.busy.get() {
-                    app.subscribed = true;
-                    self.busy.set(true);
-                    self.call_driver(command, arg1)
-                } else {
-                    ReturnCode::EBUSY
-                }
-            }).unwrap_or_else(|err| err.into())
+            .enter(appid, |app, _| if !self.busy.get() {
+                app.subscribed = true;
+                self.busy.set(true);
+                self.call_driver(command, arg1)
+            } else {
+                ReturnCode::EBUSY
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> ReturnCode {
@@ -106,19 +105,18 @@ impl HumiditySensor<'a> {
             .enter(app_id, |app, _| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
 impl hil::sensors::HumidityClient for HumiditySensor<'a> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| {
-                if app.subscribed {
-                    self.busy.set(false);
-                    app.subscribed = false;
-                    app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
-                }
+            cntr.enter(|app, _| if app.subscribed {
+                self.busy.set(false);
+                app.subscribed = false;
+                app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
             });
         }
     }

@@ -27,8 +27,8 @@ pub enum ICMP6HeaderOptions {
 
 #[derive(Copy, Clone)]
 pub enum ICMP6Type {
-    Type1,   // Destination Unreachable
-    Type3,   // Time Exceeded
+    Type1, // Destination Unreachable
+    Type3, // Time Exceeded
     Type128, // Echo Request
     Type129, // Echo Reply
 }
@@ -132,11 +132,12 @@ impl ICMP6Header {
         off = enc_consume!(buf, off; encode_u16, self.cksum);
 
         match self.options {
-            ICMP6HeaderOptions::Type1 { unused } | ICMP6HeaderOptions::Type3 { unused } => {
+            ICMP6HeaderOptions::Type1 { unused } |
+            ICMP6HeaderOptions::Type3 { unused } => {
                 off = enc_consume!(buf, off; encode_u32, unused);
             }
-            ICMP6HeaderOptions::Type128 { id, seqno }
-            | ICMP6HeaderOptions::Type129 { id, seqno } => {
+            ICMP6HeaderOptions::Type128 { id, seqno } |
+            ICMP6HeaderOptions::Type129 { id, seqno } => {
                 off = enc_consume!(buf, off; encode_u16, id);
                 off = enc_consume!(buf, off; encode_u16, seqno);
             }

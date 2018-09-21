@@ -58,7 +58,7 @@ enum Registers {
     //NPackCfg = 0x1B5, // Pack configuration
     NRomID = 0x1BC, //RomID - 64bit unique
     //NRSense = 0x1CF, // Sense resistor
-    Batt = 0x0DA,    // Pack voltage, LSB = 1.25mV
+    Batt = 0x0DA, // Pack voltage, LSB = 1.25mV
     Current = 0x00A, // Instantaneous current, LSB = 156.25 uA
     Coulomb = 0x04D,
 }
@@ -223,8 +223,9 @@ impl i2c::I2CClient for MAX17205<'a> {
             }
             State::ReadSOC => {
                 // Read of SOC memory address complete
-                self.soc_mah
-                    .set(((buffer[1] as u16) << 8) | (buffer[0] as u16));
+                self.soc_mah.set(
+                    ((buffer[1] as u16) << 8) | (buffer[0] as u16),
+                );
                 self.soc.set(((buffer[3] as u16) << 8) | (buffer[2] as u16));
 
                 self.buffer.replace(buffer);
@@ -277,9 +278,9 @@ impl i2c::I2CClient for MAX17205<'a> {
                     ReturnCode::SUCCESS
                 };
 
-                self.client.map(|client| {
-                    client.coulomb(coulomb, error);
-                });
+                self.client.map(
+                    |client| { client.coulomb(coulomb, error); },
+                );
 
                 self.buffer.replace(buffer);
                 self.i2c_lower.disable();
@@ -292,8 +293,9 @@ impl i2c::I2CClient for MAX17205<'a> {
             }
             State::ReadVolt => {
                 // Read of voltage memory address complete
-                self.voltage
-                    .set(((buffer[1] as u16) << 8) | (buffer[0] as u16));
+                self.voltage.set(
+                    ((buffer[1] as u16) << 8) | (buffer[0] as u16),
+                );
 
                 self.buffer.replace(buffer);
 
@@ -320,8 +322,9 @@ impl i2c::I2CClient for MAX17205<'a> {
                     ReturnCode::SUCCESS
                 };
 
-                self.client
-                    .map(|client| client.voltage_current(self.voltage.get(), current, error));
+                self.client.map(|client| {
+                    client.voltage_current(self.voltage.get(), current, error)
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c_lower.disable();
@@ -333,11 +336,12 @@ impl i2c::I2CClient for MAX17205<'a> {
             }
             State::ReadRomID => {
                 // u64 from 8 bytes
-                let rid = buffer
-                    .iter()
-                    .take(8)
-                    .enumerate()
-                    .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
+                let rid = buffer.iter().take(8).enumerate().fold(
+                    0u64,
+                    |rid, (i, b)| {
+                        rid | ((*b as u64) << i * 8)
+                    },
+                );
                 self.buffer.replace(buffer);
 
                 let error = if _error != i2c::Error::CommandComplete {
@@ -372,8 +376,9 @@ impl MAX17205Driver<'a> {
 
 impl MAX17205Client for MAX17205Driver<'a> {
     fn status(&self, status: u16, error: ReturnCode) {
-        self.callback
-            .map(|cb| cb.schedule(From::from(error), status as usize, 0));
+        self.callback.map(|cb| {
+            cb.schedule(From::from(error), status as usize, 0)
+        });
     }
 
     fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode) {
@@ -387,13 +392,15 @@ impl MAX17205Client for MAX17205Driver<'a> {
     }
 
     fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode) {
-        self.callback
-            .map(|cb| cb.schedule(From::from(error), voltage as usize, current as usize));
+        self.callback.map(|cb| {
+            cb.schedule(From::from(error), voltage as usize, current as usize)
+        });
     }
 
     fn coulomb(&self, coulomb: u16, error: ReturnCode) {
-        self.callback
-            .map(|cb| cb.schedule(From::from(error), coulomb as usize, 0));
+        self.callback.map(|cb| {
+            cb.schedule(From::from(error), coulomb as usize, 0)
+        });
     }
 
     fn romid(&self, rid: u64, error: ReturnCode) {

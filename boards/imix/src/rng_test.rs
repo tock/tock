@@ -2,7 +2,7 @@ use capsules::test::rng::TestRng;
 use capsules::rng;
 use kernel::hil::rng::Rng;
 use kernel::hil::entropy::{Entropy8, Entropy32};
-use sam4l::trng::{TRNG};
+use sam4l::trng::TRNG;
 
 /// This tests a platform with an underlying 32-bit entropy generator
 /// by taking that generator, putting into a 32-8 conversion to be an

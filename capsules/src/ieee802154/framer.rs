@@ -76,9 +76,8 @@ use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::ReturnCode;
-use net::ieee802154::{
-    FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
-};
+use net::ieee802154::{FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security,
+                      SecurityLevel};
 use net::stream::SResult;
 use net::stream::{encode_bytes, encode_u32, encode_u8};
 
@@ -178,9 +177,9 @@ impl FrameInfo {
         };
 
         // IEEE 802.15.4-2015: Table 9-3. a data and m data
-        let encryption_needed = self
-            .security_params
-            .map_or(false, |(level, _, _)| level.encryption_needed());
+        let encryption_needed = self.security_params.map_or(false, |(level, _, _)| {
+            level.encryption_needed()
+        });
         if !encryption_needed {
             // If only integrity is need, a data is the whole frame
             (self.unsecured_length(), 0)
@@ -342,16 +341,18 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
     /// implemented elsewhere.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
-        self.key_procedure
-            .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
+        self.key_procedure.and_then(|key_procedure| {
+            key_procedure.lookup_key(level, key_id)
+        })
     }
 
     /// Look up the extended address of a device using the IEEE 802.15.4
     /// DeviceDescriptor lookup prodecure implemented elsewhere.
     fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<([u8; 8])> {
         src_addr.and_then(|addr| {
-            self.device_procedure
-                .and_then(|device_procedure| device_procedure.lookup_addr_long(addr))
+            self.device_procedure.and_then(|device_procedure| {
+                device_procedure.lookup_addr_long(addr)
+            })
         })
     }
 
@@ -470,9 +471,9 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
 
     /// Advances the transmission pipeline if it can be advanced.
     fn step_transmit_state(&self) -> (ReturnCode, Option<&'static mut [u8]>) {
-        self.tx_state
-            .take()
-            .map_or((ReturnCode::FAIL, None), |state| {
+        self.tx_state.take().map_or(
+            (ReturnCode::FAIL, None),
+            |state| {
                 // This mechanism is a little more clunky, but makes it
                 // difficult to forget to replace `tx_state`.
                 let (next_state, result) = match state {
@@ -489,8 +490,8 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 let (a_off, m_off) =
                                     (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
-                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
-                                    || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
+                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
+                                    self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
                                 {
                                     (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                                 } else {
@@ -512,10 +513,10 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                                                 Some(buf) => buf,
                                                 None => panic!("aes_ccm did not return the buffer"),
                                             };
-                                            (
-                                                TxState::ReadyToEncrypt(info, buf),
-                                                (ReturnCode::SUCCESS, None),
-                                            )
+                                            (TxState::ReadyToEncrypt(info, buf), (
+                                                ReturnCode::SUCCESS,
+                                                None,
+                                            ))
                                         }
                                         _ => (TxState::Idle, (res, opt_buf)),
                                     }
@@ -540,10 +541,10 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                                         // The radio forgot to return the buffer.
                                         (TxState::Idle, (ReturnCode::FAIL, None))
                                     }
-                                    Some(buf) => (
-                                        TxState::ReadyToTransmit(info, buf),
-                                        (ReturnCode::SUCCESS, None),
-                                    ),
+                                    Some(buf) => (TxState::ReadyToTransmit(info, buf), (
+                                        ReturnCode::SUCCESS,
+                                        None,
+                                    )),
                                 }
                             }
                             _ => (TxState::Idle, (rval, buf)),
@@ -552,7 +553,8 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                 };
                 self.tx_state.replace(next_state);
                 result
-            })
+            },
+        )
     }
 
     /// Advances the reception pipeline if it can be advanced.
@@ -571,8 +573,8 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                             let (m_off, m_len) = info.ccm_encrypt_ranges();
                             let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
-                            if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
-                                || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
+                            if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
+                                self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
                             {
                                 (RxState::Idle, Some(buf))
                             } else {

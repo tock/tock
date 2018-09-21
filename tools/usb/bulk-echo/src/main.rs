@@ -63,13 +63,13 @@ fn main() {
             dev = Some(d);
         }
     }
-    let mut dh = dev
-        .expect("Matching device not found")
-        .open()
-        .expect("Opening device");
+    let mut dh = dev.expect("Matching device not found").open().expect(
+        "Opening device",
+    );
     // dh.reset().expect("Reset");
-    dh.set_active_configuration(0)
-        .expect("Setting active configuration");
+    dh.set_active_configuration(0).expect(
+        "Setting active configuration",
+    );
     dh.claim_interface(0).expect("Claiming interface");
 
     // Unfortunately libusb doesn't provide an asynchronous interface,
@@ -90,7 +90,8 @@ fn main() {
                 stdin_closed = true;
                 debug!(
                     "[ {} out, {} in] End of input ... waiting to drain device",
-                    out_bytes, in_bytes
+                    out_bytes,
+                    in_bytes
                 );
             } else {
                 input_buflen = n;

@@ -255,9 +255,7 @@ pub struct Ficr {
 
 impl Ficr {
     const fn new() -> Ficr {
-        Ficr {
-            registers: FICR_BASE,
-        }
+        Ficr { registers: FICR_BASE }
     }
 
     fn part(&self) -> Part {

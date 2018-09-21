@@ -24,16 +24,18 @@ pub struct UsbComponent {
     board_kernel: &'static kernel::Kernel,
 }
 
-type UsbDevice = capsules::usb_user::UsbSyscallDriver<
-    'static,
-    capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
->;
+type UsbDevice =
+    capsules::usb_user::UsbSyscallDriver<
+        'static,
+        capsules::usbc_client::Client<
+            'static,
+            sam4l::usbc::Usbc<'static>,
+        >,
+    >;
 
 impl UsbComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> UsbComponent {
-        UsbComponent {
-            board_kernel: board_kernel,
-        }
+        UsbComponent { board_kernel: board_kernel }
     }
 }
 

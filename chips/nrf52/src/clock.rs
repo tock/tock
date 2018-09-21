@@ -272,7 +272,8 @@ impl Clock {
     /// Set high frequency clock source
     pub fn high_set_source(&self, clock_source: HighClockSource) {
         let regs = &*self.registers;
-        regs.hfclkstat
-            .write(HfClkStat::SRC.val(clock_source as u32));
+        regs.hfclkstat.write(
+            HfClkStat::SRC.val(clock_source as u32),
+        );
     }
 }

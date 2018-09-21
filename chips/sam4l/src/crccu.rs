@@ -157,7 +157,9 @@ struct TCR(u32);
 
 impl TCR {
     const fn new(enable_interrupt: bool, trwidth: TrWidth, btsize: u16) -> Self {
-        TCR((!enable_interrupt as u32) << 27 | (trwidth as u32) << 24 | (btsize as u32))
+        TCR(
+            (!enable_interrupt as u32) << 27 | (trwidth as u32) << 24 | (btsize as u32),
+        )
     }
 
     const fn default() -> Self {
@@ -387,7 +389,8 @@ impl crc::CRC for Crccu<'a> {
 
         // Configure the unit to compute a checksum
         regs.mr.write(
-            Mode::DIVIDER.val(0) + poly_for_alg(alg) + Mode::COMPARE::CLEAR + Mode::ENABLE::Enabled,
+            Mode::DIVIDER.val(0) + poly_for_alg(alg) + Mode::COMPARE::CLEAR +
+                Mode::ENABLE::Enabled,
         );
 
         // Enable DMA channel

@@ -296,9 +296,7 @@ impl Ast<'a> {
 
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.callback.map(|cb| {
-            cb.fired();
-        });
+        self.callback.map(|cb| { cb.fired(); });
     }
 }
 

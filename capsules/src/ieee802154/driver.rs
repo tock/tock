@@ -218,9 +218,9 @@ impl RadioDriver<'a> {
     fn add_neighbor(&self, new_neighbor: DeviceDescriptor) -> Option<usize> {
         self.neighbors.and_then(|neighbors| {
             let num_neighbors = self.num_neighbors.get();
-            let position = neighbors[..num_neighbors]
-                .iter()
-                .position(|neighbor| *neighbor == new_neighbor);
+            let position = neighbors[..num_neighbors].iter().position(|neighbor| {
+                *neighbor == new_neighbor
+            });
             match position {
                 Some(index) => Some(index),
                 None => {
@@ -243,10 +243,10 @@ impl RadioDriver<'a> {
     fn remove_neighbor(&self, index: usize) -> ReturnCode {
         let num_neighbors = self.num_neighbors.get();
         if index < num_neighbors {
-            self.neighbors.map(|neighbors| {
-                for i in index..(num_neighbors - 1) {
-                    neighbors[i] = neighbors[i + 1];
-                }
+            self.neighbors.map(|neighbors| for i in index..
+                (num_neighbors - 1)
+            {
+                neighbors[i] = neighbors[i + 1];
             });
             self.num_neighbors.set(num_neighbors - 1);
             ReturnCode::SUCCESS
@@ -297,10 +297,8 @@ impl RadioDriver<'a> {
     fn remove_key(&self, index: usize) -> ReturnCode {
         let num_keys = self.num_keys.get();
         if index < num_keys {
-            self.keys.map(|keys| {
-                for i in index..(num_keys - 1) {
-                    keys[i] = keys[i + 1];
-                }
+            self.keys.map(|keys| for i in index..(num_keys - 1) {
+                keys[i] = keys[i + 1];
             });
             self.num_keys.set(num_keys - 1);
             ReturnCode::SUCCESS
@@ -338,16 +336,17 @@ impl RadioDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
+                app.app_cfg.take().as_ref().map_or(
+                    ReturnCode::EINVAL,
+                    |cfg| {
                         if cfg.len() != len {
                             return ReturnCode::EINVAL;
                         }
                         closure(cfg.as_ref())
-                    })
-            }).unwrap_or_else(|err| err.into())
+                    },
+                )
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's config buffer.
@@ -358,16 +357,17 @@ impl RadioDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
+                app.app_cfg.take().as_mut().map_or(
+                    ReturnCode::EINVAL,
+                    |cfg| {
                         if cfg.len() != len {
                             return ReturnCode::EINVAL;
                         }
                         closure(cfg.as_mut())
-                    })
-            }).unwrap_or_else(|err| err.into())
+                    },
+                )
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
@@ -378,10 +378,8 @@ impl RadioDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
-                if app.pending_tx.is_some() {
-                    pending_app = Some(app.appid());
-                }
+            app.enter(|app, _| if app.pending_tx.is_some() {
+                pending_app = Some(app.appid());
             });
             if pending_app.is_some() {
                 break;
@@ -399,9 +397,9 @@ impl RadioDriver<'a> {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+                app.tx_callback.take().map(|mut cb| {
+                    cb.schedule(result.into(), 0, 0)
+                });
             });
         }
     }
@@ -439,8 +437,7 @@ impl RadioDriver<'a> {
                 };
 
                 // Append the payload: there must be one
-                let result = app
-                    .app_write
+                let result = app.app_write
                     .take()
                     .as_ref()
                     .map(|payload| frame.append_payload(payload.as_ref()))
@@ -467,8 +464,9 @@ impl RadioDriver<'a> {
     /// transmission asynchronously, returning any errors via callbacks.
     #[inline]
     fn do_next_tx_async(&self) {
-        self.get_next_tx_if_idle()
-            .map(|appid| self.perform_tx_async(appid));
+        self.get_next_tx_if_idle().map(|appid| {
+            self.perform_tx_async(appid)
+        });
     }
 
     /// Schedule the next transmission if there is one pending. If the next
@@ -479,14 +477,13 @@ impl RadioDriver<'a> {
     #[inline]
     fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
-            .map(|appid| {
-                if appid == new_appid {
-                    self.perform_tx_sync(appid)
-                } else {
-                    self.perform_tx_async(appid);
-                    ReturnCode::SUCCESS
-                }
-            }).unwrap_or(ReturnCode::SUCCESS)
+            .map(|appid| if appid == new_appid {
+                self.perform_tx_sync(appid)
+            } else {
+                self.perform_tx_async(appid);
+                ReturnCode::SUCCESS
+            })
+            .unwrap_or(ReturnCode::SUCCESS)
     }
 }
 
@@ -500,7 +497,8 @@ impl framer::DeviceProcedure for RadioDriver<'a> {
                 .find(|neighbor| match addr {
                     MacAddress::Short(addr) => addr == neighbor.short_addr,
                     MacAddress::Long(addr) => addr == neighbor.long_addr,
-                }).map(|neighbor| neighbor.long_addr)
+                })
+                .map(|neighbor| neighbor.long_addr)
         })
     }
 }
@@ -536,15 +534,17 @@ impl Driver for RadioDriver<'a> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            0 | 1 | 2 => self.do_with_app(appid, |app| {
-                match allow_num {
-                    0 => app.app_read = slice,
-                    1 => app.app_write = slice,
-                    2 => app.app_cfg = slice,
-                    _ => {}
-                }
-                ReturnCode::SUCCESS
-            }),
+            0 | 1 | 2 => {
+                self.do_with_app(appid, |app| {
+                    match allow_num {
+                        0 => app.app_read = slice,
+                        1 => app.app_write = slice,
+                        2 => app.app_cfg = slice,
+                        _ => {}
+                    }
+                    ReturnCode::SUCCESS
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -562,14 +562,18 @@ impl Driver for RadioDriver<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => self.do_with_app(app_id, |app| {
-                app.rx_callback = callback;
-                ReturnCode::SUCCESS
-            }),
-            1 => self.do_with_app(app_id, |app| {
-                app.tx_callback = callback;
-                ReturnCode::SUCCESS
-            }),
+            0 => {
+                self.do_with_app(app_id, |app| {
+                    app.rx_callback = callback;
+                    ReturnCode::SUCCESS
+                })
+            }
+            1 => {
+                self.do_with_app(app_id, |app| {
+                    app.tx_callback = callback;
+                    ReturnCode::SUCCESS
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -637,12 +641,14 @@ impl Driver for RadioDriver<'a> {
                 self.mac.set_address(arg1 as u16);
                 ReturnCode::SUCCESS
             }
-            3 => self.do_with_cfg(appid, 8, |cfg| {
-                let mut addr_long = [0u8; 8];
-                addr_long.copy_from_slice(cfg);
-                self.mac.set_address_long(addr_long);
-                ReturnCode::SUCCESS
-            }),
+            3 => {
+                self.do_with_cfg(appid, 8, |cfg| {
+                    let mut addr_long = [0u8; 8];
+                    addr_long.copy_from_slice(cfg);
+                    self.mac.set_address_long(addr_long);
+                    ReturnCode::SUCCESS
+                })
+            }
             4 => {
                 self.mac.set_pan(arg1 as u16);
                 ReturnCode::SUCCESS
@@ -658,20 +664,18 @@ impl Driver for RadioDriver<'a> {
             8 => {
                 // Guarantee that address is positive by adding 1
                 let addr = self.mac.get_address();
-                ReturnCode::SuccessWithValue {
-                    value: (addr as usize) + 1,
-                }
+                ReturnCode::SuccessWithValue { value: (addr as usize) + 1 }
             }
-            9 => self.do_with_cfg_mut(appid, 8, |cfg| {
-                cfg.copy_from_slice(&self.mac.get_address_long());
-                ReturnCode::SUCCESS
-            }),
+            9 => {
+                self.do_with_cfg_mut(appid, 8, |cfg| {
+                    cfg.copy_from_slice(&self.mac.get_address_long());
+                    ReturnCode::SUCCESS
+                })
+            }
             10 => {
                 // Guarantee that the PAN is positive by adding 1
                 let pan = self.mac.get_pan();
-                ReturnCode::SuccessWithValue {
-                    value: (pan as usize) + 1,
-                }
+                ReturnCode::SuccessWithValue { value: (pan as usize) + 1 }
             }
             // XXX: Getting channel DEPRECATED by MAC layer channel control
             11 => ReturnCode::ENOSUPPORT,
@@ -679,76 +683,82 @@ impl Driver for RadioDriver<'a> {
             12 => ReturnCode::ENOSUPPORT,
             13 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: MAX_NEIGHBORS + 1,
-                }
+                ReturnCode::SuccessWithValue { value: MAX_NEIGHBORS + 1 }
             }
             14 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: self.num_neighbors.get() + 1,
-                }
+                ReturnCode::SuccessWithValue { value: self.num_neighbors.get() + 1 }
             }
-            15 => self
-                .get_neighbor(arg1)
-                .map_or(ReturnCode::EINVAL, |neighbor| {
-                    ReturnCode::SuccessWithValue {
-                        value: (neighbor.short_addr as usize) + 1,
-                    }
-                }),
-            16 => self.do_with_cfg_mut(appid, 8, |cfg| {
-                self.get_neighbor(arg1)
-                    .map_or(ReturnCode::EINVAL, |neighbor| {
-                        cfg.copy_from_slice(&neighbor.long_addr);
-                        ReturnCode::SUCCESS
-                    })
-            }),
-            17 => self.do_with_cfg(appid, 8, |cfg| {
-                let mut new_neighbor: DeviceDescriptor = Default::default();
-                new_neighbor.short_addr = arg1 as u16;
-                new_neighbor.long_addr.copy_from_slice(cfg);
-                self.add_neighbor(new_neighbor)
-                    .map_or(ReturnCode::EINVAL, |index| ReturnCode::SuccessWithValue {
-                        value: index + 1,
-                    })
-            }),
+            15 => {
+                self.get_neighbor(arg1).map_or(
+                    ReturnCode::EINVAL,
+                    |neighbor| {
+                        ReturnCode::SuccessWithValue { value: (neighbor.short_addr as usize) + 1 }
+                    },
+                )
+            }
+            16 => {
+                self.do_with_cfg_mut(appid, 8, |cfg| {
+                    self.get_neighbor(arg1).map_or(
+                        ReturnCode::EINVAL,
+                        |neighbor| {
+                            cfg.copy_from_slice(&neighbor.long_addr);
+                            ReturnCode::SUCCESS
+                        },
+                    )
+                })
+            }
+            17 => {
+                self.do_with_cfg(appid, 8, |cfg| {
+                    let mut new_neighbor: DeviceDescriptor = Default::default();
+                    new_neighbor.short_addr = arg1 as u16;
+                    new_neighbor.long_addr.copy_from_slice(cfg);
+                    self.add_neighbor(new_neighbor).map_or(
+                        ReturnCode::EINVAL,
+                        |index| {
+                            ReturnCode::SuccessWithValue { value: index + 1 }
+                        },
+                    )
+                })
+            }
             18 => self.remove_neighbor(arg1),
             19 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: MAX_KEYS + 1,
-                }
+                ReturnCode::SuccessWithValue { value: MAX_KEYS + 1 }
             }
             20 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue {
-                    value: self.num_keys.get() + 1,
-                }
+                ReturnCode::SuccessWithValue { value: self.num_keys.get() + 1 }
             }
             21 => {
-                self.get_key(arg1)
-                    .map_or(ReturnCode::EINVAL, |key| ReturnCode::SuccessWithValue {
-                        value: (key.level as usize) + 1,
-                    })
-            }
-            22 => self.do_with_cfg_mut(appid, 10, |cfg| {
-                self.get_key(arg1)
-                    .and_then(|key| encode_key_id(&key.key_id, cfg).done())
-                    .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
-            }),
-            23 => self.do_with_cfg_mut(appid, 16, |cfg| {
                 self.get_key(arg1).map_or(ReturnCode::EINVAL, |key| {
-                    cfg.copy_from_slice(&key.key);
-                    ReturnCode::SUCCESS
+                    ReturnCode::SuccessWithValue { value: (key.level as usize) + 1 }
                 })
-            }),
-            24 => self.do_with_cfg(appid, 27, |cfg| {
-                KeyDescriptor::decode(cfg)
-                    .done()
-                    .and_then(|(_, new_key)| self.add_key(new_key))
-                    .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
-                    .unwrap_or(ReturnCode::EINVAL)
-            }),
+            }
+            22 => {
+                self.do_with_cfg_mut(appid, 10, |cfg| {
+                    self.get_key(arg1)
+                        .and_then(|key| encode_key_id(&key.key_id, cfg).done())
+                        .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
+                })
+            }
+            23 => {
+                self.do_with_cfg_mut(appid, 16, |cfg| {
+                    self.get_key(arg1).map_or(ReturnCode::EINVAL, |key| {
+                        cfg.copy_from_slice(&key.key);
+                        ReturnCode::SUCCESS
+                    })
+                })
+            }
+            24 => {
+                self.do_with_cfg(appid, 27, |cfg| {
+                    KeyDescriptor::decode(cfg)
+                        .done()
+                        .and_then(|(_, new_key)| self.add_key(new_key))
+                        .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
+                        .unwrap_or(ReturnCode::EINVAL)
+                })
+            }
             25 => self.remove_key(arg1),
             26 => {
                 self.do_with_app(appid, |app| {
@@ -797,9 +807,9 @@ impl device::TxClient for RadioDriver<'a> {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
+                app.tx_callback.take().map(|mut cb| {
+                    cb.schedule(result.into(), acked as usize, 0)
+                });
             });
         });
         self.do_next_tx_async();
@@ -838,9 +848,9 @@ impl device::RxClient for RadioDriver<'a> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                app.rx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(pans, dst_addr, src_addr));
+                app.rx_callback.take().map(|mut cb| {
+                    cb.schedule(pans, dst_addr, src_addr)
+                });
             });
         });
     }

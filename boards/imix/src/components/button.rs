@@ -27,9 +27,7 @@ pub struct ButtonComponent {
 
 impl ButtonComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> ButtonComponent {
-        ButtonComponent {
-            board_kernel: board_kernel,
-        }
+        ButtonComponent { board_kernel: board_kernel }
     }
 }
 

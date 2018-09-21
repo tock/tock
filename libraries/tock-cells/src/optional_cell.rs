@@ -12,16 +12,12 @@ pub struct OptionalCell<T: Copy> {
 impl<T: Copy> OptionalCell<T> {
     /// Create a new OptionalCell.
     pub const fn new(val: T) -> OptionalCell<T> {
-        OptionalCell {
-            value: Cell::new(Some(val)),
-        }
+        OptionalCell { value: Cell::new(Some(val)) }
     }
 
     /// Create an empty `OptionalCell` (contains just `None`).
     pub const fn empty() -> OptionalCell<T> {
-        OptionalCell {
-            value: Cell::new(None),
-        }
+        OptionalCell { value: Cell::new(None) }
     }
 
     /// Update the stored value.
@@ -97,9 +93,10 @@ impl<T: Copy> OptionalCell<T> {
     where
         F: FnOnce(&mut T) -> R,
     {
-        self.value
-            .get()
-            .map_or(default, |mut val| closure(&mut val))
+        self.value.get().map_or(
+            default,
+            |mut val| closure(&mut val),
+        )
     }
 
     /// If the cell contains a value, call a closure supplied with the
@@ -110,9 +107,10 @@ impl<T: Copy> OptionalCell<T> {
         D: FnOnce() -> U,
         F: FnOnce(&mut T) -> U,
     {
-        self.value
-            .get()
-            .map_or_else(default, |mut val| closure(&mut val))
+        self.value.get().map_or_else(
+            default,
+            |mut val| closure(&mut val),
+        )
     }
 
     /// Transforms the contained `Option<T>` into a `Result<T, E>`, mapping

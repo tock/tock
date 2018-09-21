@@ -188,7 +188,7 @@ impl AsMut<[u8]> for NrfPage {
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
     Ready, // Flash is ready to complete a command.
-    Read,  // Performing a read operation.
+    Read, // Performing a read operation.
     Write, // Performing a write operation.
     Erase, // Performing an erase operation.
 }
@@ -273,8 +273,10 @@ impl Nvmc {
 
         // Tell the NVMC to erase the correct page by passing in the correct
         // address.
-        regs.erasepage
-            .write(ErasePage::ERASEPAGE.val((page_number * PAGE_SIZE) as u32));
+        regs.erasepage.write(ErasePage::ERASEPAGE.val(
+            (page_number * PAGE_SIZE) as
+                u32,
+        ));
 
         // Make sure that the NVMC is done. The CPU should be blocked while the
         // erase is happening, but it doesn't hurt to check too.
@@ -312,10 +314,8 @@ impl Nvmc {
         regs.config.write(Configuration::WEN::Wen);
 
         for i in (0..data.len()).step_by(4) {
-            let word: u32 = (data[i + 0] as u32) << 0
-                | (data[i + 1] as u32) << 8
-                | (data[i + 2] as u32) << 16
-                | (data[i + 3] as u32) << 24;
+            let word: u32 = (data[i + 0] as u32) << 0 | (data[i + 1] as u32) << 8 |
+                (data[i + 2] as u32) << 16 | (data[i + 3] as u32) << 24;
 
             let address = ((page_number * PAGE_SIZE) + i) as u32;
             let location = unsafe { &*(address as *const VolatileCell<u32>) };
