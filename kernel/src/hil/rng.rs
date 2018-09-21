@@ -27,16 +27,20 @@
 //! cryptography. If high-entropy randomness is needed, the `Entropy`
 //! trait should be used instead.
 //!
-//! The interface is designed to work well with random number
+//! The Rng trait is designed to work well with random number
 //! generators that may not have values ready immediately. This is
 //! important when generating numbers from a low-bandwidth hardware
 //! random number generator or when the RNG is virtualized among many
-//! consumers.
+//! consumers.  Random numbers are yielded to the
+//! [Client](trait.Client.html) as an `Iterator` which only terminates
+//! when no more numbers are currently available. Clients can request
+//! more randmoness if needed and will be called again when more is
+//! available.
 //!
-//! Random numbers are yielded to the [Client](trait.Client.html) as
-//! an `Iterator` which only terminates when no more numbers are
-//! currently available. Clients can request more randmoness if needed
-//! and will be called again when more is available.
+//! The Random trait is synchronous, so designed to work
+//! with arithmetically simple random number generators that can
+//! return a result quickly.
+//!
 //!
 //! # Example
 //!

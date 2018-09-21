@@ -61,7 +61,7 @@
 //!
 //! impl<'a, A: Alarm> Client for EntropyTest<'a, A> {
 //!     fn fired(&self) {
-//!         self.rng.get();
+//!         self.entropy.get();
 //!     }
 //! }
 //!
