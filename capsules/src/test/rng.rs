@@ -13,14 +13,12 @@ use kernel::ReturnCode;
 const ELEMENTS: usize = 8;
 
 pub struct TestRandom<'a> {
-    random: &'a rng::Random<'a>
+    random: &'a rng::Random<'a>,
 }
 
 impl<'a> TestRandom<'a> {
     pub fn new(random: &'a rng::Random<'a>) -> TestRandom<'a> {
-        TestRandom {
-            random: random
-        }
+        TestRandom { random: random }
     }
 
     pub fn run(&self) {

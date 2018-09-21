@@ -21,10 +21,10 @@ use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
 use kernel::hil;
-use kernel::hil::spi::SpiMaster;
-use kernel::hil::Controller;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
+use kernel::hil::spi::SpiMaster;
+use kernel::hil::Controller;
 use kernel::Platform;
 
 /// Support routines for debugging I/O.
