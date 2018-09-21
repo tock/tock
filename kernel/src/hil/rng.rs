@@ -49,7 +49,7 @@
 //! use kernel::ReturnCode;
 //!
 //! struct RngTest<'a, A: 'a + hil::time::Alarm> {
-//!     rng: &'a hil::rng::Rng,
+//!     rng: &'a hil::rng::Rng<'a>,
 //!     alarm: &'a A
 //! }
 //!

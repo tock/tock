@@ -45,7 +45,7 @@
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::Client;
 //!
-//! struct EntropyTest<'a, A: Alarm > {
+//! struct EntropyTest<'a, A: 'a + Alarm> {
 //!     entropy: &'a Entropy32 <'a>,
 //!     alarm: &'a A
 //! }
