@@ -44,6 +44,7 @@
 //! use kernel::hil::time::Alarm;
 //! use kernel::hil::time::Frequency;
 //! use kernel::hil::time::Client;
+//! use kernel::ReturnCode;
 //!
 //! struct EntropyTest<'a, A: 'a + Alarm> {
 //!     entropy: &'a Entropy32 <'a>,
@@ -65,7 +66,9 @@
 //! }
 //!
 //! impl<'a, A: Alarm> Client32 for EntropyTest<'a, A> {
-//!     fn entropy_available(&self, entropy: &mut Iterator<Item = u32>) -> hil::entropy::Continue {
+//!     fn entropy_available(&self,
+//!                          entropy: &mut Iterator<Item = u32>,
+//!                          error: ReturnCode) -> hil::entropy::Continue {
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
