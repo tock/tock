@@ -139,7 +139,6 @@ impl<'a> Trng<'a> {
 
         ((regs.out0.get() as u64) << 32) | (regs.out1.get() as u64)
     }
-
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
@@ -158,8 +157,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
 }
 
 impl<'a> entropy::Entropy32<'a> for Trng<'a> {
-
-    fn get(&self) -> ReturnCode{
+    fn get(&self) -> ReturnCode {
         self.enable();
         ReturnCode::SUCCESS
     }
@@ -171,5 +169,4 @@ impl<'a> entropy::Entropy32<'a> for Trng<'a> {
     fn set_client(&'a self, client: &'a entropy::Client32) {
         self.client.set(client);
     }
-
 }

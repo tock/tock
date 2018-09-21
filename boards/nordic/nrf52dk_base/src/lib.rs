@@ -300,7 +300,6 @@ pub unsafe fn setup_board(
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
-
     let etor = static_init!(
         capsules::rng::Entropy32ToRandom<'static>,
         capsules::rng::Entropy32ToRandom::new(&nrf5x::trng::TRNG)
