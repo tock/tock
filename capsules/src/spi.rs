@@ -89,12 +89,10 @@ impl<S: SpiMasterDevice> Spi<'a, S> {
         app.index = end;
 
         self.kernel_write.map(|kwbuf| {
-            app.app_write.as_mut().map(|src| for (i, c) in src.as_ref()
-                [start..end]
-                .iter()
-                .enumerate()
-            {
-                kwbuf[i] = *c;
+            app.app_write.as_mut().map(|src| {
+                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+                    kwbuf[i] = *c;
+                }
             });
         });
         self.spi_master.read_write_bytes(
@@ -115,12 +113,16 @@ impl<S: SpiMasterDevice> Driver for Spi<'a, S> {
         match allow_num {
             // Pass in a read buffer to receive bytes into.
             0 => {
-                self.app.map(|app| { app.app_read = slice; });
+                self.app.map(|app| {
+                    app.app_read = slice;
+                });
                 ReturnCode::SUCCESS
             }
             // Pass in a write buffer to transmit bytes from.
             1 => {
-                self.app.map(|app| { app.app_write = slice; });
+                self.app.map(|app| {
+                    app.app_write = slice;
+                });
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -278,9 +280,9 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
-                app.callback.take().map(
-                    |mut cb| { cb.schedule(app.len, 0, 0); },
-                );
+                app.callback.take().map(|mut cb| {
+                    cb.schedule(app.len, 0, 0);
+                });
             } else {
                 self.do_next_read_write(app);
             }
@@ -316,19 +318,14 @@ impl<S: SpiSlaveDevice> SpiSlave<'a, S> {
         app.index = end;
 
         self.kernel_write.map(|kwbuf| {
-            app.app_write.as_mut().map(|src| for (i, c) in src.as_ref()
-                [start..end]
-                .iter()
-                .enumerate()
-            {
-                kwbuf[i] = *c;
+            app.app_write.as_mut().map(|src| {
+                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+                    kwbuf[i] = *c;
+                }
             });
         });
-        self.spi_slave.read_write_bytes(
-            self.kernel_write.take(),
-            self.kernel_read.take(),
-            len,
-        );
+        self.spi_slave
+            .read_write_bytes(self.kernel_write.take(), self.kernel_read.take(), len);
     }
 }
 
@@ -500,9 +497,9 @@ impl<S: SpiSlaveDevice> SpiSlaveClient for SpiSlave<'a, S> {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
-                app.callback.take().map(
-                    |mut cb| { cb.schedule(app.len, 0, 0); },
-                );
+                app.callback.take().map(|mut cb| {
+                    cb.schedule(app.len, 0, 0);
+                });
             } else {
                 self.do_next_read_write(app);
             }

@@ -66,20 +66,21 @@ impl NineDof<'a> {
     // and will be run when the pending command completes.
     fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| if self.current_app.is_none() {
-                self.current_app.set(appid);
-                self.call_driver(command, arg1)
-            } else {
-                if app.pending_command == true {
-                    ReturnCode::ENOMEM
+            .enter(appid, |app, _| {
+                if self.current_app.is_none() {
+                    self.current_app.set(appid);
+                    self.call_driver(command, arg1)
                 } else {
-                    app.pending_command = true;
-                    app.command = command;
-                    app.arg1 = arg1;
-                    ReturnCode::SUCCESS
+                    if app.pending_command == true {
+                        ReturnCode::ENOMEM
+                    } else {
+                        app.pending_command = true;
+                        app.command = command;
+                        app.arg1 = arg1;
+                        ReturnCode::SUCCESS
+                    }
                 }
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
@@ -104,24 +105,25 @@ impl hil::sensors::NineDofClient for NineDof<'a> {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
-                app.callback.map(
-                    |mut cb| { cb.schedule(arg1, arg2, arg3); },
-                );
+                app.callback.map(|mut cb| {
+                    cb.schedule(arg1, arg2, arg3);
+                });
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let started_command = cntr.enter(|app, _| {
-                if app.pending_command && app.command == finished_command &&
-                    app.arg1 == finished_command_arg
+                if app.pending_command
+                    && app.command == finished_command
+                    && app.arg1 == finished_command_arg
                 {
                     // Don't bother re-issuing this command, just use
                     // the existing result.
                     app.pending_command = false;
-                    app.callback.map(
-                        |mut cb| { cb.schedule(arg1, arg2, arg3); },
-                    );
+                    app.callback.map(|mut cb| {
+                        cb.schedule(arg1, arg2, arg3);
+                    });
                     false
                 } else if app.pending_command {
                     app.pending_command = false;
@@ -146,14 +148,12 @@ impl Driver for NineDof<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(app_id, |app, _| {
-                        app.callback = callback;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

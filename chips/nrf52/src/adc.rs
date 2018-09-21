@@ -281,7 +281,9 @@ impl Adc {
 
             // Left justify to meet HIL requirements.
             let val = unsafe { SAMPLE[0] } << 2;
-            self.client.map(|client| { client.sample_ready(val); });
+            self.client.map(|client| {
+                client.sample_ready(val);
+            });
         }
     }
 }
@@ -298,9 +300,9 @@ impl hil::adc::Adc for Adc {
         regs.ch[0].pseln.write(PSEL::PSEL::NotConnected);
 
         // Configure the ADC for a single read.
-        regs.ch[0].config.write(
-            CONFIG::GAIN::Gain1_4 + CONFIG::REFSEL::VDD1_4 + CONFIG::TACQ::us10,
-        );
+        regs.ch[0]
+            .config
+            .write(CONFIG::GAIN::Gain1_4 + CONFIG::REFSEL::VDD1_4 + CONFIG::TACQ::us10);
 
         // Set max resolution.
         regs.resolution.write(RESOLUTION::VAL::bit14);
@@ -319,10 +321,8 @@ impl hil::adc::Adc for Adc {
         regs.enable.write(ENABLE::ENABLE::SET);
 
         // Enable started, sample end, and stopped interrupts.
-        regs.inten.write(
-            INTEN::STARTED::SET + INTEN::END::SET +
-                INTEN::STOPPED::SET,
-        );
+        regs.inten
+            .write(INTEN::STARTED::SET + INTEN::END::SET + INTEN::STOPPED::SET);
 
         // Start the SAADC and wait for the started interrupt.
         regs.tasks_start.write(TASK::TASK::SET);

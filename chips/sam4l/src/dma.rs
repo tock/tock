@@ -238,9 +238,9 @@ impl DMAChannel {
             }
             let registers: &DMARegisters = &*self.registers;
             // Disable all interrupts
-            registers.idr.write(
-                Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET,
-            );
+            registers
+                .idr
+                .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
 
             self.enabled.set(true);
         }
@@ -267,12 +267,14 @@ impl DMAChannel {
 
     pub fn handle_interrupt(&mut self) {
         let registers: &DMARegisters = &*self.registers;
-        registers.idr.write(
-            Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET,
-        );
+        registers
+            .idr
+            .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
         let channel = registers.psr.get();
 
-        self.client.map(|client| { client.transfer_done(channel); });
+        self.client.map(|client| {
+            client.transfer_done(channel);
+        });
     }
 
     pub fn start_transfer(&self) {
@@ -285,8 +287,7 @@ impl DMAChannel {
 
         let registers: &DMARegisters = &*self.registers;
 
-        let maxlen = buf.len() /
-            match self.width.get() {
+        let maxlen = buf.len() / match self.width.get() {
                 DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
                 DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
                 DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
@@ -295,10 +296,9 @@ impl DMAChannel {
         registers.mr.write(Mode::SIZE.val(self.width.get() as u32));
 
         registers.psr.set(pid);
-        registers.marr.write(MemoryAddressReload::MARV.val(
-            &buf[0] as *const u8 as
-                u32,
-        ));
+        registers
+            .marr
+            .write(MemoryAddressReload::MARV.val(&buf[0] as *const u8 as u32));
         registers.tcrr.write(TransferCounter::TCV.val(len as u32));
 
         registers.ier.write(Interrupt::TRC::SET);
@@ -317,9 +317,9 @@ impl DMAChannel {
     /// transaction.
     pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
         let registers: &DMARegisters = &*self.registers;
-        registers.idr.write(
-            Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET,
-        );
+        registers
+            .idr
+            .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
 
         // Reset counter
         registers.tcr.write(TransferCounter::TCV.val(0));

@@ -59,15 +59,16 @@ use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
 
 /// IntLike properties needed to read/write/modify a register.
-pub trait IntLike
-    : BitAnd<Output = Self>
+pub trait IntLike:
+    BitAnd<Output = Self>
     + BitOr<Output = Self>
     + Not<Output = Self>
     + Eq
     + Shr<usize, Output = Self>
     + Shl<usize, Output = Self>
     + Copy
-    + Clone {
+    + Clone
+{
     fn zero() -> Self;
 }
 

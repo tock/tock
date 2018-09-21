@@ -126,9 +126,8 @@ impl i2c::I2CClient for PCA9544A<'a> {
                     ControlField::SelectedChannels => buffer[0] & 0x07,
                 };
 
-                self.callback.map(|cb| {
-                    cb.schedule((field as usize) + 1, ret as usize, 0)
-                });
+                self.callback
+                    .map(|cb| cb.schedule((field as usize) + 1, ret as usize, 0));
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();

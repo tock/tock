@@ -30,7 +30,9 @@ pub struct NonvolatileStorageComponent {
 
 impl NonvolatileStorageComponent {
     pub fn new(board_kernel: &'static kernel::Kernel) -> Self {
-        NonvolatileStorageComponent { board_kernel: board_kernel }
+        NonvolatileStorageComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 

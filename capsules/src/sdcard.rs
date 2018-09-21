@@ -82,18 +82,18 @@ pub struct SDCard<'a, A: hil::time::Alarm> {
 #[allow(dead_code, non_camel_case_types)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum SDCmd {
-    CMD0_Reset = 0, //                  Reset
-    CMD1_Init = 1, //                   Generic init
-    CMD8_CheckVoltage = 8, //           Check voltage range
-    CMD9_ReadCSD = 9, //                Read chip specific data (CSD) register
-    CMD12_StopRead = 12, //             Stop multiple block read
-    CMD16_SetBlockSize = 16, //         Set blocksize
-    CMD17_ReadSingle = 17, //           Read single block
-    CMD18_ReadMultiple = 18, //         Read multiple blocks
-    CMD24_WriteSingle = 24, //          Write single block
-    CMD25_WriteMultiple = 25, //        Write multiple blocks
-    CMD55_ManufSpecificCommand = 55, // Next command will be manufacturer specific
-    CMD58_ReadOCR = 58, //              Read operation condition register (OCR)
+    CMD0_Reset = 0,                       //                  Reset
+    CMD1_Init = 1,                        //                   Generic init
+    CMD8_CheckVoltage = 8,                //           Check voltage range
+    CMD9_ReadCSD = 9,                     //                Read chip specific data (CSD) register
+    CMD12_StopRead = 12,                  //             Stop multiple block read
+    CMD16_SetBlockSize = 16,              //         Set blocksize
+    CMD17_ReadSingle = 17,                //           Read single block
+    CMD18_ReadMultiple = 18,              //         Read multiple blocks
+    CMD24_WriteSingle = 24,               //          Write single block
+    CMD25_WriteMultiple = 25,             //        Write multiple blocks
+    CMD55_ManufSpecificCommand = 55,      // Next command will be manufacturer specific
+    CMD58_ReadOCR = 58,                   //              Read operation condition register (OCR)
     ACMD41_ManufSpecificInit = 0x80 + 41, // Manufacturer specific Init
 }
 
@@ -101,10 +101,10 @@ enum SDCmd {
 #[allow(dead_code, non_camel_case_types)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum SDResponse {
-    R1_Status, //         Status response, single byte
+    R1_Status,         //         Status response, single byte
     R2_ExtendedStatus, // Extended response, two bytes, unused in practice
-    R3_OCR, //            OCR response, status + four bytes
-    R7_CheckVoltage, //   Check voltage response, status + four bytes
+    R3_OCR,            //            OCR response, status + four bytes
+    R7_CheckVoltage,   //   Check voltage response, status + four bytes
 }
 
 /// SPI states
@@ -319,11 +319,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
 
         // start SPI transaction
         // Length is command bytes (8) plus recv_len
-        self.spi.read_write_bytes(
-            write_buffer,
-            Some(read_buffer),
-            8 + recv_len,
-        );
+        self.spi
+            .read_write_bytes(write_buffer, Some(read_buffer), 8 + recv_len);
     }
 
     /// wrapper for easy reading of bytes over SPI
@@ -343,11 +340,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
             *byte = 0xFF;
         }
 
-        self.spi.read_write_bytes(
-            write_buffer,
-            Some(read_buffer),
-            recv_len,
-        );
+        self.spi
+            .read_write_bytes(write_buffer, Some(read_buffer), recv_len);
     }
 
     /// wrapper for easy writing of bytes over SPI
@@ -359,11 +353,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     ) {
         self.set_spi_fast_mode();
 
-        self.spi.read_write_bytes(
-            write_buffer,
-            Some(read_buffer),
-            recv_len,
-        );
+        self.spi
+            .read_write_bytes(write_buffer, Some(read_buffer), recv_len);
     }
 
     /// parse response bytes from SPI read buffer
@@ -387,14 +378,13 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                             r2 = read_buffer[i + 1];
                         }
                     }
-                    SDResponse::R3_OCR |
-                    SDResponse::R7_CheckVoltage => {
+                    SDResponse::R3_OCR | SDResponse::R7_CheckVoltage => {
                         // status, then Operating Condition Register
                         if i + 4 < read_buffer.len() {
-                            r3 = (read_buffer[i + 1] as u32) << 24 |
-                                (read_buffer[i + 2] as u32) << 16 |
-                                (read_buffer[i + 3] as u32) << 8 |
-                                (read_buffer[i + 4] as u32);
+                            r3 = (read_buffer[i + 1] as u32) << 24
+                                | (read_buffer[i + 2] as u32) << 16
+                                | (read_buffer[i + 3] as u32) << 8
+                                | (read_buffer[i + 4] as u32);
                         }
                     }
                     _ => {
@@ -705,11 +695,11 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                             // get total size from CSD
                             if (buf[1] & 0xC0) == 0x00 {
                                 // CSD version 1.0
-                                let c_size = (((buf[7] & 0x03) as u32) << 10) |
-                                    (((buf[8] & 0xFF) as u32) << 2) |
-                                    (((buf[9] & 0xC0) as u32) >> 6);
-                                let c_size_mult = (((buf[10] & 0x03) as u32) << 1) |
-                                    (((buf[11] & 0x80) as u32) >> 7);
+                                let c_size = (((buf[7] & 0x03) as u32) << 10)
+                                    | (((buf[8] & 0xFF) as u32) << 2)
+                                    | (((buf[9] & 0xC0) as u32) >> 6);
+                                let c_size_mult = (((buf[10] & 0x03) as u32) << 1)
+                                    | (((buf[11] & 0x80) as u32) >> 7);
                                 let read_bl_len = (buf[6] & 0x0F) as u32;
 
                                 let block_count = (c_size + 1) * (1 << (c_size_mult + 2));
@@ -717,9 +707,9 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                                 total_size = block_count as u64 * block_len as u64;
                             } else {
                                 // CSD version 2.0
-                                let c_size = (((buf[8] & 0x3F) as u32) << 16) |
-                                    (((buf[9] & 0xFF) as u32) << 8) |
-                                    ((buf[10] & 0xFF) as u32);
+                                let c_size = (((buf[8] & 0x3F) as u32) << 16)
+                                    | (((buf[9] & 0xFF) as u32) << 8)
+                                    | ((buf[10] & 0xFF) as u32);
                                 total_size = ((c_size as u64) + 1) * 512 * 1024;
                             }
 
@@ -851,9 +841,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                     self.rxbuffer.replace(read_buffer);
 
                     // try again after 1 ms
-                    self.alarm_state.set(AlarmState::WaitForDataBlocks {
-                        count: count,
-                    });
+                    self.alarm_state
+                        .set(AlarmState::WaitForDataBlocks { count: count });
                     let interval = (1 as u32) * <A::Frequency>::frequency() / 1000;
                     let tics = self.alarm.now().wrapping_add(interval);
                     self.alarm.set_alarm(tics);
@@ -877,12 +866,11 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                     // Limit to minimum length between buffer, read_buffer, and
                     // 512 (block size)
                     let offset = self.client_offset.get();
-                    for (client_byte, &read_byte) in
-                        buffer
-                            .iter_mut()
-                            .skip(offset)
-                            .zip(read_buffer.iter())
-                            .take(512)
+                    for (client_byte, &read_byte) in buffer
+                        .iter_mut()
+                        .skip(offset)
+                        .zip(read_buffer.iter())
+                        .take(512)
                     {
                         *client_byte = read_byte;
                     }
@@ -898,9 +886,8 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                     self.send_command(SDCmd::CMD12_StopRead, 0x0, write_buffer, read_buffer, 10);
                 } else {
                     // check for next data block to be ready
-                    self.state.set(
-                        SpiState::WaitReadBlocks { count: count - 1 },
-                    );
+                    self.state
+                        .set(SpiState::WaitReadBlocks { count: count - 1 });
                     self.read_bytes(write_buffer, read_buffer, 1);
                 }
             }
@@ -1033,9 +1020,9 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                     self.state.set(SpiState::Idle);
                     self.alarm_count.set(0);
                     self.client_buffer.take().map(move |buffer| {
-                        self.client.map(
-                            move |client| { client.write_done(buffer); },
-                        );
+                        self.client.map(move |client| {
+                            client.write_done(buffer);
+                        });
                     });
                 } else {
                     // replace buffers
@@ -1225,16 +1212,15 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         if self.is_installed() {
             // reset the SD card in order to start initializing it
             self.txbuffer.take().map_or(ReturnCode::ENOMEM, |txbuffer| {
-                self.rxbuffer.take().map_or(
-                    ReturnCode::ENOMEM,
-                    move |rxbuffer| {
+                self.rxbuffer
+                    .take()
+                    .map_or(ReturnCode::ENOMEM, move |rxbuffer| {
                         self.state.set(SpiState::InitReset);
                         self.send_command(SDCmd::CMD0_Reset, 0x0, txbuffer, rxbuffer, 10);
 
                         // command started successfully
                         ReturnCode::SUCCESS
-                    },
-                )
+                    })
             })
         } else {
             // no sd card installed
@@ -1247,9 +1233,9 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         if self.is_installed() {
             if self.is_initialized() {
                 self.txbuffer.take().map_or(ReturnCode::ENOMEM, |txbuffer| {
-                    self.rxbuffer.take().map_or(
-                        ReturnCode::ENOMEM,
-                        move |rxbuffer| {
+                    self.rxbuffer
+                        .take()
+                        .map_or(ReturnCode::ENOMEM, move |rxbuffer| {
                             // save the user buffer for later
                             self.client_buffer.replace(buffer);
                             self.client_offset.set(0);
@@ -1282,8 +1268,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
 
                             // command started successfully
                             ReturnCode::SUCCESS
-                        },
-                    )
+                        })
                 })
             } else {
                 // sd card not initialized
@@ -1300,9 +1285,9 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
         if self.is_installed() {
             if self.is_initialized() {
                 self.txbuffer.take().map_or(ReturnCode::ENOMEM, |txbuffer| {
-                    self.rxbuffer.take().map_or(
-                        ReturnCode::ENOMEM,
-                        move |rxbuffer| {
+                    self.rxbuffer
+                        .take()
+                        .map_or(ReturnCode::ENOMEM, move |rxbuffer| {
                             // save the user buffer for later
                             self.client_buffer.replace(buffer);
                             self.client_offset.set(0);
@@ -1330,8 +1315,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
                                 // can't write multiple blocks yet
                                 ReturnCode::ENOSUPPORT
                             }
-                        },
-                    )
+                        })
                 })
             } else {
                 // sd card not initialized
@@ -1384,9 +1368,9 @@ impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
         self.is_initialized.set(false);
 
         // disable additional interrupts
-        self.detect_pin.get().map(
-            |pin| { pin.disable_interrupt(); },
-        );
+        self.detect_pin.get().map(|pin| {
+            pin.disable_interrupt();
+        });
 
         // run a timer for 500 ms in order to let the sd card settle
         self.alarm_state.set(AlarmState::DetectionChange);
@@ -1465,8 +1449,7 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
                     // copy bytes to user buffer
                     // Limit to minimum length between read_buffer, data, and
                     // len field
-                    for (read_byte, &data_byte) in
-                        read_buffer.iter_mut().zip(data.iter()).take(len)
+                    for (read_byte, &data_byte) in read_buffer.iter_mut().zip(data.iter()).take(len)
                     {
                         *read_byte = data_byte;
                     }
@@ -1477,7 +1460,9 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
             // perform callback
             // Note that we are explicitly performing the callback even if no
             // data was read or if the app's read_buffer doesn't exist
-            app.callback.map(|mut cb| { cb.schedule(2, read_len, 0); });
+            app.callback.map(|mut cb| {
+                cb.schedule(2, read_len, 0);
+            });
         });
     }
 
@@ -1485,15 +1470,17 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.app.map(|app| {
-            app.callback.map(|mut cb| { cb.schedule(3, 0, 0); });
+            app.callback.map(|mut cb| {
+                cb.schedule(3, 0, 0);
+            });
         });
     }
 
     fn error(&self, error: u32) {
         self.app.map(|app| {
-            app.callback.map(
-                |mut cb| { cb.schedule(4, error as usize, 0); },
-            );
+            app.callback.map(|mut cb| {
+                cb.schedule(4, error as usize, 0);
+            });
         });
     }
 }
@@ -1555,24 +1542,22 @@ impl<A: hil::time::Alarm> Driver for SDCardDriver<'a, A> {
             2 => self.sdcard.initialize(),
 
             // read_block
-            3 => {
-                self.kernel_buf.take().map_or(
-                    ReturnCode::EBUSY,
-                    |kernel_buf| {
-                        self.sdcard.read_blocks(kernel_buf, data as u32, 1)
-                    },
-                )
-            }
+            3 => self
+                .kernel_buf
+                .take()
+                .map_or(ReturnCode::EBUSY, |kernel_buf| {
+                    self.sdcard.read_blocks(kernel_buf, data as u32, 1)
+                }),
 
             // write_block
             4 => {
                 self.app.map_or(ReturnCode::ENOMEM, |app| {
-                    app.write_buffer.as_mut().map_or(
-                        ReturnCode::ENOMEM,
-                        |write_buffer| {
-                            self.kernel_buf.take().map_or(
-                                ReturnCode::EBUSY,
-                                |kernel_buf| {
+                    app.write_buffer
+                        .as_mut()
+                        .map_or(ReturnCode::ENOMEM, |write_buffer| {
+                            self.kernel_buf
+                                .take()
+                                .map_or(ReturnCode::EBUSY, |kernel_buf| {
                                     // copy over write data from application
                                     // Limit to minimum length between kernel_buf,
                                     // write_buffer, and 512 (block size)
@@ -1584,10 +1569,8 @@ impl<A: hil::time::Alarm> Driver for SDCardDriver<'a, A> {
 
                                     // begin writing
                                     self.sdcard.write_blocks(kernel_buf, data as u32, 1)
-                                },
-                            )
-                        },
-                    )
+                                })
+                        })
                 })
             }
 

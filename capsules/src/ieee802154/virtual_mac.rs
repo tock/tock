@@ -104,8 +104,11 @@ impl MuxMac<'a> {
             let (result, mbuf) = self.mac.transmit(frame);
             // If a buffer is returned, the transmission failed,
             // otherwise it succeeded.
-            mbuf.map(|buf| { node.send_done(buf, false, result); })
-                .unwrap_or_else(|| { self.inflight.set(node); });
+            mbuf.map(|buf| {
+                node.send_done(buf, false, result);
+            }).unwrap_or_else(|| {
+                self.inflight.set(node);
+            });
         }
     }
 
@@ -132,9 +135,8 @@ impl MuxMac<'a> {
     /// Since this is being called asynchronously, return any buffers to the active
     /// `tx_client` via the `send_done` callback in the event of failure.
     fn do_next_op_async(&self) {
-        self.get_next_op_if_idle().map(|(node, op)| {
-            self.perform_op_async(node, op)
-        });
+        self.get_next_op_if_idle()
+            .map(|(node, op)| self.perform_op_async(node, op));
     }
 
     /// Begins the next outstanding transmission if there is no ongoing
@@ -202,15 +204,15 @@ impl MacUser<'a> {
 
 impl MacUser<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.tx_client.get().map(move |client| {
-            client.send_done(spi_buf, acked, result)
-        });
+        self.tx_client
+            .get()
+            .map(move |client| client.send_done(spi_buf, acked, result));
     }
 
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        self.rx_client.get().map(move |client| {
-            client.receive(buf, header, data_offset, data_len)
-        });
+        self.rx_client
+            .get()
+            .map(move |client| client.receive(buf, header, data_offset, data_len));
     }
 }
 
@@ -270,14 +272,9 @@ impl device::MacDevice<'a> for MacUser<'a> {
         src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<framer::Frame, &'static mut [u8]> {
-        self.mux.mac.prepare_data_frame(
-            buf,
-            dst_pan,
-            dst_addr,
-            src_pan,
-            src_addr,
-            security_needed,
-        )
+        self.mux
+            .mac
+            .prepare_data_frame(buf, dst_pan, dst_addr, src_pan, src_addr, security_needed)
     }
 
     fn transmit(&self, frame: framer::Frame) -> (ReturnCode, Option<&'static mut [u8]>) {
@@ -285,20 +282,19 @@ impl device::MacDevice<'a> for MacUser<'a> {
         // attempt to queue the transmission request. However, each MAC user can
         // only have one pending transmission request, so if there already is a
         // pending transmission then we must fail to entertain this one.
-        self.operation.take().map_or(
-            (ReturnCode::FAIL, None),
-            |op| match op {
+        self.operation
+            .take()
+            .map_or((ReturnCode::FAIL, None), |op| match op {
                 Op::Idle => {
                     self.operation.replace(Op::Transmit(frame));
-                    self.mux.do_next_op_sync(self).unwrap_or(
-                        (ReturnCode::SUCCESS, None),
-                    )
+                    self.mux
+                        .do_next_op_sync(self)
+                        .unwrap_or((ReturnCode::SUCCESS, None))
                 }
                 Op::Transmit(old_frame) => {
                     self.operation.replace(Op::Transmit(old_frame));
                     (ReturnCode::EBUSY, Some(frame.into_buf()))
                 }
-            },
-        )
+            })
     }
 }

@@ -289,7 +289,9 @@ impl TimerAlarm {
 
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
-        self.client.map(|client| { client.fired(); });
+        self.client.map(|client| {
+            client.fired();
+        });
     }
 
     // Enable and disable interrupts use the bottom 4 bits

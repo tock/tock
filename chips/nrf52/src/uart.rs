@@ -302,10 +302,8 @@ impl Uarte {
                 self.offset.set(self.offset.get() + tx_bytes);
                 self.tx_remaining_bytes.set(rem);
                 self.set_tx_dma_pointer_to_buffer();
-                regs.txd_maxcnt.write(Counter::COUNTER.val(min(
-                    rem as u32,
-                    UARTE_MAX_BUFFER_SIZE,
-                )));
+                regs.txd_maxcnt
+                    .write(Counter::COUNTER.val(min(rem as u32, UARTE_MAX_BUFFER_SIZE)));
                 regs.task_starttx.write(Task::ENABLE::SET);
                 self.enable_tx_interrupts();
             }
@@ -339,11 +337,8 @@ impl Uarte {
 
                 // Update how many bytes we still need to receive and
                 // where we are storing in the buffer.
-                self.rx_remaining_bytes.set(
-                    self.rx_remaining_bytes
-                        .get()
-                        .saturating_sub(rx_bytes),
-                );
+                self.rx_remaining_bytes
+                    .set(self.rx_remaining_bytes.get().saturating_sub(rx_bytes));
                 self.offset.set(self.offset.get() + rx_bytes);
 
                 let rem = self.rx_remaining_bytes.get();
@@ -402,18 +397,16 @@ impl Uarte {
     fn set_tx_dma_pointer_to_buffer(&self) {
         let regs = &*self.registers;
         self.tx_buffer.map(|tx_buffer| {
-            regs.txd_ptr.set(
-                tx_buffer[self.offset.get()..].as_ptr() as u32,
-            );
+            regs.txd_ptr
+                .set(tx_buffer[self.offset.get()..].as_ptr() as u32);
         });
     }
 
     fn set_rx_dma_pointer_to_buffer(&self) {
         let regs = &*self.registers;
         self.rx_buffer.map(|rx_buffer| {
-            regs.rxd_ptr.set(
-                rx_buffer[self.offset.get()..].as_ptr() as u32,
-            );
+            regs.rxd_ptr
+                .set(rx_buffer[self.offset.get()..].as_ptr() as u32);
         });
     }
 }
@@ -454,9 +447,8 @@ impl kernel::hil::uart::UART for Uarte {
         self.set_tx_dma_pointer_to_buffer();
 
         let regs = &*self.registers;
-        regs.txd_maxcnt.write(Counter::COUNTER.val(
-            min(tx_len as u32, UARTE_MAX_BUFFER_SIZE),
-        ));
+        regs.txd_maxcnt
+            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
         regs.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
@@ -475,10 +467,8 @@ impl kernel::hil::uart::UART for Uarte {
 
         let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
 
-        regs.rxd_maxcnt.write(Counter::COUNTER.val(
-            truncated_uart_max_length as
-                u32,
-        ));
+        regs.rxd_maxcnt
+            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
         regs.task_stoprx.write(Task::ENABLE::SET);
         regs.task_startrx.write(Task::ENABLE::SET);
 

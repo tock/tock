@@ -113,13 +113,12 @@ impl<U: UART> Console<'a, U> {
     /// Returns true if this send is still active, or false if it has completed
     fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
         if app.write_remaining > 0 {
-            app.write_buffer.take().map_or(
-                Err(ReturnCode::ERESERVE),
-                |slice| {
+            app.write_buffer
+                .take()
+                .map_or(Err(ReturnCode::ERESERVE), |slice| {
                     self.send(app_id, app, slice);
                     Ok(true)
-                },
-            )
+                })
         } else {
             Ok(false)
         }
@@ -207,22 +206,18 @@ impl<U: UART> Driver for Console<'a, U> {
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            1 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.write_buffer = slice;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
-            2 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.read_buffer = slice;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            1 => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.write_buffer = slice;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
+            2 => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.read_buffer = slice;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -303,9 +298,9 @@ impl<U: UART> Client for Console<'a, U> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            app.write_callback.map(
-                                |mut cb| { cb.schedule(written, 0, 0); },
-                            );
+                            app.write_callback.map(|mut cb| {
+                                cb.schedule(written, 0, 0);
+                            });
                         }
                     }
                     Err(return_code) => {
@@ -314,7 +309,9 @@ impl<U: UART> Client for Console<'a, U> {
                         app.write_remaining = 0;
                         app.pending_write = false;
                         let r0 = isize::from(return_code) as usize;
-                        app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                        app.write_callback.map(|mut cb| {
+                            cb.schedule(r0, 0, 0);
+                        });
                     }
                 }
             })
@@ -335,7 +332,9 @@ impl<U: UART> Client for Console<'a, U> {
                                 app.write_remaining = 0;
                                 app.pending_write = false;
                                 let r0 = isize::from(return_code) as usize;
-                                app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                                app.write_callback.map(|mut cb| {
+                                    cb.schedule(r0, 0, 0);
+                                });
                                 false
                             }
                         }

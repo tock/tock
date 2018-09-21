@@ -5,8 +5,8 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
-use pm;
 use kernel::ReturnCode;
+use pm;
 
 #[repr(C)]
 struct TrngRegisters {
@@ -81,7 +81,6 @@ impl Trng<'a> {
             }
         });
     }
-
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
@@ -117,5 +116,4 @@ impl entropy::Entropy32<'a> for Trng<'a> {
     fn set_client(&'a self, client: &'a entropy::Client32) {
         self.client.set(client);
     }
-
 }

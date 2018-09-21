@@ -111,9 +111,9 @@ impl kernel::SysTick for SysTick {
         };
 
         // n.b.: 4.4.5 'hints and tips' suggests setting reload before value
-        SYSTICK_BASE.syst_rvr.write(
-            ReloadValue::RELOAD.val(reload as u32),
-        );
+        SYSTICK_BASE
+            .syst_rvr
+            .write(ReloadValue::RELOAD.val(reload as u32));
         SYSTICK_BASE.syst_cvr.set(0);
     }
 
@@ -146,13 +146,14 @@ impl kernel::SysTick for SysTick {
     fn enable(&self, with_interrupt: bool) {
         if with_interrupt {
             SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET + ControlAndStatus::TICKINT::SET +
-                    ControlAndStatus::CLKSOURCE::SET,
+                ControlAndStatus::ENABLE::SET
+                    + ControlAndStatus::TICKINT::SET
+                    + ControlAndStatus::CLKSOURCE::SET,
             );
         } else {
-            SYSTICK_BASE.syst_csr.write(
-                ControlAndStatus::ENABLE::SET + ControlAndStatus::CLKSOURCE::SET,
-            );
+            SYSTICK_BASE
+                .syst_csr
+                .write(ControlAndStatus::ENABLE::SET + ControlAndStatus::CLKSOURCE::SET);
         }
     }
 }

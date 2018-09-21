@@ -16,7 +16,7 @@ use pm::{self, Clock, PBAClock};
 pub struct DacRegisters {
     // From page 905 of SAM4L manual
     cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
-    mr: ReadWrite<u32, Mode::Register>, //                Mode                          (0x04)
+    mr: ReadWrite<u32, Mode::Register>,    //                Mode                          (0x04)
     cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
     ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
     idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
@@ -153,9 +153,11 @@ impl hil::dac::DacChannel for Dac {
             // -clock divider from 48 MHz to 500 kHz (0x60)
             // -internal trigger
             // -enable dacc
-            let mr = Mode::WORD::HalfWordTransfer + Mode::STARTUP.val(0xff) +
-                Mode::CLKDIV.val(0x60) + Mode::TRGEN::InternalTrigger +
-                Mode::DACEN::SET;
+            let mr = Mode::WORD::HalfWordTransfer
+                + Mode::STARTUP.val(0xff)
+                + Mode::CLKDIV.val(0x60)
+                + Mode::TRGEN::InternalTrigger
+                + Mode::DACEN::SET;
             regs.mr.write(mr);
         }
         ReturnCode::SUCCESS

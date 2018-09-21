@@ -31,33 +31,33 @@ enum ConfidentialityMode {
 /// The registers used to interface with the hardware
 #[repr(C)]
 struct AesRegisters {
-    ctrl: ReadWrite<u32, Control::Register>, //   0x00
-    mode: ReadWrite<u32, Mode::Register>, //   0x04
-    databufptr: ReadWrite<u32, DataBuf::Register>, //   0x08
-    sr: ReadOnly<u32, Status::Register>, //   0x0c
-    ier: WriteOnly<u32, Interrupt::Register>, //   0x10
-    idr: WriteOnly<u32, Interrupt::Register>, //   0x14
-    imr: ReadOnly<u32, Interrupt::Register>, //   0x18
-    _reserved0: [u32; 1], //   0x1c
-    key0: WriteOnly<u32, Key::Register>, //   0x20
-    key1: WriteOnly<u32, Key::Register>, //   0x24
-    key2: WriteOnly<u32, Key::Register>, //   0x28
-    key3: WriteOnly<u32, Key::Register>, //   0x2c
-    key4: WriteOnly<u32, Key::Register>, //   0x30
-    key5: WriteOnly<u32, Key::Register>, //   0x34
-    key6: WriteOnly<u32, Key::Register>, //   0x38
-    key7: WriteOnly<u32, Key::Register>, //   0x3c
+    ctrl: ReadWrite<u32, Control::Register>,         //   0x00
+    mode: ReadWrite<u32, Mode::Register>,            //   0x04
+    databufptr: ReadWrite<u32, DataBuf::Register>,   //   0x08
+    sr: ReadOnly<u32, Status::Register>,             //   0x0c
+    ier: WriteOnly<u32, Interrupt::Register>,        //   0x10
+    idr: WriteOnly<u32, Interrupt::Register>,        //   0x14
+    imr: ReadOnly<u32, Interrupt::Register>,         //   0x18
+    _reserved0: [u32; 1],                            //   0x1c
+    key0: WriteOnly<u32, Key::Register>,             //   0x20
+    key1: WriteOnly<u32, Key::Register>,             //   0x24
+    key2: WriteOnly<u32, Key::Register>,             //   0x28
+    key3: WriteOnly<u32, Key::Register>,             //   0x2c
+    key4: WriteOnly<u32, Key::Register>,             //   0x30
+    key5: WriteOnly<u32, Key::Register>,             //   0x34
+    key6: WriteOnly<u32, Key::Register>,             //   0x38
+    key7: WriteOnly<u32, Key::Register>,             //   0x3c
     initvect0: WriteOnly<u32, InitVector::Register>, //   0x40
     initvect1: WriteOnly<u32, InitVector::Register>, //   0x44
     initvect2: WriteOnly<u32, InitVector::Register>, //   0x48
     initvect3: WriteOnly<u32, InitVector::Register>, //   0x4c
-    idata: WriteOnly<u32, Data::Register>, //   0x50
-    _reserved1: [u32; 3], //          0x54 - 0x5c
-    odata: ReadOnly<u32, Data::Register>, //   0x60
-    _reserved2: [u32; 3], //          0x64 - 0x6c
-    drngseed: WriteOnly<u32, DrngSeed::Register>, //   0x70
-    parameter: ReadOnly<u32, Parameter::Register>, //   0x70
-    version: ReadOnly<u32, Version::Register>, //   0x70
+    idata: WriteOnly<u32, Data::Register>,           //   0x50
+    _reserved1: [u32; 3],                            //          0x54 - 0x5c
+    odata: ReadOnly<u32, Data::Register>,            //   0x60
+    _reserved2: [u32; 3],                            //          0x64 - 0x6c
+    drngseed: WriteOnly<u32, DrngSeed::Register>,    //   0x70
+    parameter: ReadOnly<u32, Parameter::Register>,   //   0x70
+    version: ReadOnly<u32, Version::Register>,       //   0x70
 }
 
 register_bitfields![u32,
@@ -189,18 +189,14 @@ impl Aes<'a> {
 
     fn enable_interrupts(&self) {
         let regs: &AesRegisters = &*self.registers;
-        regs.ier.write(
-            Interrupt::IBUFRDY.val(1) +
-                Interrupt::ODATARDY.val(1),
-        );
+        regs.ier
+            .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_interrupts(&self) {
         let regs: &AesRegisters = &*self.registers;
-        regs.idr.write(
-            Interrupt::IBUFRDY.val(1) +
-                Interrupt::ODATARDY.val(1),
-        );
+        regs.idr
+            .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_input_interrupt(&self) {
@@ -221,9 +217,13 @@ impl Aes<'a> {
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
         regs.mode.write(
-            Mode::ENCRYPT.val(encrypt) + Mode::DMA.val(dma) + Mode::OPMODE.val(mode as u32) +
-                Mode::CTYPE4.val(1) +
-                Mode::CTYPE3.val(1) + Mode::CTYPE2.val(1) + Mode::CTYPE1.val(1),
+            Mode::ENCRYPT.val(encrypt)
+                + Mode::DMA.val(dma)
+                + Mode::OPMODE.val(mode as u32)
+                + Mode::CTYPE4.val(1)
+                + Mode::CTYPE3.val(1)
+                + Mode::CTYPE2.val(1)
+                + Mode::CTYPE1.val(1),
         );
     }
 
@@ -239,39 +239,38 @@ impl Aes<'a> {
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
         stop_index.checked_sub(start_index).map_or(false, |sublen| {
-            sublen % AES128_BLOCK_SIZE == 0 &&
-                {
-                    self.source.map_or_else(
-                        || {
-                            // The destination buffer is also the input
-                            if self.dest.map_or(false, |dest| stop_index <= dest.len()) {
-                                self.write_index.set(start_index);
-                                self.read_index.set(start_index);
-                                self.stop_index.set(stop_index);
-                                true
-                            } else {
-                                false
-                            }
-                        },
-                        |source| {
-                            if sublen == source.len() &&
-                                self.dest.map_or(false, |dest| stop_index <= dest.len())
-                            {
-                                // We will start writing to the AES from the beginning of `source`,
-                                // and end at its end
-                                self.write_index.set(0);
+            sublen % AES128_BLOCK_SIZE == 0 && {
+                self.source.map_or_else(
+                    || {
+                        // The destination buffer is also the input
+                        if self.dest.map_or(false, |dest| stop_index <= dest.len()) {
+                            self.write_index.set(start_index);
+                            self.read_index.set(start_index);
+                            self.stop_index.set(stop_index);
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    |source| {
+                        if sublen == source.len()
+                            && self.dest.map_or(false, |dest| stop_index <= dest.len())
+                        {
+                            // We will start writing to the AES from the beginning of `source`,
+                            // and end at its end
+                            self.write_index.set(0);
 
-                                // We will start reading from the AES into `dest` at `start_index`,
-                                // and continue until `stop_index`
-                                self.read_index.set(start_index);
-                                self.stop_index.set(stop_index);
-                                true
-                            } else {
-                                false
-                            }
-                        },
-                    )
-                }
+                            // We will start reading from the AES into `dest` at `start_index`,
+                            // and continue until `stop_index`
+                            self.read_index.set(start_index);
+                            self.stop_index.set(stop_index);
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                )
+            }
         })
     }
 
@@ -303,8 +302,8 @@ impl Aes<'a> {
                         }
                         self.write_index.set(index + AES128_BLOCK_SIZE);
 
-                        let more = self.write_index.get() + AES128_BLOCK_SIZE <=
-                            self.stop_index.get();
+                        let more =
+                            self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
                         more
                     },
                 )
@@ -472,9 +471,8 @@ impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             return;
         }
         let regs: &AesRegisters = &*self.registers;
-        regs.ctrl.write(
-            Control::NEWMSG.val(1) + Control::ENABLE.val(1),
-        );
+        regs.ctrl
+            .write(Control::NEWMSG.val(1) + Control::ENABLE.val(1));
     }
 
     fn crypt(

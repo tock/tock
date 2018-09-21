@@ -125,7 +125,9 @@ impl Rtc {
     pub fn handle_interrupt(&self) {
         self.registers.events_compare[0].write(Event::READY::CLEAR);
         self.registers.intenclr.write(Inte::COMPARE0::SET);
-        self.callback.map(|cb| { cb.fired(); });
+        self.callback.map(|cb| {
+            cb.fired();
+        });
     }
 
     pub fn set_client(&self, client: &'static time::Client) {

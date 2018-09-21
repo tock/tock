@@ -87,9 +87,9 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
                 self.master_buffer.replace(buffer);
 
                 self.app.map(|app| {
-                    app.callback.map(
-                        |mut cb| { cb.schedule(0, err as usize, 0); },
-                    );
+                    app.callback.map(|mut cb| {
+                        cb.schedule(0, err as usize, 0);
+                    });
                 });
             }
 
@@ -106,9 +106,9 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
                         self.master_buffer.replace(buffer);
                     });
 
-                    app.callback.map(
-                        |mut cb| { cb.schedule(1, err as usize, 0); },
-                    );
+                    app.callback.map(|mut cb| {
+                        cb.schedule(1, err as usize, 0);
+                    });
                 });
             }
 
@@ -119,9 +119,9 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
                         app_buffer.as_mut()[..len].copy_from_slice(&buffer[..len]);
                         self.master_buffer.replace(buffer);
                     });
-                    app.callback.map(
-                        |mut cb| { cb.schedule(7, err as usize, 0); },
-                    );
+                    app.callback.map(|mut cb| {
+                        cb.schedule(7, err as usize, 0);
+                    });
                 });
             }
         }
@@ -164,9 +164,9 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
                         self.slave_buffer1.replace(buffer);
                     });
 
-                    app.callback.map(
-                        |mut cb| { cb.schedule(3, length as usize, 0); },
-                    );
+                    app.callback.map(|mut cb| {
+                        cb.schedule(3, length as usize, 0);
+                    });
                 });
             }
 
@@ -175,9 +175,9 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
 
                 // Notify the app that the read finished
                 self.app.map(|app| {
-                    app.callback.map(
-                        |mut cb| { cb.schedule(4, length as usize, 0); },
-                    );
+                    app.callback.map(|mut cb| {
+                        cb.schedule(4, length as usize, 0);
+                    });
                 });
             }
         }
@@ -218,22 +218,30 @@ impl Driver for I2CMasterSlaveDriver<'a> {
             // Pass in a buffer for transmitting a `write` to another
             // I2C device.
             0 => {
-                self.app.map(|app| { app.master_tx_buffer = slice; });
+                self.app.map(|app| {
+                    app.master_tx_buffer = slice;
+                });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for doing a read from another I2C device.
             1 => {
-                self.app.map(|app| { app.master_rx_buffer = slice; });
+                self.app.map(|app| {
+                    app.master_rx_buffer = slice;
+                });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a read issued by another I2C master.
             2 => {
-                self.app.map(|app| { app.slave_tx_buffer = slice; });
+                self.app.map(|app| {
+                    app.slave_tx_buffer = slice;
+                });
                 ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a write issued by another I2C master.
             3 => {
-                self.app.map(|app| { app.slave_rx_buffer = slice; });
+                self.app.map(|app| {
+                    app.slave_rx_buffer = slice;
+                });
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -248,7 +256,9 @@ impl Driver for I2CMasterSlaveDriver<'a> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.app.map(|app| { app.callback = callback; });
+                self.app.map(|app| {
+                    app.callback = callback;
+                });
                 ReturnCode::SUCCESS
             }
 

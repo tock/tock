@@ -215,9 +215,8 @@ impl<A: time::Alarm> i2c::I2CClient for SI7021<'a, A> {
                 let humidity_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
                 let humidity = (((humidity_raw * 125 * 100) / 65536) - 600) as u16;
 
-                self.humidity_callback.map(
-                    |cb| cb.callback(humidity as usize),
-                );
+                self.humidity_callback
+                    .map(|cb| cb.callback(humidity as usize));
                 match self.on_deck.get() {
                     OnDeck::Temperature => {
                         self.on_deck.set(OnDeck::Nothing);
@@ -247,12 +246,13 @@ impl<A: time::Alarm> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeTempMeasurementInit);
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|| if self.on_deck.get() != OnDeck::Nothing {
-                ReturnCode::EBUSY
-            } else {
-                self.on_deck.set(OnDeck::Temperature);
-                ReturnCode::SUCCESS
+            }).unwrap_or_else(|| {
+                if self.on_deck.get() != OnDeck::Nothing {
+                    ReturnCode::EBUSY
+                } else {
+                    self.on_deck.set(OnDeck::Temperature);
+                    ReturnCode::SUCCESS
+                }
             })
     }
 
@@ -273,12 +273,13 @@ impl<A: time::Alarm> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeRhMeasurementInit);
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|| if self.on_deck.get() != OnDeck::Nothing {
-                ReturnCode::EBUSY
-            } else {
-                self.on_deck.set(OnDeck::Humidity);
-                ReturnCode::SUCCESS
+            }).unwrap_or_else(|| {
+                if self.on_deck.get() != OnDeck::Nothing {
+                    ReturnCode::EBUSY
+                } else {
+                    self.on_deck.set(OnDeck::Humidity);
+                    ReturnCode::SUCCESS
+                }
             })
     }
 

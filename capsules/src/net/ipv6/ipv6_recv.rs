@@ -52,7 +52,9 @@ impl<'a> IP6Receiver<'a> for IP6RecvStruct<'a> {
 
 impl<'a> IP6RecvStruct<'a> {
     pub fn new() -> IP6RecvStruct<'a> {
-        IP6RecvStruct { client: OptionalCell::empty() }
+        IP6RecvStruct {
+            client: OptionalCell::empty(),
+        }
     }
 }
 
@@ -66,9 +68,8 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
             Some((offset, header)) => {
                 // TODO: Probably do some sanity checking, check for checksum
                 // correctness, length, etc.
-                self.client.map(|client| {
-                    client.receive(header, &buf[offset..len])
-                });
+                self.client
+                    .map(|client| client.receive(header, &buf[offset..len]));
             }
             None => {
                 // TODO: Report the error somewhere...

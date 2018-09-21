@@ -86,7 +86,8 @@ impl<F: hil::flash::Flash> NonvolatileToPages<'a, F> {
 }
 
 impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
-    for NonvolatileToPages<'a, F> {
+    for NonvolatileToPages<'a, F>
+{
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(client);
     }
@@ -96,9 +97,9 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
             return ReturnCode::EBUSY;
         }
 
-        self.pagebuffer.take().map_or(
-            ReturnCode::ERESERVE,
-            move |pagebuffer| {
+        self.pagebuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, move |pagebuffer| {
                 let page_size = pagebuffer.as_mut().len();
 
                 // Just start reading. We'll worry about how much of the page we
@@ -110,8 +111,7 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
                 self.remaining_length.set(length);
                 self.buffer_index.set(0);
                 self.driver.read_page(address / page_size, pagebuffer)
-            },
-        )
+            })
     }
 
     fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
@@ -119,9 +119,9 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
             return ReturnCode::EBUSY;
         }
 
-        self.pagebuffer.take().map_or(
-            ReturnCode::ERESERVE,
-            move |pagebuffer| {
+        self.pagebuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, move |pagebuffer| {
                 let page_size = pagebuffer.as_mut().len();
 
                 self.state.set(State::Write);
@@ -149,8 +149,7 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage
                     self.buffer_index.set(0);
                     self.driver.read_page(address / page_size, pagebuffer)
                 }
-            },
-        )
+            })
     }
 }
 
@@ -180,9 +179,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
                         // Nothing more to do. Put things back and issue callback.
                         self.pagebuffer.replace(pagebuffer);
                         self.state.set(State::Idle);
-                        self.client.map(move |client| {
-                            client.read_done(buffer, self.length.get())
-                        });
+                        self.client
+                            .map(move |client| client.read_done(buffer, self.length.get()));
                     } else {
                         // More to do!
                         self.buffer.replace(buffer);
@@ -190,10 +188,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
                         self.remaining_length.subtract(len);
                         self.address.add(len);
                         self.buffer_index.set(buffer_index + len);
-                        self.driver.read_page(
-                            self.address.get() / page_size,
-                            pagebuffer,
-                        );
+                        self.driver
+                            .read_page(self.address.get() / page_size, pagebuffer);
                     }
                 });
             }
@@ -238,9 +234,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
                 // Done!
                 self.pagebuffer.replace(pagebuffer);
                 self.state.set(State::Idle);
-                self.client.map(move |client| {
-                    client.write_done(buffer, self.length.get())
-                });
+                self.client
+                    .map(move |client| client.write_done(buffer, self.length.get()));
             } else if self.remaining_length.get() >= page_size {
                 // Write an entire page!
                 let buffer_index = self.buffer_index.get();
@@ -259,10 +254,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
             } else {
                 // Write a partial page!
                 self.buffer.replace(buffer);
-                self.driver.read_page(
-                    self.address.get() / page_size,
-                    pagebuffer,
-                );
+                self.driver
+                    .read_page(self.address.get() / page_size, pagebuffer);
             }
         });
     }

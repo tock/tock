@@ -86,8 +86,7 @@ impl<A: Alarm> Driver for AlarmDriver<'a, A> {
             .enter(app_id, |td, _allocator| {
                 td.callback = callback;
                 ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 
     /// Setup and read the alarm.
@@ -152,8 +151,7 @@ impl<A: Alarm> Driver for AlarmDriver<'a, A> {
                     self.reset_active_alarm(now);
                 }
                 return_code
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 }
 
@@ -164,16 +162,16 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
 impl<A: Alarm> time::Client for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
-        self.app_alarm.each(|alarm| if let Expiration::Abs(exp) =
-            alarm.expiration
-        {
-            let expired = has_expired(exp, now, self.prev.get());
-            if expired {
-                alarm.expiration = Expiration::Disabled;
-                self.num_armed.set(self.num_armed.get() - 1);
-                alarm.callback.map(|mut cb| {
-                    cb.schedule(now as usize, exp as usize, 0)
-                });
+        self.app_alarm.each(|alarm| {
+            if let Expiration::Abs(exp) = alarm.expiration {
+                let expired = has_expired(exp, now, self.prev.get());
+                if expired {
+                    alarm.expiration = Expiration::Disabled;
+                    self.num_armed.set(self.num_armed.get() - 1);
+                    alarm
+                        .callback
+                        .map(|mut cb| cb.schedule(now as usize, exp as usize, 0));
+                }
             }
         });
 

@@ -142,11 +142,12 @@ pub trait Client {
     /// If randoness_available is triggered after a call to cancel()
     /// then error MUST be ECANCEL and randomness MAY contain
     /// random bits.
-    fn randomness_available(&self,
-                            randomness: &mut Iterator<Item = u32>,
-                            error: ReturnCode) -> Continue;
+    fn randomness_available(
+        &self,
+        randomness: &mut Iterator<Item = u32>,
+        error: ReturnCode,
+    ) -> Continue;
 }
-
 
 /// Generic interface for a synchronous 32-bit random number
 /// generator.

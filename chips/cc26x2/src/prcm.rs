@@ -182,14 +182,12 @@ fn prcm_commit() {
 pub fn force_disable_dma_and_crypto() {
     let regs = PRCM_BASE;
     if regs.sec_dma_clk_run.is_set(SECDMAClockGate::DMA_CLK_EN) {
-        regs.sec_dma_clk_deep_sleep.modify(
-            SECDMAClockGate::DMA_CLK_EN::CLEAR,
-        );
+        regs.sec_dma_clk_deep_sleep
+            .modify(SECDMAClockGate::DMA_CLK_EN::CLEAR);
     }
     if regs.sec_dma_clk_run.is_set(SECDMAClockGate::CRYPTO_CLK_EN) {
-        regs.sec_dma_clk_deep_sleep.modify(
-            SECDMAClockGate::CRYPTO_CLK_EN::CLEAR,
-        );
+        regs.sec_dma_clk_deep_sleep
+            .modify(SECDMAClockGate::CRYPTO_CLK_EN::CLEAR);
     }
 
     prcm_commit();
@@ -290,8 +288,8 @@ impl Power {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
             PowerDomain::RFC => {
-                regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON) &&
-                    regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
+                    && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
             }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),
@@ -313,15 +311,12 @@ impl Clock {
 
     pub fn enable_trng() {
         let regs = PRCM_BASE;
-        regs.sec_dma_clk_run.modify(
-            SECDMAClockGate::TRNG_CLK_EN::SET,
-        );
-        regs.sec_dma_clk_sleep.modify(
-            SECDMAClockGate::TRNG_CLK_EN::SET,
-        );
-        regs.sec_dma_clk_deep_sleep.modify(
-            SECDMAClockGate::TRNG_CLK_EN::SET,
-        );
+        regs.sec_dma_clk_run
+            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
+        regs.sec_dma_clk_sleep
+            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
+        regs.sec_dma_clk_deep_sleep
+            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
 
         prcm_commit();
     }
@@ -340,9 +335,8 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate::CLK_EN::CLEAR);
         regs.uart_clk_gate_sleep.modify(ClockGate::CLK_EN::CLEAR);
-        regs.uart_clk_gate_deep_sleep.modify(
-            ClockGate::CLK_EN::CLEAR,
-        );
+        regs.uart_clk_gate_deep_sleep
+            .modify(ClockGate::CLK_EN::CLEAR);
 
         prcm_commit();
     }

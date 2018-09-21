@@ -49,7 +49,13 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
+#[macro_use(
+    create_capability,
+    debug,
+    debug_verbose,
+    debug_gpio,
+    static_init
+)]
 extern crate kernel;
 extern crate cortexm0;
 extern crate nrf51;
@@ -245,10 +251,10 @@ pub unsafe fn reset_handler() {
     }
 
     nrf51::uart::UART0.initialize(
-        Pinmux::new(9), /*. tx  */
+        Pinmux::new(9),  /*. tx  */
         Pinmux::new(11), /* rx  */
         Pinmux::new(10), /* cts */
-        Pinmux::new(8), /*. rts */
+        Pinmux::new(8),  /*. rts */
     );
 
     // Create a shared UART channel for the console and for kernel debug.

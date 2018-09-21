@@ -16,10 +16,10 @@ pub struct AonIocRegisters {
 
 #[repr(C)]
 pub struct AonEventRegisters {
-    mcu_wu_sel: ReadWrite<u32>, // MCU Wake-up selector
-    aux_wu_sel: ReadWrite<u32>, // AUX Wake-up selector
+    mcu_wu_sel: ReadWrite<u32>,       // MCU Wake-up selector
+    aux_wu_sel: ReadWrite<u32>,       // AUX Wake-up selector
     event_to_mcu_sel: ReadWrite<u32>, // Event selector for MCU Events
-    rtc_sel: ReadWrite<u32>, // RTC Capture event selector for AON_RTC
+    rtc_sel: ReadWrite<u32>,          // RTC Capture event selector for AON_RTC
 }
 
 #[repr(C)]
@@ -98,7 +98,9 @@ pub const AON: Aon = Aon::new();
 
 impl Aon {
     const fn new() -> Aon {
-        Aon { event_regs: AON_EVENT_BASE }
+        Aon {
+            event_regs: AON_EVENT_BASE,
+        }
     }
 
     pub fn setup(&self) {
@@ -125,14 +127,11 @@ impl Aon {
     pub fn set_dcdc_enabled(&self, enabled: bool) {
         let regs = AON_PMCTL_BASE;
         if enabled {
-            regs.pwr_ctl.modify(
-                PwrCtl::DCDC_ACTIVE::SET + PwrCtl::DCDC_EN::SET,
-            );
+            regs.pwr_ctl
+                .modify(PwrCtl::DCDC_ACTIVE::SET + PwrCtl::DCDC_EN::SET);
         } else {
-            regs.pwr_ctl.modify(
-                PwrCtl::DCDC_ACTIVE::CLEAR +
-                    PwrCtl::DCDC_EN::CLEAR,
-            );
+            regs.pwr_ctl
+                .modify(PwrCtl::DCDC_ACTIVE::CLEAR + PwrCtl::DCDC_EN::CLEAR);
         }
     }
 

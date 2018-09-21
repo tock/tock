@@ -26,9 +26,9 @@ mod regs {
     /// Since this allows the client to access the same 32-bits using different types, it's important
     /// that this type is only instantiated to occupy the memory of the control and status registers.
     pub union ControlStatReg {
-    /// The control register modality
+        /// The control register modality
         ctrl: WriteOnly<u32, super::Control::Register>,
-    /// The status register modality
+        /// The status register modality
         stat: ReadOnly<u32, super::Status::Register>,
     }
 
@@ -155,8 +155,7 @@ impl<'a> I2CMaster<'a> {
     fn write_byte(&self, byte: u8, first: bool, last: bool) {
         self.registers.mdr.set(byte);
         self.registers.mstat_ctrl.ctrl().write(
-            Control::RUN.val(1) + Control::START.val(first as u32) +
-                Control::STOP.val(last as u32),
+            Control::RUN.val(1) + Control::START.val(first as u32) + Control::STOP.val(last as u32),
         );
     }
 
@@ -169,8 +168,10 @@ impl<'a> I2CMaster<'a> {
     ///             condition)
     fn read_byte(&self, first: bool, last: bool) {
         self.registers.mstat_ctrl.ctrl().write(
-            Control::RUN.val(1) + Control::RUN.val(1) + Control::START.val(first as u32) +
-                Control::STOP.val(last as u32),
+            Control::RUN.val(1)
+                + Control::RUN.val(1)
+                + Control::START.val(first as u32)
+                + Control::STOP.val(last as u32),
         );
     }
 
@@ -263,10 +264,9 @@ impl<'a> I2CMaster<'a> {
         const MCU_CLOCK: u32 = 48_000_000;
         // Forumla from 23.4, step 4, in the datasheet
         let tpr = MCU_CLOCK / (2 * 10 * freq) - 1;
-        self.registers.mtpr.write(
-            TimerPeriod::WRITE::Valid +
-                TimerPeriod::TPR.val(tpr),
-        );
+        self.registers
+            .mtpr
+            .write(TimerPeriod::WRITE::Valid + TimerPeriod::TPR.val(tpr));
     }
 
     // Enables the Serial power domain and I2C clock
@@ -288,10 +288,9 @@ impl<'a> i2c::I2CMaster for I2CMaster<'a> {
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
-        self.registers.msa.write(
-            Address::RS::Transmit +
-                Address::SA.val(addr as u32),
-        );
+        self.registers
+            .msa
+            .write(Address::RS::Transmit + Address::SA.val(addr as u32));
         let len = cmp::min(write_len as usize, data.len());
         if len > 0 {
             self.write_byte(data[0], true, len == 1);
@@ -305,10 +304,9 @@ impl<'a> i2c::I2CMaster for I2CMaster<'a> {
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
-        self.registers.msa.write(
-            Address::RS::Transmit +
-                Address::SA.val(addr as u32),
-        );
+        self.registers
+            .msa
+            .write(Address::RS::Transmit + Address::SA.val(addr as u32));
         let len = cmp::min(len as usize, data.len());
         if len > 0 {
             self.write_byte(data[0], true, len == 1);
@@ -322,10 +320,9 @@ impl<'a> i2c::I2CMaster for I2CMaster<'a> {
     }
 
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8) {
-        self.registers.msa.write(
-            Address::RS::Receive +
-                Address::SA.val(addr as u32),
-        );
+        self.registers
+            .msa
+            .write(Address::RS::Receive + Address::SA.val(addr as u32));
         let len = cmp::min(len as usize, buffer.len());
         if len > 0 {
             self.read_byte(true, len == 1);

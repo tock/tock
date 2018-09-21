@@ -101,9 +101,9 @@ impl AsMut<[u8]> for Mx25r6435fSector {
 enum Opcodes {
     WREN = 0x06, // Write Enable
     WRDI = 0x04, // Write Disable
-    SE = 0x20, // Sector Erase
+    SE = 0x20,   // Sector Erase
     READ = 0x03, // Normal Read
-    PP = 0x02, // Page Program (write)
+    PP = 0x02,   // Page Program (write)
     RDID = 0x9f, // Read Identification
     RDSR = 0x05, // Read Status Register
 }
@@ -118,25 +118,49 @@ enum Operation {
 enum State {
     Idle,
 
-    ReadSector { sector_index: u32, page_index: u32 },
+    ReadSector {
+        sector_index: u32,
+        page_index: u32,
+    },
 
     EraseSectorWriteEnable {
         sector_index: u32,
         operation: Operation,
     },
-    EraseSectorErase { operation: Operation },
-    EraseSectorCheckDone { operation: Operation },
+    EraseSectorErase {
+        operation: Operation,
+    },
+    EraseSectorCheckDone {
+        operation: Operation,
+    },
     EraseSectorDone,
 
-    WriteSectorWriteEnable { sector_index: u32, page_index: u32 },
-    WriteSectorWrite { sector_index: u32, page_index: u32 },
-    WriteSectorCheckDone { sector_index: u32, page_index: u32 },
-    WriteSectorWaitDone { sector_index: u32, page_index: u32 },
+    WriteSectorWriteEnable {
+        sector_index: u32,
+        page_index: u32,
+    },
+    WriteSectorWrite {
+        sector_index: u32,
+        page_index: u32,
+    },
+    WriteSectorCheckDone {
+        sector_index: u32,
+        page_index: u32,
+    },
+    WriteSectorWaitDone {
+        sector_index: u32,
+        page_index: u32,
+    },
 
     ReadId,
 }
 
-pub struct MX25R6435F<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a> {
+pub struct MX25R6435F<
+    'a,
+    S: hil::spi::SpiMasterDevice + 'a,
+    P: hil::gpio::Pin + 'a,
+    A: hil::time::Alarm + 'a,
+> {
     spi: &'a S,
     alarm: &'a A,
     state: Cell<State>,
@@ -149,7 +173,8 @@ pub struct MX25R6435F<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin +
 }
 
 impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    MX25R6435F<'a, S, P, A> {
+    MX25R6435F<'a, S, P, A>
+{
     pub fn new(
         spi: &'a S,
         alarm: &'a A,
@@ -173,7 +198,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
 
     /// Setup SPI for this chip
     fn configure_spi(&self) {
-        self.hold_pin.map(|pin| { pin.set(); });
+        self.hold_pin.map(|pin| {
+            pin.set();
+        });
         self.spi.configure(
             hil::spi::ClockPolarity::IdleLow,
             hil::spi::ClockPhase::SampleLeading,
@@ -184,31 +211,30 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
     pub fn read_identification(&self) -> ReturnCode {
         self.configure_spi();
 
-        self.txbuffer.take().map_or(
-            ReturnCode::ERESERVE,
-            |txbuffer| {
-                self.rxbuffer.take().map_or(
-                    ReturnCode::ERESERVE,
-                    move |rxbuffer| {
+        self.txbuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+                self.rxbuffer
+                    .take()
+                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
                         txbuffer[0] = Opcodes::RDID as u8;
 
                         self.state.set(State::ReadId);
                         self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4)
-                    },
-                )
-            },
-        )
+                    })
+            })
     }
 
     fn enable_write(&self) -> ReturnCode {
-        self.write_protect_pin.map(|pin| { pin.set(); });
-        self.txbuffer.take().map_or(
-            ReturnCode::ERESERVE,
-            |txbuffer| {
+        self.write_protect_pin.map(|pin| {
+            pin.set();
+        });
+        self.txbuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, |txbuffer| {
                 txbuffer[0] = Opcodes::WREN as u8;
                 self.spi.read_write_bytes(txbuffer, None, 1)
-            },
-        )
+            })
     }
 
     fn erase_sector(&self, sector_index: u32) -> ReturnCode {
@@ -222,12 +248,12 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
 
     fn read_sector(&self, sector_index: u32, sector: &'static mut Mx25r6435fSector) -> ReturnCode {
         self.configure_spi();
-        self.txbuffer.take().map_or(
-            ReturnCode::ERESERVE,
-            |txbuffer| {
-                self.rxbuffer.take().map_or(
-                    ReturnCode::ERESERVE,
-                    move |rxbuffer| {
+        self.txbuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+                self.rxbuffer
+                    .take()
+                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
                         // Save the user buffer for later
                         self.client_sector.replace(sector);
 
@@ -247,10 +273,8 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
                             Some(rxbuffer),
                             (PAGE_SIZE + 4) as usize,
                         )
-                    },
-                )
-            },
-        )
+                    })
+            })
     }
 
     fn write_sector(&self, sector_index: u32, sector: &'static mut Mx25r6435fSector) -> ReturnCode {
@@ -264,12 +288,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
     }
 }
 
-impl<
-    'a,
-    S: hil::spi::SpiMasterDevice + 'a,
-    P: hil::gpio::Pin + 'a,
-    A: hil::time::Alarm + 'a,
-> hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A> {
+impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
+    hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
+{
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -282,9 +303,7 @@ impl<
                 read_buffer.map(|read_buffer| {
                     debug!(
                         "id {:#x} {:#x} {:#x}",
-                        read_buffer[1],
-                        read_buffer[2],
-                        read_buffer[3]
+                        read_buffer[1], read_buffer[2], read_buffer[3]
                     );
                     self.rxbuffer.replace(read_buffer);
                 });
@@ -311,8 +330,8 @@ impl<
                                 client.read_complete(sector, hil::flash::Error::CommandComplete);
                             });
                         } else {
-                            let address = (sector_index * SECTOR_SIZE) +
-                                ((page_index + 1) * PAGE_SIZE);
+                            let address =
+                                (sector_index * SECTOR_SIZE) + ((page_index + 1) * PAGE_SIZE);
                             write_buffer[0] = Opcodes::READ as u8;
                             write_buffer[1] = (address >> 16) as u8;
                             write_buffer[2] = (address >> 8) as u8;
@@ -360,11 +379,8 @@ impl<
                     // Check the status byte to see if the erase is done or not.
                     if status & 0x01 == 0x01 {
                         // Erase is still in progress.
-                        self.spi.read_write_bytes(
-                            write_buffer,
-                            Some(read_buffer),
-                            2,
-                        );
+                        self.spi
+                            .read_write_bytes(write_buffer, Some(read_buffer), 2);
                     } else {
                         // Erase has finished, so jump to the next state.
                         let next_state = match operation {
@@ -428,17 +444,14 @@ impl<
                 write_buffer[2] = (address >> 8) as u8;
                 write_buffer[3] = (address >> 0) as u8;
 
-                self.client_sector.map(|sector| for i in 0..
-                    (PAGE_SIZE as usize)
-                {
-                    write_buffer[i + 4] = sector[i + (page_index * PAGE_SIZE) as usize];
+                self.client_sector.map(|sector| {
+                    for i in 0..(PAGE_SIZE as usize) {
+                        write_buffer[i + 4] = sector[i + (page_index * PAGE_SIZE) as usize];
+                    }
                 });
 
-                self.spi.read_write_bytes(
-                    write_buffer,
-                    None,
-                    (PAGE_SIZE + 4) as usize,
-                );
+                self.spi
+                    .read_write_bytes(write_buffer, None, (PAGE_SIZE + 4) as usize);
             }
             State::WriteSectorCheckDone {
                 sector_index,
@@ -465,11 +478,8 @@ impl<
                     // Check the status byte to see if the write is done or not.
                     if status & 0x01 == 0x01 {
                         // Write is still in progress.
-                        self.spi.read_write_bytes(
-                            write_buffer,
-                            Some(read_buffer),
-                            2,
-                        );
+                        self.spi
+                            .read_write_bytes(write_buffer, Some(read_buffer), 2);
                     } else {
                         // Write has finished, so go back to writing.
                         self.state.set(State::WriteSectorWriteEnable {
@@ -486,46 +496,38 @@ impl<
     }
 }
 
-impl<
-    'a,
-    S: hil::spi::SpiMasterDevice + 'a,
-    P: hil::gpio::Pin + 'a,
-    A: hil::time::Alarm + 'a,
-> hil::time::Client for MX25R6435F<'a, S, P, A> {
+impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
+    hil::time::Client for MX25R6435F<'a, S, P, A>
+{
     fn fired(&self) {
         // After the timer expires we still have to check that the erase/write
         // operation has finished.
         self.txbuffer.take().map(|write_buffer| {
             self.rxbuffer.take().map(move |read_buffer| {
                 write_buffer[0] = Opcodes::RDSR as u8;
-                self.spi.read_write_bytes(
-                    write_buffer,
-                    Some(read_buffer),
-                    2,
-                );
+                self.spi
+                    .read_write_bytes(write_buffer, Some(read_buffer), 2);
             });
         });
     }
 }
 
 impl<
-    'a,
-    S: hil::spi::SpiMasterDevice + 'a,
-    P: hil::gpio::Pin + 'a,
-    A: hil::time::Alarm + 'a,
-    C: hil::flash::Client<Self>,
-> hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A> {
+        'a,
+        S: hil::spi::SpiMasterDevice + 'a,
+        P: hil::gpio::Pin + 'a,
+        A: hil::time::Alarm + 'a,
+        C: hil::flash::Client<Self>,
+    > hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A>
+{
     fn set_client(&self, client: &'a C) {
         self.client.set(client);
     }
 }
 
-impl<
-    'a,
-    S: hil::spi::SpiMasterDevice + 'a,
-    P: hil::gpio::Pin + 'a,
-    A: hil::time::Alarm + 'a,
-> hil::flash::Flash for MX25R6435F<'a, S, P, A> {
+impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
+    hil::flash::Flash for MX25R6435F<'a, S, P, A>
+{
     type Page = Mx25r6435fSector;
 
     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {

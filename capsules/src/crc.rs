@@ -177,14 +177,12 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     ) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.buffer = slice;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.buffer = slice;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -214,14 +212,12 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
     ) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
-            0 => {
-                self.apps
-                    .enter(app_id, |app, _| {
-                        app.callback = callback;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -306,8 +302,7 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
                                     ReturnCode::EINVAL
                                 }
                             }
-                        })
-                        .unwrap_or_else(|err| err.into())
+                        }).unwrap_or_else(|err| err.into())
                 } else {
                     ReturnCode::EINVAL
                 };
@@ -333,8 +328,7 @@ impl<C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                     }
                     app.waiting = None;
                     ReturnCode::SUCCESS
-                })
-                .unwrap_or_else(|err| err.into());
+                }).unwrap_or_else(|err| err.into());
             self.serve_waiting_apps();
         });
     }

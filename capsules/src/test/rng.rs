@@ -31,19 +31,23 @@ impl<'a> TestRng<'a> {
     pub fn run(&self) {
         match self.rng.get() {
             ReturnCode::SUCCESS => debug!("RNG test: first get SUCCESS"),
-            _ => panic!("RNG test: unable to get random numbers")
+            _ => panic!("RNG test: unable to get random numbers"),
         }
     }
 }
 
 impl<'a> rng::Client for TestRng<'a> {
-
-    fn randomness_available(&self,
-                            randomness: &mut Iterator<Item = u32>,
-                            error: ReturnCode) -> rng::Continue {
+    fn randomness_available(
+        &self,
+        randomness: &mut Iterator<Item = u32>,
+        error: ReturnCode,
+    ) -> rng::Continue {
         let mut val = randomness.next();
         if error != ReturnCode::SUCCESS {
-            panic!("RNG test: randomness_available called with error {:?}", error);
+            panic!(
+                "RNG test: randomness_available called with error {:?}",
+                error
+            );
         }
         while val.is_some() {
             //debug!("RNG test: iterator returned Some.");
@@ -90,19 +94,23 @@ impl<'a> TestEntropy32<'a> {
     pub fn run(&self) {
         match self.egen.get() {
             ReturnCode::SUCCESS => debug!("Entropy32 test: first get SUCCESS"),
-            _ => panic!("Entropy32 test: unable to get entropy")
+            _ => panic!("Entropy32 test: unable to get entropy"),
         }
     }
 }
 
 impl<'a> entropy::Client32 for TestEntropy32<'a> {
-
-    fn entropy_available(&self,
-                         entropy: &mut Iterator<Item = u32>,
-                         error: ReturnCode) -> entropy::Continue {
+    fn entropy_available(
+        &self,
+        entropy: &mut Iterator<Item = u32>,
+        error: ReturnCode,
+    ) -> entropy::Continue {
         let mut val = entropy.next();
         if error != ReturnCode::SUCCESS {
-            panic!("RNG test: randomness_available called with error {:?}", error);
+            panic!(
+                "RNG test: randomness_available called with error {:?}",
+                error
+            );
         }
         while val.is_some() {
             //debug!("RNG test: iterator returned Some.");
@@ -149,19 +157,23 @@ impl<'a> TestEntropy8<'a> {
     pub fn run(&self) {
         match self.egen.get() {
             ReturnCode::SUCCESS => debug!("Entropy8 test: first get SUCCESS"),
-            _ => panic!("RNG test: unable to get random numbers")
+            _ => panic!("RNG test: unable to get random numbers"),
         }
     }
 }
 
 impl<'a> entropy::Client8 for TestEntropy8<'a> {
-
-    fn entropy_available(&self,
-                          entropy: &mut Iterator<Item = u8>,
-                          error: ReturnCode) -> entropy::Continue {
+    fn entropy_available(
+        &self,
+        entropy: &mut Iterator<Item = u8>,
+        error: ReturnCode,
+    ) -> entropy::Continue {
         let mut val = entropy.next();
         if error != ReturnCode::SUCCESS {
-            panic!("Entropy8 test: entropy_available called with error {:?}", error);
+            panic!(
+                "Entropy8 test: entropy_available called with error {:?}",
+                error
+            );
         }
         while val.is_some() {
             debug!("Entropy8 test: entropy_available iterator returned Some, adding.");

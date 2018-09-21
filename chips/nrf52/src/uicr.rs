@@ -65,7 +65,9 @@ pub struct Uicr {
 
 impl Uicr {
     pub const fn new() -> Uicr {
-        Uicr { registers: UICR_BASE }
+        Uicr {
+            registers: UICR_BASE,
+        }
     }
 
     pub fn set_psel0_reset_pin(&self, pin: usize) {

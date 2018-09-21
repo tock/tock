@@ -1,7 +1,7 @@
-use capsules::test::rng::TestRng;
 use capsules::rng;
+use capsules::test::rng::TestRng;
+use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng::Rng;
-use kernel::hil::entropy::{Entropy8, Entropy32};
 use sam4l::trng::TRNG;
 
 /// This tests a platform with an underlying 32-bit entropy generator
@@ -20,7 +20,10 @@ unsafe fn static_init_test_entropy32() -> &'static TestRng<'static> {
     TRNG.set_client(e1);
     let e2 = static_init!(rng::Entropy8To32<'static>, rng::Entropy8To32::new(e1));
     e1.set_client(e2);
-    let er = static_init!(rng::Entropy32ToRandom<'static>, rng::Entropy32ToRandom::new(e2));
+    let er = static_init!(
+        rng::Entropy32ToRandom<'static>,
+        rng::Entropy32ToRandom::new(e2)
+    );
     e2.set_client(er);
     let test = static_init!(TestRng<'static>, TestRng::new(er));
     er.set_client(test);

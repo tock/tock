@@ -527,8 +527,8 @@ register_bitfields! [u32,
     ]
 ];
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] = [0x00;
-    nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
@@ -624,17 +624,17 @@ impl Radio {
             };
 
             match regs.state.get() {
-                nrf5x::constants::RADIO_STATE_TXRU |
-                nrf5x::constants::RADIO_STATE_TXIDLE |
-                nrf5x::constants::RADIO_STATE_TXDISABLE |
-                nrf5x::constants::RADIO_STATE_TX => {
+                nrf5x::constants::RADIO_STATE_TXRU
+                | nrf5x::constants::RADIO_STATE_TXIDLE
+                | nrf5x::constants::RADIO_STATE_TXDISABLE
+                | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
                     self.tx_client.map(|client| client.transmit_event(result));
                 }
-                nrf5x::constants::RADIO_STATE_RXRU |
-                nrf5x::constants::RADIO_STATE_RXIDLE |
-                nrf5x::constants::RADIO_STATE_RXDISABLE |
-                nrf5x::constants::RADIO_STATE_RX => {
+                nrf5x::constants::RADIO_STATE_RXRU
+                | nrf5x::constants::RADIO_STATE_RXIDLE
+                | nrf5x::constants::RADIO_STATE_RXDISABLE
+                | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
                     unsafe {
                         self.rx_client.map(|client| {
@@ -655,8 +655,10 @@ impl Radio {
     pub fn enable_interrupts(&self) {
         let regs = &*self.registers;
         regs.intenset.write(
-            Interrupt::READY::SET + Interrupt::ADDRESS::SET + Interrupt::PAYLOAD::SET +
-                Interrupt::END::SET,
+            Interrupt::READY::SET
+                + Interrupt::ADDRESS::SET
+                + Interrupt::PAYLOAD::SET
+                + Interrupt::END::SET,
         );
     }
 
@@ -710,9 +712,8 @@ impl Radio {
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
     fn ble_set_crc_config(&self) {
         let regs = &*self.registers;
-        regs.crccnf.write(
-            CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE,
-        );
+        regs.crccnf
+            .write(CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE);
         regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
@@ -740,17 +741,19 @@ impl Radio {
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
         regs.pcnf0.write(
-            PacketConfiguration0::LFLEN.val(8) + PacketConfiguration0::S0LEN.val(1) +
-                PacketConfiguration0::S1LEN::CLEAR +
-                PacketConfiguration0::S1INCL::CLEAR +
-                PacketConfiguration0::PLEN::EIGHT,
+            PacketConfiguration0::LFLEN.val(8)
+                + PacketConfiguration0::S0LEN.val(1)
+                + PacketConfiguration0::S1LEN::CLEAR
+                + PacketConfiguration0::S1INCL::CLEAR
+                + PacketConfiguration0::PLEN::EIGHT,
         );
 
         regs.pcnf1.write(
-            PacketConfiguration1::WHITEEN::ENABLED + PacketConfiguration1::ENDIAN::LITTLE +
-                PacketConfiguration1::BALEN.val(3) +
-                PacketConfiguration1::STATLEN::CLEAR +
-                PacketConfiguration1::MAXLEN.val(255),
+            PacketConfiguration1::WHITEEN::ENABLED
+                + PacketConfiguration1::ENDIAN::LITTLE
+                + PacketConfiguration1::BALEN.val(3)
+                + PacketConfiguration1::STATLEN::CLEAR
+                + PacketConfiguration1::MAXLEN.val(255),
         );
     }
 
@@ -774,9 +777,8 @@ impl Radio {
     // Advertising:     37, 38, 39
     fn ble_set_channel_freq(&self, channel: RadioChannel) {
         let regs = &*self.registers;
-        regs.frequency.write(
-            Frequency::FREQUENCY.val(channel as u32),
-        );
+        regs.frequency
+            .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3 TRANSMITTER CHARACTERISTICS

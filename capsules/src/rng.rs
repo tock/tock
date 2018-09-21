@@ -19,10 +19,10 @@
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
+use kernel::hil::entropy;
+use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
-use kernel::hil::entropy;
-use kernel::hil::entropy::{Entropy8, Entropy32};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
@@ -86,9 +86,8 @@ impl<'a> rng::Client for RngDriver<'a> {
 
                             // 3. Zip over the randomness iterator and chunks
                             //    of up to 4 bytes from the buffer.
-                            for (inp, outs) in randomness.take(remaining_ints).zip(
-                                buf.chunks_mut(4),
-                            )
+                            for (inp, outs) in
+                                randomness.take(remaining_ints).zip(buf.chunks_mut(4))
                             {
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.
@@ -107,7 +106,9 @@ impl<'a> rng::Client for RngDriver<'a> {
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        app.callback.map(|mut cb| { cb.schedule(0, app.idx, 0); });
+                        app.callback.map(|mut cb| {
+                            cb.schedule(0, app.idx, 0);
+                        });
                     }
                 }
             });
@@ -138,14 +139,12 @@ impl<'a> Driver for RngDriver<'a> {
     ) -> ReturnCode {
         // pass buffer in from application
         match allow_num {
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.buffer = slice;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.buffer = slice;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -157,14 +156,12 @@ impl<'a> Driver for RngDriver<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(app_id, |app, _| {
-                        app.callback = callback;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
@@ -236,23 +233,21 @@ impl<'a> entropy::Client32 for Entropy32ToRandom<'a> {
         entropy: &mut Iterator<Item = u32>,
         error: ReturnCode,
     ) -> entropy::Continue {
-        self.client.map_or(
-            entropy::Continue::Done,
-            |client| if error != ReturnCode::SUCCESS {
+        self.client.map_or(entropy::Continue::Done, |client| {
+            if error != ReturnCode::SUCCESS {
                 match client.randomness_available(&mut Entropy32ToRandomIter(entropy), error) {
                     rng::Continue::More => entropy::Continue::More,
                     rng::Continue::Done => entropy::Continue::Done,
                 }
             } else {
-                match client.randomness_available(
-                    &mut Entropy32ToRandomIter(entropy),
-                    ReturnCode::SUCCESS,
-                ) {
+                match client
+                    .randomness_available(&mut Entropy32ToRandomIter(entropy), ReturnCode::SUCCESS)
+                {
                     rng::Continue::More => entropy::Continue::More,
                     rng::Continue::Done => entropy::Continue::Done,
                 }
-            },
-        )
+            }
+        })
     }
 }
 
@@ -313,40 +308,38 @@ impl<'a> entropy::Client8 for Entropy8To32<'a> {
         entropy: &mut Iterator<Item = u8>,
         error: ReturnCode,
     ) -> entropy::Continue {
-        self.client.map_or(entropy::Continue::Done, |client|
-                           {
-                               if error != ReturnCode::SUCCESS {
-                                   client.entropy_available(&mut Entropy8To32Iter(self), error)
-                               } else {
-                                   let mut count = self.count.get();
-                                   // Read in one byte at a time until we have 4;
-                                   // return More if we need more, else return the value
-                                   // of the upper randomness_available, as if it needs more
-                                   // we'll need more from the underlying Rng8.
-                                   while count < 4 {
-                                       let byte = entropy.next();
-                                       match byte {
-                                           None => {
-                                               return entropy::Continue::More;
-                                           },
-                                           Some(val) => {
-                                               let current = self.bytes.get();
-                                               let bits = val as u32;
-                                               let result = current | (bits << (8 * count));
-                                               count = count + 1;
-                                               //debug!("Count: {}, current: {:08x}, bits: {:08x}, result: {:08x}", count, current, bits, result);
-                                               self.count.set(count);
-                                               self.bytes.set(result)
-                                           }
-                                       }
-                                   }
-                                   let rval = client.entropy_available(&mut Entropy8To32Iter(self),
-                                                         ReturnCode::SUCCESS);
-                    self.bytes.set(0);
-                    rval
+        self.client.map_or(entropy::Continue::Done, |client| {
+            if error != ReturnCode::SUCCESS {
+                client.entropy_available(&mut Entropy8To32Iter(self), error)
+            } else {
+                let mut count = self.count.get();
+                // Read in one byte at a time until we have 4;
+                // return More if we need more, else return the value
+                // of the upper randomness_available, as if it needs more
+                // we'll need more from the underlying Rng8.
+                while count < 4 {
+                    let byte = entropy.next();
+                    match byte {
+                        None => {
+                            return entropy::Continue::More;
+                        }
+                        Some(val) => {
+                            let current = self.bytes.get();
+                            let bits = val as u32;
+                            let result = current | (bits << (8 * count));
+                            count = count + 1;
+                            //debug!("Count: {}, current: {:08x}, bits: {:08x}, result: {:08x}", count, current, bits, result);
+                            self.count.set(count);
+                            self.bytes.set(result)
+                        }
+                    }
                 }
+                let rval =
+                    client.entropy_available(&mut Entropy8To32Iter(self), ReturnCode::SUCCESS);
+                self.bytes.set(0);
+                rval
             }
-        )
+        })
     }
 }
 
@@ -407,16 +400,14 @@ impl Entropy8<'a> for Entropy32To8<'a> {
     }
 }
 
-
 impl<'a> entropy::Client32 for Entropy32To8<'a> {
     fn entropy_available(
         &self,
         entropy: &mut Iterator<Item = u32>,
         error: ReturnCode,
     ) -> entropy::Continue {
-        self.client.map_or(
-            entropy::Continue::Done,
-            |client| if error != ReturnCode::SUCCESS {
+        self.client.map_or(entropy::Continue::Done, |client| {
+            if error != ReturnCode::SUCCESS {
                 client.entropy_available(&mut Entropy32To8Iter(self), error)
             } else {
                 let r = entropy.next();
@@ -428,8 +419,8 @@ impl<'a> entropy::Client32 for Entropy32To8<'a> {
                     }
                 }
                 client.entropy_available(&mut Entropy32To8Iter(self), ReturnCode::SUCCESS)
-            },
-        )
+            }
+        })
     }
 }
 

@@ -53,7 +53,9 @@ impl AcChannel {
     ///
     /// - `channel`: Channel enum representing the channel number
     const fn new(channel: Channel) -> AcChannel {
-        AcChannel { chan_num: ((channel as u8) & 0x0F) as u32 }
+        AcChannel {
+            chan_num: ((channel as u8) & 0x0F) as u32,
+        }
     }
 }
 
@@ -278,7 +280,9 @@ pub struct Acifc<'a> {
 /// Implement constructor for struct Acifc
 impl<'a> Acifc<'a> {
     const fn new() -> Acifc<'a> {
-        Acifc { client: Cell::new(None) }
+        Acifc {
+            client: Cell::new(None),
+        }
     }
 
     fn enable_clock(&self) {
@@ -305,20 +309,16 @@ impl<'a> Acifc<'a> {
 
         // Enable continuous measurement mode and always-on mode for all the analog comparators
         regs.conf[0].write(
-            ACConfiguration::MODE::ContinuousMeasurementMode +
-                ACConfiguration::ALWAYSON::SET,
+            ACConfiguration::MODE::ContinuousMeasurementMode + ACConfiguration::ALWAYSON::SET,
         );
         regs.conf[1].write(
-            ACConfiguration::MODE::ContinuousMeasurementMode +
-                ACConfiguration::ALWAYSON::SET,
+            ACConfiguration::MODE::ContinuousMeasurementMode + ACConfiguration::ALWAYSON::SET,
         );
         regs.conf[2].write(
-            ACConfiguration::MODE::ContinuousMeasurementMode +
-                ACConfiguration::ALWAYSON::SET,
+            ACConfiguration::MODE::ContinuousMeasurementMode + ACConfiguration::ALWAYSON::SET,
         );
         regs.conf[3].write(
-            ACConfiguration::MODE::ContinuousMeasurementMode +
-                ACConfiguration::ALWAYSON::SET,
+            ACConfiguration::MODE::ContinuousMeasurementMode + ACConfiguration::ALWAYSON::SET,
         );
 
         // Make sure enabling was succesful
@@ -357,7 +357,9 @@ impl<'a> Acifc<'a> {
             // If Vinp > Vinn, throw an interrupt to the client and set the AC so
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[0].is_set(ACConfiguration::IS) {
-                self.client.get().map(|client| { client.fired(0); });
+                self.client.get().map(|client| {
+                    client.fired(0);
+                });
                 regs.conf[0].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
             // If Vinp < Vinn, set the AC so that it will throw an interrupt when
@@ -382,7 +384,9 @@ impl<'a> Acifc<'a> {
             // If Vinp > Vinn, throw an interrupt to the client and set the AC so
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[1].is_set(ACConfiguration::IS) {
-                self.client.get().map(|client| { client.fired(1); });
+                self.client.get().map(|client| {
+                    client.fired(1);
+                });
                 regs.conf[1].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
             // If Vinp < Vinn, set the AC so that it will throw an interrupt when
@@ -407,7 +411,9 @@ impl<'a> Acifc<'a> {
             // If Vinp > Vinn, throw an interrupt to the client and set the AC so
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[2].is_set(ACConfiguration::IS) {
-                self.client.get().map(|client| { client.fired(2); });
+                self.client.get().map(|client| {
+                    client.fired(2);
+                });
                 regs.conf[2].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
             // If Vinp < Vinn, set the AC so that it will throw an interrupt when
@@ -432,7 +438,9 @@ impl<'a> Acifc<'a> {
             // If Vinp > Vinn, throw an interrupt to the client and set the AC so
             // that it will throw an interrupt when Vinn < Vinp instead.
             if !regs.conf[3].is_set(ACConfiguration::IS) {
-                self.client.get().map(|client| { client.fired(3); });
+                self.client.get().map(|client| {
+                    client.fired(3);
+                });
                 regs.conf[3].modify(ACConfiguration::IS::WhenVinpLtVinn);
             }
             // If Vinp < Vinn, set the AC so that it will throw an interrupt when

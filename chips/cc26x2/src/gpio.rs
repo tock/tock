@@ -145,8 +145,9 @@ impl GPIOPin {
         let pin_ioc = &self.ioc_registers.iocfg[self.pin];
 
         pin_ioc.modify(
-            IoConfiguration::PORT_ID::I2C_MSSDA + IoConfiguration::IO_MODE.val(0x4) +
-                IoConfiguration::PULL_CTL::PullUp,
+            IoConfiguration::PORT_ID::I2C_MSSDA
+                + IoConfiguration::IO_MODE.val(0x4)
+                + IoConfiguration::PULL_CTL::PullUp,
         );
         self.enable_input();
     }
@@ -156,8 +157,9 @@ impl GPIOPin {
         let pin_ioc = &self.ioc_registers.iocfg[self.pin];
 
         pin_ioc.modify(
-            IoConfiguration::PORT_ID::I2C_MSSCL + IoConfiguration::IO_MODE.val(0x4) +
-                IoConfiguration::PULL_CTL::PullUp,
+            IoConfiguration::PORT_ID::I2C_MSSCL
+                + IoConfiguration::IO_MODE.val(0x4)
+                + IoConfiguration::PULL_CTL::PullUp,
         );
         // TODO(alevy): I couldn't find any justification for enabling input mode in the datasheet,
         // but I2C master seems not to work without it. Maybe it's important for multi-master mode,

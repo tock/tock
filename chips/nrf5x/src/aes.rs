@@ -230,9 +230,8 @@ impl AesECB<'a> {
                             *out = ks[i] ^ *inp;
                         }
 
-                        self.client.map(
-                            move |client| client.crypt_done(Some(slice), buf),
-                        );
+                        self.client
+                            .map(move |client| client.crypt_done(Some(slice), buf));
                     });
                 });
             }
@@ -243,16 +242,14 @@ impl AesECB<'a> {
 
     fn enable_interrupts(&self) {
         let regs = &*self.registers;
-        regs.intenset.write(
-            Intenset::ENDECB::SET + Intenset::ERRORECB::SET,
-        );
+        regs.intenset
+            .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
     }
 
     fn disable_interrupts(&self) {
         let regs = &*self.registers;
-        regs.intenclr.write(
-            Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET,
-        );
+        regs.intenclr
+            .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
     }
 }
 

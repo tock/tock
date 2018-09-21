@@ -37,10 +37,8 @@ impl Nrf51822Component {
 }
 
 impl Component for Nrf51822Component {
-    type Output = &'static nrf51822_serialization::Nrf51822Serialization<
-        'static,
-        sam4l::usart::USART,
-    >;
+    type Output =
+        &'static nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);

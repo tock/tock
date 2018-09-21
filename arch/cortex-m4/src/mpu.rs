@@ -198,7 +198,11 @@ impl kernel::mpu::MPU for MPU {
                 // `start` should never be 0 because of that's taken care of by
                 // the previous branch, but in case it is, do the right thing
                 // anyway.
-                if tz < 32 { (1 as usize) << tz } else { 0 }
+                if tz < 32 {
+                    (1 as usize) << tz
+                } else {
+                    0
+                }
             };
 
             // Once we have a subregion size, we get a region size by
@@ -252,7 +256,10 @@ impl kernel::mpu::MPU for MPU {
             Some(unsafe {
                 Region::new(
                     (region_start | 1 << 4 | (region_num & 0xf)) as u32,
-                    1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 | ap << 24 | xn << 28,
+                    1 | subregion_mask << 8
+                        | (region_len.exp::<u32>() - 1) << 1
+                        | ap << 24
+                        | xn << 28,
                 )
             })
         }

@@ -119,7 +119,7 @@ pub trait Entropy32<'a> {
 /// An [Entropy32](trait.Entropy32.html) client
 ///
 /// Clients of an [Entropy32](trait.Entropy32.html) must implement this trait.
-pub trait Client32{
+pub trait Client32 {
     /// Called by the (Entropy)[trait.Entropy32.html] when there is entropy
     /// available.
     ///
@@ -138,9 +138,7 @@ pub trait Client32{
     /// If `entropy_available` is triggered after a call to `cancel()`
     /// then error MUST be ECANCEL and `entropy` MAY contain bits of
     /// entropy.
-    fn entropy_available(&self,
-                         entropy: &mut Iterator<Item = u32>,
-                         error: ReturnCode) -> Continue;
+    fn entropy_available(&self, entropy: &mut Iterator<Item = u32>, error: ReturnCode) -> Continue;
 }
 
 /// An 8-bit entropy generator.
@@ -197,7 +195,5 @@ pub trait Client8 {
     /// If `entropy_available` is triggered after a call to `cancel()`
     /// then error MUST be ECANCEL and `entropy` MAY contain bits of
     /// entropy.
-    fn entropy_available(&self,
-                            entropy: &mut Iterator<Item = u8>,
-                            error: ReturnCode) -> Continue;
+    fn entropy_available(&self, entropy: &mut Iterator<Item = u8>, error: ReturnCode) -> Continue;
 }

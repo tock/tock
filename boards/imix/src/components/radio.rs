@@ -30,10 +30,8 @@ use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 use sam4l;
 
 // Save some deep nesting
-type RF233Device = capsules::rf233::RF233<
-    'static,
-    VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
->;
+type RF233Device =
+    capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
 pub struct RadioComponent {
     board_kernel: &'static kernel::Kernel,
@@ -71,8 +69,10 @@ const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::M
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl Component for RadioComponent {
-    type Output = (&'static capsules::ieee802154::RadioDriver<'static>,
-     &'static capsules::ieee802154::virtual_mac::MuxMac<'static>);
+    type Output = (
+        &'static capsules::ieee802154::RadioDriver<'static>,
+        &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    );
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -85,7 +85,8 @@ impl Component for RadioComponent {
         sam4l::aes::AES.enable();
 
         // Keeps the radio on permanently; pass-through layer
-        let awake_mac: &AwakeMac<RF233Device> = static_init!(AwakeMac<'static, RF233Device>, AwakeMac::new(self.rf233));
+        let awake_mac: &AwakeMac<RF233Device> =
+            static_init!(AwakeMac<'static, RF233Device>, AwakeMac::new(self.rf233));
         self.rf233.set_transmit_client(awake_mac);
         self.rf233.set_receive_client(awake_mac, &mut RF233_RX_BUF);
 

@@ -135,7 +135,11 @@ impl ContextStore for Context {
     }
 
     fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
-        if ctx_id == 0 { Some(*self) } else { None }
+        if ctx_id == 0 {
+            Some(*self)
+        } else {
+            None
+        }
     }
 
     fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
@@ -159,7 +163,11 @@ trait OnesComplement {
 impl OnesComplement for u16 {
     fn ones_complement_add(self, other: u16) -> u16 {
         let (sum, overflow) = self.overflowing_add(other);
-        if overflow { sum + 1 } else { sum }
+        if overflow {
+            sum + 1
+        } else {
+            sum
+        }
     }
 }
 
@@ -222,24 +230,26 @@ fn compute_udp_checksum(
 
     // Return the complement of the checksum, unless it is 0, in which case we
     // the checksum is one's complement -0 for a non-zero binary representation
-    if !checksum != 0 { !checksum } else { checksum }
+    if !checksum != 0 {
+        !checksum
+    } else {
+        checksum
+    }
 }
 
 /// Maps a LoWPAN_NHC header the corresponding IPv6 next header type,
 /// or an error if the NHC header is invalid
 fn nhc_to_ip6_nh(nhc: u8) -> Result<u8, ()> {
     match nhc & nhc::DISPATCH_MASK {
-        nhc::DISPATCH_NHC => {
-            match nhc & nhc::EID_MASK {
-                nhc::HOP_OPTS => Ok(ip6_nh::HOP_OPTS),
-                nhc::ROUTING => Ok(ip6_nh::ROUTING),
-                nhc::FRAGMENT => Ok(ip6_nh::FRAGMENT),
-                nhc::DST_OPTS => Ok(ip6_nh::DST_OPTS),
-                nhc::MOBILITY => Ok(ip6_nh::MOBILITY),
-                nhc::IP6 => Ok(ip6_nh::IP6),
-                _ => Err(()),
-            }
-        }
+        nhc::DISPATCH_NHC => match nhc & nhc::EID_MASK {
+            nhc::HOP_OPTS => Ok(ip6_nh::HOP_OPTS),
+            nhc::ROUTING => Ok(ip6_nh::ROUTING),
+            nhc::FRAGMENT => Ok(ip6_nh::FRAGMENT),
+            nhc::DST_OPTS => Ok(ip6_nh::DST_OPTS),
+            nhc::MOBILITY => Ok(ip6_nh::MOBILITY),
+            nhc::IP6 => Ok(ip6_nh::IP6),
+            _ => Err(()),
+        },
         nhc::DISPATCH_UDP => Ok(ip6_nh::UDP),
         _ => Err(()),
     }
@@ -366,11 +376,15 @@ fn compress_cie(
 ) {
     let mut cie: u8 = 0;
 
-    src_ctx.as_ref().map(|ctx| if ctx.id != 0 {
-        cie |= ctx.id << 4;
+    src_ctx.as_ref().map(|ctx| {
+        if ctx.id != 0 {
+            cie |= ctx.id << 4;
+        }
     });
-    dst_ctx.as_ref().map(|ctx| if ctx.id != 0 {
-        cie |= ctx.id;
+    dst_ctx.as_ref().map(|ctx| {
+        if ctx.id != 0 {
+            cie |= ctx.id;
+        }
     });
 
     if cie != 0 {
@@ -582,15 +596,15 @@ fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usiz
     let dst_port = udp_header.get_dst_port().to_be();
 
     let mut udp_port_nhc = 0;
-    if (src_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT &&
-        (dst_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
+    if (src_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
+        && (dst_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
     {
         // Both can be compressed to 4 bits
         udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG | nhc::UDP_DST_PORT_FLAG;
         // This should compress the ports to a single 8-bit value,
         // with the source port before the destination port
-        buf[*written] = (((src_port & !nhc::UDP_4BIT_PORT_MASK) << 4) |
-                             (dst_port & !nhc::UDP_4BIT_PORT_MASK)) as u8;
+        buf[*written] = (((src_port & !nhc::UDP_4BIT_PORT_MASK) << 4)
+            | (dst_port & !nhc::UDP_4BIT_PORT_MASK)) as u8;
         *written += 1;
     } else if (src_port & nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
         // Source port compressed to 8 bits, destination port uncompressed
@@ -791,8 +805,11 @@ pub fn decompress(
                 written += 8;
                 break;
             }
-            ip6_nh::FRAGMENT | ip6_nh::HOP_OPTS | ip6_nh::ROUTING | ip6_nh::DST_OPTS |
-            ip6_nh::MOBILITY => {
+            ip6_nh::FRAGMENT
+            | ip6_nh::HOP_OPTS
+            | ip6_nh::ROUTING
+            | ip6_nh::DST_OPTS
+            | ip6_nh::MOBILITY => {
                 // True if the next header is also compressed
                 is_nhc = (nhc_header & nhc::NH) != 0;
 
@@ -909,8 +926,9 @@ fn decompress_tf(ip6_header: &mut IP6Header, iphc_header: u8, buf: &[u8], consum
     if fl_compressed {
         ip6_header.set_flow_label(0);
     } else {
-        let flow = (((buf[*consumed] & 0x0f) as u32) << 16) | ((buf[*consumed + 1] as u32) << 8) |
-            (buf[*consumed + 2] as u32);
+        let flow = (((buf[*consumed] & 0x0f) as u32) << 16)
+            | ((buf[*consumed + 1] as u32) << 8)
+            | (buf[*consumed + 2] as u32);
         *consumed += 3;
         ip6_header.set_flow_label(flow);
     }

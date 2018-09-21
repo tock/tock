@@ -168,16 +168,13 @@ pub enum CK32Source {
 pub unsafe fn set_ck32source(source: CK32Source) {
     let control = BPM.pmcon.extract();
     unlock_register(0x1c); // Control
-    BPM.pmcon.modify_no_read(
-        control,
-        PowerModeControl::CK32S.val(source as u32),
-    );
+    BPM.pmcon
+        .modify_no_read(control, PowerModeControl::CK32S.val(source as u32));
 }
 
 unsafe fn unlock_register(register_offset: u32) {
-    BPM.unlock.write(
-        Unlock::KEY.val(BPM_UNLOCK_KEY) + Unlock::ADDR.val(register_offset),
-    );
+    BPM.unlock
+        .write(Unlock::KEY.val(BPM_UNLOCK_KEY) + Unlock::ADDR.val(register_offset));
 }
 
 unsafe fn power_scaling_ok() -> bool {
@@ -198,7 +195,8 @@ pub unsafe fn set_power_scaling(ps_value: PowerScaling) {
     // Actually change power scaling
     BPM.pmcon.modify_no_read(
         control,
-        PowerModeControl::PS.val(ps_value as u32) + PowerModeControl::PSCM::WithoutCpuHalt +
-            PowerModeControl::PSCREQ::PowerScalingRequested,
+        PowerModeControl::PS.val(ps_value as u32)
+            + PowerModeControl::PSCM::WithoutCpuHalt
+            + PowerModeControl::PSCREQ::PowerScalingRequested,
     );
 }

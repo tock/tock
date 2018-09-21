@@ -126,13 +126,13 @@ enum PinState {
 pub struct MCP230xx<'a> {
     i2c: &'a hil::i2c::I2CDevice,
     state: Cell<State>,
-    bank_size: u8, // How many GPIO pins per bank (likely 8)
+    bank_size: u8,       // How many GPIO pins per bank (likely 8)
     number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
     buffer: TakeCell<'static, [u8]>,
     interrupt_pin_a: Option<&'static hil::gpio::Pin>,
     interrupt_pin_b: Option<&'static hil::gpio::Pin>,
     interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled
-    interrupts_mode: Cell<u32>, // What interrupt mode the pin is in
+    interrupts_mode: Cell<u32>,    // What interrupt mode the pin is in
     identifier: Cell<usize>,
     client: OptionalCell<&'static hil::gpio_async::Client>,
 }
@@ -172,14 +172,13 @@ impl MCP230xx<'a> {
         // We configure the MCP230xx to use an active high interrupt.
         // If we don't have an interrupt pin mapped to this driver then we
         // obviously can't do interrupts.
-        let first = self.interrupt_pin_a.map_or(
-            ReturnCode::FAIL,
-            |interrupt_pin| {
+        let first = self
+            .interrupt_pin_a
+            .map_or(ReturnCode::FAIL, |interrupt_pin| {
                 interrupt_pin.make_input();
                 interrupt_pin.enable_interrupt(0, hil::gpio::InterruptMode::RisingEdge);
                 ReturnCode::SUCCESS
-            },
-        );
+            });
         if first != ReturnCode::SUCCESS {
             return first;
         }
@@ -231,9 +230,8 @@ impl MCP230xx<'a> {
 
             buffer[0] = self.calc_register_addr(Registers::IoDir, pin_number);
             self.i2c.write(buffer, 1);
-            self.state.set(
-                State::SelectIoDirForGpPu(pin_number, enabled),
-            );
+            self.state
+                .set(State::SelectIoDirForGpPu(pin_number, enabled));
 
             ReturnCode::SUCCESS
         })
@@ -455,9 +453,9 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
             State::ReadGpioRead(pin_number) => {
                 let pin_value = (buffer[0] >> pin_number) & 0x01;
 
-                self.client.map(
-                    |client| { client.done(pin_value as usize); },
-                );
+                self.client.map(|client| {
+                    client.done(pin_value as usize);
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -517,7 +515,9 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
                 self.state.set(State::Idle);
             }
             State::Done => {
-                self.client.map(|client| { client.done(0); });
+                self.client.map(|client| {
+                    client.done(0);
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();

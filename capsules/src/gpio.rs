@@ -113,9 +113,8 @@ impl<G: Pin> Client for GPIO<'a, G> {
         let pin_state = pins[pin_num].read();
 
         // schedule callback with the pin number and value
-        self.callback.map(|cb| {
-            cb.schedule(pin_num, pin_state as usize, 0)
-        });
+        self.callback
+            .map(|cb| cb.schedule(pin_num, pin_state as usize, 0));
     }
 }
 
@@ -180,7 +179,9 @@ impl<G: Pin + PinCtl> Driver for GPIO<'a, G> {
         let pin = data1;
         match command_num {
             // number of pins
-            0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
+            0 => ReturnCode::SuccessWithValue {
+                value: pins.len() as usize,
+            },
 
             // enable output
             1 => {
@@ -238,7 +239,9 @@ impl<G: Pin + PinCtl> Driver for GPIO<'a, G> {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
                     let pin_state = pins[pin].read();
-                    ReturnCode::SuccessWithValue { value: pin_state as usize }
+                    ReturnCode::SuccessWithValue {
+                        value: pin_state as usize,
+                    }
                 }
             }
 

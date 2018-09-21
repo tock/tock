@@ -121,10 +121,9 @@ impl UART {
         self.fifo_enable();
 
         // Enable UART, RX and TX
-        self.registers.ctl.write(
-            Control::UART_ENABLE::SET + Control::RX_ENABLE::SET +
-                Control::TX_ENABLE::SET,
-        );
+        self.registers
+            .ctl
+            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
 
         ReturnCode::SUCCESS
     }
@@ -140,9 +139,9 @@ impl UART {
         let div = (((MCU_CLOCK * 8) / baud_rate) + 1) / 2;
         // Set the baud rate
         self.registers.ibrd.write(IntDivisor::DIVISOR.val(div / 64));
-        self.registers.fbrd.write(
-            FracDivisor::DIVISOR.val(div % 64),
-        );
+        self.registers
+            .fbrd
+            .write(FracDivisor::DIVISOR.val(div % 64));
     }
 
     fn fifo_enable(&self) {
@@ -156,8 +155,7 @@ impl UART {
     fn disable(&self) {
         self.fifo_disable();
         self.registers.ctl.modify(
-            Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR +
-                Control::RX_ENABLE::CLEAR,
+            Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR + Control::RX_ENABLE::CLEAR,
         );
     }
 

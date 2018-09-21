@@ -41,17 +41,18 @@ impl AmbientLight<'a> {
 
     fn enqueue_sensor_reading(&self, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| if app.pending {
-                ReturnCode::ENOMEM
-            } else {
-                app.pending = true;
-                if !self.command_pending.get() {
-                    self.command_pending.set(true);
-                    self.sensor.read_light_intensity();
+            .enter(appid, |app, _| {
+                if app.pending {
+                    ReturnCode::ENOMEM
+                } else {
+                    app.pending = true;
+                    if !self.command_pending.get() {
+                        self.command_pending.set(true);
+                        self.sensor.read_light_intensity();
+                    }
+                    ReturnCode::SUCCESS
                 }
-                ReturnCode::SUCCESS
-            })
-            .unwrap_or_else(|err| err.into())
+            }).unwrap_or_else(|err| err.into())
     }
 }
 
@@ -69,14 +70,12 @@ impl Driver for AmbientLight<'a> {
         app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(app_id, |app, _| {
-                        app.callback = callback;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    app.callback = callback;
+                    ReturnCode::SUCCESS
+                }).unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -107,10 +106,12 @@ impl Driver for AmbientLight<'a> {
 impl hil::sensors::AmbientLightClient for AmbientLight<'a> {
     fn callback(&self, lux: usize) {
         self.command_pending.set(false);
-        self.apps.each(|app| if app.pending {
-            app.pending = false;
-            if let Some(mut callback) = app.callback {
-                callback.schedule(lux, 0, 0);
+        self.apps.each(|app| {
+            if app.pending {
+                app.pending = false;
+                if let Some(mut callback) = app.callback {
+                    callback.schedule(lux, 0, 0);
+                }
             }
         });
     }
