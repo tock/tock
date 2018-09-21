@@ -1,4 +1,7 @@
-//! Provides a simple driver for userspace applications to request randomness.
+//! Library of randomness structures, including a system call driver for
+//! userspace applications to request randomness, entropy conversion, entropy
+//! to randomness conversion, and synchronous random number generation.
+//!
 //!
 //! The RNG accepts a user-defined callback and buffer to hold received
 //! randomness. A single command starts the RNG, the callback is called when the
@@ -9,15 +12,15 @@
 //!
 //! ```rust
 //! let rng = static_init!(
-//!         capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
-//!         capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Grant::create()));
+//!         capsules::rng::RngDriver<'static, sam4l::trng::Trng>,
+//!         capsules::rng::RngDriver::new(&sam4l::trng::TRNG, kernel::Grant::create()));
 //! sam4l::trng::TRNG.set_client(rng);
 //! ```
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::hil::rng;
-use kernel::hil::rng::Rng;
+use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy8, Entropy32};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
@@ -33,15 +36,15 @@ pub struct App {
     idx: usize,
 }
 
-pub struct SimpleRng<'a> {
+pub struct RngDriver<'a> {
     rng: &'a Rng<'a>,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
 
-impl<'a> SimpleRng<'a> {
-    pub fn new(rng: &'a Rng<'a>, grant: Grant<App>) -> SimpleRng<'a> {
-        SimpleRng {
+impl<'a> RngDriver<'a> {
+    pub fn new(rng: &'a Rng<'a>, grant: Grant<App>) -> RngDriver<'a> {
+        RngDriver {
             rng: rng,
             apps: grant,
             getting_randomness: Cell::new(false),
@@ -49,7 +52,7 @@ impl<'a> SimpleRng<'a> {
     }
 }
 
-impl<'a> rng::Client for SimpleRng<'a> {
+impl<'a> rng::Client for RngDriver<'a> {
     fn randomness_available(&self,
                             randomness: &mut Iterator<Item = u32>,
                             _error: ReturnCode) -> rng::Continue {
@@ -125,7 +128,7 @@ impl<'a> rng::Client for SimpleRng<'a> {
     }
 }
 
-impl<'a> Driver for SimpleRng<'a> {
+impl<'a> Driver for RngDriver<'a> {
     fn allow(
         &self,
         appid: AppId,
@@ -436,6 +439,57 @@ impl Iterator for Entropy32To8Iter<'a, 'b> {
             Some(byte)
         } else {
             None
+        }
+    }
+}
+
+pub struct SynchronousRandom<'a> {
+    rgen: &'a Rng<'a>,
+    seed: Cell<u32>,
+}
+
+impl SynchronousRandom<'a> {
+    fn new(rgen: &'a Rng<'a>) -> SynchronousRandom {
+        SynchronousRandom {
+            rgen: rgen,
+            seed: Cell::new(0),
+        }
+    }
+}
+
+impl Random<'a> for SynchronousRandom<'a> {
+    fn initialize(&'a self) {
+        self.rgen.set_client(self);
+        self.rgen.get();
+    }
+
+    fn reseed(&self, seed: u32) {
+        self.seed.set(seed);
+    }
+
+    // This implementation uses a linear congruential generator due to
+    // its efficiency. The parameters for the generator are those
+    // recommended in Numerical Recipes by Press, Teukolsky,
+    // Vetterling, and Flannery.
+    fn random(&self) -> u32 {
+        let val = self.seed.get();
+        let val = val.wrapping_mul(1664525);
+        let val = val.wrapping_add(1013904223);
+        self.seed.set(val);
+        val
+    }
+}
+
+impl Client for SynchronousRandom<'a> {
+    fn randomness_available(&self,
+                            randomness: &mut Iterator<Item = u32>,
+                            _error: ReturnCode) -> Continue {
+        match randomness.next() {
+            None => Continue::More,
+            Some(val) => {
+                self.seed.set(val);
+                Continue::Done
+            }
         }
     }
 }

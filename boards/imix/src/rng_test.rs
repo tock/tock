@@ -1,4 +1,4 @@
-use capsules::test::rng::{TestRng, TestEntropy32, TestEntropy8};
+use capsules::test::rng::TestRng;
 use capsules::rng;
 use kernel::hil::rng::Rng;
 use kernel::hil::entropy::{Entropy8, Entropy32};

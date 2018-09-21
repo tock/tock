@@ -146,3 +146,23 @@ pub trait Client {
                             randomness: &mut Iterator<Item = u32>,
                             error: ReturnCode) -> Continue;
 }
+
+
+/// Generic interface for a synchronous 32-bit random number
+/// generator.
+
+pub trait Random<'a> {
+    /// Initialize/reseed the random number generator from an
+    /// internal source. This initialization MAY be deterministic
+    /// (e.g., based on an EUI-64) or MAY be random (e.g., based on an
+    /// underlying hardware entropy source); an implementation SHOULD
+    /// make reseeding random.
+    fn initialize(&'a self);
+
+    /// Reseed the random number generator with a specific
+    /// seed. Useful for deterministic tests.
+    fn reseed(&self, seed: u32);
+
+    /// Generate a 32-bit random number.
+    fn random(&self) -> u32;
+}
