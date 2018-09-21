@@ -12,6 +12,26 @@ use kernel::ReturnCode;
 
 const ELEMENTS: usize = 8;
 
+pub struct TestRandom<'a> {
+    random: &'a rng::Random<'a>
+}
+
+impl<'a> TestRandom<'a> {
+    pub fn new(random: &'a rng::Random<'a>) -> TestRandom<'a> {
+        TestRandom {
+            random: random
+        }
+    }
+
+    pub fn run(&self) {
+        self.random.initialize();
+        for _i in 0..ELEMENTS {
+            let val = self.random.random();
+            debug!("TestRandom: generated synchronous random number: {}", val);
+        }
+    }
+}
+
 // Use this test to test an Rng
 pub struct TestRng<'a> {
     rng: &'a rng::Rng<'a>,

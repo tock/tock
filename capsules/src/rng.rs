@@ -450,6 +450,7 @@ pub struct SynchronousRandom<'a> {
     seed: Cell<u32>,
 }
 
+#[allow(dead_code)]
 impl SynchronousRandom<'a> {
     fn new(rgen: &'a Rng<'a>) -> SynchronousRandom {
         SynchronousRandom {
