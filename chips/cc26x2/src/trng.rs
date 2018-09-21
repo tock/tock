@@ -141,6 +141,7 @@ impl<'a> Trng<'a> {
     }
 }
 
+#[allow(dead_code)]
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
 
 impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
