@@ -41,12 +41,12 @@
 //! use kernel::hil;
 //! use kernel::hil::time::Frequency;
 //!
-//! struct EntropyTest<'a, A: Alarm > {
+//! struct EntropyTest<'a, A: hil::time::Alarm > {
 //!     entropy: &'a hil::entropy::Entropy32 <'a>,
 //!     alarm: &'a A
 //! }
 //!
-//! impl<A: hill::time::Alarm> EntropyTest<'a, A> {
+//! impl<A: hil::time::Alarm> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let interval = 1 * <A::Frequency>::frequency();
 //!         let tics = self.alarm.now().wrapping_add(interval);
@@ -54,14 +54,14 @@
 //!     }
 //! }
 //!
-//! impl<A: Alarm> time::Client for EntropyTest<'a, A> {
+//! impl<A: hil::time::Alarm> hil::time::Client for EntropyTest<'a, A> {
 //!     fn fired(&self) {
 //!         self.rng.get();
 //!     }
 //! }
 //!
-//! impl<A: hil::time::Alarm> hil::entropy::Client for EntropyTest<'a, A> {
-//!     fn entropy_available(&self, entropy: &mut Iterator<Item = u32>) -> entropy::Continue {
+//! impl<A: hil::time::Alarm> hil::entropy::Client32 for EntropyTest<'a, A> {
+//!     fn entropy_available(&self, entropy: &mut Iterator<Item = u32>) -> hil::entropy::Continue {
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
