@@ -39,14 +39,18 @@
 //!
 //! ```
 //! use kernel::hil;
+//! use kernel::hil::entropy::Entropy32;
+//! use kernel::hil::entropy::Client32;
+//! use kernel::hil::time::Alarm;
 //! use kernel::hil::time::Frequency;
+//! use kernel::hil::time::Client;
 //!
-//! struct EntropyTest<'a, A: hil::time::Alarm > {
-//!     entropy: &'a hil::entropy::Entropy32 <'a>,
+//! struct EntropyTest<'a, A: Alarm > {
+//!     entropy: &'a Entropy32 <'a>,
 //!     alarm: &'a A
 //! }
 //!
-//! impl<A: hil::time::Alarm> EntropyTest<'a, A> {
+//! impl<'a, A: Alarm> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let interval = 1 * <A::Frequency>::frequency();
 //!         let tics = self.alarm.now().wrapping_add(interval);
@@ -54,13 +58,13 @@
 //!     }
 //! }
 //!
-//! impl<A: hil::time::Alarm> hil::time::Client for EntropyTest<'a, A> {
+//! impl<'a, A: Alarm> Client for EntropyTest<'a, A> {
 //!     fn fired(&self) {
 //!         self.rng.get();
 //!     }
 //! }
 //!
-//! impl<A: hil::time::Alarm> hil::entropy::Client32 for EntropyTest<'a, A> {
+//! impl<'a, A: Alarm> Client32 for EntropyTest<'a, A> {
 //!     fn entropy_available(&self, entropy: &mut Iterator<Item = u32>) -> hil::entropy::Continue {
 //!         match entropy.next() {
 //!             Some(val) => {

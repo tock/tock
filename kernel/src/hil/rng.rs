@@ -46,9 +46,10 @@
 //! ```
 //! use kernel::hil;
 //! use kernel::hil::time::Frequency;
+//! use kernel::ReturnCode;
 //!
 //! struct RngTest<'a, A: 'a + hil::time::Alarm> {
-//!     rng: &'a hil::rng::RNG,
+//!     rng: &'a hil::rng::Rng,
 //!     alarm: &'a A
 //! }
 //!
@@ -67,7 +68,9 @@
 //! }
 //!
 //! impl<'a, A: hil::time::Alarm> hil::rng::Client for RngTest<'a, A> {
-//!     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> hil::rng::Continue {
+//!     fn randomness_available(&self,
+//!                             randomness: &mut Iterator<Item = u32>,
+//!                             error: ReturnCode) -> hil::rng::Continue {
 //!         match randomness.next() {
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
