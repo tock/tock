@@ -1,4 +1,6 @@
-//! Interfaces for UART communications.
+//! Hardware interface layer (HIL) traits for UART communication.
+//!
+//!
 
 use returncode::ReturnCode;
 
@@ -48,11 +50,7 @@ pub enum Error {
     CommandComplete,
 }
 
-pub trait UART {
-    /// Set the client for this UART peripheral. The client will be
-    /// called when events finish.
-    fn set_client(&self, client: &'static Client);
-
+pub trait Configure {
     /// Configure UART
     ///
     /// Returns SUCCESS, or
@@ -63,16 +61,60 @@ pub trait UART {
     /// - EINVAL: Impossible parameters (e.g. a `baud_rate` of 0)
     /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
     fn configure(&self, params: UARTParameters) -> ReturnCode;
+}
 
-    /// Transmit data.
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
+pub trait Transmit<'a> {
+    /// Set the transmit client, which will be called when transmissions
+    /// complete;
+    fn set_client(&self, client: &'a TransmitClient);
 
-    /// Receive data until buffer is full.
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+    /// Transmit a buffer of data. On completion, `complete` in
+    /// the `TransmitClient` will be called.
+    ///
+    /// If `transmit` returns SUCCESS, it will issue a `complete` callback
+    /// in the future. Other valid return values are:
+    ///  - EOFF: The underlying hardware is not available, perhaps because
+    ///          because it has not been initialized or in the case of a shared
+    ///          hardware USART controller because it is set up for SPI.
+    ///  - EBUSY: the UART is already transmitting and has not made a
+    ///           transmission `complete` callback yet.
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode;
 
+    /// Abort the ongoing transmission.  If SUCCESS is returned, there
+    /// will be no callback (no call to `transmit` was
+    /// outstanding). If there was a `transmit` outstanding, which is
+    /// cancelled successfully then `EBUSY` will be returned and a
+    /// there will be a callback with a `ReturnCode` of `ECANCEL`.  If
+    /// there was a transmit outstanding, which is not cancelled
+    /// successfully, then `FAIL` will be returned and there will be a
+    /// later callback.
+    fn abort(&self) -> ReturnCode;
+}
+
+pub trait Receive<'a> {
+    /// Set the receive client, which will he called when reads complete.
+    fn set_client(&self, client: &'a ReceiveClient);
+
+    /// Receive `rx_len` bytes into `rx_buffer`, making a callback to the
+    /// `ReceiveClient` when complete.
+    /// If `receive` returns SUCCESS, it will issue a `complete` callback
+    /// in the future. Other valid return values are:
+    ///  - EOFF: The underlying hardware is not available, perhaps because
+    ///          because it has not been initialized or in the case of a shared
+    ///          hardware USART controller because it is set up for SPI.
+    ///  - EBUSY: the UART is already receiving and has not made a
+    ///           transmission `complete` callback yet.
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> ReturnCode;
     /// Abort any ongoing receive transfers and return what is in the
-    /// receive buffer with the `receive_complete` callback.
-    fn abort_receive(&self);
+    /// receive buffer with the `receive_complete` callback. If
+    /// SUCCESS is returned, there will be no callback (no call to
+    /// `receive` was outstanding). If there was a `receive`
+    /// outstanding, which is cancelled successfully then `EBUSY` will
+    /// be returned and a there will be a callback with a `ReturnCode`
+    /// of `ECANCEL`.  If there was a reception outstanding, which is
+    /// not cancelled successfully, then `FAIL` will be returned and
+    /// there will be a later callback.
+    fn abort(&self) -> ReturnCode;
 }
 
 /// Trait that isn't required for basic UART operation, but provides useful
