@@ -338,19 +338,19 @@ pub unsafe fn reset_handler() {
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
-    let etor = static_init!(
+    let entropy_to_random = static_init!(
         capsules::rng::Entropy32ToRandom<'static>,
         capsules::rng::Entropy32ToRandom::new(&nrf5x::trng::TRNG)
     );
     let rng = static_init!(
         capsules::rng::RngDriver<'static>,
         capsules::rng::RngDriver::new(
-            etor,
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    nrf5x::trng::TRNG.set_client(etor);
-    etor.set_client(rng);
+    nrf5x::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<

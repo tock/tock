@@ -34,7 +34,7 @@
 //! consumers.  Random numbers are yielded to the
 //! [Client](trait.Client.html) as an `Iterator` which only terminates
 //! when no more numbers are currently available. Clients can request
-//! more randmoness if needed and will be called again when more is
+//! more randomness if needed and will be called again when more is
 //! available.
 //!
 //! The Random trait is synchronous, so designed to work

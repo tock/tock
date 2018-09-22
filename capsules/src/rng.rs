@@ -42,7 +42,7 @@ pub struct RngDriver<'a> {
     getting_randomness: Cell<bool>,
 }
 
-impl<'a> RngDriver<'a> {
+impl RngDriver<'a> {
     pub fn new(rng: &'a Rng<'a>, grant: Grant<App>) -> RngDriver<'a> {
         RngDriver {
             rng: rng,
@@ -288,7 +288,7 @@ impl Entropy32<'a> for Entropy8To32<'a> {
     ///
     /// There are three valid return values:
     ///   - SUCCESS: an outstanding request from `get` has been cancelled,
-    ///     or there was no oustanding request. No `randomness_available`
+    ///     or there was no outstanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
@@ -328,7 +328,6 @@ impl<'a> entropy::Client8 for Entropy8To32<'a> {
                             let bits = val as u32;
                             let result = current | (bits << (8 * count));
                             count = count + 1;
-                            //debug!("Count: {}, current: {:08x}, bits: {:08x}, result: {:08x}", count, current, bits, result);
                             self.count.set(count);
                             self.bytes.set(result)
                         }
@@ -386,7 +385,7 @@ impl Entropy8<'a> for Entropy32To8<'a> {
     ///
     /// There are three valid return values:
     ///   - SUCCESS: an outstanding request from `get` has been cancelled,
-    ///     or there was no oustanding request. No `randomness_available`
+    ///     or there was no outstanding request. No `randomness_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
@@ -474,10 +473,13 @@ impl Random<'a> for SynchronousRandom<'a> {
     // its efficiency. The parameters for the generator are those
     // recommended in Numerical Recipes by Press, Teukolsky,
     // Vetterling, and Flannery.
+
     fn random(&self) -> u32 {
+        const LCG_MULTIPLIER: u32 = 1_644_525;
+        const LCG_INCREMENT: u32 = 1_013_904_223;
         let val = self.seed.get();
-        let val = val.wrapping_mul(1664525);
-        let val = val.wrapping_add(1013904223);
+        let val = val.wrapping_mul(LCG_MULTIPLIER);
+        let val = val.wrapping_add(LCG_INCREMENT);
         self.seed.set(val);
         val
     }

@@ -116,7 +116,7 @@ pub trait Entropy32<'a> {
     ///
     /// There are three valid return values:
     ///   - SUCCESS: an outstanding request from `get` has been cancelled,
-    ///     or there was no oustanding request. No `entropy_available`
+    ///     or there was no outstanding request. No `entropy_available`
     ///     callback will be issued.
     ///   - FAIL: There will be a `entropy_available` callback, which
     ///     may or may not return an error code.
@@ -139,7 +139,7 @@ pub trait Client32 {
     /// finish consuming entropy.
     ///
     /// The client returns either `Continue::More` if the iterator did
-    /// not have enough entropy (indicading another
+    /// not have enough entropy (indicating another
     /// `entropy_available` callback is requested) and the client
     /// would like to be called again when more is available, or
     /// `Continue::Done`, which indicates `entropy_available` should
@@ -156,7 +156,7 @@ pub trait Client32 {
 /// Implementors should assume the client implements the
 /// [Client8](trait.Client8.html) trait.
 pub trait Entropy8<'a> {
-    /// Initiate the aquisition of new entropy.
+    /// Initiate the acquisition of new entropy.
     ///
     /// There are three valid return values:
     ///   - SUCCESS: a `entropy_available` callback will be called in
@@ -173,7 +173,7 @@ pub trait Entropy8<'a> {
     ///
     /// There are three valid return values:
     ///   - SUCCESS: an outstanding request from `get` has been cancelled,
-    ///     or there was no oustanding request. No `entropy_available`
+    ///     or there was no outstanding request. No `entropy_available`
     ///     callback will be issued.
     ///   - FAIL:: There will be a `entropy_available` callback, which
     ///     may or may not return an error code.
@@ -196,7 +196,7 @@ pub trait Client8 {
     /// finish consuming entropy.
     ///
     /// The client returns either `Continue::More` if the iterator did
-    /// not have enough entropy (indicading another
+    /// not have enough entropy (indicating another
     /// `entropy_available` callback is requested) and the client
     /// would like to be called again when more is available, or
     /// `Continue::Done`, which indicates `entropy_available` should

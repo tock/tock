@@ -336,19 +336,19 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm1.set_client(alarm);
 
-    let etor = static_init!(
+    let entropy_to_random = static_init!(
         capsules::rng::Entropy32ToRandom<'static>,
         capsules::rng::Entropy32ToRandom::new(&cc26x2::trng::TRNG)
     );
     let rng = static_init!(
         capsules::rng::RngDriver<'static>,
         capsules::rng::RngDriver::new(
-            etor,
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    cc26x2::trng::TRNG.set_client(etor);
-    etor.set_client(rng);
+    cc26x2::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     let launchxl = Platform {
         console,

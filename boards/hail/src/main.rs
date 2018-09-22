@@ -469,19 +469,19 @@ pub unsafe fn reset_handler() {
     sam4l::adc::ADC0.set_client(adc);
 
     // Setup RNG
-    let etor = static_init!(
+    let entropy_to_random = static_init!(
         capsules::rng::Entropy32ToRandom<'static>,
         capsules::rng::Entropy32ToRandom::new(&sam4l::trng::TRNG)
     );
     let rng = static_init!(
         capsules::rng::RngDriver<'static>,
         capsules::rng::RngDriver::new(
-            etor,
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    sam4l::trng::TRNG.set_client(etor);
-    etor.set_client(rng);
+    sam4l::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
