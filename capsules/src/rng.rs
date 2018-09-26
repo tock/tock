@@ -227,7 +227,7 @@ impl Rng<'a> for Entropy32ToRandom<'a> {
     }
 }
 
-impl<'a> entropy::Client32 for Entropy32ToRandom<'a> {
+impl entropy::Client32 for Entropy32ToRandom<'a> {
     fn entropy_available(
         &self,
         entropy: &mut Iterator<Item = u32>,
@@ -302,7 +302,7 @@ impl Entropy32<'a> for Entropy8To32<'a> {
     }
 }
 
-impl<'a> entropy::Client8 for Entropy8To32<'a> {
+impl entropy::Client8 for Entropy8To32<'a> {
     fn entropy_available(
         &self,
         entropy: &mut Iterator<Item = u8>,
@@ -399,7 +399,7 @@ impl Entropy8<'a> for Entropy32To8<'a> {
     }
 }
 
-impl<'a> entropy::Client32 for Entropy32To8<'a> {
+impl entropy::Client32 for Entropy32To8<'a> {
     fn entropy_available(
         &self,
         entropy: &mut Iterator<Item = u32>,

@@ -150,7 +150,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     fn next(&mut self) -> Option<u32> {
         let regs = &*self.0.registers;
         if regs.ctl.is_set(Control::TRNG_EN) {
-            Some((self.0.read_number_blocking() & 0xFFFFFFFF) as u32)
+            Some((self.0.read_number_blocking() & 0xFFFF_FFFF) as u32)
         } else {
             None
         }
