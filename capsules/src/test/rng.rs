@@ -80,7 +80,7 @@ impl<'a> rng::Client for TestRng<'a> {
 
             if count >= ELEMENTS {
                 debug!("RNG test: obtained all {} values. They are:", count);
-                for (i,c) in pool.iter().enumerate() {
+                for (i, c) in pool.iter().enumerate() {
                     debug!("[{:02x}]: {:08x}", i, c);
                 }
                 return rng::Continue::Done;
