@@ -120,7 +120,7 @@ pub trait Rng<'a> {
 
     /// Cancel acquisition of random numbers.
     ///
-    /// There are three valid return values:
+    /// There are two valid return values:
     ///   - SUCCESS: an outstanding request from `get` has been cancelled,
     ///     or there was no oustanding request. No `randomness_available`
     ///     callback will be issued.
