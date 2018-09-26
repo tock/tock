@@ -370,20 +370,18 @@ impl<'a> Driver for UDPDriver<'a> {
 
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
-            1 => {
-                self.do_with_cfg_mut(appid, arg1 * mem::size_of::<IPAddr>(), |cfg| {
-                    let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
-                    let iface_size = mem::size_of::<IPAddr>();
-                    for i in 0..n_ifaces_to_copy {
-                        cfg[i * iface_size..(i + 1) * iface_size]
-                            .copy_from_slice(&self.interface_list[i].0);
-                    }
-                    // Returns total number of interfaces
-                    ReturnCode::SuccessWithValue {
-                        value: self.interface_list.len(),
-                    }
-                })
-            }
+            1 => self.do_with_cfg_mut(appid, arg1 * mem::size_of::<IPAddr>(), |cfg| {
+                let n_ifaces_to_copy = cmp::min(arg1, self.interface_list.len());
+                let iface_size = mem::size_of::<IPAddr>();
+                for i in 0..n_ifaces_to_copy {
+                    cfg[i * iface_size..(i + 1) * iface_size]
+                        .copy_from_slice(&self.interface_list[i].0);
+                }
+                // Returns total number of interfaces
+                ReturnCode::SuccessWithValue {
+                    value: self.interface_list.len(),
+                }
+            }),
 
             // Transmits UDP packet stored in
             2 => {

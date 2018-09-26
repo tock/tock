@@ -784,7 +784,7 @@ impl Header<'a> {
                     payload_ies: payload_ies,
                     payload_ies_len: payload_ies_len,
                 },
-                mac_payload_off,
+                mac_payload_off
             )
         );
     }

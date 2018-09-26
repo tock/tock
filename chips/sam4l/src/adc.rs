@@ -628,14 +628,14 @@ impl hil::adc::Adc for Adc {
             self.timer_counts.set(0);
 
             let cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num) +
-                SequencerConfig::INTERNAL.val(0x2 | channel.internal) +
-                SequencerConfig::RES::Bits12 +
-                SequencerConfig::TRGSEL::Software +
-                SequencerConfig::GCOMP::Disable +
-                SequencerConfig::GAIN::Gain0p5x +
-                SequencerConfig::BIPOLAR::Disable +
-                SequencerConfig::HWLA::Enable;
+                SequencerConfig::MUXPOS.val(channel.chan_num)
+                + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
+                + SequencerConfig::RES::Bits12
+                + SequencerConfig::TRGSEL::Software
+                + SequencerConfig::GCOMP::Disable
+                + SequencerConfig::GAIN::Gain0p5x
+                + SequencerConfig::BIPOLAR::Disable
+                + SequencerConfig::HWLA::Enable;
             regs.seqcfg.write(cfg);
 
             // clear any current status
@@ -680,13 +680,13 @@ impl hil::adc::Adc for Adc {
 
             // adc sequencer configuration
             let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num) +
-                SequencerConfig::INTERNAL.val(0x2 | channel.internal) +
-                SequencerConfig::RES::Bits12 +
-                SequencerConfig::GCOMP::Disable +
-                SequencerConfig::GAIN::Gain0p5x +
-                SequencerConfig::BIPOLAR::Disable +
-                SequencerConfig::HWLA::Enable;
+                SequencerConfig::MUXPOS.val(channel.chan_num)
+                + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
+                + SequencerConfig::RES::Bits12
+                + SequencerConfig::GCOMP::Disable
+                + SequencerConfig::GAIN::Gain0p5x
+                + SequencerConfig::BIPOLAR::Disable
+                + SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;
@@ -870,13 +870,13 @@ impl hil::adc::AdcHighSpeed for Adc {
 
             // adc sequencer configuration
             let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num) +
-                SequencerConfig::INTERNAL.val(0x2 | channel.internal) +
-                SequencerConfig::RES::Bits12 +
-                SequencerConfig::GCOMP::Disable +
-                SequencerConfig::GAIN::Gain0p5x +
-                SequencerConfig::BIPOLAR::Disable +
-                SequencerConfig::HWLA::Enable;
+                SequencerConfig::MUXPOS.val(channel.chan_num)
+                + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
+                + SequencerConfig::RES::Bits12
+                + SequencerConfig::GCOMP::Disable
+                + SequencerConfig::GAIN::Gain0p5x
+                + SequencerConfig::BIPOLAR::Disable
+                + SequencerConfig::HWLA::Enable;
             // set trigger based on how good our clock is
             if self.cpu_clock.get() {
                 cfg += SequencerConfig::TRGSEL::InternalAdcTimer;

@@ -662,7 +662,7 @@ impl NetworkDataTlv<'a> {
                             prefix: prefix,
                             sub_tlvs: &buf[offset..offset + length as usize],
                         },
-                        stable,
+                        stable
                     )
                 )
             }
@@ -677,7 +677,7 @@ impl NetworkDataTlv<'a> {
                             com_length: com_length,
                             com_data: com_data,
                         },
-                        stable,
+                        stable
                     )
                 )
             }
@@ -700,7 +700,7 @@ impl NetworkDataTlv<'a> {
                             s_service_data: s_service_data,
                             sub_tlvs: &buf[offset..offset + length as usize],
                         },
-                        stable,
+                        stable
                     )
                 )
             }
@@ -808,15 +808,15 @@ impl PrefixSubTlv<'a> {
             PrefixSubTlvType::HasRoute => stream_done!(
                 offset + length as usize,
                 (
-                    PrefixSubTlv::HasRoute(&buf[offset..offset + length as usize],),
-                    stable,
+                    PrefixSubTlv::HasRoute(&buf[offset..offset + length as usize]),
+                    stable
                 )
             ),
             PrefixSubTlvType::BorderRouter => stream_done!(
                 offset + length as usize,
                 (
-                    PrefixSubTlv::BorderRouter(&buf[offset..offset + length as usize],),
-                    stable,
+                    PrefixSubTlv::BorderRouter(&buf[offset..offset + length as usize]),
+                    stable
                 )
             ),
             PrefixSubTlvType::SixLoWpanId => {
@@ -832,7 +832,7 @@ impl PrefixSubTlv<'a> {
                             context_id: context_id,
                             context_length: context_length,
                         },
-                        stable,
+                        stable
                     )
                 )
             }
@@ -1008,7 +1008,7 @@ impl ServiceSubTlv {
                             s_server_16: s_server_16,
                             s_server_data: s_server_data,
                         },
-                        stable,
+                        stable
                     )
                 )
             }
