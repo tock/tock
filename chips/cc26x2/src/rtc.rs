@@ -125,12 +125,20 @@ impl Rtc {
     }
 
     pub fn set_upd_en(&self, value: bool) {
-        let reg = &*self.registers;
+        let regs = &*self.registers;
+        
+        if value {
+            regs.ctl.set(regs.ctl.get() | 0x02);
+        } else {
+            regs.ctl.set(regs.ctl.get() & !0x02);
+        }
+        /*
         if value {
             reg.ctl.modify(Control::RTC_UPD_EN::SET);
         } else {
             reg.ctl.modify(Control::RTC_UPD_EN::CLEAR);
         }
+        */
     }
 
     pub fn is_running(&self) -> bool {

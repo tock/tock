@@ -93,6 +93,17 @@ pub trait PowerClient {
     fn lowest_sleep_mode(&self) -> u32;
 }
 
+pub trait HWIntClient {
+    fn enable(&self, interrupt_no: u32);
+    fn disable(&self, interrupt_no: u32);
+}
+
+pub struct HWIntPeriph<'a> {
+    args: Cell<Option<&'a [u8]>>,
+    interrupt_no: Cell<u8>,
+    enabled: bool,
+}
+
 /// Wrapper around PowerClient to be used in a linked list.
 pub struct Peripheral<'a> {
     client: Cell<Option<&'a PowerClient>>,

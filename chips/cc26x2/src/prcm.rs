@@ -112,6 +112,18 @@ struct PrcmRegisters {
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
+    
+    _reserved10: [ReadOnly<u8>; 0x08],
+
+    pub rfc_mode_allowed: ReadOnly<u32>,
+
+    _reserved11: [ReadOnly<u8>; 0xB4],
+    // Enable/Disable interupt generation when OSC is qualified
+    pub osc_imsc: ReadWrite<u32, OscInterrupt::Register>,
+    // OSC raw interrupt status
+    pub osc_ris: ReadOnly<u32, OscInterrupt::Register>,
+    // OSC raw interupt clear
+    pub osc_icr: WriteOnly<u32, OscInterrupt::Register>,
 }
 
 register_bitfields![
@@ -171,7 +183,17 @@ register_bitfields![
     ],
     AutoControl [
         Startup_Prefs OFFSET(0) NUMBITS(32) []
-    ]
+    ],
+    OscInterrupt [
+        HF_SRC OFFSET(7) NUMBITS(1) [],
+        LF_SRC OFFSET(6) NUMBITS(1) [],
+        XOSC_DLF OFFSET(5) NUMBITS(1) [],
+        XOSC_LF OFFSET(4) NUMBITS(1) [],
+        RCOSC_DLF OFFSET(3) NUMBITS(1) [],
+        RCOSC_LF OFFSET(2) NUMBITS(1) [],
+        XOSC_HF OFFSET(1) NUMBITS(1) [],
+        RCOSC_HF OFFSET(0) NUMBITS(1) []
+    ]        
 ];
 
 const PRCM_BASE: StaticRef<PrcmRegisters> =
@@ -239,6 +261,17 @@ impl From<u32> for PowerDomain {
     }
 }
 
+#[allow(non_camel_case_types)]
+pub enum OscInt {
+    HF_SRC,
+    LF_SRC, 
+    XOSC_DLF, 
+    XOSC_LF, 
+    RCOSC_DLF, 
+    RCOSC_LF, 
+    XOSC_HF,
+    RCOSC_HF,
+}
 
 pub struct Power(());
 
@@ -436,3 +469,53 @@ pub fn rf_mode_sel(mode: u32) {
     let regs = PRCM_BASE;
     regs.rfc_mode_sel.set(mode);
 }
+
+pub fn disable_osc_interrupt() {
+    let regs = PRCM_BASE;
+    regs.osc_imsc.set(0x00000000);
+}
+
+pub fn enable_osc_interrupt(osc: OscInt) {
+    let regs = PRCM_BASE;
+    match osc {
+        OscInt::HF_SRC => { regs.osc_imsc.modify(OscInterrupt::HF_SRC::SET) },
+        OscInt::LF_SRC => { regs.osc_imsc.modify(OscInterrupt::LF_SRC::SET) },
+        OscInt::RCOSC_DLF => { regs.osc_imsc.modify(OscInterrupt::RCOSC_DLF::SET) },
+        OscInt::RCOSC_LF => { regs.osc_imsc.modify(OscInterrupt::RCOSC_LF::SET) },
+        OscInt::RCOSC_HF => { regs.osc_imsc.modify(OscInterrupt::RCOSC_HF::SET) },
+        OscInt::XOSC_DLF => { regs.osc_imsc.modify(OscInterrupt::XOSC_DLF::SET) },
+        OscInt::XOSC_HF => { regs.osc_imsc.modify(OscInterrupt::XOSC_HF::SET) },
+        OscInt::XOSC_LF => { regs.osc_imsc.modify(OscInterrupt::XOSC_LF::SET) },
+    }
+}
+
+pub fn handle_osc_interrupt() {
+    let regs = PRCM_BASE;
+    
+    if regs.osc_ris.is_set(OscInterrupt::HF_SRC) {
+        regs.osc_icr.write(OscInterrupt::HF_SRC::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::LF_SRC) {
+        regs.osc_icr.write(OscInterrupt::LF_SRC::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::RCOSC_DLF) {
+        regs.osc_icr.write(OscInterrupt::RCOSC_DLF::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::RCOSC_LF) {
+        regs.osc_icr.write(OscInterrupt::RCOSC_LF::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::RCOSC_HF) {
+        regs.osc_icr.write(OscInterrupt::RCOSC_HF::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::XOSC_HF) {
+        regs.osc_icr.write(OscInterrupt::XOSC_HF::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::XOSC_LF) {
+        regs.osc_icr.write(OscInterrupt::XOSC_LF::SET);
+    }
+    if regs.osc_ris.is_set(OscInterrupt::XOSC_DLF) {
+        regs.osc_icr.write(OscInterrupt::XOSC_DLF::SET);
+    }
+}
+
+

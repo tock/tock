@@ -21,9 +21,12 @@
 //! radio RAM, the system CPU may go into power-down mode to save current.
 //!
 use radio::commands as cmd;
+// use cortexm4::{self, nvic};
+use self::test_commands::*;
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::common::cells::VolatileCell;
 use prcm;
 use rtc;
 
@@ -165,10 +168,10 @@ type RadioReturnCode = Result<(), u32>;
 
 const RFC_PWC_BASE: StaticRef<RfcPWCRegisters> =
     unsafe { StaticRef::new(0x4004_0000 as *const RfcPWCRegisters) };
+
 const RFC_DBELL_BASE: StaticRef<RfcDBellRegisters> =
     unsafe { StaticRef::new(0x4004_1000 as *const RfcDBellRegisters) };
 
-pub static mut RFC: RFCore = RFCore::new();
 pub const DRIVER_NUM: usize = 0xCC1312;
 
 #[derive(Debug, Clone, Copy)]
@@ -186,6 +189,12 @@ pub struct RFCore {
     pub mode: Cell<Option<RfcMode>>,
     pub rat: Cell<u32>,
     status: Cell<u32>,
+    /*
+    pub ack_nvic: &'static nvic::Nvic,
+    pub ack_event: VolatileCell<bool>,
+    pub cpe0_nvic: &'static nvic::Nvic,
+    pub cpe0_event: VolatileCell<bool>,
+    */
 }
 
 impl RFCore {
@@ -197,6 +206,12 @@ impl RFCore {
             mode: Cell::new(None),
             rat: Cell::new(0),
             status: Cell::new(0),
+            /*
+            ack_nvic,
+            ack_event: VolatileCell::new(false),
+            cpe0_nvic,
+            cpe0_event: VolatileCell::new(false),
+            */
         }
     }
 
@@ -226,7 +241,7 @@ impl RFCore {
         while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
         
         // Set power and clock regs for RFC
-        let pwc_regs = &*self.pwc_regs;
+        let pwc_regs: &RfcPWCRegisters = &*self.pwc_regs;
         pwc_regs.pwmclken.modify(
             RFCPWE::RFC::SET
                 + RFCPWE::CPE::SET
@@ -317,6 +332,7 @@ impl RFCore {
     // Call commands to setup RFCore with optional register overrides and power output
     pub fn setup(&self, reg_override: u32, tx_power: u16) {
         let mode = self.mode.get().expect("No RF mode selected, cannot setup");
+/*
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
         let start_trigger = 0; // TRIGGER FOR NOW
@@ -333,6 +349,36 @@ impl RFCore {
         radio_setup = cmd::RadioCommand::pack(&radio_setup, common);
         self.send(&radio_setup)
             .and_then(|_| self.wait(&radio_setup))
+            .ok()
+            .expect("Radio setup command returned Err");
+
+*/
+        let cmd = CommandRadioSetup {
+            command_no: 0x0802,
+            status: 0,
+            p_nextop: 0,
+            ratmr: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = cmd::RfcCondition(0);
+                cond.set_rule(0x01); // COND_NEVER
+                                     //cond.set_rule(5); // COND_SKIP_ON_FALSE
+                cond
+            },
+            mode: mode as u8,
+            lo_divider: 0,
+            config: {
+                let mut cfg = cmd::RfcSetupConfig(0);
+                cfg.set_frontend_mode(0); // Differential mode
+                cfg.set_bias_mode(false); // Internal bias
+                cfg
+            },
+            tx_power: 0x9330,
+            reg_override,
+        };
+
+        self.send_test(&cmd)
+            .and_then(|_| self.wait_test(&cmd))
             .ok()
             .expect("Radio setup command returned Err");
     }
@@ -358,8 +404,8 @@ impl RFCore {
             .ok()
             .expect("Start RAT command returned Err");
         */
-        let rf_command_test = ::radio::rfc::test_commands::RfcCommandSyncRat {
-            command_no: 0x080D,
+        let rf_command_test = CommandSyncRat {
+            command_no: 0x080A,
             status: 0,
             next_op: 0,
             start_time: 0,
@@ -389,7 +435,7 @@ impl RFCore {
             cond
         };
         let common =
-            cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
+            cmd::CmdCommon::new(0x0809, 0, p_next_op, start_time, start_trigger, condition);
 
         let mut rf_command = cmd::CmdSyncStopRat::new(common, self.rat.get());
         rf_command = cmd::RadioCommand::pack(&rf_command, common);
@@ -426,7 +472,7 @@ impl RFCore {
 
     // Post command pointer to CMDR register
     fn post_cmdr(&self, rf_command: u32) -> RadioReturnCode {
-        let dbell_regs = &*self.dbell_regs;
+        let dbell_regs: &RfcDBellRegisters = &*self.dbell_regs;
         if !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {
             panic!("RFC power domain is off");
         }
@@ -449,7 +495,7 @@ impl RFCore {
 
     // Get status from active radio command
     pub fn wait_cmdr(&self, rf_command: u32) -> RadioReturnCode {
-        let command_op: &cmd::CmdCommon = unsafe { &*(rf_command as *const cmd::CmdCommon) };
+        let command_op: &CommandCommon = unsafe { &*(rf_command as *const CommandCommon) };
         let mut status = 0;
         let mut timeout: u32 = 0;
         const MAX_TIMEOUT: u32 = 0x2FFFFFF;
@@ -485,7 +531,7 @@ impl RFCore {
     }
 
     pub fn send_test<T> (&self, rf_command: &T) -> RadioReturnCode {
-        let command = { (rf_command as *const T) as u32 };
+        let command = (rf_command as *const T) as u32;
 
         self.post_cmdr(command)
     }
@@ -519,6 +565,7 @@ impl RFCore {
             RfcInterrupt::CmdAck => {
                 // Clear the interrupt
                 dbell_regs.rfack_ifg.set(0);
+                /*
                 self.client.get().map(|client| client.command_done());
                 let status = self.cmdsta();
                 match status {
@@ -528,6 +575,7 @@ impl RFCore {
                     }
                     Err(e) => self.status.set(e),
                 }
+                */
             }
             RfcInterrupt::Cpe0 => {
                 let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);
@@ -535,6 +583,7 @@ impl RFCore {
                 let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
                 let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
                 dbell_regs.rfcpe_ifg.set(0);
+                //self.cpe0_nvic.enable();
 
                 if command_done || last_command_done {
                     self.client.get().map(|client| client.command_done());
@@ -563,8 +612,21 @@ pub trait RFCoreClient {
 
 mod test_commands {
     use radio::commands as cmd;
+    use kernel::common::registers::{ReadOnly};
+
+    #[allow(unused)]
     #[repr(C)]
-    pub struct RfcCommandSyncRat {
+    pub struct CommandCommon {
+        pub command_no: ReadOnly<u16>,
+        pub status: ReadOnly<u16>,
+        pub p_nextop: ReadOnly<u32>,
+        pub ratmr: ReadOnly<u32>,
+        pub start_trigger: ReadOnly<u8>,
+        pub condition: cmd::RfcCondition,
+    }
+    
+    #[repr(C)]
+    pub struct CommandSyncRat {
         pub command_no: u16,
         pub status: u16,
         pub next_op: u32,
@@ -573,5 +635,21 @@ mod test_commands {
         pub condition: cmd::RfcCondition,
         pub _reserved: u16,
         pub rat0: u32,
+    }
+
+    /* In order to properly setup the radio mode (e.g IEEE) */
+    #[repr(C)]
+    pub struct CommandRadioSetup {
+        pub command_no: u16,
+        pub status: u16,
+        pub p_nextop: u32,
+        pub ratmr: u32,
+        pub start_trigger: u8,
+        pub condition: cmd::RfcCondition,
+        pub mode: u8,
+        pub lo_divider: u8,
+        pub config: cmd::RfcSetupConfig,
+        pub tx_power: u16,
+        pub reg_override: u32,
     }
 }

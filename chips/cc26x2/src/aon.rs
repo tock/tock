@@ -4,6 +4,7 @@
 //!
 //! The current configuration disables all wake-up selectors, since the
 //! MCU never go to sleep and is always active.
+//!
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use rtc;
@@ -43,13 +44,13 @@ struct AonPmCtlRegisters {
 register_bitfields![
     u32,
     AuxClk [
-        SRC     OFFSET(0) NUMBITS(1) [
-            SCLK_HFDIV2 = 0x00,
-            SCLK_MF = 0x01
-        ],
         PWR_DWN_SRC OFFSET(8) NUMBITS(1) [
             NO_CLOCK = 0x00,
             SCLK_LF = 0x01
+        ],
+        SRC     OFFSET(0) NUMBITS(1) [
+            SCLK_HFDIV2 = 0x00,
+            SCLK_MF = 0x01
         ]
     ],
     RamCfg [

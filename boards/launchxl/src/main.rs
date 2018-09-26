@@ -24,6 +24,7 @@ use kernel::hil;
 pub mod io;
 #[allow(dead_code)]
 mod i2c_tests;
+#[allow(dead_code)]
 mod radio_tests;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -371,7 +372,6 @@ pub unsafe fn reset_handler() {
     kernel::hil::radio_client::RadioDriver::set_receive_client(&radio::RADIO, virtual_radio, &mut HELIUM_BUF);
 
     let rfc = &cc26x2::radio::RADIO;
-    rfc.test_power_up();
 
     let launchxl = Platform {
         console,
@@ -384,6 +384,8 @@ pub unsafe fn reset_handler() {
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();
+
+    // rfc.test_power_up();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

@@ -141,6 +141,7 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
     let mut currentHfClock: u32;
     let mut ccfgExtLfClk: u32;
     let switch1 = (ccfg_ModeConfReg & 0xc0000u32) >> 18i32;
+    /*
     if !(switch1 == 2u32) {
         if switch1 == 1u32 {
             fcfg1OscConf = *((0x50001000i32 + 0x38ci32) as (*mut usize)) as (u32);
@@ -172,11 +173,19 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
             *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x00000000usize;
         }
     }
+    */
+    // Set XOSC_HF in bypass mode if CCFG is configured for external TCXO
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x8usize == 0usize {
         *((0x400ca000i32 + 0x80i32 + 0x28i32) as (*mut usize)) = 0x40usize;
     }
+    // Clear DDI_0_OSC_CTL0_CLK_LOSS_EN (ClockLossEventEnable()). This is bit 9 in DDI_0_OSC_O_CTL0.
+    // This is typically already 0 except on Lizard where it is set in ROM-boot
     *((0x400ca000i32 + 0x100i32 + 0x0i32) as (*mut usize)) = 0x200usize;
+    
+    // Setting DDI_0_OSC_CTL1_XOSC_HF_FAST_START according to value found in FCFG1
     ui32Trim = SetupGetTrimForXoscHfFastStart();
+
+    // setup the LF clock based upon CCFG:MODE_CONF:SCLK_LF_OPTION
     *((0x400ca000i32 + 0x200i32 + 0x4i32 * 2i32) as (*mut u8)) = (0x30u32 | ui32Trim) as (u8);
     let switch2 = (ccfg_ModeConfReg & 0xc00000u32) >> 22i32;
     if switch2 == 2u32 {

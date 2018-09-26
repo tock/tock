@@ -1,6 +1,4 @@
-use core::cell::Cell;
-use core::cmp;
-use kernel::common::cells::{TakeCell, OptionalCell, MapCell};
+use kernel::common::cells::{TakeCell, OptionalCell};
 use kernel::{AppId, AppSlice, Shared, Callback, Driver, ReturnCode, Grant};
 use kernel::hil::radio_client;
 

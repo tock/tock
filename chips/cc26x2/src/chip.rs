@@ -6,6 +6,7 @@ use peripheral_interrupts;
 use radio;
 use rtc;
 use uart;
+use prcm;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -62,19 +63,20 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::I2C => i2c::I2C0.handle_interrupt(),
                     peripheral_interrupts::RF_CORE_HW => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Hardware)
-                    }
+                    },
                     peripheral_interrupts::RF_CMD_ACK => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck)
-                    }
+                    },
                     peripheral_interrupts::RF_CORE_CPE0 => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0)
-                    }
+                    },
                     peripheral_interrupts::RF_CORE_CPE1 => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe1)
-                    }
+                    },
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     peripheral_interrupts::AON_PROG => (),
+                    // peripheral_interrupts::OSC => prcm::handle_osc_interrupt(),
                     _ => panic!("unhandled interrupt {}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);
@@ -82,6 +84,25 @@ impl kernel::Chip for Cc26X2 {
                 n.enable();
             }
         }
+        /*
+        unsafe {
+            radio::RFC.ack_nvic.disable();
+            if radio::RFC.ack_event.get() {
+                radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck);
+                radio::RFC.ack_event.set(false);
+            };
+            radio::RFC.ack_nvic.enable();
+        }
+
+        unsafe {
+            radio::RFC.cpe0_nvic.disable();
+            if radio::RFC.cpe0_event.get() {
+                radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0);
+                radio::RFC.cpe0_event.set(false);
+            };
+            radio::RFC.cpe0_nvic.enable();
+        }
+        */
     }
 
     fn has_pending_interrupts(&self) -> bool {

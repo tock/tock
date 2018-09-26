@@ -58,7 +58,6 @@ static mut oscHfGlobals: Struct1 = Struct1 {
 };
 
 #[allow(non_snake_case)]
-#[no_mangle]
 pub unsafe extern "C" fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
     if ui32src_clk & 0x1u32 != 0 {
         // ui32Base, ui32Reg, ui32Mask, ui32Shift, ui32Data
@@ -68,7 +67,7 @@ pub unsafe extern "C" fn clock_source_set(ui32src_clk: u32, ui32osc: u32) {
         ddi::ddi16bitfield_write(0x400ca000u32, 0x0u32, 0xcu32, 2u32, ui32osc as (u16));
     }
 }
-#[no_mangle]
+
 pub unsafe extern "C" fn clock_source_get(ui32src_clk: u32) -> u32 {
     let ui32clock_source: u32;
     if ui32src_clk == 0x4u32 {
@@ -120,7 +119,6 @@ impl Clone for RomFuncTable {
     }
 }
 
-#[no_mangle]
 pub unsafe fn source_switch() {
     (*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch;
 }

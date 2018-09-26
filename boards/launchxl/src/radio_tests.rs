@@ -9,7 +9,7 @@ struct RadioConfig {
 }
 
 pub fn power_on_test() -> bool {
-    let mut radio = unsafe { &mut radio::RADIO };
+    let radio = unsafe { &mut radio::RADIO };
     let is_on = radio.power_up();
     match is_on {
         ReturnCode::SUCCESS => true,

@@ -6,7 +6,6 @@ use kernel::common::StaticRef;
 
 #[repr(C)]
 pub struct RfcRatRegisters {
-    _reserved: ReadOnly<u32>,
     pub ratcnt: ReadWrite<u32, RFCoreRadioTimer::Register>, // Radio Timer Counter Value
 }
 
@@ -21,7 +20,7 @@ register_bitfields! [
 ];
 
 const RFC_RAT_BASE: StaticRef<RfcRatRegisters> =
-    unsafe { StaticRef::new(0x4004_3000 as *const RfcRatRegisters) };
+    unsafe { StaticRef::new(0x4004_3004 as *const RfcRatRegisters) };
 
 // Enable RAT interface
 pub static mut RFRAT: RFRat = RFRat::new();

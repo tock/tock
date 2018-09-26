@@ -21,7 +21,7 @@ pub struct DdiRegisters {
     _rc_osc_hf_ctl: ReadOnly<u32>,
     _rc_osc_mf_ctl: ReadOnly<u32>,
 
-    _reserved: [ReadOnly<u8>; 0x04],
+    _reserved: ReadOnly<u32>,
 
     stat0: ReadOnly<u32, Stat0::Register>,
     _stat1: ReadOnly<u32>,
@@ -115,49 +115,13 @@ impl Oscillator {
     }
 
     pub fn set_24_mhz_clk(&self) {
-        let regs = &*self.wr_regs;
+        let regs = self.wr_regs;
 
         regs.ctl0.modify(Ctl0::XTAL_IS_24M::SET);
     }
 
-    pub fn config_lf_osc(&self, lf_clk: u8) {
-        let regs = &*self.r_regs;
-        match lf_clk {
-            LF_DERIVED_RCOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x0));
-            },
-            LF_RCOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x2));
-            },
-            LF_DERIVED_XOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x1));
-            },
-            LF_XOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x3));
-            },
-            _ => panic!("Undefined LF OSC"),
-        }
-    }
-
-    pub fn config_hf_osc(&self, hf_clk: u8) {
-        let regs = &*self.r_regs;
-
-        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
-        match hf_clk {
-            HF_RCOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(0x0));
-            },
-            HF_XOSC => {
-                regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(0x1));
-            },
-            _ => panic!("Undefined HF OSC"),
-        }
-
-        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
-    }
-
     pub fn switch_to_lf_xosc(&self) {
-        let regs = &*self.r_regs;
+        let regs = self.r_regs;
 
         regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x0));
         regs.ctl0.modify(Ctl0::XOSC_LF_DIG_BYPASS::CLEAR);
@@ -165,7 +129,7 @@ impl Oscillator {
 
     }
     pub fn switch_to_rc_osc(&self) {
-        let regs = &*self.r_regs;
+        let regs = self.r_regs;
 
         if self.clock_source_get(ClockType::HF) != HF_RCOSC {
             self.clock_source_set(ClockType::HF, HF_RCOSC);
@@ -187,17 +151,21 @@ impl Oscillator {
     // Check if current clock source is HF_XOSC. If not, wait until request is done, then set it in
     // ddi
     pub fn switch_to_hf_xosc(&self) {
-        let regs = &*self.r_regs;
-        let cur_source = self.clock_source_get(ClockType::HF);
-        if cur_source != HF_XOSC {
+        if self.clock_source_get(ClockType::HF) != HF_XOSC {
             // Wait for source ready to switch
-            while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+            let regs = self.r_regs;
+            let mut pending: bool = regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING);
+            while !pending {
+                pending = regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING);
+            }
+            // while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+            
             self.switch_osc();
         }
     }
 
     pub fn switch_to_hf_rcosc(&self) {
-        let regs = &*self.r_regs;
+        let regs = self.r_regs;
 
         self.clock_source_set(ClockType::HF, HF_RCOSC);
         while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
@@ -207,7 +175,7 @@ impl Oscillator {
     }
 
     pub fn disable_lfclk_qualifier(&self) {
-        let regs = &*self.r_regs;
+        let regs = self.r_regs;
 
         while self.clock_source_get(ClockType::LF) != LF_RCOSC {}
 
@@ -217,7 +185,7 @@ impl Oscillator {
 
     // Get the current clock source of either LF or HF sources
     pub fn clock_source_get(&self, source: ClockType) -> u8 {
-        let regs = &*self.r_regs;
+        let regs = self.r_regs;
         match source {
             ClockType::LF => regs.stat0.read(Stat0::SCLK_LF_SRC) as u8,
             ClockType::HF => regs.stat0.read(Stat0::SCLK_HF_SRC) as u8,
@@ -226,7 +194,7 @@ impl Oscillator {
 
     // Set the clock source in DDI_0_OSC
     pub fn clock_source_set(&self, clock: ClockType, src: u8) {
-        let regs = &*self.r_regs;
+        let regs = self.r_regs;
         match clock {
             ClockType::LF => {
                 regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(src as u32));

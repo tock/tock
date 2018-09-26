@@ -1,4 +1,3 @@
-#[no_mangle]
 pub unsafe extern "C" fn IOCPortConfigureSet(
     mut ui32IOId: u32,
     mut ui32PortId: u32,
@@ -9,14 +8,12 @@ pub unsafe extern "C" fn IOCPortConfigureSet(
     *(ui32Reg as (*mut usize)) = (ui32IOConfig | ui32PortId) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPortConfigureGet(mut ui32IOId: u32) -> u32 {
     let mut ui32Reg: u32;
     ui32Reg = 0x40081000u32.wrapping_add(ui32IOId << 2i32);
     *(ui32Reg as (*mut usize)) as (u32)
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOShutdownSet(mut ui32IOId: u32, mut ui32IOShutdown: u32) {
     let mut ui32Reg: u32;
     let mut ui32Config: u32;
@@ -26,7 +23,6 @@ pub unsafe extern "C" fn IOCIOShutdownSet(mut ui32IOId: u32, mut ui32IOShutdown:
     *(ui32Reg as (*mut usize)) = (ui32Config | ui32IOShutdown) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOModeSet(mut ui32IOId: u32, mut ui32IOMode: u32) {
     let mut ui32Reg: u32;
     let mut ui32Config: u32;
@@ -36,7 +32,6 @@ pub unsafe extern "C" fn IOCIOModeSet(mut ui32IOId: u32, mut ui32IOMode: u32) {
     *(ui32Reg as (*mut usize)) = (ui32Config | ui32IOMode) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOIntSet(mut ui32IOId: u32, mut ui32Int: u32, mut ui32EdgeDet: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -48,7 +43,6 @@ pub unsafe extern "C" fn IOCIOIntSet(mut ui32IOId: u32, mut ui32Int: u32, mut ui
         as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOEvtSet(mut ui32IOId: u32, mut ui32Evt: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -59,7 +53,6 @@ pub unsafe extern "C" fn IOCIOEvtSet(mut ui32IOId: u32, mut ui32Evt: u32) {
     *(ui32IOReg as (*mut usize)) = (ui32Config | ui32Evt) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOPortPullSet(mut ui32IOId: u32, mut ui32Pull: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -69,7 +62,6 @@ pub unsafe extern "C" fn IOCIOPortPullSet(mut ui32IOId: u32, mut ui32Pull: u32) 
     *(ui32IOReg as (*mut usize)) = (ui32Config | ui32Pull) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOHystSet(mut ui32IOId: u32, mut ui32Hysteresis: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -79,7 +71,6 @@ pub unsafe extern "C" fn IOCIOHystSet(mut ui32IOId: u32, mut ui32Hysteresis: u32
     *(ui32IOReg as (*mut usize)) = (ui32Config | ui32Hysteresis) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOInputSet(mut ui32IOId: u32, mut ui32Input: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -89,7 +80,6 @@ pub unsafe extern "C" fn IOCIOInputSet(mut ui32IOId: u32, mut ui32Input: u32) {
     *(ui32IOReg as (*mut usize)) = (ui32Config | ui32Input) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOSlewCtrlSet(mut ui32IOId: u32, mut ui32SlewEnable: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -99,7 +89,6 @@ pub unsafe extern "C" fn IOCIOSlewCtrlSet(mut ui32IOId: u32, mut ui32SlewEnable:
     *(ui32IOReg as (*mut usize)) = (ui32Config | ui32SlewEnable) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIODrvStrengthSet(
     mut ui32IOId: u32,
     mut ui32IOCurrent: u32,
@@ -113,7 +102,6 @@ pub unsafe extern "C" fn IOCIODrvStrengthSet(
     *(ui32IOReg as (*mut usize)) = (ui32Config | (ui32IOCurrent | ui32DrvStrength)) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIOPortIdSet(mut ui32IOId: u32, mut ui32PortId: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -123,7 +111,6 @@ pub unsafe extern "C" fn IOCIOPortIdSet(mut ui32IOId: u32, mut ui32PortId: u32) 
     *(ui32IOReg as (*mut usize)) = (ui32Config | ui32PortId) as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIntEnable(mut ui32IOId: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -133,7 +120,6 @@ pub unsafe extern "C" fn IOCIntEnable(mut ui32IOId: u32) {
     *(ui32IOReg as (*mut usize)) = ui32Config as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCIntDisable(mut ui32IOId: u32) {
     let mut ui32IOReg: u32;
     let mut ui32Config: u32;
@@ -150,7 +136,6 @@ unsafe extern "C" fn GPIO_setOutputEnableDio(mut dioNumber: u32, mut outputEnabl
         | (dioNumber << 2i32) as (usize)) as (*mut usize)) = outputEnableValue as (usize);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeGpioInput(mut ui32IOId: u32) {
     IOCPortConfigureSet(
         ui32IOId,
@@ -169,7 +154,6 @@ pub unsafe extern "C" fn IOCPinTypeGpioInput(mut ui32IOId: u32) {
     GPIO_setOutputEnableDio(ui32IOId, 0x0u32);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeGpioOutput(mut ui32IOId: u32) {
     IOCPortConfigureSet(
         ui32IOId,
@@ -180,7 +164,6 @@ pub unsafe extern "C" fn IOCPinTypeGpioOutput(mut ui32IOId: u32) {
     GPIO_setOutputEnableDio(ui32IOId, 0x1u32);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeUart(
     mut ui32Base: u32,
     mut ui32Rx: u32,
@@ -254,7 +237,6 @@ pub unsafe extern "C" fn IOCPinTypeUart(
     }
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeSsiMaster(
     mut ui32Base: u32,
     mut ui32Rx: u32,
@@ -395,7 +377,6 @@ pub unsafe extern "C" fn IOCPinTypeSsiMaster(
     }
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeSsiSlave(
     mut ui32Base: u32,
     mut ui32Rx: u32,
@@ -536,7 +517,6 @@ pub unsafe extern "C" fn IOCPinTypeSsiSlave(
     }
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeI2c(mut ui32Base: u32, mut ui32Data: u32, mut ui32Clk: u32) {
     let mut ui32IOConfig: u32;
     ui32IOConfig = (0x0i32
@@ -553,7 +533,6 @@ pub unsafe extern "C" fn IOCPinTypeI2c(mut ui32Base: u32, mut ui32Data: u32, mut
     IOCPortConfigureSet(ui32Clk, 0xeu32, ui32IOConfig);
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn IOCPinTypeAux(mut ui32IOId: u32) {
     IOCPortConfigureSet(
         ui32IOId,

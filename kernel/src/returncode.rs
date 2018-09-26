@@ -66,5 +66,3 @@ impl From<ReturnCode> for usize {
         isize::from(original) as usize
     }
 }
-
-pub type ReturnCodeResult = Result<(), u32>;
