@@ -281,6 +281,10 @@ struct ProcessDebug {
     /// How many times this process has entered into a fault condition and the
     /// kernel has restarted it.
     restart_count: usize,
+
+    /// How many times this process has been paused because it exceeded its
+    /// timeslice.
+    timeslice_expiration_count: usize,
 }
 
 pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
@@ -784,8 +788,23 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         let (stack_pointer, switch_reason) =
             self.syscall.switch_to_process(self.sp(), &mut stored_state);
         self.current_stack_pointer.set(stack_pointer as *const u8);
-        self.debug_set_max_stack_depth();
         self.stored_state.set(stored_state);
+
+        // Update debug state as needed after running this process.
+        self.debug.map(|debug| {
+            // Update max stack depth if needed.
+            if self.current_stack_pointer.get() < debug.min_stack_pointer {
+                debug.min_stack_pointer = self.current_stack_pointer.get();
+            }
+
+            // More debugging help. If this occurred because of a timeslice
+            // expiration, mark that so we can check later if a process is
+            // exceeding its timeslices too often.
+            if switch_reason == syscall::ContextSwitchReason::TimesliceExpired {
+                debug.timeslice_expiration_count += 1;
+            }
+        });
+
         Some(switch_reason)
     }
 
@@ -1060,6 +1079,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
                 last_syscall: None,
                 dropped_callback_count: 0,
                 restart_count: 0,
+                timeslice_expiration_count: 0,
             });
 
             if (init_fn & 0x1) != 1 {
