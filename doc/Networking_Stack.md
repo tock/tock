@@ -3,16 +3,6 @@ Tock Networking Stack Design Document
 
 _NOTE: This document is a work in progress._
 
-TODOS:
-
--  Implement enough of this design to successfully send UDP packets
-   in a manner similar to what was done using the old code
--  Include Receive Paths...
--  More fully flush out how send_done callbacks will work and how
-   clients will be assigned/tracked
--  Explanation of Queuing Section
-
-
 This document describes the design of the Networking stack on Tock.
 
 The design described in this document is based off of ideas contributed by
@@ -23,29 +13,38 @@ Hudson Ayers.
 
 This document is split into several sections. These are as follows:
 
-1. Principles - Describes the main principles which the design should meet,
+1. Principles - Describes the main principles which the design of
+   this stack intended to meet,
    along with some justification of why these principles matter. Ultimately,
    the design should follow from these principles.
+
 2. Stack Diagram - Graphically depicts the layout of the stack
+
 3. Explanation of queuing - Describes where packets are queued prior to
    transmission.
+
 4. List of Traits - Describes the traits which will exist at each layer of the
    stack. For traits that may seem surprisingly complex, provide examples of
    specific messages that require this more complex trait as opposed to the
    more obvious, simpler trait that might be expected.
-5. Implementation Details - Describes how certain implementations of these
+
+5. Explanation of Queuing - Describe queueing principles for this stack
+
+6. Description of rx path
+
+7. Description of the userland interface to the networking stack
+
+8. Implementation Details - Describes how certain implementations of these
    traits will work, providing some examples with pseudocode or commented
    explanations of functionality
-6. Example Message Traversals - Shows how different example messages (Thread or
+
+9. Example Message Traversals - Shows how different example messages (Thread or
    otherwise) will traverse the stack
-7. Suggested File Naming Convention - Currently capsules associated with the
-   networking stack are named by a variety of conventions. This section
-   proposes a unifying convention.
 
 ## Principles
 
 1. Keep the simple case simple
-   - Sending an IP packet via an established Thread network should not
+   - Sending an IP packet via an established network should not
      require a more complicated interface than send(destination, packet)
    - If functionality were added to allow for the transmission of IP packets over
      the BLE interface, this IP send function should not have to deal with any
@@ -75,7 +74,7 @@ This document is split into several sections. These are as follows:
      require anything that limit such a trait to Thread-based implementations
 
 4. Transmission and reception APIs are decoupled
-   - This allows for instances where Receive and send_done callbacks should
+   - This allows for instances where receive and send\_done callbacks should
      be delivered to different clients (ex: Server listening on all addresses
      but also sending messages from specific addresses)
    - Prevents send path from having to navigate the added complexity required
@@ -108,7 +107,7 @@ IPv6 over ethernet:      Non-Thread 15.4:   Thread Stack:                       
 
 Notes on the stack:
 - IP messages sent via Thread networks are sent through Thread using an IP Send
-  method that exposes only the parameters specified in the IP_Send trait.
+  method that exposes only the parameters specified in the IP\_Send trait.
   Other parameters of the message (6lowpan decisions, link layer parameters,
   many IP header options) are decided by Thread.
 - The stack provides an interface for the application layer to send
@@ -144,19 +143,13 @@ Notes on the stack:
 
 ## Explanation of Queuing
 
-**TODO**
-
-Basically, queuing will happen at the application layer in this stack.
-Probably we will use a pushing based queuing structure, and since we are
-transitioning to more of a scatter-gather implementation this should not be
-too expensive from a memory standpoint.
-
-HELP: I am still not entirely clear how this queuing will work in terms of
-effectively dealing with multiple interfaces - especially for the instance of
-having some packets sent out on the 15.4 radio that are not supposed to pass
-through Thread. I guess one important question here is whether there would
-ever be an instance where a device was sending some messages through Thread
-and other 15.4 messages not through Thread. Why would this happen?
+Queuing happens at the application layer in this stack.
+The userland interface to the
+networking stack (described in greater detail in Networking\_Userland.md)
+already handles queueing multiple packets sent from userland apps.
+In the kernel, any application which wishes to send multiple UDP packets must
+handle queueing itself, waiting for a send\_done to return from the radio
+before calling send on the next packet in a series of packets.
 
 ## List of Traits
 
@@ -186,352 +179,368 @@ associated with.
 
 ### Transport Layer
 
-TODO: TCP, ICMP, RawIP
+Thus far, the only transport layer protocol implemented in Tock is UDP.
 
-```rust
-pub struct UDPHeader {
-    pub src_port: u16,
-    pub dst_port: u16,
-    pub len: u16,
-    pub cksum: u16,
-}
+Documentation describing the structs and traits that define the UDP layer can
+be found in capsules/src/net/udp/(udp.rs, udp\_send.rs, udp\_recv.rs)
 
-pub struct UDPSocketExample { /* Example UDP socket implementation */
-    pub src_ip: IPAddr,
-    pub src_port: u16,
-}
-
-pub trait UDPSocket:UDPSend {
-    fn bind(&self, src_ip: IPAddr, src_port: u16) -> ReturnCode;
-    fn send(&self, dest: IPAddr, udp_packet: &'static mut UDPPacket) -> ReturnCode;
-    fn send_done(&self, udp_packet: &'static mut UDPPacket, result: ReturnCode);
-}
-
-pub struct UDPPacket<'a> { /* Example UDP Packet struct */
-    pub head: UDPHeader,
-    pub payload: &'a mut [u8],
-    pub len: u16, // length of payload
-}
-
-impl<'a> UDPPacket<'a> {
-    pub fn reset(&self){} //Sets fields to appropriate defaults
-    pub fn get_offset(&self) -> usize{8} //Always returns 8
-
-    pub fn set_dest_port(&self, port: u16){}
-    pub fn set_src_port(&self, port: u16){}
-    pub fn set_len(&self, len: u16){}
-    pub fn set_cksum(&self, cksum: u16){}
-    pub fn get_dest_port(&self) -> u16{0}
-    pub fn get_src_port(&self) -> u16{0}
-    pub fn get_len(&self) -> u16{0}
-    pub fn get_cksum(&self) -> u16{0}
-
-    pub fn set_payload(&self, payload: &'a [u8]){}
-
-}
-
-pub trait UDPSend {
-    fn send(dest: IPAddr, udp_packet: &'static mut UDPPacket); // dest rqrd
-    fn send_done(buf: &'static mut UDPPacket, result: ReturnCode);
-}
-```
-
-Notes on this UDP implementation:
-  - Want to require a socket be used to call UDPSend at the application level
-  - May not want this requirement within Thread, so allow Thread to directly
-    call UDPSend (this is the reason for separation between UDPSocket and
-    UDPSend traits)
-
-### Network Layer
-
-```rust
-pub struct IP6Header {
-    pub version_class_flow: [u8; 4],
-    pub payload_len: u16,
-    pub next_header: u8,
-    pub hop_limit: u8,
-    pub src_addr: IPAddr,
-    pub dst_addr: IPAddr,
-}
+Additionally, a driver exists that provides a userland interface via which
+udp packets can be sent and received. This is described in greater detail in
+Networking\_Userland.md
 
 
-pub enum TransportPacket<'a> {
-    UDP(UDPPacket<'a>),
-    TCP(TCPPacket<'a>), /* NOTE: TCP,ICMP,RawIP traits not yet detailed in this
-                     * document, but follow logically from UDPPacket trait. */
-    ICMP(ICMPPacket<'a>),
-    Raw(RawIPPacket<'a>),
-}
+### Network Stack Receive Path
 
-pub struct IP6Packet<'a> {
-    pub header: IP6Header,
-    pub payload: TransportPacket<'a>,
-}
+- The radio in the kernel has a single `RxClient`, which is set as the mac layer (awake_mac, typically)
+- The mac layer (i.e. `AwakeMac`) has a single `RxClient`, which is the mac_device(`ieee802154::Framer::framer`)
+- The Mac device has a single receive client - `MuxMac` (virtual MAC device).
+- The `MuxMac` can have multiple "users" which are of type `MacUser`
+- Any received packet is passed to ALL MacUsers, which are expected to filter packets themselves accordingly.
+- Right now, we initialize two MacUsers in the kernel (in main.rs/components). These are the 'radio_mac', which is the MacUser for the RadioDriver that enables the userland interface to directly send 802154 frames, and udp_mac, the mac layer that is ultimately associated with the udp userland interface.
+- The udp_mac MacUser has a single receive client, which is the `sixlowpan_state` struct
+- `sixlowpan_state` has a single rx_client, which in our case is a single struct that implements the `ip_receive ` trait.
+- the `ip_receive` implementing struct (`IP6RecvStruct`) has a single client, which is udp_recv, a `UDPReceive` struct.
+- The UDPReceive struct is a field of the UDPDriver, which ultimately passes the packets up to userland.
+
+So what are the implications of all this?
+
+1) Currently, any userland app could receive udp packets intended for
+anyone else if the app implmenets 6lowpan itself on the received raw frames.
+
+2) Currently, packets are only muxed at the Mac layer.
+
+3) Right now the IPReceive struct receives all IP packets sent to the MAC address of this device, and soon will drop all packets sent to non-local addresses. Right now, the device effectively only has one address anyway, as we only support 6lowpan over 15.4, and as we haven't implemented a loopback interface on the IP_send path. If, in the future, we implement IP forwarding on Tock, we will need to add an IPSend object to the IPReceiver which would then retransmit any packets received that were not destined for local addresses.
+
+## Explanation of Configuration
+
+This section describes how the IP stack is currently configured, and previews how this
+configuration will change soon.
+
+###Current design (where each of the following values is configured and stored):
+
+* Source IP address: stored in IPSend struct, set in main.rs
+
+* Destination IP address: Stored in IPPacket on a per packet basis. Can be set
+individually for each packet sent from the userland UDP interface. For packets
+sent from userland via the UDP example app, this value is pulled from the
+INTERFACES array in net/udp/driver.rs.
+
+* src MAC address: stored in the sixlowpan_tx object, currently passed in as the
+SRC_MAC_ADDR constant in ipv6_send.rs. This is for sent packets. However, the
+src mac is also stored in a register in the radio, which it is loaded into
+from the rf233 object when config_commit is called. Right now, the address
+known by the radio can be set by calling ieee802154_set_address() from
+userland, or by calling set_address on whatever implements the Mac trait.
+
+* dst MAC address: stored in the sixlowpan_tx object, currently passed in as the
+DST_MAC_ADDR constant in ipv6_send.rs
+
+* src pan: Stored in three places -- the rf233 object, a register on the rf233
+(pulled from rf233.pan when config_commit() is called), and in the
+sixlowpan_tx object. The sixlowpant_tx init() call takes in a parameter
+radio_pan, which is set by calling the getter to obtain the pan from the
+radio. The pan for the radio therefore must be set before init() is
+called on sixlowpan_tx. The pan for the radio is set by calling
+ieee802154_set_pan() from userspace, or by calling set_pan() on
+whatever implements the Mac trait in the kernel.
+
+* dst pan: Stored in the sixlowpan\_tx object, then passed to the
+prepare\_data\_frame() 15.4 function to be set for each frame. Set by main.rs.
+
+* radio channel: stored in the radio object (rf233.rs), pulled from a constant
+in rf233\_const.rs (PHY\_CHANNEL: u8 = 26;)
 
 
-impl<'a> IP6Packet<'a> {
-    pub fn new(&mut self, payload: TransportPacket<'a>) -> IP6Packet<'a>{}
-/* An IP packet cannot be created without the TransportPacket that will serve
-   as its payload. Recall that this transport packet could be a "RawIP" packet */
+### Future Design (where we think each of these should be set):
 
-    pub fn reset(&self){} //Sets fields to appropriate defaults
-    pub fn get_offset(&self) -> usize{40} //Always returns 40 until we add options support
+* Source IP address: Clearly needs to be changed, as it should use the
+Interfaces array defined in net/udp/driver.rs if that array is
+actually where we are going to store the available interfaces. Worth noting
+that this array isn't used when adding anything to the kernel that uses
+the IP stack, so it probably doesn't make a lot of sense for the interfaces
+to be stored in this file. Instead, the interfaces should be stored somewhere
+like ip\_utils.rs or ipv6.rs, and perhaps referenced by udp/driver.rs
 
-    // Remaining functions are just getters and setters for the header fields
-    pub fn set_traffic_class(&mut self, new_tc: u8){}
-    pub fn set_dscp(&mut self, new_dscp: u8) {}
-    pub fn set_ecn(&mut self, new_ecn: u8) {}
-    pub fn set_flow_label(&mut self, flow_label: u32){}
-    pub fn set_payload_len(&mut self, len: u16){}
-    pub fn set_next_header(&mut self, new_nh: u8){}
-    pub fn set_hop_limit(&mut self, new_hl: u8) {}
-    pub fn set_dest_addr(&mut self, dest: IPAddr){}
-    pub fn set_src_addr(&mut self, src: IPAddr){}
-    pub fn get_traffic_class(&self) -> u8{}
-    pub fn get_dscp(&self) -> u8{}
-    pub fn get_ecn(&self) -> u8{}
-    pub fn get_flow_label(&self)-> u32{}
-    pub fn get_payload_len(&self) -> u16{}
-    pub fn get_next_header(&self) -> u8{}
-    pub fn get_dest_addr(&self) -> IPAddr{}
-    pub fn get_src_addr(&self) -> IPAddr{}
-    pub fn set_transpo_cksum(&mut self){} //Looks at internal buffer assuming
-    // it contains a valid IP packet, checks the payload type. If the payload
-    // type requires a cksum calculation, this function calculates the
-    // psuedoheader cksum and calls the appropriate transport packet function
-    // using this pseudoheader cksum to set the transport packet cksum
+* Destination IP address: The current implementation is probably correct.
 
-}
+* src MAC address: This should just be a constant, but should probably be
+stored somewhere associated with the MAC layer, not the sixlowpan layer,
+as all packets sent by the radio should share the same src MAC.
+It doesn't make sense that the src\_mac used for outgoing packets can be
+different from the src\_mac loaded to the radio. I propose that the
+src\_mac should be stored in a single constant in, perhaps, net/ieee802154.rs,
+and that config\_commit() should simply pull that constant into the radio at
+runtime. Alternatively, for a more flexible interface, we could still allow
+for calls to set\_address on whatever implements the Mac trait, but we could
+add a set\_address method to the sixlowpan\_tx object, and have the call
+sixlowpan\_tx::set\_address() set the address for the sixlowpan\_tx object
+and call Mac::set\_address().
 
-pub trait IP6Send {
-    fn send_to(&self, dest: IPAddr, ip6_packet: IP6Packet); //Convenience fn, sets dest addr, sends
-    fn send(&self, ip6_packet: IP6Packet); //Length can be determined from IP6Packet
-    fn send_done(&self, ip6_packet: IP6Packet, result: ReturnCode);
-}
-```
+* dst MAC address: This constant could simply be moved to wherever the constant
+for the SRC Mac address is moved, but that still doesnt really make sense.
+Instead, some method needs to exist to correctly pick the Mac address for
+each packet sent. In a typical networking stack, this would occur via
+an ARP table or something similar. However, we cannot expect other nodes to
+implement ARP. A more realistic and basic implementation might simply allow
+for the UDP userland interface to require that a Mac address be passed into
+each call to send along with the IP address, or might require that the UDP
+userland interface to provide a setter to set the destination IP address
+for each packet until the address is changed. Another alternative would
+involve a table mapping some set of IP addresses to MAC addresses, and
+would allow each userland app to add rows to this table. This method
+also is imperfect, as it has indefinite memory requirements given the
+absence of dynamic allocation etc. Perhaps each userland app
+could be allowed some set number of known addresses (5?) and the IP->mac
+mapping for each could be stored in the grant region for that app. If
+a given app wanted to talk to more than 5 external addresses, it would have to
+add and remove mappings from the list or something?
 
-### 6lowpan Layer
+* src pan: This setup also does not make sense for the same reasons the src MAC
+address setup does not make sense. Whatever changes are made for the src MAC
+address should also be made for the src pan.
 
-NOTE: At the initial meeting where we planned out the creation of this
-document, Phil suggested that we should create a 6lowpan layer with a single
-trait (interface) for which the function would be implemented differently
-depending on whether 15.4 6lowpan was being used or BLE 6lowpan etc. For now,
-there are a number of things that would make such an interface difficult. For
-instance, different return types (15.4 fragments or BLE fragments?), and
-different parameters for compression (15.4 6lowpan requires source/dest MAC
-addresses, not sure whether BLE uses BT hardware addresses the same way).
+* dst pan: It seems as though the src\_pan and dst\_pan should always match
+except in scenarios where the dst\_pan should be broadcast. Perhaps the dst\_pan
+field should be replaced with a boolean send\_broadcast field which is set to
+1 whenever packets should be sent broadcast, and set to 0 when packets should
+be sent with the src\_pan set to the dst\_pan. This would remove any ability for
+cross PAN support, but I dont expect us to require such support anyway, and
+prevents the possibility of packets being sent with mismatched PAN due to poor
+configuration. Would have to make sure that the send\_broadcast field can be
+safely set independently by each app, which could be difficult.
 
-```rust
-pub struct Context { //Required for compression traits
-    pub prefix: [u8; 16],
-    pub prefix_len: u8,
-    pub id: u8,
-    pub compress: bool,
-}
+* radio channel: Probably fine for now, but I think constants like this and the
+radio power should simply be made parameters to new() once the IP stack is
+moved over to the component interface.
 
-// A simple enum that encodes the various return states
-// for the next_fragment function in the SixlowpanFragment trait
-pub enum FragReturn {
-  Fail((ReturnCode, &'static mut [u8])),
-  Success(Frame),
-  Done(Frame),
-}
+## Tock Userland Networking Design
 
-trait Sixlowpan {
-  // This is the cleanest way to expose the fact that 6LoWPAN requires
-  // some global state - namely, that the dgram tag be incremented for
-  // each packet fragmented globally
-  fn next_dgram_tag(&self) -> u16;
+This section describes the current userland interface for the networking stack
+on Tock. This section should serve as a description of the abstraction
+provided by libTock - what the exact system call interface looks like or how
+libTock or the kernel implements this functionality is out-of-scope of this
+document.
 
-  // Likewise, this seemed to be the cleanest way to access/store the
-  // ContextStore object. Note that having multiple ContextStores is
-  // problematic for receiving/decoding packets.
-  fn get_ctx_store(&self) -> &ContextStore;
-}
+### Overview
+The Tock networking stack and libTock should attempt to expose a networking
+interface that is similar to the POSIX networking interface. The primary
+motivation for this design choice is that application programmers are used
+to the POSIX networking interface design, and significant amounts of code
+have already been written for POSIX-style network interfaces. By designing
+the libTock networking interface to be as similar to POSIX as possible, we
+hope to improve developer experience while enabling the easy transition of
+networking code to Tock.
 
-trait SixlowpanFragment {
-  // This function initializes the SixlowpanFragment object. Note that we
-  // (currently) need to pass in a reference to a Sixlowpan object, as that
-  // is how we access the ContextStore and update the global dgram tag counter
-  // The radio allows us to construct the frames when producing fragments.
-  fn new(sixlowpan: &'a Sixlowpan, radio: &'a Mac) -> SixlowpanFragment<'a>;
+### Design
 
-  // This implementation assumes the user calls init before calling next_fragment
-  // for the first time. This makes next_fragment cleaner, as we do not need
-  // to keep passing in the same state. Note that some of these arguments can
-  // be elided (e.g. security) and passed in via a different method, but
-  // this seems clean enough.
-  fn init(&self, dst_mac_addr: MacAddress, security: Option<(SecurityLevel, KeyId)>);
+udp.c and udp.h in libtock-c/libtock define the userland interface to the
+Tock networking stack. These files interact with capsules/src/net/udp/driver.rs
+in the main tock repository. driver.rs implements an interface for sending
+and receiving UDP messages. It also exposes a list of interace addresses to
+the application layer. The primary functionality embedded in the UDP driver
+is within the allow(), subscribe(), and command() calls which can be made to
+the driver.
 
-  // This function is called repeatedly on the same packet buffer, and produces
-  // subsequent frames representing the next fragment to send. frag_buf is
-  // consumed in the returned Frame, and the FragReturn enum encodes the
-  // different possible return states from this function (Fail, Success, Done).
-  fn next_fragment<'b>(&self, packet: &'b IPPacket, frag_buf: &'static mut [u8]) -> FragReturn;
-}
+Details of this driver can be found in `doc/syscalls` folder
 
-pub trait ContextStore {
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context>;
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context>;
-    fn get_context_0(&self) -> Context;
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context>;
-}
+udp.c and udp.h in libtock-c make it easy to interact with this driver interface.
+Important functions available to userland apps written in c include:
 
-trait SixlowpanCompress {
+`udp_socket()` - sets the port on which the app will receive udp packets,
+                 and sets the `src_port` of outgoing packets sent via that socket. Once socket
+                 binding is implemented in the kernel, this function will handle reserving ports
+                 to listen on and send from.
 
-    /* This function takes in an ipv6 packet and mac addresses and returns the
-       compressed header. It is written as a recursive function and requires a
-       context store. This is unchanged from the current library
-       implementation except that now this will be a trait.
-       Note that this function requires link layer MAC Addresses bc these are
-       used in computing compressed source/dest IP addresses */
+`udp_close()` - currently just returns success, but once socket binding has been
+                implemented in the kernel, this function will handle freeing bound ports.
 
-    fn compress(ctx_store: &ContextStore,
-                ip6_datagram: &'static mut IPPacket,
-                src_mac_addr,
-                dst_mac_addr,
-                mut buf: &mut [u8]) -> Result<(usize, usize));
-}
-```
+`udp_send_to()` - Sends a udp packet to a specified addr/port pair, returns the result
+                  of the tranmission once the radio has transmitted it (or once a failure has occured).
 
-### Link Layer
+`udp_recv_from_sync()` - Pass an interface to listen on and an incoming source address
+                         to listen for. Sets up a callback to wait for a received packet, and yeilds until that
+                         callback is triggered. This function never returns if a packet is not received.
 
-Note: For now, this description does not provide details of any link layer
-other than 802.15.4
+`udp_recv_from()` - Pass an interface to listen on and an incoming source address to
+                    listen for. However, this takes in a buffer to which the received packet should be placed,
+                    and returns the callback that will be triggered when a packet is received.
 
-The below functions merely describe the already implemented interface for
-IEEE 802.15.4 link layer. The stack design that this document
-details likely requires virtualization of this interface. This could be
-implemented via a method similar to the one that currently exists in
-virtual_mac.rs but I believe that some changes will be needed so that
-file is current with our other link layer files.
+`udp_list_ifaces()` - Populates the passed pointer of ipv6 addresses with the available
+                      ipv6 addresses of the interfaces on the device. Right now this merely returns a constant
+                      hardcoded into the UDP driver, but should change to return the source IP addresses held
+                      in the network configuration file once that is created. Returns up to `len` addresses.
 
-```rust
-pub trait MacDevice<'a> {
-    /// Sets the transmission client of this MAC device
-    fn set_transmit_client(&self, client: &'a TxClient);
-    /// Sets the receive client of this MAC device
-    fn set_receive_client(&self, client: &'a RxClient);
+Other design notes:
 
-    /// The short 16-bit address of the MAC device
-    fn get_address(&self) -> u16;
-    /// The long 64-bit address (EUI-64) of the MAC device
-    fn get_address_long(&self) -> [u8; 8];
-    /// The 16-bit PAN ID of the MAC device
-    fn get_pan(&self) -> u16;
+The current design of the driver has a few limitations, these include:
 
-    /// Set the short 16-bit address of the MAC device
-    fn set_address(&self, addr: u16);
-    /// Set the long 64-bit address (EUI-64) of the MAC device
-    fn set_address_long(&self, addr: [u8; 8]);
-    /// Set the 16-bit PAN ID of the MAC device
-    fn set_pan(&self, id: u16);
+- Currently, any app can listen on any address/port pair
 
-    /// This method must be called after one or more calls to `set_*`. If
-    /// `set_*` is called without calling `config_commit`, there is no guarantee
-    /// that the underlying hardware configuration (addresses, pan ID) is in
-    /// line with this MAC device implementation.
-    fn config_commit(&self);
+- The current tx implementation allows for starvation, e.g. an app with an earlier app ID can
+  starve a later ID by sending constantly.
 
-    /// Returns if the MAC device is currently on.
-    fn is_on(&self) -> bool;
+#### POSIX Socket API Functions
+Below is a fairly comprehensive overview of the POSIX networking socket
+interface. Note that much of this functionality pertains to TCP or connection-
+based protocols, which we currently do not handle.
 
-    /// Prepares a mutable buffer slice as an 802.15.4 frame by writing the appropriate
-    /// header bytes into the buffer. This needs to be done before adding the
-    /// payload because the length of the header is not fixed.
-    ///
-    /// - `buf`: The mutable buffer slice to use
-    /// - `dst_pan`: The destination PAN ID
-    /// - `dst_addr`: The destination MAC address
-    /// - `src_pan`: The source PAN ID
-    /// - `src_addr`: The source MAC address
-    /// - `security_needed`: Whether or not this frame should be secured. This
-    /// needs to be specified beforehand so that the auxiliary security header
-    /// can be pre-inserted.
-    ///
-    /// Returns either a Frame that is ready to have payload appended to it, or
-    /// the mutable buffer if the frame cannot be prepared for any reason
-    fn prepare_data_frame(
-        &self,
-        buf: &'static mut [u8],
-        dst_pan: PanID,
-        dst_addr: MacAddress,
-        src_pan: PanID,
-        src_addr: MacAddress,
-        security_needed: Option<(SecurityLevel, KeyId)>,
-    ) -> Result<Frame, &'static mut [u8]>;
+- `socket(domain, type, protocol) -> int fd`
+    - `domain`: AF\_INET, AF\_INET6, AF\_UNIX
+    - `type`: SOCK\_STREAM (TCP), SOCK\_DGRAM (UDP), SOCK\_SEQPACKET (?), SOCK\_RAW
+    - `protocol`: IPPROTO\_TCP, IPPROTO\_SCTP, IPPROTO\_UDP, IPPROTO\_DCCP
 
-    /// Transmits a frame that has been prepared by the above process. If the
-    /// transmission process fails, the buffer inside the frame is returned so
-    /// that it can be re-used.
-    fn transmit(&self, frame: Frame) -> (ReturnCode, Option<&'static mut [u8]>);
-}
+- `bind(socketfd, my_addr, addrlen) -> int success`
+    - `socketfd`: Socket file descriptor to bind to
+    - `my_addr`: Address to bind on
+    - `addrlen`: Length of address
 
-/// Trait to be implemented by any user of the IEEE 802.15.4 device that
-/// transmits frames. Contains a callback through which the static mutable
-/// reference to the frame buffer is returned to the client.
-pub trait TxClient {
-    /// When transmission is complete or fails, return the buffer used for
-    /// transmission to the client. `result` indicates whether or not
-    /// the transmission was successful.
-    ///
-    /// - `spi_buf`: The buffer used to contain the transmitted frame is
-    /// returned to the client here.
-    /// - `acked`: Whether the transmission was acknowledged.
-    /// - `result`: This is `ReturnCode::SUCCESS` if the frame was transmitted,
-    /// otherwise an error occured in the transmission pipeline.
-    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode);
-}
+- `listen(socketfd, backlog) -> int success`
+    - `socketfd`: Socket file descriptor
+    - `backlog`: Number of pending connections to be queued
 
-/// Trait to be implemented by users of the IEEE 802.15.4 device that wish to
-/// receive frames. The callback is triggered whenever a valid frame is
-/// received, verified and unsecured (via the IEEE 802.15.4 security procedure)
-/// successfully.
-pub trait RxClient {
-    /// When a frame is received, this callback is triggered. The client only
-    /// receives an immutable borrow of the buffer. Only completely valid,
-    /// unsecured frames that have passed the incoming security procedure are
-    /// exposed to the client.
-    ///
-    /// - `buf`: The entire buffer containing the frame, including extra bytes
-    /// in front used for the physical layer.
-    /// - `header`: A fully-parsed representation of the MAC header, with the
-    /// caveat that the auxiliary security header is still included if the frame
-    /// was previously secured.
-    /// - `data_offset`: Offset of the data payload relative to
-    /// `buf`, so that the payload of the frame is contained in
-    /// `buf[data_offset..data_offset + data_len]`.
-    /// - `data_len`: Length of the data payload
-    fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
-}
+    Only necessary for stream-oriented data modes
 
-// The below code is modified from virtual_mac.rs and provides insight into
-// how virtualization of the mac layer might work
+- `connect(socketfd, addr, addrlen) -> int success`
+    - `socketfd`: Socket file descriptor to connect with
+    - `addr`: Address to connect to (server protocol address)
+    - `addrlen`: Length of address
 
-// This is one approach, but Phil suggest we probably want to go with the more
-// generalize approach (using the virtualizer queue)
-pub struct MacUser<'a> {
-    mux: &'a MuxMac<'a>,
-    operation: MapCell<Op>,
-    next: ListLink<'a, MacUser<'a>>,
-    tx_client: Cell<Option<&'a mac::TxClient>>,
-}
+    When used with connectionless protocols, defines the remote address for
+    sending and receiving data, allowing the use of functions such as `send()`
+    and `recv()` and preventing the reception of datagrams from other sources.
 
-trait MacUserTrait { //a MAC user would implement this and the mac trait
-// Alternatively, this send_done function could just be added to the mac trait
-// I did not show that here so that the above mac trait would be unchanged
-// from the current implementation.
-    send_done(spi_buf: &'static mut [u8], acked: bool, result: ReturnCode);
+- `accept(socketfd, cliaddr, addrlen) -> int success`
+    - `socketfd`: Socket file descriptor of the listening socket that has the
+    connection queued
+    - `cliaddr`: A pointer to an address to receive the client's address information
+    - `addrlen`: Specifies the size of the client address structure
 
-}
-```
+- `send(socketfd, buffer, length, flags) -> int success`
+    - `socketfd`: Socket file descriptor to send on
+    - `buffer`: Buffer to send
+    - `length`: Length of buffer to send
+    - `flags`: Various flags for the transmission
 
-## Implementation Details
+    Note that the `send()` function will only send a message when the `socketfd`
+    is connected (including for connectionless sockets)
 
-Ultimately, this section will include pseudocode examples of how different
+- `sendto(socketfd, buffer, length, flags, dst_addr, addrlen) -> int success`
+    - `socketfd`: Socket file descriptor to send on
+    - `buffer`: Buffer to send
+    - `length`: Length of buffer to send
+    - `flags`: Various flags for the transmission
+    - `dst_addr`: Address to send to (ignored for connection type sockets)
+    - `addrlen`: Length of `dst_addr`
+
+    Note that if the socket is a connection type, dst_addr will be ignored.
+
+- `recv(socketfd, buffer, length, flags)`
+    - `socketfd`: Socket file descriptor to receive on
+    - `buffer`: Buffer where the message will be stored
+    - `length`: Length of buffer
+    - `flags`: Type of message reception
+
+    Typically used with connected sockets as it does not permit the application
+    to retrieve the source address of received data.
+
+- `recvfrom(socketfd, buffer, length, flags, address, addrlen)`
+    - `socketfd`: Socket file descriptor to receive on
+    - `buffer`: Buffer to store the message
+    - `length`: Length of the buffer
+    - `flags`: Various flags for reception
+    - `address`: Pointer to a structure to store the sending address
+    - `addrlen`: Length of address structure
+
+    Normally used with connectionless sockets as it permits the application to
+    retrieve the source address of received data
+
+- `close(socketfd)`
+    - `socketfd`: Socket file descriptor to delete
+
+- `gethostbyname()/gethostbyaddr()`
+    Legacy interfaces for resolving host names and addresses
+
+- `select(nfds, readfds, writefds, errorfds, timeout)`
+    - `nfds`: The range of file descriptors to be tested (0..nfds)
+    - `readfds`: On input, specifies file descriptors to be checked to see if they
+    are ready to be read. On output, indicates which file descriptors are ready
+    to be read
+    - `writefds`: Same as readfds, but for writing
+    - `errorfds`: Same as readfds, writefds, but for errors
+    - `timeout`: A structure that indicates the max amount of time to block if
+    no file descriptors are ready. If None, blocks indefinitely
+
+- `poll(fds, nfds, timeout)`
+    - `fds`: Array of structures for file descriptors to be checked. The array
+    members are structures which contain the file descriptor, and events
+    to check for plus areas to write which events occurred
+    - `nfds`: Number of elements in the fds array
+    - `timeout`: If 0 return immediately, or if -1 block indefinitely. Otherwise,
+    wait at least `timeout` milliseconds for an event to occur
+
+- `getsockopt()/setsockopt()`
+
+#### Tock Userland API
+Below is a list of desired functionality for the libTock userland API.
+
+- `struct sock_addr_t`
+    `ipv6_addr_t`: IPv6 address (single or ANY)
+    `port_t`: Transport level port (single or ANY)
+
+- `struct sock_handle_t`
+    Opaque to the user; allocated in userland by malloc (or on the stack)
+
+- `list_ifaces() -> iface[]`
+    `ifaces`: A list of `ipv6_addr_t, name` pairs corresponding to all
+    interfaces available
+
+- `udp_socket(sock_handle_t, sock_addr_t) -> int socketfd`
+    `socketfd`: Socket object to be initialized as a UDP socket with the given
+    address information
+    `sock_addr_t`: Contains an IPv6 address and a port
+
+- `udp_close(sock_handle_t)`
+    `sock_handle_t`: Socket to close
+
+- `send_to(sock_handle_t, buffer, length, sock_addr_t)`
+    - `sock_handle_t`: Socket to send using
+    - `buffer`: Buffer to send
+    - `length`: Length of buffer to send
+    - `sock_addr_t`: Address struct (IPv6 address, port) to send the packet from
+
+- `recv_from(sock_handle_t, buffer, length, sock_addr_t)`
+    - `sock_handle_t`: Receiving socket
+    - `buffer`: Buffer to receive into
+    - `length`: Length of buffer
+    - `sock_addr_t`: Struct where the kernel writes the received packet's sender
+    information
+
+#### Differences Between the APIs
+
+There are two major differences between the proposed Tock APIs and the standard
+POSIX APIs. First, the POSIX APIs must support connection-based protocols such
+as TCP, whereas the Tock API is only concerned with connectionless, datagram
+based protocols. Second, the POSIX interface has a concept of the `sock_addr_t`
+structure, which is used to encapsulate information such as port numbers to
+bind on and interface addresses. This makes `bind_to_port` redundant in POSIX,
+as we can simply set the port number in the `sock_addr_t` struct when binding.
+I think one of the major questions is whether to adopt this convention, or to
+use the above definitions for at least the first iteration.
+
+### Example: `ip_sense`
+
+An example use of the userland networking stack can be found in libtock-c/examples/ip\_sense
+
+## Implementation Details for potential future Thread implementation
+
+This section was written when the networking stack was incomplete, and aspects
+may be outdated. This goes for all sections following this point in the document.
+
+This section was written to include pseudocode examples of how different
 implementation of these traits should look for different Thread messages that
 might be sent, and for other messages (non-thread) that might be sent using
 this messaging stack.
+
 
 One Example Implementation of IP6Send:
 
@@ -831,61 +840,3 @@ key being used in the link layer.
 Note that we cannot just reduce this dependency by allowing the upper layer to
 specify the key used in MAC encryption. During frame reception, the MAC layer
 itself has to know which key to use in order to decrypt the frames correctly.
-
-TODO: Receive path dependencies
-
-## Suggested File Names
-
-Currently capsules associated with the networking stack are named according to a
-variety of conventions. This section proposes some changes.
-
-`Thread` directory should eventually contain any layers implemented with
-specifically Thread in mind - files such as ip_thread.rs, which would contain
-implementations of the traits found in net::ip.rs. (For instance, this file
-would contain the implementations of the IPSend trait such as IPSendMLE.)
-The tlv.rs file which currently resides here should remain here as well.
-
-`net::udp.rs` - Should contain functions and traits associated with the generic UDP layer.
-For instance, this file would include the UDPPacket and UDPSend traits, the
-UDPHeader struct, and functions associated with calculating the UDP checksum.
-This file should contain basic library implementations for the UDPPacket trait.
-
-`net::ip.rs` - Should contain functions associated with the generic IP layer. For
-instance, this file would include the IPPacket and IPSend traits, the IPPacket
-struct, and any other functions which any IP implementation would have to
-implement. This function would also provide documentation regarding how this
-generic layer should be implemented. This file should contain basic library
-implementations for the IPPacket Trait.
-
-`net::ip_utils.rs` - The functions contained in the file currently named ip.rs
-should be moved into a file named ip_utils.rs to better indicate the purpose
-of this file.
-
-`net::sixlowpan_utils.rs` - The function currently found at net::util.rs should
-be renamed to sixlowpan_utils.rs to better reflect its purpose. Further, it
-seems as though the functions/structs currently contained in
-net::frag_utils.rs should simply be moved into this file as well.
-
-`net::sixlowpan_frag.rs` - Contains functions and interfaces pertaining to the
-sixlowpan fragmentation library. (What is currently called sixlowpan.rs)
-
-`net::sixlowpan_comp.rs` - Contains functions and interfaces pertaining to the
-sixlowpan compression library.
-
-`ieee802154_enc_dec.rs` - Implements 15.4 header encoding and decoding.
-Currently should found at net::ieee802154.rs - should be renamed and
-moved within the greater ieee802154 directory in capsules.
-
-ieee802154 directory can be left as is.
-
-
-Once the traits have been defined and placed in udp.rs/ip.rs etc. , the
-various implementations of these traits should be defined in their own files,
-such as udp_through_thread.rs (could contain the UDPSend trait implementations to
-be used by applications sending UDP across an established Thread network).
-Another file could simultaneously exist called 'udp_no_thread.rs' which is
-used for an implementation that allowed for sending through a stack which was
-totally separate from the Thread stack.
-
-
-
