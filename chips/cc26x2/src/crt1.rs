@@ -1,5 +1,5 @@
 use cortexm4::{generic_isr, nvic, hard_fault_handler, svc_handler, systick_handler};
-use rom_fns::setup;
+use setup;
 
 extern "C" {
     // Symbols defined in the linker file

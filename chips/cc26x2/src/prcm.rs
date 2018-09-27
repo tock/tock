@@ -13,6 +13,7 @@
 //!
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use aon;
 
 #[repr(C)]
 struct PrcmRegisters {

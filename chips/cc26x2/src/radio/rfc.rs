@@ -26,7 +26,6 @@ use self::test_commands::*;
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::common::cells::VolatileCell;
 use prcm;
 use rtc;
 

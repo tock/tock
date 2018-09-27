@@ -12,6 +12,7 @@ use rtc;
 #[repr(C)]
 pub struct AonIocRegisters {
     _reserved0: [u32; 3],
+    ioc_latch: ReadWrite<u32, IocLatch::Register>,
     ioc_clk32k_ctl: ReadWrite<u32, IocClk::Register>,
 }
 
@@ -88,6 +89,9 @@ register_bitfields![
     ],
     IocClk [
         EN  OFFSET(0) NUMBITS(1) []
+    ],
+    IocLatch [
+        EN OFFSET(0) NUMBITS(1) []
     ],
     OscCtl [
         // Reserved 8-31
@@ -184,6 +188,15 @@ impl Aon {
             regs.ioc_clk32k_ctl.write(IocClk::EN::SET);
         } else {
             regs.ioc_clk32k_ctl.write(IocClk::EN::CLEAR);
+        }
+    }
+
+    pub fn ioc_latch_en(&self, enable: bool) {
+        let regs = &*self.ioc_regs;
+        if enable {
+            regs.ioc_latch.write(IocLatch::EN::CLEAR);
+        } else {
+            regs.ioc_latch.write(IocLatch::EN::SET);
         }
     }
 

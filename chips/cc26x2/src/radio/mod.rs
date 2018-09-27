@@ -1,8 +1,8 @@
 pub mod rfc;
 pub mod ble;
 pub mod rfcore_driver;
-use cortexm4::{self, nvic};
-use peripheral_interrupts;
+// use cortexm4::{self, nvic};
+// use peripheral_interrupts;
 
 pub mod rfcore_const;
 pub mod commands;

@@ -4,7 +4,6 @@ use osc;
 use peripheral_manager;
 use chip::SleepMode;
 use radio::rfc;
-use rom_fns::oscfh;
 use core::cell::Cell;
 use fixedvec::FixedVec;
 use kernel::common::cells::{TakeCell, OptionalCell};

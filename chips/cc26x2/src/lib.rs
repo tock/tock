@@ -21,7 +21,7 @@ pub mod peripheral_interrupts;
 pub mod prcm;
 pub mod rat;
 pub mod radio;
-pub mod rom_fns;
+pub mod setup;
 pub mod rtc;
 pub mod trng;
 pub mod uart;

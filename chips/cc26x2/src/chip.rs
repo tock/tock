@@ -6,7 +6,6 @@ use peripheral_interrupts;
 use radio;
 use rtc;
 use uart;
-use prcm;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

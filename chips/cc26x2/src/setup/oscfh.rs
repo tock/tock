@@ -31,7 +31,7 @@
 // Clock switching and source select code from Texas Instruments
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
-use rom_fns::ddi;
+use setup::ddi;
 #[derive(Copy)]
 #[repr(C)]
 pub struct Struct1 {

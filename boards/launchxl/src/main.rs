@@ -16,7 +16,7 @@ use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::radio;
-// use cc26x2::rtc;
+use cc26x2::rtc;
 use kernel::capabilities;
 use kernel::hil;
 
@@ -24,8 +24,6 @@ use kernel::hil;
 pub mod io;
 #[allow(dead_code)]
 mod i2c_tests;
-#[allow(dead_code)]
-mod radio_tests;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -187,6 +185,9 @@ pub unsafe fn reset_handler() {
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
 
     prcm::Power::enable_domain(prcm::PowerDomain::Serial);
+
+    aon::AON.ioc_latch_en(false);
+    rtc::RTC.sync();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -357,6 +358,7 @@ pub unsafe fn reset_handler() {
         )
     );
     
+
     radio::RFC.set_client(&radio::RADIO);
 
     let virtual_radio = static_init!(
@@ -371,8 +373,9 @@ pub unsafe fn reset_handler() {
     kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
     kernel::hil::radio_client::RadioDriver::set_receive_client(&radio::RADIO, virtual_radio, &mut HELIUM_BUF);
 
-    let rfc = &cc26x2::radio::RADIO;
-
+    // let rfc = &cc26x2::radio::RADIO;
+    // rfc.test_power_up();
+    
     let launchxl = Platform {
         console,
         gpio,
@@ -384,8 +387,6 @@ pub unsafe fn reset_handler() {
     };
 
     let mut chip = cc26x2::chip::Cc26X2::new();
-
-    // rfc.test_power_up();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

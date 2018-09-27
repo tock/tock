@@ -56,18 +56,140 @@ pub unsafe extern "C" fn systick_handler() {
     );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn generic_isr() {}
+#[macro_export]
+macro_rules! generic_handle_start{
+  ($label:tt) => {
+    asm!(
+      concat!(
+        "
+        /* Skip saving process state if not coming from user-space */
+        cmp lr, #0xfffffffd
+        bne ",
+        stringify!($label),
+        "
+
+        /* We need the most recent kernel's version of r1, which points */
+        /* to the Process struct's stored registers field. The kernel's r1 */
+        /* lives in the second word of the hardware stacked registers on MSP */
+        mov r1, sp
+        ldr r1, [r1, #4]
+        stmia r1, {r4-r11}
+        /* Set thread mode to privileged */
+        mov r0, #0
+        msr CONTROL, r0
+        movw LR, #0xFFF9
+        movt LR, #0xFFFF
+        ",
+        stringify!($label),
+        ":
+        "
+        )
+      );
+  }
+}
+
+#[macro_export]
+#[cfg(target_os = "none")]
+#[naked]
+pub unsafe extern "C" fn generic_handle_finish() {
+      asm!(
+        "
+        /* Find the ISR number by looking at the low byte of the IPSR registers */
+        mrs r0, IPSR
+        and r0, #0xff
+        /* ISRs start at 16, so substract 16 to get zero-indexed */
+        sub r0, #16
+        /*
+         * High level:
+         *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
+         * */
+        lsrs r2, r0, #5 /* r2 = r0 / 32 */
+        /* r0 = 1 << (r0 & 31) */
+        movs r3, #1        /* r3 = 1 */
+        and r0, r0, #31    /* r0 = r0 & 31 */
+        lsl r0, r3, r0     /* r0 = r3 << r0 */
+        /* r3 = &NVIC.ICER */
+        mov r3, #0xe180
+        movt r3, #0xe000
+        /* here:
+         *
+         *  `r2` is r0 / 32
+         *  `r3` is &NVIC.ICER
+         *  `r0` is 1 << (r0 & 31)
+         *
+         * So we just do:
+         *
+         *  `*(r3 + r2 * 4) = r0`
+         *
+         *  */
+        str r0, [r3, r2, lsl #2]"
+      );
+}
 
 #[cfg(target_os = "none")]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-    asm!(
+  asm!(
         "
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
     bne _ggeneric_isr_no_stacking
+    /* We need the most recent kernel's version of r1, which points */
+    /* to the Process struct's stored registers field. The kernel's r1 */
+    /* lives in the second word of the hardware stacked registers on MSP */
+    mov r1, sp
+    ldr r1, [r1, #4]
+    stmia r1, {r4-r11}
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF
+  _ggeneric_isr_no_stacking:
+    /* Find the ISR number by looking at the low byte of the IPSR registers */
+    mrs r0, IPSR
+    and r0, #0xff
+    /* ISRs start at 16, so substract 16 to get zero-indexed */
+    sub r0, #16
+    /*
+     * High level:
+     *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
+     * */
+    lsrs r2, r0, #5 /* r2 = r0 / 32 */
+    /* r0 = 1 << (r0 & 31) */
+    movs r3, #1        /* r3 = 1 */
+    and r0, r0, #31    /* r0 = r0 & 31 */
+    lsl r0, r3, r0     /* r0 = r3 << r0 */
+    /* r3 = &NVIC.ICER */
+    mov r3, #0xe180
+    movt r3, #0xe000
+    /* here:
+     *
+     *  `r2` is r0 / 32
+     *  `r3` is &NVIC.ICER
+     *  `r0` is 1 << (r0 & 31)
+     *
+     * So we just do:
+     *
+     *  `*(r3 + r2 * 4) = r0`
+     *
+     *  */
+    str r0, [r3, r2, lsl #2]"
+    );
+}
+
+
+#[cfg(target_os = "none")]
+#[naked]
+/// don't disables the NVIC but switch to the kernel.
+pub unsafe extern "C" fn switch_to_kernel_space() {
+    asm!(
+        "
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _continue
+
 
     /* We need the most recent kernel's version of r1, which points */
     /* to the Process struct's stored registers field. The kernel's r1 */
@@ -82,40 +204,8 @@ pub unsafe extern "C" fn generic_isr() {
 
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-  _ggeneric_isr_no_stacking:
-    /* Find the ISR number by looking at the low byte of the IPSR registers */
-    mrs r0, IPSR
-    and r0, #0xff
-    /* ISRs start at 16, so substract 16 to get zero-indexed */
-    sub r0, #16
-
-    /*
-     * High level:
-     *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
-     * */
-    lsrs r2, r0, #5 /* r2 = r0 / 32 */
-
-    /* r0 = 1 << (r0 & 31) */
-    movs r3, #1        /* r3 = 1 */
-    and r0, r0, #31    /* r0 = r0 & 31 */
-    lsl r0, r3, r0     /* r0 = r3 << r0 */
-
-    /* r3 = &NVIC.ICER */
-    mov r3, #0xe180
-    movt r3, #0xe000
-
-    /* here:
-     *
-     *  `r2` is r0 / 32
-     *  `r3` is &NVIC.ICER
-     *  `r0` is 1 << (r0 & 31)
-     *
-     * So we just do:
-     *
-     *  `*(r3 + r2 * 4) = r0`
-     *
-     *  */
-    str r0, [r3, r2, lsl #2]"
+  _continue:
+  "
     );
 }
 
@@ -193,11 +283,11 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let kernel_stack: bool;
 
     asm!(
-        "mov    r1, 0                       \n\
-         tst    lr, #4                      \n\
-         itte   eq                          \n\
-         mrseq  r0, msp                     \n\
-         addeq  r1, 1                       \n\
+        "mov    r1, 0                       \r\n\
+         tst    lr, #4                      \r\n\
+         itte   eq                          \r\n\
+         mrseq  r0, msp                     \r\n\
+         addeq  r1, 1                       \r\n\
          mrsne  r0, psp                     "
         : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
         :
@@ -253,43 +343,43 @@ pub unsafe extern "C" fn hard_fault_handler() {
         let exception_number = (stacked_xpsr & 0x1ff) as usize;
 
         panic!(
-            "{} HardFault.\n\
-             \tKernel version {}\n\
-             \tr0  0x{:x}\n\
-             \tr1  0x{:x}\n\
-             \tr2  0x{:x}\n\
-             \tr3  0x{:x}\n\
-             \tr12 0x{:x}\n\
-             \tlr  0x{:x}\n\
-             \tpc  0x{:x}\n\
-             \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\n\
-             \tsp  0x{:x}\n\
-             \ttop of stack     0x{:x}\n\
-             \tbottom of stack  0x{:x}\n\
-             \tSHCSR 0x{:x}\n\
-             \tCFSR  0x{:x}\n\
-             \tHSFR  0x{:x}\n\
-             \tInstruction Access Violation:       {}\n\
-             \tData Access Violation:              {}\n\
-             \tMemory Management Unstacking Fault: {}\n\
-             \tMemory Management Stacking Fault:   {}\n\
-             \tMemory Management Lazy FP Fault:    {}\n\
-             \tInstruction Bus Error:              {}\n\
-             \tPrecise Data Bus Error:             {}\n\
-             \tImprecise Data Bus Error:           {}\n\
-             \tBus Unstacking Fault:               {}\n\
-             \tBus Stacking Fault:                 {}\n\
-             \tBus Lazy FP Fault:                  {}\n\
-             \tUndefined Instruction Usage Fault:  {}\n\
-             \tInvalid State Usage Fault:          {}\n\
-             \tInvalid PC Load Usage Fault:        {}\n\
-             \tNo Coprocessor Usage Fault:         {}\n\
-             \tUnaligned Access Usage Fault:       {}\n\
-             \tDivide By Zero:                     {}\n\
-             \tBus Fault on Vector Table Read:     {}\n\
-             \tForced Hard Fault:                  {}\n\
-             \tFaulting Memory Address: (valid: {}) {:#010X}\n\
-             \tBus Fault Address:       (valid: {}) {:#010X}\n\
+            "{} HardFault.\r\n\
+             \tKernel version {}\r\n\
+             \tr0  0x{:x}\r\n\
+             \tr1  0x{:x}\r\n\
+             \tr2  0x{:x}\r\n\
+             \tr3  0x{:x}\r\n\
+             \tr12 0x{:x}\r\n\
+             \tlr  0x{:x}\r\n\
+             \tpc  0x{:x}\r\n\
+             \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\r\n\
+             \tsp  0x{:x}\r\n\
+             \ttop of stack     0x{:x}\r\n\
+             \tbottom of stack  0x{:x}\r\n\
+             \tSHCSR 0x{:x}\r\n\
+             \tCFSR  0x{:x}\r\n\
+             \tHSFR  0x{:x}\r\n\
+             \tInstruction Access Violation:       {}\r\n\
+             \tData Access Violation:              {}\r\n\
+             \tMemory Management Unstacking Fault: {}\r\n\
+             \tMemory Management Stacking Fault:   {}\r\n\
+             \tMemory Management Lazy FP Fault:    {}\r\n\
+             \tInstruction Bus Error:              {}\r\n\
+             \tPrecise Data Bus Error:             {}\r\n\
+             \tImprecise Data Bus Error:           {}\r\n\
+             \tBus Unstacking Fault:               {}\r\n\
+             \tBus Stacking Fault:                 {}\r\n\
+             \tBus Lazy FP Fault:                  {}\r\n\
+             \tUndefined Instruction Usage Fault:  {}\r\n\
+             \tInvalid State Usage Fault:          {}\r\n\
+             \tInvalid PC Load Usage Fault:        {}\r\n\
+             \tNo Coprocessor Usage Fault:         {}\r\n\
+             \tUnaligned Access Usage Fault:       {}\r\n\
+             \tDivide By Zero:                     {}\r\n\
+             \tBus Fault on Vector Table Read:     {}\r\n\
+             \tForced Hard Fault:                  {}\r\n\
+             \tFaulting Memory Address: (valid: {}) {:#010X}\r\n\
+             \tBus Fault Address:       (valid: {}) {:#010X}\r\n\
              ",
             mode_str,
             env!("TOCK_KERNEL_VERSION"),

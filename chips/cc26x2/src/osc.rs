@@ -1,25 +1,25 @@
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use rom_fns::oscfh;
+use setup::oscfh;
 
 pub struct DdiRegisters {
     ctl0: ReadWrite<u32, Ctl0::Register>,
     _ctl1: ReadOnly<u32>,
-    _radc_ext_cfg: ReadOnly<u32>,
-    _amp_comp_ctl: ReadOnly<u32>,
-    _amp_comp_th1: ReadOnly<u32>,
-    _amp_comp_th2: ReadOnly<u32>,
+    _radc_ext_cfg: ReadWrite<u32>,
+    _amp_comp_ctl: ReadWrite<u32>,
+    _amp_comp_th1: ReadWrite<u32>,
+    _amp_comp_th2: ReadWrite<u32>,
 
-    _ana_bypass_val1: ReadOnly<u32>,
-    _ana_bypass_val2: ReadOnly<u32>,
+    _ana_bypass_val1: ReadWrite<u32>,
+    _ana_bypass_val2: ReadWrite<u32>,
 
-    _analog_test_ctl: ReadOnly<u32>,
-    _adc_doubler_nanoamp_ctl: ReadOnly<u32>,
+    _analog_test_ctl: ReadWrite<u32>,
+    _adc_doubler_nanoamp_ctl: ReadWrite<u32>,
 
-    _xosc_hf_ctl: ReadOnly<u32>,
-    _lf_osc_ctl: ReadOnly<u32>,
-    _rc_osc_hf_ctl: ReadOnly<u32>,
-    _rc_osc_mf_ctl: ReadOnly<u32>,
+    _xosc_hf_ctl: ReadWrite<u32>,
+    _lf_osc_ctl: ReadWrite<u32>,
+    _rc_osc_hf_ctl: ReadWrite<u32>,
+    _rc_osc_mf_ctl: ReadWrite<u32>,
 
     _reserved: ReadOnly<u32>,
 
