@@ -28,6 +28,17 @@ impl Introspection {
         Introspection { kernel: kernel }
     }
 
+    /// Call a callback with the `AppId` of each app on the board.
+    pub fn each_app<F>(&self, fun: F)
+    where
+        F: Fn(AppId),
+    {
+        self.kernel.process_each_enumerate(|app_id, _| {
+            let appid = AppId::new(self.kernel, app_id);
+            fun(appid);
+        });
+    }
+
     /// Returns how many processes have been loaded on this platform. This is
     /// functionally equivalent to how many of the process slots have been used
     /// on the board. This does not consider what state the process is in, as
