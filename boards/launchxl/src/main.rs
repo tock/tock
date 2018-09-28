@@ -16,6 +16,7 @@ use cc26x2::aon;
 use cc26x2::prcm;
 use kernel::capabilities;
 use kernel::hil;
+use kernel::Chip;
 
 #[macro_use]
 pub mod io;
@@ -352,9 +353,7 @@ pub unsafe fn reset_handler() {
         rng,
     };
 
-    let mut chip = cc26x2::chip::Cc26X2::new();
-
-    let mpu = static_init!(cortexm4::mpu::MPU, cortexm4::mpu::MPU::new());
+    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -366,7 +365,7 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
-        mpu,
+        chip.mpu(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -374,5 +373,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, &mut chip, mpu, Some(&ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&launchxl, chip, Some(&ipc), &main_loop_capability);
 }

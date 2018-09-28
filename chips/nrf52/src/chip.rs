@@ -12,12 +12,14 @@ use spi;
 use uart;
 
 pub struct NRF52 {
+    mpu: cortexm4::mpu::MPU,
     systick: cortexm4::systick::SysTick,
 }
 
 impl NRF52 {
     pub unsafe fn new() -> NRF52 {
         NRF52 {
+            mpu: cortexm4::mpu::MPU::new(),
             // The NRF52's systick is uncalibrated, but is clocked from the
             // 64Mhz CPU clock.
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
@@ -26,13 +28,18 @@ impl NRF52 {
 }
 
 impl kernel::Chip for NRF52 {
+    type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
+
+    fn mpu(&self) -> &Self::MPU {
+        &self.mpu
+    }
 
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
 
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         unsafe {
             loop {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {

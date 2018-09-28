@@ -23,6 +23,7 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
+use kernel::Chip;
 use kernel::Platform;
 
 /// Support routines for debugging I/O.
@@ -217,7 +218,7 @@ pub unsafe fn reset_handler() {
         Some(&sam4l::gpio::PA[14]),
     );
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
     // Initialize USART0 for Uart
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
@@ -576,8 +577,6 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
-    let mpu = static_init!(cortexm4::mpu::MPU, cortexm4::mpu::MPU::new());
-
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
@@ -593,18 +592,12 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
-        mpu,
+        chip.mpu(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
     );
-    board_kernel.kernel_loop(
-        &hail,
-        &mut chip,
-        mpu,
-        Some(&hail.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
 }
