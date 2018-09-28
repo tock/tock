@@ -133,3 +133,5 @@ various elements of Tock.
 
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
+- **[Debug Process Status](src/debug_process_status.rs)**: Print status information
+  about each app to the console periodically.

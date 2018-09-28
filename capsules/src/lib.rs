@@ -25,6 +25,7 @@ pub mod console;
 pub mod crc;
 pub mod dac;
 pub mod debug_process_restart;
+pub mod debug_process_status;
 pub mod fm25cl;
 pub mod fxos8700cq;
 pub mod gpio;
