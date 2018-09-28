@@ -133,7 +133,7 @@ register_bitfields![
     ClockGate [
         // RESERVED (bits 1-31)
         CLK_EN      OFFSET(0) NUMBITS(1) []
-    ],    
+    ],
     // Clock gate type for when there are two peripherals
     ClockGate2 [
         // RESERVED (bits 1-31)
@@ -336,7 +336,8 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::SET);
         regs.uart_clk_gate_sleep.modify(ClockGate2::CLK_EN::SET);
-        regs.uart_clk_gate_deep_sleep.modify(ClockGate2::CLK_EN::SET);
+        regs.uart_clk_gate_deep_sleep
+            .modify(ClockGate2::CLK_EN::SET);
 
         prcm_commit();
     }

@@ -54,10 +54,29 @@ register_bitfields![
         DIVISOR OFFSET(0) NUMBITS(6) []
     ],
     Flags [
-        TX_FIFO_FULL OFFSET(5) NUMBITS(1) []
+        CTS OFFSET(0) NUMBITS(1) [],
+        BUSY OFFSET(3) NUMBITS(1) [],
+        RX_FIFO_EMPTY OFFSET(4) NUMBITS(1) [],
+        TX_FIFO_FULL OFFSET(5) NUMBITS(1) [],
+        RX_FIFO_FULL OFFSET(6) NUMBITS(1) [],
+        TX_FIFO_EMPTY OFFSET(7) NUMBITS(1) []
     ],
     Interrupts [
-        ALL_INTERRUPTS OFFSET(0) NUMBITS(12) []
+         ALL_INTERRUPTS OFFSET(0) NUMBITS(12) [
+            // sets all interrupts without writing 1's to reg with undefined behavior
+            Set =  0b111111110010,
+            // you are allowed to write 0 to everyone
+            Clear = 0x000000
+        ],
+        CTSIMM OFFSET(1) NUMBITS(1) [],              // clear to send interrupt mask
+        RX OFFSET(4) NUMBITS(1) [],                  // receive interrupt mask
+        TX OFFSET(5) NUMBITS(1) [],                  // transmit interrupt mask
+        RX_TIMEOUT OFFSET(6) NUMBITS(1) [],          // receive timeout interrupt mask
+        FE OFFSET(7) NUMBITS(1) [],                  // framing error interrupt mask
+        PE OFFSET(8) NUMBITS(1) [],                  // parity error interrupt mask
+        BE OFFSET(9) NUMBITS(1) [],                  // break error interrupt mask
+        OE OFFSET(10) NUMBITS(1) [],                 // overrun error interrupt mask
+        END_OF_TRANSMISSION OFFSET(11) NUMBITS(1) [] // end of transmission interrupt mask
     ]
 ];
 
@@ -81,7 +100,8 @@ struct Transaction {
 pub struct UART {
     registers: &'static StaticRef<UartRegisters>,
     client: OptionalCell<&'static uart::Client>,
-    transaction: MapCell<Transaction>,
+    tx: MapCell<Transaction>,
+    rx: MapCell<Transaction>,
 }
 
 impl UART {
@@ -89,7 +109,8 @@ impl UART {
         UART {
             registers,
             client: OptionalCell::empty(),
-            transaction: MapCell::empty(),
+            tx: MapCell::empty(),
+            rx: MapCell::empty(),
         }
     }
 
@@ -164,8 +185,14 @@ impl UART {
     }
 
     fn enable_interrupts(&self) {
-        // Disable all UART interrupts
-        self.registers.imsc.modify(Interrupts::ALL_INTERRUPTS::SET);
+        // clear all
+        self.registers.icr.write(Interrupts::ALL_INTERRUPTS::Clear);
+        // set only interrupts used
+        self.registers.imsc.modify(
+            Interrupts::RX::SET
+                + Interrupts::RX_TIMEOUT::SET
+                + Interrupts::END_OF_TRANSMISSION::SET,
+        );
     }
 
     /// Clears all interrupts related to UART.
@@ -173,30 +200,68 @@ impl UART {
         // Clear interrupts
         self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
 
-        self.transaction.take().map(|mut transaction| {
-            transaction.index += 1;
-            if transaction.index < transaction.length {
-                self.send_byte(transaction.buffer[transaction.index]);
-                self.transaction.put(transaction);
-            } else {
+        self.rx.take().map(|mut rx| {
+            while self.rx_fifo_not_empty() && rx.index < rx.length {
+                let byte = self.read_byte();
+                rx.buffer[rx.index] = byte;
+                rx.index += 1;
+            }
+
+            if rx.index == rx.length {
                 self.client.map(move |client| {
-                    client.transmit_complete(
-                        transaction.buffer,
+                    client.receive_complete(
+                        rx.buffer,
+                        rx.index,
                         kernel::hil::uart::Error::CommandComplete,
                     );
                 });
+            } else {
+                self.rx.put(rx);
+            }
+        });
+        // if there is no client, empty the buffer into the void
+        if self.rx_fifo_not_empty() {
+            self.read_byte();
+        }
+
+        self.tx.take().map(|mut tx| {
+            // if a big buffer was given, this could be a very long call
+            if self.tx_fifo_not_full() && tx.index < tx.length {
+                self.send_byte(tx.buffer[tx.index]);
+                tx.index += 1;
+            }
+            if tx.index == tx.length {
+                self.client.map(move |client| {
+                    client.transmit_complete(tx.buffer, kernel::hil::uart::Error::CommandComplete);
+                });
+            } else {
+                self.tx.put(tx);
             }
         });
     }
 
-    /// Transmits a single byte if the hardware is ready.
+    // Pushes a byte into the TX FIFO.
+    #[inline]
     pub fn send_byte(&self, c: u8) {
         // Put byte in data register
         self.registers.dr.set(c as u32);
     }
 
+    // Pulls a byte out of the RX FIFO.
+    #[inline]
+    pub fn read_byte(&self) -> u8 {
+        self.registers.dr.get() as u8
+    }
+
     /// Checks if there is space in the transmit fifo queue.
-    pub fn tx_ready(&self) -> bool {
+    #[inline]
+    pub fn rx_fifo_not_empty(&self) -> bool {
+        !self.registers.fr.is_set(Flags::RX_FIFO_EMPTY)
+    }
+
+    /// Checks if there is space in the transmit fifo queue.
+    #[inline]
+    pub fn tx_fifo_not_full(&self) -> bool {
         !self.registers.fr.is_set(Flags::TX_FIFO_FULL)
     }
 }
@@ -211,21 +276,65 @@ impl kernel::hil::uart::UART for UART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        if tx_len > 0 && tx_data.len() > 0 {
-            self.send_byte(tx_data[0]);
-        }
+        // if there is a weird input, don't try to do any transfers
+        if tx_len == 0 || tx_len > tx_data.len() {
+            let error;
 
-        self.transaction.put(Transaction {
-            buffer: tx_data,
-            length: tx_len,
-            index: 0,
-        });
+            if tx_len == 0 {
+                error = kernel::hil::uart::Error::CommandComplete
+            } else {
+                error = kernel::hil::uart::Error::ClientRequestLargerThanBuffer
+            }
+
+            self.client.map(move |client| {
+                client.transmit_complete(tx_data, error);
+            });
+        } else {
+            // we will send one byte, causing EOT interrupt
+            if self.tx_fifo_not_full() {
+                self.send_byte(tx_data[0]);
+            }
+
+            // Transaction will be continued in interrupt handler
+            self.tx.put(Transaction {
+                buffer: tx_data,
+                length: tx_len,
+                index: 1,
+            });
+        }
     }
 
-    #[allow(unused)]
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {}
+    fn receive(&self, buffer: &'static mut [u8], len: usize) {
+        if len == 0 || len > buffer.len() {
+            let error;
+
+            if len == 0 {
+                error = kernel::hil::uart::Error::CommandComplete
+            } else {
+                error = kernel::hil::uart::Error::ClientRequestLargerThanBuffer
+            }
+
+            self.client.map(move |client| {
+                client.receive_complete(buffer, len, error);
+            });
+        } else {
+            self.rx.put(Transaction {
+                buffer: buffer,
+                length: len,
+                index: 0,
+            });
+        }
+    }
 
     fn abort_receive(&self) {
-        unimplemented!()
+        self.rx.take().map(|rx| {
+            self.client.map(move |client| {
+                client.receive_complete(
+                    rx.buffer,
+                    rx.index,
+                    kernel::hil::uart::Error::CommandComplete,
+                );
+            });
+        });
     }
 }
