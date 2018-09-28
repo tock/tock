@@ -1,4 +1,4 @@
-use rom_fns::{ddi, ioc_rom, oscfh};
+use setup::{ddi, ioc_rom, oscfh};
 
 #[allow(unused_variables, unused_mut)]
 unsafe extern "C" fn SetupSignExtendVddrTrimValue(mut ui32VddrTrimVal: u32) -> i32 {
@@ -190,7 +190,8 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
     let switch2 = (ccfg_ModeConfReg & 0xc00000u32) >> 22i32;
     if switch2 == 2u32 {
         _currentBlock = 17;
-    } else if switch2 == 1u32 {
+    } 
+    else if switch2 == 1u32 {
         currentHfClock = oscfh::clock_source_get(0x1u32);
         oscfh::clock_source_set(0x4u32, currentHfClock);
         'loop15: loop {
@@ -219,11 +220,13 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
 
         *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x400usize;
         _currentBlock = 17;
-    } else {
+    } 
+    else {
         if switch2 == 0u32 {
             oscfh::clock_source_set(0x4u32, 0x1u32);
             SetupSetAonRtcSubSecInc(0x8637bdu32);
-        } else {
+        } 
+        else {
             oscfh::clock_source_set(0x4u32, 0x2u32);
         }
         _currentBlock = 18;

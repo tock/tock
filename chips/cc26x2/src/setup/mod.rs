@@ -1,4 +1,6 @@
 #![allow(non_snake_case, unused_mut, unused_variables, unused_must_use)]
+// pub mod setup;
+// pub mod setup_rom;
 
 #[allow(unused_variables, unused_mut, non_snake_case)]
 pub mod oscfh;
@@ -37,9 +39,10 @@ pub mod ddi;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-
+use aux;
 use rtc;
 use prcm;
+
 pub fn perform() {
     unsafe { SetupTrimDevice() }
 }
@@ -79,6 +82,7 @@ pub unsafe extern "C" fn SetupTrimDevice() {
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
         TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
     }
+
     // Set VIMS power domain control.
     // PDCTL1VIMS = 0 ==> VIMS power domain is only powered when CPU power domain is powered
     prcm::Power::disable_domain(prcm::PowerDomain::VIMS);
@@ -102,11 +106,12 @@ pub unsafe extern "C" fn SetupTrimDevice() {
         *((0x40090000i32 + 0x28i32) as (*mut usize)) = (ui32AonSysResetctl | 0x20000u32) as (usize);
         *((0x40090000i32 + 0x28i32) as (*mut usize)) = ui32AonSysResetctl as (usize);
     }
+    /*
     while *(((0x40034000i32 + 0x0i32) as (usize) & 0xf0000000usize
             | 0x2000000usize
             | ((0x40034000i32 + 0x0i32) as (usize) & 0xfffffusize) << 5i32
             | (3i32 << 2i32) as (usize)) as (*mut usize)) != 0 {}
-    /*
+    */
    'loop9: loop {
         if *(((0x40034000i32 + 0x0i32) as (usize) & 0xf0000000usize
             | 0x2000000usize
@@ -116,7 +121,7 @@ pub unsafe extern "C" fn SetupTrimDevice() {
             break;
         }
     }
-    */
+    
 }
 
 unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown() {}
@@ -126,18 +131,19 @@ unsafe extern "C" fn Step_RCOSCHF_CTRIM(mut toCode: u32) {
     let mut currentTrim: u32;
     currentRcoscHfCtlReg = *((0x400ca000i32 + 0x30i32) as (*mut u16)) as (u32);
     currentTrim = (currentRcoscHfCtlReg & 0xff00u32) >> 8i32 ^ 0xc0u32;
+    /*
     while toCode != currentTrim {
         *((0x40092000i32 + 0x34i32) as (*mut usize));
         if toCode > currentTrim {
-            currentTrim.wrapping_sub(1u32);
+            currentTrim.wrapping_add(1u32);
         }
         else {
-            currentTrim.wrapping_add(1u32);
+            currentTrim.wrapping_sub(1u32);
         }
         *((0x400ca000i32 + 0x30i32) as (*mut u16)) =
             (currentRcoscHfCtlReg & !0xff00i32 as (u32) | (currentTrim ^ 0xc0u32) << 8i32) as (u16);
     }
-    /*
+    */
     'loop1: loop {
         if !(toCode != currentTrim) {
             break;
@@ -151,7 +157,6 @@ unsafe extern "C" fn Step_RCOSCHF_CTRIM(mut toCode: u32) {
         *((0x400ca000i32 + 0x30i32) as (*mut u16)) =
             (currentRcoscHfCtlReg & !0xff00i32 as (u32) | (currentTrim ^ 0xc0u32) << 8i32) as (u16);
     }
-    */
 }
 
 unsafe extern "C" fn Step_VBG(mut targetSigned: i32) {
@@ -185,6 +190,7 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     let mut ccfg_ModeConfReg: u32;
     
     // Check in CCFG for alternative DCDC setting
+    
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x2usize == 0usize {
         *((0x40086200i32 + 0x40i32 + 0xbi32 * 2i32) as (*mut u8)) =
             (0xf0usize | *((0x50003000i32 + 0x1faci32) as (*mut usize)) >> 16i32) as (u8);
@@ -209,7 +215,6 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     *((0x40086000i32 + 0x0i32 + 0x3i32) as (*mut u8)) = ((ui32EfuseData & 0xf00u32) >> 8i32 << 4i32
         | (ui32EfuseData & 0xf000u32) >> 12i32 << 0i32)
         as (u8);
-    
     // Write to register CTLSOCREFSYS0 (addr offset 0) bits[4:0] (TRIMIREF) in
     // ADI_2_REFSYS. Avoid using masked write access since bit field spans
     // nibble boundary. Direct write can be used since this is the only defined
@@ -229,8 +234,9 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
         (orgResetCtl & !(0x20i32 | 0x40i32 | 0x80i32 | 0x100i32) as (u32)) as (usize);
     
     // Wait for xxx_LOSS_EN setting to propagate
-    rtc::RTC.sync(); 
-    
+    // rtc::RTC.sync(); 
+    *((0x40092000i32 + 0x2ci32) as (*mut usize));
+
     // The VDDS_BOD trim and the VDDR trim is already stepped up to max/HH if "CC1352 boost mode" is requested.
     // See function SetupAfterColdResetWakeupFromShutDownCfg1() in setup_rom.c for details.
     if ccfg_ModeConfReg & 0x2000000u32 != 0u32 || ccfg_ModeConfReg & 0x1000000u32 == 0u32 {
@@ -266,8 +272,8 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     *((0x40090000i32 + 0x28i32) as (*mut usize)) = orgResetCtl as (usize);
 
     // Wait for xxx_LOSS_EN setting to propagate
-    rtc::RTC.sync();
-    //*((0x40092000i32 + 0x2ci32) as (*mut usize));
+    // rtc::RTC.sync();
+    *((0x40092000i32 + 0x2ci32) as (*mut usize));
     
     let mut trimReg: u32;
     let mut ui32TrimValue: u32;
@@ -277,24 +283,25 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     *((0x40086200i32 + 0x10i32 + 0xci32) as (*mut u8)) = 0x40u8;
     *((0x400cb000i32 + 0x60i32 + 0x5i32 * 2i32) as (*mut u16)) =
         (0x38i32 << 8i32 | 3i32 << 3i32) as (u16);
-
     // Third part of trim done after cold reset and wakeup from shutdown:
     // -Configure HPOSC.
     // -Setup the LF clock.
     SetupAfterColdResetWakeupFromShutDownCfg3(ccfg_ModeConfReg);
-    /*
+    /* 
     aux::AUX_CTL.operation_mode_request(aux::WUMODE_PDA);
     let mut cur_mode: u8 = aux::AUX_CTL.operation_mode_ack();
     while cur_mode != 0x02 {
         cur_mode = aux::AUX_CTL.operation_mode_ack();
         aux::AUX_CTL.operation_mode_request(aux::WUMODE_PDA);
     }
+    */
     // Disable EFUSE clock
     *(((0x40030000i32 + 0x24i32) as (usize) & 0xf0000000usize
         | 0x2000000usize
         | ((0x40030000i32 + 0x24i32) as (usize) & 0xfffffusize) << 5i32
         | (5i32 << 2i32) as (usize)) as (*mut usize)) = 1usize;
-    */
+    
+    
 }
 
 unsafe extern "C" fn TrimAfterColdReset() {}
@@ -322,8 +329,8 @@ pub unsafe extern "C" fn SetupStepVddrTrimTo(mut toCode: u32) {
         if pmctlResetctl_reg & 0x80u32 != 0 {
             *((0x40090000i32 + 0x28i32) as (*mut usize)) =
                 (pmctlResetctl_reg & !0x80i32 as (u32)) as (usize);
-            rtc::RTC.sync();
-            // *((0x40092000i32 + 0x2ci32) as (*mut usize));
+            // rtc::RTC.sync();
+            *((0x40092000i32 + 0x2ci32) as (*mut usize));
         }
         while targetTrim != currentTrim {
             *((0x40092000i32 + 0x34i32) as (*mut usize));
@@ -337,30 +344,13 @@ pub unsafe extern "C" fn SetupStepVddrTrimTo(mut toCode: u32) {
                     | currentTrim as (u32) << 0i32 & 0x1fu32) as (u8);
 
         }
-        /*
-        'loop3: loop {
-            if !(targetTrim != currentTrim) {
-                break;
-            }
-            while *((0x40092000i32 + 0x34i32) as (*mut usize)) & 0x1usize != 0x1usize {}
-            // *((0x40092000i32 + 0x34i32) as (*mut usize));
-            if targetTrim > currentTrim {
-                currentTrim = currentTrim + 1;
-            } else {
-                currentTrim = currentTrim - 1;
-            }
-            *((0x40086200i32 + 0x6i32) as (*mut u8)) =
-                ((*((0x40086200i32 + 0x6i32) as (*mut u8)) as (i32) & !0x1fi32) as (u32)
-                    | currentTrim as (u32) << 0i32 & 0x1fu32) as (u8);
-        }
-        */
 
         *((0x40092000i32 + 0x34i32) as (*mut usize));
         if pmctlResetctl_reg & 0x80u32 != 0 {
             *((0x40092000i32 + 0x34i32) as (*mut usize));
             *((0x40092000i32 + 0x34i32) as (*mut usize));
             *((0x40090000i32 + 0x28i32) as (*mut usize)) = pmctlResetctl_reg as (usize);
-            rtc::RTC.sync();
+            // rtc::RTC.sync();
             *((0x40092000i32 + 0x2ci32) as (*mut usize));
         }
     }
@@ -498,17 +488,15 @@ unsafe extern "C" fn SysCtrlAonSync() {
 */
 
 pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_ModeConfReg: u32) {
-    let mut _currentBlock;
     let mut fcfg1OscConf: u32;
     let mut ui32Trim: u32;
     let mut currentHfClock: u32;
     let mut ccfgExtLfClk: u32;
     let switch1 = (ccfg_ModeConfReg & 0xc0000u32) >> 18i32;
-    let mut trig: bool = false;
-    // Examine the XOSC_FREQ field to select 0x1=HPOSC, 0x2=48MHz XOSC, 0x3=24MHz XOSC
     
-    if !(switch1 == 2u32) {
-        if switch1 == 1u32 {
+    // Examine the XOSC_FREQ field to select 0x1=HPOSC, 0x2=48MHz XOSC, 0x3=24MHz XOSC
+    match switch1 {
+        1u32 => {
             fcfg1OscConf = *((0x50001000i32 + 0x38ci32) as (*mut usize)) as (u32);
             if fcfg1OscConf & 0x20000u32 == 0u32 {
                 *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x4000usize;
@@ -526,19 +514,18 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
                     | ((fcfg1OscConf & 0x60u32) >> 5i32 << 5i32) as (usize)
                     | ((fcfg1OscConf & 0x6u32) >> 1i32 << 1i32) as (usize)
                     | ((fcfg1OscConf & 0x1u32) >> 0i32 << 0i32) as (usize);
-                _currentBlock = 6;
-            } else {
-                _currentBlock = 4;
+            } 
+            else {
+                *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x80000000usize;
             }
-        } else {
-            _currentBlock = 4;
         }
-        if _currentBlock == 6 {
-        } else {
-            *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x00000000usize;
+        2u32 => {
+            ()
+        }
+        _ => {
+            *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x80000000usize;
         }
     }
-    
 
     // Set XOSC_HF in bypass mode if CCFG is configured for external TCXO
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x8usize == 0usize {
@@ -553,13 +540,13 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
 
     // setup the LF clock based upon CCFG:MODE_CONF:SCLK_LF_OPTION
     *((0x400ca000i32 + 0x200i32 + 0x4i32 * 2i32) as (*mut u8)) = (0x30u32 | ui32Trim) as (u8);
-    let switch2 = (ccfg_ModeConfReg & 0xc00000u32) >> 22i32;
+    let switch2 = ((ccfg_ModeConfReg & 0xc00000u32) >> 22i32) as (u32);
     match switch2 {
-        0 => {
+        0u32 => {
             oscfh::clock_source_set(0x4u32, 0x1u32);
             SetupSetAonRtcSubSecInc(0x8637bdu32);
-        }
-        1 => {
+        },
+        1u32 => {
             currentHfClock = oscfh::clock_source_get(0x1u32);
             oscfh::clock_source_set(0x4u32, currentHfClock);
             while oscfh::clock_source_get(0x4u32) == currentHfClock {}
@@ -583,70 +570,23 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
                     | 0x40000000i32) as (u32),
             );
             *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x400usize;
-            trig = true;
-        }
-        2 => {
-            trig = true; 
-        }
+            oscfh::clock_source_set(0x4u32, 0x3u32);
+        },
+        2u32 => {
+            oscfh::clock_source_set(0x4u32, 0x3u32);
+        },
         _ => {
-            oscfh::clock_source_set(0x4u32, 0x1u32);
-        }
-    }
-    if trig == true {
-        oscfh::clock_source_set(0x4u32, 0x3u32);
-    }
-    /*
-    if switch2 == 2u32 {
-        _currentBlock = 17;
-    } else if switch2 == 1u32 {
-        currentHfClock = oscfh::clock_source_get(0x1u32);
-        oscfh::clock_source_set(0x4u32, currentHfClock);
-        'loop15: loop {
-            if oscfh::clock_source_get(0x4u32) != currentHfClock {
-                break;
-            }
-        }
-        ccfgExtLfClk = *((0x50003000i32 + 0x1fa8i32) as (*mut usize)) as (u32);
-        SetupSetAonRtcSubSecInc((ccfgExtLfClk & 0xffffffu32) >> 0i32);
-        // IOC Port configure
-        ioc_rom::IOCPortConfigureSet(
-            (ccfgExtLfClk & 0xff000000u32) >> 24i32,
-            0x7u32,
-            (0x0i32
-                | 0x0i32
-                | 0x6000i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x0i32
-                | 0x20000000i32
-                | 0x40000000i32) as (u32),
-        );
-
-        *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x400usize;
-        _currentBlock = 17;
-    } else {
-        if switch2 == 0u32 {
-            oscfh::clock_source_set(0x4u32, 0x1u32);
-            SetupSetAonRtcSubSecInc(0x8637bdu32);
-        } else {
             oscfh::clock_source_set(0x4u32, 0x2u32);
-        }
-        _currentBlock = 18;
+        },
     }
-    if _currentBlock == 17 {
-        oscfh::clock_source_set(0x4u32, 0x3u32);
-    }
-    */
     
     // Update ADI_4_AUX_ADCREF1_VTRIM with value from FCFG1
     *((0x400cb000i32 + 0xbi32) as (*mut u8)) =
         (*((0x50001000i32 + 0x36ci32) as (*mut usize)) >> 0i32 << 0i32 & 0x3fusize) as (u8);
     
     // Sync with AON
-    rtc::RTC.sync(); 
+    // rtc::RTC.sync();
+    *((0x40092000i32 + 0x2ci32) as (*mut usize));
 }
 
 pub unsafe extern "C" fn SetupGetTrimForAnabypassValue1(mut ccfg_ModeConfReg: u32) -> u32 {

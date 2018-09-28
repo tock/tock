@@ -154,11 +154,8 @@ impl Oscillator {
         if self.clock_source_get(ClockType::HF) != HF_XOSC {
             // Wait for source ready to switch
             let regs = self.r_regs;
-            let mut pending: bool = regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING);
-            while !pending {
-                pending = regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING);
-            }
-            // while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
+            
+            while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
             
             self.switch_osc();
         }

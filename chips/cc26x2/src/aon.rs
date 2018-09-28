@@ -12,7 +12,7 @@ use rtc;
 #[repr(C)]
 pub struct AonIocRegisters {
     _reserved0: [u32; 3],
-    ioc_latch: ReadWrite<u32, IocLatch::Register>,
+    // ioc_latch: ReadWrite<u32, IocLatch::Register>,
     ioc_clk32k_ctl: ReadWrite<u32, IocClk::Register>,
 }
 
@@ -190,7 +190,7 @@ impl Aon {
             regs.ioc_clk32k_ctl.write(IocClk::EN::CLEAR);
         }
     }
-
+    /*
     pub fn ioc_latch_en(&self, enable: bool) {
         let regs = &*self.ioc_regs;
         if enable {
@@ -199,7 +199,7 @@ impl Aon {
             regs.ioc_latch.write(IocLatch::EN::SET);
         }
     }
-
+    */
     pub fn aux_set_ram_retention(&self, enabled: bool) {
         let regs = &*self.pmctl_regs;
         regs.ram_cfg.modify({

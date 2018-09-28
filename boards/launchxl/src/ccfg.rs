@@ -12,8 +12,8 @@
 pub static CCFG_CONF: [u32; 22] = [
     0x01800000, 
     0xFF820010, 
-    0x0058FFFC, 
-    0xF3FBFF3A, 
+    0x0058FFFD, 
+    0xF3BBFF3A, 
     0xFFFFFFFF, 
     0xFFFFFFFF, 
     0xFFFFFFFF, 

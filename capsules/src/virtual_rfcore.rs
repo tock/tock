@@ -141,7 +141,6 @@ where
 
     fn command(&self, command_num: usize, _r2: usize, _r3: usize, _appid: AppId) -> ReturnCode {
         match command_num {
-            // Handle callback for CMDSTA after write to CMDR
             0 => ReturnCode::SUCCESS,
             1 => {
                 let status = self.radio.initialize();

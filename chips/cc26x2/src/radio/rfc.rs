@@ -228,8 +228,6 @@ impl RFCore {
         // Make sure RFC power is enabled
         let dbell_regs = &*self.dbell_regs;
 
-        // Causes hard fault for some reason FUCKING SO GODDAMN STUPID
-        
         prcm::Power::enable_domain(prcm::PowerDomain::RFC);
         prcm::Clock::enable_rfc();
 
@@ -269,20 +267,23 @@ impl RFCore {
         // Initialize radio module
         let cmd_init = cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40);
         self.send_direct(&cmd_init)
-        .ok()
-        .expect("Could not initialize radio module");
+            .ok()
+            .expect("Could not initialize radio module");
+        dbell_regs.rfack_ifg.set(0);
 
         // Request bus
         let cmd_bus_req = cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1);
         self.send_direct(&cmd_bus_req)
             .ok()
             .expect("Could not request bus on radio module");
+        dbell_regs.rfack_ifg.set(0);
 
         // Ping radio module
         let cmd_ping = cmd::DirectCommand::new(cmd::RFC_PING, 0);
         self.send_direct(&cmd_ping)
             .ok()
             .expect("Could not ping radio module");
+        dbell_regs.rfack_ifg.set(0);
     }
 
     pub fn check_enabled(&self) -> bool {

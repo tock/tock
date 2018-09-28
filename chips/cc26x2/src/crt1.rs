@@ -1,5 +1,5 @@
 use cortexm4::{generic_isr, nvic, hard_fault_handler, svc_handler, systick_handler};
-use setup;
+// use setup;
 
 extern "C" {
     // Symbols defined in the linker file
@@ -131,7 +131,7 @@ pub unsafe extern "C" fn init() {
         } = 0u32;
     }
 
-    setup::perform();
+    // setup::perform();
 
     nvic::enable_all();
 }

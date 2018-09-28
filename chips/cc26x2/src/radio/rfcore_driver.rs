@@ -66,7 +66,6 @@ impl Radio {
     pub fn test_power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::IEEE);
 
-        // unsafe { oscfh::OSCHF_TurnOnXosc() };
         osc::OSC.request_switch_to_hf_xosc();
 
         self.rfc.enable();
@@ -74,7 +73,6 @@ impl Radio {
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
-        // unsafe { oscfh::OSCHF_AttemptToSwitchToXosc() };
         
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
