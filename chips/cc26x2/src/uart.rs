@@ -28,7 +28,8 @@ struct UartRegisters {
     dmactl: ReadWrite<u32>,
 }
 
-pub static mut UART0: UART = UART::new();
+pub static mut UART0: UART = UART::new(&UART0_BASE);
+pub static mut UART1: UART = UART::new(&UART1_BASE);
 
 register_bitfields![
     u32,
@@ -60,8 +61,11 @@ register_bitfields![
     ]
 ];
 
-const UART_BASE: StaticRef<UartRegisters> =
+const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const UartRegisters) };
+
+const UART1_BASE: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x4000B000 as *const UartRegisters) };
 
 /// Stores an ongoing TX transaction
 struct Transaction {
@@ -75,15 +79,15 @@ struct Transaction {
 }
 
 pub struct UART {
-    registers: StaticRef<UartRegisters>,
+    registers: &'static StaticRef<UartRegisters>,
     client: OptionalCell<&'static uart::Client>,
     transaction: MapCell<Transaction>,
 }
 
 impl UART {
-    const fn new() -> UART {
+    const fn new(registers: &'static StaticRef<UartRegisters>) -> UART {
         UART {
-            registers: UART_BASE,
+            registers,
             client: OptionalCell::empty(),
             transaction: MapCell::empty(),
         }
@@ -131,7 +135,7 @@ impl UART {
     fn power_and_clock(&self) {
         prcm::Power::enable_domain(prcm::PowerDomain::Serial);
         while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
-        prcm::Clock::enable_uart();
+        prcm::Clock::enable_uarts();
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
