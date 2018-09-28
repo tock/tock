@@ -217,7 +217,7 @@ pub unsafe fn reset_handler() {
         Some(&sam4l::gpio::PA[14]),
     );
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = sam4l::chip::Sam4l::new();
 
     // Initialize USART0 for Uart
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
@@ -597,5 +597,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_management_capability,
     );
-    board_kernel.kernel_loop(&hail, &mut chip, Some(&hail.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&hail, &chip, Some(&hail.ipc), &main_loop_capability);
 }

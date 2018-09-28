@@ -410,7 +410,7 @@ pub unsafe fn reset_handler() {
         nonvolatile_storage: nonvolatile_storage,
     };
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = sam4l::chip::Sam4l::new();
 
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();
@@ -439,5 +439,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, &chip, Some(&imix.ipc), &main_cap);
 }
