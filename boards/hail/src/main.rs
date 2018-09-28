@@ -25,7 +25,6 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
-use kernel::Chip;
 use kernel::Platform;
 
 /// Support routines for debugging I/O.
@@ -598,8 +597,7 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
-        chip.mpu(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

@@ -23,7 +23,6 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
-use kernel::Chip;
 use nrf5x::rtc::Rtc;
 
 /// Pins for SPI for the flash chip MX25R6435F
@@ -438,8 +437,7 @@ pub unsafe fn setup_board(
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
-        chip.mpu(),
+        chip,
         &_sapps as *const u8,
         app_memory,
         process_pointers,
