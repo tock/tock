@@ -539,6 +539,30 @@ pub unsafe fn reset_handler() {
     // );
     // sam4l::gpio::PA[16].set_client(debug_process_restart);
 
+    // // DEBUG Display Status of All Apps
+    // struct ProcessMgmtCap;
+    // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
+    // let debug_process_status_virtual_alarm = static_init!(
+    //     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+    //     VirtualMuxAlarm::new(mux_alarm)
+    // );
+    // let introspection = static_init!(
+    //     kernel::introspection::Introspection,
+    //     kernel::introspection::Introspection::new(board_kernel)
+    // );
+    // let debug_process_status = static_init!(
+    //     capsules::debug_process_status::DebugProcessStatus<
+    //         'static,
+    //         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+    //     >,
+    //     capsules::debug_process_status::DebugProcessStatus::new(
+    //         debug_process_status_virtual_alarm,
+    //         introspection,
+    //         &ProcessMgmtCap
+    //     )
+    // );
+    // debug_process_status_virtual_alarm.set_client(debug_process_status);
+
     let hail = Hail {
         console: console,
         gpio: gpio,
@@ -582,6 +606,8 @@ pub unsafe fn reset_handler() {
     // Reset the nRF and setup the UART bus.
     hail.nrf51822.reset();
     hail.nrf51822.initialize();
+
+    // debug_process_status.start(2000);
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
