@@ -40,7 +40,8 @@ unsafe extern "C" fn unhandled_interrupt() {
 }
 
 #[link_section = ".vectors"]
-#[used] // ensures that the symbol is kept until the final binary
+#[used]
+// ensures that the symbol is kept until the final binary
 /// ARM Cortex M Vector Table
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Stack Pointer

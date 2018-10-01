@@ -16,6 +16,8 @@ use cc26x2::aon;
 use cc26x2::prcm;
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 
 #[macro_use]
 pub mod io;
@@ -48,7 +50,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
-    rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
+    rng: &'static capsules::rng::RngDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -334,14 +336,19 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm1.set_client(alarm);
 
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&cc26x2::trng::TRNG)
+    );
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-        capsules::rng::SimpleRng::new(
-            &cc26x2::trng::TRNG,
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    cc26x2::trng::TRNG.set_client(rng);
+    cc26x2::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     let launchxl = Platform {
         console,

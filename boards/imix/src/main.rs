@@ -78,6 +78,9 @@ mod aes_test;
 mod aes_ccm_test;
 
 #[allow(dead_code)]
+mod rng_test;
+
+#[allow(dead_code)]
 mod power;
 
 #[allow(dead_code)]
@@ -424,6 +427,8 @@ pub unsafe fn reset_handler() {
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
+
+    rng_test::run_entropy32();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
