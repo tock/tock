@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, nvic, hard_fault_handler, svc_handler, systick_handler};
+use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
 // use setup;
 
 extern "C" {
@@ -81,7 +81,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
     generic_isr, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
     generic_isr, // TRNG event
-//    generic_isr, // OSC event
+                 //    generic_isr, // OSC event
 ];
 
 #[no_mangle]

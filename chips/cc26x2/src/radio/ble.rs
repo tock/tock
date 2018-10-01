@@ -2,26 +2,27 @@
 //!     Manages bluetooth.
 //!
 
-use core::cell::Cell;
 use self::ble_commands::*;
+use core::cell::Cell;
 use osc;
+use radio::{commands, rfc};
 use rtc;
-use radio::{rfc, commands};
 
 use kernel;
 use radio::ble::ble_commands::BleAdvertise;
 
+use chip::SleepMode;
 use kernel::hil::ble_advertising::{self, RadioChannel};
 use peripheral_manager;
-use chip::SleepMode;
 
 static mut BLE_OVERRIDES: [u32; 7] = [
-    0x00364038 /* Synth: Set RTRIM (POTAILRESTRIM) to 6 */,
-    0x000784A3 /* Synth: Set FREF = 3.43 MHz (24 MHz / 7) */,
-    0xA47E0583 /* Synth: Set loop bandwidth after lock to 80 kHz (K2) */,
-    0xEAE00603 /* Synth: Set loop bandwidth after lock to 80 kHz (K3, LSB) */,
-    0x00010623 /* Synth: Set loop bandwidth after lock to 80 kHz (K3, MSB) */,
-    0x00456088 /* Adjust AGC reference level */, 0xFFFFFFFF /* End of override list */,
+    0x00364038, /* Synth: Set RTRIM (POTAILRESTRIM) to 6 */
+    0x000784A3, /* Synth: Set FREF = 3.43 MHz (24 MHz / 7) */
+    0xA47E0583, /* Synth: Set loop bandwidth after lock to 80 kHz (K2) */
+    0xEAE00603, /* Synth: Set loop bandwidth after lock to 80 kHz (K3, LSB) */
+    0x00010623, /* Synth: Set loop bandwidth after lock to 80 kHz (K3, MSB) */
+    0x00456088, /* Adjust AGC reference level */
+    0xFFFFFFFF, /* End of override list */
 ];
 
 /*
@@ -212,12 +213,9 @@ impl rfc::RFCoreClient for Ble {
             .map(|client| client.transmit_event(kernel::ReturnCode::SUCCESS));
     }
 
-    fn tx_done(&self) {
-    }
+    fn tx_done(&self) {}
 
-    fn rx_ok(&self) {
-
-    }
+    fn rx_ok(&self) {}
 }
 
 impl ble_advertising::BleAdvertisementDriver for Ble {
@@ -260,11 +258,9 @@ impl ble_advertising::BleConfig for Ble {
 }
 
 impl peripheral_manager::PowerClient for Ble {
-    fn before_sleep(&self, _sleep_mode: u32) {
-    }
+    fn before_sleep(&self, _sleep_mode: u32) {}
 
-    fn after_wakeup(&self, _sleep_mode: u32) {
-    }
+    fn after_wakeup(&self, _sleep_mode: u32) {}
 
     fn lowest_sleep_mode(&self) -> u32 {
         if self.safe_to_deep_sleep.get() {
@@ -276,7 +272,7 @@ impl peripheral_manager::PowerClient for Ble {
 }
 
 pub mod ble_commands {
-    use radio::commands::{RfcCondition};
+    use radio::commands::RfcCondition;
 
     #[repr(C)]
     pub struct BleAdvertise {

@@ -234,9 +234,9 @@ impl RFCore {
         unsafe {
             rtc::RTC.set_upd_en(true);
         }
-        
+
         while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
-        
+
         // Set power and clock regs for RFC
         let pwc_regs: &RfcPWCRegisters = &*self.pwc_regs;
         pwc_regs.pwmclken.modify(
@@ -249,21 +249,28 @@ impl RFCore {
                 + RFCPWE::RFERAM::SET
                 + RFCPWE::RAT::SET
                 + RFCPWE::PHA::SET
-                + RFCPWE::FSCA::SET
+                + RFCPWE::FSCA::SET,
         );
 
         // Clear ack flag
         dbell_regs.rfack_ifg.set(0);
-        
+
         // Enable interrupts and clear flags
-        dbell_regs.rfcpe_isl.write(CPEInterrupts::INTERNAL_ERROR::SET);
-        dbell_regs.rfcpe_ien.write(CPEInterrupts::INTERNAL_ERROR::SET + CPEInterrupts::COMMAND_DONE::SET + CPEInterrupts::TX_DONE::SET + CPEInterrupts::BOOT_DONE::SET);
+        dbell_regs
+            .rfcpe_isl
+            .write(CPEInterrupts::INTERNAL_ERROR::SET);
+        dbell_regs.rfcpe_ien.write(
+            CPEInterrupts::INTERNAL_ERROR::SET
+                + CPEInterrupts::COMMAND_DONE::SET
+                + CPEInterrupts::TX_DONE::SET
+                + CPEInterrupts::BOOT_DONE::SET,
+        );
         dbell_regs.rfcpe_ifg.set(0x0000);
         // self.enable_cpe_interrupts();
         // self.enable_hw_interrupts();
 
         // dbell_regs.rfcpeifg.set(0x7FFFFFFF);
-        
+
         // Initialize radio module
         let cmd_init = cmd::DirectCommand::new(cmd::RFC_CMD0, 0x10 | 0x40);
         self.send_direct(&cmd_init)
@@ -289,8 +296,7 @@ impl RFCore {
     pub fn check_enabled(&self) -> bool {
         // Ping radio module
         let cmd_ping = cmd::DirectCommand::new(cmd::RFC_PING, 0);
-        self.send_direct(&cmd_ping)
-            .is_ok()
+        self.send_direct(&cmd_ping).is_ok()
     }
 
     // Disable RFCore
@@ -299,7 +305,7 @@ impl RFCore {
         self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok()
             .expect("Could not stop RFC with direct command");
-        
+
         dbell_regs.rfcpe_ien.set(0x00);
         dbell_regs.rfcpe_ifg.set(0x00);
         dbell_regs.rfcpe_isl.set(0x00);
@@ -332,7 +338,7 @@ impl RFCore {
     // Call commands to setup RFCore with optional register overrides and power output
     pub fn setup(&self, reg_override: u32, tx_power: u16) {
         let mode = self.mode.get().expect("No RF mode selected, cannot setup");
-/*
+        /*
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
         let start_trigger = 0; // TRIGGER FOR NOW
@@ -418,7 +424,6 @@ impl RFCore {
             _reserved: 0,
             rat0: self.rat.get(),
         };
-        
 
         self.send_test(&rf_command_test)
             .and_then(|_| self.wait_test(&rf_command_test))
@@ -500,7 +505,6 @@ impl RFCore {
         let mut timeout: u32 = 0;
         const MAX_TIMEOUT: u32 = 0x2FFFFFF;
         while timeout < MAX_TIMEOUT {
-            
             status = command_op.status.get();
             self.status.set(status.into());
             if status == 0x0400 {
@@ -530,7 +534,7 @@ impl RFCore {
         self.post_cmdr(command)
     }
 
-    pub fn send_test<T> (&self, rf_command: &T) -> RadioReturnCode {
+    pub fn send_test<T>(&self, rf_command: &T) -> RadioReturnCode {
         let command = (rf_command as *const T) as u32;
 
         self.post_cmdr(command)
@@ -551,7 +555,7 @@ impl RFCore {
 
         return self.wait_cmdr(command);
     }
-    
+
     pub fn wait_test<T>(&self, rf_command: &T) -> RadioReturnCode {
         let command = { (rf_command as *const T) as u32 };
 
@@ -579,7 +583,9 @@ impl RFCore {
             }
             RfcInterrupt::Cpe0 => {
                 let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);
-                let last_command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::LAST_COMMAND_DONE);
+                let last_command_done = dbell_regs
+                    .rfcpe_ifg
+                    .is_set(CPEInterrupts::LAST_COMMAND_DONE);
                 let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
                 let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
                 dbell_regs.rfcpe_ifg.set(0);
@@ -611,8 +617,8 @@ pub trait RFCoreClient {
 }
 
 mod test_commands {
+    use kernel::common::registers::ReadOnly;
     use radio::commands as cmd;
-    use kernel::common::registers::{ReadOnly};
 
     #[allow(unused)]
     #[repr(C)]
@@ -624,7 +630,7 @@ mod test_commands {
         pub start_trigger: ReadOnly<u8>,
         pub condition: cmd::RfcCondition,
     }
-    
+
     #[repr(C)]
     pub struct CommandSyncRat {
         pub command_no: u16,

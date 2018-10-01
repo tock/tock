@@ -1,6 +1,6 @@
-use kernel::common::cells::{TakeCell, OptionalCell};
-use kernel::{AppId, AppSlice, Shared, Callback, Driver, ReturnCode, Grant};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio_client;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 // Syscall number
 pub const DRIVER_NUM: usize = 0xCC_13_12;
@@ -40,7 +40,7 @@ impl Default for App {
     }
 }
 
-pub struct VirtualRadioDriver<'a, R>  
+pub struct VirtualRadioDriver<'a, R>
 where
     R: radio_client::Radio,
 {
@@ -52,16 +52,15 @@ where
     rx_client: OptionalCell<&'static radio_client::RxClient>,
 }
 
-impl<R> VirtualRadioDriver<'a, R> 
-where 
+impl<R> VirtualRadioDriver<'a, R>
+where
     R: radio_client::Radio,
 {
     pub fn new(
         radio: &'a R,
         container: Grant<App>,
         tx_buf: &'static mut [u8],
-    ) -> VirtualRadioDriver<'a, R> 
-    {   
+    ) -> VirtualRadioDriver<'a, R> {
         VirtualRadioDriver {
             radio: radio,
             app: container,
@@ -82,10 +81,9 @@ where
             .enter(appid, |app, _| closure(app))
             .unwrap_or_else(|err| err.into())
     }
-
 }
 
-impl<R> Driver for VirtualRadioDriver<'a, R> 
+impl<R> Driver for VirtualRadioDriver<'a, R>
 where
     R: radio_client::Radio,
 {
@@ -98,7 +96,12 @@ where
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(&self, appid: AppId, allow_num: usize, slice: Option<AppSlice<Shared, u8>>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
@@ -118,7 +121,12 @@ where
     ///  `subscribe_num`
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
-    fn subscribe(&self, subscribe_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         match subscribe_num {
             0 => self.do_with_app(app_id, |app| {
                 app.rx_callback = callback;
@@ -152,8 +160,7 @@ where
             2 => {
                 if self.radio.is_on() {
                     ReturnCode::SUCCESS
-                }
-                else {
+                } else {
                     ReturnCode::EOFF
                 }
             }
@@ -180,7 +187,7 @@ impl<R: radio_client::Radio> radio_client::RxClient for VirtualRadioDriver<'a, R
     ) {
         // Filter packets by destination because radio is in promiscuous mode
         let addr_match = false;
-        // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE 
+        // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE
 
         if addr_match {
             self.rx_client.map(move |c| {

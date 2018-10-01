@@ -126,7 +126,7 @@ impl Rtc {
 
     pub fn set_upd_en(&self, value: bool) {
         let regs = &*self.registers;
-        
+
         if value {
             regs.ctl.set(regs.ctl.get() | 0x02);
         } else {

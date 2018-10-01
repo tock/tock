@@ -57,16 +57,15 @@ pub unsafe extern "C" fn systick_handler() {
 }
 
 #[macro_export]
-macro_rules! generic_handle_start{
-  ($label:tt) => {
-    asm!(
-      concat!(
-        "
+macro_rules! generic_handle_start {
+    ($label:tt) => {
+        asm!(concat!(
+            "
         /* Skip saving process state if not coming from user-space */
         cmp lr, #0xfffffffd
         bne ",
-        stringify!($label),
-        "
+            stringify!($label),
+            "
 
         /* We need the most recent kernel's version of r1, which points */
         /* to the Process struct's stored registers field. The kernel's r1 */
@@ -80,19 +79,18 @@ macro_rules! generic_handle_start{
         movw LR, #0xFFF9
         movt LR, #0xFFFF
         ",
-        stringify!($label),
-        ":
+            stringify!($label),
+            ":
         "
-        )
-      );
-  }
+        ));
+    };
 }
 
 #[macro_export]
 #[cfg(target_os = "none")]
 #[naked]
 pub unsafe extern "C" fn generic_handle_finish() {
-      asm!(
+    asm!(
         "
         /* Find the ISR number by looking at the low byte of the IPSR registers */
         mrs r0, IPSR
@@ -123,14 +121,14 @@ pub unsafe extern "C" fn generic_handle_finish() {
          *
          *  */
         str r0, [r3, r2, lsl #2]"
-      );
+    );
 }
 
 #[cfg(target_os = "none")]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-  asm!(
+    asm!(
         "
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
@@ -178,7 +176,6 @@ pub unsafe extern "C" fn generic_isr() {
     str r0, [r3, r2, lsl #2]"
     );
 }
-
 
 #[cfg(target_os = "none")]
 #[naked]

@@ -1,37 +1,29 @@
 #![allow(unused_imports)]
-use radio::commands as cmd;
-use osc; 
-use peripheral_manager;
 use chip::SleepMode;
-use radio::rfc;
 use core::cell::Cell;
 use fixedvec::FixedVec;
-use kernel::common::cells::{TakeCell, OptionalCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio_client;
-use radio::rfcore_const::{RfcDriverCommands};
 use kernel::ReturnCode;
+use osc;
+use peripheral_manager;
+use radio::commands as cmd;
+use radio::rfc;
+use radio::rfcore_const::RfcDriverCommands;
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
-    0x02400403,
-    // Synth: Set minimum RTRIM to 6
-    0x00068793,
-    // Synth: Configure extra PLL filtering
-    0x001C8473,
-    // Synth: Configure extra PLL filtering
-    0x00088433,
-    // Synth: Set Fref to 4 MHz
+    0x02400403, // Synth: Set minimum RTRIM to 6
+    0x00068793, // Synth: Configure extra PLL filtering
+    0x001C8473, // Synth: Configure extra PLL filtering
+    0x00088433, // Synth: Set Fref to 4 MHz
     0x000684A3,
     // Synth: Configure faster calibration
     // HW32_ARRAY_OVERRIDE(0x4004,1),
     // Synth: Configure faster calibration
-    0x180C0618,
-    // Synth: Configure faster calibration
-    0xC00401A1,
-    // Synth: Configure faster calibration
-    0x00010101,
-    // Synth: Configure faster calibration
-    0xC0040141,
-    0x00214AD3, // Synth: Configure faster calibration
+    0x180C0618, // Synth: Configure faster calibration
+    0xC00401A1, // Synth: Configure faster calibration
+    0x00010101, // Synth: Configure faster calibration
+    0xC0040141, 0x00214AD3, // Synth: Configure faster calibration
     0x02980243, // Synth: Decrease synth programming time-out by 90 us from default (0x0298 RAT ticks = 166 us)
     0x0A480583, // Synth: Set loop bandwidth after lock to 20 kHz
     0x7AB80603, // Synth: Set loop bandwidth after lock to 20 kHz
@@ -62,18 +54,18 @@ impl Radio {
             tx_buf: TakeCell::empty(),
         }
     }
-    
+
     pub fn test_power_up(&self) {
         self.rfc.set_mode(rfc::RfcMode::IEEE);
 
         osc::OSC.request_switch_to_hf_xosc();
 
         self.rfc.enable();
-        
+
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
-        
+
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
             self.rfc.setup(reg_overrides, 0xFFF)
@@ -89,7 +81,7 @@ impl Radio {
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
-        
+
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
             self.rfc.setup(reg_overrides, 0xFFF)
@@ -97,8 +89,7 @@ impl Radio {
 
         if self.rfc.check_enabled() {
             ReturnCode::SUCCESS
-        }
-        else {
+        } else {
             ReturnCode::FAIL
         }
     }
@@ -131,11 +122,9 @@ impl rfc::RFCoreClient for Radio {
 }
 
 impl peripheral_manager::PowerClient for Radio {
-    fn before_sleep(&self, _sleep_mode: u32) {
-    }
+    fn before_sleep(&self, _sleep_mode: u32) {}
 
-    fn after_wakeup(&self, _sleep_mode: u32) {
-    }
+    fn after_wakeup(&self, _sleep_mode: u32) {}
 
     fn lowest_sleep_mode(&self) -> u32 {
         /*
@@ -148,7 +137,6 @@ impl peripheral_manager::PowerClient for Radio {
         SleepMode::Sleep as u32
     }
 }
-
 
 impl radio_client::Radio for Radio {}
 
@@ -173,7 +161,11 @@ impl radio_client::RadioDriver for Radio {
         self.config_radio_client.set(config_client);
     }
 
-    fn transmit(&self, tx_buf: &'static mut [u8], _frame_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit(
+        &self,
+        tx_buf: &'static mut [u8],
+        _frame_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         (ReturnCode::SUCCESS, Some(tx_buf))
     }
 }
@@ -190,12 +182,10 @@ impl radio_client::RadioConfig for Radio {
 
     fn stop(&self) -> ReturnCode {
         let cmd_stop = cmd::DirectCommand::new(0x0402, 0);
-        let stopped = self.rfc.send_direct(&cmd_stop)
-            .is_ok();
+        let stopped = self.rfc.send_direct(&cmd_stop).is_ok();
         if stopped {
             ReturnCode::SUCCESS
-        }
-        else {
+        } else {
             ReturnCode::FAIL
         }
     }
@@ -210,7 +200,7 @@ impl radio_client::RadioConfig for Radio {
     }
 
     fn config_commit(&self) {
-        // TODO confirm set new config here    
+        // TODO confirm set new config here
     }
 
     fn get_tx_power(&self) -> u32 {

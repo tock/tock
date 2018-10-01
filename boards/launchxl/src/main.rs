@@ -50,7 +50,10 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-    radio: &'static capsules::virtual_rfcore::VirtualRadioDriver<'static, cc26x2::radio::rfcore_driver::Radio>,
+    radio: &'static capsules::virtual_rfcore::VirtualRadioDriver<
+        'static,
+        cc26x2::radio::rfcore_driver::Radio,
+    >,
 }
 
 impl kernel::Platform for Platform {
@@ -177,7 +180,7 @@ pub unsafe fn reset_handler() {
 
     // Setup AON event defaults
     aon::AON.setup();
-   
+
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
@@ -340,7 +343,7 @@ pub unsafe fn reset_handler() {
         )
     );
     virtual_alarm1.set_client(alarm);
-    
+
     let virtual_alarm2 = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
@@ -354,7 +357,6 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    
 
     radio::RFC.set_client(&radio::RADIO);
 
@@ -366,9 +368,13 @@ pub unsafe fn reset_handler() {
             &mut HELIUM_BUF
         )
     );
-    
+
     kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
-    kernel::hil::radio_client::RadioDriver::set_receive_client(&radio::RADIO, virtual_radio, &mut HELIUM_BUF);
+    kernel::hil::radio_client::RadioDriver::set_receive_client(
+        &radio::RADIO,
+        virtual_radio,
+        &mut HELIUM_BUF,
+    );
 
     let rfc = &cc26x2::radio::RADIO;
     rfc.test_power_up();

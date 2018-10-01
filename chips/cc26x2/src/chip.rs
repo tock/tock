@@ -62,16 +62,16 @@ impl kernel::Chip for Cc26X2 {
                     peripheral_interrupts::I2C => i2c::I2C0.handle_interrupt(),
                     peripheral_interrupts::RF_CORE_HW => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Hardware)
-                    },
+                    }
                     peripheral_interrupts::RF_CMD_ACK => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck)
-                    },
+                    }
                     peripheral_interrupts::RF_CORE_CPE0 => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0)
-                    },
+                    }
                     peripheral_interrupts::RF_CORE_CPE1 => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe1)
-                    },
+                    }
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     peripheral_interrupts::AON_PROG => (),

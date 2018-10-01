@@ -74,4 +74,3 @@ pub unsafe extern "C" fn ddi16bitfield_read(
 pub unsafe extern "C" fn ddi32reg_write(ui32Base: u32, ui32Reg: u32, ui32Val: u32) {
     *(ui32Base.wrapping_add(ui32Reg) as (*mut usize)) = ui32Val as (usize);
 }
-

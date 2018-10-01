@@ -1,13 +1,13 @@
-use kernel::common::cells::VolatileCell;
-use prcm::{Power, PowerDomain};
-use power_manager::{PowerManager, Resource, ResourceManager};
 use cortexm4::scb;
+use kernel::common::cells::VolatileCell;
+use power_manager::{PowerManager, Resource, ResourceManager};
+use prcm::{Power, PowerDomain};
 
 // use aux;
 use aon;
+use osc;
 use prcm;
 use rtc;
-use osc;
 // use gpio;
 
 pub static mut PM: PowerManager<RegionManager> = PowerManager::new(RegionManager);
@@ -40,7 +40,7 @@ pub unsafe fn init() {
     }
 }
 
-pub fn switch_to_rc_osc(){
+pub fn switch_to_rc_osc() {
     if osc::OSC.clock_source_get(osc::ClockType::HF) != osc::HF_RCOSC {
         osc::OSC.switch_to_hf_rcosc();
     }

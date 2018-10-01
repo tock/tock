@@ -145,8 +145,7 @@ pub unsafe extern "C" fn OSCHF_TurnOnXosc() {
 pub unsafe extern "C" fn OSCHF_AttemptToSwitchToXosc() -> bool {
     let mut startupTimeInUs: u32;
     let mut prevLimmit25InUs: u32;
-    if clock_source_get(0x1u32) == 0x1u32
-    {
+    if clock_source_get(0x1u32) == 0x1u32 {
         true
     } else if OSCHfSourceReady() {
         source_switch();
@@ -174,7 +173,7 @@ pub unsafe extern "C" fn OSCHF_SwitchToRcOscTurnOffXosc() {
         source_switch();
     }
     // oscHfGlobals.timeXoscOff_CV = AONRTCCurrentCompareValueGet();
-    oscHfGlobals.tempXoscOff = AONBatMonTemperatureGetDegC();    
+    oscHfGlobals.tempXoscOff = AONBatMonTemperatureGetDegC();
 }
 
 pub unsafe extern "C" fn AONBatMonTemperatureGetDegC() -> i32 {

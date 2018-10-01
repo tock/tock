@@ -1,4 +1,4 @@
-use kernel::common::registers::{ReadWrite};
+use kernel::common::registers::ReadWrite;
 use kernel::common::StaticRef;
 
 // This section defines the register offsets of

@@ -1,5 +1,5 @@
-use radio;
 use peripheral_manager::{Peripheral, PeripheralManager};
+use radio;
 
 pub static mut M: PeripheralManager = PeripheralManager::new();
 

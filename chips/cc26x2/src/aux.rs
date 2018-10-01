@@ -100,10 +100,10 @@ impl Aux {
             WUMODE_PDLP => {
                 regs.op_mode_req.modify(Req::REQ::PowerDownLowPower);
             }
-            _ => panic!("Not a valid op mode")
+            _ => panic!("Not a valid op mode"),
         }
     }
-    
+
     pub fn operation_mode_ack(&self) -> u8 {
         let regs = &*self.sysif_regs;
         regs.op_mode_ack.read(Ack::ACK) as u8

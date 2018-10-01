@@ -229,7 +229,7 @@ impl Aon {
             AuxSClk::SClkMF => regs.aux_clk.modify(AuxClk::SRC::SCLK_MF),
         }
     }
-    
+
     pub fn aux_set_power_down_clock(&self) {
         let regs = &*self.pmctl_regs;
         regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::SCLK_LF);

@@ -96,7 +96,7 @@ pub enum PowerMode {
 impl PowerMode {
     pub fn get_power_mode_index(&self) -> u32 {
         match *self {
-            PowerMode::Active => 0, 
+            PowerMode::Active => 0,
             PowerMode::Sleep => 1,
             PowerMode::DeepSleep => 2,
         }

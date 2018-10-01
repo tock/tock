@@ -112,7 +112,7 @@ struct PrcmRegisters {
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
-    
+
     _reserved10: [ReadOnly<u8>; 0x08],
 
     pub rfc_mode_allowed: ReadOnly<u32>,
@@ -208,7 +208,7 @@ register_bitfields![
         RCOSC_LF OFFSET(2) NUMBITS(1) [],
         XOSC_HF OFFSET(1) NUMBITS(1) [],
         RCOSC_HF OFFSET(0) NUMBITS(1) []
-    ]        
+    ]
 ];
 
 const PRCM_BASE: StaticRef<PrcmRegisters> =
@@ -262,7 +262,6 @@ pub enum PowerDomain {
     CPU,
 }
 
-
 impl From<u32> for PowerDomain {
     fn from(n: u32) -> Self {
         match n {
@@ -279,11 +278,11 @@ impl From<u32> for PowerDomain {
 #[allow(non_camel_case_types)]
 pub enum OscInt {
     HF_SRC,
-    LF_SRC, 
-    XOSC_DLF, 
-    XOSC_LF, 
-    RCOSC_DLF, 
-    RCOSC_LF, 
+    LF_SRC,
+    XOSC_DLF,
+    XOSC_LF,
+    RCOSC_DLF,
+    RCOSC_LF,
     XOSC_HF,
     RCOSC_HF,
 }
@@ -298,24 +297,24 @@ impl Power {
             PowerDomain::Peripherals => {
                 regs.pd_ctl0.modify(PowerDomain0::PERIPH_ON::SET);
                 while !Power::is_enabled(PowerDomain::Peripherals) {}
-            },
+            }
             PowerDomain::Serial => {
                 regs.pd_ctl0.modify(PowerDomain0::SERIAL_ON::SET);
                 while !Power::is_enabled(PowerDomain::Serial) {}
-            },
+            }
             PowerDomain::RFC => {
                 regs.pd_ctl0.modify(PowerDomain0::RFC_ON::SET);
                 regs.pd_ctl1.modify(PowerDomain1::RFC_ON::SET);
                 while !Power::is_enabled(PowerDomain::RFC) {}
-            },
+            }
             PowerDomain::CPU => {
                 regs.pd_ctl1.modify(PowerDomain1::CPU_ON::SET);
                 while !Power::is_enabled(PowerDomain::CPU) {}
-            },
+            }
             PowerDomain::VIMS => {
                 regs.pd_ctl1.modify(PowerDomain1::VIMS_ON.val(0x02));
                 while !Power::is_enabled(PowerDomain::VIMS) {}
-            },
+            }
         }
     }
 
@@ -325,20 +324,20 @@ impl Power {
         match domain {
             PowerDomain::Peripherals => {
                 regs.pd_ctl0.modify(PowerDomain0::PERIPH_ON::CLEAR);
-            },
+            }
             PowerDomain::Serial => {
                 regs.pd_ctl0.modify(PowerDomain0::SERIAL_ON::CLEAR);
-            },
+            }
             PowerDomain::RFC => {
                 regs.pd_ctl0.modify(PowerDomain0::RFC_ON::CLEAR);
                 regs.pd_ctl1.modify(PowerDomain1::RFC_ON::CLEAR);
-            },
+            }
             PowerDomain::CPU => {
                 regs.pd_ctl1.modify(PowerDomain1::CPU_ON::CLEAR);
-            },
+            }
             PowerDomain::VIMS => {
                 regs.pd_ctl1.modify(PowerDomain1::VIMS_ON::CLEAR);
-            },
+            }
         }
     }
 
@@ -350,7 +349,7 @@ impl Power {
             PowerDomain::RFC => {
                 regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
                     && regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
-            },
+            }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),
         }
@@ -389,8 +388,9 @@ impl Clock {
         regs.uart_clk_gate_run.modify(ClockGate2::AM_EN::SetAll);
         regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::SetAll);
         regs.uart_clk_gate_sleep.modify(ClockGate2::CLK_EN::SetAll);
-        regs.uart_clk_gate_deep_sleep.modify(ClockGate2::CLK_EN::SetAll);
-        
+        regs.uart_clk_gate_deep_sleep
+            .modify(ClockGate2::CLK_EN::SetAll);
+
         prcm_commit();
     }
 
@@ -398,8 +398,10 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate2::AM_EN::ClearAll);
         regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::ClearAll);
-        regs.uart_clk_gate_sleep.modify(ClockGate2::CLK_EN::ClearAll);
-        regs.uart_clk_gate_deep_sleep.modify(ClockGate2::CLK_EN::ClearAll);
+        regs.uart_clk_gate_sleep
+            .modify(ClockGate2::CLK_EN::ClearAll);
+        regs.uart_clk_gate_deep_sleep
+            .modify(ClockGate2::CLK_EN::ClearAll);
 
         prcm_commit();
     }
@@ -445,7 +447,8 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.gpt_clk_gate_run.modify(ClockGate::CLK_EN::CLEAR);
         regs.gpt_clk_gate_sleep.modify(ClockGate::CLK_EN::CLEAR);
-        regs.gpt_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::CLEAR);
+        regs.gpt_clk_gate_deep_sleep
+            .modify(ClockGate::CLK_EN::CLEAR);
 
         prcm_commit();
     }
@@ -462,7 +465,8 @@ impl Clock {
 
     pub fn enable_i2s() {
         let regs = PRCM_BASE;
-        regs.i2s_clk_gate_run.modify(ClockGate::AM_EN::SET + ClockGate::CLK_EN::SET);
+        regs.i2s_clk_gate_run
+            .modify(ClockGate::AM_EN::SET + ClockGate::CLK_EN::SET);
         regs.i2s_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
         regs.i2s_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
 
@@ -471,9 +475,11 @@ impl Clock {
 
     pub fn disable_i2s() {
         let regs = PRCM_BASE;
-        regs.i2s_clk_gate_run.modify(ClockGate::AM_EN::CLEAR + ClockGate::CLK_EN::CLEAR);
+        regs.i2s_clk_gate_run
+            .modify(ClockGate::AM_EN::CLEAR + ClockGate::CLK_EN::CLEAR);
         regs.i2s_clk_gate_sleep.modify(ClockGate::CLK_EN::CLEAR);
-        regs.i2s_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::CLEAR);
+        regs.i2s_clk_gate_deep_sleep
+            .modify(ClockGate::CLK_EN::CLEAR);
 
         prcm_commit();
     }
@@ -492,20 +498,20 @@ pub fn disable_osc_interrupt() {
 pub fn enable_osc_interrupt(osc: OscInt) {
     let regs = PRCM_BASE;
     match osc {
-        OscInt::HF_SRC => { regs.osc_imsc.modify(OscInterrupt::HF_SRC::SET) },
-        OscInt::LF_SRC => { regs.osc_imsc.modify(OscInterrupt::LF_SRC::SET) },
-        OscInt::RCOSC_DLF => { regs.osc_imsc.modify(OscInterrupt::RCOSC_DLF::SET) },
-        OscInt::RCOSC_LF => { regs.osc_imsc.modify(OscInterrupt::RCOSC_LF::SET) },
-        OscInt::RCOSC_HF => { regs.osc_imsc.modify(OscInterrupt::RCOSC_HF::SET) },
-        OscInt::XOSC_DLF => { regs.osc_imsc.modify(OscInterrupt::XOSC_DLF::SET) },
-        OscInt::XOSC_HF => { regs.osc_imsc.modify(OscInterrupt::XOSC_HF::SET) },
-        OscInt::XOSC_LF => { regs.osc_imsc.modify(OscInterrupt::XOSC_LF::SET) },
+        OscInt::HF_SRC => regs.osc_imsc.modify(OscInterrupt::HF_SRC::SET),
+        OscInt::LF_SRC => regs.osc_imsc.modify(OscInterrupt::LF_SRC::SET),
+        OscInt::RCOSC_DLF => regs.osc_imsc.modify(OscInterrupt::RCOSC_DLF::SET),
+        OscInt::RCOSC_LF => regs.osc_imsc.modify(OscInterrupt::RCOSC_LF::SET),
+        OscInt::RCOSC_HF => regs.osc_imsc.modify(OscInterrupt::RCOSC_HF::SET),
+        OscInt::XOSC_DLF => regs.osc_imsc.modify(OscInterrupt::XOSC_DLF::SET),
+        OscInt::XOSC_HF => regs.osc_imsc.modify(OscInterrupt::XOSC_HF::SET),
+        OscInt::XOSC_LF => regs.osc_imsc.modify(OscInterrupt::XOSC_LF::SET),
     }
 }
 
 pub fn handle_osc_interrupt() {
     let regs = PRCM_BASE;
-    
+
     if regs.osc_ris.is_set(OscInterrupt::HF_SRC) {
         regs.osc_icr.write(OscInterrupt::HF_SRC::SET);
     }
@@ -531,5 +537,3 @@ pub fn handle_osc_interrupt() {
         regs.osc_icr.write(OscInterrupt::XOSC_DLF::SET);
     }
 }
-
-
