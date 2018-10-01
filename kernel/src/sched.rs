@@ -389,6 +389,14 @@ impl Kernel {
                 process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
+                },
+                process::State::StoppedRunning => {
+                    break;
+                    // Do nothing
+                },
+                process::State::StoppedYielded => {
+                    break;
+                    // Do nothing
                 }
             }
         }

@@ -38,7 +38,6 @@ use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
 use components::analog_comparator::AcComponent;
 use components::button::ButtonComponent;
-use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
 use components::fxos8700::NineDofComponent;
 use components::gpio::GpioComponent;
@@ -46,6 +45,7 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
+use components::process_console::ProcessConsoleComponent;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
@@ -121,7 +121,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 struct Imix {
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::process_console::ProcessConsole<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -170,7 +170,6 @@ impl kernel::Platform for Imix {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::spi::DRIVER_NUM => f(Some(self.spi)),
@@ -313,7 +312,7 @@ pub unsafe fn reset_handler() {
     );
     hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
 
-    let console = ConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
+    let console = ProcessConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
     let nrf_serialization =
@@ -421,9 +420,12 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
+    console.start();
+
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
+
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
