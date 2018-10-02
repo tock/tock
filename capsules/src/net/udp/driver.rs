@@ -484,7 +484,7 @@ impl<'a> Driver for UDPDriver<'a> {
                     app.pending_tx = next_tx;
                     self.do_next_tx_immediate(appid)
                 })
-            },
+            }
             3 => {
                 self.do_with_app(appid, |app| {
                     // Move UDPEndpoint into udp.rs?
@@ -546,7 +546,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                 })
-            },
+            }
             4 => ReturnCode::SuccessWithValue {
                 value: self.max_tx_pyld_len,
             },

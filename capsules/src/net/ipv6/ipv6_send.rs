@@ -180,7 +180,8 @@ impl IP6SendStruct<'a> {
         // being called again by another app before ip6_packet is replaced.
         // To fix this, we pass a bool out of the closure to indicate whether send_completed()
         // should be called once the closure exits
-        let (ret, call_send_complete) = self.ip6_packet
+        let (ret, call_send_complete) = self
+            .ip6_packet
             .map(move |ip6_packet| match self.tx_buf.take() {
                 Some(tx_buf) => {
                     let mut send = false;
