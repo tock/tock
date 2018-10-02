@@ -119,6 +119,35 @@ impl<U: UART> ProcessConsole<'a, U> {
         });
         self.command_index.set(0);
     }
+
+    fn write_byte(&self, byte: u8) -> ReturnCode {
+        if self.tx_in_progress.get() {
+            ReturnCode::EBUSY
+        } else {
+            self.tx_in_progress.set(true);
+            self.tx_buffer.take().map(|buffer| {
+                buffer[0] = byte;
+                self.uart.transmit(buffer, 1);
+            });
+            ReturnCode::SUCCESS
+        }
+    }
+
+    fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
+        if self.tx_in_progress.get() {
+            ReturnCode::EBUSY
+        } else {
+            self.tx_in_progress.set(true);
+            self.tx_buffer.take().map(|buffer| {
+                let len = cmp::min(bytes.len(), buffer.len());
+                for i in 0..len {
+                    buffer[i] = bytes[i];
+                }
+                self.uart.transmit(buffer, len);
+            });
+            ReturnCode::SUCCESS
+        }
+    }
 }
 
 impl<U: UART> Client for ProcessConsole<'a, U> {
@@ -126,13 +155,12 @@ impl<U: UART> Client for ProcessConsole<'a, U> {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
-
+        self.tx_in_progress.set(false);
     }
 
     fn receive_complete(&self, read_buf: &'static mut [u8], rx_len: usize, error: uart::Error) {
         let mut execute = false;
         if error == uart::Error::CommandComplete {
-            debug!("pc read: {} {}", read_buf[0], read_buf[0] as char);
             match rx_len {
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
@@ -141,10 +169,17 @@ impl<U: UART> Client for ProcessConsole<'a, U> {
                         if read_buf[0] == ('\n' as u8) ||
                             read_buf[0] == ('\r' as u8) {
                                 execute = true;
-                            } else if index < command.len() - 1{
+                            } else if read_buf[0] == ('\x08' as u8) && index > 0 {
+                                // Backspace, echo and remove last byte
+                                // Note echo is '\b \b' to erase
+                                self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+                                command[index - 1] = '\0' as u8;
+                                self.command_index.set(index - 1);
+                            } else if index < (command.len() - 1) {
+                                // Echo the byte and store it
+                                self.write_byte(read_buf[0]);
                                 command[index] = read_buf[0];
                                 self.command_index.set(index + 1);
-                                debug!("command[{}]: {} {}", index, read_buf[0], read_buf[0] as char);
                                 command[index + 1] = 0;
                             }
                     });
