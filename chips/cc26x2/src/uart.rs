@@ -7,6 +7,8 @@ use kernel::hil::uart;
 use kernel::ReturnCode;
 use prcm;
 
+use core::cmp;
+
 const MCU_CLOCK: u32 = 48_000_000;
 
 #[repr(C)]
@@ -178,6 +180,8 @@ impl UART {
     }
 
     fn disable(&self) {
+        // disable interrupts
+        self.registers.imsc.write(Interrupts::ALL_INTERRUPTS::CLEAR);
         self.fifo_disable();
         self.registers.ctl.modify(
             Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR + Control::RX_ENABLE::CLEAR,
@@ -185,8 +189,6 @@ impl UART {
     }
 
     fn enable_interrupts(&self) {
-        // clear all
-        self.registers.icr.write(Interrupts::ALL_INTERRUPTS::Clear);
         // set only interrupts used
         self.registers.imsc.modify(
             Interrupts::RX::SET
@@ -275,29 +277,24 @@ impl kernel::hil::uart::UART for UART {
         self.configure(params)
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+    fn transmit(&self, buffer: &'static mut [u8], len: usize) {
         // if there is a weird input, don't try to do any transfers
-        if tx_len == 0 || tx_len > tx_data.len() {
-            let error;
-
-            if tx_len == 0 {
-                error = kernel::hil::uart::Error::CommandComplete
-            } else {
-                error = kernel::hil::uart::Error::ClientRequestLargerThanBuffer
-            }
-
+        if len == 0 {
             self.client.map(move |client| {
-                client.transmit_complete(tx_data, error);
+                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
             });
         } else {
+            // if client set len too big, we will receive what we can
+            let tx_len = cmp::min(len, buffer.len());
+
             // we will send one byte, causing EOT interrupt
             if self.tx_fifo_not_full() {
-                self.send_byte(tx_data[0]);
+                self.send_byte(buffer[0]);
             }
 
             // Transaction will be continued in interrupt handler
             self.tx.put(Transaction {
-                buffer: tx_data,
+                buffer: buffer,
                 length: tx_len,
                 index: 1,
             });
@@ -305,22 +302,17 @@ impl kernel::hil::uart::UART for UART {
     }
 
     fn receive(&self, buffer: &'static mut [u8], len: usize) {
-        if len == 0 || len > buffer.len() {
-            let error;
-
-            if len == 0 {
-                error = kernel::hil::uart::Error::CommandComplete
-            } else {
-                error = kernel::hil::uart::Error::ClientRequestLargerThanBuffer
-            }
-
+        if len == 0 {
             self.client.map(move |client| {
-                client.receive_complete(buffer, len, error);
+                client.receive_complete(buffer, len, kernel::hil::uart::Error::CommandComplete);
             });
         } else {
+            // if client set len too big, we will receive what we can
+            let rx_len = cmp::min(len, buffer.len());
+
             self.rx.put(Transaction {
                 buffer: buffer,
-                length: len,
+                length: rx_len,
                 index: 0,
             });
         }
