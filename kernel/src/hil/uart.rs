@@ -46,9 +46,6 @@ pub enum Error {
 
     /// No error occurred and the command completed successfully
     CommandComplete,
-
-    /// Client requested transfer bigger than buffer
-    ClientRequestLargerThanBuffer,
 }
 
 pub trait UART {
