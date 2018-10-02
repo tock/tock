@@ -63,7 +63,7 @@ pub struct App {
     app_cfg: Option<AppSlice<Shared, u8>>,
     app_rx_cfg: Option<AppSlice<Shared, u8>>,
     pending_tx: Option<[UDPEndpoint; 2]>,
-    rcv_on: Option<UDPEndpoint>,
+    bound_port: Option<UDPEndpoint>,
 }
 
 #[allow(dead_code)]
@@ -353,8 +353,10 @@ impl<'a> Driver for UDPDriver<'a> {
     ///
     /// ### `subscribe_num`
     ///
-    /// - `0`: Setup callback for when frame is received.
-    /// - `1`: Setup callback for when frame is transmitted. Notably,
+    /// - `0`: Setup callback for when packet is received. If no port has
+    ///        been bound, return ERESERVE to indicate that port binding is
+    ///        is a prerequisite to reception.
+    /// - `1`: Setup callback for when packet is transmitted. Notably,
     ///        this callback receives the result of the send_done callback
     ///        from udp_send.rs, which does not currently pass information
     ///        regarding whether packets were acked at the link layer.
@@ -366,8 +368,12 @@ impl<'a> Driver for UDPDriver<'a> {
     ) -> ReturnCode {
         match subscribe_num {
             0 => self.do_with_app(app_id, |app| {
-                app.rx_callback = callback;
-                ReturnCode::SUCCESS
+                if app.bound_port.is_some() {
+                    app.rx_callback = callback;
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::ERESERVE
+                }
             }),
             1 => self.do_with_app(app_id, |app| {
                 app.tx_callback = callback;
@@ -400,6 +406,9 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        was being passed down to the radio. Any successful return value indicates that
     ///        the app should wait for a send_done() callback before attempting to queue another
     ///        packet.
+    ///        Currently, only will transmit if the app has bound to the port passed in the tx_cfg
+    ///        buf as the source address. If no port is bound, returns ERESERVE, if it tries to
+    ///        send on a port other than the port which is bound, returns EINVALID.
     ///
     ///        Notably, the currently transmit implementation allows for starvation - an
     ///        an app with a lower app id can send constantly and starve an app with a
@@ -408,7 +417,8 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        returns EINVAL if the address requested is not a local interface, or if the port
     ///        requested is 0. Returns EBUSY if that port is already bound to by another app.
     ///        This command should be called after allow() is called on the rx_cfg buffer, and
-    ///        before subscribe() is used to set up the recv callback. If this command is called
+    ///        before subscribe() is used to set up the recv callback. Additionally, apps can only
+    ///        send on ports after they have bound to said port. If this command is called
     ///        and the address in rx_cfg is 0::0 : 0, this command will reset the option
     ///        containing the bound port to None and set the rx callback to None. Notably,
     ///        the current implementation of this only allows for each app to bind to a single
@@ -439,16 +449,19 @@ impl<'a> Driver for UDPDriver<'a> {
                 }
             }),
 
-            // Transmits UDP packet stored in
+            // Transmits UDP packet stored in tx_buf
             2 => {
                 self.do_with_app(appid, |app| {
                     if app.pending_tx.is_some() {
                         // Cannot support more than one pending tx per process.
                         return ReturnCode::EBUSY;
                     }
+                    if app.bound_port.is_none() {
+                        // Currently, apps need to bind to a port before they can send from said port
+                        return ReturnCode::ERESERVE;
+                    }
                     let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
                         if cfg.len() != 2 * mem::size_of::<UDPEndpoint>() {
-                            // debug!("cfg len is {:?}, needed at least {:?}", cfg.len(), 2 * mem::size_of::<UDPEndpoint>());
                             return None;
                         }
 
@@ -456,7 +469,11 @@ impl<'a> Driver for UDPDriver<'a> {
                             self.parse_ip_port_pair(&cfg.as_ref()[mem::size_of::<UDPEndpoint>()..]),
                             self.parse_ip_port_pair(&cfg.as_ref()[..mem::size_of::<UDPEndpoint>()]),
                         ) {
-                            Some([src, dst])
+                            if Some(src.clone()) == app.bound_port {
+                                Some([src, dst])
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
@@ -490,7 +507,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         // If zero address, close any already bound socket
                         if requested_addr.is_zero() {
                             app.rx_callback = None;
-                            app.rcv_on = None;
+                            app.bound_port = None;
                             return ReturnCode::SUCCESS;
                         }
                         // Check that requested addr is a local interface
@@ -506,8 +523,8 @@ impl<'a> Driver for UDPDriver<'a> {
                         let mut addr_already_bound = false;
                         for app in self.apps.iter() {
                             app.enter(|other_app, _| {
-                                if other_app.rcv_on.is_some() {
-                                    let other_addr_opt = other_app.rcv_on.clone();
+                                if other_app.bound_port.is_some() {
+                                    let other_addr_opt = other_app.bound_port.clone();
                                     let other_addr = other_addr_opt.unwrap();
                                     if other_addr.port == requested_addr.port {
                                         if other_addr.addr == requested_addr.addr {
@@ -522,7 +539,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         } else {
                             requested_addr_opt = Some(requested_addr);
                             // If this point is reached, the requested addr is free and valid
-                            app.rcv_on = requested_addr_opt;
+                            app.bound_port = requested_addr_opt;
                             return ReturnCode::SUCCESS;
                         }
                     } else {
@@ -561,11 +578,11 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         payload: &[u8],
     ) {
         self.apps.each(|app| {
-            if app.rcv_on.is_some() {
+            if app.bound_port.is_some() {
                 let appid = app.appid();
                 self.do_with_app(app.appid(), |app| {
                     let mut for_me = false;
-                    app.rcv_on.as_ref().map(|requested_addr| {
+                    app.bound_port.as_ref().map(|requested_addr| {
                         if requested_addr.addr == dst_addr && requested_addr.port == dst_port {
                             for_me = true;
                         }
