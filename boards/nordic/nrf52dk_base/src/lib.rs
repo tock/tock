@@ -426,7 +426,7 @@ pub unsafe fn setup_board(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let mut chip = nrf52::chip::NRF52::new();
+    let chip = nrf52::chip::NRF52::new();
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
@@ -445,10 +445,5 @@ pub unsafe fn setup_board(
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(
-        &platform,
-        &mut chip,
-        Some(&platform.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, &chip, Some(&platform.ipc), &main_loop_capability);
 }

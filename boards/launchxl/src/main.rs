@@ -359,7 +359,7 @@ pub unsafe fn reset_handler() {
         rng,
     };
 
-    let mut chip = cc26x2::chip::Cc26X2::new();
+    let chip = cc26x2::chip::Cc26X2::new();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -378,5 +378,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, &mut chip, Some(&ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&launchxl, &chip, Some(&ipc), &main_loop_capability);
 }
