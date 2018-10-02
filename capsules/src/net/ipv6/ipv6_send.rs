@@ -126,7 +126,6 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
         );
         self.init_packet(dst, transport_header, payload);
         let ret = self.send_next_fragment();
-        debug!("Done sending the next fragment");
         ret
     }
 }
@@ -155,7 +154,6 @@ impl IP6SendStruct<'a> {
 
     fn init_packet(&self, dst_addr: IPAddr, transport_header: TransportHeader, payload: &[u8]) {
         self.ip6_packet.map(|ip6_packet| {
-            debug!("Mapping ip6_packet success");
             ip6_packet.header = IP6Header::default();
             ip6_packet.header.src_addr = self.src_addr.get();
             ip6_packet.header.dst_addr = dst_addr;
@@ -175,7 +173,6 @@ impl IP6SendStruct<'a> {
             x = x + i;
         }
         debug!("{}", x);
-        debug!("Before sending, ip6Packetisnone: {:?}", self.ip6_packet.is_none());
         // Originally send_complete() was called within the below closure.
         // However, this led to a race condition where when multiple apps transmitted
         // simultaneously, it was possible for send_complete to trigger another
@@ -212,11 +209,9 @@ impl IP6SendStruct<'a> {
                 None => (ReturnCode::EBUSY, false),
             }).unwrap_or((ReturnCode::ENOMEM, false));
         if call_send_complete {
-            debug!("Calling send_complete!");
             self.send_completed(ret);
             return ReturnCode::SUCCESS;
         }
-        debug!("After sending, ip6Packetisnone: {:?}", self.ip6_packet.is_none());
         ret
     }
 

@@ -222,7 +222,7 @@ pub struct DebugWriter {
 /// needed so the debug!() macros have a reference to the object to use.
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
-pub static mut OUTPUT_BUF: [u8; 1024] = [0; 1024];
+pub static mut OUTPUT_BUF: [u8; 64] = [0; 64];
 pub static mut INTERNAL_BUF: [u8; 1024] = [0; 1024];
 
 pub unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {

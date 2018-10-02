@@ -200,7 +200,6 @@ impl<'a> UDPDriver<'a> {
     fn get_next_tx_if_idle(&self) -> Option<AppId> {
         if self.current_app.get().is_some() {
             // Tx already in progress
-            debug!("Radio is not idle");
             return None;
         }
         let mut pending_app = None;
@@ -237,7 +236,6 @@ impl<'a> UDPDriver<'a> {
     /// idle and the app has a pending transmission.
     #[inline]
     fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
-            debug!("Transmitting app #{:?}", appid);
         self.do_with_app(appid, |app| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
@@ -254,15 +252,12 @@ impl<'a> UDPDriver<'a> {
                 .app_write
                 .as_ref()
                 .map_or(ReturnCode::ENOMEM, |payload| {
-                    debug!("Mapped!");
                     self.sender
                         .send_to(dst_addr, dst_port, src_port, payload.as_ref())
                 });
             if result == ReturnCode::SUCCESS {
-                debug!("Passed to ipv6_send succesfully");
                 self.current_app.set(Some(appid));
             }
-            debug!("tx_sync result: {:?}", result);
             result
         })
     }
@@ -272,7 +267,6 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     #[allow(dead_code)]
     fn do_next_tx_queued(&self) {
-        debug!("Doing next tx queued");
         self.get_next_tx_if_idle()
             .map(|appid| self.perform_tx_async(appid));
     }
@@ -286,16 +280,13 @@ impl<'a> UDPDriver<'a> {
     fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
             .map(|appid| {
-                debug!("Radio was idle!");
                 if appid == new_appid {
-                    debug!("transmitting synchronously");
                     let sync_result = self.perform_tx_sync(appid);
                     if sync_result == ReturnCode::SUCCESS {
                         return ReturnCode::SuccessWithValue { value: 1 }; //Indicates packet passed to radio
                     }
                     sync_result
                 } else {
-                    debug!("transmitting asynchronously");
                     self.perform_tx_async(appid);
                     ReturnCode::SUCCESS
                 }
@@ -417,7 +408,7 @@ impl<'a> Driver for UDPDriver<'a> {
     ///        returns EINVAL if the address requested is not a local interface, or if the port
     ///        requested is 0. Returns EBUSY if that port is already bound to by another app.
     ///        This command should be called after allow() is called on the rx_cfg buffer, and
-    ///        after subscribe() is used to set up the recv callback. If this command is called
+    ///        before subscribe() is used to set up the recv callback. If this command is called
     ///        and the address in rx_cfg is 0::0 : 0, this command will reset the option
     ///        containing the bound port to None and set the rx callback to None. Notably,
     ///        the current implementation of this only allows for each app to bind to a single
@@ -474,10 +465,9 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                     app.pending_tx = next_tx;
-                    debug!("About to call do next tx immediate");
                     self.do_next_tx_immediate(appid)
                 })
-            }
+            },
             3 => {
                 self.do_with_app(appid, |app| {
                     // Move UDPEndpoint into udp.rs?
@@ -539,7 +529,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                 })
-            }
+            },
             4 => ReturnCode::SuccessWithValue {
                 value: self.max_tx_pyld_len,
             },
@@ -550,7 +540,6 @@ impl<'a> Driver for UDPDriver<'a> {
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
     fn send_done(&self, result: ReturnCode) {
-        debug!("Send_done called in driver.rs");
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
