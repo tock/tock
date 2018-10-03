@@ -134,15 +134,12 @@ register_bitfields![
         // RESERVED (bits 1-31)
         CLK_EN      OFFSET(0) NUMBITS(1) []
     ],
-    // Clock gate type for when there are two peripherals
+    // Clock gate type for when there are two peripherals (eg: UART0, UART1)
     ClockGate2 [
         // RESERVED (bits 1-31)
-        CLK_EN          OFFSET(0) NUMBITS(2) [
-            Set0 = 0b1,
-            Set1 = 0b10,
-            SetAll = 0b11,
-            ClearAll = 0b0
-        ]
+        CLK0_EN          OFFSET(0) NUMBITS(1) [],
+        CLK1_EN          OFFSET(0) NUMBITS(1) []
+
     ],
     PowerDomain0 [
         // RESERVED (bits 3-31)
@@ -334,20 +331,24 @@ impl Clock {
     /// Enables UART clocks for run, sleep and deep sleep mode.
     pub fn enable_uarts() {
         let regs = PRCM_BASE;
-        regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::SET);
-        regs.uart_clk_gate_sleep.modify(ClockGate2::CLK_EN::SET);
+        regs.uart_clk_gate_run
+            .modify(ClockGate2::CLK0_EN::SET + ClockGate2::CLK1_EN::SET);
+        regs.uart_clk_gate_sleep
+            .modify(ClockGate2::CLK0_EN::SET + ClockGate2::CLK1_EN::SET);
         regs.uart_clk_gate_deep_sleep
-            .modify(ClockGate2::CLK_EN::SET);
+            .modify(ClockGate2::CLK0_EN::SET + ClockGate2::CLK1_EN::SET);
 
         prcm_commit();
     }
 
     pub fn disable_uarts() {
         let regs = PRCM_BASE;
-        regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::CLEAR);
-        regs.uart_clk_gate_sleep.modify(ClockGate2::CLK_EN::CLEAR);
+        regs.uart_clk_gate_run
+            .modify(ClockGate2::CLK0_EN::CLEAR + ClockGate2::CLK1_EN::CLEAR);
+        regs.uart_clk_gate_sleep
+            .modify(ClockGate2::CLK0_EN::CLEAR + ClockGate2::CLK1_EN::CLEAR);
         regs.uart_clk_gate_deep_sleep
-            .modify(ClockGate2::CLK_EN::CLEAR);
+            .modify(ClockGate2::CLK0_EN::CLEAR + ClockGate2::CLK1_EN::CLEAR);
 
         prcm_commit();
     }
