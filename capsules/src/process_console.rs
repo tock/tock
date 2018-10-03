@@ -30,6 +30,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::str;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
 use kernel::ReturnCode;
@@ -114,7 +115,44 @@ impl<U: UART> ProcessConsole<'a, U> {
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
         self.command_buffer.map(|command| {
-            debug!("Read command: {:?}", command);
+            let mut terminator = 0;
+            let len = command.len();
+            for i in 0..len {
+                if command[i] == 0 {
+                    terminator = i;
+                    break;
+                }
+            }
+            //debug!("Command: {}-{} {:?}", start, terminator, command);
+            // A command is valid only if it starts inside the buffer,
+            // ends before the beginning of the buffer, and ends after
+            // it starts.
+            if terminator > 0 {
+                let cmd_str = str::from_utf8(&command[0..terminator]);
+                match cmd_str {
+                    Ok(s) => {
+                        let clean_str = s.trim();
+                        if clean_str.starts_with("help") {
+                            debug!("Welcome to the process console.");
+                            debug!("Valid commands are: help list stop start restart");
+                        } else if clean_str.starts_with("start") {
+
+                        } else if clean_str.starts_with("stop") {
+
+                        } else if clean_str.starts_with("restart") {
+
+                        } else if clean_str.starts_with("list") {
+
+                        } else {
+                            debug!("Valid commands are: help list stop start restart");
+                            debug!("Command: {:?}", command);
+                        }
+                    },
+                    Err(_e) => debug!("Invalid command: {:?}", command),
+                }
+            }
+        });
+        self.command_buffer.map(|command| {
             command[0] = 0;
         });
         self.command_index.set(0);
@@ -166,16 +204,18 @@ impl<U: UART> Client for ProcessConsole<'a, U> {
                 1 => {
                     self.command_buffer.map(|command| {
                         let index = self.command_index.get() as usize;
+                        //debug!("read {}", read_buf[0]);
                         if read_buf[0] == ('\n' as u8) ||
                             read_buf[0] == ('\r' as u8) {
                                 execute = true;
+                                self.write_bytes(&['\r' as u8, '\n' as u8]);
                             } else if read_buf[0] == ('\x08' as u8) && index > 0 {
                                 // Backspace, echo and remove last byte
                                 // Note echo is '\b \b' to erase
                                 self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
                                 command[index - 1] = '\0' as u8;
                                 self.command_index.set(index - 1);
-                            } else if index < (command.len() - 1) {
+                            } else if index < (command.len() - 1) && read_buf[0] < 128 {
                                 // Echo the byte and store it
                                 self.write_byte(read_buf[0]);
                                 command[index] = read_buf[0];
