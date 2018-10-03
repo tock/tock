@@ -98,7 +98,7 @@ pub trait ProcessType {
     fn set_fault_state(&self);
 
     /// Get the name of the process. Used for IPC.
-    fn get_process_name(&self) -> &[u8];
+    fn get_process_name(&self) -> &'static str;
 
     // memop operations
 
@@ -193,6 +193,20 @@ pub trait ProcessType {
 
     unsafe fn fault_fmt(&self, writer: &mut Write);
     unsafe fn process_detail_fmt(&self, writer: &mut Write);
+
+    // debug
+
+    /// Returns how many syscalls this app has called.
+    fn debug_syscall_count(&self) -> usize;
+
+    /// Returns how many callbacks for this process have been dropped.
+    fn debug_dropped_callback_count(&self) -> usize;
+
+    /// Returns how many times this process has been restarted.
+    fn debug_restart_count(&self) -> usize;
+
+    /// Returns how many times this process has exceeded its timeslice.
+    fn debug_timeslice_expiration_count(&self) -> usize;
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -281,6 +295,10 @@ struct ProcessDebug {
     /// How many times this process has entered into a fault condition and the
     /// kernel has restarted it.
     restart_count: usize,
+
+    /// How many times this process has been paused because it exceeded its
+    /// timeslice.
+    timeslice_expiration_count: usize,
 }
 
 pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
@@ -694,8 +712,8 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
     }
 
-    fn get_process_name(&self) -> &[u8] {
-        self.process_name.as_bytes()
+    fn get_process_name(&self) -> &'static str {
+        self.process_name
     }
 
     unsafe fn get_syscall(&self) -> Option<Syscall> {
@@ -784,9 +802,41 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         let (stack_pointer, switch_reason) =
             self.syscall.switch_to_process(self.sp(), &mut stored_state);
         self.current_stack_pointer.set(stack_pointer as *const u8);
-        self.debug_set_max_stack_depth();
         self.stored_state.set(stored_state);
+
+        // Update debug state as needed after running this process.
+        self.debug.map(|debug| {
+            // Update max stack depth if needed.
+            if self.current_stack_pointer.get() < debug.min_stack_pointer {
+                debug.min_stack_pointer = self.current_stack_pointer.get();
+            }
+
+            // More debugging help. If this occurred because of a timeslice
+            // expiration, mark that so we can check later if a process is
+            // exceeding its timeslices too often.
+            if switch_reason == syscall::ContextSwitchReason::TimesliceExpired {
+                debug.timeslice_expiration_count += 1;
+            }
+        });
+
         Some(switch_reason)
+    }
+
+    fn debug_syscall_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.syscall_count)
+    }
+
+    fn debug_dropped_callback_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.dropped_callback_count)
+    }
+
+    fn debug_restart_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.restart_count)
+    }
+
+    fn debug_timeslice_expiration_count(&self) -> usize {
+        self.debug
+            .map_or(0, |debug| debug.timeslice_expiration_count)
     }
 
     unsafe fn fault_fmt(&self, writer: &mut Write) {
@@ -1060,6 +1110,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
                 last_syscall: None,
                 dropped_callback_count: 0,
                 restart_count: 0,
+                timeslice_expiration_count: 0,
             });
 
             if (init_fn & 0x1) != 1 {
