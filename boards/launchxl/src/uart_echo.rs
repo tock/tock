@@ -67,13 +67,13 @@ impl<U: 'static + UART> Client for UartEcho<U> {
 
     fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, _error: uart::Error) {
         // copy into tx buf
-        let mut cr = 0;
+        let mut added_carraige_returns = 0;
         for n in 0..rx_len {
             self.tx_buf.map(|buf| {
-                buf[n + cr] = buffer[n];
+                buf[n + added_carraige_returns] = buffer[n];
                 if buffer[n] == b'\r' {
                     buf[n + 1] = b'\n';
-                    cr = 1;
+                    added_carraige_returns = 1;
                 }
             });
         }
@@ -83,6 +83,6 @@ impl<U: 'static + UART> Client for UartEcho<U> {
         // output on uart
         self.tx_buf
             .take()
-            .map(|buf| self.uart.transmit(buf, rx_len + cr));
+            .map(|buf| self.uart.transmit(buf, rx_len + added_carraige_returns));
     }
 }
