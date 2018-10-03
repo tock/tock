@@ -24,7 +24,8 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::rng::{self, Continue};
+use kernel::hil::entropy::{self, Continue};
+use kernel::ReturnCode;
 
 const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
@@ -105,7 +106,7 @@ register_bitfields! [u32,
 
 pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
-    client: OptionalCell<&'a rng::Client>,
+    client: OptionalCell<&'a entropy::Client32>,
     index: Cell<usize>,
     randomness: Cell<u32>,
 }
@@ -148,7 +149,7 @@ impl Trng<'a> {
             // fetched 4 bytes of data generated, then notify the capsule
             4 => {
                 self.client.map(|client| {
-                    let result = client.randomness_available(&mut TrngIter(self));
+                    let result = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
                     if Continue::Done != result {
                         // need more randomness i.e generate more randomness
                         self.start_rng();
@@ -162,11 +163,6 @@ impl Trng<'a> {
                 self.randomness.set(0);
             }
         }
-    }
-
-    /// Configure client
-    pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(client);
     }
 
     fn enable_interrupts(&self) {
@@ -211,8 +207,17 @@ impl Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl rng::RNG for Trng<'a> {
-    fn get(&self) {
-        self.start_rng()
+impl<'a> entropy::Entropy32<'a> for Trng<'a> {
+    fn get(&self) -> ReturnCode {
+        self.start_rng();
+        ReturnCode::SUCCESS
+    }
+
+    fn cancel(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn set_client(&'a self, client: &'a entropy::Client32) {
+        self.client.set(client);
     }
 }

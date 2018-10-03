@@ -6,6 +6,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc26x2"
+version = "0.1.0"
+dependencies = [
+ "cortexm4 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
 name = "cortexm"
 version = "0.1.0"
 dependencies = [
@@ -21,16 +29,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ek-tm4c1294xl"
-version = "0.1.0"
-dependencies = [
- "capsules 0.1.0",
- "cortexm4 0.1.0",
- "kernel 0.1.0",
- "tm4c129x 0.1.0",
-]
-
-[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -39,9 +37,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "tm4c129x"
+name = "launchxl"
 version = "0.1.0"
 dependencies = [
+ "capsules 0.1.0",
+ "cc26x2 0.1.0",
  "cortexm4 0.1.0",
  "kernel 0.1.0",
 ]

@@ -6,7 +6,8 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::rng;
+use kernel::hil::entropy;
+use kernel::ReturnCode;
 use prcm;
 
 #[repr(C)]
@@ -69,13 +70,13 @@ const RNG_BASE: StaticRef<RngRegisters> =
 
 pub static mut TRNG: Trng = Trng::new();
 
-pub struct Trng {
+pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
-    client: OptionalCell<&'static rng::Client>,
+    client: OptionalCell<&'a entropy::Client32>,
 }
 
-impl Trng {
-    const fn new() -> Trng {
+impl<'a> Trng<'a> {
+    const fn new() -> Trng<'a> {
         Trng {
             registers: RNG_BASE,
             client: OptionalCell::empty(),
@@ -138,27 +139,35 @@ impl Trng {
 
         ((regs.out0.get() as u64) << 32) | (regs.out1.get() as u64)
     }
-
-    pub fn set_client(&self, client: &'static rng::Client) {
-        self.client.set(client);
-    }
 }
 
-impl Iterator for Trng {
+#[allow(dead_code)]
+struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
+
+impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        let regs = &*self.registers;
+        let regs = &*self.0.registers;
         if regs.ctl.is_set(Control::TRNG_EN) {
-            Some((self.read_number_blocking() & 0xFFFFFFFF) as u32)
+            Some((self.0.read_number_blocking() & 0xFFFF_FFFF) as u32)
         } else {
             None
         }
     }
 }
 
-impl rng::RNG for Trng {
-    fn get(&self) {
+impl<'a> entropy::Entropy32<'a> for Trng<'a> {
+    fn get(&self) -> ReturnCode {
         self.enable();
+        ReturnCode::SUCCESS
+    }
+
+    fn cancel(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn set_client(&'a self, client: &'a entropy::Client32) {
+        self.client.set(client);
     }
 }
