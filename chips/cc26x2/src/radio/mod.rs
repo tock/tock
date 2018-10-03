@@ -5,7 +5,6 @@ pub mod rfcore_driver;
 // use peripheral_interrupts;
 
 pub mod commands;
-pub mod rfcore_const;
 
 //pub static RFACK_NVIC: nvic::Nvic = unsafe { nvic::Nvic::new(peripheral_interrupts::RF_CMD_ACK) };
 //pub static CPE0_NVIC: nvic::Nvic = unsafe { nvic::Nvic::new(peripheral_interrupts::RF_CORE_CPE0) };

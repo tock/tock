@@ -10,6 +10,8 @@ pub mod ioc_rom;
 
 #[allow(unused_variables, unused_mut, non_snake_case)]
 pub mod ddi;
+
+pub mod aux_sysif;
 /*
  * Copyright (c) 2015, Texas Instruments Incorporated - http://www.ti.com/
  * All rights reserved.
@@ -39,10 +41,8 @@ pub mod ddi;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-use aux;
 use prcm;
 use rtc;
-
 pub fn perform() {
     unsafe { SetupTrimDevice() }
 }
@@ -57,7 +57,6 @@ pub unsafe extern "C" fn SetupTrimDevice() {
         | 0x2000000usize
         | ((0x40030000i32 + 0x24i32) as (usize) & 0xfffffusize) << 5i32
         | (1i32 << 2i32) as (usize)) as (*mut usize)) = 0usize;
-
     SetupSetCacheModeAccordingToCcfgSetting();
 
     // Undocumented AON IOC Latch register, found in driverlib AON_IOC.h
@@ -69,7 +68,7 @@ pub unsafe extern "C" fn SetupTrimDevice() {
         | (0i32 << 2i32) as (usize)) as (*mut usize))
         == 0
     {
-        TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
+        // TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
     } else if *(((0x40090000i32 + 0x2ci32) as (usize) & 0xf0000000usize
         | 0x2000000usize
         | ((0x40090000i32 + 0x2ci32) as (usize) & 0xfffffusize) << 5i32
@@ -77,27 +76,28 @@ pub unsafe extern "C" fn SetupTrimDevice() {
         == 0
     {
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
-        TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
+        // TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
     } else {
         TrimAfterColdReset();
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
-        TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
+        // TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
     }
 
     // Set VIMS power domain control.
     // PDCTL1VIMS = 0 ==> VIMS power domain is only powered when CPU power domain is powered
     prcm::Power::disable_domain(prcm::PowerDomain::VIMS);
-    // *((0x40082000i32 + 0x18ci32) as (*mut usize)) = 0usize;
 
     // Configure optimal wait time for flash FSM in cases where flash pump
     // wakes up from sleep
+    
     *((0x40030000i32 + 0x2048i32) as (*mut usize)) = *((0x40030000i32 + 0x2048i32) as (*mut usize))
         & !0xfff0000i32 as (usize)
         | (0x139i32 << 16i32) as (usize);
-
+    
     // And finally at the end of the flash boot process:
     // SET BOOT_DET bits in AON_PMCTL to 3 if already found to be 1
     // Note: The BOOT_DET_x_CLR/SET bits must be manually cleared
+    
     if (*((0x40090000i32 + 0x28i32) as (*mut usize)) & (0x2000i32 | 0x1000i32) as (usize)) >> 12i32
         == 1usize
     {
@@ -113,6 +113,7 @@ pub unsafe extern "C" fn SetupTrimDevice() {
             | 0x2000000usize
             | ((0x40034000i32 + 0x0i32) as (usize) & 0xfffffusize) << 5i32
             | (3i32 << 2i32) as (usize)) as (*mut usize)) != 0 {}
+    
     */
     'loop9: loop {
         if *(((0x40034000i32 + 0x0i32) as (usize) & 0xf0000000usize
@@ -126,7 +127,7 @@ pub unsafe extern "C" fn SetupTrimDevice() {
     }
 }
 
-unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown() {}
+// unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown() {}
 
 unsafe extern "C" fn Step_RCOSCHF_CTRIM(mut toCode: u32) {
     let mut currentRcoscHfCtlReg: u32;
@@ -192,7 +193,6 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     let mut ccfg_ModeConfReg: u32;
 
     // Check in CCFG for alternative DCDC setting
-
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x2usize == 0usize {
         *((0x40086200i32 + 0x40i32 + 0xbi32 * 2i32) as (*mut u8)) =
             (0xf0usize | *((0x50003000i32 + 0x1faci32) as (*mut usize)) >> 16i32) as (u8);
@@ -236,8 +236,8 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
         (orgResetCtl & !(0x20i32 | 0x40i32 | 0x80i32 | 0x100i32) as (u32)) as (usize);
 
     // Wait for xxx_LOSS_EN setting to propagate
-    // rtc::RTC.sync();
-    *((0x40092000i32 + 0x2ci32) as (*mut usize));
+    rtc::RTC.sync();
+    // *((0x40092000i32 + 0x2ci32) as (*mut usize));
 
     // The VDDS_BOD trim and the VDDR trim is already stepped up to max/HH if "CC1352 boost mode" is requested.
     // See function SetupAfterColdResetWakeupFromShutDownCfg1() in setup_rom.c for details.
@@ -255,13 +255,14 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
             *((0x40086200i32 + 0x60i32 + (0x3i32 << 1i32)) as (*mut u16)) =
                 ((0xf8i32 << 8i32) as (u32) | (ui32EfuseData & 0xf800u32) >> 11i32 << 3i32)
                     as (u16);
-        }
+        }/*
         let _rhs = !0x80i32;
         let _lhs = &mut *((0x40086200i32 + 0x5i32) as (*mut u8));
         *_lhs = (*_lhs as (i32) & _rhs) as (u8);
         let _rhs = 0x80i32;
         let _lhs = &mut *((0x40086200i32 + 0x5i32) as (*mut u8));
         *_lhs = (*_lhs as (i32) | _rhs) as (u8);
+        */
         SetupStepVddrTrimTo((ui32EfuseData & 0x1f0000u32) >> 16i32);
     }
 
@@ -274,8 +275,8 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     *((0x40090000i32 + 0x28i32) as (*mut usize)) = orgResetCtl as (usize);
 
     // Wait for xxx_LOSS_EN setting to propagate
-    // rtc::RTC.sync();
-    *((0x40092000i32 + 0x2ci32) as (*mut usize));
+    rtc::RTC.sync();
+    // *((0x40092000i32 + 0x2ci32) as (*mut usize));
 
     let mut trimReg: u32;
     let mut ui32TrimValue: u32;
@@ -289,14 +290,7 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     // -Configure HPOSC.
     // -Setup the LF clock.
     SetupAfterColdResetWakeupFromShutDownCfg3(ccfg_ModeConfReg);
-    /* 
-    aux::AUX_CTL.operation_mode_request(aux::WUMODE_PDA);
-    let mut cur_mode: u8 = aux::AUX_CTL.operation_mode_ack();
-    while cur_mode != 0x02 {
-        cur_mode = aux::AUX_CTL.operation_mode_ack();
-        aux::AUX_CTL.operation_mode_request(aux::WUMODE_PDA);
-    }
-    */
+    aux_sysif::AUXSYSIFOpModeChange(0x02u32);
     // Disable EFUSE clock
     *(((0x40030000i32 + 0x24i32) as (usize) & 0xf0000000usize
         | 0x2000000usize
@@ -329,8 +323,8 @@ pub unsafe extern "C" fn SetupStepVddrTrimTo(mut toCode: u32) {
         if pmctlResetctl_reg & 0x80u32 != 0 {
             *((0x40090000i32 + 0x28i32) as (*mut usize)) =
                 (pmctlResetctl_reg & !0x80i32 as (u32)) as (usize);
-            // rtc::RTC.sync();
-            *((0x40092000i32 + 0x2ci32) as (*mut usize));
+            rtc::RTC.sync();
+            // *((0x40092000i32 + 0x2ci32) as (*mut usize));
         }
         while targetTrim != currentTrim {
             *((0x40092000i32 + 0x34i32) as (*mut usize));
@@ -349,8 +343,8 @@ pub unsafe extern "C" fn SetupStepVddrTrimTo(mut toCode: u32) {
             *((0x40092000i32 + 0x34i32) as (*mut usize));
             *((0x40092000i32 + 0x34i32) as (*mut usize));
             *((0x40090000i32 + 0x28i32) as (*mut usize)) = pmctlResetctl_reg as (usize);
-            // rtc::RTC.sync();
-            *((0x40092000i32 + 0x2ci32) as (*mut usize));
+            rtc::RTC.sync();
+            // *((0x40092000i32 + 0x2ci32) as (*mut usize));
         }
     }
 }
@@ -513,15 +507,12 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
                     | ((fcfg1OscConf & 0x60u32) >> 5i32 << 5i32) as (usize)
                     | ((fcfg1OscConf & 0x6u32) >> 1i32 << 1i32) as (usize)
                     | ((fcfg1OscConf & 0x1u32) >> 0i32 << 0i32) as (usize);
-            } else {
                 *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x80000000usize;
             }
-        }
-        2u32 => (),
-        _ => {
-            *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x80000000usize;
-        }
+        },
+        _ => (),
     }
+
 
     // Set XOSC_HF in bypass mode if CCFG is configured for external TCXO
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x8usize == 0usize {
@@ -581,8 +572,8 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
         (*((0x50001000i32 + 0x36ci32) as (*mut usize)) >> 0i32 << 0i32 & 0x3fusize) as (u8);
 
     // Sync with AON
-    // rtc::RTC.sync();
-    *((0x40092000i32 + 0x2ci32) as (*mut usize));
+    rtc::RTC.sync();
+    // *((0x40092000i32 + 0x2ci32) as (*mut usize));
 }
 
 pub unsafe extern "C" fn SetupGetTrimForAnabypassValue1(mut ccfg_ModeConfReg: u32) -> u32 {

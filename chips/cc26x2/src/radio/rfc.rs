@@ -22,7 +22,7 @@
 //!
 use radio::commands as cmd;
 // use cortexm4::{self, nvic};
-use self::test_commands::*;
+use self::test_commands::{CommandCommon, CommandSyncRat, CommandRadioSetup};
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -145,8 +145,9 @@ register_bitfields! {
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum RfcMode {
-    BLE = 0x00,
-    IEEE = 0x01,
+    Common = 0x00,
+    BLE = 0x01,
+    Unchanged = 0xFF,
 }
 
 #[derive(Clone, Copy)]
@@ -188,12 +189,6 @@ pub struct RFCore {
     pub mode: Cell<Option<RfcMode>>,
     pub rat: Cell<u32>,
     status: Cell<u32>,
-    /*
-    pub ack_nvic: &'static nvic::Nvic,
-    pub ack_event: VolatileCell<bool>,
-    pub cpe0_nvic: &'static nvic::Nvic,
-    pub cpe0_event: VolatileCell<bool>,
-    */
 }
 
 impl RFCore {
@@ -205,12 +200,6 @@ impl RFCore {
             mode: Cell::new(None),
             rat: Cell::new(0),
             status: Cell::new(0),
-            /*
-            ack_nvic,
-            ack_event: VolatileCell::new(false),
-            cpe0_nvic,
-            cpe0_event: VolatileCell::new(false),
-            */
         }
     }
 
@@ -226,8 +215,6 @@ impl RFCore {
     // Enable RFCore
     pub fn enable(&self) {
         // Make sure RFC power is enabled
-        let dbell_regs = &*self.dbell_regs;
-
         prcm::Power::enable_domain(prcm::PowerDomain::RFC);
         prcm::Clock::enable_rfc();
 
@@ -238,7 +225,7 @@ impl RFCore {
         while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
 
         // Set power and clock regs for RFC
-        let pwc_regs: &RfcPWCRegisters = &*self.pwc_regs;
+        let pwc_regs = &*self.pwc_regs;
         pwc_regs.pwmclken.modify(
             RFCPWE::RFC::SET
                 + RFCPWE::CPE::SET
@@ -251,6 +238,8 @@ impl RFCore {
                 + RFCPWE::PHA::SET
                 + RFCPWE::FSCA::SET,
         );
+        
+        let dbell_regs = self.dbell_regs;
 
         // Clear ack flag
         dbell_regs.rfack_ifg.set(0);
@@ -276,6 +265,8 @@ impl RFCore {
         self.send_direct(&cmd_init)
             .ok()
             .expect("Could not initialize radio module");
+
+        // TESTING clear ack flag register
         dbell_regs.rfack_ifg.set(0);
 
         // Request bus
@@ -283,6 +274,8 @@ impl RFCore {
         self.send_direct(&cmd_bus_req)
             .ok()
             .expect("Could not request bus on radio module");
+        
+        // TESTING clear ack flag register
         dbell_regs.rfack_ifg.set(0);
 
         // Ping radio module
@@ -290,6 +283,8 @@ impl RFCore {
         self.send_direct(&cmd_ping)
             .ok()
             .expect("Could not ping radio module");
+
+        // TESTING clear ack flag register
         dbell_regs.rfack_ifg.set(0);
     }
 
@@ -359,6 +354,7 @@ impl RFCore {
             .expect("Radio setup command returned Err");
 
 */
+        let dbell_regs = &*self.dbell_regs;
         let cmd = CommandRadioSetup {
             command_no: 0x0802,
             status: 0,
@@ -368,10 +364,10 @@ impl RFCore {
             condition: {
                 let mut cond = cmd::RfcCondition(0);
                 cond.set_rule(0x01); // COND_NEVER
-                                     //cond.set_rule(5); // COND_SKIP_ON_FALSE
                 cond
             },
-            mode: mode as u8,
+            mode: 0xFF,
+            // mode: mode as u8,
             lo_divider: 0,
             config: {
                 let mut cfg = cmd::RfcSetupConfig(0);
@@ -379,14 +375,16 @@ impl RFCore {
                 cfg.set_bias_mode(false); // Internal bias
                 cfg
             },
-            tx_power: 0x9330,
+            tx_power: tx_power,
             reg_override,
         };
 
         self.send_test(&cmd)
             .and_then(|_| self.wait_test(&cmd))
-            .ok()
-            .expect("Radio setup command returned Err");
+            .ok();
+            // .expect("Radio setup command returned Err");
+        dbell_regs.rfack_ifg.set(0);
+
     }
 
     pub fn start_rat(&self) {
@@ -410,6 +408,7 @@ impl RFCore {
             .ok()
             .expect("Start RAT command returned Err");
         */
+        let dbell_regs = &*self.dbell_regs;
         let rf_command_test = CommandSyncRat {
             command_no: 0x080A,
             status: 0,
@@ -428,6 +427,8 @@ impl RFCore {
         self.send_test(&rf_command_test)
             .and_then(|_| self.wait_test(&rf_command_test))
             .ok();
+        dbell_regs.rfack_ifg.set(0);
+        dbell_regs.rfcpe_ifg.set(0);
     }
 
     pub fn stop_rat(&self) {
@@ -463,10 +464,12 @@ impl RFCore {
             _ => false,
         }
     }
+
     // Set mode of RFCore
     pub fn set_mode(&self, mode: RfcMode) {
         let rf_mode = match mode {
-            RfcMode::IEEE => 0x01,
+            RfcMode::Common => 0x00,
+            RfcMode::BLE => 0x01,
             _ => panic!("Only HAL mode supported"),
         };
 
@@ -569,17 +572,6 @@ impl RFCore {
             RfcInterrupt::CmdAck => {
                 // Clear the interrupt
                 dbell_regs.rfack_ifg.set(0);
-                /*
-                self.client.get().map(|client| client.command_done());
-                let status = self.cmdsta();
-                match status {
-                    Ok(()) => {
-                        self.status.set(0x0000);
-                        ()
-                    }
-                    Err(e) => self.status.set(e),
-                }
-                */
             }
             RfcInterrupt::Cpe0 => {
                 let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);

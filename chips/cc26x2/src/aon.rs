@@ -12,7 +12,7 @@ use rtc;
 #[repr(C)]
 pub struct AonIocRegisters {
     _reserved0: [u32; 3],
-    // ioc_latch: ReadWrite<u32, IocLatch::Register>,
+    ioc_latch: ReadWrite<u32, IocLatch::Register>,
     ioc_clk32k_ctl: ReadWrite<u32, IocClk::Register>,
 }
 
@@ -35,7 +35,7 @@ struct AonPmCtlRegisters {
     shutdown: ReadWrite<u32, Shutdown::Register>,
     _recharge_ctl: [u8; 4],
     _recharge_stat: [u8; 4],
-    osc_cfg: ReadWrite<u32, OscCtl::Register>,
+    _osc_cfg: ReadWrite<u32, OscCtl::Register>,
     reset_ctl: ReadWrite<u32, ResetCtl::Register>,
     sleep_ctl: ReadWrite<u32, SleepCtl::Register>,
     _jtag_cfg: [ReadOnly<u8>; 4],
@@ -153,15 +153,15 @@ impl Aon {
     pub fn setup(&self) {
         let regs = &*self.event_regs;
 
-        // Default to no events at all
+        // Set RTC CH1 as a wakeup source by default
         regs.mcu_wu_sel.set(0x3F3F3F24);
 
         // Set RTC CH1 as a wakeup source by default
         regs.mcu_wu_sel1.set(0x3F3F3F24);
-
+        
         // Disable RTC combined event
         regs.rtc_sel.set(0x0000003F);
-
+        
         // The default reset value is 0x002B2B2B. However, 0x2b for each
         // programmable event corresponds to a JTAG event; which is fired
         // *all* the time during debugging through JTAG. It is better to
@@ -190,8 +190,8 @@ impl Aon {
             regs.ioc_clk32k_ctl.write(IocClk::EN::CLEAR);
         }
     }
-    /*
-    pub fn ioc_latch_en(&self, enable: bool) {
+    
+    pub fn lock_io_pins(&self, enable: bool) {
         let regs = &*self.ioc_regs;
         if enable {
             regs.ioc_latch.write(IocLatch::EN::CLEAR);
@@ -199,7 +199,7 @@ impl Aon {
             regs.ioc_latch.write(IocLatch::EN::SET);
         }
     }
-    */
+    
     pub fn aux_set_ram_retention(&self, enabled: bool) {
         let regs = &*self.pmctl_regs;
         regs.ram_cfg.modify({
@@ -239,9 +239,30 @@ impl Aon {
         let regs = &*self.pmctl_regs;
         regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
     }
+    
+    pub fn aux_reset_done(&self) -> bool {
+        let regs = &*self.pmctl_regs;
+        let aux_reset_done = regs.pwr_stat.is_set(PwrStat::AUX_RESET_DONE);
+        if aux_reset_done {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    pub fn aux_bus_reset_done(&self) -> bool {
+        let regs = &*self.pmctl_regs;
+        let aux_bus_reset_done = regs.pwr_stat.is_set(PwrStat::AUX_BUS_RESET_DONE);
+        if aux_bus_reset_done {
+            return true;
+        } else {
+            return false;
+        }
+    }
 
     pub fn shutdown(&self) {
         let regs = &*self.pmctl_regs;
+        // TODO Must configure and IOC::DIOxx WU_CFG before shutdown enabled
         regs.shutdown.modify(Shutdown::PWR_DWN_DIS::SET);
     }
     /// Await a cycle of the AON domain in order

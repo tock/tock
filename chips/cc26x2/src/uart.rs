@@ -53,7 +53,8 @@ register_bitfields![
         DIVISOR OFFSET(0) NUMBITS(6) []
     ],
     Flags [
-        TX_FIFO_FULL OFFSET(5) NUMBITS(1) []
+        TX_FIFO_FULL OFFSET(5) NUMBITS(1) [],
+        UART_BUSY OFFSET(3) NUMBITS(1) []
     ],
     Interrupts [
         ALL_INTERRUPTS OFFSET(0) NUMBITS(12) []
@@ -163,7 +164,11 @@ impl UART {
         // Disable all UART interrupts
         self.registers.imsc.modify(Interrupts::ALL_INTERRUPTS::SET);
     }
-
+    
+    fn busy(&self) -> bool {
+        self.registers.fr.is_set(Flags::UART_BUSY)
+    }
+    
     /// Clears all interrupts related to UART.
     pub fn handle_interrupt(&self) {
         // Clear interrupts

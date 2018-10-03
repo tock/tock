@@ -10,13 +10,11 @@ extern crate fixedvec;
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
-//mod components;
-//use components::radio::RadioComponent;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::radio;
-// use cc26x2::rtc;
+use cc26x2::aux;
 use kernel::capabilities;
 use kernel::hil;
 
@@ -180,6 +178,9 @@ pub unsafe fn reset_handler() {
 
     // Setup AON event defaults
     aon::AON.setup();
+
+    // Setup AUX event and Acive power mode
+    aux::AUX_CTL.setup();
 
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
@@ -368,14 +369,15 @@ pub unsafe fn reset_handler() {
             &mut HELIUM_BUF
         )
     );
-
+    
+    
     kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
     kernel::hil::radio_client::RadioDriver::set_receive_client(
         &radio::RADIO,
         virtual_radio,
         &mut HELIUM_BUF,
     );
-
+    
     let rfc = &cc26x2::radio::RADIO;
     rfc.test_power_up();
 

@@ -9,7 +9,7 @@ use osc;
 use peripheral_manager;
 use radio::commands as cmd;
 use radio::rfc;
-use radio::rfcore_const::RfcDriverCommands;
+
 static mut RFPARAMS: [u32; 18] = [
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
     0x02400403, // Synth: Set minimum RTRIM to 6
@@ -56,10 +56,12 @@ impl Radio {
     }
 
     pub fn test_power_up(&self) {
-        self.rfc.set_mode(rfc::RfcMode::IEEE);
-
+        // osc::OSC.switch_to_rc_osc();
+         
+        self.rfc.set_mode(rfc::RfcMode::Common);
+        
         osc::OSC.request_switch_to_hf_xosc();
-
+        
         self.rfc.enable();
 
         self.rfc.start_rat();
@@ -73,7 +75,7 @@ impl Radio {
     }
 
     pub fn power_up(&self) -> ReturnCode {
-        self.rfc.set_mode(rfc::RfcMode::IEEE);
+        self.rfc.set_mode(rfc::RfcMode::Common);
 
         osc::OSC.request_switch_to_hf_xosc();
 

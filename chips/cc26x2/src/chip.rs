@@ -6,6 +6,7 @@ use peripheral_interrupts;
 use radio;
 use rtc;
 use uart;
+use prcm;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -75,7 +76,7 @@ impl kernel::Chip for Cc26X2 {
                     // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     peripheral_interrupts::AON_PROG => (),
-                    // peripheral_interrupts::OSC => prcm::handle_osc_interrupt(),
+                    peripheral_interrupts::OSC => prcm::handle_osc_interrupt(),
                     _ => panic!("unhandled interrupt {}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);

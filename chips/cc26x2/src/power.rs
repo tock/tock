@@ -3,7 +3,7 @@ use kernel::common::cells::VolatileCell;
 use power_manager::{PowerManager, Resource, ResourceManager};
 use prcm::{Power, PowerDomain};
 
-// use aux;
+use aux;
 use aon;
 use osc;
 use prcm;
@@ -72,22 +72,22 @@ pub unsafe fn prepare_deep_sleep() {
     prcm::acquire_uldo();
     prcm::force_disable_dma_and_crypto();
 
-    aon::AON.set_dcdc_enabled(true);
+    // aon::AON.set_dcdc_enabled(true);
     // aon::AON.jtag_set_enabled(false);
     aon::AON.aux_disable_power_down_clock();
     aon::AON.aux_set_ram_retention(false);
     aon::AON.mcu_set_ram_retention(true);
-    // aon::AON.lock_io_pins(true);
+    aon::AON.lock_io_pins(true);
 
     // We need to allow the aux domain to sleep when we enter sleep mode
-    // aux_wuc::AUX_CTL.wakeup_event(aux_wuc::WakeupMode::AllowSleep);
+    aux::AUX_CTL.aux_prog_wu_cfg0(aux::WakeUpSource::NoEvent, aux::Polarity::High, true);
 
     // TODO: if we power off the aux completely we prevent the second wakeup,
     //       and cause a hard-fault during the next access to the AUX domain/bus (eg. osc control)
     //       Investigate this further, as the AUX domain draws ~70uA in sleep
-    //aux_wuc::AUX_CTL.power_off();
+    aux::AUX_CTL.operation_mode_request(aux::WUMODE_PDLP);
 
-    // while aon::AON.aux_is_on() {}
+    while aux::AUX_CTL.operation_mode_ack() != aux::WUMODE_PDLP {}
 
     // Configure power cycling (used to keep state in low power modes)
     vims_disable();
@@ -102,7 +102,7 @@ pub unsafe fn prepare_wakeup() {
     rtc::RTC.sync();
 
     // We're ready to allow the auxilliary domain to wake up once it's needed.
-    // aux_wuc::AUX_CTL.wakeup_event(aux_wuc::WakeupMode::WakeUp);
+    aux::AUX_CTL.operation_mode_request(aux::WUMODE_PDA);
 
     // If we were using the uLDO power to supply the peripherals, we can safely disable it now
     prcm::release_uldo();
@@ -112,7 +112,7 @@ pub unsafe fn prepare_wakeup() {
     prcm::Power::enable_domain(prcm::PowerDomain::Serial);
 
     // Unlock IO pins and let them be controlled by GPIO
-    // aon::AON.lock_io_pins(false);
+    aon::AON.lock_io_pins(false);
 
     rtc::RTC.sync();
     scb::unset_sleepdeep();

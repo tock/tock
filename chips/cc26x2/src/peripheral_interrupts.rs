@@ -33,4 +33,4 @@ pub const DYNAMIC_PROG: u32 = 30;
 pub const AUX_COMP_A: u32 = 31;
 pub const AUX_ADC: u32 = 32;
 pub const TRNG: u32 = 33;
-// pub const OSC: u32 = 34;
+pub const OSC: u32 = 34;

@@ -1,5 +1,5 @@
-use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
-// use setup;
+use cortexm4::{generic_isr, nvic, hard_fault_handler, svc_handler, systick_handler};
+use setup;
 
 extern "C" {
     // Symbols defined in the linker file
@@ -28,7 +28,7 @@ unsafe extern "C" fn hard_fault_handler() {
 #[link_section = ".vectors"]
 // used Ensures that the symbol is kept until the final binary
 #[used]
-pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 51] = [
     _estack,
     reset_handler,
     unhandled_interrupt, // NMI
@@ -81,7 +81,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
     generic_isr, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
     generic_isr, // TRNG event
-                 //    generic_isr, // OSC event
+    generic_isr, // OSC event
 ];
 
 #[no_mangle]
@@ -131,7 +131,7 @@ pub unsafe extern "C" fn init() {
         } = 0u32;
     }
 
-    // setup::perform();
+    setup::perform();
 
     nvic::enable_all();
 }

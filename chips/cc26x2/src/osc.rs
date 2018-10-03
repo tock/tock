@@ -1,6 +1,7 @@
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use setup::oscfh;
+use prcm;
 
 pub struct DdiRegisters {
     ctl0: ReadWrite<u32, Ctl0::Register>,
@@ -114,26 +115,10 @@ impl Oscillator {
         }
     }
 
-    pub fn set_24_mhz_clk(&self) {
-        let regs = self.wr_regs;
-
-        regs.ctl0.modify(Ctl0::XTAL_IS_24M::SET);
-    }
-
-    pub fn switch_to_lf_xosc(&self) {
-        let regs = self.r_regs;
-
-        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x0));
-        regs.ctl0.modify(Ctl0::XOSC_LF_DIG_BYPASS::CLEAR);
-        regs.ctl0.modify(Ctl0::SCLK_LF_SRC_SEL.val(0x3));
-    }
     pub fn switch_to_rc_osc(&self) {
-        let regs = self.r_regs;
-
         if self.clock_source_get(ClockType::HF) != HF_RCOSC {
             self.clock_source_set(ClockType::HF, HF_RCOSC);
         }
-        while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
 
         self.clock_source_set(ClockType::LF, LF_RCOSC);
         self.disable_lfclk_qualifier();
@@ -141,6 +126,8 @@ impl Oscillator {
 
     // Check if the current clock source is HF_XOSC. If not, set it.
     pub fn request_switch_to_hf_xosc(&self) {
+        prcm::disable_osc_interrupt();
+
         if self.clock_source_get(ClockType::HF) != HF_XOSC {
             self.clock_source_set(ClockType::HF, HF_XOSC);
         }
@@ -151,7 +138,7 @@ impl Oscillator {
     pub fn switch_to_hf_xosc(&self) {
         if self.clock_source_get(ClockType::HF) != HF_XOSC {
             // Wait for source ready to switch
-            let regs = self.r_regs;
+            let regs = &*self.r_regs;
 
             while !regs.stat0.is_set(Stat0::PENDING_SCLK_HF_SWITCHING) {}
 
@@ -196,6 +183,11 @@ impl Oscillator {
             }
             ClockType::HF => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(src as u32));
+                match src {
+                    0 => regs.ctl0.modify(Ctl0::ACLK_REF_SRC_SEL.val(0b000)),
+                    1 => regs.ctl0.modify(Ctl0::ACLK_REF_SRC_SEL.val(0b001)),
+                    _ => (),
+                }
             }
         }
     }

@@ -112,12 +112,9 @@ struct PrcmRegisters {
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
-
-    _reserved10: [ReadOnly<u8>; 0x08],
-
     pub rfc_mode_allowed: ReadOnly<u32>,
 
-    _reserved11: [ReadOnly<u8>; 0xB4],
+    _reserved10: [ReadOnly<u8>; 0xB8],
     // Enable/Disable interupt generation when OSC is qualified
     pub osc_imsc: ReadWrite<u32, OscInterrupt::Register>,
     // OSC raw interrupt status
@@ -492,7 +489,10 @@ pub fn rf_mode_sel(mode: u32) {
 
 pub fn disable_osc_interrupt() {
     let regs = PRCM_BASE;
-    regs.osc_imsc.set(0x00000000);
+    regs.osc_imsc.write(OscInterrupt::HF_SRC::CLEAR + OscInterrupt::LF_SRC::CLEAR 
+                        + OscInterrupt::RCOSC_DLF::CLEAR + OscInterrupt::RCOSC_LF::CLEAR 
+                        + OscInterrupt::RCOSC_HF::CLEAR + OscInterrupt::XOSC_DLF::CLEAR 
+                        + OscInterrupt::XOSC_HF::CLEAR + OscInterrupt::XOSC_LF::CLEAR);
 }
 
 pub fn enable_osc_interrupt(osc: OscInt) {

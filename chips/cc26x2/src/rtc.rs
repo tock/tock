@@ -95,8 +95,8 @@ impl Rtc {
     // This method is used by the RAT to sync the radio and MCU clocks when changing power modes
     pub fn sync(&self) {
         let regs = &*self.registers;
-
         regs.sync.get();
+    
     }
     fn read_counter(&self) -> u32 {
         let regs = &*self.registers;
