@@ -22,7 +22,7 @@
 //!
 use radio::commands as cmd;
 // use cortexm4::{self, nvic};
-use self::test_commands::{CommandCommon, CommandSyncRat, CommandRadioSetup};
+use self::test_commands::{CommandCommon, CommandRadioSetup, CommandSyncRat};
 use core::cell::Cell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -238,7 +238,7 @@ impl RFCore {
                 + RFCPWE::PHA::SET
                 + RFCPWE::FSCA::SET,
         );
-        
+
         let dbell_regs = self.dbell_regs;
 
         // Clear ack flag
@@ -274,7 +274,7 @@ impl RFCore {
         self.send_direct(&cmd_bus_req)
             .ok()
             .expect("Could not request bus on radio module");
-        
+
         // TESTING clear ack flag register
         dbell_regs.rfack_ifg.set(0);
 
@@ -379,12 +379,9 @@ impl RFCore {
             reg_override,
         };
 
-        self.send_test(&cmd)
-            .and_then(|_| self.wait_test(&cmd))
-            .ok();
-            // .expect("Radio setup command returned Err");
+        self.send_test(&cmd).and_then(|_| self.wait_test(&cmd)).ok();
+        // .expect("Radio setup command returned Err");
         dbell_regs.rfack_ifg.set(0);
-
     }
 
     pub fn start_rat(&self) {

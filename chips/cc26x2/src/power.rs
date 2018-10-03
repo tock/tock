@@ -3,8 +3,8 @@ use kernel::common::cells::VolatileCell;
 use power_manager::{PowerManager, Resource, ResourceManager};
 use prcm::{Power, PowerDomain};
 
-use aux;
 use aon;
+use aux;
 use osc;
 use prcm;
 use rtc;

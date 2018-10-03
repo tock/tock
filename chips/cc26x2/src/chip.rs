@@ -3,10 +3,10 @@ use gpio;
 use i2c;
 use kernel;
 use peripheral_interrupts;
+use prcm;
 use radio;
 use rtc;
 use uart;
-use prcm;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

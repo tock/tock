@@ -57,11 +57,11 @@ impl Radio {
 
     pub fn test_power_up(&self) {
         // osc::OSC.switch_to_rc_osc();
-         
+
         self.rfc.set_mode(rfc::RfcMode::Common);
-        
+
         osc::OSC.request_switch_to_hf_xosc();
-        
+
         self.rfc.enable();
 
         self.rfc.start_rat();

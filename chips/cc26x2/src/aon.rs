@@ -158,10 +158,10 @@ impl Aon {
 
         // Set RTC CH1 as a wakeup source by default
         regs.mcu_wu_sel1.set(0x3F3F3F24);
-        
+
         // Disable RTC combined event
         regs.rtc_sel.set(0x0000003F);
-        
+
         // The default reset value is 0x002B2B2B. However, 0x2b for each
         // programmable event corresponds to a JTAG event; which is fired
         // *all* the time during debugging through JTAG. It is better to
@@ -190,7 +190,7 @@ impl Aon {
             regs.ioc_clk32k_ctl.write(IocClk::EN::CLEAR);
         }
     }
-    
+
     pub fn lock_io_pins(&self, enable: bool) {
         let regs = &*self.ioc_regs;
         if enable {
@@ -199,7 +199,7 @@ impl Aon {
             regs.ioc_latch.write(IocLatch::EN::SET);
         }
     }
-    
+
     pub fn aux_set_ram_retention(&self, enabled: bool) {
         let regs = &*self.pmctl_regs;
         regs.ram_cfg.modify({
@@ -239,7 +239,7 @@ impl Aon {
         let regs = &*self.pmctl_regs;
         regs.aux_clk.modify(AuxClk::PWR_DWN_SRC::NO_CLOCK);
     }
-    
+
     pub fn aux_reset_done(&self) -> bool {
         let regs = &*self.pmctl_regs;
         let aux_reset_done = regs.pwr_stat.is_set(PwrStat::AUX_RESET_DONE);

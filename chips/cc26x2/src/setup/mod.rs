@@ -1,6 +1,4 @@
 #![allow(non_snake_case, unused_mut, unused_variables, unused_must_use)]
-// pub mod setup;
-// pub mod setup_rom;
 
 #[allow(unused_variables, unused_mut, non_snake_case)]
 pub mod oscfh;
@@ -76,7 +74,7 @@ pub unsafe extern "C" fn SetupTrimDevice() {
         == 0
     {
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
-        // TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
+    // TrimAfterColdResetWakeupFromShutDownWakeupFromPowerDown();
     } else {
         TrimAfterColdReset();
         TrimAfterColdResetWakeupFromShutDown(ui32Fcfg1Revision);
@@ -89,15 +87,15 @@ pub unsafe extern "C" fn SetupTrimDevice() {
 
     // Configure optimal wait time for flash FSM in cases where flash pump
     // wakes up from sleep
-    
+
     *((0x40030000i32 + 0x2048i32) as (*mut usize)) = *((0x40030000i32 + 0x2048i32) as (*mut usize))
         & !0xfff0000i32 as (usize)
         | (0x139i32 << 16i32) as (usize);
-    
+
     // And finally at the end of the flash boot process:
     // SET BOOT_DET bits in AON_PMCTL to 3 if already found to be 1
     // Note: The BOOT_DET_x_CLR/SET bits must be manually cleared
-    
+
     if (*((0x40090000i32 + 0x28i32) as (*mut usize)) & (0x2000i32 | 0x1000i32) as (usize)) >> 12i32
         == 1usize
     {
@@ -255,7 +253,7 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
             *((0x40086200i32 + 0x60i32 + (0x3i32 << 1i32)) as (*mut u16)) =
                 ((0xf8i32 << 8i32) as (u32) | (ui32EfuseData & 0xf800u32) >> 11i32 << 3i32)
                     as (u16);
-        }/*
+        } /*
         let _rhs = !0x80i32;
         let _lhs = &mut *((0x40086200i32 + 0x5i32) as (*mut u8));
         *_lhs = (*_lhs as (i32) & _rhs) as (u8);
@@ -509,10 +507,9 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
                     | ((fcfg1OscConf & 0x1u32) >> 0i32 << 0i32) as (usize);
                 *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x80000000usize;
             }
-        },
+        }
         _ => (),
     }
-
 
     // Set XOSC_HF in bypass mode if CCFG is configured for external TCXO
     if *((0x50003000i32 + 0x1fb0i32) as (*mut usize)) & 0x8usize == 0usize {

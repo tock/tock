@@ -489,10 +489,16 @@ pub fn rf_mode_sel(mode: u32) {
 
 pub fn disable_osc_interrupt() {
     let regs = PRCM_BASE;
-    regs.osc_imsc.write(OscInterrupt::HF_SRC::CLEAR + OscInterrupt::LF_SRC::CLEAR 
-                        + OscInterrupt::RCOSC_DLF::CLEAR + OscInterrupt::RCOSC_LF::CLEAR 
-                        + OscInterrupt::RCOSC_HF::CLEAR + OscInterrupt::XOSC_DLF::CLEAR 
-                        + OscInterrupt::XOSC_HF::CLEAR + OscInterrupt::XOSC_LF::CLEAR);
+    regs.osc_imsc.write(
+        OscInterrupt::HF_SRC::CLEAR
+            + OscInterrupt::LF_SRC::CLEAR
+            + OscInterrupt::RCOSC_DLF::CLEAR
+            + OscInterrupt::RCOSC_LF::CLEAR
+            + OscInterrupt::RCOSC_HF::CLEAR
+            + OscInterrupt::XOSC_DLF::CLEAR
+            + OscInterrupt::XOSC_HF::CLEAR
+            + OscInterrupt::XOSC_LF::CLEAR,
+    );
 }
 
 pub fn enable_osc_interrupt(osc: OscInt) {

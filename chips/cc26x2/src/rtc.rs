@@ -96,7 +96,6 @@ impl Rtc {
     pub fn sync(&self) {
         let regs = &*self.registers;
         regs.sync.get();
-    
     }
     fn read_counter(&self) -> u32 {
         let regs = &*self.registers;

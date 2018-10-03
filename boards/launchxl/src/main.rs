@@ -12,9 +12,9 @@ extern crate fixedvec;
 extern crate kernel;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
+use cc26x2::aux;
 use cc26x2::prcm;
 use cc26x2::radio;
-use cc26x2::aux;
 use kernel::capabilities;
 use kernel::hil;
 
@@ -50,7 +50,7 @@ pub struct Platform {
     rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
     radio: &'static capsules::virtual_rfcore::VirtualRadioDriver<
         'static,
-        cc26x2::radio::rfcore_driver::Radio,
+        cc26x2::radio::subghz::Radio,
     >,
 }
 
@@ -362,22 +362,21 @@ pub unsafe fn reset_handler() {
     radio::RFC.set_client(&radio::RADIO);
 
     let virtual_radio = static_init!(
-        capsules::virtual_rfcore::VirtualRadioDriver<'static, cc26x2::radio::rfcore_driver::Radio>,
+        capsules::virtual_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
         capsules::virtual_rfcore::VirtualRadioDriver::new(
             &cc26x2::radio::RADIO,
             board_kernel.create_grant(&memory_allocation_capability),
             &mut HELIUM_BUF
         )
     );
-    
-    
+
     kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
     kernel::hil::radio_client::RadioDriver::set_receive_client(
         &radio::RADIO,
         virtual_radio,
         &mut HELIUM_BUF,
     );
-    
+
     let rfc = &cc26x2::radio::RADIO;
     rfc.test_power_up();
 

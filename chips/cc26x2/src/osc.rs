@@ -1,7 +1,7 @@
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use setup::oscfh;
 use prcm;
+use setup::oscfh;
 
 pub struct DdiRegisters {
     ctl0: ReadWrite<u32, Ctl0::Register>,

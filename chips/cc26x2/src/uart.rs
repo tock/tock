@@ -164,11 +164,11 @@ impl UART {
         // Disable all UART interrupts
         self.registers.imsc.modify(Interrupts::ALL_INTERRUPTS::SET);
     }
-    
+
     fn busy(&self) -> bool {
         self.registers.fr.is_set(Flags::UART_BUSY)
     }
-    
+
     /// Clears all interrupts related to UART.
     pub fn handle_interrupt(&self) {
         // Clear interrupts
