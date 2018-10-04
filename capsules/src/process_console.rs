@@ -33,6 +33,7 @@ use core::cmp;
 use core::str;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
+use kernel::Kernel;
 use kernel::ReturnCode;
 
 /// Syscall driver number.
@@ -53,6 +54,7 @@ pub struct ProcessConsole<'a, U: UART> {
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
     running: Cell<bool>,
+    kernel: &'static Kernel,
 }
 
 impl<U: UART> ProcessConsole<'a, U> {
@@ -62,6 +64,7 @@ impl<U: UART> ProcessConsole<'a, U> {
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
+        kernel: &'static Kernel,
     ) -> ProcessConsole<'a, U> {
         ProcessConsole {
             uart: uart,
@@ -73,6 +76,7 @@ impl<U: UART> ProcessConsole<'a, U> {
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
             running: Cell::new(false),
+            kernel: kernel,
         }
     }
 
@@ -136,13 +140,50 @@ impl<U: UART> ProcessConsole<'a, U> {
                             debug!("Welcome to the process console.");
                             debug!("Valid commands are: help list stop start restart");
                         } else if clean_str.starts_with("start") {
-
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel.process_each_enumerate(|i, proc| {
+                                    let proc_name = str::from_utf8(proc.get_process_name());
+                                    match proc_name {
+                                        Ok(s) => {
+                                            if s == name {
+                                                proc.resume();
+                                                debug!("Process {} resumed.", name);
+                                            }
+                                        },
+                                        Err(_e) => debug!("Process {} has invalid name", i)
+                                    }
+                                });
+                            });
                         } else if clean_str.starts_with("stop") {
-
+                            let argument = clean_str.split_whitespace().nth(1);
+                            debug!("Stopping {:?}", argument);
+                            argument.map(|name| {
+                                debug!("Stopping {}", name);
+                                self.kernel.process_each_enumerate(|i, proc| {
+                                    let proc_name = str::from_utf8(proc.get_process_name());
+                                    match proc_name {
+                                        Ok(s) => {
+                                            if s == name {
+                                                proc.stop();
+                                                debug!("Process {} stopped.", name);
+                                            }
+                                        },
+                                        Err(_e) => debug!("Process {} has invalid name", i)
+                                    }
+                                });
+                            });
                         } else if clean_str.starts_with("restart") {
-
+                            debug!("restart not supported yet");
                         } else if clean_str.starts_with("list") {
-
+                            debug!("Loaded processes:");
+                            self.kernel.process_each_enumerate(|i, proc| {
+                                let pname = str::from_utf8(proc.get_process_name());
+                                match pname {
+                                    Ok(s) => debug!("  {:02}: {}", i, s),
+                                    Err(_e) => debug!("  {:02}: UNKNOWN", i)
+                                };
+                            });
                         } else {
                             debug!("Valid commands are: help list stop start restart");
                             debug!("Command: {:?}", command);
@@ -216,6 +257,9 @@ impl<U: UART> Client for ProcessConsole<'a, U> {
                                 command[index - 1] = '\0' as u8;
                                 self.command_index.set(index - 1);
                             } else if index < (command.len() - 1) && read_buf[0] < 128 {
+                                // For some reason, sometimes reads return > 127 but no error,
+                                // which causes utf-8 decoding failure, so check byte is < 128. -pal
+
                                 // Echo the byte and store it
                                 self.write_byte(read_buf[0]);
                                 command[index] = read_buf[0];

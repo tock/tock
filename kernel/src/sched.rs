@@ -85,7 +85,7 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    crate fn process_each_enumerate<F>(&self, closure: F)
+    pub fn process_each_enumerate<F>(&self, closure: F)
     where
         F: Fn(usize, &process::ProcessType),
     {

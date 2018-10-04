@@ -55,7 +55,8 @@ impl Component for ProcessConsoleComponent {
                 self.baud_rate,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
-                &mut process_console::COMMAND_BUF
+                &mut process_console::COMMAND_BUF,
+                self.board_kernel,
             )
         );
         hil::uart::UART::set_client(console_uart, console);
