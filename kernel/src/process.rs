@@ -947,7 +947,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
             let initial_kernel_memory_size =
                 grant_ptrs_offset + callbacks_offset + process_struct_offset;
-            let initial_app_memory_size = 128;
+            let initial_app_memory_size = 3 * 1024;
 
             if min_app_ram_size < initial_app_memory_size {
                 min_app_ram_size = initial_app_memory_size;
