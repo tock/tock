@@ -188,7 +188,7 @@ pub struct RFCore {
     client: Cell<Option<&'static RFCoreClient>>,
     pub mode: Cell<Option<RfcMode>>,
     pub rat: Cell<u32>,
-    status: Cell<u32>,
+    pub status: Cell<u32>,
 }
 
 impl RFCore {
@@ -376,7 +376,7 @@ impl RFCore {
                 cfg
             },
             tx_power: tx_power,
-            reg_override,
+            reg_override: 0,
         };
 
         self.send_test(&cmd).and_then(|_| self.wait_test(&cmd)).ok();
@@ -395,7 +395,7 @@ impl RFCore {
             cond
         };
         let common =
-            cmd::CmdCommon::new(0x080D, 0, p_next_op, start_time, start_trigger, condition);
+            cmd::CmdCommon::new(0x080A, 0, p_next_op, start_time, start_trigger, condition);
 
         let mut rf_command = cmd::CmdSyncStartRat::new(common, self.rat.get());
         rf_command = cmd::RadioCommand::pack(&rf_command, common);
@@ -404,8 +404,9 @@ impl RFCore {
             .and_then(|_| self.wait(&rf_command))
             .ok()
             .expect("Start RAT command returned Err");
-        */
+        */ 
         let dbell_regs = &*self.dbell_regs;
+        
         let rf_command_test = CommandSyncRat {
             command_no: 0x080A,
             status: 0,
@@ -423,7 +424,10 @@ impl RFCore {
 
         self.send_test(&rf_command_test)
             .and_then(|_| self.wait_test(&rf_command_test))
-            .ok();
+            .ok()
+            .expect("Start RAT command erturned Err");
+        
+        // REMOVE AFTER TESTING DONE
         dbell_regs.rfack_ifg.set(0);
         dbell_regs.rfcpe_ifg.set(0);
     }

@@ -70,7 +70,7 @@ impl Radio {
 
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides, 0xFFF)
+            self.rfc.setup(reg_overrides, 0xFFFE)
         }
     }
 
@@ -80,13 +80,14 @@ impl Radio {
         osc::OSC.request_switch_to_hf_xosc();
 
         self.rfc.enable();
+        
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
 
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides, 0xFFF)
+            self.rfc.setup(reg_overrides, 0xFFFE) // No idea what power setting this is
         }
 
         if self.rfc.check_enabled() {
@@ -197,8 +198,15 @@ impl radio_client::RadioConfig for Radio {
     }
 
     fn busy(&self) -> bool {
-        // TODO check cmd status of current command running
-        true
+        // Might be an obsolete command here in favor of get_command_status and some logic on the
+        // user size to determine if the radio is busy. Not sure what is best to have here but
+        // arguing best might be bikeshedding
+        let status = self.rfc.status.get();
+        match status {
+            0x0001 => true, 
+            0x0002 => true,
+            _ => false,
+        }
     }
 
     fn config_commit(&self) {
@@ -215,13 +223,29 @@ impl radio_client::RadioConfig for Radio {
         0x00000000
     }
 
-    fn get_command_status(&self) -> u32 {
+    fn get_command_status(&self) -> (ReturnCode, Option<u32>) {
         // TODO get command status specifics
-        0x00000000
+        let status = self.rfc.status.get();
+        match status & 0x0F00 {
+            0 => (ReturnCode::SUCCESS, Some(status)),
+            4 => (ReturnCode::SUCCESS, Some(status)),
+            8 => (ReturnCode::FAIL, Some(status)),
+            _ => (ReturnCode::EINVAL, Some(status)),
+        }
     }
 
     fn set_tx_power(&self, _power: u32) -> ReturnCode {
         // TODO send direct command for TX power change
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn send_stop_command(&self) -> ReturnCode {
+        // TODO send "Gracefull" stop radio operation direct command
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn send_kill_command(&self) -> ReturnCode {
+        // TODO send immidiate command kill all radio operation commands
         ReturnCode::ENOSUPPORT
     }
 }

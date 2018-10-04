@@ -40,9 +40,10 @@ impl Default for App {
     }
 }
 
-pub struct VirtualRadioDriver<'a, R>
+pub struct VirtualRadioDriver<'a, R, F>
 where
     R: radio_client::Radio,
+    P: 
 {
     radio: &'a R,
     app: Grant<App>,
@@ -81,6 +82,62 @@ where
             .enter(appid, |app, _| closure(app))
             .unwrap_or_else(|err| err.into())
     }
+
+    /// Performs `appid`'s pending transmission asynchronously. If the
+    /// transmission is not successful, the error is returned to the app via its
+    /// `tx_callback`. Assumes that the driver is currently idle and the app has
+    /// a pending transmission.
+    #[inline]
+    fn perform_tx_async(&self, appid: AppId) {
+        let result = self.perform_tx_sync(appid);
+        if result != ReturnCode::SUCCESS {
+            let _ = self.app.enter(appid, |app, _| {
+                app.tx_callback
+                    .take()
+                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+            });
+        }
+    }
+
+    /// Performs `appid`'s pending transmission synchronously. The result is
+    /// returned immediately to the app. Assumes that the driver is currently
+    /// idle and the app has a pending transmission.
+    #[inline]
+    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+        self.do_with_app(appid, |app| {
+            let _device_id = match app.pending_tx.take() {
+                Some(pending_tx) => pending_tx,
+                None => {
+                    return ReturnCode::SUCCESS;
+                }
+            };
+
+            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+                let seq: u8 = 0; // TEMP SEQ # ALWAYS 0
+                let frame = self.radio.prepare_data_frame(
+                    kbuf,
+                    seq,
+                    ) {
+                    Ok(frame) => frame,
+                    Err(kbuf) => {
+                        self.kernel_tx.replace(kbuf);
+                        return ReturnCode::FAIL;
+                    }
+                };
+                // Transmit the frame
+                let (result, mbuf) = self.radio.transmit(frame);
+                if let Some(buf) = mbuf {
+                    self.kernel_tx.replace(buf);
+                }
+                result
+            });
+            if result == ReturnCode::SUCCESS {
+                self.current_app.set(appid);
+            }
+            result
+        })
+    }
+
 }
 
 impl<R> Driver for VirtualRadioDriver<'a, R>
@@ -145,9 +202,14 @@ where
     ///
     /// - `0`: Driver check.
     /// - `1`: Power on radio
-    /// - `2`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `2`: Power down radio
+    /// - `3`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `4`: Set radio TX power (post radio setup)
+    /// - `5`: "Gracefull" stop radio operation command
+    /// - `6`: Get radio command status
+    /// - `7`: Force stop radio operation (no powerdown)
 
-    fn command(&self, command_num: usize, _r2: usize, _r3: usize, _appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, r2: usize, _r3: usize, _appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {
@@ -158,11 +220,41 @@ where
                 }
             }
             2 => {
+                let status = self.radio.stop();
+                match status {
+                    ReturnCode::SUCCESS => ReturnCode::SUCCESS,
+                    _ => ReturnCode::FAIL,
+                }
+            }
+            3 => {
                 if self.radio.is_on() {
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::EOFF
                 }
+            }
+            4 => {
+                let status = self.radio.set_tx_power(r2 as u32);
+                match status {
+                    ReturnCode::SUCCESS => ReturnCode::SUCCESS,
+                    _ => ReturnCode::FAIL,
+                }
+            }
+            5 => {
+                let status = self.radio.send_stop_command();
+                match status {
+                    ReturnCode::SUCCESS => ReturnCode::SUCCESS,
+                    _ => ReturnCode::FAIL,
+                }
+            }
+            6 => {
+                // TODO Parsing with the returned Option<retval> which is some u32 hex code the
+                // radio responds with during radio operation command processing
+                let (status, _retval) = self.radio.get_command_status();
+                status
+            }
+            7 => {
+                self.radio.send_kill_command()
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -171,6 +263,14 @@ where
 
 impl<R: radio_client::Radio> radio_client::TxClient for VirtualRadioDriver<'a, R> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
+        self.kernel_tx.replace(buf);
+        self.current_app.take().map(|app_id| {
+            let _ = self.app.enter(app_id, |app, _| {
+                app.tx_callback
+                    .take()
+                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+            });
+        });
         self.tx_client.map(move |c| {
             c.transmit_event(buf, result);
         });
