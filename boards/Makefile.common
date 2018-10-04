@@ -111,7 +111,10 @@ endif
 .PHONY: all
 all: release
 
-# `make check` runs the Rust compiler but does not actually output the final
+.PHONY: test
+test:
+	$(Q)RUSTFLAGS="$(RUSTFLAGS_FOR_CARGO_LINKING)" $(CARGO) build --target=$(TARGET) $(VERBOSE) --release --features test
+
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
@@ -139,7 +142,6 @@ lst: target/$(TARGET)/release/$(PLATFORM).lst
 
 .PHONY: release
 release: target/$(TARGET)/release/$(PLATFORM).bin
-
 
 # Support rules
 
