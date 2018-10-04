@@ -22,3 +22,8 @@ capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf51 = { path = "../../../chips/nrf51" }
 nrf5x = { path = "../../../chips/nrf5x" }
+tock-tests = { path = "../../../tests", optional = true }
+
+[features]
+default = []
+test = ["tock-tests/nrf51-test"]

@@ -21,3 +21,8 @@ cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 sam4l = { path = "../../chips/sam4l" }
+tock-tests = { path = "../../tests", optional = true }
+
+[features]
+default = []
+test = ["tock-tests/sam4l-test"]

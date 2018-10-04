@@ -23,3 +23,8 @@ kernel = { path = "../../../kernel" }
 nrf52 = { path = "../../../chips/nrf52" }
 nrf5x = { path = "../../../chips/nrf5x" }
 nrf52dk_base = { path = "../nrf52dk_base" }
+tock-tests = { path = "../../../tests", optional = true }
+
+[features]
+default = []
+test = ["tock-tests/nrf52-test"]
