@@ -71,6 +71,10 @@ use net::stream::{decode_bytes, decode_u16, decode_u8};
 use net::stream::{encode_bytes, encode_u16, encode_u8};
 use net::tcp::TCPHeader;
 use net::udp::udp::UDPHeader;
+use kernel::ReturnCode;
+
+pub const UDP_HDR_LEN: usize = 8;
+pub const ICMP_HDR_LEN: usize = 8;
 
 /// This is the struct definition for an IPv6 header. It contains (in order)
 /// the same fields as a normal IPv6 header.
@@ -249,6 +253,48 @@ impl IP6Header {
 
     pub fn set_hop_limit(&mut self, new_hl: u8) {
         self.hop_limit = new_hl;
+    }
+
+    /// Utility function for verifying whether a transport layer checksum of a received
+    /// packet is correct. Is called on the assocaite IPv6 Header, and passed the buffer
+    /// containing the remainder of the packet.
+    pub fn check_transport_checksum(&self, buf:&[u8]) -> ReturnCode {
+        match self.next_header {
+            ip6_nh::UDP => {
+                let mut udp_header: [u8; UDP_HDR_LEN] = [0; UDP_HDR_LEN];
+                udp_header.copy_from_slice(&buf[..UDP_HDR_LEN]);
+                let checksum = match UDPHeader::decode(&udp_header).done() {
+                    Some((_offset, hdr)) => {
+                        u16::from_be(compute_udp_checksum(&self, &hdr, buf.len() as u16, &buf[UDP_HDR_LEN..]))
+                    }
+                    None => 0xffff //Will be dropped, as ones comp -0 checksum is invalid
+                };
+                if checksum != 0 {
+                    return ReturnCode::FAIL; //Incorrect cksum
+                }
+                ReturnCode::SUCCESS
+            }
+            ip6_nh::ICMP => {
+                // Untested (10/5/18)
+                let mut icmp_header: [u8; ICMP_HDR_LEN] = [0; ICMP_HDR_LEN];
+                icmp_header.copy_from_slice(&buf[..ICMP_HDR_LEN]);
+                let checksum = match ICMP6Header::decode(&icmp_header).done() {
+                    Some((_offset, mut hdr)) => {
+                        hdr.set_len(buf.len() as u16);
+                        u16::from_be(compute_icmp_checksum(&self, &hdr, &buf[ICMP_HDR_LEN..]))
+                    }
+                    None => 0xffff //Will be dropped, as ones comp -0 checksum is invalid
+                };
+                if checksum != 0 {
+                    return ReturnCode::FAIL; //Incorrect cksum
+                }
+                ReturnCode::SUCCESS
+
+            }
+            _ => ReturnCode::ENOSUPPORT
+
+        }
+
     }
 }
 

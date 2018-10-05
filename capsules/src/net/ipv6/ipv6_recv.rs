@@ -2,6 +2,8 @@ use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
 use net::ipv6::ipv6::IP6Header;
 use net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
+use net::udp::udp::UDPHeader;
+use net::ipv6::ip_utils::compute_udp_checksum;
 
 // To provide some context for the entire rx chain:
 /*
@@ -60,16 +62,22 @@ impl<'a> IP6RecvStruct<'a> {
 
 impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
     fn receive(&self, buf: &[u8], len: usize, result: ReturnCode) {
-        // TODO: Drop here?
+        // TODO: Drop here? Any additional sanity checking?
         if len > buf.len() || result != ReturnCode::SUCCESS {
             return;
         }
         match IP6Header::decode(buf).done() {
-            Some((offset, header)) => {
-                // TODO: Probably do some sanity checking, check for checksum
-                // correctness, length, etc.
+            Some((offset, ip6_header)) => {
+                let checksum_result = ip6_header.check_transport_checksum(&buf[offset..len]);
+                if checksum_result == ReturnCode::FAIL {
+                    debug!("dropped!: {:?}", checksum_result);
+                    return; //Dropped.
+                }
+                // Note: Protocols for which checksum verification is not implemented (TCP, etc.)
+                // are automatically assumed as fine, rather than dropped
+
                 self.client
-                    .map(|client| client.receive(header, &buf[offset..len]));
+                    .map(|client| client.receive(ip6_header, &buf[offset..len]));
             }
             None => {
                 // TODO: Report the error somewhere...
