@@ -106,6 +106,8 @@ ifneq ($(V),)
   $(info )
 endif
 
+.PRECIOUS: %.elf
+# Support rules
 
 # User-facing targets
 .PHONY: all
