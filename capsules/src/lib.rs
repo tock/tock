@@ -8,8 +8,6 @@
 #[macro_use(debug)]
 extern crate kernel;
 
-pub mod test;
-
 #[macro_use]
 pub mod net;
 
