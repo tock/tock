@@ -61,6 +61,8 @@ extern crate cortexm0;
 extern crate nrf51;
 extern crate nrf5x;
 
+#[cfg(feature = "test")] extern crate tock_tests;
+
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{UartDevice, UartMux};
@@ -76,8 +78,6 @@ use nrf5x::rtc::{Rtc, RTC};
 /// UART Writer
 #[macro_use]
 pub mod io;
-#[allow(dead_code)]
-mod aes_test;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -399,6 +399,11 @@ pub unsafe fn reset_handler() {
     };
 
     rtc.start();
+    
+    #[cfg(feature = "test")]
+    {
+        tock_tests::run_all_tests();
+    }
 
     let chip = nrf51::chip::NRF51::new();
     chip.systick().reset();

@@ -74,6 +74,8 @@ extern crate nrf52;
 extern crate nrf52dk_base;
 extern crate nrf5x;
 
+#[cfg(feature = "test")] extern crate tock_tests;
+
 use nrf52dk_base::{SpiPins, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
@@ -101,12 +103,6 @@ const SPI_CLK: usize = 24;
 /// UART Writer
 #[macro_use]
 pub mod io;
-
-// FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
-//
-// Also read the instructions in `tests` how to run the tests
-#[allow(dead_code)]
-mod tests;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -195,6 +191,12 @@ pub unsafe fn reset_handler() {
             ), // 16
         ]
     );
+
+    #[cfg(feature = "test")] 
+    {
+        tests::run_all_tests();
+        panic!("All tests have been executed, now terminating!!");
+    }
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 

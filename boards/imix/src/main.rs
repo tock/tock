@@ -17,7 +17,11 @@ extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
 
+#[cfg(feature = "test")]
+extern crate tock_tests;
+
 mod components;
+
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
@@ -59,35 +63,9 @@ use components::usb::UsbComponent;
 #[macro_use]
 pub mod io;
 
-// Unit Tests for drivers.
-#[allow(dead_code)]
-mod i2c_dummy;
-#[allow(dead_code)]
-mod icmp_lowpan_test;
-#[allow(dead_code)]
-mod ipv6_lowpan_test;
-#[allow(dead_code)]
-mod spi_dummy;
-#[allow(dead_code)]
-mod udp_lowpan_test;
-
-#[allow(dead_code)]
-mod aes_test;
-
-#[allow(dead_code)]
-mod aes_ccm_test;
-
-#[allow(dead_code)]
-mod rng_test;
-
-#[allow(dead_code)]
 mod power;
 
-#[allow(dead_code)]
-mod virtual_uart_rx_test;
-
 // State for loading apps.
-
 const NUM_PROCS: usize = 2;
 
 // Constants related to the configuration of the 15.4 network stack
@@ -423,12 +401,14 @@ pub unsafe fn reset_handler() {
     // initialization to work.
     rf233.reset();
     rf233.start();
+    
+    #[cfg(feature = "test")] 
+    {
+        tock_tests::run_all_tests();
+        panic!("All tests have been executed, now terminating!!");
+    }
 
-    //    debug!("Starting virtual read test.");
-    //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
-
-    //    rng_test::run_entropy32();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

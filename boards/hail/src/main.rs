@@ -15,6 +15,9 @@ extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
 
+#[cfg(feature = "test")]
+extern crate tock_tests;
+
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -32,8 +35,6 @@ use kernel::Platform;
 /// Note: Use of this module will trample any other USART0 configuration.
 #[macro_use]
 pub mod io;
-#[allow(dead_code)]
-mod test_take_map_cell;
 
 static mut SPI_READ_BUF: [u8; 64] = [0; 64];
 static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
@@ -583,8 +584,11 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
-    // Uncomment to measure overheads for TakeCell and MapCell:
-    // test_take_map_cell::test_take_map_cell();
+    #[cfg(feature = "test")] 
+    {
+        tock_tests::run_all_tests();
+        panic!("All tests have been executed, now terminating!!");
+    }
 
     debug!("Initialization complete. Entering main loop");
 
