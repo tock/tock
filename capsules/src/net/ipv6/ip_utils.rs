@@ -125,7 +125,7 @@ pub fn compute_udp_checksum(
         while i < ((udp_length - 8) as usize) {
             let msb_dat: u16 = ((payload[i]) as u16) << 8;
             let mut lsb_dat: u16 = 0;
-            if (i + 1 < udp_length as usize - 8) {
+            if i + 1 < udp_length as usize - 8 {
                 lsb_dat = payload[i + 1] as u16;
             }
             let temp_dat: u16 = msb_dat + lsb_dat;
