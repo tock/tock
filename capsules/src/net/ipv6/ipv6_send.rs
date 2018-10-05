@@ -19,8 +19,8 @@
 use core::cell::Cell;
 use ieee802154::device::{MacDevice, TxClient};
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::ReturnCode;
 use kernel::hil::time::{self, Frequency};
+use kernel::ReturnCode;
 use net::ieee802154::MacAddress;
 use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
@@ -86,8 +86,8 @@ pub struct IP6SendStruct<'a, A: time::Alarm> {
     // We want the ip6_packet field to be a TakeCell so that it is easy to mutate
     ip6_packet: TakeCell<'static, IP6Packet<'static>>,
     alarm: &'a A, // Alarm so we can introduce a small delay between fragments to ensure
-                  // successful reception on receivers with slow copies out of the radio buffer
-                  // (imix)
+    // successful reception on receivers with slow copies out of the radio buffer
+    // (imix)
     src_addr: Cell<IPAddr>,
     gateway: Cell<MacAddress>,
     tx_buf: TakeCell<'static, [u8]>,

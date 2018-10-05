@@ -3,7 +3,7 @@
 use core::mem;
 use core::result::Result;
 use net::ieee802154::MacAddress;
-use net::ipv6::ip_utils::{ip6_nh, IPAddr, compute_udp_checksum};
+use net::ipv6::ip_utils::{compute_udp_checksum, ip6_nh, IPAddr};
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use net::udp::udp::UDPHeader;
 use net::util;
@@ -155,7 +155,6 @@ impl ContextStore for Context {
 pub fn is_lowpan(packet: &[u8]) -> bool {
     (packet[0] & iphc::DISPATCH[0]) == iphc::DISPATCH[0]
 }
-
 
 /// Maps a LoWPAN_NHC header the corresponding IPv6 next header type,
 /// or an error if the NHC header is invalid
@@ -709,7 +708,8 @@ pub fn decompress(
                 //len to calculate the length
                 if !is_fragment {
                     // Expansion from port compression
-                    udp_length += nhc::UDP_PORTS_SIZE - ((consumed - consumed_before_port_decompress) as u16);
+                    udp_length +=
+                        nhc::UDP_PORTS_SIZE - ((consumed - consumed_before_port_decompress) as u16);
                     // Expansion from length elision (always applied per RFC 6282, length is 2
                     // bytes)
                     udp_length += 2;
@@ -1172,10 +1172,13 @@ fn decompress_udp_checksum(
         let mut udp_header_copy: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
         udp_header_copy.copy_from_slice(udp_header);
         match UDPHeader::decode(&udp_header_copy).done() {
-            Some((_offset, hdr)) => {
-                u16::from_be(compute_udp_checksum(ip6_header, &hdr, udp_length, &buf[*consumed..]))
-            }
-            None => 0 //Will be dropped  by IP layer
+            Some((_offset, hdr)) => u16::from_be(compute_udp_checksum(
+                ip6_header,
+                &hdr,
+                udp_length,
+                &buf[*consumed..],
+            )),
+            None => 0, //Will be dropped  by IP layer
         }
     } else {
         let checksum = u16::from_be(slice_to_u16(&buf[*consumed..*consumed + 2]));

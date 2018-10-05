@@ -135,7 +135,10 @@ impl Component for UDPComponent {
         let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
         let ip_send = static_init!(
-            capsules::net::ipv6::ipv6_send::IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+            capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                'static,
+                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            >,
             capsules::net::ipv6::ipv6_send::IP6SendStruct::new(
                 ip6_dg,
                 ipsender_virtual_alarm,
@@ -154,7 +157,13 @@ impl Component for UDPComponent {
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
-            UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>>,
+            UDPSendStruct<
+                'static,
+                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+                >,
+            >,
             UDPSendStruct::new(ip_send)
         );
         ip_send.set_client(udp_send);
