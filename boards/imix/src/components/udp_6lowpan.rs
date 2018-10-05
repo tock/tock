@@ -29,6 +29,7 @@ use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel;
 use kernel::capabilities;
@@ -57,6 +58,7 @@ pub struct UDPComponent {
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
+    alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
 
 impl UDPComponent {
@@ -68,6 +70,7 @@ impl UDPComponent {
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
+        alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
     ) -> UDPComponent {
         UDPComponent {
             board_kernel: board_kernel,
@@ -77,6 +80,7 @@ impl UDPComponent {
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
+            alarm_mux: alarm,
         }
     }
 }
@@ -86,6 +90,10 @@ impl Component for UDPComponent {
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let ipsender_virtual_alarm = static_init!(
+            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            VirtualMuxAlarm::new(self.alarm_mux)
+        );
 
         let udp_mac = static_init!(
             capsules::ieee802154::virtual_mac::MacUser<'static>,
@@ -127,9 +135,10 @@ impl Component for UDPComponent {
         let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
         let ip_send = static_init!(
-            capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
+            capsules::net::ipv6::ipv6_send::IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
             capsules::net::ipv6::ipv6_send::IP6SendStruct::new(
                 ip6_dg,
+                ipsender_virtual_alarm,
                 &mut RF233_BUF,
                 sixlowpan_tx,
                 udp_mac,
@@ -137,6 +146,7 @@ impl Component for UDPComponent {
                 self.src_mac_addr
             )
         );
+        ipsender_virtual_alarm.set_client(ip_send);
 
         // Initially, set src IP of the sender to be the first IP in the Interface
         // list. Userland apps can change this if they so choose.
@@ -144,7 +154,7 @@ impl Component for UDPComponent {
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
-            UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>>,
+            UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>>,
             UDPSendStruct::new(ip_send)
         );
         ip_send.set_client(udp_send);

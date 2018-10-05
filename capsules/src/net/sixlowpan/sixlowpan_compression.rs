@@ -735,6 +735,7 @@ pub fn decompress(
                     &ip6_header,
                     &buf,
                     &mut consumed,
+                    is_fragment,
                 );
                 u16_to_slice(udp_checksum.to_be(), &mut next_headers[6..8]);
 
@@ -1160,11 +1161,14 @@ fn decompress_udp_checksum(
     ip6_header: &IP6Header,
     buf: &[u8],
     consumed: &mut usize,
+    is_fragment: bool,
 ) -> u16 {
     // TODO: In keeping with Postel's Law, we accept UDP packets that elide the
     // checksum (per RFC 6282). We are not sure if we should continue to support
     // this feature however.
-    if (udp_nhc & nhc::UDP_CHECKSUM_FLAG) != 0 {
+    // Also, this implementation currently does not work for multi-frame packets,
+    // as decompress is called on the first frame before the others arrive.
+    if (udp_nhc & nhc::UDP_CHECKSUM_FLAG) != 0 && !is_fragment {
         let mut udp_header_copy: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
         udp_header_copy.copy_from_slice(udp_header);
         match UDPHeader::decode(&udp_header_copy).done() {

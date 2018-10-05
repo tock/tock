@@ -384,6 +384,7 @@ pub unsafe fn reset_handler() {
         DST_MAC_ADDR,
         SRC_MAC_ADDR,
         &LOCAL_IP_IFACES,
+        mux_alarm,
     ).finalize();
 
     let imix = Imix {

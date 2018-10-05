@@ -20,6 +20,7 @@ use core::cell::Cell;
 use ieee802154::device::{MacDevice, TxClient};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::ReturnCode;
+use kernel::hil::time::{self, Frequency};
 use net::ieee802154::MacAddress;
 use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
@@ -81,9 +82,12 @@ pub trait IP6Sender<'a> {
 
 /// This struct is a specific implementation of the `IP6Sender` trait. This
 /// struct sends the packet using 6LoWPAN over a generic `MacDevice` object.
-pub struct IP6SendStruct<'a> {
+pub struct IP6SendStruct<'a, A: time::Alarm> {
     // We want the ip6_packet field to be a TakeCell so that it is easy to mutate
     ip6_packet: TakeCell<'static, IP6Packet<'static>>,
+    alarm: &'a A, // Alarm so we can introduce a small delay between fragments to ensure
+                  // successful reception on receivers with slow copies out of the radio buffer
+                  // (imix)
     src_addr: Cell<IPAddr>,
     gateway: Cell<MacAddress>,
     tx_buf: TakeCell<'static, [u8]>,
@@ -94,7 +98,7 @@ pub struct IP6SendStruct<'a> {
     client: OptionalCell<&'a IP6SendClient>,
 }
 
-impl IP6Sender<'a> for IP6SendStruct<'a> {
+impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
     fn set_client(&self, client: &'a IP6SendClient) {
         self.client.set(client);
     }
@@ -130,17 +134,19 @@ impl IP6Sender<'a> for IP6SendStruct<'a> {
     }
 }
 
-impl IP6SendStruct<'a> {
+impl<A: time::Alarm> IP6SendStruct<'a, A> {
     pub fn new(
         ip6_packet: &'static mut IP6Packet<'static>,
+        alarm: &'a A,
         tx_buf: &'static mut [u8],
         sixlowpan: TxState<'a>,
         radio: &'a MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
-    ) -> IP6SendStruct<'a> {
+    ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
+            alarm: alarm,
             src_addr: Cell::new(IPAddr::new()),
             gateway: Cell::new(dst_mac_addr),
             tx_buf: TakeCell::new(tx_buf),
@@ -164,15 +170,6 @@ impl IP6SendStruct<'a> {
 
     // Returns EBUSY if the tx_buf is not there
     fn send_next_fragment(&self) -> ReturnCode {
-        // Below code adds delay between fragments. Despite some efforts
-        // to fix this bug, I find that without it the receiving imix cannot
-        // receive more than 2 fragments in a single packet without hanging
-        // waiting for the third fragments.
-        let mut x = 0;
-        for i in 0..100000 {
-            x = x + i;
-        }
-        debug!("{}", x);
         // Originally send_complete() was called within the below closure.
         // However, this led to a race condition where when multiple apps transmitted
         // simultaneously, it was possible for send_complete to trigger another
@@ -221,13 +218,29 @@ impl IP6SendStruct<'a> {
     }
 }
 
-impl TxClient for IP6SendStruct<'a> {
-    fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.tx_buf.replace(tx_buf);
-        debug!("Send result: {:?}, acked: {}", result, acked);
+impl<A: time::Alarm> time::Client for IP6SendStruct<'a, A> {
+    fn fired(&self) {
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
             self.send_completed(result);
         }
+    }
+}
+
+impl<A: time::Alarm> TxClient for IP6SendStruct<'a, A> {
+    fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+        self.tx_buf.replace(tx_buf);
+        debug!("Send result: {:?}, acked: {}", result, acked);
+        // Below code adds delay between fragments. Despite some efforts
+        // to fix this bug, I find that without it the receiving imix cannot
+        // receive more than 2 fragments in a single packet without hanging
+        // waiting for the third fragments.
+        // Specifically, here we set a timer, which fires and sends the next fragment
+        // One flaw with this is that we also introduce a delay after sending the last
+        // fragment, before passing the send_done callback back to the client. This
+        // could be optimized by checking if it is the last fragment before setting the timer.
+        let interval = (100000 as u32) * <A::Frequency>::frequency() / 1000000;
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
     }
 }

@@ -2,8 +2,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
 use net::ipv6::ipv6::IP6Header;
 use net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
-use net::udp::udp::UDPHeader;
-use net::ipv6::ip_utils::compute_udp_checksum;
 
 // To provide some context for the entire rx chain:
 /*
@@ -62,7 +60,7 @@ impl<'a> IP6RecvStruct<'a> {
 
 impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
     fn receive(&self, buf: &[u8], len: usize, result: ReturnCode) {
-        // TODO: Drop here? Any additional sanity checking?
+        // TODO: Drop here?
         if len > buf.len() || result != ReturnCode::SUCCESS {
             return;
         }
