@@ -1,0 +1,18 @@
+[package]
+name = "tock-tests"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+capsules = { path = "../capsules" }
+kernel = { path = "../kernel" }
+sam4l = { path = "../chips/sam4l", optional = true }
+nrf52 = { path = "../chips/nrf52", optional = true }
+nrf51 = { path = "../chips/nrf51", optional = true }
+nrf5x = { path = "../chips/nrf5x", optional = true }
+
+[features]
+default = []
+nrf51-test = ["nrf51", "nrf5x"]
+nrf52-test = ["nrf52", "nrf5x"]
+sam4l-test = ["sam4l"]
