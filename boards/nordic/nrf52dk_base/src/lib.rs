@@ -21,9 +21,9 @@ use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
 use kernel::hil;
-use kernel::Chip;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
+use kernel::Chip;
 use nrf5x::rtc::Rtc;
 
 /// Pins for SPI for the flash chip MX25R6435F

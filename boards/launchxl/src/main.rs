@@ -16,9 +16,9 @@ use cc26x2::aon;
 use cc26x2::prcm;
 use kernel::capabilities;
 use kernel::hil;
-use kernel::Chip;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
+use kernel::Chip;
 
 #[macro_use]
 pub mod io;
