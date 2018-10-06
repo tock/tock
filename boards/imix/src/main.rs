@@ -31,6 +31,7 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
+use kernel::Chip;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -370,9 +371,7 @@ pub unsafe fn reset_handler() {
         nonvolatile_storage: nonvolatile_storage,
     };
 
-    let mut chip = sam4l::chip::Sam4l::new();
-
-    let mpu = static_init!(cortexm4::mpu::MPU, cortexm4::mpu::MPU::new());
+    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();
@@ -394,7 +393,7 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
-        mpu,
+        chip.mpu(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -402,5 +401,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, mpu, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
