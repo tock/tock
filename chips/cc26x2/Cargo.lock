@@ -2,6 +2,7 @@
 name = "cc26x2"
 version = "0.1.0"
 dependencies = [
+ "cortexm 0.1.0",
  "cortexm4 0.1.0",
  "enum_primitive 0.1.0",
  "kernel 0.1.0",

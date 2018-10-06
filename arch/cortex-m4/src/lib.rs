@@ -46,11 +46,9 @@ pub unsafe extern "C" fn systick_handler() {
     ldr r0, =SYSTICK_EXPIRED
     mov r1, #1
     str r1, [r0, #0]
-
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
-
     movw LR, #0xFFF9
     movt LR, #0xFFFF"
     );
@@ -59,51 +57,57 @@ pub unsafe extern "C" fn systick_handler() {
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn generic_isr() {}
 
-#[cfg(target_os = "none")]
-#[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
+#[naked]
 pub unsafe extern "C" fn generic_isr() {
+    enter_kernel_space();
+    disable_specific_nvic();
+}
+
+#[naked]
+pub unsafe extern "C" fn enter_kernel_space() {
     asm!(
         "
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
-    bne _ggeneric_isr_no_stacking
-
+    bne 1f
     /* We need the most recent kernel's version of r1, which points */
     /* to the Process struct's stored registers field. The kernel's r1 */
     /* lives in the second word of the hardware stacked registers on MSP */
     mov r1, sp
     ldr r1, [r1, #4]
     stmia r1, {r4-r11}
-
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
-
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-  _ggeneric_isr_no_stacking:
+  1:
+    "
+    );
+}
+
+#[naked]
+pub unsafe extern "C" fn disable_specific_nvic() {
+    asm!(
+        "
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
     /* ISRs start at 16, so substract 16 to get zero-indexed */
     sub r0, #16
-
     /*
      * High level:
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
     lsrs r2, r0, #5 /* r2 = r0 / 32 */
-
     /* r0 = 1 << (r0 & 31) */
     movs r3, #1        /* r3 = 1 */
     and r0, r0, #31    /* r0 = r0 & 31 */
     lsl r0, r3, r0     /* r0 = r3 << r0 */
-
     /* r3 = &NVIC.ICER */
     mov r3, #0xe180
     movt r3, #0xe000
-
     /* here:
      *
      *  `r2` is r0 / 32
@@ -129,11 +133,9 @@ pub unsafe extern "C" fn svc_handler() {
         "
     cmp lr, #0xfffffff9
     bne to_kernel
-
     /* Set thread mode to unprivileged */
     mov r0, #1
     msr CONTROL, r0
-
     movw lr, #0xfffd
     movt lr, #0xffff
     bx lr
@@ -141,11 +143,9 @@ pub unsafe extern "C" fn svc_handler() {
     ldr r0, =SYSCALL_FIRED
     mov r1, #1
     str r1, [r0, #0]
-
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
-
     movw LR, #0xFFF9
     movt LR, #0xFFFF"
     );
@@ -166,19 +166,14 @@ pub unsafe extern "C" fn switch_to_user(
     asm!("
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
-
     /* Load non-hardware-stacked registers from Process stack */
     /* Ensure that $2 is stored in a callee saved register */
     ldmia $2, {r4-r11}
-
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
-
     /* Push non-hardware-stacked registers into Process struct's */
     /* regs field */
     stmia $2, {r4-r11}
-
-
     mrs $0, PSP /* PSP into r0 */"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
@@ -253,43 +248,43 @@ pub unsafe extern "C" fn hard_fault_handler() {
         let exception_number = (stacked_xpsr & 0x1ff) as usize;
 
         panic!(
-            "{} HardFault.\n\
-             \tKernel version {}\n\
-             \tr0  0x{:x}\n\
-             \tr1  0x{:x}\n\
-             \tr2  0x{:x}\n\
-             \tr3  0x{:x}\n\
-             \tr12 0x{:x}\n\
-             \tlr  0x{:x}\n\
-             \tpc  0x{:x}\n\
-             \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\n\
-             \tsp  0x{:x}\n\
-             \ttop of stack     0x{:x}\n\
-             \tbottom of stack  0x{:x}\n\
-             \tSHCSR 0x{:x}\n\
-             \tCFSR  0x{:x}\n\
-             \tHSFR  0x{:x}\n\
-             \tInstruction Access Violation:       {}\n\
-             \tData Access Violation:              {}\n\
-             \tMemory Management Unstacking Fault: {}\n\
-             \tMemory Management Stacking Fault:   {}\n\
-             \tMemory Management Lazy FP Fault:    {}\n\
-             \tInstruction Bus Error:              {}\n\
-             \tPrecise Data Bus Error:             {}\n\
-             \tImprecise Data Bus Error:           {}\n\
-             \tBus Unstacking Fault:               {}\n\
-             \tBus Stacking Fault:                 {}\n\
-             \tBus Lazy FP Fault:                  {}\n\
-             \tUndefined Instruction Usage Fault:  {}\n\
-             \tInvalid State Usage Fault:          {}\n\
-             \tInvalid PC Load Usage Fault:        {}\n\
-             \tNo Coprocessor Usage Fault:         {}\n\
-             \tUnaligned Access Usage Fault:       {}\n\
-             \tDivide By Zero:                     {}\n\
-             \tBus Fault on Vector Table Read:     {}\n\
-             \tForced Hard Fault:                  {}\n\
-             \tFaulting Memory Address: (valid: {}) {:#010X}\n\
-             \tBus Fault Address:       (valid: {}) {:#010X}\n\
+            "{} HardFault.\r\n\
+             \tKernel version {}\r\n\
+             \tr0  0x{:x}\r\n\
+             \tr1  0x{:x}\r\n\
+             \tr2  0x{:x}\r\n\
+             \tr3  0x{:x}\r\n\
+             \tr12 0x{:x}\r\n\
+             \tlr  0x{:x}\r\n\
+             \tpc  0x{:x}\r\n\
+             \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\r\n\
+             \tsp  0x{:x}\r\n\
+             \ttop of stack     0x{:x}\r\n\
+             \tbottom of stack  0x{:x}\r\n\
+             \tSHCSR 0x{:x}\r\n\
+             \tCFSR  0x{:x}\r\n\
+             \tHSFR  0x{:x}\r\n\
+             \tInstruction Access Violation:       {}\r\n\
+             \tData Access Violation:              {}\r\n\
+             \tMemory Management Unstacking Fault: {}\r\n\
+             \tMemory Management Stacking Fault:   {}\r\n\
+             \tMemory Management Lazy FP Fault:    {}\r\n\
+             \tInstruction Bus Error:              {}\r\n\
+             \tPrecise Data Bus Error:             {}\r\n\
+             \tImprecise Data Bus Error:           {}\r\n\
+             \tBus Unstacking Fault:               {}\r\n\
+             \tBus Stacking Fault:                 {}\r\n\
+             \tBus Lazy FP Fault:                  {}\r\n\
+             \tUndefined Instruction Usage Fault:  {}\r\n\
+             \tInvalid State Usage Fault:          {}\r\n\
+             \tInvalid PC Load Usage Fault:        {}\r\n\
+             \tNo Coprocessor Usage Fault:         {}\r\n\
+             \tUnaligned Access Usage Fault:       {}\r\n\
+             \tDivide By Zero:                     {}\r\n\
+             \tBus Fault on Vector Table Read:     {}\r\n\
+             \tForced Hard Fault:                  {}\r\n\
+             \tFaulting Memory Address: (valid: {}) {:#010X}\r\n\
+             \tBus Fault Address:       (valid: {}) {:#010X}\r\n\
              ",
             mode_str,
             env!("TOCK_KERNEL_VERSION"),
@@ -351,7 +346,6 @@ pub unsafe extern "C" fn hard_fault_handler() {
             "ldr r0, =APP_HARD_FAULT
               mov r1, #1 /* Fault */
               str r1, [r0, #0]
-
               /* Read the SCB registers. */
               ldr r0, =SCB_REGISTERS
               ldr r1, =0xE000ED14
@@ -365,11 +359,9 @@ pub unsafe extern "C" fn hard_fault_handler() {
               str r2, [r0, #12]
               ldr r2, [r1, #36] /* BFAR */
               str r2, [r0, #16]
-
               /* Set thread mode to privileged */
               mov r0, #0
               msr CONTROL, r0
-
               movw LR, #0xFFF9
               movt LR, #0xFFFF"
         );
