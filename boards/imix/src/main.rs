@@ -19,6 +19,8 @@ extern crate sam4l;
 
 mod components;
 use capsules::alarm::AlarmDriver;
+use capsules::net::ieee802154::MacAddress;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -49,6 +51,7 @@ use components::radio::RadioComponent;
 use components::rf233::RF233Component;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
+use components::udp_6lowpan::UDPComponent;
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -76,6 +79,9 @@ mod aes_test;
 mod aes_ccm_test;
 
 #[allow(dead_code)]
+mod rng_test;
+
+#[allow(dead_code)]
 mod power;
 
 #[allow(dead_code)]
@@ -84,6 +90,26 @@ mod virtual_uart_rx_test;
 // State for loading apps.
 
 const NUM_PROCS: usize = 2;
+
+// Constants related to the configuration of the 15.4 network stack
+const RADIO_CHANNEL: u8 = 26;
+const SRC_MAC: u16 = 0xf00f;
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
+const SRC_MAC_ADDR: MacAddress = MacAddress::Short(SRC_MAC);
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
+const PAN_ID: u16 = 0xABCD;
+
+static LOCAL_IP_IFACES: [IPAddr; 2] = [
+    IPAddr([
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f,
+    ]),
+    IPAddr([
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+        0x1f,
+    ]),
+];
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -116,6 +142,7 @@ struct Imix {
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<
         'static,
@@ -162,6 +189,7 @@ impl kernel::Platform for Imix {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -330,6 +358,7 @@ pub unsafe fn reset_handler() {
         &sam4l::gpio::PA[10], // sleep
         &sam4l::gpio::PA[08], // irq
         &sam4l::gpio::PA[08],
+        RADIO_CHANNEL,
     ).finalize();
 
     // Clear sensors enable pin to enable sensor rail
@@ -345,28 +374,42 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let radio_driver = RadioComponent::new(board_kernel, rf233, 0xABCD, 0x1008).finalize();
+    let (radio_driver, mux_mac) =
+        RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
+    // ** UDP **
+
+    let udp_driver = UDPComponent::new(
+        board_kernel,
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        SRC_MAC_ADDR,
+        &LOCAL_IP_IFACES,
+    ).finalize();
+
     let imix = Imix {
-        console: console,
-        alarm: alarm,
-        gpio: gpio,
-        temp: temp,
-        humidity: humidity,
-        ambient_light: ambient_light,
-        adc: adc,
-        led: led,
-        button: button,
-        analog_comparator: analog_comparator,
-        crc: crc,
+        console,
+        alarm,
+        gpio,
+        temp,
+        humidity,
+        ambient_light,
+        adc,
+        led,
+        button,
+        analog_comparator,
+        crc,
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
-        ninedof: ninedof,
-        radio_driver: radio_driver,
-        usb_driver: usb_driver,
+        ninedof,
+        radio_driver,
+        udp_driver,
+        usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage: nonvolatile_storage,
     };
@@ -385,6 +428,8 @@ pub unsafe fn reset_handler() {
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
+
+    //    rng_test::run_entropy32();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

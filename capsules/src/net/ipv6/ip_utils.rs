@@ -28,6 +28,14 @@ pub mod ip6_nh {
 #[derive(Copy, Clone, Debug)]
 pub struct IPAddr(pub [u8; 16]);
 
+impl PartialEq for IPAddr {
+    fn eq(&self, other: &IPAddr) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for IPAddr {}
+
 impl IPAddr {
     pub fn new() -> IPAddr {
         // Defaults to the unspecified address

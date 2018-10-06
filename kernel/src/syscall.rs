@@ -50,6 +50,7 @@ pub enum Syscall {
 }
 
 /// Why the process stopped executing and execution returned to the kernel.
+#[derive(PartialEq)]
 pub enum ContextSwitchReason {
     /// Process called a syscall.
     SyscallFired,

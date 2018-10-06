@@ -74,6 +74,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x30000       | BLE              | Bluetooth Low Energy                       |
 |   | 0x30001       | 802.15.4         | IEEE 802.15.4                              |
+|   | 0x30002       | [UDP](30002_udp.md)  | UDP / 6LoWPAN Interface                |
 
 ### Cryptography
 
