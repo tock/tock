@@ -19,7 +19,7 @@ pub trait Chip {
     type MPU: mpu::MPU;
     type SysTick: systick::SysTick;
 
-    fn service_pending_interrupts(&mut self);
+    fn service_pending_interrupts(&self);
     fn has_pending_interrupts(&self) -> bool;
     fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;

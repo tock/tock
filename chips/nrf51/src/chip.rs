@@ -27,7 +27,7 @@ impl kernel::Chip for NRF51 {
         &self.0
     }
 
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
                 match interrupt {

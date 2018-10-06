@@ -23,7 +23,7 @@ impl Chip for Tm4c129x {
     type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
 
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         use nvic;
 
         unsafe {

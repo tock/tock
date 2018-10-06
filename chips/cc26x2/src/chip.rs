@@ -33,7 +33,7 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
                 let irq = NVIC_IRQ::from_u32(interrupt)
