@@ -145,6 +145,8 @@ impl UART {
 
         self.fifo_enable();
 
+        self.enable_interrupts();
+
         // Enable UART, RX and TX
         self.registers
             .ctl
