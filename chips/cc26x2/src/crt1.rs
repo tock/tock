@@ -29,7 +29,6 @@ macro_rules! generic_isr {
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! custom_isr {
     ($label:tt, $priority:expr, $isr:ident) => {
         #[cfg(target_os = "none")]
@@ -37,7 +36,7 @@ macro_rules! custom_isr {
             enter_kernel_space();
             events::set_event_flag($priority);
             $isr();
-            //nvic not disabled - it is the responsibility of custom ISR
+            //nvic not disabled - it is the responsibility of $isr to determine
         }
     };
 }
@@ -45,8 +44,10 @@ macro_rules! custom_isr {
 generic_isr!(gpio_nvic, events::EVENT_PRIORITY::GPIO);
 generic_isr!(i2c0_nvic, events::EVENT_PRIORITY::I2C0);
 generic_isr!(aon_rtc_nvic, events::EVENT_PRIORITY::AON_RTC);
-generic_isr!(uart0_nvic, events::EVENT_PRIORITY::UART0);
-generic_isr!(uart1_nvic, events::EVENT_PRIORITY::UART1);
+
+use uart::{uart0_isr, uart1_isr};
+custom_isr!(uart0_nvic, events::EVENT_PRIORITY::UART0, uart0_isr);
+custom_isr!(uart1_nvic, events::EVENT_PRIORITY::UART1, uart1_isr);
 
 unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
