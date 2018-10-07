@@ -85,7 +85,6 @@ pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-
     // Apply early initialization workarounds for anomalies documented on
     // 2015-12-11 nRF52832 Errata v1.2
     // http://infocenter.nordicsemi.com/pdf/nRF52832_Errata_v1.2.pdf
