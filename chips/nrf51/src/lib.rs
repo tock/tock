@@ -4,6 +4,7 @@
 #![crate_type = "rlib"]
 
 extern crate cortexm0;
+extern crate crt0s;
 extern crate nrf5x;
 
 #[allow(unused_imports)]
