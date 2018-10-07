@@ -1,4 +1,4 @@
-use cortexm4::{self, nvic};
+use cortexm4;
 use events;
 use events::EVENT_PRIORITY;
 use gpio;
@@ -52,7 +52,7 @@ impl kernel::Chip for Cc26X2 {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() }
+        events::has_event()
     }
 
     fn sleep(&self) {
