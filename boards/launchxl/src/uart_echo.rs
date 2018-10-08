@@ -23,11 +23,19 @@ const DEFAULT_BAUD: u32 = 115200;
 
 const MAX_PAYLOAD: usize = 1;
 
+const UART_PARAMS: uart::UARTParameters = uart::UARTParameters {
+            baud_rate: DEFAULT_BAUD,
+            stop_bits: uart::StopBits::One,
+            parity: uart::Parity::None,
+            hw_flow_control: false,
+        };
+
 pub static mut OUT_BUF: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD + 1];
 pub static mut IN_BUF: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
 
 pub struct UartEcho<U: 'static + UART> {
-    uart: &'static U,
+    uart_tx: &'static U,
+    uart_rx: &'static U,
     baud: u32,
     tx_buf: MapCell<&'static mut [u8]>,
     rx_buf: MapCell<&'static mut [u8]>,
@@ -39,14 +47,21 @@ impl<U: 'static + UART> UartEcho<U> {
         tx_buf: &'static mut [u8],
         rx_buf: &'static mut [u8],
     ) -> UartEcho<U> {
-        uart.configure(uart::UARTParameters {
-            baud_rate: DEFAULT_BAUD,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
+        UartEcho::new_explicit(uart, uart, tx_buf, rx_buf)
+    }
+
+    pub fn new_explicit(
+        uart_tx: &'static U,
+        uart_rx: &'static U,
+        tx_buf: &'static mut [u8],
+        rx_buf: &'static mut [u8],
+    ) -> UartEcho<U> {
+        assert!(tx_buf.len() > rx_buf.len(), "UartEcho has improperly sized buffers");
+        uart_tx.configure(UART_PARAMS);
+        uart_rx.configure(UART_PARAMS);
         UartEcho {
-            uart: &uart,
+            uart_tx: &uart_tx,
+            uart_rx: &uart_rx,
             baud: DEFAULT_BAUD,
             tx_buf: MapCell::new(tx_buf),
             rx_buf: MapCell::new(rx_buf),
@@ -55,7 +70,7 @@ impl<U: 'static + UART> UartEcho<U> {
 
     pub fn initialize(&self) {
         self.rx_buf.take().map(|buf| {
-            self.uart.receive(buf, MAX_PAYLOAD);
+            self.uart_rx.receive(buf, MAX_PAYLOAD);
         });
     }
 }
@@ -78,11 +93,11 @@ impl<U: 'static + UART> Client for UartEcho<U> {
             });
         }
         // give buffer back to uart
-        self.uart.receive(buffer, MAX_PAYLOAD);
+        self.uart_rx.receive(buffer, MAX_PAYLOAD);
 
         // output on uart
         self.tx_buf
             .take()
-            .map(|buf| self.uart.transmit(buf, rx_len + added_carraige_returns));
+            .map(|buf| self.uart_tx.transmit(buf, rx_len + added_carraige_returns));
     }
 }
