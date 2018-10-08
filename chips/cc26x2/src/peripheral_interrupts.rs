@@ -36,6 +36,7 @@ pub enum NVIC_IRQ {
     AUX_COMP_A = 31,
     AUX_ADC = 32,
     TRNG = 33,
+    OSC = 34,
     UART1 = 36
 }
 }

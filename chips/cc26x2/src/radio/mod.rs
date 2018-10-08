@@ -1,4 +1,4 @@
-pub mod ble;
+// pub mod ble;
 pub mod rfc;
 pub mod subghz;
 // use cortexm4::{self, nvic};
@@ -11,4 +11,4 @@ pub mod commands;
 pub static mut RFC: rfc::RFCore = rfc::RFCore::new();
 
 pub static mut RADIO: subghz::Radio = unsafe { subghz::Radio::new(&RFC) };
-pub static mut BLE: ble::Ble = unsafe { ble::Ble::new(&RFC) };
+// pub static mut BLE: ble::Ble = unsafe { ble::Ble::new(&RFC) };

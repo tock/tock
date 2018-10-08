@@ -8,3 +8,5 @@ cortexm = { path = "../../arch/cortex-m" }
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+bitfield = "0.13.0"
+fixedvec = "0.2.3"

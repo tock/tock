@@ -380,7 +380,7 @@ impl Clock {
     }
 
     /// Enables UART clocks for run, sleep and deep sleep mode.
-    pub fn enable_uart() {
+    pub fn enable_uarts() {
         let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate2::AM_EN::SetAll);
         regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::SetAll);
@@ -391,7 +391,7 @@ impl Clock {
         prcm_commit();
     }
 
-    pub fn disable_uart() {
+    pub fn disable_uarts() {
         let regs = PRCM_BASE;
         regs.uart_clk_gate_run.modify(ClockGate2::AM_EN::ClearAll);
         regs.uart_clk_gate_run.modify(ClockGate2::CLK_EN::ClearAll);

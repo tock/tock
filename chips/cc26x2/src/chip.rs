@@ -6,6 +6,28 @@ use i2c;
 use kernel;
 use rtc;
 use uart;
+use prcm;
+use radio;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub enum SleepMode {
+    DeepSleep = 0,
+    Sleep = 1,
+    Active = 2,
+}
+
+impl From<u32> for SleepMode {
+    fn from(n: u32) -> Self {
+        match n {
+            0 => SleepMode::DeepSleep,
+            1 => SleepMode::Sleep,
+            2 => SleepMode::Active,
+            _ => unimplemented!(),
+        }
+    }
+}
+
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -44,6 +66,11 @@ impl kernel::Chip for Cc26X2 {
                     EVENT_PRIORITY::I2C0 => i2c::I2C0.handle_events(),
                     EVENT_PRIORITY::UART0 => uart::UART0.handle_events(),
                     EVENT_PRIORITY::UART1 => uart::UART1.handle_events(),
+                    EVENT_PRIORITY::RF_CORE_HW => radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Hardware),
+                    EVENT_PRIORITY::RF_CMD_ACK => radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck),
+                    EVENT_PRIORITY::RF_CORE_CPE0 => radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0),
+                    EVENT_PRIORITY::RF_CORE_CPE1 => radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe1),
+                    EVENT_PRIORITY::OSC => prcm::handle_osc_interrupt(),
                     EVENT_PRIORITY::AON_PROG => (),
                     _ => panic!("unhandled event {:?} ", event),
                 }

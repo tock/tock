@@ -12,6 +12,11 @@ pub enum EVENT_PRIORITY {
     RTC = 4,
     I2C0 = 6,
     AON_PROG = 7,
+    RF_CORE_HW = 8,
+    RF_CMD_ACK = 9,
+    RF_CORE_CPE0 = 10,
+    RF_CORE_CPE1 = 11,
+    OSC = 12,
 }
 }
 
