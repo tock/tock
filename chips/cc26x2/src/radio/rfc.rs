@@ -355,8 +355,8 @@ impl RFCore {
             .expect("Radio setup command returned Err");
     }
 
-    pub fn setup_test(&self, reg_override: u32, tx_power: u16) {
-        let mode = self.mode.get().expect("No RF mode selected, cannot setup");
+    pub fn setup_test(&self, _reg_override: u32, tx_power: u16) {
+        let _mode = self.mode.get().expect("No RF mode selected, cannot setup");
 
         let dbell_regs = &*self.dbell_regs;
         let cmd = CommandRadioSetup {
