@@ -1,3 +1,4 @@
+#![allow(unused)]
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio_client;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
