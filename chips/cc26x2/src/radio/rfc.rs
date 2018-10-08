@@ -404,9 +404,10 @@ impl RFCore {
             .and_then(|_| self.wait(&rf_command))
             .ok()
             .expect("Start RAT command returned Err");
-        */ 
+        */
+
         let dbell_regs = &*self.dbell_regs;
-        
+
         let rf_command_test = CommandSyncRat {
             command_no: 0x080A,
             status: 0,
@@ -426,7 +427,7 @@ impl RFCore {
             .and_then(|_| self.wait_test(&rf_command_test))
             .ok()
             .expect("Start RAT command erturned Err");
-        
+
         // REMOVE AFTER TESTING DONE
         dbell_regs.rfack_ifg.set(0);
         dbell_regs.rfcpe_ifg.set(0);

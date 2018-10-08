@@ -16,14 +16,22 @@ pub enum HeliumState {
 }
 
 pub trait Framer {
-    fn prepare_data_frame(&self, buf: &'static mut [u8], _seq: u8) -> Result<Frame, &'static mut [u8]>;
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        _seq: u8,
+    ) -> Result<Frame, &'static mut [u8]>;
 }
 
 impl<R> Framer for VirtualRadioDriver<'a, R>
 where
     R: radio_client::Radio,
 {
-    fn prepare_data_frame(&self, buf: &'static mut [u8], seq: u8) -> Result<Frame, &'static mut [u8]> {
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        seq: u8,
+    ) -> Result<Frame, &'static mut [u8]> {
         let _header = Header {
             frame_type: FrameType::Data,
             id: None,
@@ -61,7 +69,7 @@ impl Frame {
         }
         self.buf.copy_from_slice(payload);
         self.info.data_len += payload.len();
-        
+
         ReturnCode::SUCCESS
     }
 }
@@ -127,7 +135,7 @@ impl Default for App {
 
 pub struct VirtualRadioDriver<'a, R>
 where
-    R: radio_client::Radio, 
+    R: radio_client::Radio,
 {
     radio: &'a R,
     app: Grant<App>,
@@ -226,7 +234,7 @@ where
             .enter(appid, |app, _| closure(app))
             .unwrap_or_else(|err| err.into())
     }
-    
+
     /// Schedule the next transmission if there is one pending. If the next
     /// transmission happens to be the one that was just queued, then the
     /// transmission is synchronous. Hence, errors must be returned immediately.
@@ -275,11 +283,8 @@ where
             };
 
             let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
-                let seq: u8 = 0; // TEMP SEQ # ALWAYS 0 
-                let frame = match self.prepare_data_frame(
-                    kbuf,
-                    seq
-                    ) {
+                let seq: u8 = 0; // TEMP SEQ # ALWAYS 0
+                let frame = match self.prepare_data_frame(kbuf, seq) {
                     Ok(frame) => frame,
                     Err(kbuf) => {
                         self.kernel_tx.replace(kbuf);
@@ -300,7 +305,6 @@ where
             result
         })
     }
-
 }
 
 impl<R> Driver for VirtualRadioDriver<'a, R>
@@ -417,35 +421,33 @@ where
                 let (status, _retval) = self.radio.get_command_status();
                 status
             }
-            7 => {
-                self.radio.send_kill_command()
-            }
-            8 => {
-                self.do_with_app(appid, |app| {
-                    if app.pending_tx.is_some() {
-                        return ReturnCode::EBUSY;
-                    }
-                    let addr = r2 as u16;
+            7 => self.radio.send_kill_command(),
+            8 => self.do_with_app(appid, |app| {
+                if app.pending_tx.is_some() {
+                    return ReturnCode::EBUSY;
+                }
+                let addr = r2 as u16;
 
-                    let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
-                        if cfg.len() != 11 {
+                let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
+                    if cfg.len() != 11 {
+                        return None;
+                    }
+
+                    let frame_type = match FrameType::from_slice(cfg.as_ref()[0]) {
+                        Some(frame_type) => frame_type,
+                        None => {
                             return None;
                         }
+                    };
+                    Some((addr, Some(frame_type)))
+                });
+                if next_tx.is_none() {
+                    return ReturnCode::EINVAL;
+                }
+                app.pending_tx = next_tx;
 
-                        let frame_type = match FrameType::from_slice(cfg.as_ref()[0]) {
-                            Some(frame_type) => frame_type,
-                            None => {return None;} 
-                        };
-                        Some((addr, Some(frame_type))) 
-                    });
-                    if next_tx.is_none() {
-                        return ReturnCode::EINVAL;
-                    }
-                    app.pending_tx = next_tx;
-
-                    self.do_next_tx_sync(appid)
-                })
-            }
+                self.do_next_tx_sync(appid)
+            }),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -479,7 +481,7 @@ impl<R: radio_client::Radio> radio_client::RxClient for VirtualRadioDriver<'a, R
     ) {
         let decaut_valid = true;
         // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE
-        if decaut_valid { 
+        if decaut_valid {
             self.rx_client.map(move |c| {
                 c.receive_event(buf, frame_len, crc_valid, result);
             });

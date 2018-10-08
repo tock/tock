@@ -3,9 +3,9 @@
 #![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
+extern crate cc26x2;
 extern crate cortexm4;
 extern crate fixedvec;
-extern crate cc26x2;
 
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
@@ -13,13 +13,13 @@ extern crate kernel;
 
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
+use cc26x2::aux;
 use cc26x2::prcm;
+use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
-use cc26x2::aux;
-use cc26x2::radio;
 
 #[macro_use]
 pub mod io;
@@ -55,10 +55,8 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
-    radio: &'static capsules::simple_rfcore::VirtualRadioDriver<
-        'static,
-        cc26x2::radio::subghz::Radio,
-    >,
+    radio:
+        &'static capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
 }
 
 impl kernel::Platform for Platform {

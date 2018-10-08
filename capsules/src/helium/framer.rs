@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use helium::{virtual_rfcore, device};
+use helium::{device, virtual_rfcore};
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio_client;
 use kernel::ReturnCode;
@@ -22,7 +22,6 @@ pub struct Header {
     seq: Option<u8>,
 }
 impl Frame {
-
     pub fn into_buf(self) -> &'static mut [u8] {
         self.buf
     }
@@ -33,7 +32,7 @@ impl Frame {
         }
         self.buf.copy_from_slice(payload);
         self.info.data_len += payload.len();
-        
+
         ReturnCode::SUCCESS
     }
 }
@@ -118,7 +117,7 @@ enum RxState {
     ReadyToReturn(&'static mut [u8]),
 }
 
-pub struct Framer<'a, V> 
+pub struct Framer<'a, V>
 where
     V: virtual_rfcore::RFCore,
 {
@@ -130,8 +129,8 @@ where
     rx_client: OptionalCell<&'a device::RxClient>,
 }
 
-impl<V> Framer<'a, V> 
-where 
+impl<V> Framer<'a, V>
+where
     V: virtual_rfcore::RFCore,
 {
     pub fn new(vrfc: &'a V) -> Framer<'a, V> {
@@ -174,12 +173,13 @@ where
                     TxState::ReadyToTransmit(info, buf) => {
                         let (rval, buf) = self.vrfc.transmit(buf, info.data_len);
                         match rval {
-                            ReturnCode::EBUSY => {
-                                match buf {
-                                    None => (TxState::Idle, (ReturnCode::FAIL, None)),
-                                    Some(buf) => (TxState::ReadyToTransmit(info, buf), (ReturnCode::SUCCESS, None)),
-                                }
-                            }
+                            ReturnCode::EBUSY => match buf {
+                                None => (TxState::Idle, (ReturnCode::FAIL, None)),
+                                Some(buf) => (
+                                    TxState::ReadyToTransmit(info, buf),
+                                    (ReturnCode::SUCCESS, None),
+                                ),
+                            },
                             _ => (TxState::Idle, (rval, buf)),
                         }
                     }
@@ -203,9 +203,7 @@ where
                 RxState::Idle => (RxState::Idle, None),
                 RxState::ReadyToDecode(info, buf) => {
                     match info.fec_type {
-                        Some(FecType::None) => {
-                            (RxState::Idle, Some(buf))
-                        }
+                        Some(FecType::None) => (RxState::Idle, Some(buf)),
                         Some(FecType::LdpcTc128) => {
                             // Do decode for LDPC TC128 here then return success for fail
                             (RxState::Idle, Some(buf))
@@ -218,9 +216,7 @@ where
                             // Same as above
                             (RxState::Idle, Some(buf))
                         }
-                        _ => {
-                            (RxState::Idle, Some(buf))
-                        }
+                        _ => (RxState::Idle, Some(buf)),
                     }
                 }
                 RxState::ReadyToYield(info, buf) => {
@@ -239,8 +235,8 @@ where
     }
 }
 
-impl<V> device::Device<'a> for Framer<'a, V> 
-where 
+impl<V> device::Device<'a> for Framer<'a, V>
+where
     V: virtual_rfcore::RFCore,
 {
     fn set_transmit_client(&self, client: &'a device::TxClient) {
@@ -259,13 +255,18 @@ where
         self.vrfc.get_radio_status()
     }
 
-    fn prepare_data_frame(&self, buf: &'static mut [u8], _seq: u8, fec_type: Option<FecType>) -> Result<Frame, &'static mut [u8]> {
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        _seq: u8,
+        fec_type: Option<FecType>,
+    ) -> Result<Frame, &'static mut [u8]> {
         let _header = Header {
             frame_type: FrameType::Data,
             id: None,
             seq: Some(self.seq.get()),
         };
-        
+
         // encode header here and return some result
         let frame = Frame {
             buf: buf,
@@ -280,7 +281,11 @@ where
     }
 
     fn transmit(&self, frame: Frame) -> (ReturnCode, Option<&'static mut [u8]>) {
-        let Frame { buf, info, max_frame_size: _ } = frame;
+        let Frame {
+            buf,
+            info,
+            max_frame_size: _,
+        } = frame;
         let state = match self.tx_state.take() {
             None => {
                 return (ReturnCode::FAIL, Some(buf));
@@ -301,7 +306,7 @@ where
     }
 }
 
-impl<V> radio_client::TxClient for Framer<'a, V> 
+impl<V> radio_client::TxClient for Framer<'a, V>
 where
     V: virtual_rfcore::RFCore,
 {
@@ -313,11 +318,17 @@ where
     }
 }
 
-impl<V> radio_client::RxClient for Framer<'a, V> 
-where 
+impl<V> radio_client::RxClient for Framer<'a, V>
+where
     V: virtual_rfcore::RFCore,
 {
-    fn receive_event(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _result: ReturnCode) {
+    fn receive_event(
+        &self,
+        buf: &'static mut [u8],
+        frame_len: usize,
+        crc_valid: bool,
+        _result: ReturnCode,
+    ) {
         if !crc_valid {
             self.vrfc.set_receive_buffer(buf);
             return;
@@ -342,8 +353,8 @@ where
     }
 }
 
-impl<V> radio_client::ConfigClient for Framer<'a, V> 
-where 
+impl<V> radio_client::ConfigClient for Framer<'a, V>
+where
     V: virtual_rfcore::RFCore,
 {
     fn config_done(&self, _: ReturnCode) {
@@ -356,4 +367,3 @@ where
         }
     }
 }
-

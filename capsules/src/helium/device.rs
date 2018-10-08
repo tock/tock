@@ -3,8 +3,8 @@
 //! - Preparing frames (data frame, command frames, beacon frames)
 //! - Transmitting and receiving frames
 //!
+use helium::framer::{FecType, Frame};
 use kernel::ReturnCode;
-use helium::framer::{Frame, FecType};
 
 pub trait Device<'a> {
     /// Sets the transmission client of this MAC device

@@ -3,11 +3,11 @@
 use core::cell::Cell;
 use core::cmp;
 use fixedvec::FixedVec;
-use kernel::common::cells::{TakeCell, OptionalCell, MapCell};
-use kernel::{AppId, AppSlice, Shared, Callback, Driver, ReturnCode, Grant};
-use kernel::hil::{radio_client, time::Alarm, time::Frequency, time::Client};
-use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use helium::{device, device::Device, framer, framer::FecType};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::hil::{radio_client, time::Alarm, time::Client, time::Frequency};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 
 // static mut PAYLOAD: [u8; 256] = [0; 256];
 
@@ -64,7 +64,7 @@ pub struct App {
     app_write: Option<AppSlice<Shared, u8>>,
     app_read: Option<AppSlice<Shared, u8>>,
     pending_tx: Option<(u16, Option<FecType>)>, // Change u32 to keyid and fec mode later on during implementation
-    tx_interval_ms: u32, // 400 ms is maximum per FCC
+    tx_interval_ms: u32,                        // 400 ms is maximum per FCC
 }
 
 impl Default for App {
@@ -83,7 +83,7 @@ impl Default for App {
     }
 }
 
-pub struct Helium<'a, D> 
+pub struct Helium<'a, D>
 where
     D: Device<'a>,
 {
@@ -93,16 +93,11 @@ where
     device: &'a D,
 }
 
-impl<D> Helium<'a, D> 
-where 
+impl<D> Helium<'a, D>
+where
     D: Device<'a>,
 {
-    pub fn new(
-        container: Grant<App>,
-        tx_buf: &'static mut [u8],
-        device: &'a D,
-    ) -> Helium<'a, D> 
-    {   
+    pub fn new(container: Grant<App>, tx_buf: &'static mut [u8], device: &'a D) -> Helium<'a, D> {
         Helium {
             app: container,
             kernel_tx: TakeCell::new(tx_buf),
@@ -210,17 +205,13 @@ where
                     return ReturnCode::SUCCESS;
                 }
             };
-            
+
             let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
                 // Frame header implementation for Helium prep here. Currently unknown so removing
                 // 802154 stuff
                 let seq: u8 = 0;
-                let fec_type = None; 
-                let frame = match self.device.prepare_data_frame(
-                    kbuf,
-                    seq,
-                    fec_type, 
-                ) {
+                let fec_type = None;
+                let frame = match self.device.prepare_data_frame(kbuf, seq, fec_type) {
                     Ok(frame) => frame,
                     Err(kbuf) => {
                         self.kernel_tx.replace(kbuf);
@@ -268,7 +259,6 @@ where
     }
 }
 
-
 impl<D> Driver for Helium<'a, D>
 where
     D: Device<'a>,
@@ -282,7 +272,12 @@ where
     /// - `2`: Config buffer. Used to contain miscellaneous data associated with
     ///        some commands because the system call parameters / return codes are
     ///        not enough to convey the desired information.
-    fn allow(&self, appid: AppId, allow_num: usize, slice: Option<AppSlice<Shared, u8>>) -> ReturnCode {
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
@@ -302,7 +297,12 @@ where
     ///  `subscribe_num`
     /// - `0`: Setup callback for when frame is received.
     /// - `1`: Setup callback for when frame is transmitted.
-    fn subscribe(&self, subscribe_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
+    fn subscribe(
+        &self,
+        subscribe_num: usize,
+        callback: Option<Callback>,
+        app_id: AppId,
+    ) -> ReturnCode {
         let sub: HeliumCallback = subscribe_num.into();
         match sub {
             HeliumCallback::RxCallback => self.do_with_app(app_id, |app| {
@@ -333,13 +333,12 @@ where
             HeliumCommand::GetRadioStatus => {
                 if self.device.is_on() {
                     ReturnCode::SUCCESS
-                }
-                else {
+                } else {
                     ReturnCode::EOFF
                 }
             }
             HeliumCommand::SetTxPower => ReturnCode::ENOSUPPORT, // Link to set tx power in radio
-            
+
             HeliumCommand::SetNextTx => {
                 self.do_with_app(appid, |app| {
                     if app.pending_tx.is_some() {
@@ -351,11 +350,14 @@ where
                         if cfg.len() != 11 {
                             return None;
                         }
-                        let fec = match FecType::from_slice(cfg.as_ref()[0]) {// The first entry `[0]` should be the encoding type
+                        let fec = match FecType::from_slice(cfg.as_ref()[0]) {
+                            // The first entry `[0]` should be the encoding type
                             Some(fec) => fec,
-                            None => {return None;}
+                            None => {
+                                return None;
+                            }
                         };
-                        
+
                         if fec == FecType::None {
                             return Some((addr, None));
                         }
@@ -418,7 +420,7 @@ impl From<usize> for HeliumCallback {
         match val {
             0 => HeliumCallback::RxCallback,
             1 => HeliumCallback::TxCallback,
-            _ => panic!("Not a valid callback num")
+            _ => panic!("Not a valid callback num"),
         }
     }
 }

@@ -24,11 +24,11 @@ pub trait RFCore {
 
     /// Indicates whether or not the MAC protocol is active and can send frames
     fn get_radio_status(&self) -> bool;
-    
+
     fn send_stop_command(&self) -> ReturnCode;
-    
+
     fn send_kill_command(&self) -> ReturnCode;
-    
+
     fn get_command_status(&self) -> (ReturnCode, Option<u32>);
 
     fn set_tx_power(&self, power: u16) -> ReturnCode;
@@ -40,12 +40,11 @@ pub trait RFCore {
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
-
 }
 
 pub struct VirtualRadio<'a, R>
 where
-    R: radio_client::Radio, 
+    R: radio_client::Radio,
 {
     radio: &'a R,
     tx_client: OptionalCell<&'static radio_client::TxClient>,
@@ -56,9 +55,7 @@ impl<R> VirtualRadio<'a, R>
 where
     R: radio_client::Radio,
 {
-    pub fn new(
-        radio: &'a R,
-    ) -> VirtualRadio<'a, R> {
+    pub fn new(radio: &'a R) -> VirtualRadio<'a, R> {
         VirtualRadio {
             radio: radio,
             tx_client: OptionalCell::empty(),
@@ -67,9 +64,9 @@ where
     }
 }
 
-impl<R> RFCore for VirtualRadio<'a, R> 
+impl<R> RFCore for VirtualRadio<'a, R>
 where
-    R: radio_client::Radio
+    R: radio_client::Radio,
 {
     fn initialize(&self, _setup_buf: &'static mut [u8]) -> ReturnCode {
         // Maybe use this buf later for firmware patches on load but for now, do nothing
@@ -95,11 +92,11 @@ where
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
         self.radio.set_receive_buffer(buffer);
     }
-       
+
     fn get_radio_status(&self) -> bool {
         self.radio.is_on()
     }
-    
+
     fn send_stop_command(&self) -> ReturnCode {
         let status = self.radio.send_stop_command();
         match status {
@@ -107,11 +104,11 @@ where
             _ => ReturnCode::FAIL,
         }
     }
-    
+
     fn send_kill_command(&self) -> ReturnCode {
         self.radio.send_kill_command()
     }
-    
+
     fn get_command_status(&self) -> (ReturnCode, Option<u32>) {
         // TODO Parsing with the returned Option<retval> which is some u32 hex code the
         // radio responds with during radio operation command processing

@@ -80,7 +80,7 @@ impl Radio {
         osc::OSC.request_switch_to_hf_xosc();
 
         self.rfc.enable();
-        
+
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
@@ -203,7 +203,7 @@ impl radio_client::RadioConfig for Radio {
         // arguing best might be bikeshedding
         let status = self.rfc.status.get();
         match status {
-            0x0001 => true, 
+            0x0001 => true,
             0x0002 => true,
             _ => false,
         }

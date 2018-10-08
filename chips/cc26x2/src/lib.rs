@@ -13,7 +13,6 @@ extern crate enum_primitive;
 extern crate bitfield;
 extern crate fixedvec;
 
-
 pub mod aon;
 pub mod aux;
 pub mod chip;
@@ -35,4 +34,3 @@ pub mod setup;
 pub mod trng;
 pub mod uart;
 pub use crt1::init;
-
