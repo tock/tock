@@ -39,7 +39,7 @@ impl kernel::Chip for NRF52 {
         &self.systick
     }
 
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         unsafe {
             loop {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {

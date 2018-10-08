@@ -5,6 +5,9 @@ use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 
+use cortexm4::nvic;
+use peripheral_interrupts;
+
 #[repr(C)]
 struct RtcRegisters {
     ctl: ReadWrite<u32, Control::Register>,
@@ -63,8 +66,12 @@ register_bitfields![
 const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
 
+const RTC_NVIC: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::AON_RTC as u32) };
+
 pub struct Rtc {
     registers: StaticRef<RtcRegisters>,
+    nvic: &'static nvic::Nvic,
     callback: OptionalCell<&'static time::Client>,
 }
 
@@ -74,6 +81,7 @@ impl Rtc {
     const fn new() -> Rtc {
         Rtc {
             registers: RTC_BASE,
+            nvic: &RTC_NVIC,
             callback: OptionalCell::empty(),
         }
     }
@@ -145,7 +153,7 @@ impl Rtc {
         regs.channel_ctl.read(ChannelControl::CH1_EN) != 0
     }
 
-    pub fn handle_interrupt(&self) {
+    pub fn handle_events(&self) {
         let regs = &*self.registers;
 
         // Event flag is cleared when you set it
@@ -156,6 +164,8 @@ impl Rtc {
         regs.sync.get();
 
         self.callback.map(|cb| cb.fired());
+        self.nvic.clear_pending();
+        self.nvic.enable();
     }
 
     pub fn set_client(&self, client: &'static time::Client) {

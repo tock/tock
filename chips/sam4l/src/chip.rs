@@ -71,7 +71,7 @@ impl Chip for Sam4l {
     type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
 
-    fn service_pending_interrupts(&mut self) {
+    fn service_pending_interrupts(&self) {
         unsafe {
             loop {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {

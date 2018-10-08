@@ -12,6 +12,9 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::gpio::PinCtl;
 
+use cortexm4::nvic;
+use peripheral_interrupts;
+
 const NUM_PINS: usize = 32;
 
 const GPIO_BASE: StaticRef<GpioRegisters> =
@@ -251,6 +254,7 @@ impl hil::gpio::Pin for GPIOPin {
 }
 
 pub struct Port {
+    nvic: &'static nvic::Nvic,
     pins: [GPIOPin; NUM_PINS],
 }
 
@@ -269,7 +273,7 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    pub fn handle_interrupt(&self) {
+    pub fn handle_events(&self) {
         let regs = GPIO_BASE;
         let evflags = regs.evflags.get();
         // Clear all interrupts by setting their bits to 1 in evflags
@@ -286,10 +290,16 @@ impl Port {
 
             self.pins[pin].handle_interrupt();
         }
+        self.nvic.clear_pending();
+        self.nvic.enable();
     }
 }
 
+const GPIO_NVIC: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::GPIO as u32) };
+
 pub static mut PORT: Port = Port {
+    nvic: &GPIO_NVIC,
     pins: [
         GPIOPin::new(0),
         GPIOPin::new(1),

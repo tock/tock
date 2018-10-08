@@ -3,25 +3,30 @@
 #![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
-extern crate cc26x2;
 extern crate cortexm4;
-extern crate fixedvec;
+
+extern crate cc26x2;
 
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
+
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
-use cc26x2::aux;
 use cc26x2::prcm;
-use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 
 #[macro_use]
 pub mod io;
+
 #[allow(dead_code)]
 mod i2c_tests;
+#[allow(dead_code)]
+mod uart_echo;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -47,11 +52,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
-    rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-    radio: &'static capsules::simple_rfcore::VirtualRadioDriver<
-        'static,
-        cc26x2::radio::subghz::Radio,
-    >,
+    rng: &'static capsules::rng::RngDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -66,13 +67,10 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::virtual_rfcore::DRIVER_NUM => f(Some(self.radio)),
             _ => f(None),
         }
     }
 }
-
-static mut HELIUM_BUF: [u8; 128] = [0x00; 128];
 
 /// Booster pack standard pinout
 ///
@@ -179,16 +177,11 @@ pub unsafe fn reset_handler() {
     // Setup AON event defaults
     aon::AON.setup();
 
-    // Setup AUX event and Acive power mode
-    aux::AUX_CTL.setup();
-
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
-
-    prcm::Power::enable_domain(prcm::PowerDomain::Serial);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -345,40 +338,19 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm1.set_client(alarm);
 
-    let virtual_alarm2 = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&cc26x2::trng::TRNG)
     );
-    virtual_alarm2.set_client(alarm);
-
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-        capsules::rng::SimpleRng::new(
-            &cc26x2::trng::TRNG,
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-
-    radio::RFC.set_client(&radio::RADIO);
-
-    let virtual_radio = static_init!(
-        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
-        capsules::simple_rfcore::VirtualRadioDriver::new(
-            &cc26x2::radio::RADIO,
-            board_kernel.create_grant(&memory_allocation_capability),
-            &mut HELIUM_BUF
-        )
-    );
-
-    kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
-    kernel::hil::radio_client::RadioDriver::set_receive_client(
-        &radio::RADIO,
-        virtual_radio,
-        &mut HELIUM_BUF,
-    );
-
-    let rfc = &cc26x2::radio::RADIO;
-    rfc.test_power_up();
+    cc26x2::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     let launchxl = Platform {
         console,
@@ -387,10 +359,9 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
-        radio: virtual_radio,
     };
 
-    let mut chip = cc26x2::chip::Cc26X2::new();
+    let chip = cc26x2::chip::Cc26X2::new();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -409,5 +380,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, &mut chip, Some(&ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&launchxl, &chip, Some(&ipc), &main_loop_capability);
 }
