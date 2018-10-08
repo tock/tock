@@ -6,7 +6,6 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio_client;
 use kernel::ReturnCode;
 use osc;
-use peripheral_manager;
 use radio::commands as cmd;
 use radio::rfc;
 
@@ -64,13 +63,13 @@ impl Radio {
 
         self.rfc.enable();
 
-        self.rfc.start_rat();
+        self.rfc.start_rat_test();
 
         osc::OSC.switch_to_hf_xosc();
 
         unsafe {
             let reg_overrides: u32 = RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides, 0xFFFE)
+            self.rfc.setup_test(reg_overrides, 0xFFFE)
         }
     }
 
@@ -122,23 +121,6 @@ impl rfc::RFCoreClient for Radio {
     }
 
     fn rx_ok(&self) {}
-}
-
-impl peripheral_manager::PowerClient for Radio {
-    fn before_sleep(&self, _sleep_mode: u32) {}
-
-    fn after_wakeup(&self, _sleep_mode: u32) {}
-
-    fn lowest_sleep_mode(&self) -> u32 {
-        /*
-        if self.safe_to_deep_sleep.get() {
-            SleepMode::DeepSleep as u32
-        } else {
-            SleepMode::Sleep as u32
-        }
-        */
-        SleepMode::Sleep as u32
-    }
 }
 
 impl radio_client::Radio for Radio {}

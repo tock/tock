@@ -2,7 +2,7 @@
 //!     Manages bluetooth.
 //!
 
-use self::ble_commands::*;
+use self::ble_commands::{BleAdvertise, BleAdvertiseParams, BleWhitening};
 use core::cell::Cell;
 use osc;
 use radio::{commands, rfc};

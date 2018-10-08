@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 extern crate msg;
 use msg::cauterize::{Cauterize, Decoder, Encoder};
 #[allow(unused_imports)]
-use msg::*;
+use msg::{Frame, Pingpong, Pong, SPEC_FINGERPRINT, SPEC_MAX_SIZE, SPEC_MIN_SIZE, SPEC_NAME};
 extern crate byteorder;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 

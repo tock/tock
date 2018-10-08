@@ -6,7 +6,7 @@ use core as std;
 extern crate byteorder;
 
 mod cauterize;
-pub use cauterize::*;
+pub use cauterize::{Cauterize, Decoder, Encoder, Primitive};
 
 mod error;
 pub use error::Error;

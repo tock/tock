@@ -333,7 +333,7 @@ impl RFCore {
     // Call commands to setup RFCore with optional register overrides and power output
     pub fn setup(&self, reg_override: u32, tx_power: u16) {
         let mode = self.mode.get().expect("No RF mode selected, cannot setup");
-        /*
+
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
         let start_trigger = 0; // TRIGGER FOR NOW
@@ -346,14 +346,18 @@ impl RFCore {
         let common =
             cmd::CmdCommon::new(0x0802, 0, p_next_op, start_time, start_trigger, condition);
 
-        let mut radio_setup = cmd::CmdRadioSetup::new(common, 0, reg_override, mode as u8, tx_power);
+        let mut radio_setup =
+            cmd::CmdRadioSetup::new(common, 0, reg_override, mode as u8, tx_power);
         radio_setup = cmd::RadioCommand::pack(&radio_setup, common);
         self.send(&radio_setup)
             .and_then(|_| self.wait(&radio_setup))
             .ok()
             .expect("Radio setup command returned Err");
+    }
 
-*/
+    pub fn setup_test(&self, reg_override: u32, tx_power: u16) {
+        let mode = self.mode.get().expect("No RF mode selected, cannot setup");
+
         let dbell_regs = &*self.dbell_regs;
         let cmd = CommandRadioSetup {
             command_no: 0x0802,
@@ -385,7 +389,6 @@ impl RFCore {
     }
 
     pub fn start_rat(&self) {
-        /*
         let p_next_op = 0; // MAKE THIS POINTER TO NEXT CMD IN STACK FUTURE
         let start_time = 0; // CMD STARTS IMMEDIATELY
         let start_trigger = 0; // TRIGGER FOR NOW
@@ -404,8 +407,9 @@ impl RFCore {
             .and_then(|_| self.wait(&rf_command))
             .ok()
             .expect("Start RAT command returned Err");
-        */
+    }
 
+    pub fn start_rat_test(&self) {
         let dbell_regs = &*self.dbell_regs;
 
         let rf_command_test = CommandSyncRat {
