@@ -6,6 +6,7 @@ build/*
 *.elf
 *.o
 *.ll
+*.lock
 .gdbinit
 
 ## OS X
