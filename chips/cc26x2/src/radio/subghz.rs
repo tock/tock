@@ -251,6 +251,17 @@ pub mod prop_commands {
     #![allow(unused)]
     use kernel::common::registers::ReadOnly;
     use radio::commands::{RfcCondition, RfcSetupConfig, RfcTrigger};
+    
+
+    #[repr(C)]
+    pub struct CommandCommon {
+        pub command_no: ReadOnly<u16>,
+        pub status: ReadOnly<u16>,
+        pub p_nextop: ReadOnly<u32>,
+        pub ratmr: ReadOnly<u32>,
+        pub start_trigger: ReadOnly<u8>,
+        pub condition: RfcCondition,
+    }
 
     // Radio and data commands bitfields
     bitfield! {
@@ -289,19 +300,19 @@ pub mod prop_commands {
         pub _whiten_mode, _set_whiten_mode              : 15, 13;
     }
 
-    #[repr(C)]
-    pub struct CommandCommon {
-        pub command_no: ReadOnly<u16>,
-        pub status: ReadOnly<u16>,
-        pub p_nextop: ReadOnly<u32>,
-        pub ratmr: ReadOnly<u32>,
-        pub start_trigger: ReadOnly<u8>,
-        pub condition: RfcCondition,
+    bitfield! {
+        #[derive(Copy, Clone)]
+        pub struct RfcPacketConf(u8);
+        impl Debug; 
+        pub _fs_off, _set_fs_off    : 0;
+        pub _use_crc, _set_use_crc  : 3;
+        pub _var_len, _set_var_len  : 4;
     }
 
+    // Radio Operation Commands 
     #[repr(C)]
     pub struct CommandRadioSetup {
-        pub command_no: u16,
+        pub command_no: u16, // 0x3806
         pub status: u16,
         pub p_nextop: u32,
         pub ratmr: u32,
@@ -319,5 +330,20 @@ pub mod prop_commands {
         pub int_freq: u16,
         pub io_divider: u8,
     }
+
+    #[repr(C)]
+    pub struct CommandTx {
+        pub command_no: u16, // 0x3801
+        pub status: u16,
+        pub p_nextop: u32,
+        pub ratmr: u32,
+        pub start_trigger: u8,
+        pub condition: RfcCondition,
+        pub packet_conf: RfcPacketConf,
+        pub packet_len: u8,
+        pub sync_word: u32,
+        pub packet_pointer: u32,
+    }
+
 
 }
