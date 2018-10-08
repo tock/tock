@@ -42,7 +42,7 @@ pub trait RadioConfig {
     fn get_command_status(&self) -> (ReturnCode, Option<u32>);
     // fn get_rat_time(&self) -> u32;
 
-    fn set_tx_power(&self, power: u32) -> ReturnCode;
+    fn set_tx_power(&self, power: u16) -> ReturnCode;
     fn config_commit(&self);
 }
 
@@ -54,6 +54,7 @@ pub trait RadioDriver {
     fn transmit(
         &self,
         tx_buf: &'static mut [u8],
+        len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 }
 

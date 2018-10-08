@@ -48,7 +48,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-    radio: &'static capsules::virtual_rfcore::VirtualRadioDriver<
+    radio: &'static capsules::simple_rfcore::VirtualRadioDriver<
         'static,
         cc26x2::radio::subghz::Radio,
     >,
@@ -362,8 +362,8 @@ pub unsafe fn reset_handler() {
     radio::RFC.set_client(&radio::RADIO);
 
     let virtual_radio = static_init!(
-        capsules::virtual_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
-        capsules::virtual_rfcore::VirtualRadioDriver::new(
+        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
+        capsules::simple_rfcore::VirtualRadioDriver::new(
             &cc26x2::radio::RADIO,
             board_kernel.create_grant(&memory_allocation_capability),
             &mut HELIUM_BUF

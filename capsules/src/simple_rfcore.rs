@@ -15,6 +15,91 @@ pub enum HeliumState {
     Invalid,
 }
 
+pub trait Framer {
+    fn prepare_data_frame(&self, buf: &'static mut [u8], _seq: u8) -> Result<Frame, &'static mut [u8]>;
+}
+
+impl<R> Framer for VirtualRadioDriver<'a, R>
+where
+    R: radio_client::Radio,
+{
+    fn prepare_data_frame(&self, buf: &'static mut [u8], seq: u8) -> Result<Frame, &'static mut [u8]> {
+        let _header = Header {
+            frame_type: FrameType::Data,
+            id: None,
+            seq: Some(seq),
+        };
+
+        // encode header here and return some result
+        let frame = Frame {
+            buf: buf,
+            info: FrameInfo {
+                frame_type: FrameType::Data,
+                data_len: 0,
+            },
+            max_frame_size: 128,
+        };
+        Ok(frame)
+    }
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct Frame {
+    buf: &'static mut [u8],
+    info: FrameInfo,
+    max_frame_size: usize,
+}
+
+impl Frame {
+    pub fn into_buf(self) -> &'static mut [u8] {
+        self.buf
+    }
+
+    pub fn append_payload(&mut self, payload: &[u8]) -> ReturnCode {
+        if payload.len() > self.max_frame_size {
+            return ReturnCode::ENOMEM;
+        }
+        self.buf.copy_from_slice(payload);
+        self.info.data_len += payload.len();
+        
+        ReturnCode::SUCCESS
+    }
+}
+
+pub struct Header {
+    frame_type: FrameType,
+    id: Option<u32>,
+    seq: Option<u8>,
+}
+
+pub const FRAME_TYPE_MASK: u8 = 0b11;
+#[repr(u8)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum FrameType {
+    Ping = 0b00,
+    Data = 0b01,
+    Fragment = 0b10,
+    Acknowledgement = 0b11,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct FrameInfo {
+    frame_type: FrameType,
+    data_len: usize,
+}
+
+impl FrameType {
+    pub fn from_slice(ft: u8) -> Option<FrameType> {
+        match ft & FRAME_TYPE_MASK {
+            0b00 => Some(FrameType::Ping),
+            0b01 => Some(FrameType::Data),
+            0b10 => Some(FrameType::Fragment),
+            0b11 => Some(FrameType::Acknowledgement),
+            _ => None,
+        }
+    }
+}
+
 // #[derive(Default)]
 pub struct App {
     process_status: Option<HeliumState>,
@@ -23,7 +108,7 @@ pub struct App {
     app_cfg: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
     app_read: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<(u16, Option<RfcOperationStatus>)>, // Change u32 to keyid and fec mode later on during implementation
+    pending_tx: Option<(u16, Option<FrameType>)>, // Change u32 to keyid and fec mode later on during implementation
 }
 
 impl Default for App {
@@ -40,10 +125,9 @@ impl Default for App {
     }
 }
 
-pub struct VirtualRadioDriver<'a, R, F>
+pub struct VirtualRadioDriver<'a, R>
 where
-    R: radio_client::Radio,
-    P: 
+    R: radio_client::Radio, 
 {
     radio: &'a R,
     app: Grant<App>,
@@ -72,6 +156,66 @@ where
         }
     }
 
+    /// If the driver is currently idle and there are pending transmissions,
+    /// pick an app with a pending transmission and return its `AppId`.
+    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+        if self.current_app.is_some() {
+            return None;
+        }
+        let mut pending_app = None;
+        for app in self.app.iter() {
+            app.enter(|app, _| {
+                if app.pending_tx.is_some() {
+                    pending_app = Some(app.appid());
+                }
+            });
+            if pending_app.is_some() {
+                break;
+            }
+        }
+        pending_app
+    }
+
+    /// Utility function to perform an action using an app's config buffer.
+    #[inline]
+    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    where
+        F: FnOnce(&[u8]) -> ReturnCode,
+    {
+        self.app
+            .enter(appid, |app, _| {
+                app.app_cfg
+                    .take()
+                    .as_ref()
+                    .map_or(ReturnCode::EINVAL, |cfg| {
+                        if cfg.len() != len {
+                            return ReturnCode::EINVAL;
+                        }
+                        closure(cfg.as_ref())
+                    })
+            }).unwrap_or_else(|err| err.into())
+    }
+
+    /// Utility function to perform a write to an app's config buffer.
+    #[inline]
+    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+    where
+        F: FnOnce(&mut [u8]) -> ReturnCode,
+    {
+        self.app
+            .enter(appid, |app, _| {
+                app.app_cfg
+                    .take()
+                    .as_mut()
+                    .map_or(ReturnCode::EINVAL, |cfg| {
+                        if cfg.len() != len {
+                            return ReturnCode::EINVAL;
+                        }
+                        closure(cfg.as_mut())
+                    })
+            }).unwrap_or_else(|err| err.into())
+    }
+
     /// Utility function to perform an action on an app in a system call.
     #[inline]
     fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
@@ -81,6 +225,24 @@ where
         self.app
             .enter(appid, |app, _| closure(app))
             .unwrap_or_else(|err| err.into())
+    }
+    
+    /// Schedule the next transmission if there is one pending. If the next
+    /// transmission happens to be the one that was just queued, then the
+    /// transmission is synchronous. Hence, errors must be returned immediately.
+    /// On the other hand, if it is some other app, then return any errors via
+    /// callbacks.
+    #[inline]
+    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
+        self.get_next_tx_if_idle()
+            .map(|appid| {
+                if appid == new_appid {
+                    self.perform_tx_sync(appid)
+                } else {
+                    self.perform_tx_async(appid);
+                    ReturnCode::SUCCESS
+                }
+            }).unwrap_or(ReturnCode::SUCCESS)
     }
 
     /// Performs `appid`'s pending transmission asynchronously. If the
@@ -113,10 +275,10 @@ where
             };
 
             let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
-                let seq: u8 = 0; // TEMP SEQ # ALWAYS 0
-                let frame = self.radio.prepare_data_frame(
+                let seq: u8 = 0; // TEMP SEQ # ALWAYS 0 
+                let frame = match self.prepare_data_frame(
                     kbuf,
-                    seq,
+                    seq
                     ) {
                     Ok(frame) => frame,
                     Err(kbuf) => {
@@ -124,8 +286,9 @@ where
                         return ReturnCode::FAIL;
                     }
                 };
-                // Transmit the frame
-                let (result, mbuf) = self.radio.transmit(frame);
+                // Transmit the framei
+                let len = frame.info.data_len;
+                let (result, mbuf) = self.radio.transmit(frame.into_buf(), len);
                 if let Some(buf) = mbuf {
                     self.kernel_tx.replace(buf);
                 }
@@ -208,8 +371,9 @@ where
     /// - `5`: "Gracefull" stop radio operation command
     /// - `6`: Get radio command status
     /// - `7`: Force stop radio operation (no powerdown)
+    /// - `8`: Set next TX transaction
 
-    fn command(&self, command_num: usize, r2: usize, _r3: usize, _appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, r2: usize, _r3: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {
@@ -234,7 +398,7 @@ where
                 }
             }
             4 => {
-                let status = self.radio.set_tx_power(r2 as u32);
+                let status = self.radio.set_tx_power(r2 as u16);
                 match status {
                     ReturnCode::SUCCESS => ReturnCode::SUCCESS,
                     _ => ReturnCode::FAIL,
@@ -256,6 +420,32 @@ where
             7 => {
                 self.radio.send_kill_command()
             }
+            8 => {
+                self.do_with_app(appid, |app| {
+                    if app.pending_tx.is_some() {
+                        return ReturnCode::EBUSY;
+                    }
+                    let addr = r2 as u16;
+
+                    let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
+                        if cfg.len() != 11 {
+                            return None;
+                        }
+
+                        let frame_type = match FrameType::from_slice(cfg.as_ref()[0]) {
+                            Some(frame_type) => frame_type,
+                            None => {return None;} 
+                        };
+                        Some((addr, Some(frame_type))) 
+                    });
+                    if next_tx.is_none() {
+                        return ReturnCode::EINVAL;
+                    }
+                    app.pending_tx = next_tx;
+
+                    self.do_next_tx_sync(appid)
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -263,6 +453,7 @@ where
 
 impl<R: radio_client::Radio> radio_client::TxClient for VirtualRadioDriver<'a, R> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
+        /*
         self.kernel_tx.replace(buf);
         self.current_app.take().map(|app_id| {
             let _ = self.app.enter(app_id, |app, _| {
@@ -271,6 +462,7 @@ impl<R: radio_client::Radio> radio_client::TxClient for VirtualRadioDriver<'a, R
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
             });
         });
+        */
         self.tx_client.map(move |c| {
             c.transmit_event(buf, result);
         });
@@ -285,52 +477,14 @@ impl<R: radio_client::Radio> radio_client::RxClient for VirtualRadioDriver<'a, R
         crc_valid: bool,
         result: ReturnCode,
     ) {
-        // Filter packets by destination because radio is in promiscuous mode
-        let addr_match = false;
+        let decaut_valid = true;
         // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE
-
-        if addr_match {
+        if decaut_valid { 
             self.rx_client.map(move |c| {
                 c.receive_event(buf, frame_len, crc_valid, result);
             });
         } else {
             self.radio.set_receive_buffer(buf);
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum RfcOperationStatus {
-    Idle,
-    Pending,
-    Active,
-    Skipped,
-    SendDone,
-    CommandDone,
-    LastCommandDone,
-    RxOk,
-    TxDone,
-    Setup,
-    Invalid,
-}
-
-impl From<usize> for RfcOperationStatus {
-    fn from(val: usize) -> RfcOperationStatus {
-        match val {
-            0 => RfcOperationStatus::Idle,
-            1 => RfcOperationStatus::Pending,
-            2 => RfcOperationStatus::Active,
-            3 => RfcOperationStatus::Skipped,
-            4 => RfcOperationStatus::SendDone,
-            5 => RfcOperationStatus::TxDone,
-            6 => RfcOperationStatus::CommandDone,
-            7 => RfcOperationStatus::LastCommandDone,
-            8 => RfcOperationStatus::RxOk,
-            9 => RfcOperationStatus::TxDone,
-            val => {
-                debug_assert!(false, "{} does not represent a valid command.", val);
-                RfcOperationStatus::Invalid
-            }
         }
     }
 }

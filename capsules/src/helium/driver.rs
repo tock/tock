@@ -7,7 +7,7 @@ use kernel::common::cells::{TakeCell, OptionalCell, MapCell};
 use kernel::{AppId, AppSlice, Shared, Callback, Driver, ReturnCode, Grant};
 use kernel::hil::{radio_client, time::Alarm, time::Frequency, time::Client};
 use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
-use helium::{device::TxClient, device::Device, framer, framer::FecType};
+use helium::{device, device::Device, framer, framer::FecType};
 
 // static mut PAYLOAD: [u8; 256] = [0; 256];
 
@@ -339,7 +339,7 @@ where
                 }
             }
             HeliumCommand::SetTxPower => ReturnCode::ENOSUPPORT, // Link to set tx power in radio
-            HeliumCommand::GetTxPower => ReturnCode::ENOSUPPORT, // Link to get tx power in radio
+            
             HeliumCommand::SetNextTx => {
                 self.do_with_app(appid, |app| {
                     if app.pending_tx.is_some() {
@@ -374,7 +374,7 @@ where
     }
 }
 
-impl<D> TxClient for Helium<'a, D>
+impl<D> device::TxClient for Helium<'a, D>
 where
     D: Device<'a>,
 {
@@ -406,43 +406,7 @@ pub enum HeliumCommand {
     SetNextTx = 4,
     Invalid = 5,
 }
-/*
-#[derive(Debug, Clone, Copy)]
-pub enum RfcOperationStatus {
-    Idle,
-    Pending,
-    Active,
-    Skipped,
-    SendDone,
-    CommandDone,
-    LastCommandDone,
-    RxOk,
-    TxDone,
-    Setup,
-    Invalid,
-}
 
-impl From<usize> for RfcOperationStatus {
-    fn from(val: usize) -> RfcOperationStatus {
-        match val {
-            0 => RfcOperationStatus::Idle,
-            1 => RfcOperationStatus::Pending,
-            2 => RfcOperationStatus::Active,
-            3 => RfcOperationStatus::Skipped,
-            4 => RfcOperationStatus::SendDone,
-            5 => RfcOperationStatus::TxDone,
-            6 => RfcOperationStatus::CommandDone,
-            7 => RfcOperationStatus::LastCommandDone,
-            8 => RfcOperationStatus::RxOk,
-            9 => RfcOperationStatus::TxDone,
-            val => {
-                debug_assert!(false, "{} does not represent a valid command.", val);
-                RfcOperationStatus::Invalid
-            }
-        }
-    }
-}
-*/
 impl From<&'a HeliumCallback> for usize {
     fn from(cmd: &HeliumCallback) -> usize {
         *cmd as usize

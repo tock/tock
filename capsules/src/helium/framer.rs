@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use helium::{mac, device};
+use helium::{virtual_rfcore, device};
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::radio_client;
 use kernel::ReturnCode;
@@ -118,11 +118,11 @@ enum RxState {
     ReadyToReturn(&'static mut [u8]),
 }
 
-pub struct Framer<'a, M> 
+pub struct Framer<'a, V> 
 where
-    M: mac::Mac,
+    V: virtual_rfcore::RFCore,
 {
-    mac: &'a M,
+    vrfc: &'a V,
     seq: Cell<u8>,
     tx_state: MapCell<TxState>,
     tx_client: OptionalCell<&'a device::TxClient>,
@@ -130,10 +130,13 @@ where
     rx_client: OptionalCell<&'a device::RxClient>,
 }
 
-impl<M: mac::Mac> Framer<'a, M> {
-    pub fn new(mac: &'a M) -> Framer<'a, M> {
+impl<V> Framer<'a, V> 
+where 
+    V: virtual_rfcore::RFCore,
+{
+    pub fn new(vrfc: &'a V) -> Framer<'a, V> {
         Framer {
-            mac: mac,
+            vrfc: vrfc,
             seq: Cell::new(0),
             tx_state: MapCell::new(TxState::Idle),
             tx_client: OptionalCell::empty(),
@@ -169,7 +172,7 @@ impl<M: mac::Mac> Framer<'a, M> {
                 let (next_state, result) = match state {
                     TxState::Idle => (TxState::Idle, (ReturnCode::SUCCESS, None)),
                     TxState::ReadyToTransmit(info, buf) => {
-                        let (rval, buf) = self.mac.transmit(buf, info.data_len);
+                        let (rval, buf) = self.vrfc.transmit(buf, info.data_len);
                         match rval {
                             ReturnCode::EBUSY => {
                                 match buf {
@@ -230,13 +233,16 @@ impl<M: mac::Mac> Framer<'a, M> {
             self.rx_state.replace(next_state);
 
             if let Some(buf) = buf {
-                self.mac.set_receive_buffer(buf);
+                self.vrfc.set_receive_buffer(buf);
             }
         });
     }
 }
 
-impl<M: mac::Mac> device::Device<'a> for Framer<'a, M> {
+impl<V> device::Device<'a> for Framer<'a, V> 
+where 
+    V: virtual_rfcore::RFCore,
+{
     fn set_transmit_client(&self, client: &'a device::TxClient) {
         self.tx_client.set(client);
     }
@@ -246,11 +252,11 @@ impl<M: mac::Mac> device::Device<'a> for Framer<'a, M> {
     }
 
     fn config_commit(&self) {
-        self.mac.config_commit();
+        self.vrfc.config_commit();
     }
 
     fn is_on(&self) -> bool {
-        self.mac.is_on()
+        self.vrfc.get_radio_status()
     }
 
     fn prepare_data_frame(&self, buf: &'static mut [u8], _seq: u8, fec_type: Option<FecType>) -> Result<Frame, &'static mut [u8]> {
@@ -295,7 +301,10 @@ impl<M: mac::Mac> device::Device<'a> for Framer<'a, M> {
     }
 }
 
-impl<M: mac::Mac> radio_client::TxClient for Framer<'a, M> {
+impl<V> radio_client::TxClient for Framer<'a, V> 
+where
+    V: virtual_rfcore::RFCore,
+{
     fn transmit_event(&self, buf: &'static mut [u8], _result: ReturnCode) {
         self.seq.set(self.seq.get() + 1);
         self.tx_client.map(move |client| {
@@ -304,10 +313,13 @@ impl<M: mac::Mac> radio_client::TxClient for Framer<'a, M> {
     }
 }
 
-impl<M: mac::Mac> radio_client::RxClient for Framer<'a, M> {
+impl<V> radio_client::RxClient for Framer<'a, V> 
+where 
+    V: virtual_rfcore::RFCore,
+{
     fn receive_event(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _result: ReturnCode) {
         if !crc_valid {
-            self.mac.set_receive_buffer(buf);
+            self.vrfc.set_receive_buffer(buf);
             return;
         }
 
@@ -319,8 +331,8 @@ impl<M: mac::Mac> radio_client::RxClient for Framer<'a, M> {
                 }
                 other_state => {
                     // Should never occur unless a receive buffer was provided by something outside
-                    // of mac layer
-                    self.mac.set_receive_buffer(buf);
+                    // of virtual radio layer
+                    self.vrfc.set_receive_buffer(buf);
                     other_state
                 }
             };
@@ -330,7 +342,10 @@ impl<M: mac::Mac> radio_client::RxClient for Framer<'a, M> {
     }
 }
 
-impl<M: mac::Mac> radio_client::ConfigClient for Framer<'a, M> {
+impl<V> radio_client::ConfigClient for Framer<'a, V> 
+where 
+    V: virtual_rfcore::RFCore,
+{
     fn config_done(&self, _: ReturnCode) {
         let (rval, buf) = self.step_transmit_state();
         if let Some(buf) = buf {

@@ -234,18 +234,33 @@ impl radio_client::RadioConfig for Radio {
         }
     }
 
-    fn set_tx_power(&self, _power: u32) -> ReturnCode {
-        // TODO send direct command for TX power change
-        ReturnCode::ENOSUPPORT
+    fn set_tx_power(&self, power: u16) -> ReturnCode {
+        // Send direct command for TX power change
+        let command = cmd::DirectCommand::new(0x0010, power);
+        if self.rfc.send_direct(&command).is_ok() {
+            return ReturnCode::SUCCESS;
+        } else {
+            return ReturnCode::FAIL;
+        }
     }
 
     fn send_stop_command(&self) -> ReturnCode {
-        // TODO send "Gracefull" stop radio operation direct command
-        ReturnCode::ENOSUPPORT
+        // Send "Gracefull" stop radio operation direct command
+        let command = cmd::DirectCommand::new(0x0402, 0);
+        if self.rfc.send_direct(&command).is_ok() {
+            return ReturnCode::SUCCESS;
+        } else {
+            return ReturnCode::FAIL;
+        }
     }
 
     fn send_kill_command(&self) -> ReturnCode {
-        // TODO send immidiate command kill all radio operation commands
-        ReturnCode::ENOSUPPORT
+        // Send immidiate command kill all radio operation commands
+        let command = cmd::DirectCommand::new(0x0401, 0);
+        if self.rfc.send_direct(&command).is_ok() {
+            return ReturnCode::SUCCESS;
+        } else {
+            return ReturnCode::FAIL;
+        }
     }
 }
