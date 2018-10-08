@@ -246,3 +246,80 @@ impl radio_client::RadioConfig for Radio {
         }
     }
 }
+
+pub mod prop_commands {
+    #![allow(unused)]
+    use kernel::common::registers::ReadOnly;
+    use radio::commands::{RfcTrigger, RfcCondition, RfcSetupConfig};
+    
+
+    // Radio and data commands bitfields
+    bitfield! {
+        #[derive(Copy, Clone)]
+        pub struct RfcModulation(u16);
+        impl Debug;
+        pub _mod_type, _set_mod_type                : 2, 0;
+        pub _deviation, _set_deviation              : 13, 3;
+        pub _deviation_step, _set_deviation_step    : 15, 14;
+    }
+
+    bitfield! {
+        #[derive(Copy, Clone)]
+        pub struct RfcSymbolRate(u32);
+        impl Debug;
+        pub _prescale, _set_prescale    : 7, 0;
+        pub _rate_word, _set_rate_word  : 28, 8;
+    }
+
+    bitfield! {
+        #[derive(Copy, Clone)]
+        pub struct RfcPreambleConf(u8);
+        impl Debug;
+        pub _num_preamble_bytes, _set_num_preamble_bytes    : 5, 0;
+        pub _pream_mode, _set_pream_mode                    : 6, 7;
+    }
+
+    bitfield! {
+        #[derive(Copy, Clone)]
+        pub struct RfcFormatConf(u16);
+        impl Debug;
+        pub _num_syncword_bits, _set_num_syncword_bits  : 5, 0;
+        pub _bit_reversal, _set_bit_reversal            : 6;
+        pub _msb_first, _set_msb_first                  : 7;
+        pub _fec_mode, _set_fec_mode                    : 11, 8;
+        pub _whiten_mode, _set_whiten_mode              : 15, 13;
+    }
+
+    
+    #[repr(C)]
+    pub struct CommandCommon {
+        pub command_no: ReadOnly<u16>,
+        pub status: ReadOnly<u16>,
+        pub p_nextop: ReadOnly<u32>,
+        pub ratmr: ReadOnly<u32>,
+        pub start_trigger: ReadOnly<u8>,
+        pub condition: RfcCondition,
+    }
+
+    #[repr(C)]
+    pub struct CommandRadioSetup {
+        pub command_no: u16,
+        pub status: u16,
+        pub p_nextop: u32,
+        pub ratmr: u32,
+        pub start_trigger: u8,
+        pub condition: RfcCondition,
+        pub modulation: RfcModulation,
+        pub symbol_rate: RfcSymbolRate, 
+        pub rx_bandwidth: u8,
+        pub preamble_conf: RfcPreambleConf,
+        pub format_conf: RfcFormatConf,
+        pub config: u16,
+        pub tx_power: u16,
+        pub reg_overrides: u32,
+        pub center_freq: u16,
+        pub int_freq: u16,
+        pub io_divider: u8,
+    }
+
+}
