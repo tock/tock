@@ -41,23 +41,6 @@ bitfield! {
     pub _no_fs_powerup, _set_no_fs_powerup: 10;
 }
 
-// Radio Command Operation Status
-
-#[derive(Debug, Clone, Copy)]
-pub enum RfcOperationStatus {
-    Idle,
-    Pending,
-    Active,
-    Skipped,
-    SendDone,
-    CommandDone,
-    LastCommandDone,
-    RxOk,
-    TxDone,
-    Setup,
-    Invalid,
-}
-
 // Radio Commands
 
 // RFC Immediate commands
