@@ -9,7 +9,7 @@ pub struct AuxSysIfRegisters {
     _prog_wu2_cfg: ReadWrite<u32, WUCfg::Register>,
     _prog_wu3_cfg: ReadWrite<u32, WUCfg::Register>,
     _wu_flags: ReadOnly<u32, WUFlags::Register>,
-    wu_flags_clr: ReadWrite<u32, WUFlags::Register>,
+    _wu_flags_clr: ReadWrite<u32, WUFlags::Register>,
     wu_gate: ReadWrite<u32, WUGate::Register>,
     // remainder unimplemented
     _vec_cfg: [ReadOnly<u8>; 32],

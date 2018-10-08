@@ -97,21 +97,21 @@ pub const LF_XOSC: u8 = 0x03;
 
 const DDI_0_R_BASE: StaticRef<DdiRegisters> =
     unsafe { StaticRef::new(0x400C_A000 as *const DdiRegisters) };
+/*
 const DDI_0_WR_BASE: StaticRef<DdiRegisters> =
     unsafe { StaticRef::new(0x400C_A080 as *const DdiRegisters) };
+*/
 
 pub const OSC: Oscillator = Oscillator::new();
 
 pub struct Oscillator {
     r_regs: StaticRef<DdiRegisters>,
-    wr_regs: StaticRef<DdiRegisters>,
 }
 
 impl Oscillator {
     pub const fn new() -> Oscillator {
         Oscillator {
             r_regs: DDI_0_R_BASE,
-            wr_regs: DDI_0_WR_BASE,
         }
     }
 
