@@ -303,13 +303,13 @@ pub mod prop_commands {
     bitfield! {
         #[derive(Copy, Clone)]
         pub struct RfcPacketConf(u8);
-        impl Debug; 
+        impl Debug;
         pub _fs_off, _set_fs_off    : 0;
         pub _use_crc, _set_use_crc  : 3;
         pub _var_len, _set_var_len  : 4;
     }
 
-    // Radio Operation Commands 
+    // Radio Operation Commands
     #[repr(C)]
     pub struct CommandRadioSetup {
         pub command_no: u16, // 0x3806
@@ -344,6 +344,5 @@ pub mod prop_commands {
         pub sync_word: u32,
         pub packet_pointer: u32,
     }
-
 
 }
