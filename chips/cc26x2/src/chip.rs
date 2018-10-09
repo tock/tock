@@ -43,7 +43,6 @@ impl kernel::Chip for Cc26X2 {
                     NVIC_IRQ::AON_RTC => rtc::RTC.handle_interrupt(),
                     NVIC_IRQ::UART0 => uart::UART0.handle_interrupt(),
                     NVIC_IRQ::I2C0 => i2c::I2C0.handle_interrupt(),
-                    // AON Programmable interrupt
                     // We need to ignore JTAG events since some debuggers emit these
                     NVIC_IRQ::AON_PROG => (),
                     _ => panic!("Unhandled interrupt {:?}", irq),
