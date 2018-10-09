@@ -24,13 +24,13 @@ const DEFAULT_BAUD: u32 = 115200;
 const MAX_PAYLOAD: usize = 1;
 
 const UART_PARAMS: uart::UARTParameters = uart::UARTParameters {
-            baud_rate: DEFAULT_BAUD,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        };
+    baud_rate: DEFAULT_BAUD,
+    stop_bits: uart::StopBits::One,
+    parity: uart::Parity::None,
+    hw_flow_control: false,
+};
 
-pub static mut OUT_BUF: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD + 1];
+pub static mut OUT_BUF: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD * 2];
 pub static mut IN_BUF: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
 
 pub struct UartEcho<U: 'static + UART> {
@@ -56,7 +56,10 @@ impl<U: 'static + UART> UartEcho<U> {
         tx_buf: &'static mut [u8],
         rx_buf: &'static mut [u8],
     ) -> UartEcho<U> {
-        assert!(tx_buf.len() > rx_buf.len(), "UartEcho has improperly sized buffers");
+        assert!(
+            tx_buf.len() > rx_buf.len(),
+            "UartEcho has improperly sized buffers"
+        );
         uart_tx.configure(UART_PARAMS);
         uart_rx.configure(UART_PARAMS);
         UartEcho {
