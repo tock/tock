@@ -111,7 +111,6 @@ pub unsafe extern "C" fn SetupTrimDevice() {
             | 0x2000000usize
             | ((0x40034000i32 + 0x0i32) as (usize) & 0xfffffusize) << 5i32
             | (3i32 << 2i32) as (usize)) as (*mut usize)) != 0 {}
-    
     */
     'loop9: loop {
         if *(((0x40034000i32 + 0x0i32) as (usize) & 0xf0000000usize
