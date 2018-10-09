@@ -77,7 +77,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     generic_isr,
     generic_isr,
     generic_isr,
-    generic_isr
+    generic_isr,
 ];
 
 #[no_mangle]
