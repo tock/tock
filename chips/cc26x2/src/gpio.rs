@@ -94,12 +94,46 @@ register_bitfields![
             PullNone = 0b11
         ],
         PORT_ID     OFFSET(0) NUMBITS(6) [
-            GPIO = 0x00,
-            UART_RX = 0xF,
-            UART_TX = 0x10,
-            I2C_MSSDA = 0xd,
-            I2C_MSSCL = 0xe
-            // Add more as needed from datasheet p.1028
+            // From p.1072
+            GPIO = 0,
+            AON_CLK32K = 7,
+            AUX_DOMAIN_IO = 8,
+            SSI0_RX = 9,
+            SSI0_TX = 10,
+            SSI0_FSS = 11,
+            SSI0_CLK = 12,
+            I2C_MSSDA = 13,
+            I2C_MSSCL = 14,
+            UART0_RX = 15,
+            UART0_TX = 16,
+            UART0_CTS = 17,
+            UART0_RTS = 18,
+            UART1_RX = 19,
+            UART1_TX = 20,
+            UART1_CTS = 21,
+            UART1_RTS = 22,
+            PORT_EVENT0 = 23,
+            PORT_EVENT1 = 24,
+            PORT_EVENT2 = 25,
+            PORT_EVENT3 = 26,
+            PORT_EVENT4 = 27,
+            PORT_EVENT5 = 28,
+            PORT_EVENT6 = 29,
+            PORT_EVENT7 = 30,
+            CPU_SWV = 32,
+            SSI1_RX = 33,
+            SSI1_TX = 34,
+            SSI1_FSS = 35,
+            SSI1_CLK = 36,
+            I2S_AD0 = 37,
+            I2S_AD1 = 38,
+            I2S_WCLK = 39,
+            I2S_BCLK = 40,
+            I2S_MCLK = 41,
+            RFC_GPO0 = 47,
+            RFC_GPO1 = 48,
+            RFC_GPO2 = 49,
+            RFC_GPO3 = 50
         ]
     ]
 ];
@@ -171,20 +205,38 @@ impl GPIOPin {
         self.enable_input();
     }
 
-    /// Configures pin for UART receive (RX).
-    pub fn enable_uart_rx(&self) {
+    /// Configures pin for UART0 receive (RX).
+    pub fn enable_uart0_rx(&self) {
         let pin_ioc = &self.ioc_registers.iocfg[self.pin];
 
-        pin_ioc.modify(IoConfiguration::PORT_ID::UART_RX);
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART0_RX);
         self.set_input_mode(hil::gpio::InputMode::PullNone);
         self.enable_input();
     }
 
-    /// Configures pin for UART transmit (TX).
-    pub fn enable_uart_tx(&self) {
+    // Configures pin for UART0 transmit (TX).
+    pub fn enable_uart0_tx(&self) {
         let pin_ioc = &self.ioc_registers.iocfg[self.pin];
 
-        pin_ioc.modify(IoConfiguration::PORT_ID::UART_TX);
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART0_TX);
+        self.set_input_mode(hil::gpio::InputMode::PullNone);
+        self.enable_output();
+    }
+
+    // Configures pin for UART1 receive (RX).
+    pub fn enable_uart1_rx(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART1_RX);
+        self.set_input_mode(hil::gpio::InputMode::PullNone);
+        self.enable_input();
+    }
+
+    // Configures pin for UART1 transmit (TX).
+    pub fn enable_uart1_tx(&self) {
+        let pin_ioc = &self.ioc_registers.iocfg[self.pin];
+
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART1_TX);
         self.set_input_mode(hil::gpio::InputMode::PullNone);
         self.enable_output();
     }

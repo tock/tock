@@ -138,7 +138,7 @@ register_bitfields![
     ClockGate2 [
         // RESERVED (bits 1-31)
         CLK0_EN          OFFSET(0) NUMBITS(1) [],
-        CLK1_EN          OFFSET(0) NUMBITS(1) []
+        CLK1_EN          OFFSET(1) NUMBITS(1) []
 
     ],
     PowerDomain0 [
