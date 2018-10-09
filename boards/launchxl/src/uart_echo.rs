@@ -8,8 +8,9 @@ use kernel::hil::uart::{Client, UART};
     let echo0_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     echo0_uart.setup();
     let echo0 = static_init!(
-            uart_echo::UartEcho<UartDevice>,
+            uart_echo::UartEcho<UartDevice, UartDevice>,
             uart_echo::UartEcho::new(
+                echo0_uart,
                 echo0_uart,
                 &mut uart_echo::OUT_BUF0,
                 &mut uart_echo::IN_BUF0,
@@ -19,10 +20,11 @@ use kernel::hil::uart::{Client, UART};
     hil::uart::UART::set_client(echo0_uart, echo0);
     echo0.initialize();
 
-
+    // Directly hook up UART1 for echo test
     let echo1 = static_init!(
-            uart_echo::UartEcho<cc26x2::uart::UART>,
+            uart_echo::UartEcho<cc26x2::uart::UART, cc26x2::uart::UART>,
             uart_echo::UartEcho::new(
+                &cc26x2::uart::UART1,
                 &cc26x2::uart::UART1,
                 &mut uart_echo::OUT_BUF1,
                 &mut uart_echo::IN_BUF1,
@@ -50,29 +52,23 @@ pub static mut IN_BUF0: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
 pub static mut OUT_BUF1: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD * 2];
 pub static mut IN_BUF1: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
 
-pub struct UartEcho<U: 'static + UART> {
-    uart_tx: &'static U,
-    uart_rx: &'static U,
+// just in case you want to mix and match UART types (eg: one is muxed, one is direct)
+pub struct UartEcho<UTx: 'static + UART, URx: 'static + UART> {
+    uart_tx: &'static UTx,
+    uart_rx: &'static URx,
     baud: u32,
     tx_buf: MapCell<&'static mut [u8]>,
     rx_buf: MapCell<&'static mut [u8]>,
 }
 
-impl<U: 'static + UART> UartEcho<U> {
-    pub fn new(
-        uart: &'static U,
-        tx_buf: &'static mut [u8],
-        rx_buf: &'static mut [u8],
-    ) -> UartEcho<U> {
-        UartEcho::new_explicit(uart, uart, tx_buf, rx_buf)
-    }
+impl<UTx: 'static + UART, URx: 'static + UART> UartEcho<UTx, URx> {
 
-    pub fn new_explicit(
-        uart_tx: &'static U,
-        uart_rx: &'static U,
+    pub fn new(
+        uart_tx: &'static UTx,
+        uart_rx: &'static URx,
         tx_buf: &'static mut [u8],
         rx_buf: &'static mut [u8],
-    ) -> UartEcho<U> {
+    ) -> UartEcho<UTx, URx> {
         assert!(
             tx_buf.len() > rx_buf.len(),
             "UartEcho has improperly sized buffers"
@@ -93,7 +89,7 @@ impl<U: 'static + UART> UartEcho<U> {
     }
 }
 
-impl<U: 'static + UART> Client for UartEcho<U> {
+impl<UTx: 'static + UART, URx: 'static + UART> Client for UartEcho<UTx, URx> {
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         self.tx_buf.put(buffer);
     }
