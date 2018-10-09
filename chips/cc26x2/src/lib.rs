@@ -6,6 +6,8 @@ extern crate cortexm4;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate kernel;
+#[macro_use]
+extern crate enum_primitive;
 
 pub mod aon;
 pub mod chip;
