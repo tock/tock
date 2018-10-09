@@ -224,7 +224,7 @@ impl GPIOPin {
     pub fn enable_uart1_rx(&self) {
         let pin_ioc = &self.ioc_registers.iocfg[self.pin];
 
-        pin_ioc.modify(IoConfiguration::PORT_ID::UART0_RX);
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART1_RX);
         self.set_input_mode(hil::gpio::InputMode::PullNone);
         self.enable_input();
     }
@@ -233,7 +233,7 @@ impl GPIOPin {
     pub fn enable_uart1_tx(&self) {
         let pin_ioc = &self.ioc_registers.iocfg[self.pin];
 
-        pin_ioc.modify(IoConfiguration::PORT_ID::UART0_TX);
+        pin_ioc.modify(IoConfiguration::PORT_ID::UART1_TX);
         self.set_input_mode(hil::gpio::InputMode::PullNone);
         self.enable_output();
     }
