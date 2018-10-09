@@ -101,7 +101,8 @@ struct Transaction {
 
 pub struct UART {
     registers: &'static StaticRef<UartRegisters>,
-    client: OptionalCell<&'static uart::Client>,
+    tx_client: OptionalCell<&'static uart::Client>,
+    rx_client: OptionalCell<&'static uart::Client>,
     tx: MapCell<Transaction>,
     rx: MapCell<Transaction>,
 }
@@ -110,7 +111,10 @@ impl UART {
     const fn new(registers: &'static StaticRef<UartRegisters>) -> UART {
         UART {
             registers,
-            client: OptionalCell::empty(),
+
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
             tx: MapCell::empty(),
             rx: MapCell::empty(),
         }
@@ -146,6 +150,8 @@ impl UART {
         self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
 
         self.fifo_enable();
+
+        self.enable_interrupts();
 
         // Enable UART, RX and TX
         self.registers
@@ -210,7 +216,7 @@ impl UART {
             }
 
             if rx.index == rx.length {
-                self.client.map(move |client| {
+                self.rx_client.map(move |client| {
                     client.receive_complete(
                         rx.buffer,
                         rx.index,
@@ -233,7 +239,7 @@ impl UART {
                 tx.index += 1;
             }
             if tx.index == tx.length {
-                self.client.map(move |client| {
+                self.tx_client.map(move |client| {
                     client.transmit_complete(tx.buffer, kernel::hil::uart::Error::CommandComplete);
                 });
             } else {
@@ -266,11 +272,20 @@ impl UART {
     pub fn tx_fifo_not_full(&self) -> bool {
         !self.registers.fr.is_set(Flags::TX_FIFO_FULL)
     }
+
+    pub fn set_tx_client(&self, client: &'static kernel::hil::uart::Client) {
+        self.tx_client.set(client);
+    }
+
+    pub fn set_rx_client(&self, client: &'static kernel::hil::uart::Client) {
+        self.rx_client.set(client);
+    }
 }
 
 impl kernel::hil::uart::UART for UART {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(client);
+        self.rx_client.set(client);
+        self.tx_client.set(client);
     }
 
     fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
@@ -280,7 +295,7 @@ impl kernel::hil::uart::UART for UART {
     fn transmit(&self, buffer: &'static mut [u8], len: usize) {
         // if there is a weird input, don't try to do any transfers
         if len == 0 {
-            self.client.map(move |client| {
+            self.tx_client.map(move |client| {
                 client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
             });
         } else {
@@ -303,7 +318,7 @@ impl kernel::hil::uart::UART for UART {
 
     fn receive(&self, buffer: &'static mut [u8], len: usize) {
         if len == 0 {
-            self.client.map(move |client| {
+            self.rx_client.map(move |client| {
                 client.receive_complete(buffer, len, kernel::hil::uart::Error::CommandComplete);
             });
         } else {
@@ -320,7 +335,7 @@ impl kernel::hil::uart::UART for UART {
 
     fn abort_receive(&self) {
         self.rx.take().map(|rx| {
-            self.client.map(move |client| {
+            self.rx_client.map(move |client| {
                 client.receive_complete(
                     rx.buffer,
                     rx.index,

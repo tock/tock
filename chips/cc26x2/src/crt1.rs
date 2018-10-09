@@ -21,7 +21,7 @@ unsafe extern "C" fn unhandled_interrupt() {
 #[link_section = ".vectors"]
 // used Ensures that the symbol is kept until the final binary
 #[used]
-pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     _estack,
     reset_handler,
     unhandled_interrupt, // NMI
@@ -74,6 +74,10 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 50] = [
     generic_isr, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
     generic_isr, // TRNG event
+    generic_isr,
+    generic_isr,
+    generic_isr,
+    generic_isr,
 ];
 
 #[no_mangle]
