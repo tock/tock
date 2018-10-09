@@ -505,7 +505,7 @@ pub fn begin_debug_fmt(args: Arguments) {
     unsafe {
         let writer = get_debug_writer();
         let _ = write(writer, args);
-        let _ = writer.write_str("\n");
+        let _ = writer.write_str("\r\n");
         writer.publish_str();
     }
 }
@@ -520,7 +520,7 @@ pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32))
         let (file, line) = *file_line;
         let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
         let _ = write(writer, args);
-        let _ = writer.write_str("\n");
+        let _ = writer.write_str("\r\n");
         writer.publish_str();
     }
 }
