@@ -2,36 +2,53 @@ use kernel::common::cells::MapCell;
 use kernel::hil::uart;
 use kernel::hil::uart::{Client, UART};
 /*
-    Add the snippet below to main if you want to enable echo
+    Add the snippet below to main if you want to enable echo on UART1 and UART2
 
     // Create a virtual device for echo test
-    let echo_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    echo_uart.setup();
-    let echo = static_init!(
+    let echo0_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    echo0_uart.setup();
+    let echo0 = static_init!(
             uart_echo::UartEcho<UartDevice>,
             uart_echo::UartEcho::new(
-                echo_uart, 
-                &mut uart_echo::OUT_BUF,
-                &mut uart_echo::IN_BUF,
+                echo0_uart,
+                &mut uart_echo::OUT_BUF0,
+                &mut uart_echo::IN_BUF0,
             )
         );
-    hil::uart::UART::set_client(echo_uart, echo);
-    echo.initialize();
+
+    hil::uart::UART::set_client(echo0_uart, echo0);
+    echo0.initialize();
+
+
+    let echo1 = static_init!(
+            uart_echo::UartEcho<cc26x2::uart::UART>,
+            uart_echo::UartEcho::new(
+                &cc26x2::uart::UART1,
+                &mut uart_echo::OUT_BUF1,
+                &mut uart_echo::IN_BUF1,
+            )
+        );
+    hil::uart::UART::set_client(&cc26x2::uart::UART1, echo1);
+    cc26x2::uart::UART1.initialize();
+    cc26x2::uart::UART1.configure(uart_echo::UART_PARAMS);
+    echo1.initialize();
 */
 
 const DEFAULT_BAUD: u32 = 115200;
 
 const MAX_PAYLOAD: usize = 1;
 
-const UART_PARAMS: uart::UARTParameters = uart::UARTParameters {
+pub const UART_PARAMS: uart::UARTParameters = uart::UARTParameters {
     baud_rate: DEFAULT_BAUD,
     stop_bits: uart::StopBits::One,
     parity: uart::Parity::None,
     hw_flow_control: false,
 };
 
-pub static mut OUT_BUF: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD * 2];
-pub static mut IN_BUF: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
+pub static mut OUT_BUF0: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD * 2];
+pub static mut IN_BUF0: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
+pub static mut OUT_BUF1: [u8; MAX_PAYLOAD * 2] = [0; MAX_PAYLOAD * 2];
+pub static mut IN_BUF1: [u8; MAX_PAYLOAD] = [0; MAX_PAYLOAD];
 
 pub struct UartEcho<U: 'static + UART> {
     uart_tx: &'static U,
@@ -60,8 +77,6 @@ impl<U: 'static + UART> UartEcho<U> {
             tx_buf.len() > rx_buf.len(),
             "UartEcho has improperly sized buffers"
         );
-        uart_tx.configure(UART_PARAMS);
-        uart_rx.configure(UART_PARAMS);
         UartEcho {
             uart_tx: &uart_tx,
             uart_rx: &uart_rx,
