@@ -129,8 +129,8 @@ unsafe fn configure_pins() {
     cc26x2::gpio::PORT[0].enable_gpio();
     cc26x2::gpio::PORT[1].enable_gpio();
 
-    cc26x2::gpio::PORT[2].enable_uart_rx();
-    cc26x2::gpio::PORT[3].enable_uart_tx();
+    cc26x2::gpio::PORT[2].enable_uart0_rx();
+    cc26x2::gpio::PORT[3].enable_uart0_tx();
 
     cc26x2::gpio::PORT[4].enable_i2c_scl();
     cc26x2::gpio::PORT[5].enable_i2c_sda();
@@ -150,8 +150,11 @@ unsafe fn configure_pins() {
 
     cc26x2::gpio::PORT[15].enable_gpio();
 
-    // unused   cc26x2::gpio::PORT[16]
-    // unused   cc26x2::gpio::PORT[17]
+    // avoid TDO cc26x2::gpio::PORT[16]
+    // avoid TDI cc26x2::gpio::PORT[17]
+
+    cc26x2::gpio::PORT[18].enable_uart1_rx();
+    cc26x2::gpio::PORT[19].enable_uart1_tx();
 
     // PWM      cc26x2::gpio::PORT[18]
     // PWM      cc26x2::gpio::PORT[19]
