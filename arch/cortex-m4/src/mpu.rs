@@ -1,5 +1,6 @@
 //! Implementation of the ARM memory protection unit.
 
+use core::cmp;
 use kernel;
 use kernel::common::math;
 use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite};
@@ -456,13 +457,10 @@ impl kernel::mpu::MPU for MPU {
         }
 
         // Make sure there is enough memory for app memory and kernel memory.
-        let memory_size = {
-            if min_memory_size < initial_app_memory_size + initial_kernel_memory_size {
-                initial_app_memory_size + initial_kernel_memory_size
-            } else {
-                min_memory_size
-            }
-        };
+        let memory_size = cmp::max(
+            min_memory_size,
+            initial_app_memory_size + initial_kernel_memory_size,
+        );
 
         // Size must be a power of two, so: https://www.youtube.com/watch?v=ovo6zwv6DX4
         let mut region_size = math::closest_power_of_two(memory_size as u32) as usize;

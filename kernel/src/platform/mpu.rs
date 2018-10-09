@@ -1,5 +1,7 @@
 //! Interface for configuring the Memory Protection Unit.
 
+use core::cmp;
+
 /// User mode access permissions.
 #[derive(Copy, Clone)]
 pub enum Permissions {
@@ -131,13 +133,10 @@ pub trait MPU {
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        let memory_size = {
-            if min_memory_size < initial_app_memory_size + initial_kernel_memory_size {
-                initial_app_memory_size + initial_kernel_memory_size
-            } else {
-                min_memory_size
-            }
-        };
+        let memory_size = cmp::max(
+            min_memory_size,
+            initial_app_memory_size + initial_kernel_memory_size,
+        );
         if memory_size > unallocated_memory_size {
             None
         } else {
