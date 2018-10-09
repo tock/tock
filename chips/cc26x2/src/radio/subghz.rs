@@ -250,8 +250,7 @@ impl radio_client::RadioConfig for Radio {
 pub mod prop_commands {
     #![allow(unused)]
     use kernel::common::registers::ReadOnly;
-    use radio::commands::{RfcTrigger, RfcCondition, RfcSetupConfig};
-    
+    use radio::commands::{RfcCondition, RfcSetupConfig, RfcTrigger};
 
     // Radio and data commands bitfields
     bitfield! {
@@ -290,7 +289,6 @@ pub mod prop_commands {
         pub _whiten_mode, _set_whiten_mode              : 15, 13;
     }
 
-    
     #[repr(C)]
     pub struct CommandCommon {
         pub command_no: ReadOnly<u16>,
@@ -310,7 +308,7 @@ pub mod prop_commands {
         pub start_trigger: u8,
         pub condition: RfcCondition,
         pub modulation: RfcModulation,
-        pub symbol_rate: RfcSymbolRate, 
+        pub symbol_rate: RfcSymbolRate,
         pub rx_bandwidth: u8,
         pub preamble_conf: RfcPreambleConf,
         pub format_conf: RfcFormatConf,
