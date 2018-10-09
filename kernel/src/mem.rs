@@ -91,10 +91,9 @@ impl<L, T> AppSlice<L, T> {
                 .process
                 .kernel
                 .process_map_or(false, appid.idx(), |process| {
-                    match process.add_mpu_region(self.ptr() as *const u8, self.len(), self.len()) {
-                        Some(_) => true,
-                        None => false,
-                    }
+                    process
+                        .add_mpu_region(self.ptr() as *const u8, self.len(), self.len())
+                        .is_some()
                 })
         } else {
             false
