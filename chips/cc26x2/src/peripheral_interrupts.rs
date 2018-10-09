@@ -5,7 +5,6 @@ pub const RF_CORE_PE1: u32 = 2;
 //UNASSIGNED 3
 pub const AON_RTC: u32 = 4;
 pub const UART0: u32 = 5;
-pub const UART1: u32 = 6;
 pub const SSI0: u32 = 7;
 pub const SSI1: u32 = 8;
 pub const RF_CORE_PE2: u32 = 9;
@@ -33,3 +32,4 @@ pub const DYNAMIC_PROG: u32 = 30;
 pub const AUX_COMP_A: u32 = 31;
 pub const AUX_ADC: u32 = 32;
 pub const TRNG: u32 = 33;
+pub const UART1: u32 = 36;
