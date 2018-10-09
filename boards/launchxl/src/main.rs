@@ -388,9 +388,6 @@ pub unsafe fn reset_handler() {
         &mut HELIUM_BUF,
     );
 
-    let rfc = &cc26x2::radio::RADIO;
-    rfc.test_power_up();
-
     let launchxl = Platform {
         console,
         gpio,
