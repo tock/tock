@@ -579,7 +579,6 @@ pub mod prop_commands {
     #![allow(unused)]
     use kernel::common::registers::ReadOnly;
     use radio::commands::{RfcCondition, RfcSetupConfig, RfcTrigger};
-    
 
     #[repr(C)]
     pub struct CommandCommon {
