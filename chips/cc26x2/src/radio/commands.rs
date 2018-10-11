@@ -37,8 +37,8 @@ bitfield! {
     impl Debug;
     pub _frontend_mode, set_frontend_mode: 2, 0;
     pub _bias_mode, set_bias_mode: 3;
-    pub _analog_cfg_mode, _set_analog_config_mode: 9, 4;
-    pub _no_fs_powerup, _set_no_fs_powerup: 10;
+    pub _analog_cfg_mode, set_analog_config_mode: 9, 4;
+    pub _no_fs_powerup, set_no_fs_powerup: 10;
 }
 
 // Radio Commands
