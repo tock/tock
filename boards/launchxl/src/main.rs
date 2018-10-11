@@ -386,7 +386,7 @@ pub unsafe fn reset_handler() {
     );
 
     let rfc = &cc26x2::radio::RADIO;
-    rfc.test_power_up();
+    rfc.run_tests();
 
     let launchxl = Platform {
         console,

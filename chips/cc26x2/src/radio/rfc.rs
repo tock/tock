@@ -20,13 +20,13 @@
 //! payload are in the system RAM, the system CPU must remain powered. Otherwise, if everything is in the
 //! radio RAM, the system CPU may go into power-down mode to save current.
 //!
-use radio::commands as cmd;
-// use cortexm4::{self, nvic};
 use self::test_commands::{CommandCommon, CommandRadioSetup, CommandSyncRat};
 use core::cell::Cell;
+use cortexm4::nvic;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use prcm;
+use radio::commands as cmd;
 use rtc;
 
 // This section defines the register offsets of
@@ -118,6 +118,19 @@ register_bitfields! {
     ]
 }
 
+#[allow(unused)]
+macro_rules! rfc_cmd_ack_nvic {
+    ($fn_name:tt, $rfc:ident) => {
+        // handle RF_ACK interrupt
+        pub extern "C" fn $fn_name() {
+            unsafe {
+                // handle ACK
+                $rfc.dbell_regs.rfack_ifg.set(0);
+            }
+        }
+    };
+}
+
 // This section defines the register offsets of
 // RFC_PWC component
 
@@ -189,10 +202,17 @@ pub struct RFCore {
     pub mode: Cell<Option<RfcMode>>,
     pub rat: Cell<u32>,
     pub status: Cell<u32>,
+    ack_nvic: &'static nvic::Nvic,
+    cpe0_nvic: &'static nvic::Nvic,
+    cpe1_nvic: &'static nvic::Nvic,
 }
 
 impl RFCore {
-    pub const fn new() -> RFCore {
+    pub const fn new(
+        ack_nvic: &'static nvic::Nvic,
+        cpe0_nvic: &'static nvic::Nvic,
+        cpe1_nvic: &'static nvic::Nvic,
+    ) -> RFCore {
         RFCore {
             dbell_regs: RFC_DBELL_BASE,
             pwc_regs: RFC_PWC_BASE,
@@ -200,6 +220,9 @@ impl RFCore {
             mode: Cell::new(None),
             rat: Cell::new(0),
             status: Cell::new(0),
+            ack_nvic,
+            cpe0_nvic,
+            cpe1_nvic,
         }
     }
 
@@ -252,7 +275,8 @@ impl RFCore {
             CPEInterrupts::INTERNAL_ERROR::SET
                 + CPEInterrupts::COMMAND_DONE::SET
                 + CPEInterrupts::TX_DONE::SET
-                + CPEInterrupts::BOOT_DONE::SET,
+                + CPEInterrupts::BOOT_DONE::SET
+                + CPEInterrupts::SYNTH_NO_LOCK::SET,
         );
         dbell_regs.rfcpe_ifg.set(0x0000);
         // self.enable_cpe_interrupts();
@@ -266,26 +290,17 @@ impl RFCore {
             .ok()
             .expect("Could not initialize radio module");
 
-        // TESTING clear ack flag register
-        dbell_regs.rfack_ifg.set(0);
-
         // Request bus
         let cmd_bus_req = cmd::DirectCommand::new(cmd::RFC_BUS_REQUEST, 1);
         self.send_direct(&cmd_bus_req)
             .ok()
             .expect("Could not request bus on radio module");
 
-        // TESTING clear ack flag register
-        dbell_regs.rfack_ifg.set(0);
-
         // Ping radio module
         let cmd_ping = cmd::DirectCommand::new(cmd::RFC_PING, 0);
         self.send_direct(&cmd_ping)
             .ok()
             .expect("Could not ping radio module");
-
-        // TESTING clear ack flag register
-        dbell_regs.rfack_ifg.set(0);
     }
 
     pub fn check_enabled(&self) -> bool {
@@ -358,7 +373,6 @@ impl RFCore {
     pub fn setup_test(&self, _reg_override: u32, tx_power: u16) {
         let _mode = self.mode.get().expect("No RF mode selected, cannot setup");
 
-        let dbell_regs = &*self.dbell_regs;
         let cmd = CommandRadioSetup {
             command_no: 0x0802,
             status: 0,
@@ -385,7 +399,6 @@ impl RFCore {
 
         self.send_test(&cmd).and_then(|_| self.wait_test(&cmd)).ok();
         // .expect("Radio setup command returned Err");
-        dbell_regs.rfack_ifg.set(0);
     }
 
     pub fn start_rat(&self) {
@@ -410,8 +423,6 @@ impl RFCore {
     }
 
     pub fn start_rat_test(&self) {
-        let dbell_regs = &*self.dbell_regs;
-
         let rf_command_test = CommandSyncRat {
             command_no: 0x080A,
             status: 0,
@@ -431,10 +442,6 @@ impl RFCore {
             .and_then(|_| self.wait_test(&rf_command_test))
             .ok()
             .expect("Start RAT command erturned Err");
-
-        // REMOVE AFTER TESTING DONE
-        dbell_regs.rfack_ifg.set(0);
-        dbell_regs.rfcpe_ifg.set(0);
     }
 
     pub fn stop_rat(&self) {
@@ -516,7 +523,7 @@ impl RFCore {
         while timeout < MAX_TIMEOUT {
             status = command_op.status.get();
             self.status.set(status.into());
-            if status == 0x0400 {
+            if (status & 0x0FFF) == 0x0400 {
                 return Ok(());
             }
             timeout += 1;
@@ -578,6 +585,8 @@ impl RFCore {
             RfcInterrupt::CmdAck => {
                 // Clear the interrupt
                 dbell_regs.rfack_ifg.set(0);
+                self.ack_nvic.clear_pending();
+                self.ack_nvic.enable();
             }
             RfcInterrupt::Cpe0 => {
                 let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);
@@ -587,7 +596,6 @@ impl RFCore {
                 let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
                 let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
                 dbell_regs.rfcpe_ifg.set(0);
-                //self.cpe0_nvic.enable();
 
                 if command_done || last_command_done {
                     self.client.get().map(|client| client.command_done());
@@ -598,9 +606,15 @@ impl RFCore {
                 if rx_ok {
                     self.client.get().map(|client| client.rx_ok());
                 }
+
+                self.cpe0_nvic.clear_pending();
+                self.cpe0_nvic.enable();
             }
             RfcInterrupt::Cpe1 => {
                 dbell_regs.rfcpe_ifg.set(0x7FFFFFFF);
+                self.cpe1_nvic.clear_pending();
+                self.cpe1_nvic.enable();
+
                 panic!("Internal occurred during radio command!\r");
             }
             _ => panic!("Unhandled RFC interrupt: {}\r", int as u8),

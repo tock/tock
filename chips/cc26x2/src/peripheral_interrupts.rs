@@ -5,13 +5,13 @@ enum_from_primitive!{
 pub enum NVIC_IRQ {
     GPIO = 0,
     I2C0 = 1,
-    RF_CORE_PE1 = 2,
+    RF_CORE_CPE1 = 2,
     //UNASSIGNED 3
     AON_RTC = 4,
     UART0 = 5,
     SSI0 = 7,
     SSI1 = 8,
-    RF_CORE_PE2 = 9,
+    RF_CORE_CPE0 = 9,
     RF_CORE_HW = 10,
     RF_CMD_ACK = 11,
     I2S = 12,
