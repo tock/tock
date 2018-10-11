@@ -14,7 +14,9 @@ use radio::rfc;
 use radio::subghz::prop_commands as prop;
 use rtc;
 
-static mut RFPARAMS: [u32; 19] = [
+const TEST_PAYLOAD: [u32; 30] = [0; 30];
+
+static mut RFPARAMS: [u32; 25] = [
     // override_use_patch_prop_genfsk.xml
     // PHY: Use MCE RAM patch, RFE RAM patch
     // MCE_RFE_OVERRIDE(1,0,0,1,0,0),
@@ -28,6 +30,7 @@ static mut RFPARAMS: [u32; 19] = [
     0x000684A3,
     // Synth: Configure faster calibration
     // HW32_ARRAY_OVERRIDE(0x4004,1),
+    0x40014005,
     // Synth: Configure faster calibration
     0x180C0618, // Synth: Configure faster calibration
     0xC00401A1, // Synth: Configure faster calibration
@@ -42,24 +45,27 @@ static mut RFPARAMS: [u32; 19] = [
     // override_phy_tx_pa_ramp_genfsk.xml
     // Tx: Configure PA ramp time, PACTL2.RC=0x3 (in ADI0, set PACTL2[3]=1)
     // ADI_HALFREG_OVERRIDE(0,16,0x8,0x8),
+    0x50880002,
     // Tx: Configure PA ramp time, PACTL2.RC=0x3 (in ADI0, set PACTL2[4]=1)
     // ADI_HALFREG_OVERRIDE(0,17,0x1,0x1),
+    0x51110002,
     // override_phy_rx_frontend_genfsk.xml
     // Rx: Set AGC reference level to 0x1A (default: 0x2E)
     // HW_REG_OVERRIDE(0x609C,0x001A),
-    // Rx: Set LNA bias current offset to adjust +1 (default: 0)
+    0x001a609c, // Rx: Set LNA bias current offset to adjust +1 (default: 0)
     0x00018883,
     // Rx: Set RSSI offset to adjust reported RSSI by -2 dB (default: 0)
     0x000288A3,
     // override_phy_rx_aaf_bw_0xd.xml
     // Rx: Set anti-aliasing filter bandwidth to 0xD (in ADI0, set IFAMPCTL3[7:4]=0xD)
     // ADI_HALFREG_OVERRIDE(0,61,0xF,0xD),
+    0x7ddf0002,
     // TX power override
     // DC/DC regulator: In Tx with 14 dBm PA setting, use DCDCCTL5[3:0]=0xF (DITHER_EN=1 and IPEAK=7). In Rx, use DCDCCTL5[3:0]=0xC (DITHER_EN=1 and IPEAK=4).
     0xFFFC08C3,
     // Tx: Set PA trim to max to maximize its output power (in ADI0, set PACTL0=0xF8)
     // ADI_REG_OVERRIDE(0,12,0xF8),
-    0xFFFFFFFF,
+    0x0cf80002, 0xFFFFFFFF,
 ];
 
 pub struct Radio {
@@ -97,7 +103,7 @@ impl Radio {
 
         self.test_radio_fs();
 
-        // self.test_radio_tx();
+        self.test_radio_tx();
     }
 
     fn test_power_up(&self) {
@@ -276,6 +282,14 @@ impl Radio {
     }
 
     fn test_radio_tx(&self) {
+        let mut packet = TEST_PAYLOAD;
+        let mut seq: u32 = 0;
+        for p in packet.iter_mut() {
+            *p = seq;
+            seq += 1;
+        }
+        let p_packet = packet.as_mut_ptr() as u32;
+
         let cmd_tx = prop::CommandTx {
             command_no: 0x3801,
             status: 0,
@@ -290,13 +304,13 @@ impl Radio {
             packet_conf: {
                 let mut packet = prop::RfcPacketConf(0);
                 packet.set_fs_off(false);
-                packet.set_use_crc(false);
+                packet.set_use_crc(true);
                 packet.set_var_len(true);
                 packet
             },
             packet_len: 0x1E,
             sync_word: 0x930B51DE,
-            packet_pointer: 0,
+            packet_pointer: p_packet,
         };
 
         self.rfc
@@ -631,9 +645,11 @@ pub mod prop_commands {
         #[derive(Copy, Clone)]
         pub struct RfcPacketConf(u8);
         impl Debug;
-        pub _fs_off, set_fs_off    : 0;
-        pub _use_crc, set_use_crc  : 3;
-        pub _var_len, set_var_len  : 4;
+        pub _fs_off, set_fs_off         : 0;
+        pub _reserved, _set_reserved    : 2, 1;
+        pub _use_crc, set_use_crc       : 3;
+        pub _var_len, set_var_len       : 4;
+        pub _reserved2, _set_reserved2  : 7, 5;
     }
 
     bitfield! {
