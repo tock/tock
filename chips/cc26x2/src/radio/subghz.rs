@@ -4,7 +4,7 @@ use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use fixedvec::FixedVec;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::radio_client;
+use kernel::hil::rfcore;
 use kernel::ReturnCode;
 use osc;
 use radio::commands as cmd;
@@ -70,9 +70,9 @@ static mut RFPARAMS: [u32; 25] = [
 
 pub struct Radio {
     rfc: &'static rfc::RFCore,
-    tx_radio_client: OptionalCell<&'static radio_client::TxClient>,
-    rx_radio_client: OptionalCell<&'static radio_client::RxClient>,
-    config_radio_client: OptionalCell<&'static radio_client::ConfigClient>,
+    tx_radio_client: OptionalCell<&'static rfcore::TxClient>,
+    rx_radio_client: OptionalCell<&'static rfcore::RxClient>,
+    config_radio_client: OptionalCell<&'static rfcore::ConfigClient>,
     schedule_powerdown: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     cmdr_ready: Cell<bool>,
@@ -394,18 +394,14 @@ impl rfc::RFCoreClient for Radio {
     fn rx_ok(&self) {}
 }
 
-impl radio_client::Radio for Radio {}
+impl rfcore::Radio for Radio {}
 
-impl radio_client::RadioDriver for Radio {
-    fn set_transmit_client(&self, tx_client: &'static radio_client::TxClient) {
+impl rfcore::RadioDriver for Radio {
+    fn set_transmit_client(&self, tx_client: &'static rfcore::TxClient) {
         self.tx_radio_client.set(tx_client);
     }
 
-    fn set_receive_client(
-        &self,
-        rx_client: &'static radio_client::RxClient,
-        _rx_buf: &'static mut [u8],
-    ) {
+    fn set_receive_client(&self, rx_client: &'static rfcore::RxClient, _rx_buf: &'static mut [u8]) {
         self.rx_radio_client.set(rx_client);
     }
 
@@ -413,7 +409,7 @@ impl radio_client::RadioDriver for Radio {
         // maybe make a rx buf only when needed?
     }
 
-    fn set_config_client(&self, config_client: &'static radio_client::ConfigClient) {
+    fn set_config_client(&self, config_client: &'static rfcore::ConfigClient) {
         self.config_radio_client.set(config_client);
     }
 
@@ -426,7 +422,7 @@ impl radio_client::RadioDriver for Radio {
     }
 }
 
-impl radio_client::RadioConfig for Radio {
+impl rfcore::RadioConfig for Radio {
     fn initialize(&self) -> ReturnCode {
         self.power_up()
     }

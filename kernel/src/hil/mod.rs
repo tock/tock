@@ -13,7 +13,7 @@ pub mod i2c;
 pub mod led;
 pub mod nonvolatile_storage;
 pub mod radio;
-pub mod radio_client;
+pub mod rfcore;
 pub mod rng;
 pub mod sensors;
 pub mod spi;
