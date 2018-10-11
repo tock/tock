@@ -3,9 +3,9 @@
 #![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
-extern crate cortexm4;
-
 extern crate cc26x2;
+extern crate cortexm4;
+extern crate fixedvec;
 
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
@@ -13,7 +13,9 @@ extern crate kernel;
 
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
+use cc26x2::aux;
 use cc26x2::prcm;
+use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -53,6 +55,8 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
+    radio:
+        &'static capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
 }
 
 impl kernel::Platform for Platform {
@@ -67,10 +71,13 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::simple_rfcore::DRIVER_NUM => f(Some(self.radio)),
             _ => f(None),
         }
     }
 }
+
+static mut HELIUM_BUF: [u8; 128] = [0x00; 128];
 
 /// Booster pack standard pinout
 ///
@@ -180,11 +187,19 @@ pub unsafe fn reset_handler() {
     // Setup AON event defaults
     aon::AON.setup();
 
+    // Setup AUX event and Active power mode
+    aux::AUX_CTL.setup();
+
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
+
+    // Power on Serial domain
+    prcm::Power::enable_domain(prcm::PowerDomain::Serial);
+
+    while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -355,6 +370,24 @@ pub unsafe fn reset_handler() {
     cc26x2::trng::TRNG.set_client(entropy_to_random);
     entropy_to_random.set_client(rng);
 
+    radio::RFC.set_client(&radio::RADIO);
+
+    let virtual_radio = static_init!(
+        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
+        capsules::simple_rfcore::VirtualRadioDriver::new(
+            &cc26x2::radio::RADIO,
+            board_kernel.create_grant(&memory_allocation_capability),
+            &mut HELIUM_BUF
+        )
+    );
+
+    kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
+    kernel::hil::radio_client::RadioDriver::set_receive_client(
+        &radio::RADIO,
+        virtual_radio,
+        &mut HELIUM_BUF,
+    );
+
     let launchxl = Platform {
         console,
         gpio,
@@ -362,6 +395,7 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
+        radio: virtual_radio,
     };
 
     let chip = cc26x2::chip::Cc26X2::new();

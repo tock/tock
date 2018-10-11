@@ -48,5 +48,25 @@ where
 }
 
 #[cfg(target_os = "none")]
+pub unsafe fn atomic_write(location: &mut u64, value: u64) {
+    // Set PRIMASK
+    asm!("cpsid i" :::: "volatile");
+    *location = value;
+    // Unset PRIMASK
+    asm!("cpsie i" :::: "volatile");
+}
+
+#[cfg(target_os = "none")]
+pub unsafe fn atomic_read(location: &u64) -> u64 {
+    let ret;
+    // Set PRIMASK
+    asm!("cpsid i" :::: "volatile");
+    ret = *location;
+    // Unset PRIMASK
+    asm!("cpsie i" :::: "volatile");
+    ret
+}
+
+#[cfg(target_os = "none")]
 #[lang = "eh_personality"]
 pub extern "C" fn eh_personality() {}

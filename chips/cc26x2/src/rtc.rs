@@ -5,6 +5,9 @@ use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 
+use cortexm4::nvic;
+use peripheral_interrupts;
+
 #[repr(C)]
 struct RtcRegisters {
     ctl: ReadWrite<u32, Control::Register>,
@@ -28,6 +31,8 @@ struct RtcRegisters {
     // A read request to the sync register will not return
     // until all outstanding writes have properly propagated to the RTC domain
     sync: ReadOnly<u32>,
+    time: ReadOnly<u32>,
+    synclf: ReadOnly<u32>,
 }
 
 register_bitfields![
@@ -40,6 +45,7 @@ register_bitfields![
             Channel2 = 0b11
         ],
         RESET       OFFSET(7) NUMBITS(1) [],
+        RTC_4KHZ_EN OFFSET(2) NUMBITS(1) [],
         RTC_UPD_EN  OFFSET(1) NUMBITS(1) [],
         ENABLE      OFFSET(0) NUMBITS(1) []
     ],
@@ -60,8 +66,12 @@ register_bitfields![
 const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
 
+const RTC_NVIC: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::AON_RTC as u32) };
+
 pub struct Rtc {
     registers: StaticRef<RtcRegisters>,
+    nvic: &'static nvic::Nvic,
     callback: OptionalCell<&'static time::Client>,
 }
 
@@ -71,6 +81,7 @@ impl Rtc {
     const fn new() -> Rtc {
         Rtc {
             registers: RTC_BASE,
+            nvic: &RTC_NVIC,
             callback: OptionalCell::empty(),
         }
     }
@@ -92,7 +103,6 @@ impl Rtc {
     // This method is used by the RAT to sync the radio and MCU clocks when changing power modes
     pub fn sync(&self) {
         let regs = &*self.registers;
-
         regs.sync.get();
     }
     fn read_counter(&self) -> u32 {
@@ -114,12 +124,36 @@ impl Rtc {
         return (current_sec << 16) | (current_subsec >> 16);
     }
 
+    pub fn rtc_enabled(&self) -> bool {
+        let reg = &*self.registers;
+        let enabled: bool = reg.ctl.matches_all(Control::RTC_UPD_EN::SET);
+
+        return enabled;
+    }
+
+    pub fn set_upd_en(&self, value: bool) {
+        let regs = &*self.registers;
+
+        if value {
+            regs.ctl.set(regs.ctl.get() | 0x02);
+        } else {
+            regs.ctl.set(regs.ctl.get() & !0x02);
+        }
+        /*
+        if value {
+            reg.ctl.modify(Control::RTC_UPD_EN::SET);
+        } else {
+            reg.ctl.modify(Control::RTC_UPD_EN::CLEAR);
+        }
+        */
+    }
+
     pub fn is_running(&self) -> bool {
         let regs = &*self.registers;
         regs.channel_ctl.read(ChannelControl::CH1_EN) != 0
     }
 
-    pub fn handle_interrupt(&self) {
+    pub fn handle_events(&self) {
         let regs = &*self.registers;
 
         // Event flag is cleared when you set it
@@ -130,19 +164,12 @@ impl Rtc {
         regs.sync.get();
 
         self.callback.map(|cb| cb.fired());
+        self.nvic.clear_pending();
+        self.nvic.enable();
     }
 
     pub fn set_client(&self, client: &'static time::Client) {
         self.callback.set(client);
-    }
-
-    pub fn set_upd_en(&self, value: bool) {
-        let regs = &*self.registers;
-        if value {
-            regs.ctl.set(regs.ctl.get() | 0x02);
-        } else {
-            regs.ctl.set(regs.ctl.get() & !0x02);
-        }
     }
 }
 

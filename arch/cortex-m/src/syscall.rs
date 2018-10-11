@@ -207,7 +207,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // crash immediately. While that can be sorted, default to
             // essentially a no-op so that Tock works again. Also this is (I
             // think) the old behavior (before #1113).
-            kernel::syscall::ContextSwitchReason::TimesliceExpired
+            kernel::syscall::ContextSwitchReason::Interrupted
         };
 
         (new_stack_pointer as *mut usize, switch_reason)
