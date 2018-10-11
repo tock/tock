@@ -381,8 +381,8 @@ pub unsafe fn reset_handler() {
         )
     );
 
-    kernel::hil::radio_client::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
-    kernel::hil::radio_client::RadioDriver::set_receive_client(
+    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
+    kernel::hil::rfcore::RadioDriver::set_receive_client(
         &radio::RADIO,
         virtual_radio,
         &mut HELIUM_BUF,
