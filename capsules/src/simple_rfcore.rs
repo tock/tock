@@ -1,6 +1,6 @@
 #![allow(unused)]
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::radio_client;
+use kernel::hil::rfcore;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 // Syscall number
@@ -11,7 +11,7 @@ pub enum HeliumState {
     NotInitialized,
     Idle,
     PendingCommand,
-    Pending(radio_client::RadioOperation),
+    Pending(rfcore::RadioOperation),
     Done,
     Invalid,
 }
@@ -26,7 +26,7 @@ pub trait Framer {
 
 impl<R> Framer for VirtualRadioDriver<'a, R>
 where
-    R: radio_client::Radio,
+    R: rfcore::Radio,
 {
     fn prepare_data_frame(
         &self,
@@ -136,19 +136,19 @@ impl Default for App {
 
 pub struct VirtualRadioDriver<'a, R>
 where
-    R: radio_client::Radio,
+    R: rfcore::Radio,
 {
     radio: &'a R,
     app: Grant<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     current_app: OptionalCell<AppId>,
-    tx_client: OptionalCell<&'static radio_client::TxClient>,
-    rx_client: OptionalCell<&'static radio_client::RxClient>,
+    tx_client: OptionalCell<&'static rfcore::TxClient>,
+    rx_client: OptionalCell<&'static rfcore::RxClient>,
 }
 
 impl<R> VirtualRadioDriver<'a, R>
 where
-    R: radio_client::Radio,
+    R: rfcore::Radio,
 {
     pub fn new(
         radio: &'a R,
@@ -310,7 +310,7 @@ where
 
 impl<R> Driver for VirtualRadioDriver<'a, R>
 where
-    R: radio_client::Radio,
+    R: rfcore::Radio,
 {
     /// Setup buffers to read/write from.
     ///
@@ -454,7 +454,7 @@ where
     }
 }
 
-impl<R: radio_client::Radio> radio_client::TxClient for VirtualRadioDriver<'a, R> {
+impl<R: rfcore::Radio> rfcore::TxClient for VirtualRadioDriver<'a, R> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
         /*
         self.kernel_tx.replace(buf);
@@ -472,7 +472,7 @@ impl<R: radio_client::Radio> radio_client::TxClient for VirtualRadioDriver<'a, R
     }
 }
 
-impl<R: radio_client::Radio> radio_client::RxClient for VirtualRadioDriver<'a, R> {
+impl<R: rfcore::Radio> rfcore::RxClient for VirtualRadioDriver<'a, R> {
     fn receive_event(
         &self,
         buf: &'static mut [u8],
