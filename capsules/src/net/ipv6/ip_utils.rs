@@ -5,6 +5,7 @@
 use net::icmpv6::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
 use net::ipv6::ipv6::IP6Header;
 use net::udp::udp::UDPHeader;
+use net::ieee802154::MacAddress;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum MacAddr {
@@ -40,6 +41,37 @@ impl IPAddr {
     pub fn new() -> IPAddr {
         // Defaults to the unspecified address
         IPAddr([0; 16])
+    }
+
+    /// Method for generating a new ipv6 link local address from a short or extended 15.4 MAC address
+    /// Based off of section 3.2.2 of rfc 6282
+    pub fn generate_from_mac(mac_addr: MacAddress) -> IPAddr {
+       let mut ip_addr = IPAddr([0; 16]);
+       match mac_addr {
+           MacAddress::Long(ref long_addr) => {
+               ip_addr.set_unicast_link_local();
+               ip_addr.0[15] = long_addr[7];
+               ip_addr.0[14] = long_addr[6];
+               ip_addr.0[13] = long_addr[5];
+               ip_addr.0[12] = long_addr[4];
+               ip_addr.0[11] = long_addr[3];
+               ip_addr.0[10] = long_addr[2];
+               ip_addr.0[9] = long_addr[1];
+               ip_addr.0[8] = long_addr[0] ^ 0b00000010;
+           }
+           MacAddress::Short(ref short_addr) => {
+               ip_addr.set_unicast_link_local();
+               ip_addr.0[15] = (short_addr & 0x00ff) as u8;
+               ip_addr.0[14] = ((short_addr & 0xff00) >> 8) as u8;
+               ip_addr.0[13] = 0x00;
+               ip_addr.0[12] = 0xfe;
+               ip_addr.0[11] = 0xff;
+               ip_addr.0[10] = 0x00;
+               ip_addr.0[9] = 0x00;
+               ip_addr.0[8] = 0x00;
+           }
+       }
+       ip_addr
     }
 
     pub fn is_unspecified(&self) -> bool {
