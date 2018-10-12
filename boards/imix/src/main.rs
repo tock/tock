@@ -12,7 +12,14 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init, create_capability, register_bitfields, register_bitmasks)]
+#[macro_use(
+    debug,
+    debug_gpio,
+    static_init,
+    create_capability,
+    register_bitfields,
+    register_bitmasks
+)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
@@ -26,6 +33,8 @@ use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
+use kernel::common::registers::ReadOnly;
+use kernel::common::StaticRef;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -33,8 +42,6 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
-use kernel::common::registers::{ReadOnly};
-use kernel::common::StaticRef;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -135,7 +142,7 @@ pub struct SerialNum {
 impl SerialNum {
     /// Returns a struct that can read the serial number of the sam4l
     pub fn new() -> SerialNum {
-        SerialNum{
+        SerialNum {
             regs: SERIAL_NUM_ADDRESS,
         }
     }
@@ -420,19 +427,20 @@ pub unsafe fn reset_handler() {
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
-
-
-    let local_ip_ifaces = static_init!([IPAddr; 3], [
-        IPAddr([
-            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-            0x0f,
-        ]),
-        IPAddr([
-            0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
-            0x1f,
-        ]),
-        IPAddr::generate_from_mac(src_mac_from_serial_num),
-    ]);
+    let local_ip_ifaces = static_init!(
+        [IPAddr; 3],
+        [
+            IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+            ]),
+            IPAddr([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ]),
+            IPAddr::generate_from_mac(src_mac_from_serial_num),
+        ]
+    );
 
     let udp_driver = UDPComponent::new(
         board_kernel,
