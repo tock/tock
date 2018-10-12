@@ -124,10 +124,16 @@ pub unsafe fn initialize_all(
 
     let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
+    let ipsender_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+
     let ip6_sender = static_init!(
-        IP6SendStruct<'static>,
+        IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         IP6SendStruct::new(
             ip6_dg,
+            ipsender_virtual_alarm,
             &mut RF233_BUF,
             sixlowpan_tx,
             radio_mac,
@@ -138,7 +144,10 @@ pub unsafe fn initialize_all(
     radio_mac.set_transmit_client(ip6_sender);
 
     let udp_send_struct = static_init!(
-        UDPSendStruct<'static, IP6SendStruct<'static>>,
+        UDPSendStruct<
+            'static,
+            IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        >,
         UDPSendStruct::new(ip6_sender)
     );
 

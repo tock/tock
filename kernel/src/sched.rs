@@ -354,6 +354,10 @@ impl Kernel {
                             // break to handle other processes.
                             break;
                         }
+                        Some(ContextSwitchReason::Interrupted) => {
+                            // break to handle other processes.
+                            break;
+                        }
                         None => {
                             // Something went wrong when switching to this
                             // process. Indicate this by putting it in a fault

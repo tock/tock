@@ -3,6 +3,7 @@
 //! [IPAddr](struct.IPAddr.html] struct and associated helper functions.
 
 use net::icmpv6::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
+use net::ieee802154::MacAddress;
 use net::ipv6::ipv6::IP6Header;
 use net::udp::udp::UDPHeader;
 
@@ -40,6 +41,37 @@ impl IPAddr {
     pub fn new() -> IPAddr {
         // Defaults to the unspecified address
         IPAddr([0; 16])
+    }
+
+    /// Method for generating a new ipv6 link local address from a short or extended 15.4 MAC address
+    /// Based off of section 3.2.2 of rfc 6282
+    pub fn generate_from_mac(mac_addr: MacAddress) -> IPAddr {
+        let mut ip_addr = IPAddr([0; 16]);
+        match mac_addr {
+            MacAddress::Long(ref long_addr) => {
+                ip_addr.set_unicast_link_local();
+                ip_addr.0[15] = long_addr[7];
+                ip_addr.0[14] = long_addr[6];
+                ip_addr.0[13] = long_addr[5];
+                ip_addr.0[12] = long_addr[4];
+                ip_addr.0[11] = long_addr[3];
+                ip_addr.0[10] = long_addr[2];
+                ip_addr.0[9] = long_addr[1];
+                ip_addr.0[8] = long_addr[0] ^ 0b00000010;
+            }
+            MacAddress::Short(ref short_addr) => {
+                ip_addr.set_unicast_link_local();
+                ip_addr.0[15] = (short_addr & 0x00ff) as u8;
+                ip_addr.0[14] = ((short_addr & 0xff00) >> 8) as u8;
+                ip_addr.0[13] = 0x00;
+                ip_addr.0[12] = 0xfe;
+                ip_addr.0[11] = 0xff;
+                ip_addr.0[10] = 0x00;
+                ip_addr.0[9] = 0x00;
+                ip_addr.0[8] = 0x00;
+            }
+        }
+        ip_addr
     }
 
     pub fn is_unspecified(&self) -> bool {
@@ -118,12 +150,16 @@ pub fn compute_udp_checksum(
     sum += src_port as u32;
     sum += dst_port as u32;
     sum += udp_header.get_len() as u32;
+    sum += udp_header.get_cksum() as u32;
     //Now just need to iterate thru data and add it to the sum
     {
         let mut i: usize = 0;
         while i < ((udp_length - 8) as usize) {
             let msb_dat: u16 = ((payload[i]) as u16) << 8;
-            let lsb_dat: u16 = payload[i + 1] as u16;
+            let mut lsb_dat: u16 = 0;
+            if i + 1 < udp_length as usize - 8 {
+                lsb_dat = payload[i + 1] as u16;
+            }
             let temp_dat: u16 = msb_dat + lsb_dat;
             sum += temp_dat as u32;
 
