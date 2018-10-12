@@ -185,7 +185,7 @@ impl Kernel {
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
         platform: &P,
-        chip: &mut C,
+        chip: &C,
         ipc: Option<&ipc::IPC>,
         _capability: &capabilities::MainLoopCapability,
     ) {
@@ -220,7 +220,7 @@ impl Kernel {
     unsafe fn do_process<P: Platform, C: Chip>(
         &self,
         platform: &P,
-        chip: &mut C,
+        chip: &C,
         process: &process::ProcessType,
         appid: AppId,
         ipc: Option<&::ipc::IPC>,
@@ -351,6 +351,10 @@ impl Kernel {
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
+                            // break to handle other processes.
+                            break;
+                        }
+                        Some(ContextSwitchReason::Interrupted) => {
                             // break to handle other processes.
                             break;
                         }

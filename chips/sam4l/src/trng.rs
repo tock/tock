@@ -1,9 +1,11 @@
-//! Implementation of the SAM4L TRNG.
+//! Implementation of the SAM4L TRNG. It provides an implementation of
+//! the Entropy32 trait.
 
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::rng::{self, Continue};
+use kernel::hil::entropy::{self, Continue};
+use kernel::ReturnCode;
 use pm;
 
 #[repr(C)]
@@ -45,7 +47,7 @@ const BASE_ADDRESS: StaticRef<TrngRegisters> =
 
 pub struct Trng<'a> {
     regs: StaticRef<TrngRegisters>,
-    client: OptionalCell<&'a rng::Client>,
+    client: OptionalCell<&'a entropy::Client32>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
@@ -68,7 +70,7 @@ impl Trng<'a> {
         regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
-            let result = client.randomness_available(&mut TrngIter(self));
+            let result = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
             if let Continue::Done = result {
                 // disable controller
                 regs.cr
@@ -78,10 +80,6 @@ impl Trng<'a> {
                 regs.ier.write(Interrupt::DATRDY::SET);
             }
         });
-    }
-
-    pub fn set_client(&self, client: &'a rng::Client) {
-        self.client.set(client);
     }
 }
 
@@ -100,13 +98,22 @@ impl Iterator for TrngIter<'a, 'b> {
     }
 }
 
-impl rng::RNG for Trng<'a> {
-    fn get(&self) {
+impl entropy::Entropy32<'a> for Trng<'a> {
+    fn get(&self) -> ReturnCode {
         let regs = &*self.regs;
         pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
 
         regs.cr
             .write(Control::KEY.val(KEY) + Control::ENABLE::Enable);
         regs.ier.write(Interrupt::DATRDY::SET);
+        ReturnCode::SUCCESS
+    }
+
+    fn cancel(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn set_client(&'a self, client: &'a entropy::Client32) {
+        self.client.set(client);
     }
 }

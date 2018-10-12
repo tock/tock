@@ -66,6 +66,8 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 use kernel::hil::uart::UART;
 use kernel::{Chip, SysTick};
 use nrf5x::pinmux::Pinmux;
@@ -120,7 +122,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-    rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -336,14 +338,19 @@ pub unsafe fn reset_handler() {
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&nrf5x::trng::TRNG)
+    );
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(
-            &mut nrf5x::trng::TRNG,
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    nrf5x::trng::TRNG.set_client(rng);
+    nrf5x::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
@@ -393,7 +400,7 @@ pub unsafe fn reset_handler() {
 
     rtc.start();
 
-    let mut chip = nrf51::chip::NRF51::new();
+    let chip = nrf51::chip::NRF51::new();
     chip.systick().reset();
     chip.systick().enable(true);
 
@@ -415,7 +422,7 @@ pub unsafe fn reset_handler() {
 
     board_kernel.kernel_loop(
         &platform,
-        &mut chip,
+        &chip,
         Some(&kernel::ipc::IPC::new(
             board_kernel,
             &memory_allocation_capability,

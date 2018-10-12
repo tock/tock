@@ -16,12 +16,16 @@ use cc26x2::aon;
 use cc26x2::prcm;
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 
 #[macro_use]
 pub mod io;
 
 #[allow(dead_code)]
 mod i2c_tests;
+#[allow(dead_code)]
+mod uart_echo;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -48,7 +52,7 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
-    rng: &'static capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
+    rng: &'static capsules::rng::RngDriver<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -118,8 +122,8 @@ unsafe fn configure_pins() {
     cc26x2::gpio::PORT[0].enable_gpio();
     cc26x2::gpio::PORT[1].enable_gpio();
 
-    cc26x2::gpio::PORT[2].enable_uart_rx();
-    cc26x2::gpio::PORT[3].enable_uart_tx();
+    cc26x2::gpio::PORT[2].enable_uart0_rx();
+    cc26x2::gpio::PORT[3].enable_uart0_tx();
 
     cc26x2::gpio::PORT[4].enable_i2c_scl();
     cc26x2::gpio::PORT[5].enable_i2c_sda();
@@ -139,8 +143,11 @@ unsafe fn configure_pins() {
 
     cc26x2::gpio::PORT[15].enable_gpio();
 
-    // unused   cc26x2::gpio::PORT[16]
-    // unused   cc26x2::gpio::PORT[17]
+    // avoid TDO cc26x2::gpio::PORT[16]
+    // avoid TDI cc26x2::gpio::PORT[17]
+
+    cc26x2::gpio::PORT[18].enable_uart1_rx();
+    cc26x2::gpio::PORT[19].enable_uart1_tx();
 
     // PWM      cc26x2::gpio::PORT[18]
     // PWM      cc26x2::gpio::PORT[19]
@@ -334,14 +341,19 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm1.set_client(alarm);
 
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&cc26x2::trng::TRNG)
+    );
     let rng = static_init!(
-        capsules::rng::SimpleRng<'static, cc26x2::trng::Trng>,
-        capsules::rng::SimpleRng::new(
-            &cc26x2::trng::TRNG,
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    cc26x2::trng::TRNG.set_client(rng);
+    cc26x2::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
 
     let launchxl = Platform {
         console,
@@ -352,7 +364,7 @@ pub unsafe fn reset_handler() {
         rng,
     };
 
-    let mut chip = cc26x2::chip::Cc26X2::new();
+    let chip = cc26x2::chip::Cc26X2::new();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -371,5 +383,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, &mut chip, Some(&ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&launchxl, &chip, Some(&ipc), &main_loop_capability);
 }

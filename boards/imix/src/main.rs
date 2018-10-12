@@ -78,6 +78,9 @@ mod aes_test;
 mod aes_ccm_test;
 
 #[allow(dead_code)]
+mod rng_test;
+
+#[allow(dead_code)]
 mod power;
 
 #[allow(dead_code)]
@@ -409,7 +412,7 @@ pub unsafe fn reset_handler() {
         nonvolatile_storage: nonvolatile_storage,
     };
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = sam4l::chip::Sam4l::new();
 
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();
@@ -423,6 +426,8 @@ pub unsafe fn reset_handler() {
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
+
+    //    rng_test::run_entropy32();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -438,5 +443,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, &chip, Some(&imix.ipc), &main_cap);
 }
