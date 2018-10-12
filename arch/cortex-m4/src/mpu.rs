@@ -182,7 +182,7 @@ impl CortexMRegion {
         region_start: *const u8,
         region_size: usize,
         region_num: usize,
-        subregion_mask: Option<u32>,
+        subregions: Option<(usize, usize)>,
         permissions: mpu::Permissions,
     ) -> CortexMRegion {
         // Determine access and execute permissions
@@ -220,9 +220,16 @@ impl CortexMRegion {
             + access
             + execute;
 
-        // If using subregions, add the mask
-        if let Some(mask) = subregion_mask {
-            attributes += RegionAttributes::SRD.val(mask);
+        // If using subregions, add a subregion mask. The mask is a 8-bit
+        // bitfield where `0` indicates that the corresponding subregion is enabled.
+        // To compute the mask, we start with all subregions disabled and enable
+        // the ones in the inclusive range [min_subregion, max_subregion].
+        if let Some((min_subregion, max_subregion)) = subregions {
+            let mask = (min_subregion..=max_subregion).fold(u8::max_value(), |res, i| {
+                // Enable subregions bit by bit (1 ^ 1 == 0)
+                res ^ (1 << i)
+            });
+            attributes += RegionAttributes::SRD.val(mask as u32);
         }
 
         CortexMRegion {
@@ -311,10 +318,7 @@ impl kernel::mpu::MPU for MPU {
             }
         }
 
-        let region_num = match config.unused_region_number() {
-            Some(number) => number,
-            None => return None,
-        };
+        let region_num = config.unused_region_number()?;
 
         // Logical region
         let mut start = unallocated_memory_start as usize;
@@ -333,7 +337,7 @@ impl kernel::mpu::MPU for MPU {
         // Physical MPU region (might be larger than logical region if some subregions are disabled)
         let mut region_start = start;
         let mut region_size = size;
-        let mut subregion_mask = None;
+        let mut subregions = None;
 
         // We can only create an MPU region if the size is a power of two and it divides
         // the start address. If this is not the case, the first thing we try to do to
@@ -390,18 +394,9 @@ impl kernel::mpu::MPU for MPU {
                 // (because subregions are zero-indexed).
                 let max_subregion = min_subregion + size / subregion_size - 1;
 
-                // Turn the min/max subregion into a bitfield where all bits are `1`
-                // except for the bits whose index lie within
-                // [min_subregion, max_subregion]
-                //
-                // Note: Rust ranges are minimum inclusive, maximum exclusive, hence
-                // max_subregion + 1.
-                let mask =
-                    (min_subregion..(max_subregion + 1)).fold(!0, |res, i| res & !(1 << i)) & 0xff;
-
                 region_start = underlying_region_start;
                 region_size = underlying_region_size;
-                subregion_mask = Some(mask);
+                subregions = Some((min_subregion, max_subregion));
             } else {
                 // In this case, we can't use subregions to solve the alignment
                 // problem. Instead, we round up `size` to a power of two and
@@ -430,7 +425,7 @@ impl kernel::mpu::MPU for MPU {
             region_start as *const u8,
             region_size,
             region_num,
-            subregion_mask,
+            subregions,
             permissions,
         );
 
@@ -530,16 +525,13 @@ impl kernel::mpu::MPU for MPU {
             return None;
         }
 
-        // For example: 11111111 & 11111110 = 11111110 --> Use only the first subregion (0 = enable)
-        let subregion_mask = (0..num_subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
-
         let region = CortexMRegion::new(
             region_start as *const u8,
             region_size,
             region_start as *const u8,
             region_size,
             APP_MEMORY_REGION_NUM,
-            Some(subregion_mask),
+            Some((0, num_subregions_used - 1)),
             permissions,
         );
 
@@ -591,15 +583,13 @@ impl kernel::mpu::MPU for MPU {
             return Err(());
         }
 
-        let subregion_mask = (0..num_subregions_used).fold(!0, |res, i| res & !(1 << i)) & 0xff;
-
         let region = CortexMRegion::new(
             region_start as *const u8,
             region_size,
             region_start as *const u8,
             region_size,
             APP_MEMORY_REGION_NUM,
-            Some(subregion_mask),
+            Some((0, num_subregions_used - 1)),
             permissions,
         );
 
