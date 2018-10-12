@@ -1,10 +1,10 @@
 use kernel::common::cells::VolatileCell;
 
-pub const MCE_PATCH: Patches = Patches::new();
+pub const LONGRANGE_PATCH: Patches = Patches::new();
 
 #[repr(C)]
 pub struct MCERam {
-    mce_ram: [VolatileCell<u32>; 288],
+    mce_ram: [VolatileCell<u32>; 228],
 }
 
 pub struct Patches {
@@ -23,6 +23,7 @@ impl Patches {
         let mut i = 0;
         for reg in p_mce_patch.mce_ram.iter() {
             reg.set(PATCH_LONGRANGE[i]);
+            // debug!("{}", PATCH_LONGRANGE[i]);
             i += 1;
         }
     }

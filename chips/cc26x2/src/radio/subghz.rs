@@ -8,7 +8,7 @@ use kernel::hil::rfcore;
 use kernel::ReturnCode;
 use osc;
 use radio::commands as cmd;
-use radio::patch_mce_genfsk as mce;
+use radio::patch_mce_longrange as mce;
 use radio::patch_rfe_genfsk as rfe;
 use radio::rfc;
 use radio::subghz::prop_commands as prop;
@@ -16,11 +16,13 @@ use rtc;
 
 const TEST_PAYLOAD: [u32; 30] = [0; 30];
 
-static mut RFPARAMS: [u32; 25] = [
+static mut RFPARAMS: [u32; 28] = [
     // override_use_patch_prop_genfsk.xml
     // PHY: Use MCE RAM patch, RFE RAM patch
     // MCE_RFE_OVERRIDE(1,0,0,1,0,0),
     0x00000847,
+    // PHY: Use MCE RAM patch only for Rx (0xE), use MCE ROM bank 6 for Tx (0x6)
+    0x006E88E3,
     // override_synth_prop_863_930_div5.xml
     // Synth: Use 48 MHz crystal as synth clock, enable extra PLL filtering
     0x02400403, // Synth: Set minimum RTRIM to 6
@@ -29,9 +31,8 @@ static mut RFPARAMS: [u32; 25] = [
     0x00088433, // Synth: Set Fref to 4 MHz
     0x000684A3,
     // Synth: Configure faster calibration
-    // HW32_ARRAY_OVERRIDE(0x4004,1),
-    0x40014005,
-    // Synth: Configure faster calibration
+    //HW32_ARRAY_OVERRIDE(0x4004,1),
+    0x40014005, // Synth: Configure faster calibration
     0x180C0618, // Synth: Configure faster calibration
     0xC00401A1, // Synth: Configure faster calibration
     0x00010101, // Synth: Configure faster calibration
@@ -42,18 +43,26 @@ static mut RFPARAMS: [u32; 25] = [
     0x0A480583, // Synth: Set loop bandwidth after lock to 20 kHz
     0x7AB80603, // Synth: Set loop bandwidth after lock to 20 kHz
     0x00000623,
-    // override_phy_tx_pa_ramp_genfsk.xml
-    // Tx: Configure PA ramp time, PACTL2.RC=0x3 (in ADI0, set PACTL2[3]=1)
-    // ADI_HALFREG_OVERRIDE(0,16,0x8,0x8),
-    0x50880002,
-    // Tx: Configure PA ramp time, PACTL2.RC=0x3 (in ADI0, set PACTL2[4]=1)
-    // ADI_HALFREG_OVERRIDE(0,17,0x1,0x1),
-    0x51110002,
-    // override_phy_rx_frontend_genfsk.xml
-    // Rx: Set AGC reference level to 0x1A (default: 0x2E)
-    // HW_REG_OVERRIDE(0x609C,0x001A),
-    0x001a609c, // Rx: Set LNA bias current offset to adjust +1 (default: 0)
-    0x00018883,
+    // override_phy_simplelink_long_range_dsss2.xml
+    // PHY: Configure DSSS SF=2 for payload data
+    // HW_REG_OVERRIDE(0x5068,0x0100),
+    0x01005068,
+    // PHY: Set SimpleLink Long Range bit-inverted sync word pattern (uncoded, before spreading to fixed-size 64-bit pattern): 0x146F
+    //HW_REG_OVERRIDE(0x5128,0x146F),
+    0x146f5128,
+    // PHY: Set SimpleLink Long Range sync word pattern (uncoded, before spreading to fixed-size 64-bit pattern): 0xEB90
+    // HW_REG_OVERRIDE(0x512C,0xEB90),
+    0xeb90512c,
+    // PHY: Reduce demodulator correlator threshold for improved Rx sensitivity
+    // HW_REG_OVERRIDE(0x5124,0x362E),
+    0x362e5124,
+    // PHY: Reduce demodulator correlator threshold for improved Rx sensitivity
+    // HW_REG_OVERRIDE(0x5118,0x004C),
+    0x004c5118,
+    // PHY: Configure limit on frequency offset compensation tracker
+    // HW_REG_OVERRIDE(0x5140,0x3E05),
+    0x3e055140,
+    // override_phy_rx_frontend_simplelink_long_range.xml
     // Rx: Set RSSI offset to adjust reported RSSI by -2 dB (default: 0)
     0x000288A3,
     // override_phy_rx_aaf_bw_0xd.xml
@@ -96,7 +105,8 @@ impl Radio {
     pub fn run_tests(&self) {
         self.test_power_up();
 
-        mce::MCE_PATCH.apply_mce_genfsk_patch();
+        mce::LONGRANGE_PATCH.apply_mce_longrange_patch();
+
         rfe::RFE_PATCH.apply_rfe_genfsk_patch();
 
         self.test_configure_radio();
@@ -233,20 +243,20 @@ impl Radio {
                 modulation: {
                     let mut mdl = prop::RfcModulation(0);
                     mdl.set_mod_type(0x01);
-                    mdl.set_deviation(0x64);
+                    mdl.set_deviation(0xA);
                     mdl.set_deviation_step(0x0);
                     mdl
                 },
                 symbol_rate: {
                     let mut sr = prop::RfcSymbolRate(0);
                     sr.set_prescale(0xF);
-                    sr.set_rate_word(0x8000);
+                    sr.set_rate_word(0x199A);
                     sr
                 },
-                rx_bandwidth: 0x52,
+                rx_bandwidth: 0x4C,
                 preamble_conf: {
                     let mut preamble = prop::RfcPreambleConf(0);
-                    preamble.set_num_preamble_bytes(0x4);
+                    preamble.set_num_preamble_bytes(0x2);
                     preamble.set_pream_mode(0x0);
                     preamble
                 },
@@ -255,7 +265,7 @@ impl Radio {
                     format.set_num_syncword_bits(0x20);
                     format.set_bit_reversal(false);
                     format.set_msb_first(true);
-                    format.set_fec_mode(0x0);
+                    format.set_fec_mode(0x8);
                     format.set_whiten_mode(0x0);
                     format
                 },
@@ -269,7 +279,7 @@ impl Radio {
                 },
                 tx_power: 0x9F3F,
                 reg_overrides: p_overrides,
-                center_freq: 0x0364,
+                center_freq: 0x0393,
                 int_freq: 0x8000,
                 lo_divider: 0x05,
             };
@@ -308,8 +318,8 @@ impl Radio {
                 packet.set_var_len(true);
                 packet
             },
-            packet_len: 0x1E,
-            sync_word: 0x930B51DE,
+            packet_len: 0x14,
+            sync_word: 0x00000000,
             packet_pointer: p_packet,
         };
 
@@ -331,7 +341,7 @@ impl Radio {
                 cond.set_rule(0x01);
                 cond
             },
-            frequency: 0x0364,
+            frequency: 0x0393,
             fract_freq: 0x0000,
             synth_conf: {
                 let mut synth = prop::RfcSynthConf(0);
