@@ -1,31 +1,21 @@
-pub static mut EVENTS: u64 = 0;
+//
+//  These are generic event handling routines which could be defined in cortexm
+//
 
+use core::ptr;
+use cortexm::support::atomic;
 use enum_primitive::cast::FromPrimitive;
-
-enum_from_primitive!{
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum EVENT_PRIORITY {
-    GPIO = 0,
-    UART0 = 2,
-    UART1 = 1,
-    AON_RTC = 3,
-    RTC = 4,
-    I2C0 = 6,
-    AON_PROG = 7,
-}
-}
-
-use cortexm::support::{atomic, atomic_read};
+use event_priority::{EVENT_PRIORITY, FLAGS};
 
 pub fn has_event() -> bool {
     let event_flags;
-    unsafe { event_flags = atomic_read(&EVENTS) }
+    unsafe { event_flags = ptr::read_volatile(&FLAGS) }
     event_flags != 0
 }
 
 pub fn next_pending() -> Option<EVENT_PRIORITY> {
     let mut event_flags;
-    unsafe { event_flags = atomic_read(&EVENTS) }
+    unsafe { event_flags = ptr::read_volatile(&FLAGS) }
 
     let mut count = 0;
     // stay in loop until we found the flag
@@ -41,21 +31,42 @@ pub fn next_pending() -> Option<EVENT_PRIORITY> {
     None
 }
 
-#[inline]
+#[inline(never)]
 pub fn set_event_flag(priority: EVENT_PRIORITY) {
     unsafe {
-        let bm = 0b1 << (priority as u8) as u64;
+        let bm = 0b1 << (priority as u8) as u32;
         atomic(|| {
-            EVENTS |= bm;
+            let new_value = ptr::read_volatile(&FLAGS) | bm;
+            FLAGS = new_value;
         })
     };
 }
 
+#[naked]
+pub unsafe fn set_event_flag_from_isr(priority: EVENT_PRIORITY) {
+    // Set PRIMASK
+    asm!("cpsid i" :::: "volatile");
+
+    asm!("
+        // Set event flag
+        orr $0, $2
+        isb
+        "
+        : "={r0}"(FLAGS)
+        : "{r0}"(FLAGS), "{r1}"(0b1<<(priority as u8))
+        : : "volatile" "volatile"
+    );
+
+    // Unset PRIMASK
+    asm!("cpsie i" :::: "volatile");
+}
+
 pub fn clear_event_flag(priority: EVENT_PRIORITY) {
     unsafe {
-        let bm = !0b1 << (priority as u8) as u64;
+        let bm = !0b1 << (priority as u8) as u32;
         atomic(|| {
-            EVENTS &= bm;
+            let new_value = ptr::read_volatile(&FLAGS) & bm;
+            FLAGS = new_value;
         })
     };
 }

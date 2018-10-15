@@ -117,7 +117,7 @@ pub struct UART {
 
 macro_rules! uart_nvic {
     ($fn_name:tt, $uart:ident) => {
-        // handle RX interrupt
+        #[inline(never)]
         pub extern "C" fn $fn_name() {
             unsafe {
                 // handle RX

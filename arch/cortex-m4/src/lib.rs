@@ -60,12 +60,13 @@ pub unsafe extern "C" fn generic_isr() {}
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
-    enter_kernel_space();
+    stash_process_state();
+    set_privileged_thread();
     disable_specific_nvic();
 }
 
 #[naked]
-pub unsafe extern "C" fn enter_kernel_space() {
+pub unsafe extern "C" fn stash_process_state() {
     asm!(
         "
     /* Skip saving process state if not coming from user-space */
@@ -77,14 +78,20 @@ pub unsafe extern "C" fn enter_kernel_space() {
     mov r1, sp
     ldr r1, [r1, #4]
     stmia r1, {r4-r11}
-    /* Set thread mode to privileged */
+  1:
+    "
+    : : : : "volatile" );
+}
+
+#[naked]
+pub unsafe extern "C" fn set_privileged_thread() {
+    asm!("
+      /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
     movw LR, #0xFFF9
-    movt LR, #0xFFFF
-  1:
-    "
-    );
+    movt LR, #0xFFFF"
+    : : : : "volatile");
 }
 
 #[naked]
