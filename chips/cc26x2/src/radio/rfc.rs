@@ -594,7 +594,6 @@ impl RFCore {
                 let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
                 let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
                 dbell_regs.rfcpe_ifg.set(0);
-
                 if command_done || last_command_done {
                     self.client.get().map(|client| client.command_done());
                 }

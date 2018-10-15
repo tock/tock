@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use kernel::common::registers::ReadOnly;
+//use kernel::common::list::{List, ListLink, ListNode};
 
 pub enum Commands {
     Direct = 0,

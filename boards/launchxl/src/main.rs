@@ -370,25 +370,25 @@ pub unsafe fn reset_handler() {
     cc26x2::trng::TRNG.set_client(entropy_to_random);
     entropy_to_random.set_client(rng);
 
-    radio::RFC.set_client(&radio::RADIO);
+    radio::RFC.set_client(&radio::SUBG_RADIO);
 
     let virtual_radio = static_init!(
         capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
         capsules::simple_rfcore::VirtualRadioDriver::new(
-            &cc26x2::radio::RADIO,
+            &cc26x2::radio::SUBG_RADIO,
             board_kernel.create_grant(&memory_allocation_capability),
             &mut HELIUM_BUF
         )
     );
 
-    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::RADIO, virtual_radio);
+    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::SUBG_RADIO, virtual_radio);
     kernel::hil::rfcore::RadioDriver::set_receive_client(
-        &radio::RADIO,
+        &radio::SUBG_RADIO,
         virtual_radio,
         &mut HELIUM_BUF,
     );
 
-    let rfc = &cc26x2::radio::RADIO;
+    let rfc = &cc26x2::radio::SUBG_RADIO;
     rfc.run_tests();
 
     let launchxl = Platform {

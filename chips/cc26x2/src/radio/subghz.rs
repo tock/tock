@@ -293,7 +293,7 @@ impl rfc::RFCoreClient for Radio {
                 self.cmdr_ready.set(true);
                 self.config_radio_client
                     .take()
-                    .map(|client| client.config_done(ReturnCode::SUCCESS));
+                    .map(|client| client.config_event(ReturnCode::SUCCESS));
             }
             _ => (),
         }
