@@ -3,14 +3,15 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::rfcore;
 use kernel::ReturnCode;
 use osc;
-use radio::rfc;
-use radio::commands::{prop_commands as prop};
+use radio::commands::{prop_commands as prop, DirectCommand, RadioCommand, RfcCondition};
+use radio::patch_cpe_prop as cpe;
 use radio::patch_mce_genfsk as mce;
 use radio::patch_mce_longrange as mce_lr;
 use radio::patch_rfe_genfsk as rfe;
-use radio::patch_cpe_prop as cpe;
+use radio::rfc;
+use rtc;
 
-const TEST_PAYLOAD: [u32; 30] = [0; 30];
+// const TEST_PAYLOAD: [u32; 30] = [0; 30];
 
 static mut GFSK_RFPARAMS: [u32; 25] = [
     // override_use_patch_prop_genfsk.xml
@@ -45,23 +46,29 @@ static mut GFSK_RFPARAMS: [u32; 25] = [
     0xFFFFFFFF, // Stop word
 ];
 
+type MultiModeResult = Result<(), ReturnCode>;
+
+#[allow(unused)]
 #[derive(Copy, Clone)]
 pub enum CpePatch {
     GenFsk { patch: cpe::Patches },
 }
 
-#[derive(Copy,Clone)]
+#[allow(unused)]
+#[derive(Copy, Clone)]
 pub enum RfePatch {
     #[derive(Copy, Clone)]
     GenFsk { patch: rfe::Patches },
 }
 
+#[allow(unused)]
 #[derive(Copy, Clone)]
 pub enum McePatch {
     GenFsk { patch: mce::Patches },
     LongRange { patch: mce_lr::Patches },
 }
 
+#[allow(unused)]
 #[derive(Copy, Clone)]
 pub struct RadioMode {
     mode: rfc::RfcMode,
@@ -74,19 +81,27 @@ impl Default for RadioMode {
     fn default() -> RadioMode {
         RadioMode {
             mode: rfc::RfcMode::Unchanged,
-            cpe_patch: CpePatch::GenFsk{ patch: cpe::CPE_PATCH },
-            rfe_patch: RfePatch::GenFsk{ patch: rfe::RFE_PATCH },
-            mce_patch: McePatch::GenFsk{ patch: mce::MCE_PATCH },
+            cpe_patch: CpePatch::GenFsk {
+                patch: cpe::CPE_PATCH,
+            },
+            rfe_patch: RfePatch::GenFsk {
+                patch: rfe::RFE_PATCH,
+            },
+            mce_patch: McePatch::GenFsk {
+                patch: mce::MCE_PATCH,
+            },
         }
     }
 }
 
+#[allow(unused)]
 #[derive(Copy, Clone)]
 pub enum RadioSetupCommand {
     Ble,
     PropGfsk { cmd: prop::CommandRadioDivSetup },
 }
 
+#[allow(unused)]
 pub struct Radio {
     rfc: &'static rfc::RFCore,
     mode: OptionalCell<RadioMode>,
@@ -118,10 +133,15 @@ impl Radio {
         }
     }
 
-    pub fn power_up(&self, m: RadioMode) -> ReturnCode {
-        self.mode.set(m); // maybe do in cfg?
+    pub fn power_up(&self) -> MultiModeResult {
+        // TODO Need so have some mode setting done in initialize callback perhaps to pass into
+        // power_up() here, the RadioMode enum is defined above which will set a mode in this
+        // multimode context along with applying the patches which are attached. Maybe it would be
+        // best for the client to just pass an int for the mode and do it all here? not sure yet.
 
-        self.rfc.set_mode(m.mode);
+        // self.mode.set(m);
+
+        self.rfc.set_mode(rfc::RfcMode::BLE);
 
         osc::OSC.request_switch_to_hf_xosc();
 
@@ -137,11 +157,247 @@ impl Radio {
 
         unsafe {
             let reg_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides, 0x9F3F)
+
+            let status = self.rfc.setup(reg_overrides, 0x9F3F);
+            match status {
+                ReturnCode::SUCCESS => Ok(()),
+                _ => Err(status),
+            }
         }
     }
 
-    pub fn power_down(&self) -> ReturnCode {
-        self.rfc.disable()
+    pub fn power_down(&self) -> MultiModeResult {
+        let status = self.rfc.disable();
+        match status {
+            ReturnCode::SUCCESS => Ok(()),
+            _ => Err(status),
+        }
+    }
+
+    /*
+    unsafe fn move_tx_buffer(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+        for (i,c) in buf.as_ref()[0..len].iter().enumerate() {
+
+        }
+    }
+    */
+}
+
+impl rfc::RFCoreClient for Radio {
+    fn command_done(&self) {
+        unsafe { rtc::RTC.sync() };
+
+        if self.schedule_powerdown.get() {
+            // TODO Need to handle powerdown failure here or we will not be able to enter low power
+            // modes
+            self.power_down().ok();
+            osc::OSC.switch_to_hf_rcosc();
+
+            self.schedule_powerdown.set(false);
+            // do sleep mode here later
+        }
+
+        self.cfg_client
+            .map(|client| client.config_event(ReturnCode::SUCCESS));
+    }
+
+    fn tx_done(&self) {
+        unsafe { rtc::RTC.sync() };
+
+        if self.schedule_powerdown.get() {
+            // TODO Need to handle powerdown failure here or we will not be able to enter low power
+            // modes
+            self.power_down().ok();
+            osc::OSC.switch_to_hf_rcosc();
+
+            self.schedule_powerdown.set(false);
+            // do sleep mode here later
+        }
+        self.tx_buf.take().map_or(ReturnCode::ERESERVE, |tx_buf| {
+            self.tx_client
+                .map(move |client| client.transmit_event(tx_buf, ReturnCode::SUCCESS));
+            ReturnCode::SUCCESS
+        });
+    }
+
+    fn rx_ok(&self) {
+        unsafe { rtc::RTC.sync() };
+
+        self.rx_buf.take().map_or(ReturnCode::ERESERVE, |rx_buf| {
+            let frame_len = rx_buf.len();
+            let crc_valid = true;
+            self.rx_client.map(move |client| {
+                client.receive_event(rx_buf, frame_len, crc_valid, ReturnCode::SUCCESS)
+            });
+            ReturnCode::SUCCESS
+        });
+    }
+}
+
+impl rfcore::Radio for Radio {}
+
+impl rfcore::RadioDriver for Radio {
+    fn set_transmit_client(&self, tx_client: &'static rfcore::TxClient) {
+        self.tx_client.set(tx_client);
+    }
+
+    fn set_receive_client(&self, rx_client: &'static rfcore::RxClient, _rx_buf: &'static mut [u8]) {
+        self.rx_client.set(rx_client);
+    }
+
+    fn set_receive_buffer(&self, _rx_buf: &'static mut [u8]) {
+        // maybe make a rx buf only when needed?
+    }
+
+    fn set_config_client(&self, config_client: &'static rfcore::ConfigClient) {
+        self.cfg_client.set(config_client);
+    }
+
+    fn transmit(
+        &self,
+        tx_buf: &'static mut [u8],
+        _frame_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        let res = self.tx_buf.replace(tx_buf).map_or_else(
+            || {
+                // tx_buf is not empty. We do not want to replace the buffer here because it could be
+                // in use by the radio so we should schedule some callback for tx_busy
+                (ReturnCode::EBUSY, None)
+            },
+            |tbuf| {
+                let p_packet = tbuf.as_mut_ptr() as u32;
+
+                let cmd_tx = prop::CommandTx {
+                    command_no: 0x3801,
+                    status: 0,
+                    p_nextop: 0,
+                    start_time: 0,
+                    start_trigger: 0,
+                    condition: {
+                        let mut cond = RfcCondition(0);
+                        cond.set_rule(0x01);
+                        cond
+                    },
+                    packet_conf: {
+                        let mut packet = prop::RfcPacketConf(0);
+                        packet.set_fs_off(false);
+                        packet.set_use_crc(true);
+                        packet.set_var_len(true);
+                        packet
+                    },
+                    packet_len: 0x14,
+                    sync_word: 0x930B51DE,
+                    packet_pointer: p_packet,
+                };
+
+                let cmd = RadioCommand::pack(cmd_tx);
+
+                self.rfc
+                    .send_sync(&cmd)
+                    .and_then(|_| self.rfc.wait(&cmd))
+                    .ok();
+
+                (ReturnCode::SUCCESS, Some(tbuf))
+            },
+        );
+        res
+    }
+}
+
+impl rfcore::RadioConfig for Radio {
+    fn initialize(&self) -> ReturnCode {
+        match self.power_up() {
+            Ok(()) => ReturnCode::SUCCESS,
+            Err(e) => e,
+        }
+    }
+
+    fn reset(&self) -> ReturnCode {
+        let status = self.power_down().and_then(|_| self.power_up());
+        match status {
+            Ok(()) => ReturnCode::SUCCESS,
+            Err(e) => e,
+        }
+    }
+
+    fn stop(&self) -> ReturnCode {
+        let cmd_stop = DirectCommand::new(0x0402, 0);
+        let stopped = self.rfc.send_direct(&cmd_stop).is_ok();
+        if stopped {
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
+        }
+    }
+
+    fn is_on(&self) -> bool {
+        true
+    }
+
+    fn busy(&self) -> bool {
+        // Might be an obsolete command here in favor of get_command_status and some logic on the
+        // user size to determine if the radio is busy. Not sure what is best to have here but
+        // arguing best might be bikeshedding
+        let status = self.rfc.status.get();
+        match status {
+            0x0001 => true,
+            0x0002 => true,
+            _ => false,
+        }
+    }
+
+    fn config_commit(&self) {
+        // TODO confirm set new config here
+    }
+
+    fn get_tx_power(&self) -> u32 {
+        // TODO get tx power radio command
+        0x00000000
+    }
+
+    fn get_radio_status(&self) -> u32 {
+        // TODO get power status of radio
+        0x00000000
+    }
+
+    fn get_command_status(&self) -> (ReturnCode, Option<u32>) {
+        // TODO get command status specifics
+        let status = self.rfc.status.get();
+        match status & 0x0F00 {
+            0 => (ReturnCode::SUCCESS, Some(status)),
+            4 => (ReturnCode::SUCCESS, Some(status)),
+            8 => (ReturnCode::FAIL, Some(status)),
+            _ => (ReturnCode::EINVAL, Some(status)),
+        }
+    }
+
+    fn set_tx_power(&self, power: u16) -> ReturnCode {
+        // Send direct command for TX power change
+        let command = DirectCommand::new(0x0010, power);
+        if self.rfc.send_direct(&command).is_ok() {
+            return ReturnCode::SUCCESS;
+        } else {
+            return ReturnCode::FAIL;
+        }
+    }
+
+    fn send_stop_command(&self) -> ReturnCode {
+        // Send "Gracefull" stop radio operation direct command
+        let command = DirectCommand::new(0x0402, 0);
+        if self.rfc.send_direct(&command).is_ok() {
+            return ReturnCode::SUCCESS;
+        } else {
+            return ReturnCode::FAIL;
+        }
+    }
+
+    fn send_kill_command(&self) -> ReturnCode {
+        // Send immidiate command kill all radio operation commands
+        let command = DirectCommand::new(0x0401, 0);
+        if self.rfc.send_direct(&command).is_ok() {
+            return ReturnCode::SUCCESS;
+        } else {
+            return ReturnCode::FAIL;
+        }
     }
 }

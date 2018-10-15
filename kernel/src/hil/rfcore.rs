@@ -9,7 +9,7 @@
 
 use returncode::ReturnCode;
 pub trait ConfigClient {
-    fn config_done(&self, result: ReturnCode);
+    fn config_event(&self, result: ReturnCode);
 }
 
 pub trait TxClient {
