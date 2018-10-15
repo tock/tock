@@ -1,4 +1,7 @@
-use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
+use cortexm4::{
+    disable_specific_nvic, enter_kernel_space, generic_isr, hard_fault_handler, nvic, svc_handler,
+    systick_handler,
+};
 
 extern "C" {
     // Symbols defined in the linker file
@@ -13,6 +16,38 @@ extern "C" {
     // You should never actually invoke it!!
     fn _estack();
 }
+
+use events;
+macro_rules! generic_isr {
+    ($label:tt, $priority:expr) => {
+        #[cfg(target_os = "none")]
+        unsafe extern "C" fn $label() {
+            enter_kernel_space();
+            events::set_event_flag($priority);
+            disable_specific_nvic();
+        }
+    };
+}
+
+macro_rules! custom_isr {
+    ($label:tt, $priority:expr, $isr:ident) => {
+        #[cfg(target_os = "none")]
+        unsafe extern "C" fn $label() {
+            enter_kernel_space();
+            events::set_event_flag($priority);
+            $isr();
+            //nvic not disabled - it is the responsibility of $isr to determine
+        }
+    };
+}
+
+generic_isr!(gpio_nvic, events::EVENT_PRIORITY::GPIO);
+generic_isr!(i2c0_nvic, events::EVENT_PRIORITY::I2C0);
+generic_isr!(aon_rtc_nvic, events::EVENT_PRIORITY::AON_RTC);
+
+use uart::{uart0_isr, uart1_isr};
+custom_isr!(uart0_nvic, events::EVENT_PRIORITY::UART0, uart0_isr);
+custom_isr!(uart1_nvic, events::EVENT_PRIORITY::UART1, uart1_isr);
 
 unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
@@ -38,12 +73,12 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     unhandled_interrupt, // Reserved
     unhandled_interrupt, // PendSV
     systick_handler,     // Systick
-    generic_isr,         // GPIO Int handler
-    generic_isr,         // I2C
+    gpio_nvic,           // GPIO Int handler
+    i2c0_nvic,           // I2C0
     generic_isr,         // RF Core Command & Packet Engine 1
     generic_isr,         // AON SpiSplave Rx, Tx and CS
-    generic_isr,         // AON RTC
-    generic_isr,         // UART0 Rx and Tx
+    aon_rtc_nvic,        // AON RTC
+    uart0_nvic,          // UART0 Rx and Tx
     generic_isr,         // AUX software event 0
     generic_isr,         // SSI0 Rx and Tx
     generic_isr,         // SSI1 Rx and Tx
@@ -73,10 +108,10 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     generic_isr, // AUX Comparator A
     generic_isr, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
-    generic_isr, // TRNG event
+    generic_isr, // TRNG event (hw_ints.h 49)
     generic_isr,
     generic_isr,
-    generic_isr,
+    uart1_nvic, //uart1_generic_isr,//uart::uart1_isr, // 52 allegedly UART1 (http://e2e.ti.com/support/wireless_connectivity/proprietary_sub_1_ghz_simpliciti/f/156/t/662981?CC1312R-UART1-can-t-work-correctly-in-sensor-oad-cc1312lp-example-on-both-cc1312-launchpad-and-cc1352-launchpad)
     generic_isr,
 ];
 
