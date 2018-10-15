@@ -7,6 +7,7 @@ pub struct MCERam {
     mce_ram: [VolatileCell<u32>; 228],
 }
 
+#[derive(Copy, Clone)]
 pub struct Patches {
     mce_patch: *const MCERam,
 }
@@ -18,12 +19,11 @@ impl Patches {
         }
     }
 
-    pub fn apply_mce_longrange_patch(&self) {
+    pub fn apply_patch(&self) {
         let p_mce_patch = unsafe { &*self.mce_patch };
         let mut i = 0;
         for reg in p_mce_patch.mce_ram.iter() {
             reg.set(PATCH_LONGRANGE[i]);
-            // debug!("{}", PATCH_LONGRANGE[i]);
             i += 1;
         }
     }

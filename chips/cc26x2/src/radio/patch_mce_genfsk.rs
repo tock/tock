@@ -6,10 +6,12 @@ pub const MCE_PATCH: Patches = Patches::new();
 pub struct MCERam {
     mce_ram: [VolatileCell<u32>; 484],
 }
-// MCE RAM base 21008000
+
+#[derive(Copy, Clone)]
 pub struct Patches {
     mce_patch: *const MCERam,
 }
+
 impl Patches {
     pub const fn new() -> Patches {
         Patches {
@@ -17,7 +19,7 @@ impl Patches {
         }
     }
 
-    pub fn apply_mce_genfsk_patch(&self) {
+    pub fn apply_patch(&self) {
         let p_mce_patch = unsafe { &*self.mce_patch };
         let mut i = 0;
         for reg in p_mce_patch.mce_ram.iter() {
