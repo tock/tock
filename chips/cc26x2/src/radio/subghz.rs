@@ -77,8 +77,6 @@ impl Radio {
     }
 
     pub fn run_tests(&self) {
-        self.power_up();
-
         self.rfc.set_mode(rfc::RfcMode::BLE);
 
         osc::OSC.request_switch_to_hf_xosc();
