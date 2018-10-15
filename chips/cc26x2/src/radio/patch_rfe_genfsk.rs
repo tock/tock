@@ -7,7 +7,7 @@ pub struct RFERam {
     rfe_ram: [VolatileCell<u32>; 512],
 }
 
-// MCE RAM base 21008000
+#[derive(Copy, Clone)]
 pub struct Patches {
     rfe_patch: *const RFERam,
 }
@@ -19,7 +19,7 @@ impl Patches {
         }
     }
 
-    pub fn apply_rfe_genfsk_patch(&self) {
+    pub fn apply_patch(&self) {
         let p_rfe_patch = unsafe { &*self.rfe_patch };
         let mut i = 0;
         for reg in p_rfe_patch.rfe_ram.iter() {

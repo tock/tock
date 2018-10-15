@@ -183,17 +183,21 @@ impl Oscillator {
             }
             ClockType::HF => {
                 regs.ctl0.modify(Ctl0::SCLK_HF_SRC_SEL.val(src as u32));
+                /*
                 match src {
                     0 => regs.ctl0.modify(Ctl0::ACLK_REF_SRC_SEL.val(0b000)),
                     1 => regs.ctl0.modify(Ctl0::ACLK_REF_SRC_SEL.val(0b001)),
                     _ => (),
                 }
+                */
             }
         }
     }
 
     // Switch the source OSC in DDI0
     pub fn switch_osc(&self) {
-        unsafe { oscfh::source_switch() };
+        unsafe {
+            oscfh::source_switch();
+        }
     }
 }
