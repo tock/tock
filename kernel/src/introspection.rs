@@ -75,7 +75,7 @@ impl Introspection {
         _capability: &ProcessManagementCapability,
     ) -> &'static str {
         self.kernel
-            .process_map_or("", app.idx(), |process| process.get_process_name())
+            .process_map_or("unknown", app.idx(), |process| process.get_process_name())
     }
 
     /// Returns the number of syscalls the app has called.
