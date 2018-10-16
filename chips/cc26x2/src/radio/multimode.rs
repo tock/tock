@@ -11,7 +11,7 @@ use radio::patch_rfe_genfsk as rfe;
 use radio::rfc;
 use rtc;
 
-// const TEST_PAYLOAD: [u32; 30] = [0; 30];
+const TEST_PAYLOAD: [u32; 30] = [0; 30];
 
 static mut GFSK_RFPARAMS: [u32; 25] = [
     // override_use_patch_prop_genfsk.xml
@@ -101,6 +101,8 @@ pub enum RadioSetupCommand {
     PropGfsk { cmd: prop::CommandRadioDivSetup },
 }
 
+static mut COMMAND_BUF: [u8; 256] = [0; 256];
+
 #[allow(unused)]
 pub struct Radio {
     rfc: &'static rfc::RFCore,
@@ -174,13 +176,148 @@ impl Radio {
         }
     }
 
-    /*
-    unsafe fn move_tx_buffer(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
-        for (i,c) in buf.as_ref()[0..len].iter().enumerate() {
+    unsafe fn replace_and_send_tx_buffer(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        for i in 0..COMMAND_BUF.len() {
+            COMMAND_BUF[i] = 0;
+        }
 
+        let res = self
+            .tx_buf
+            .replace(buf)
+            .map_or((ReturnCode::EBUSY, None), |tbuf| {
+                let p_packet = tbuf.as_mut_ptr() as u32;
+
+                let cmd: &mut prop::CommandTx =
+                    &mut *(COMMAND_BUF.as_mut_ptr() as *mut prop::CommandTx);
+                cmd.command_no = 0x3801;
+                cmd.status = 0;
+                cmd.p_nextop = 0;
+                cmd.start_time = 0;
+                cmd.start_trigger = 0;
+                cmd.condition = {
+                    let mut cond = RfcCondition(0);
+                    cond.set_rule(0x01);
+                    cond
+                };
+                cmd.packet_conf = {
+                    let mut packet = prop::RfcPacketConf(0);
+                    packet.set_fs_off(false);
+                    packet.set_use_crc(true);
+                    packet.set_var_len(true);
+                    packet
+                };
+                cmd.packet_len = len as u8;
+                // cmd.packet_len = 0x14;
+                cmd.sync_word = 0x930B51DE;
+                cmd.packet_pointer = p_packet;
+
+                RadioCommand::guard(cmd);
+
+                self.rfc.send_async(cmd).ok();
+
+                (ReturnCode::SUCCESS, Some(tbuf))
+            });
+        res
+    }
+
+    pub fn run_tests(&self) {
+        self.rfc.set_mode(rfc::RfcMode::BLE);
+
+        osc::OSC.request_switch_to_hf_xosc();
+
+        self.rfc.enable();
+
+        self.rfc.start_rat();
+
+        osc::OSC.switch_to_hf_xosc();
+
+        mce::MCE_PATCH.apply_patch();
+        rfe::RFE_PATCH.apply_patch();
+
+        unsafe {
+            let reg_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
+            self.rfc.setup(reg_overrides, 0x9F3F);
+        }
+
+        self.test_radio_fs();
+
+        self.test_radio_tx();
+    }
+
+    fn test_radio_tx(&self) {
+        let mut packet = TEST_PAYLOAD;
+        let mut seq: u32 = 0;
+        for p in packet.iter_mut() {
+            *p = seq;
+            seq += 1;
+        }
+        let p_packet = packet.as_mut_ptr() as u32;
+
+        unsafe {
+            let cmd: &mut prop::CommandTx =
+                &mut *(COMMAND_BUF.as_mut_ptr() as *mut prop::CommandTx);
+            cmd.command_no = 0x3801;
+            cmd.status = 0;
+            cmd.p_nextop = 0;
+            cmd.start_time = 0;
+            cmd.start_trigger = 0;
+            cmd.condition = {
+                let mut cond = RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            };
+            cmd.packet_conf = {
+                let mut packet = prop::RfcPacketConf(0);
+                packet.set_fs_off(false);
+                packet.set_use_crc(true);
+                packet.set_var_len(true);
+                packet
+            };
+            cmd.packet_len = 0x14;
+            cmd.sync_word = 0x930B51DE;
+            cmd.packet_pointer = p_packet;
+
+            RadioCommand::guard(cmd);
+
+            self.rfc
+                .send_sync(cmd)
+                .and_then(|_| self.rfc.wait(cmd))
+                .ok();
         }
     }
-    */
+
+    fn test_radio_fs(&self) {
+        let mut cmd_fs = prop::CommandFS {
+            command_no: 0x0803,
+            status: 0,
+            p_nextop: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            },
+            frequency: 0x0393,
+            fract_freq: 0x0000,
+            synth_conf: {
+                let mut synth = prop::RfcSynthConf(0);
+                synth.set_tx_mode(false);
+                synth.set_ref_freq(0x00);
+                synth
+            },
+        };
+
+        RadioCommand::guard(&mut cmd_fs);
+        self.rfc
+            .send_sync(&cmd_fs)
+            .and_then(|_| self.rfc.wait(&cmd_fs))
+            .ok();
+    }
 }
 
 impl rfc::RFCoreClient for Radio {
@@ -213,9 +350,9 @@ impl rfc::RFCoreClient for Radio {
             self.schedule_powerdown.set(false);
             // do sleep mode here later
         }
-        self.tx_buf.take().map_or(ReturnCode::ERESERVE, |tx_buf| {
+        self.tx_buf.take().map_or(ReturnCode::ERESERVE, |tbuf| {
             self.tx_client
-                .map(move |client| client.transmit_event(tx_buf, ReturnCode::SUCCESS));
+                .map(move |client| client.transmit_event(tbuf, ReturnCode::SUCCESS));
             ReturnCode::SUCCESS
         });
     }
@@ -223,11 +360,11 @@ impl rfc::RFCoreClient for Radio {
     fn rx_ok(&self) {
         unsafe { rtc::RTC.sync() };
 
-        self.rx_buf.take().map_or(ReturnCode::ERESERVE, |rx_buf| {
-            let frame_len = rx_buf.len();
+        self.rx_buf.take().map_or(ReturnCode::ERESERVE, |rbuf| {
+            let frame_len = rbuf.len();
             let crc_valid = true;
             self.rx_client.map(move |client| {
-                client.receive_event(rx_buf, frame_len, crc_valid, ReturnCode::SUCCESS)
+                client.receive_event(rbuf, frame_len, crc_valid, ReturnCode::SUCCESS)
             });
             ReturnCode::SUCCESS
         });
@@ -256,50 +393,14 @@ impl rfcore::RadioDriver for Radio {
     fn transmit(
         &self,
         tx_buf: &'static mut [u8],
-        _frame_len: usize,
+        frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        let res = self.tx_buf.replace(tx_buf).map_or_else(
-            || {
-                // tx_buf is not empty. We do not want to replace the buffer here because it could be
-                // in use by the radio so we should schedule some callback for tx_busy
-                (ReturnCode::EBUSY, None)
-            },
-            |tbuf| {
-                let p_packet = tbuf.as_mut_ptr() as u32;
+        if frame_len > 240 {
+            return (ReturnCode::ENOSUPPORT, None);
+        }
 
-                let cmd_tx = prop::CommandTx {
-                    command_no: 0x3801,
-                    status: 0,
-                    p_nextop: 0,
-                    start_time: 0,
-                    start_trigger: 0,
-                    condition: {
-                        let mut cond = RfcCondition(0);
-                        cond.set_rule(0x01);
-                        cond
-                    },
-                    packet_conf: {
-                        let mut packet = prop::RfcPacketConf(0);
-                        packet.set_fs_off(false);
-                        packet.set_use_crc(true);
-                        packet.set_var_len(true);
-                        packet
-                    },
-                    packet_len: 0x14,
-                    sync_word: 0x930B51DE,
-                    packet_pointer: p_packet,
-                };
+        let res = unsafe { self.replace_and_send_tx_buffer(tx_buf, frame_len) };
 
-                let cmd = RadioCommand::pack(cmd_tx);
-
-                self.rfc
-                    .send_sync(&cmd)
-                    .and_then(|_| self.rfc.wait(&cmd))
-                    .ok();
-
-                (ReturnCode::SUCCESS, Some(tbuf))
-            },
-        );
         res
     }
 }
