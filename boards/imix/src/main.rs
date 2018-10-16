@@ -111,7 +111,6 @@ const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compressio
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 const PAN_ID: u16 = 0xABCD;
 
-
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
