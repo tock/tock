@@ -55,8 +55,10 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
-    radio:
-        &'static capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
+    radio: &'static capsules::simple_rfcore::VirtualRadioDriver<
+        'static,
+        cc26x2::radio::multimode::Radio,
+    >,
 }
 
 impl kernel::Platform for Platform {
@@ -373,22 +375,22 @@ pub unsafe fn reset_handler() {
     radio::RFC.set_client(&radio::SUBG_RADIO);
 
     let virtual_radio = static_init!(
-        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::subghz::Radio>,
+        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::multimode::Radio>,
         capsules::simple_rfcore::VirtualRadioDriver::new(
-            &cc26x2::radio::SUBG_RADIO,
+            &cc26x2::radio::MULTIMODE_RADIO,
             board_kernel.create_grant(&memory_allocation_capability),
             &mut HELIUM_BUF
         )
     );
 
-    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::SUBG_RADIO, virtual_radio);
+    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::MULTIMODE_RADIO, virtual_radio);
     kernel::hil::rfcore::RadioDriver::set_receive_client(
-        &radio::SUBG_RADIO,
+        &radio::MULTIMODE_RADIO,
         virtual_radio,
         &mut HELIUM_BUF,
     );
 
-    let rfc = &cc26x2::radio::SUBG_RADIO;
+    let rfc = &cc26x2::radio::MULTIMODE_RADIO;
     rfc.run_tests();
 
     let launchxl = Platform {

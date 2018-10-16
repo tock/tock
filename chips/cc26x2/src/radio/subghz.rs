@@ -51,6 +51,8 @@ static mut GFSK_RFPARAMS: [u32; 25] = [
     0xFFFFFFFF, // Stop word
 ];
 
+static mut COMMAND_BUF: [u8; 256] = [0; 256];
+
 pub struct Radio {
     rfc: &'static rfc::RFCore,
     tx_radio_client: OptionalCell<&'static rfcore::TxClient>,
@@ -130,7 +132,7 @@ impl Radio {
         unsafe {
             let p_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
 
-            let setup_cmd = prop::CommandRadioDivSetup {
+            let mut setup_cmd = prop::CommandRadioDivSetup {
                 command_no: 0x3807,
                 status: 0,
                 p_nextop: 0,
@@ -185,11 +187,11 @@ impl Radio {
                 lo_divider: 0x05,
             };
 
-            let cmd = cmd::RadioCommand::pack(setup_cmd);
+            cmd::RadioCommand::guard(&mut setup_cmd);
             if self
                 .rfc
-                .send_async(&cmd)
-                .and_then(|_| self.rfc.wait(&cmd))
+                .send_async(&setup_cmd)
+                .and_then(|_| self.rfc.wait(&setup_cmd))
                 .is_ok()
             {
                 ReturnCode::SUCCESS
@@ -208,39 +210,41 @@ impl Radio {
         }
         let p_packet = packet.as_mut_ptr() as u32;
 
-        let cmd_tx = prop::CommandTx {
-            command_no: 0x3801,
-            status: 0,
-            p_nextop: 0,
-            start_time: 0,
-            start_trigger: 0,
-            condition: {
+        unsafe {
+            let cmd: &mut prop::CommandTx =
+                &mut *(COMMAND_BUF.as_mut_ptr() as *mut prop::CommandTx);
+            cmd.command_no = 0x3801;
+            cmd.status = 0;
+            cmd.p_nextop = 0;
+            cmd.start_time = 0;
+            cmd.start_trigger = 0;
+            cmd.condition = {
                 let mut cond = cmd::RfcCondition(0);
                 cond.set_rule(0x01);
                 cond
-            },
-            packet_conf: {
+            };
+            cmd.packet_conf = {
                 let mut packet = prop::RfcPacketConf(0);
                 packet.set_fs_off(false);
                 packet.set_use_crc(true);
                 packet.set_var_len(true);
                 packet
-            },
-            packet_len: 0x14,
-            sync_word: 0x930B51DE,
-            packet_pointer: p_packet,
-        };
+            };
+            cmd.packet_len = 0x14;
+            cmd.sync_word = 0x930B51DE;
+            cmd.packet_pointer = p_packet;
 
-        let cmd = cmd::RadioCommand::pack(cmd_tx);
+            cmd::RadioCommand::guard(cmd);
 
-        self.rfc
-            .send_sync(&cmd)
-            .and_then(|_| self.rfc.wait(&cmd))
-            .ok();
+            self.rfc
+                .send_sync(cmd)
+                .and_then(|_| self.rfc.wait(cmd))
+                .ok();
+        }
     }
 
     fn test_radio_fs(&self) {
-        let cmd_fs = prop::CommandFS {
+        let mut cmd_fs = prop::CommandFS {
             command_no: 0x0803,
             status: 0,
             p_nextop: 0,
@@ -261,10 +265,10 @@ impl Radio {
             },
         };
 
-        let cmd = cmd::RadioCommand::pack(cmd_fs);
+        cmd::RadioCommand::guard(&mut cmd_fs);
         self.rfc
-            .send_sync(&cmd)
-            .and_then(|_| self.rfc.wait(&cmd))
+            .send_sync(&cmd_fs)
+            .and_then(|_| self.rfc.wait(&cmd_fs))
             .ok();
     }
 }

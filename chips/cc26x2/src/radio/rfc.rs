@@ -313,7 +313,7 @@ impl RFCore {
 
         // Add disable power domain and clocks
 
-        let fs_down = prop::CommandFSPowerdown {
+        let mut fs_down = prop::CommandFSPowerdown {
             command_no: 0x080D,
             status: 0,
             p_nextop: 0,
@@ -326,9 +326,12 @@ impl RFCore {
             },
         };
 
-        let cmd = cmd::RadioCommand::pack(fs_down);
+        cmd::RadioCommand::guard(&mut fs_down);
 
-        let ret = self.send_sync(&cmd).and_then(|_| self.wait(&cmd)).ok();
+        let ret = self
+            .send_sync(&fs_down)
+            .and_then(|_| self.wait(&fs_down))
+            .ok();
         match ret {
             Some(()) => ReturnCode::SUCCESS,
             None => match self.stop_rat() {
@@ -345,7 +348,7 @@ impl RFCore {
     pub fn setup(&self, reg_overrides: u32, tx_power: u16) -> ReturnCode {
         // let mode = self.mode.get().expect("No RF mode selected, cannot setup");
 
-        let setup_cmd = prop::CommandRadioDivSetup {
+        let mut setup_cmd = prop::CommandRadioDivSetup {
             command_no: 0x3807,
             status: 0,
             p_nextop: 0,
@@ -400,9 +403,13 @@ impl RFCore {
             lo_divider: 0x05,
         };
 
-        let cmd = cmd::RadioCommand::pack(setup_cmd);
+        cmd::RadioCommand::guard(&mut setup_cmd);
 
-        let res = self.send_sync(&cmd).and_then(|_| self.wait(&cmd)).ok();
+        let res = self
+            .send_sync(&setup_cmd)
+            .and_then(|_| self.wait(&setup_cmd))
+            .ok();
+
         match res {
             Some(()) => ReturnCode::SUCCESS,
             None => ReturnCode::FAIL,
@@ -410,7 +417,7 @@ impl RFCore {
     }
 
     pub fn start_rat(&self) {
-        let rat_cmd = prop::CommandSyncRat {
+        let mut rat_cmd = prop::CommandSyncRat {
             command_no: 0x080A,
             status: 0,
             p_nextop: 0,
@@ -425,16 +432,16 @@ impl RFCore {
             rat0: self.rat.get(),
         };
 
-        let cmd = cmd::RadioCommand::pack(rat_cmd);
+        cmd::RadioCommand::guard(&mut rat_cmd);
 
-        self.send_sync(&cmd)
-            .and_then(|_| self.wait(&cmd))
+        self.send_sync(&rat_cmd)
+            .and_then(|_| self.wait(&rat_cmd))
             .ok()
             .expect("Start RAT command returned Err");
     }
 
     pub fn stop_rat(&self) -> ReturnCode {
-        let rat_cmd = prop::CommandSyncRat {
+        let mut rat_cmd = prop::CommandSyncRat {
             command_no: 0x0809,
             status: 0,
             p_nextop: 0,
@@ -448,9 +455,12 @@ impl RFCore {
             _reserved: 0,
             rat0: self.rat.get(),
         };
-        let cmd = cmd::RadioCommand::pack(rat_cmd);
+        cmd::RadioCommand::guard(&mut rat_cmd);
 
-        let ret = self.send_sync(&cmd).and_then(|_| self.wait(&cmd)).ok();
+        let ret = self
+            .send_sync(&rat_cmd)
+            .and_then(|_| self.wait(&rat_cmd))
+            .ok();
         match ret {
             Some(()) => ReturnCode::SUCCESS,
             None => ReturnCode::FAIL,

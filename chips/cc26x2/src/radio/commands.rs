@@ -1,17 +1,4 @@
-#![allow(dead_code)]
 use kernel::common::registers::ReadOnly;
-//use kernel::common::list::{List, ListLink, ListNode};
-
-pub enum Commands {
-    Direct = 0,
-    RadioSetup = 1,
-    Common = 2,
-    FSPowerup = 3,
-    FSPowerdown = 4,
-    StartRat = 5,
-    StopRat = 6,
-    NotSupported,
-}
 
 // Radio and data commands bitfields
 bitfield! {
@@ -80,7 +67,7 @@ pub struct CommandCommon {
 // Command and parameters for radio setup
 
 pub unsafe trait RadioCommand {
-    fn pack(self) -> Self;
+    fn guard(&mut self);
 }
 
 pub mod prop_commands {
@@ -149,7 +136,7 @@ pub mod prop_commands {
     #[repr(C)]
     #[derive(Copy, Clone)]
     pub struct CommandRadioDivSetup {
-        pub command_no: u16, // 0x3806
+        pub command_no: u16, // 0x3807
         pub status: u16,
         pub p_nextop: u32,
         pub start_time: u32,
@@ -169,27 +156,7 @@ pub mod prop_commands {
     }
 
     unsafe impl RadioCommand for CommandRadioDivSetup {
-        fn pack(self) -> CommandRadioDivSetup {
-            CommandRadioDivSetup {
-                command_no: self.command_no,
-                status: self.status,
-                p_nextop: self.p_nextop,
-                start_time: self.start_time,
-                start_trigger: self.start_trigger,
-                condition: self.condition,
-                modulation: self.modulation,
-                symbol_rate: self.symbol_rate,
-                rx_bandwidth: self.rx_bandwidth,
-                preamble_conf: self.preamble_conf,
-                format_conf: self.format_conf,
-                config: self.config,
-                tx_power: self.tx_power,
-                reg_overrides: self.reg_overrides,
-                center_freq: self.center_freq,
-                int_freq: self.int_freq,
-                lo_divider: self.lo_divider,
-            }
-        }
+        fn guard(&mut self) {}
     }
 
     #[repr(C)]
@@ -211,6 +178,7 @@ pub mod prop_commands {
     }
 
     #[repr(C)]
+    #[derive(Copy, Clone)]
     pub struct CommandSyncRat {
         pub command_no: u16,
         pub status: u16,
@@ -223,21 +191,11 @@ pub mod prop_commands {
     }
 
     unsafe impl RadioCommand for CommandSyncRat {
-        fn pack(self) -> CommandSyncRat {
-            CommandSyncRat {
-                command_no: self.command_no,
-                status: self.status,
-                p_nextop: self.p_nextop,
-                start_time: self.start_time,
-                start_trigger: self.start_trigger,
-                condition: self.condition,
-                _reserved: self._reserved,
-                rat0: self.rat0,
-            }
-        }
+        fn guard(&mut self) {}
     }
 
     #[repr(C)]
+    #[derive(Copy, Clone)]
     pub struct CommandTx {
         pub command_no: u16, // 0x3801
         pub status: u16,
@@ -252,24 +210,12 @@ pub mod prop_commands {
     }
 
     unsafe impl RadioCommand for CommandTx {
-        fn pack(self) -> CommandTx {
-            CommandTx {
-                command_no: self.command_no,
-                status: self.status,
-                p_nextop: self.p_nextop,
-                start_time: self.start_time,
-                start_trigger: self.start_trigger,
-                condition: self.condition,
-                packet_conf: self.packet_conf,
-                packet_len: self.packet_len,
-                sync_word: self.sync_word,
-                packet_pointer: self.packet_pointer,
-            }
-        }
+        fn guard(&mut self) {}
     }
 
     // Custom FS
     #[repr(C)]
+    #[derive(Copy, Clone)]
     pub struct CommandFS {
         pub command_no: u16, // 0x0803
         pub status: u16,
@@ -283,19 +229,7 @@ pub mod prop_commands {
     }
 
     unsafe impl RadioCommand for CommandFS {
-        fn pack(self) -> CommandFS {
-            CommandFS {
-                command_no: self.command_no,
-                status: self.status,
-                p_nextop: self.p_nextop,
-                start_time: self.start_time,
-                start_trigger: self.start_trigger,
-                condition: self.condition,
-                frequency: self.frequency,
-                fract_freq: self.fract_freq,
-                synth_conf: self.synth_conf,
-            }
-        }
+        fn guard(&mut self) {}
     }
 
     #[repr(C)]
@@ -309,16 +243,17 @@ pub mod prop_commands {
     }
 
     unsafe impl RadioCommand for CommandFSPowerdown {
-        fn pack(self) -> CommandFSPowerdown {
-            CommandFSPowerdown {
-                command_no: self.command_no,
-                status: self.status,
-                p_nextop: self.p_nextop,
-                start_time: self.start_time,
-                start_trigger: self.start_trigger,
-                condition: self.condition,
-            }
-        }
+        fn guard(&mut self) {}
+    }
+
+    #[repr(C)]
+    pub struct CommandRx {
+        pub command_no: u16, // 0x080D
+        pub status: u16,
+        pub p_nextop: u32,
+        pub start_time: u32,
+        pub start_trigger: u8,
+        pub condition: RfcCondition,
     }
 
 }
