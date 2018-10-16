@@ -14,6 +14,7 @@
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
+// Last Modified: 8/26/2018
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
@@ -28,12 +29,26 @@ use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use sam4l;
+
+const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
+
+// The UDP stack requires several packet buffers:
+//
+//   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
+//   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
+//   3. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
+
+const UDP_HDR_SIZE: usize = 8;
+static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
+static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 pub struct UDPComponent {
     board_kernel: &'static kernel::Kernel,
@@ -43,6 +58,7 @@ pub struct UDPComponent {
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
+    alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
 
 impl UDPComponent {
@@ -54,6 +70,7 @@ impl UDPComponent {
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
+        alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
     ) -> UDPComponent {
         UDPComponent {
             board_kernel: board_kernel,
@@ -63,28 +80,20 @@ impl UDPComponent {
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
+            alarm_mux: alarm,
         }
     }
 }
-
-const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
-
-// The UDP stack requires several packet buffers:
-//
-//   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
-//   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
-//   4. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
-
-const UDP_HDR_SIZE: usize = 8;
-static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
-static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 impl Component for UDPComponent {
     type Output = &'static capsules::net::udp::UDPDriver<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let ipsender_virtual_alarm = static_init!(
+            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            VirtualMuxAlarm::new(self.alarm_mux)
+        );
 
         let udp_mac = static_init!(
             capsules::ieee802154::virtual_mac::MacUser<'static>,
@@ -126,9 +135,13 @@ impl Component for UDPComponent {
         let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
         let ip_send = static_init!(
-            capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>,
+            capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                'static,
+                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            >,
             capsules::net::ipv6::ipv6_send::IP6SendStruct::new(
                 ip6_dg,
+                ipsender_virtual_alarm,
                 &mut RF233_BUF,
                 sixlowpan_tx,
                 udp_mac,
@@ -136,6 +149,7 @@ impl Component for UDPComponent {
                 self.src_mac_addr
             )
         );
+        ipsender_virtual_alarm.set_client(ip_send);
 
         // Initially, set src IP of the sender to be the first IP in the Interface
         // list. Userland apps can change this if they so choose.
@@ -143,7 +157,13 @@ impl Component for UDPComponent {
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
-            UDPSendStruct<'static, capsules::net::ipv6::ipv6_send::IP6SendStruct<'static>>,
+            UDPSendStruct<
+                'static,
+                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+                >,
+            >,
             UDPSendStruct::new(ip_send)
         );
         ip_send.set_client(udp_send);
@@ -163,7 +183,8 @@ impl Component for UDPComponent {
                 udp_send,
                 udp_recv,
                 self.board_kernel.create_grant(&grant_cap),
-                self.interface_list
+                self.interface_list,
+                PAYLOAD_LEN
             )
         );
         udp_send.set_client(udp_driver);
