@@ -55,7 +55,7 @@ register_bitfields![u32,
             Enable = 0,
             Disable = 1
         ],
-        /// Enables the operation of MPU during hard fault, NMI, 
+        /// Enables the operation of MPU during hard fault, NMI,
         /// and FAULTMASK handlers
         HFNMIENA OFFSET(1) NUMBITS(1) [
             Enable = 0,
@@ -549,9 +549,10 @@ impl kernel::mpu::MPU for MPU {
     ) -> Result<(), ()> {
         let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM].location() {
             Some((start, size)) => (start as usize, size),
-            None => panic!(
-                "Error: Process tried to update app memory MPU region before it was created."
-            ),
+            None => {
+                // Error: Process tried to update app memory MPU region before it was created.
+                return Err(());
+            }
         };
 
         let app_memory_break = app_memory_break as usize;

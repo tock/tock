@@ -225,6 +225,8 @@ pub enum Error {
     NoSuchApp,
     OutOfMemory,
     AddressOutOfBounds,
+    KernelError, // This likely indicates a bug in the kernel and that some
+                 // state is inconsistent in the kernel.
 }
 
 impl From<Error> for ReturnCode {
@@ -233,6 +235,7 @@ impl From<Error> for ReturnCode {
             Error::OutOfMemory => ReturnCode::ENOMEM,
             Error::AddressOutOfBounds => ReturnCode::EINVAL,
             Error::NoSuchApp => ReturnCode::EINVAL,
+            Error::KernelError => ReturnCode::FAIL,
         }
     }
 }
@@ -577,7 +580,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<mpu::Region> {
-        match self.mpu_config.map(|mut config| {
+        self.mpu_config.map_or(None, |mut config| {
             let new_region = self.mpu.allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
@@ -597,12 +600,9 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
                 }
             }
 
-            debug!("Not enough room in Process struct to store MPU region.");
+            // Not enough room in Process struct to store the MPU region.
             None
-        }) {
-            Some(option) => option,
-            None => panic!("MPU config not found."),
-        }
+        })
     }
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
@@ -611,28 +611,26 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
-        match self.mpu_config.map(|mut config| {
-            if new_break < self.mem_start() || new_break >= self.mem_end() {
-                Err(Error::AddressOutOfBounds)
-            } else if new_break > self.kernel_memory_break.get() {
-                Err(Error::OutOfMemory)
-            } else if let Err(_) = self.mpu.update_app_memory_region(
-                new_break,
-                self.kernel_memory_break.get(),
-                mpu::Permissions::ReadWriteExecute,
-                &mut config,
-            ) {
-                Err(Error::OutOfMemory)
-            } else {
-                let old_break = self.app_break.get();
-                self.app_break.set(new_break);
-                self.mpu.configure_mpu(&mut config);
-                Ok(old_break)
-            }
-        }) {
-            Some(error) => error,
-            None => panic!("MPU config not found."),
-        }
+        self.mpu_config
+            .map_or(Err(Error::KernelError), |mut config| {
+                if new_break < self.mem_start() || new_break >= self.mem_end() {
+                    Err(Error::AddressOutOfBounds)
+                } else if new_break > self.kernel_memory_break.get() {
+                    Err(Error::OutOfMemory)
+                } else if let Err(_) = self.mpu.update_app_memory_region(
+                    new_break,
+                    self.kernel_memory_break.get(),
+                    mpu::Permissions::ReadWriteExecute,
+                    &mut config,
+                ) {
+                    Err(Error::OutOfMemory)
+                } else {
+                    let old_break = self.app_break.get();
+                    self.app_break.set(new_break);
+                    self.mpu.configure_mpu(&mut config);
+                    Ok(old_break)
+                }
+            })
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
@@ -649,7 +647,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
-        match self.mpu_config.map(|mut config| {
+        self.mpu_config.map_or(None, |mut config| {
             let new_break = self.kernel_memory_break.get().offset(-(size as isize));
             if new_break < self.app_break.get() {
                 None
@@ -664,10 +662,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
                 self.kernel_memory_break.set(new_break);
                 Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
             }
-        }) {
-            Some(option) => option,
-            None => panic!("MPU config not found."),
-        }
+        })
     }
 
     unsafe fn free(&self, _: *mut u8) {}
@@ -970,10 +965,6 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
                 mpu::Permissions::ReadExecuteOnly,
                 &mut mpu_config,
             ) {
-                debug!(
-                    "{:?} failed to load. Infeasible to allocate MPU region for flash",
-                    process_name
-                );
                 return (None, app_flash_size, 0);
             }
 
@@ -995,6 +986,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             let process_struct_offset = mem::size_of::<Process<S, M>>();
 
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
+            // Provide the app with plenty of initial process accessible memory.
             let initial_kernel_memory_size =
                 grant_ptrs_offset + callbacks_offset + process_struct_offset;
             let initial_app_memory_size = 3 * 1024;
@@ -1018,10 +1010,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             ) {
                 Some((memory_start, memory_size)) => (memory_start, memory_size),
                 None => {
-                    debug!(
-                        "{:?} failed to load. Insufficient memory. Requested {} have {}",
-                        process_name, min_total_memory_size, remaining_app_memory_size
-                    );
+                    // Failed to load process. Insufficient memory.
                     return (None, app_flash_size, 0);
                 }
             };
@@ -1032,7 +1021,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             // Set up process memory.
             let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
 
-            // Set the initial process stack and memory to 128 bytes.
+            // Set the initial process stack and memory to 3072 bytes.
             let initial_stack_pointer = memory_start.offset(initial_app_memory_size as isize);
             let initial_sbrk_pointer = memory_start.offset(initial_app_memory_size as isize);
 
