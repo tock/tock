@@ -30,7 +30,7 @@ impl SerialNum {
 
     /// Returns the 120-bit serial number of the sam4l in a byte array
     pub fn get(&self) -> [u8; 15] {
-       self.regs.serial_num
+        self.regs.serial_num
     }
 
     /// Helper function for simply returning the lower 64 bits of the serial number
@@ -40,7 +40,7 @@ impl SerialNum {
         let mut lower_64 = 0;
         // Below could use transmute, but didn't want to add unsafe code
         for i in 7..15 {
-            lower_64 = lower_64 + ((full_num[i] as u64) << ((14-i)*8));
+            lower_64 = lower_64 + ((full_num[i] as u64) << ((14 - i) * 8));
         }
         lower_64
     }
