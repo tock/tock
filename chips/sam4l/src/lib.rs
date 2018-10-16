@@ -49,6 +49,7 @@ pub mod trng;
 pub mod usart;
 pub mod usbc;
 pub mod wdt;
+pub mod serial_num;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
