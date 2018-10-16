@@ -5,9 +5,11 @@ use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::uart;
 use kernel::ReturnCode;
-use prcm;
 
 use core::cmp;
+use cortexm4::nvic;
+use peripheral_interrupts;
+use prcm;
 
 const MCU_CLOCK: u32 = 48_000_000;
 
@@ -30,8 +32,8 @@ struct UartRegisters {
     dmactl: ReadWrite<u32>,
 }
 
-pub static mut UART0: UART = UART::new(&UART0_BASE);
-pub static mut UART1: UART = UART::new(&UART1_BASE);
+pub static mut UART0: UART = UART::new(&UART0_BASE, &UART0_NVIC);
+pub static mut UART1: UART = UART::new(&UART1_BASE, &UART1_NVIC);
 
 register_bitfields![
     u32,
@@ -88,6 +90,11 @@ const UART0_BASE: StaticRef<UartRegisters> =
 const UART1_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4000B000 as *const UartRegisters) };
 
+const UART0_NVIC: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::UART0 as u32) };
+const UART1_NVIC: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::UART1 as u32) };
+
 /// Stores an ongoing TX transaction
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to
@@ -101,20 +108,54 @@ struct Transaction {
 
 pub struct UART {
     registers: &'static StaticRef<UartRegisters>,
+    nvic: &'static nvic::Nvic,
     tx_client: OptionalCell<&'static uart::Client>,
     rx_client: OptionalCell<&'static uart::Client>,
     tx: MapCell<Transaction>,
     rx: MapCell<Transaction>,
 }
 
+macro_rules! uart_nvic {
+    ($fn_name:tt, $uart:ident) => {
+        #[inline(never)]
+        pub extern "C" fn $fn_name() {
+            unsafe {
+                // handle RX
+                $uart.rx.map(|rx| {
+                    while $uart.rx_fifo_not_empty() && rx.index < rx.length {
+                        let byte = $uart.read_byte();
+                        rx.buffer[rx.index] = byte;
+                        rx.index += 1;
+                    }
+                });
+                // if there is no client, empty the buffer into the void
+                if $uart.rx_fifo_not_empty() {
+                    $uart.read_byte();
+                }
+                $uart.tx.map(|tx| {
+                    // if a big buffer was given, this could be a very long call
+                    if $uart.tx_fifo_not_full() && tx.index < tx.length {
+                        $uart.send_byte(tx.buffer[tx.index]);
+                        tx.index += 1;
+                    }
+                });
+                $uart.registers.icr.write(Interrupts::ALL_INTERRUPTS::Set);
+                $uart.nvic.clear_pending();
+            }
+        }
+    };
+}
+
+uart_nvic!(uart0_isr, UART0);
+uart_nvic!(uart1_isr, UART1);
+
 impl UART {
-    const fn new(registers: &'static StaticRef<UartRegisters>) -> UART {
+    const fn new(registers: &'static StaticRef<UartRegisters>, nvic: &'static nvic::Nvic) -> UART {
         UART {
             registers,
-
+            nvic,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-
             tx: MapCell::empty(),
             rx: MapCell::empty(),
         }
@@ -204,17 +245,11 @@ impl UART {
     }
 
     /// Clears all interrupts related to UART.
-    pub fn handle_interrupt(&self) {
+    pub fn handle_events(&self) {
         // Clear interrupts
         self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
 
         self.rx.take().map(|mut rx| {
-            while self.rx_fifo_not_empty() && rx.index < rx.length {
-                let byte = self.read_byte();
-                rx.buffer[rx.index] = byte;
-                rx.index += 1;
-            }
-
             if rx.index == rx.length {
                 self.rx_client.map(move |client| {
                     client.receive_complete(
@@ -227,17 +262,8 @@ impl UART {
                 self.rx.put(rx);
             }
         });
-        // if there is no client, empty the buffer into the void
-        if self.rx_fifo_not_empty() {
-            self.read_byte();
-        }
 
         self.tx.take().map(|mut tx| {
-            // if a big buffer was given, this could be a very long call
-            if self.tx_fifo_not_full() && tx.index < tx.length {
-                self.send_byte(tx.buffer[tx.index]);
-                tx.index += 1;
-            }
             if tx.index == tx.length {
                 self.tx_client.map(move |client| {
                     client.transmit_complete(tx.buffer, kernel::hil::uart::Error::CommandComplete);

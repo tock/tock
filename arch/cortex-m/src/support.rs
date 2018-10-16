@@ -48,5 +48,15 @@ where
 }
 
 #[cfg(target_os = "none")]
+pub unsafe fn atomic_write(location: &mut u64, value: u64) {
+    atomic(|| ::core::ptr::write_volatile(location, value));
+}
+
+#[cfg(target_os = "none")]
+pub unsafe fn atomic_read(location: &u64) -> u64 {
+    atomic(|| ::core::ptr::read_volatile(location))
+}
+
+#[cfg(target_os = "none")]
 #[lang = "eh_personality"]
 pub extern "C" fn eh_personality() {}

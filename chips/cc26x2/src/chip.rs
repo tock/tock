@@ -1,9 +1,9 @@
-use cortexm4::{self, nvic};
-use enum_primitive::cast::FromPrimitive;
+use cortexm4;
+use event_priority::EVENT_PRIORITY;
+use events;
 use gpio;
 use i2c;
 use kernel;
-use peripheral_interrupts::NVIC_IRQ;
 use rtc;
 use uart;
 
@@ -33,29 +33,26 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
+
     fn service_pending_interrupts(&self) {
         unsafe {
-            while let Some(interrupt) = nvic::next_pending() {
-                let irq = NVIC_IRQ::from_u32(interrupt)
-                    .expect("Pending IRQ flag not enumerated in NVIQ_IRQ");
-                match irq {
-                    NVIC_IRQ::GPIO => gpio::PORT.handle_interrupt(),
-                    NVIC_IRQ::AON_RTC => rtc::RTC.handle_interrupt(),
-                    NVIC_IRQ::UART0 => uart::UART0.handle_interrupt(),
-                    NVIC_IRQ::I2C0 => i2c::I2C0.handle_interrupt(),
-                    // We need to ignore JTAG events since some debuggers emit these
-                    NVIC_IRQ::AON_PROG => (),
-                    _ => panic!("Unhandled interrupt {:?}", irq),
+            while let Some(event) = events::next_pending() {
+                events::clear_event_flag(event);
+                match event {
+                    EVENT_PRIORITY::GPIO => gpio::PORT.handle_events(),
+                    EVENT_PRIORITY::AON_RTC => rtc::RTC.handle_events(),
+                    EVENT_PRIORITY::I2C0 => i2c::I2C0.handle_events(),
+                    EVENT_PRIORITY::UART0 => uart::UART0.handle_events(),
+                    EVENT_PRIORITY::UART1 => uart::UART1.handle_events(),
+                    EVENT_PRIORITY::AON_PROG => (),
+                    _ => panic!("unhandled event {:?} ", event),
                 }
-                let n = nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
             }
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() }
+        events::has_event()
     }
 
     fn sleep(&self) {
