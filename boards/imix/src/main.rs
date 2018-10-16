@@ -33,8 +33,6 @@ use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
-use kernel::common::registers::ReadOnly;
-use kernel::common::StaticRef;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -108,45 +106,11 @@ const NUM_PROCS: usize = 2;
 // onto each device. This makes MAC address configuration a good target for capabilities -
 // only allow one app per board to have control of MAC address configuration?
 const RADIO_CHANNEL: u8 = 26;
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(3868);
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(57330);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 const PAN_ID: u16 = 0xABCD;
 
-// The sam4l stores a unique 120 bit serial number readable from address 0x0080020C to 0x0080021A
-// For simplicity, we read 128 bits, starting 8 bits too soon, and then throw away the most
-// significant 8 bits. These upper 8 bits are simply part of the flash "user page" which is set to
-// all '1's out of the box, and AFAIK not currently used by Tock.
-#[repr(C)]
-struct sam4lSerialRegister {
-    //_reserved1: [u8; 7], //For now only use the bottom 64 digits
-    upper64: ReadOnly<u64, OutputData::Register>, //most significant 64 bits
-    lower64: ReadOnly<u64, OutputData::Register>, //least significant 64 bits
-}
-// Register bitfields for sam4l serial register
-register_bitfields![u32,
-    OutputData [
-        /// Output Data
-        ODATA OFFSET(0) NUMBITS(64) []
-    ]
-];
-
-const SERIAL_NUM_ADDRESS: StaticRef<sam4lSerialRegister> =
-    unsafe { StaticRef::new(0x00800204 as *const sam4lSerialRegister) };
-
-/// Struct that can be used to get the unique serial number of the sam4l
-pub struct SerialNum {
-    regs: StaticRef<sam4lSerialRegister>,
-}
-
-impl SerialNum {
-    /// Returns a struct that can read the serial number of the sam4l
-    pub fn new() -> SerialNum {
-        SerialNum {
-            regs: SERIAL_NUM_ADDRESS,
-        }
-    }
-}
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -411,11 +375,9 @@ pub unsafe fn reset_handler() {
 
     // For now, assign the MAC address on the device as simply a 16-bit short address which represents
     // the last 16 bits of the serial number of the sam4l for this device.
-    // In the future, we could generate the MAC address by hasing the full 120-bit serial number
-    let serial_num: SerialNum = SerialNum::new();
-    //let serial_flash_upper = serial_num.regs.upper64.get();
-    let serial_flash_lower = serial_num.regs.lower64.get();
-    let serial_num_bottom_16 = (serial_flash_lower & 0x000000000000ffff) as u16;
+    // In the future, we could generate the MAC address by hashing the full 120-bit serial number
+    let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
+    let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x000000000000ffff) as u16;
 
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
 
