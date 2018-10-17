@@ -1,4 +1,4 @@
-#![feature(const_fn, untagged_unions, used)]
+#![feature(const_fn, untagged_unions, used, asm, naked_functions)]
 #![no_std]
 #![crate_name = "cc26x2"]
 #![crate_type = "rlib"]
@@ -17,6 +17,7 @@ pub mod aon;
 pub mod aux;
 pub mod chip;
 pub mod crt1;
+pub mod event_priority;
 pub mod events;
 pub mod gpio;
 pub mod i2c;

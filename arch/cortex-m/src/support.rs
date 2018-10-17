@@ -49,22 +49,12 @@ where
 
 #[cfg(target_os = "none")]
 pub unsafe fn atomic_write(location: &mut u64, value: u64) {
-    // Set PRIMASK
-    asm!("cpsid i" :::: "volatile");
-    *location = value;
-    // Unset PRIMASK
-    asm!("cpsie i" :::: "volatile");
+    atomic(|| ::core::ptr::write_volatile(location, value));
 }
 
 #[cfg(target_os = "none")]
 pub unsafe fn atomic_read(location: &u64) -> u64 {
-    let ret;
-    // Set PRIMASK
-    asm!("cpsid i" :::: "volatile");
-    ret = *location;
-    // Unset PRIMASK
-    asm!("cpsie i" :::: "volatile");
-    ret
+    atomic(|| ::core::ptr::read_volatile(location))
 }
 
 #[cfg(target_os = "none")]

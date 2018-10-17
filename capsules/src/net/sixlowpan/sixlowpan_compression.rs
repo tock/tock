@@ -3,7 +3,7 @@
 use core::mem;
 use core::result::Result;
 use net::ieee802154::MacAddress;
-use net::ipv6::ip_utils::{ip6_nh, IPAddr};
+use net::ipv6::ip_utils::{compute_udp_checksum, ip6_nh, IPAddr};
 use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use net::udp::udp::UDPHeader;
 use net::util;
@@ -80,6 +80,7 @@ mod nhc {
     pub const UDP_CHECKSUM_FLAG: u8 = 0b100;
     pub const UDP_SRC_PORT_FLAG: u8 = 0b010;
     pub const UDP_DST_PORT_FLAG: u8 = 0b001;
+    pub const UDP_PORTS_SIZE: u16 = 4;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -153,88 +154,6 @@ impl ContextStore for Context {
 
 pub fn is_lowpan(packet: &[u8]) -> bool {
     (packet[0] & iphc::DISPATCH[0]) == iphc::DISPATCH[0]
-}
-
-trait OnesComplement {
-    fn ones_complement_add(self, other: Self) -> Self;
-}
-
-/// Implements one's complement addition for use in calculating the UDP checksum
-impl OnesComplement for u16 {
-    fn ones_complement_add(self, other: u16) -> u16 {
-        let (sum, overflow) = self.overflowing_add(other);
-        if overflow {
-            sum + 1
-        } else {
-            sum
-        }
-    }
-}
-
-/// Computes the UDP checksum for a UDP packet sent over IPv6.
-/// Returns the checksum in host byte-order.
-//TODO: Replace use of this function with use of the function found in ip_utils
-// that operates on the new packet format rather than the received buffer
-// Alternatively, dont support checksum elision bc of security concerns
-fn compute_udp_checksum(
-    ip6_header: &IP6Header,
-    udp_header: &[u8],
-    udp_length: u16,
-    payload: &[u8],
-) -> u16 {
-    // The UDP checksum is computed on the IPv6 pseudo-header concatenated
-    // with the UDP header and payload, but with the UDP checksum field
-    // zeroed out. Hence, this function assumes that `udp_header` has already
-    // been filled with the UDP header, except for the ignored checksum.
-    let mut checksum: u16 = 0;
-
-    // IPv6 pseudo-header
-    // +--16 bits--+--16 bits--+--16 bits--+--16 bits--+
-    // |                                               |
-    // +              Source IPv6 Address              +
-    // |                                               |
-    // +-----------+-----------+-----------+-----------+
-    // |                                               |
-    // +           Destination IPv6 Address            +
-    // |                                               |
-    // +-----------+-----------+-----------+-----------+
-    // |      UDP Length       |     0     |  NH type  |
-    // +-----------+-----------+-----------+-----------+
-
-    // Source and destination addresses
-    for two_bytes in ip6_header.src_addr.0.chunks(2) {
-        checksum = checksum.ones_complement_add(slice_to_u16(two_bytes));
-    }
-    for two_bytes in ip6_header.dst_addr.0.chunks(2) {
-        checksum = checksum.ones_complement_add(slice_to_u16(two_bytes));
-    }
-
-    // UDP length and UDP next header type. Note that we can avoid adding zeros,
-    // but the pseudo header must be in network byte-order.
-    checksum = checksum.ones_complement_add(udp_length.to_be());
-    checksum = checksum.ones_complement_add((ip6_nh::UDP as u16).to_be());
-
-    // UDP header without the checksum (which is the last two bytes)
-    for two_bytes in udp_header[0..6].chunks(2) {
-        checksum = checksum.ones_complement_add(slice_to_u16(two_bytes));
-    }
-
-    // UDP payload
-    for bytes in payload.chunks(2) {
-        checksum = checksum.ones_complement_add(if bytes.len() == 2 {
-            slice_to_u16(bytes)
-        } else {
-            (bytes[0] as u16).to_be()
-        });
-    }
-
-    // Return the complement of the checksum, unless it is 0, in which case we
-    // the checksum is one's complement -0 for a non-zero binary representation
-    if !checksum != 0 {
-        !checksum
-    } else {
-        checksum
-    }
 }
 
 /// Maps a LoWPAN_NHC header the corresponding IPv6 next header type,
@@ -775,14 +694,31 @@ pub fn decompress(
             ip6_nh::UDP => {
                 // UDP length includes UDP header and data in bytes
                 // Below line works bc udp nh must be last nh per 6282
-                let udp_length = if is_fragment {
+                let mut udp_length = if is_fragment {
                     dgram_size - written as u16
                 } else {
-                    buf.len() as u16 - written as u16
+                    buf.len() as u16 - consumed as u16
                 };
 
                 // Decompress UDP header fields
+                let consumed_before_port_decompress = consumed;
                 let (src_port, dst_port) = decompress_udp_ports(nhc_header, &buf, &mut consumed);
+
+                //need to add any growth from decompression to the udp length if we used the buf
+                //len to calculate the length
+                if !is_fragment {
+                    // Expansion from port compression
+                    udp_length +=
+                        nhc::UDP_PORTS_SIZE - ((consumed - consumed_before_port_decompress) as u16);
+                    // Expansion from length elision (always applied per RFC 6282, length is 2
+                    // bytes)
+                    udp_length += 2;
+                    // UDP checksum elision
+                    if (nhc_header & nhc::UDP_CHECKSUM_FLAG) != 0 {
+                        udp_length += 2;
+                    }
+                }
+
                 // Fill in uncompressed UDP header
                 // TODO: The current implementation works, but I don't understand the calls to
                 // to_be(), because src_port.to_be() returns the src_port in little endian..
@@ -799,6 +735,7 @@ pub fn decompress(
                     &ip6_header,
                     &buf,
                     &mut consumed,
+                    is_fragment,
                 );
                 u16_to_slice(udp_checksum.to_be(), &mut next_headers[6..8]);
 
@@ -1224,12 +1161,25 @@ fn decompress_udp_checksum(
     ip6_header: &IP6Header,
     buf: &[u8],
     consumed: &mut usize,
+    is_fragment: bool,
 ) -> u16 {
     // TODO: In keeping with Postel's Law, we accept UDP packets that elide the
-    // checksum. We are not sure if we should continue to support this feature
-    // however.
-    if (udp_nhc & nhc::UDP_CHECKSUM_FLAG) != 0 {
-        compute_udp_checksum(ip6_header, udp_header, udp_length, &buf[*consumed..])
+    // checksum (per RFC 6282). We are not sure if we should continue to support
+    // this feature however.
+    // Also, this implementation currently does not work for multi-frame packets,
+    // as decompress is called on the first frame before the others arrive.
+    if (udp_nhc & nhc::UDP_CHECKSUM_FLAG) != 0 && !is_fragment {
+        let mut udp_header_copy: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+        udp_header_copy.copy_from_slice(udp_header);
+        match UDPHeader::decode(&udp_header_copy).done() {
+            Some((_offset, hdr)) => u16::from_be(compute_udp_checksum(
+                ip6_header,
+                &hdr,
+                udp_length,
+                &buf[*consumed..],
+            )),
+            None => 0, //Will be dropped  by IP layer
+        }
     } else {
         let checksum = u16::from_be(slice_to_u16(&buf[*consumed..*consumed + 2]));
         *consumed += 2;

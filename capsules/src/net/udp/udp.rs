@@ -107,7 +107,6 @@ impl UDPHeader {
     /// # Return Value
     ///
     /// This function returns a `UDPHeader` struct wrapped in an SResult
-    // TODO: Decode has not been tested
     pub fn decode(buf: &[u8]) -> SResult<UDPHeader> {
         stream_len_cond!(buf, 8);
         let mut udp_header = Self::new();

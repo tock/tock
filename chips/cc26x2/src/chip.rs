@@ -1,6 +1,6 @@
 use cortexm4;
+use event_priority::EVENT_PRIORITY;
 use events;
-use events::EVENT_PRIORITY;
 use gpio;
 use i2c;
 use kernel;
