@@ -580,7 +580,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<mpu::Region> {
-        self.mpu_config.map_or(None, |mut config| {
+        self.mpu_config.and_then(|mut config| {
             let new_region = self.mpu.allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
@@ -647,7 +647,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
-        self.mpu_config.map_or(None, |mut config| {
+        self.mpu_config.and_then(|mut config| {
             let new_break = self.kernel_memory_break.get().offset(-(size as isize));
             if new_break < self.app_break.get() {
                 None
