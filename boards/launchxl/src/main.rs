@@ -18,6 +18,7 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
+use kernel::Chip;
 
 #[macro_use]
 pub mod io;
@@ -364,7 +365,7 @@ pub unsafe fn reset_handler() {
         rng,
     };
 
-    let chip = cc26x2::chip::Cc26X2::new();
+    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -376,6 +377,7 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
+        chip.mpu(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -383,5 +385,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, &chip, Some(&ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&launchxl, chip, Some(&ipc), &main_loop_capability);
 }

@@ -243,7 +243,7 @@ impl Kernel {
                     // Running means that this process expects to be running,
                     // so go ahead and set things up and switch to executing
                     // the process.
-                    process.setup_mpu(chip.mpu());
+                    process.setup_mpu();
                     chip.mpu().enable_mpu();
                     systick.enable(true);
                     let context_switch_reason = process.switch_to();
