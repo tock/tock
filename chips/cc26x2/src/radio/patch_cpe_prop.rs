@@ -1,19 +1,18 @@
-use core::cell::Cell;
 use kernel::common::cells::VolatileCell;
 
-pub static mut CPE_PATCH: Patches = Patches::new();
+pub const CPE_PATCH: Patches = Patches::new();
 
 #[repr(C)]
 pub struct CPERam {
     rfc_ram: [VolatileCell<u32>; 329],
 }
 
+#[derive(Copy, Clone)]
 pub struct Patches {
     patch_parser_tab_offset: *const CPERam,
     patch_tab_offset: *const CPERam,
     irq_patch_offset: *const CPERam,
     patch_vec_offset: *const CPERam,
-    pub patch_entered: Cell<bool>,
 }
 
 impl Patches {
@@ -23,19 +22,15 @@ impl Patches {
             patch_tab_offset: 0x2100_0398 as *const CPERam,
             irq_patch_offset: 0x2100_0434 as *const CPERam,
             patch_vec_offset: 0x2100_4024 as *const CPERam,
-            patch_entered: Cell::new(false),
         }
     }
 
-    pub fn apply_patch_prop(&self) {
+    pub fn apply_patch(&self) {
         self.enter_prop_cpe_patch();
         self.configure_prop_patch();
-        self.patch_entered.set(true);
     }
 
-    pub fn clean_patch(&self) {
-        self.patch_entered.set(false);
-    }
+    pub fn clean_patch(&self) {}
 
     fn configure_prop_patch(&self) {
         let p_patch_tab = unsafe { &*self.patch_tab_offset };
