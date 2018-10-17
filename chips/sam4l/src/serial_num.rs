@@ -37,11 +37,12 @@ impl SerialNum {
     /// as a u64 rather than a byte array
     pub fn get_lower_64(&self) -> u64 {
         let full_num = self.regs.serial_num;
-        let mut lower_64 = 0;
-        // Below could use transmute, but didn't want to add unsafe code
-        for i in 7..15 {
-            lower_64 = lower_64 + ((full_num[i] as u64) << ((14 - i) * 8));
-        }
-        lower_64
+        full_num.iter()
+            .rev()
+            .take(8)
+            .enumerate()
+            .fold(0u64, |sum, (i, &val)| {
+                sum + ((val as u64) << i*8)
+            })
     }
 }

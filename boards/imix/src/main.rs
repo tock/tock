@@ -376,7 +376,7 @@ pub unsafe fn reset_handler() {
     // the last 16 bits of the serial number of the sam4l for this device.
     // In the future, we could generate the MAC address by hashing the full 120-bit serial number
     let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
-    let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x000000000000ffff) as u16;
+    let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
 
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
 
