@@ -13,7 +13,6 @@ extern crate kernel;
 
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
-// use cc26x2::aux;
 use cc26x2::prcm;
 use cc26x2::radio;
 use kernel::capabilities;
@@ -188,9 +187,6 @@ pub unsafe fn reset_handler() {
 
     // Setup AON event defaults
     aon::AON.setup();
-
-    // Setup AUX event and Active power mode
-    // aux::AUX_CTL.setup();
 
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);

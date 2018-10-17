@@ -30,8 +30,6 @@ impl Patches {
         self.configure_prop_patch();
     }
 
-    pub fn clean_patch(&self) {}
-
     fn configure_prop_patch(&self) {
         let p_patch_tab = unsafe { &*self.patch_tab_offset };
         let patch_tab = p_patch_tab.rfc_ram;
