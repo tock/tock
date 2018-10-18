@@ -25,6 +25,8 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::hil::entropy::Entropy32;
+use kernel::hil::rng::Rng;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -133,6 +135,7 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
         sam4l::acifc::Acifc<'static>,
@@ -191,6 +194,7 @@ impl kernel::Platform for Imix {
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -371,6 +375,21 @@ pub unsafe fn reset_handler() {
     let crc = CrcComponent::new(board_kernel).finalize();
     let analog_comparator = AcComponent::new().finalize();
 
+// Setup RNG (copied from hail, should move to component interface)
+    let entropy_to_random = static_init!(
+        capsules::rng::Entropy32ToRandom<'static>,
+        capsules::rng::Entropy32ToRandom::new(&sam4l::trng::TRNG)
+    );
+    let rng = static_init!(
+        capsules::rng::RngDriver<'static>,
+        capsules::rng::RngDriver::new(
+            entropy_to_random,
+            board_kernel.create_grant(&grant_cap)
+        )
+    );
+    sam4l::trng::TRNG.set_client(entropy_to_random);
+    entropy_to_random.set_client(rng);
+
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (radio_driver, mux_mac) =
@@ -378,6 +397,7 @@ pub unsafe fn reset_handler() {
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
+
 
     let udp_driver = UDPComponent::new(
         board_kernel,
@@ -400,6 +420,7 @@ pub unsafe fn reset_handler() {
         adc,
         led,
         button,
+        imix,
         analog_comparator,
         crc,
         spi: spi_syscalls,
