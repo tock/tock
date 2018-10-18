@@ -1,5 +1,5 @@
 use radio::commands as cmd;
-use radio::subghz::prop_commands as prop;
+use radio::commands::prop_commands as prop;
 const TEST_PAYLOAD: [u32; 30] = [0; 30];
 
 // This setup command sets the radio in DSSS, FEC (4x spreading factor) with the following

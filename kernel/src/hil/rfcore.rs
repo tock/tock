@@ -43,6 +43,7 @@ pub trait RadioConfig {
     // fn get_rat_time(&self) -> u32;
 
     fn set_tx_power(&self, power: u16) -> ReturnCode;
+    fn set_frequency(&self, frequency: u16) -> ReturnCode;
     fn config_commit(&self);
 }
 
@@ -64,12 +65,10 @@ pub enum RadioOperation {
     Tx = 1,
     Rx = 2,
     Configure = 3,
-    SetPower = 4,
-    StartTimer = 5,
-    StopTimer = 6,
-    Disable = 7,
-    Abort = 8,
-    Sleep = 9,
+    SetFrequency = 4,
+    Disable = 5,
+    Abort = 6,
+    Sleep = 7,
 }
 
 impl RadioOperation {
@@ -79,12 +78,10 @@ impl RadioOperation {
             RadioOperation::Tx => 1,
             RadioOperation::Rx => 2,
             RadioOperation::Configure => 3,
-            RadioOperation::SetPower => 4,
-            RadioOperation::StartTimer => 5,
-            RadioOperation::StopTimer => 6,
-            RadioOperation::Disable => 7,
-            RadioOperation::Abort => 8,
-            RadioOperation::Sleep => 9,
+            RadioOperation::SetFrequency => 4,
+            RadioOperation::Disable => 5,
+            RadioOperation::Abort => 6,
+            RadioOperation::Sleep => 7,
         }
     }
 }

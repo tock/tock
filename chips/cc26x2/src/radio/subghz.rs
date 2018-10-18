@@ -342,8 +342,8 @@ impl rfcore::RadioDriver for Radio {
         &self,
         tx_buf: &'static mut [u8],
         _frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::SUCCESS, Some(tx_buf))
+    ) -> (ReturnCode, &'static mut [u8]) {
+        (ReturnCode::SUCCESS, tx_buf)
     }
 }
 
@@ -437,6 +437,40 @@ impl rfcore::RadioConfig for Radio {
             return ReturnCode::FAIL;
         }
     }
+
+    fn set_frequency(&self, frequency: u16) -> ReturnCode {
+        let mut cmd_fs = prop::CommandFS {
+            command_no: 0x0803,
+            status: 0,
+            p_nextop: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = cmd::RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            },
+            frequency: frequency,
+            fract_freq: 0x0000,
+            synth_conf: {
+                let mut synth = prop::RfcSynthConf(0);
+                synth.set_tx_mode(false);
+                synth.set_ref_freq(0x00);
+                synth
+            },
+        };
+
+        cmd::RadioCommand::guard(&mut cmd_fs);
+        if self.rfc
+            .send_sync(&cmd_fs)
+            .and_then(|_| self.rfc.wait(&cmd_fs))
+            .is_ok() {
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::FAIL
+            }
+    }
+
 }
 
 enum_from_primitive!{

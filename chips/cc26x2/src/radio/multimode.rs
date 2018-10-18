@@ -350,6 +350,7 @@ impl rfc::RFCoreClient for Radio {
             self.schedule_powerdown.set(false);
             // do sleep mode here later
         }
+
         self.tx_buf.take().map_or(ReturnCode::ERESERVE, |tbuf| {
             self.tx_client
                 .map(move |client| client.transmit_event(tbuf, ReturnCode::SUCCESS));
@@ -499,6 +500,42 @@ impl rfcore::RadioConfig for Radio {
             return ReturnCode::SUCCESS;
         } else {
             return ReturnCode::FAIL;
+        }
+    }
+
+    fn set_frequency(&self, frequency: u16) -> ReturnCode {
+        let mut cmd_fs = prop::CommandFS {
+            command_no: 0x0803,
+            status: 0,
+            p_nextop: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            },
+            frequency: frequency,
+            fract_freq: 0x0000,
+            synth_conf: {
+                let mut synth = prop::RfcSynthConf(0);
+                synth.set_tx_mode(false);
+                synth.set_ref_freq(0x00);
+                synth
+            },
+        };
+
+        RadioCommand::guard(&mut cmd_fs);
+
+        if self
+            .rfc
+            .send_sync(&cmd_fs)
+            .and_then(|_| self.rfc.wait(&cmd_fs))
+            .is_ok()
+        {
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
         }
     }
 }

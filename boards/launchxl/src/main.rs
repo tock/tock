@@ -368,7 +368,7 @@ pub unsafe fn reset_handler() {
     cc26x2::trng::TRNG.set_client(entropy_to_random);
     entropy_to_random.set_client(rng);
 
-    radio::RFC.set_client(&radio::SUBG_RADIO);
+    radio::RFC.set_client(&radio::MULTIMODE_RADIO);
 
     let virtual_radio = static_init!(
         capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::multimode::Radio>,
