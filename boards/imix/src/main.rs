@@ -25,8 +25,6 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::{UartDevice, UartMux};
-use kernel::hil::entropy::Entropy32;
-use kernel::hil::rng::Rng;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -54,6 +52,7 @@ use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponen
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_6lowpan::UDPComponent;
 use components::usb::UsbComponent;
+use components::rng::RngComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -374,21 +373,7 @@ pub unsafe fn reset_handler() {
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
     let analog_comparator = AcComponent::new().finalize();
-
-// Setup RNG (copied from hail, should move to component interface)
-    let entropy_to_random = static_init!(
-        capsules::rng::Entropy32ToRandom<'static>,
-        capsules::rng::Entropy32ToRandom::new(&sam4l::trng::TRNG)
-    );
-    let rng = static_init!(
-        capsules::rng::RngDriver<'static>,
-        capsules::rng::RngDriver::new(
-            entropy_to_random,
-            board_kernel.create_grant(&grant_cap)
-        )
-    );
-    sam4l::trng::TRNG.set_client(entropy_to_random);
-    entropy_to_random.set_client(rng);
+    let rng = RngComponent::new(board_kernel).finalize();
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
@@ -420,7 +405,7 @@ pub unsafe fn reset_handler() {
         adc,
         led,
         button,
-        imix,
+        rng,
         analog_comparator,
         crc,
         spi: spi_syscalls,
