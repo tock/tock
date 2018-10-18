@@ -48,11 +48,11 @@ use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
+use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_6lowpan::UDPComponent;
 use components::usb::UsbComponent;
-use components::rng::RngComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -382,7 +382,6 @@ pub unsafe fn reset_handler() {
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
-
 
     let udp_driver = UDPComponent::new(
         board_kernel,

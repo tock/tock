@@ -18,9 +18,9 @@
 use capsules::rng;
 use kernel;
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
-use kernel::component::Component;
 use sam4l;
 
 pub struct RngComponent {
