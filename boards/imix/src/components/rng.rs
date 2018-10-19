@@ -1,7 +1,7 @@
 //! Component for random number generator on imix board.
 //!
-//! This provides one Component, CrcComponent, which implements a
-//! userspace syscall interface to the CRC peripheral (CRCCU) on the
+//! This provides one Component, RngComponent, which implements a
+//! userspace syscall interface to the RNG peripheral (TRNG) on the
 //! SAM4L.
 //!
 //! Usage
