@@ -3,7 +3,6 @@ use helium::{device, virtual_rfcore};
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::hil::rfcore;
 use kernel::ReturnCode;
-use msg;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for
@@ -16,11 +15,13 @@ pub struct Frame {
     max_frame_size: usize,
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub struct Header {
     frame_type: FrameType,
     id: Option<u32>,
-    seq: Option<u8>,
+    seq: u8,
 }
+
 impl Frame {
     pub fn into_buf(self) -> &'static mut [u8] {
         self.buf
@@ -39,9 +40,11 @@ impl Frame {
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct FrameInfo {
-    frame_type: FrameType,
+    header: Header,
 
     fec_type: Option<FecType>,
+
+    address: [u8; 16],
 
     data_len: usize,
 }
@@ -105,6 +108,7 @@ enum TxState {
     ReadyToTransmit(FrameInfo, &'static mut [u8]),
 }
 
+#[allow(unused)]
 #[derive(Eq, PartialEq, Debug)]
 enum RxState {
     // No received frame
@@ -123,6 +127,7 @@ where
 {
     vrfc: &'a V,
     seq: Cell<u8>,
+    address: Cell<[u8; 16]>,
     tx_state: MapCell<TxState>,
     tx_client: OptionalCell<&'a device::TxClient>,
     rx_state: MapCell<RxState>,
@@ -137,6 +142,7 @@ where
         Framer {
             vrfc: vrfc,
             seq: Cell::new(0),
+            address: Cell::new([0; 16]),
             tx_state: MapCell::new(TxState::Idle),
             tx_client: OptionalCell::empty(),
             rx_state: MapCell::new(RxState::Idle),
@@ -239,6 +245,10 @@ impl<V> device::Device<'a> for Framer<'a, V>
 where
     V: virtual_rfcore::RFCore,
 {
+    fn initialize(&self) -> ReturnCode {
+        self.vrfc.initialize()
+    }
+
     fn set_transmit_client(&self, client: &'a device::TxClient) {
         self.tx_client.set(client);
     }
@@ -247,32 +257,45 @@ where
         self.rx_client.set(client);
     }
 
-    fn config_commit(&self) {
-        self.vrfc.config_commit();
+    fn send_stop_command(&self) -> ReturnCode {
+        self.vrfc.send_stop_command()
+    }
+
+    fn send_kill_command(&self) -> ReturnCode {
+        self.vrfc.send_kill_command()
+    }
+
+    fn set_device_config(&self) -> ReturnCode {
+        self.vrfc.config_commit()
     }
 
     fn is_on(&self) -> bool {
         self.vrfc.get_radio_status()
     }
 
+    fn set_address_long(&self, address: [u8; 16]) {
+        self.address.set(address);
+    }
+
     fn prepare_data_frame(
         &self,
         buf: &'static mut [u8],
-        _seq: u8,
+        seq: u8,
         fec_type: Option<FecType>,
     ) -> Result<Frame, &'static mut [u8]> {
-        let _header = Header {
+        let header = Header {
             frame_type: FrameType::Data,
             id: None,
-            seq: Some(self.seq.get()),
+            seq: seq, //Some(self.seq.get()),
         };
 
         // encode header here and return some result
         let frame = Frame {
             buf: buf,
             info: FrameInfo {
-                frame_type: FrameType::Data,
+                header: header,
                 fec_type: fec_type,
+                address: self.address.get(),
                 data_len: 0,
             },
             max_frame_size: 128, // This needs to be configurable later

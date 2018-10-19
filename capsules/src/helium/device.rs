@@ -7,12 +7,23 @@ use helium::framer::{FecType, Frame};
 use kernel::ReturnCode;
 
 pub trait Device<'a> {
+    fn initialize(&self) -> ReturnCode;
     /// Sets the transmission client of this MAC device
     fn set_transmit_client(&self, client: &'a TxClient);
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a RxClient);
-    fn config_commit(&self);
 
+    /// Set device configuration params for router related information
+    fn set_device_config(&self) -> ReturnCode;
+
+    /// Send direct stop command to virtual device to stop all current running operations on radio
+    fn send_stop_command(&self) -> ReturnCode;
+
+    /// Send immediate stop command to virtual device to stop all radio operations on radio
+    /// regardless of state
+    fn send_kill_command(&self) -> ReturnCode;
+
+    fn set_address_long(&self, [u8; 16]);
     /// Returns if the MAC device is currently on.
     fn is_on(&self) -> bool;
 

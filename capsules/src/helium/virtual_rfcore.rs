@@ -5,7 +5,7 @@ use kernel::ReturnCode;
 pub trait RFCore {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
     /// transmitted
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode;
+    fn initialize(&self) -> ReturnCode;
     /// Sets the notified client for configuration changes
     fn set_config_client(&self, client: &'static rfcore::ConfigClient);
     /// Sets the notified client for transmission completions
@@ -20,7 +20,7 @@ pub trait RFCore {
     /// that the underlying hardware configuration (addresses, pan ID) is in
     /// line with this MAC protocol implementation. The specificed config_client is
     /// notified on completed reconfiguration.
-    fn config_commit(&self);
+    fn config_commit(&self) -> ReturnCode;
 
     /// Indicates whether or not the MAC protocol is active and can send frames
     fn get_radio_status(&self) -> bool;
@@ -68,9 +68,8 @@ impl<R> RFCore for VirtualRadio<'a, R>
 where
     R: rfcore::Radio,
 {
-    fn initialize(&self, _setup_buf: &'static mut [u8]) -> ReturnCode {
-        // Maybe use this buf later for firmware patches on load but for now, do nothing
-        ReturnCode::SUCCESS
+    fn initialize(&self) -> ReturnCode {
+        self.radio.initialize()
     }
 
     fn set_config_client(&self, client: &'static rfcore::ConfigClient) {
@@ -81,8 +80,8 @@ where
         self.tx_client.set(client);
     }
 
-    fn config_commit(&self) {
-        self.radio.config_commit();
+    fn config_commit(&self) -> ReturnCode {
+        self.radio.config_commit()
     }
 
     fn set_receive_client(&self, client: &'static rfcore::RxClient) {
@@ -98,11 +97,7 @@ where
     }
 
     fn send_stop_command(&self) -> ReturnCode {
-        let status = self.radio.send_stop_command();
-        match status {
-            ReturnCode::SUCCESS => ReturnCode::SUCCESS,
-            _ => ReturnCode::FAIL,
-        }
+        self.radio.send_stop_command()
     }
 
     fn send_kill_command(&self) -> ReturnCode {

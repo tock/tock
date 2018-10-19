@@ -30,8 +30,7 @@ pub mod fm25cl;
 pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;
-// #[allow(unused)]
-// pub mod helium;
+pub mod helium;
 pub mod humidity;
 pub mod i2c_master_slave_driver;
 pub mod ieee802154;
@@ -54,6 +53,7 @@ pub mod sdcard;
 pub mod segger_rtt;
 pub mod si7021;
 pub mod simple_rfcore;
+// pub mod simple_helium_driver;
 pub mod spi;
 pub mod temperature;
 pub mod tmp006;
@@ -66,3 +66,5 @@ pub mod virtual_flash;
 pub mod virtual_i2c;
 pub mod virtual_spi;
 pub mod virtual_uart;
+#[macro_use]
+extern crate enum_primitive;

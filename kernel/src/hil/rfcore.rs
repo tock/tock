@@ -44,7 +44,7 @@ pub trait RadioConfig {
 
     fn set_tx_power(&self, power: u16) -> ReturnCode;
     fn set_frequency(&self, frequency: u16) -> ReturnCode;
-    fn config_commit(&self);
+    fn config_commit(&self) -> ReturnCode;
 }
 
 pub trait RadioDriver {

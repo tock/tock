@@ -286,7 +286,7 @@ where
     /// - `7`: Force stop radio operation (no powerdown)
     /// - `8`: Set next TX transaction
 
-    fn command(&self, command_num: usize, r2: usize, _r3: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _r3: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {
@@ -311,7 +311,7 @@ where
                 }
             }
             4 => {
-                let status = self.radio.set_tx_power(r2 as u16);
+                let status = self.radio.set_tx_power(data as u16);
                 match status {
                     ReturnCode::SUCCESS => ReturnCode::SUCCESS,
                     _ => ReturnCode::FAIL,
@@ -331,7 +331,6 @@ where
                 status
             }
             7 => self.radio.send_kill_command(),
-            8 => ReturnCode::ENOSUPPORT,
             _ => ReturnCode::ENOSUPPORT,
         }
     }

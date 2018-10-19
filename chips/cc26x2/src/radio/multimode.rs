@@ -448,8 +448,9 @@ impl rfcore::RadioConfig for Radio {
         }
     }
 
-    fn config_commit(&self) {
+    fn config_commit(&self) -> ReturnCode {
         // TODO confirm set new config here
+        ReturnCode::SUCCESS
     }
 
     fn get_tx_power(&self) -> u32 {

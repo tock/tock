@@ -17,6 +17,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "capsules"
 version = "0.1.0"
 dependencies = [
+ "enum_primitive 0.1.0",
  "fixedvec 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "kernel 0.1.0",
  "msg 0.2.0",

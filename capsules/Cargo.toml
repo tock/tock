@@ -7,3 +7,4 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 kernel = { path = "../kernel" }
 fixedvec = "0.2.3"
 msg = { path = "../caut-rust", default-features=false }
+enum_primitive = { path = "../libraries/enum_primitive" }
