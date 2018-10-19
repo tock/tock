@@ -300,7 +300,7 @@ impl RFCore {
     }
 
     // Disable RFCore
-    pub fn disable(&self) -> ReturnCode {
+    pub fn disable(&self) {
         let dbell_regs = &*self.dbell_regs;
         self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok();
@@ -328,24 +328,16 @@ impl RFCore {
 
         cmd::RadioCommand::guard(&mut fs_down);
 
-        let ret = self
-            .send_sync(&fs_down)
+        self.send_sync(&fs_down)
             .and_then(|_| self.wait(&fs_down))
             .ok();
-        match ret {
-            Some(()) => ReturnCode::SUCCESS,
-            None => match self.stop_rat() {
-                ReturnCode::SUCCESS => {
-                    self.mode.set(None);
-                    ReturnCode::SUCCESS
-                }
-                _ => ReturnCode::FAIL,
-            },
-        }
+
+        self.stop_rat();
+        self.mode.set(None);
     }
 
     // Call commands to setup RFCore with optional register overrides and power output
-    pub fn setup(&self, reg_overrides: u32, tx_power: u16) -> ReturnCode {
+    pub fn setup(&self, reg_overrides: u32, tx_power: u16) {
         // let mode = self.mode.get().expect("No RF mode selected, cannot setup");
 
         let mut setup_cmd = prop::CommandRadioDivSetup {
@@ -405,15 +397,9 @@ impl RFCore {
 
         cmd::RadioCommand::guard(&mut setup_cmd);
 
-        let res = self
-            .send_sync(&setup_cmd)
+        self.send_sync(&setup_cmd)
             .and_then(|_| self.wait(&setup_cmd))
             .ok();
-
-        match res {
-            Some(()) => ReturnCode::SUCCESS,
-            None => ReturnCode::FAIL,
-        }
     }
 
     pub fn start_rat(&self) {

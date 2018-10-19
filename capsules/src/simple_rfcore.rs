@@ -290,11 +290,8 @@ where
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {
-                let status = self.radio.initialize();
-                match status {
-                    ReturnCode::SUCCESS => ReturnCode::SUCCESS,
-                    _ => ReturnCode::FAIL,
-                }
+                self.radio.initialize();
+                ReturnCode::SUCCESS
             }
             2 => {
                 let status = self.radio.stop();

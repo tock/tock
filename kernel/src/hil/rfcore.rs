@@ -8,6 +8,11 @@
 //! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
+
+pub trait PowerClient {
+    fn power_mode_changed(&self, changed: bool);
+}
+
 pub trait ConfigClient {
     fn config_event(&self, result: ReturnCode);
 }
@@ -29,8 +34,8 @@ pub trait RxClient {
 pub trait Radio: RadioConfig + RadioDriver {}
 
 pub trait RadioConfig {
-    fn initialize(&self) -> ReturnCode;
-    fn reset(&self) -> ReturnCode;
+    fn initialize(&self);
+    fn reset(&self);
     fn stop(&self) -> ReturnCode;
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
@@ -51,6 +56,7 @@ pub trait RadioDriver {
     fn set_transmit_client(&self, &'static TxClient);
     fn set_receive_client(&self, &'static RxClient, receive_buffer: &'static mut [u8]);
     fn set_config_client(&self, &'static ConfigClient);
+    fn set_power_client(&self, &'static PowerClient);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
     fn transmit(
         &self,

@@ -46,8 +46,6 @@ static mut GFSK_RFPARAMS: [u32; 25] = [
     0xFFFFFFFF, // Stop word
 ];
 
-type MultiModeResult = Result<(), ReturnCode>;
-
 #[allow(unused)]
 #[derive(Copy, Clone)]
 pub enum CpePatch {
@@ -111,6 +109,7 @@ pub struct Radio {
     tx_client: OptionalCell<&'static rfcore::TxClient>,
     rx_client: OptionalCell<&'static rfcore::RxClient>,
     cfg_client: OptionalCell<&'static rfcore::ConfigClient>,
+    power_client: OptionalCell<&'static rfcore::PowerClient>,
     update_config: Cell<bool>,
     schedule_powerdown: Cell<bool>,
     yeilded: Cell<bool>,
@@ -127,6 +126,7 @@ impl Radio {
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             cfg_client: OptionalCell::empty(),
+            power_client: OptionalCell::empty(),
             update_config: Cell::new(false),
             schedule_powerdown: Cell::new(false),
             yeilded: Cell::new(false),
@@ -135,7 +135,7 @@ impl Radio {
         }
     }
 
-    pub fn power_up(&self) -> MultiModeResult {
+    pub fn power_up(&self) {
         // TODO Need so have some mode setting done in initialize callback perhaps to pass into
         // power_up() here, the RadioMode enum is defined above which will set a mode in this
         // multimode context along with applying the patches which are attached. Maybe it would be
@@ -160,20 +160,18 @@ impl Radio {
         unsafe {
             let reg_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
 
-            let status = self.rfc.setup(reg_overrides, 0x9F3F);
-            match status {
-                ReturnCode::SUCCESS => Ok(()),
-                _ => Err(status),
-            }
+            self.rfc.setup(reg_overrides, 0x9F3F);
         }
+
+        self.power_client
+            .map(|client| client.power_mode_changed(true));
     }
 
-    pub fn power_down(&self) -> MultiModeResult {
-        let status = self.rfc.disable();
-        match status {
-            ReturnCode::SUCCESS => Ok(()),
-            _ => Err(status),
-        }
+    pub fn power_down(&self) {
+        self.rfc.disable();
+
+        self.power_client
+            .map(|client| client.power_mode_changed(false));
     }
 
     unsafe fn replace_and_send_tx_buffer(
@@ -327,7 +325,7 @@ impl rfc::RFCoreClient for Radio {
         if self.schedule_powerdown.get() {
             // TODO Need to handle powerdown failure here or we will not be able to enter low power
             // modes
-            self.power_down().ok();
+            self.power_down();
             osc::OSC.switch_to_hf_rcosc();
 
             self.schedule_powerdown.set(false);
@@ -344,7 +342,7 @@ impl rfc::RFCoreClient for Radio {
         if self.schedule_powerdown.get() {
             // TODO Need to handle powerdown failure here or we will not be able to enter low power
             // modes
-            self.power_down().ok();
+            self.power_down();
             osc::OSC.switch_to_hf_rcosc();
 
             self.schedule_powerdown.set(false);
@@ -391,6 +389,10 @@ impl rfcore::RadioDriver for Radio {
         self.cfg_client.set(config_client);
     }
 
+    fn set_power_client(&self, power_client: &'static rfcore::PowerClient) {
+        self.power_client.set(power_client);
+    }
+
     fn transmit(
         &self,
         tx_buf: &'static mut [u8],
@@ -407,19 +409,13 @@ impl rfcore::RadioDriver for Radio {
 }
 
 impl rfcore::RadioConfig for Radio {
-    fn initialize(&self) -> ReturnCode {
-        match self.power_up() {
-            Ok(()) => ReturnCode::SUCCESS,
-            Err(e) => e,
-        }
+    fn initialize(&self) {
+        self.power_up();
     }
 
-    fn reset(&self) -> ReturnCode {
-        let status = self.power_down().and_then(|_| self.power_up());
-        match status {
-            Ok(()) => ReturnCode::SUCCESS,
-            Err(e) => e,
-        }
+    fn reset(&self) {
+        self.power_down();
+        self.power_up();
     }
 
     fn stop(&self) -> ReturnCode {
@@ -433,6 +429,7 @@ impl rfcore::RadioConfig for Radio {
     }
 
     fn is_on(&self) -> bool {
+        // IMPL RADIO OPERATION COMMAND PING HERE
         true
     }
 

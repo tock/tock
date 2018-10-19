@@ -1,4 +1,5 @@
-use kernel::common::cells::OptionalCell;
+use core::cell::Cell;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::rfcore;
 use kernel::ReturnCode;
 
@@ -6,6 +7,8 @@ pub trait RFCore {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
     /// transmitted
     fn initialize(&self) -> ReturnCode;
+    /// Check if radio is on and ready to accept any command
+    fn is_on(&self) -> bool;
     /// Sets the notified client for configuration changes
     fn set_config_client(&self, client: &'static rfcore::ConfigClient);
     /// Sets the notified client for transmission completions
@@ -42,6 +45,15 @@ pub trait RFCore {
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum RadioState {
+    Sleep,
+    Awake,
+    StartUp,
+    TxDone,
+    TxPending,
+}
+
 pub struct VirtualRadio<'a, R>
 where
     R: rfcore::Radio,
@@ -49,6 +61,10 @@ where
     radio: &'a R,
     tx_client: OptionalCell<&'static rfcore::TxClient>,
     rx_client: OptionalCell<&'static rfcore::RxClient>,
+    tx_payload: TakeCell<'static, [u8]>,
+    tx_payload_len: Cell<usize>,
+    tx_pending: Cell<bool>,
+    radio_state: Cell<RadioState>,
 }
 
 impl<R> VirtualRadio<'a, R>
@@ -60,7 +76,29 @@ where
             radio: radio,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
+            tx_payload: TakeCell::empty(),
+            tx_payload_len: Cell::new(0),
+            tx_pending: Cell::new(false),
+            radio_state: Cell::new(RadioState::Sleep),
         }
+    }
+
+    pub fn transmit_packet(&self) {
+        self.tx_payload.take().map_or((), |buf| {
+            let (result, rbuf) = self.radio.transmit(buf, self.tx_payload_len.get());
+            match result {
+                ReturnCode::SUCCESS => (),
+                _ => {
+                    self.send_client_result(rbuf.unwrap(), result);
+                }
+            };
+        });
+    }
+
+    pub fn send_client_result(&self, buf: &'static mut [u8], result: ReturnCode) {
+        self.tx_client.map(move |c| {
+            c.transmit_event(buf, result);
+        });
     }
 }
 
@@ -69,7 +107,13 @@ where
     R: rfcore::Radio,
 {
     fn initialize(&self) -> ReturnCode {
-        self.radio.initialize()
+        self.radio_state.set(RadioState::StartUp);
+        self.radio.initialize();
+        ReturnCode::SUCCESS
+    }
+
+    fn is_on(&self) -> bool {
+        self.radio.is_on()
     }
 
     fn set_config_client(&self, client: &'static rfcore::ConfigClient) {
@@ -120,15 +164,36 @@ where
         frame: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        self.radio.transmit(frame, frame_len)
+        if self.tx_payload.is_some() {
+            return (ReturnCode::EBUSY, Some(frame));
+        } else if frame_len > 240 {
+            return (ReturnCode::ESIZE, Some(frame));
+        }
+
+        self.tx_payload.replace(frame);
+        self.tx_payload_len.set(frame_len);
+
+        if self.radio.is_on() {
+            self.radio_state.set(RadioState::TxPending);
+            return (ReturnCode::SUCCESS, None);
+        } else {
+            self.radio_state.set(RadioState::StartUp);
+            self.tx_pending.set(true);
+            self.radio.initialize();
+            return (ReturnCode::SUCCESS, None);
+        }
     }
 }
 
 impl<R: rfcore::Radio> rfcore::TxClient for VirtualRadio<'a, R> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
-        self.tx_client.map(move |c| {
-            c.transmit_event(buf, result);
-        });
+        match self.radio_state.get() {
+            // Transmission Completed
+            RadioState::TxDone => self.send_client_result(buf, result),
+            // Transmission Pending
+            RadioState::TxPending => self.transmit_packet(),
+            _ => {}
+        };
     }
 }
 
@@ -150,6 +215,20 @@ impl<R: rfcore::Radio> rfcore::RxClient for VirtualRadio<'a, R> {
             });
         } else {
             self.radio.set_receive_buffer(buf);
+        }
+    }
+}
+
+impl<R: rfcore::Radio> rfcore::PowerClient for VirtualRadio<'a, R> {
+    fn power_mode_changed(&self, on: bool) {
+        if on {
+            if let RadioState::StartUp = self.radio_state.get() {
+                if self.tx_pending.get() {
+                    self.radio_state.set(RadioState::TxPending);
+                } else {
+                    self.radio_state.set(RadioState::Awake);
+                }
+            }
         }
     }
 }
