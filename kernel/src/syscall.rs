@@ -50,6 +50,7 @@ pub enum Syscall {
 }
 
 /// Why the process stopped executing and execution returned to the kernel.
+#[derive(PartialEq)]
 pub enum ContextSwitchReason {
     /// Process called a syscall.
     SyscallFired,
@@ -57,6 +58,8 @@ pub enum ContextSwitchReason {
     Fault,
     /// Process exceeded its timeslice.
     TimesliceExpired,
+    /// Process interrupted (e.g. by a hardware event)
+    Interrupted,
 }
 
 /// This trait must be implemented by the architecture of the chip Tock is

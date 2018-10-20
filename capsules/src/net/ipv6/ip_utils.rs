@@ -118,12 +118,16 @@ pub fn compute_udp_checksum(
     sum += src_port as u32;
     sum += dst_port as u32;
     sum += udp_header.get_len() as u32;
+    sum += udp_header.get_cksum() as u32;
     //Now just need to iterate thru data and add it to the sum
     {
         let mut i: usize = 0;
         while i < ((udp_length - 8) as usize) {
             let msb_dat: u16 = ((payload[i]) as u16) << 8;
-            let lsb_dat: u16 = payload[i + 1] as u16;
+            let mut lsb_dat: u16 = 0;
+            if i + 1 < udp_length as usize - 8 {
+                lsb_dat = payload[i + 1] as u16;
+            }
             let temp_dat: u16 = msb_dat + lsb_dat;
             sum += temp_dat as u32;
 

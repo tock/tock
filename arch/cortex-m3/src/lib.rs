@@ -33,7 +33,7 @@ pub unsafe extern "C" fn systick_handler() {
         movw LR, #0xFFF9
         movt LR, #0xFFFF
          "
-    );
+    : : : : "volatile" );
 }
 
 #[no_mangle]
@@ -94,7 +94,7 @@ _ggeneric_isr_no_stacking:
      *
      *  */
 	str	r0, [r3, r2, lsl #2]"
-    );
+    : : : : "volatile" );
 }
 
 #[no_mangle]
@@ -157,6 +157,6 @@ pub unsafe extern "C" fn switch_to_user(
     mrs $0, PSP /* PSP into r0 */"
     : "={r0}"(user_stack)
     : "{r0}"(user_stack), "{r1}"(process_regs)
-    : "r4","r5","r6","r7","r8","r9","r10","r11");
+    : "r4","r5","r6","r7","r8","r9","r10","r11" : "volatile" );
     user_stack as *mut u8
 }

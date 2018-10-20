@@ -9,6 +9,7 @@
 #![feature(asm, core_intrinsics, ptr_internals, const_fn)]
 #![feature(use_extern_macros, try_from, used, panic_info_message)]
 #![feature(in_band_lifetimes, crate_visibility_modifier)]
+#![feature(associated_type_defaults)]
 #![warn(unreachable_pub)]
 #![no_std]
 
@@ -24,6 +25,7 @@ pub mod component;
 #[macro_use]
 pub mod debug;
 pub mod hil;
+pub mod introspection;
 pub mod ipc;
 pub mod syscall;
 

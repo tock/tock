@@ -35,6 +35,7 @@ use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
 use kernel::Kernel;
 use kernel::ReturnCode;
+use kernel::capabilities::ProcessManagementCapability;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000001;
@@ -43,8 +44,7 @@ pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 16] = [0; 16];
 pub static mut COMMAND_BUF: [u8; 16] = [0; 16];
 
-
-pub struct ProcessConsole<'a, U: UART> {
+pub struct ProcessConsole<'a, U: UART, C: ProcessManagementCapability> {
     uart: &'a U,
     tx_in_progress: Cell<bool>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -55,9 +55,10 @@ pub struct ProcessConsole<'a, U: UART> {
     command_index: Cell<usize>,
     running: Cell<bool>,
     kernel: &'static Kernel,
+    capability: C,
 }
 
-impl<U: UART> ProcessConsole<'a, U> {
+impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
     pub fn new(
         uart: &'a U,
         baud_rate: u32,
@@ -65,7 +66,8 @@ impl<U: UART> ProcessConsole<'a, U> {
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
         kernel: &'static Kernel,
-    ) -> ProcessConsole<'a, U> {
+        capability: C,
+    ) -> ProcessConsole<'a, U, C> {
         ProcessConsole {
             uart: uart,
             tx_in_progress: Cell::new(false),
@@ -77,6 +79,7 @@ impl<U: UART> ProcessConsole<'a, U> {
             command_index: Cell::new(0),
             running: Cell::new(false),
             kernel: kernel,
+            capability: capability,
         }
     }
 
@@ -142,47 +145,32 @@ impl<U: UART> ProcessConsole<'a, U> {
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_enumerate(|i, proc| {
-                                    let proc_name = str::from_utf8(proc.get_process_name());
-                                    match proc_name {
-                                        Ok(s) => {
-                                            if s == name {
-                                                proc.resume();
-                                                debug!("Process {} resumed.", name);
-                                            }
-                                        },
-                                        Err(_e) => debug!("Process {} has invalid name", i)
+                                self.kernel.process_each_capability(&self.capability, |i, proc| {
+                                    let proc_name = proc.get_process_name();
+                                    if proc_name == name {
+                                        proc.resume();
+                                        debug!("Process {} resumed.", name);
                                     }
                                 });
                             });
                         } else if clean_str.starts_with("stop") {
                             let argument = clean_str.split_whitespace().nth(1);
-                            debug!("Stopping {:?}", argument);
                             argument.map(|name| {
-                                debug!("Stopping {}", name);
-                                self.kernel.process_each_enumerate(|i, proc| {
-                                    let proc_name = str::from_utf8(proc.get_process_name());
-                                    match proc_name {
-                                        Ok(s) => {
-                                            if s == name {
-                                                proc.stop();
-                                                debug!("Process {} stopped.", name);
-                                            }
-                                        },
-                                        Err(_e) => debug!("Process {} has invalid name", i)
+                                self.kernel.process_each_capability(&self.capability, |i, proc| {
+                                    let proc_name = proc.get_process_name();
+                                    if proc_name == name {
+                                        proc.stop();
+                                        debug!("Process {} stopped", proc_name);
                                     }
                                 });
                             });
                         } else if clean_str.starts_with("restart") {
                             debug!("restart not supported yet");
                         } else if clean_str.starts_with("list") {
-                            debug!("Loaded processes:");
-                            self.kernel.process_each_enumerate(|i, proc| {
-                                let pname = str::from_utf8(proc.get_process_name());
-                                match pname {
-                                    Ok(s) => debug!("  {:02}: {}", i, s),
-                                    Err(_e) => debug!("  {:02}: UNKNOWN", i)
-                                };
+                            debug!(" PID    Name\tSlices  Syscalls  Dropped Callbacks    State");
+                            self.kernel.process_each_capability(&self.capability, |i, proc| {
+                                let pname = proc.get_process_name();
+                                debug!("  {:02}\t{}\t{:6}{:10}{:19}  {:?}", i, pname, proc.debug_timeslice_expiration_count(), proc.debug_syscall_count(), proc.debug_dropped_callback_count(), proc.get_state());
                             });
                         } else {
                             debug!("Valid commands are: help list stop start restart");
@@ -229,7 +217,7 @@ impl<U: UART> ProcessConsole<'a, U> {
     }
 }
 
-impl<U: UART> Client for ProcessConsole<'a, U> {
+impl<U: UART, C:ProcessManagementCapability> Client for ProcessConsole<'a, U, C> {
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.

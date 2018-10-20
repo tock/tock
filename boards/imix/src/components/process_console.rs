@@ -18,6 +18,7 @@ use capsules::process_console;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use hil;
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
 
 pub struct ProcessConsoleComponent {
@@ -40,8 +41,11 @@ impl ProcessConsoleComponent {
     }
 }
 
+pub struct Capability;
+unsafe impl capabilities::ProcessManagementCapability for Capability {}
+
 impl Component for ProcessConsoleComponent {
-    type Output = &'static process_console::ProcessConsole<'static, UartDevice<'static>>;
+    type Output = &'static process_console::ProcessConsole<'static, UartDevice<'static>, Capability>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         // Create virtual device for console.
@@ -49,7 +53,7 @@ impl Component for ProcessConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            process_console::ProcessConsole<UartDevice>,
+            process_console::ProcessConsole<UartDevice, Capability>,
             process_console::ProcessConsole::new(
                 console_uart,
                 self.baud_rate,
@@ -57,6 +61,7 @@ impl Component for ProcessConsoleComponent {
                 &mut process_console::READ_BUF,
                 &mut process_console::COMMAND_BUF,
                 self.board_kernel,
+                Capability,
             )
         );
         hil::uart::UART::set_client(console_uart, console);

@@ -25,6 +25,7 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
+use kernel::Chip;
 use kernel::Platform;
 
 /// Support routines for debugging I/O.
@@ -219,7 +220,7 @@ pub unsafe fn reset_handler() {
         Some(&sam4l::gpio::PA[14]),
     );
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
     // Initialize USART0 for Uart
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
@@ -598,11 +599,12 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
+        chip.mpu(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
     );
-    board_kernel.kernel_loop(&hail, &mut chip, Some(&hail.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
 }

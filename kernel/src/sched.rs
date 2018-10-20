@@ -85,9 +85,29 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    pub fn process_each_enumerate<F>(&self, closure: F)
+    crate fn process_each_enumerate<F>(&self, closure: F)
     where
         F: Fn(usize, &process::ProcessType),
+    {
+        for (i, process) in self.processes.iter().enumerate() {
+            match process {
+                Some(p) => {
+                    closure(i, *p);
+                }
+                None => {}
+            }
+        }
+    }
+
+    /// Run a closure on every valid process. This will iterate the
+    /// array of processes and call the closure on every process that
+    /// exists. Ths method is available outside the kernel crate but
+    /// requires a `ProcessManagementCapability` to use.
+    pub fn process_each_capability<F>(&'static self,
+                                      _capability: &capabilities::ProcessManagementCapability,
+                                      closure: F)
+        where
+          F: Fn(usize, &process::ProcessType),
     {
         for (i, process) in self.processes.iter().enumerate() {
             match process {
@@ -185,7 +205,7 @@ impl Kernel {
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
         platform: &P,
-        chip: &mut C,
+        chip: &C,
         ipc: Option<&ipc::IPC>,
         _capability: &capabilities::MainLoopCapability,
     ) {
@@ -220,7 +240,7 @@ impl Kernel {
     unsafe fn do_process<P: Platform, C: Chip>(
         &self,
         platform: &P,
-        chip: &mut C,
+        chip: &C,
         process: &process::ProcessType,
         appid: AppId,
         ipc: Option<&::ipc::IPC>,
@@ -243,7 +263,7 @@ impl Kernel {
                     // Running means that this process expects to be running,
                     // so go ahead and set things up and switch to executing
                     // the process.
-                    process.setup_mpu(chip.mpu());
+                    process.setup_mpu();
                     chip.mpu().enable_mpu();
                     systick.enable(true);
                     let context_switch_reason = process.switch_to();
@@ -351,6 +371,10 @@ impl Kernel {
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
+                            // break to handle other processes.
+                            break;
+                        }
+                        Some(ContextSwitchReason::Interrupted) => {
                             // break to handle other processes.
                             break;
                         }
