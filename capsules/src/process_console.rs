@@ -105,20 +105,6 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
         ReturnCode::SUCCESS
     }
 
-    // Compare if the first len bytes of str1 and str2 are the same
-    fn compare(&self, str1: &[u8], str2: &[u8], len: usize) -> bool {
-        let min_len = cmp::min(str1.len(), str2.len());
-        let scan_len = cmp::min(len, min_len);
-        for i in 0..scan_len {
-            if str1[i] != str2[i] {
-                return false; // Strings differ
-            } else if str1[i] == 0 {
-                return true; // Reached end of string
-            }
-        }
-        return false; // Reached end of array
-    }
-
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
         self.command_buffer.map(|command| {
@@ -145,7 +131,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(&self.capability, |i, proc| {
+                                self.kernel.process_each_capability(&self.capability, |_i, proc| {
                                     let proc_name = proc.get_process_name();
                                     if proc_name == name {
                                         proc.resume();
@@ -156,7 +142,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                         } else if clean_str.starts_with("stop") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(&self.capability, |i, proc| {
+                                self.kernel.process_each_capability(&self.capability, |_i, proc| {
                                     let proc_name = proc.get_process_name();
                                     if proc_name == name {
                                         proc.stop();
