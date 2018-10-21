@@ -121,4 +121,15 @@ impl KernelInfo {
             process.debug_timeslice_expiration_count()
         })
     }
+
+    /// Returns the total number of times all processes have exceeded
+    /// their timeslices.
+    pub fn timeslice_expirations(&self, _capability: &ProcessManagementCapability) -> usize {
+        let count: Cell<usize> = Cell::new(0);
+        self.kernel.process_each_enumerate(|_i, proc| {
+            count.add(proc.debug_timeslice_expiration_count());
+        });
+        count.get()
+    }
+
 }

@@ -34,6 +34,7 @@ use core::str;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
 use kernel::Kernel;
+use kernel::introspection::KernelInfo;
 use kernel::ReturnCode;
 use kernel::capabilities::ProcessManagementCapability;
 
@@ -158,6 +159,11 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                                 let pname = proc.get_process_name();
                                 debug!("  {:02}\t{}\t{:6}{:10}{:19}  {:?}", i, pname, proc.debug_timeslice_expiration_count(), proc.debug_syscall_count(), proc.debug_dropped_callback_count(), proc.get_state());
                             });
+                        } else if clean_str.starts_with("status") {
+                            let info: KernelInfo = KernelInfo::new(self.kernel);
+                            debug!("Total processes: {}", info.number_loaded_processes(&self.capability));
+                            debug!("Active processes: {}", info.number_active_processes(&self.capability));
+                            debug!("Timeslice expirations: {}", info.timeslice_expirations(&self.capability));
                         } else {
                             debug!("Valid commands are: help list stop start restart");
                             debug!("Command: {:?}", command);
