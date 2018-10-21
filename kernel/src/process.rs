@@ -472,7 +472,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         match self.state.get() {
             State::Running => self.state.set(State::StoppedRunning),
             State::Yielded => self.state.set(State::StoppedYielded),
-            _ => {}, // Do nothing
+            _ => {} // Do nothing
         }
     }
 
@@ -480,7 +480,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         match self.state.get() {
             State::StoppedRunning => self.state.set(State::Running),
             State::StoppedYielded => self.state.set(State::Yielded),
-            _ => {}, // Do nothing
+            _ => {} // Do nothing
         }
     }
 

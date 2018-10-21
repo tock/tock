@@ -100,11 +100,12 @@ impl Kernel {
     /// array of processes and call the closure on every process that
     /// exists. Ths method is available outside the kernel crate but
     /// requires a `ProcessManagementCapability` to use.
-    pub fn process_each_capability<F>(&'static self,
-                                      _capability: &capabilities::ProcessManagementCapability,
-                                      closure: F)
-        where
-          F: Fn(usize, &process::ProcessType),
+    pub fn process_each_capability<F>(
+        &'static self,
+        _capability: &capabilities::ProcessManagementCapability,
+        closure: F,
+    ) where
+        F: Fn(usize, &process::ProcessType),
     {
         for (i, process) in self.processes.iter().enumerate() {
             match process {
@@ -389,11 +390,11 @@ impl Kernel {
                 process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
-                },
+                }
                 process::State::StoppedRunning => {
                     break;
                     // Do nothing
-                },
+                }
                 process::State::StoppedYielded => {
                     break;
                     // Do nothing

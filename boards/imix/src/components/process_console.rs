@@ -8,7 +8,6 @@
 //! Usage
 //! -----
 
-
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
@@ -45,7 +44,8 @@ pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl Component for ProcessConsoleComponent {
-    type Output = &'static process_console::ProcessConsole<'static, UartDevice<'static>, Capability>;
+    type Output =
+        &'static process_console::ProcessConsole<'static, UartDevice<'static>, Capability>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         // Create virtual device for console.

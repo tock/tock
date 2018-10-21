@@ -31,12 +31,12 @@
 use core::cell::Cell;
 use core::cmp;
 use core::str;
+use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart::{self, Client, UART};
-use kernel::Kernel;
 use kernel::introspection::KernelInfo;
+use kernel::Kernel;
 use kernel::ReturnCode;
-use kernel::capabilities::ProcessManagementCapability;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000001;
@@ -132,43 +132,67 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(&self.capability, |_i, proc| {
-                                    let proc_name = proc.get_process_name();
-                                    if proc_name == name {
-                                        proc.resume();
-                                        debug!("Process {} resumed.", name);
-                                    }
-                                });
+                                self.kernel.process_each_capability(
+                                    &self.capability,
+                                    |_i, proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.resume();
+                                            debug!("Process {} resumed.", name);
+                                        }
+                                    },
+                                );
                             });
                         } else if clean_str.starts_with("stop") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
-                                self.kernel.process_each_capability(&self.capability, |_i, proc| {
-                                    let proc_name = proc.get_process_name();
-                                    if proc_name == name {
-                                        proc.stop();
-                                        debug!("Process {} stopped", proc_name);
-                                    }
-                                });
+                                self.kernel.process_each_capability(
+                                    &self.capability,
+                                    |_i, proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.stop();
+                                            debug!("Process {} stopped", proc_name);
+                                        }
+                                    },
+                                );
                             });
                         } else if clean_str.starts_with("restart") {
                             debug!("restart not supported yet");
                         } else if clean_str.starts_with("list") {
                             debug!(" PID    Name\tSlices  Syscalls  Dropped Callbacks    State");
-                            self.kernel.process_each_capability(&self.capability, |i, proc| {
-                                let pname = proc.get_process_name();
-                                debug!("  {:02}\t{}\t{:6}{:10}{:19}  {:?}", i, pname, proc.debug_timeslice_expiration_count(), proc.debug_syscall_count(), proc.debug_dropped_callback_count(), proc.get_state());
-                            });
+                            self.kernel
+                                .process_each_capability(&self.capability, |i, proc| {
+                                    let pname = proc.get_process_name();
+                                    debug!(
+                                        "  {:02}\t{}\t{:6}{:10}{:19}  {:?}",
+                                        i,
+                                        pname,
+                                        proc.debug_timeslice_expiration_count(),
+                                        proc.debug_syscall_count(),
+                                        proc.debug_dropped_callback_count(),
+                                        proc.get_state()
+                                    );
+                                });
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
-                            debug!("Total processes: {}", info.number_loaded_processes(&self.capability));
-                            debug!("Active processes: {}", info.number_active_processes(&self.capability));
-                            debug!("Timeslice expirations: {}", info.timeslice_expirations(&self.capability));
+                            debug!(
+                                "Total processes: {}",
+                                info.number_loaded_processes(&self.capability)
+                            );
+                            debug!(
+                                "Active processes: {}",
+                                info.number_active_processes(&self.capability)
+                            );
+                            debug!(
+                                "Timeslice expirations: {}",
+                                info.timeslice_expirations(&self.capability)
+                            );
                         } else {
                             debug!("Valid commands are: help list stop start restart");
                             debug!("Command: {:?}", command);
                         }
-                    },
+                    }
                     Err(_e) => debug!("Invalid command: {:?}", command),
                 }
             }
@@ -209,7 +233,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
     }
 }
 
-impl<U: UART, C:ProcessManagementCapability> Client for ProcessConsole<'a, U, C> {
+impl<U: UART, C: ProcessManagementCapability> Client for ProcessConsole<'a, U, C> {
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.
@@ -226,29 +250,31 @@ impl<U: UART, C:ProcessManagementCapability> Client for ProcessConsole<'a, U, C>
                     self.command_buffer.map(|command| {
                         let index = self.command_index.get() as usize;
                         //debug!("read {}", read_buf[0]);
-                        if read_buf[0] == ('\n' as u8) ||
-                            read_buf[0] == ('\r' as u8) {
-                                execute = true;
-                                self.write_bytes(&['\r' as u8, '\n' as u8]);
-                            } else if read_buf[0] == ('\x08' as u8) && index > 0 {
-                                // Backspace, echo and remove last byte
-                                // Note echo is '\b \b' to erase
-                                self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                                command[index - 1] = '\0' as u8;
-                                self.command_index.set(index - 1);
-                            } else if index < (command.len() - 1) && read_buf[0] < 128 {
-                                // For some reason, sometimes reads return > 127 but no error,
-                                // which causes utf-8 decoding failure, so check byte is < 128. -pal
+                        if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
+                            execute = true;
+                            self.write_bytes(&['\r' as u8, '\n' as u8]);
+                        } else if read_buf[0] == ('\x08' as u8) && index > 0 {
+                            // Backspace, echo and remove last byte
+                            // Note echo is '\b \b' to erase
+                            self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+                            command[index - 1] = '\0' as u8;
+                            self.command_index.set(index - 1);
+                        } else if index < (command.len() - 1) && read_buf[0] < 128 {
+                            // For some reason, sometimes reads return > 127 but no error,
+                            // which causes utf-8 decoding failure, so check byte is < 128. -pal
 
-                                // Echo the byte and store it
-                                self.write_byte(read_buf[0]);
-                                command[index] = read_buf[0];
-                                self.command_index.set(index + 1);
-                                command[index + 1] = 0;
-                            }
+                            // Echo the byte and store it
+                            self.write_byte(read_buf[0]);
+                            command[index] = read_buf[0];
+                            self.command_index.set(index + 1);
+                            command[index + 1] = 0;
+                        }
                     });
-                },
-                _ => debug!("ProcessConsole issues reads of 1 byte, but receive_complete was length {}", rx_len),
+                }
+                _ => debug!(
+                    "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
+                    rx_len
+                ),
             };
         }
         self.rx_in_progress.set(true);

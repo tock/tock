@@ -125,7 +125,11 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 struct Imix {
-    console: &'static capsules::process_console::ProcessConsole<'static, UartDevice<'static>, components::process_console::Capability>,
+    console: &'static capsules::process_console::ProcessConsole<
+        'static,
+        UartDevice<'static>,
+        components::process_console::Capability,
+    >,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,

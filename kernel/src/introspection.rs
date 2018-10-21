@@ -131,5 +131,4 @@ impl KernelInfo {
         });
         count.get()
     }
-
 }
