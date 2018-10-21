@@ -124,6 +124,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+#[allow(dead_code)]
 struct Imix {
     console: &'static capsules::process_console::ProcessConsole<
         'static,
