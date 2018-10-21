@@ -7,10 +7,10 @@
 //! This module provides a simple text-based console to inspect and control
 //! which processes are running. The console has five commands:
 //!  - 'help' prints the available commands and arguments
+//!  - 'status' prints the current system status
 //!  - 'list' lists the current processes with their IDs and running state
 //!  - 'stop n' stops the process with ID n
 //!  - 'start n' starts the stopped process with ID n
-//!  - 'restart n' restarts the process with ID n, rebooting it
 //!
 //! Setup
 //! -----
@@ -128,7 +128,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
                             debug!("Welcome to the process console.");
-                            debug!("Valid commands are: help list stop start restart");
+                            debug!("Valid commands are: help status list stop start");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -157,8 +157,6 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                                     },
                                 );
                             });
-                        } else if clean_str.starts_with("restart") {
-                            debug!("restart not supported yet");
                         } else if clean_str.starts_with("list") {
                             debug!(" PID    Name\tSlices  Syscalls  Dropped Callbacks    State");
                             self.kernel
@@ -189,7 +187,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                                 info.timeslice_expirations(&self.capability)
                             );
                         } else {
-                            debug!("Valid commands are: help list stop start restart");
+                            debug!("Valid commands are: help status list stop start");
                             debug!("Command: {:?}", command);
                         }
                     }
