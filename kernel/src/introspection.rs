@@ -126,7 +126,7 @@ impl KernelInfo {
     /// their timeslices.
     pub fn timeslice_expirations(&self, _capability: &ProcessManagementCapability) -> usize {
         let count: Cell<usize> = Cell::new(0);
-        self.kernel.process_each_enumerate(|_i, proc| {
+        self.kernel.process_each(|proc| {
             count.add(proc.debug_timeslice_expiration_count());
         });
         count.get()
