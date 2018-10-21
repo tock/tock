@@ -9,6 +9,8 @@ use callback::AppId;
 use capabilities::ProcessManagementCapability;
 use common::cells::MapCell;
 use common::{Queue, RingBuffer};
+use core::cmp::max;
+use mem::{AppSlice, Shared};
 use platform::mpu::{self, MPU};
 use returncode::ReturnCode;
 use sched::Kernel;
@@ -71,6 +73,9 @@ pub fn load_processes<S: UserspaceKernelBoundary, M: MPU>(
 
 /// This trait is implemented by process structs.
 pub trait ProcessType {
+    /// Returns the process's identifier
+    fn appid(&self) -> AppId;
+
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
     /// should run, for example a callback or an IPC call.
@@ -152,11 +157,18 @@ pub trait ProcessType {
 
     // additional memop like functions
 
-    /// Check if the buffer address and size is contained within the memory
-    /// owned by this process. This isn't quite the same as the memory allocated
-    /// to the process as this does not include the grant region which is owned
-    /// by the kernel.
-    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool;
+    /// Creates an `AppSlice` from the given offset and size in process memory.
+    ///
+    /// ## Returns
+    ///
+    /// If the buffer is null (a zero-valued offset), return None, signaling the capsule to delete
+    /// the entry.  If the buffer is within the process's accessible memory, returns an AppSlice
+    /// wrapping that buffer. Otherwise, returns an error `ReturnCode`.
+    fn allow(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode>;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -324,6 +336,11 @@ struct ProcessDebug {
 }
 
 pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
+    /// Index of the process in the process table.
+    ///
+    /// Corresponds to AppId
+    app_idx: usize,
+
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
@@ -369,6 +386,9 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
     app_break: Cell<*const u8>,
     original_app_break: *const u8,
 
+    /// Pointer to high water mark for process buffers shared through `allow`
+    allow_high_water_mark: Cell<*const u8>,
+
     /// Saved when the app switches to the kernel.
     current_stack_pointer: Cell<*const u8>,
     original_stack_pointer: *const u8,
@@ -411,6 +431,10 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
 }
 
 impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
+    fn appid(&self) -> AppId {
+        AppId::new(self.kernel, self.app_idx)
+    }
+
     fn enqueue_task(&self, task: Task) -> bool {
         // If this app is in the `Fault` state then we shouldn't schedule
         // any work for it.
@@ -637,7 +661,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
         self.mpu_config
             .map_or(Err(Error::KernelError), |mut config| {
-                if new_break < self.mem_start() || new_break >= self.mem_end() {
+                if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
                     Err(Error::AddressOutOfBounds)
                 } else if new_break > self.kernel_memory_break.get() {
                     Err(Error::OutOfMemory)
@@ -657,17 +681,28 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
             })
     }
 
-    /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the memory bounds currently exposed to the processes (i.e.
-    /// ending at `kernel_memory_break`. If this method returns true, the buffer
-    /// is guaranteed to be accessible to the process and to not overlap with
-    /// the grant region.
-    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
-        let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
-
-        buf_end_addr >= buf_start_addr
-            && buf_start_addr >= self.mem_start()
-            && buf_end_addr <= self.mem_break()
+    fn allow(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
+        if buf_start_addr == ptr::null_mut() {
+            // A null buffer means pass in `None` to the capsule
+            Ok(None)
+        } else if self.in_app_owned_memory(buf_start_addr, size) {
+            // Valid slice, we need to adjust the app's watermark
+            // in_app_owned_memory eliminates this offset actually wrapping
+            let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            self.allow_high_water_mark.set(new_water_mark);
+            Ok(Some(AppSlice::new(
+                buf_start_addr as *mut u8,
+                size,
+                self.appid(),
+            )))
+        } else {
+            Err(ReturnCode::EINVAL)
+        }
     }
 
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
@@ -1094,6 +1129,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;
+            process.allow_high_water_mark = Cell::new(remaining_app_memory);
             process.current_stack_pointer = Cell::new(initial_stack_pointer);
             process.original_stack_pointer = initial_stack_pointer;
 
@@ -1159,12 +1195,21 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
         (None, 0, 0)
     }
 
-    fn mem_break(&self) -> *const u8 {
-        self.kernel_memory_break.get()
-    }
-
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
+    }
+
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// are within the memory bounds currently exposed to the processes (i.e.
+    /// ending at `app_break`. If this method returns true, the buffer
+    /// is guaranteed to be accessible to the process and to not overlap with
+    /// the grant region.
+    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+
+        buf_end_addr >= buf_start_addr
+            && buf_start_addr >= self.mem_start()
+            && buf_end_addr <= self.app_break.get()
     }
 
     /// Reset all `grant_ptr`s to NULL.
