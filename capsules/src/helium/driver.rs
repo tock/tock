@@ -279,10 +279,14 @@ where
     /// ### `command_num`
     ///
     /// - `0`: Driver check.
-    /// - `1`: Return radio status. SUCCESS/EOFF = on/off.
-    /// - `2`: Set transmission power.
-    /// - `3`: Get the transmission power.
-
+    /// - `1`: Initialize radio.
+    /// - `2`: Get radio status.
+    /// - `3`: Send stop radio command.
+    /// - `4`: Send kill radio operation command.
+    /// - `5`: Set device configuration.
+    /// - `6`: Set next device transmission.
+    /// = `7`: Set device endpoint address.
+    ///
     fn command(&self, command_num: usize, addr: usize, _r3: usize, appid: AppId) -> ReturnCode {
         if let Some(command) = HeliumCommand::from_usize(command_num) {
             match command {
