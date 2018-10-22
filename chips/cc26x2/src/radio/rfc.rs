@@ -340,6 +340,7 @@ impl RFCore {
     pub fn setup(&self, reg_overrides: u32, tx_power: u16) {
         // let mode = self.mode.get().expect("No RF mode selected, cannot setup");
 
+        /*
         let mut setup_cmd = prop::CommandRadioDivSetup {
             command_no: 0x3807,
             status: 0,
@@ -377,6 +378,61 @@ impl RFCore {
                 format.set_bit_reversal(false);
                 format.set_msb_first(true);
                 format.set_fec_mode(0x0);
+                format.set_whiten_mode(0x0);
+                format
+            },
+            config: {
+                let mut cfg = cmd::RfcSetupConfig(0);
+                cfg.set_frontend_mode(0);
+                cfg.set_bias_mode(true);
+                cfg.set_analog_config_mode(0x0);
+                cfg.set_no_fs_powerup(false);
+                cfg
+            },
+            tx_power: tx_power,
+            reg_overrides: reg_overrides,
+            center_freq: 0x0393,
+            int_freq: 0x8000,
+            lo_divider: 0x05,
+        };
+*/
+        let mut setup_cmd = prop::CommandRadioDivSetup {
+            command_no: 0x3807,
+            status: 0,
+            p_nextop: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = cmd::RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            },
+            modulation: {
+                let mut mdl = prop::RfcModulation(0);
+                mdl.set_mod_type(0x01);
+                mdl.set_deviation(0xA);
+                mdl.set_deviation_step(0x0);
+                mdl
+            },
+            symbol_rate: {
+                let mut sr = prop::RfcSymbolRate(0);
+                sr.set_prescale(0xF);
+                sr.set_rate_word(0x199A);
+                sr
+            },
+            rx_bandwidth: 0x4C,
+            preamble_conf: {
+                let mut preamble = prop::RfcPreambleConf(0);
+                preamble.set_num_preamble_bytes(0x2);
+                preamble.set_pream_mode(0x0);
+                preamble
+            },
+            format_conf: {
+                let mut format = prop::RfcFormatConf(0);
+                format.set_num_syncword_bits(0x20);
+                format.set_bit_reversal(false);
+                format.set_msb_first(false);
+                format.set_fec_mode(0x8);
                 format.set_whiten_mode(0x0);
                 format
             },
