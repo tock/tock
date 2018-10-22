@@ -32,6 +32,8 @@
 // The registers and fields are undefined in the technical reference
 // manual necesistating this component until it is revealed to the world.
 use setup::ddi;
+use setup::ti_driverlib_rom;
+
 #[derive(Copy)]
 #[repr(C)]
 pub struct Struct1 {
@@ -89,38 +91,8 @@ unsafe fn source_ready() -> bool {
     }) != 0
 }
 
-#[derive(Copy)]
-#[repr(C)]
-pub struct RomFuncTable {
-    pub _Crc32: unsafe extern "C" fn(*mut u8, u32, u32) -> u32,
-    pub _FlashGetSize: unsafe extern "C" fn() -> u32,
-    pub _GetChipId: unsafe extern "C" fn() -> u32,
-    pub _ReservedLocation1: unsafe extern "C" fn(u32) -> u32,
-    pub _ReservedLocation2: unsafe extern "C" fn() -> u32,
-    pub _ReservedLocation3: unsafe extern "C" fn(*mut u8, u32, u32) -> u32,
-    pub _ResetDevice: unsafe extern "C" fn(),
-    pub _Fletcher32: unsafe extern "C" fn(*mut u16, u16, u16) -> u32,
-    pub _MinValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _MaxValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _MeanValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _StandDeviationValue: unsafe extern "C" fn(*mut u32, u32) -> u32,
-    pub _ReservedLocation4: unsafe extern "C" fn(u32),
-    pub _ReservedLocation5: unsafe extern "C" fn(u32),
-    pub HFSourceSafeSwitch: unsafe extern "C" fn(),
-    pub _SelectCompAInput: unsafe extern "C" fn(u8),
-    pub _SelectCompARef: unsafe extern "C" fn(u8),
-    pub _SelectADCCompBInput: unsafe extern "C" fn(u8),
-    pub _SelectDACVref: unsafe extern "C" fn(u8),
-}
-
-impl Clone for RomFuncTable {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
 pub unsafe fn source_switch() {
-    (*(0x10000048i32 as (*mut RomFuncTable))).HFSourceSafeSwitch;
+    (ti_driverlib_rom::ROM_HAPI.hf_source_safe_switch)();
 }
 
 /*

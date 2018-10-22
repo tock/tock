@@ -10,6 +10,8 @@ pub mod ioc_rom;
 pub mod ddi;
 
 pub mod aux_sysif;
+
+pub mod ti_driverlib_rom;
 /*
  * Copyright (c) 2015, Texas Instruments Incorporated - http://www.ti.com/
  * All rights reserved.
