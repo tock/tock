@@ -19,6 +19,10 @@ extern crate nrf5x;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{UartDevice, UartMux};
+
+use capsules::ieee802154::device::MacDevice;
+use capsules::ieee802154::mac::{AwakeMac, Mac};
+
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -72,6 +76,8 @@ impl UartPins {
         Self { rts, txd, cts, rxd }
     }
 }
+
+static mut RADIO_RX_BUF: [u8; kernel::hil::radio::MAX_BUF_SIZE] = [0x00; kernel::hil::radio::MAX_BUF_SIZE];
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -269,6 +275,29 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
+
+
+
+
+    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+    let awake_mac: &AwakeMac<nrf52::radio::Radio> =
+        static_init!(
+            AwakeMac<'static, nrf52::radio::Radio>, 
+            AwakeMac::new(&nrf52::radio::RADIO)
+        );
+    kernel::hil::radio::Radio::set_transmit_client(
+        &nrf52::radio::RADIO,
+        awake_mac,
+    );
+    kernel::hil::radio::Radio::set_receive_client(
+        &nrf52::radio::RADIO,
+        awake_mac,
+        &mut RADIO_RX_BUF
+    );
+
+
+
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
             'static,
@@ -291,6 +320,15 @@ pub unsafe fn setup_board(
         ble_radio,
     );
     ble_radio_virtual_alarm.set_client(ble_radio);
+
+
+
+
+
+
+
+
+
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,

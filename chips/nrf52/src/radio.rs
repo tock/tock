@@ -39,8 +39,8 @@ use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::ble_advertising;
-use kernel::hil::ble_advertising::RadioChannel;
+use kernel::hil::radio;
+//use kernel::hil::ble_advertising::RadioChannel;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
@@ -224,13 +224,24 @@ struct RadioRegisters {
     /// Device address match configuration
     /// - Address: 0x640 - 0x644
     dacnf: ReadWrite<u32, DeviceAddressMatch::Register>,
+    /// MAC header Search Pattern Configuration
+    /// - Address: 0x644 - 0x648
+    mhrmatchconf: ReadWrite<u32,MACHeaderSearch::Register>,
+    /// MAC Header Search Pattern Mask
+    /// - Address: 0x648 - 0x64C
+    mhrmatchmas: ReadWrite<u32,MACHeaderMask::Register>,
     /// Reserved
-    _reserved13: [u32; 3],
+    _reserved13: [u32; 1],
     /// Radio mode configuration register
     /// - Address: 0x650 - 0x654
     modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
     /// Reserved
-    _reserved14: [u32; 618],
+    _reserved14: [u32; 6],
+    /// Clear Channel Assesment (CCA) control register
+    /// - Address: 0x66C - 0x670
+    ccactrl: ReadWrite<u32, CCAControl::Register>,
+    /// Reserved
+    _reserved15: [u32; 611],
     /// Peripheral power control
     /// - Address: 0xFFC - 0x1000
     power: ReadWrite<u32, Task::Register>,
@@ -350,7 +361,11 @@ register_bitfields! [u32,
             NRF_1MBIT = 0,
             NRF_2MBIT = 1,
             NRF_250KBIT = 2,
-            BLE_1MBIT = 3
+            BLE_1MBIT = 3,
+            BLE_2MBIT = 4,
+            BLE_LR125KBIT = 5,
+            BLE_LR500KBIT = 6,
+            IEEE802154_250KBIT = 15
         ]
     ],
     /// Packet configuration register 0
@@ -367,9 +382,15 @@ register_bitfields! [u32,
             INCLUDE = 1
         ],
         /// Length of preamble on air. Decision point: TASKS_START task
-        PLEN OFFSET(24) NUMBITS(1) [
+        PLEN OFFSET(24) NUMBITS(2) [
             EIGHT = 0,
-            SIXTEEN = 1
+            SIXTEEN = 1,
+            THIRTYTWOZEROS = 2,
+            LONGRANGE = 3
+        ],
+        CRCINC OFFSET(26) NUMBITS(1) [
+            EXCLUDE = 0, 
+            INCLUDE = 1
         ]
     ],
     /// Packet configuration register 1
@@ -438,9 +459,10 @@ register_bitfields! [u32,
             THREE = 3
         ],
         /// Include or exclude packet field from CRC calculation
-        SKIPADDR OFFSET(8) NUMBITS(1) [
+        SKIPADDR OFFSET(8) NUMBITS(2) [
             INCLUDE = 0,
-            EXCLUDE = 1
+            EXCLUDE = 1,
+            IEEE802154 = 2
         ]
     ],
     /// CRC polynomial register
@@ -508,6 +530,24 @@ register_bitfields! [u32,
         /// TxAdd for device address 0-7
         TXADD OFFSET(8) NUMBITS(8)
     ],
+    MACHeaderSearch [
+        CONFIG OFFSET(0) NUMBITS(32)
+    ],
+    MACHeaderMask [
+        PATTERN OFFSET(0) NUMBITS(32)
+    ],
+    CCAControl [
+        CCAMODE OFFSET(0) NUMBITS(3) [
+            ED_MODE = 0,
+            CARRIER_MODE = 1,
+            CARRIER_AND_ED_MODE = 2,
+            CARRIER_OR_ED_MODE = 3,
+            ED_MODE_TEST_1 = 4
+        ],
+        CCAEDTHRESH OFFSET(8) NUMBITS(8) [],
+        CCACORRTHRESH OFFSET(16) NUMBITS(8) [],
+        CCACORRCNT OFFSET(24) NUMBITS(8) []
+    ],
     /// Radio mode configuration register
     RadioModeConfig [
         /// Radio ramp-up time
@@ -526,6 +566,7 @@ register_bitfields! [u32,
         ]
     ]
 ];
+
 
 static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
