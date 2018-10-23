@@ -4,21 +4,12 @@
 //!
 //! Configures the GPIO pins, and interfaces with the HIL for gpio.
 
-//
-// There are up to 32 signals (AUXIO0 to AUXIO31) in the sensor controller domain (AUX Domain). These
-// signals can be routed to specific DIO pins given in Table 13-2. The signals AUXIO19 to AUXIO26 have
-// analog capability, but can also be used as digital I/Os. All the other AUXIOn signals are digital only. The
-// signals routed from the AUX Domain are configured differently than GPIO and other peripheral functions.
-//
-//
-
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::hil::gpio::PinCtl;
 
 use cortexm4::nvic;
 use ioc;
@@ -82,12 +73,37 @@ impl GPIOPin {
 
 /// Pinmux implementation (IOC)
 impl GPIOPin {
-    pub fn enable_gpio(&self) {
+    fn standard_io(
+        &self,
+        port_id: FieldValue<u32, ioc::Config::Register>,
+        io: FieldValue<u32, ioc::Config::Register>,
+    ) {
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
 
-        // In order to configure the pin for GPIO we need to clear
-        // the lower 6 bits.
-        pin_ioc.write(ioc::Config::PORT_ID::GPIO);
+        pin_ioc.write(
+            port_id
+                + ioc::Config::DRIVE_STRENGTH::Auto
+                + ioc::Config::PULL::None
+                + ioc::Config::SLEW_RED::CLEAR
+                + ioc::Config::HYST_EN::CLEAR
+                + io
+                + ioc::Config::WAKEUP_CFG::CLEAR,
+        );
+    }
+
+    // Rewrite of using the IOC_STD_OUTPUT macro
+    fn standard_input(&self, port_id: FieldValue<u32, ioc::Config::Register>) {
+        self.standard_io(port_id, ioc::Config::INPUT_EN::SET);
+    }
+
+    // Rewrite of using the IOC_STD_OUTPUT macro
+    fn standard_output(&self, port_id: FieldValue<u32, ioc::Config::Register>) {
+        self.standard_io(port_id, ioc::Config::INPUT_EN::CLEAR);
+    }
+
+    pub fn enable_gpio(&self) {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+        pin_ioc.modify(ioc::Config::PORT_ID::GPIO);
     }
 
     pub fn enable_output(&self) {
@@ -119,84 +135,49 @@ impl GPIOPin {
         pin_ioc.modify(ioc::Config::EDGE_IRQ_EN::CLEAR);
     }
 
-    /// Configures pin for I2C SDA
-    pub fn enable_i2c_sda(&self) {
+    fn set_i2c_input(&self, port_id: FieldValue<u32, ioc::Config::Register>) {
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
 
-        pin_ioc.modify(
-            ioc::Config::PORT_ID::I2C_MSSDA
-                + ioc::Config::IO_MODE::OpenDrain
-                + ioc::Config::PULL::Up,
+        pin_ioc.write(
+            port_id
+            + ioc::Config::DRIVE_STRENGTH::Auto
+            + ioc::Config::PULL::None
+            + ioc::Config::SLEW_RED::CLEAR
+            + ioc::Config::HYST_EN::CLEAR
+            + ioc::Config::IO_MODE::OpenDrain   // this is the special setting for I2C
+            + ioc::Config::WAKEUP_CFG::CLEAR
+            + ioc::Config::INPUT_EN::SET,
         );
-        self.enable_input();
+    }
+
+    /// Configures pin for I2C SDA
+    pub fn enable_i2c_sda(&self) {
+        self.set_i2c_input(ioc::Config::PORT_ID::I2C_MSSDA);
     }
 
     /// Configures pin for I2C SDA
     pub fn enable_i2c_scl(&self) {
-        let pin_ioc = &self.ioc_registers.cfg[self.pin];
-
-        pin_ioc.modify(
-            ioc::Config::PORT_ID::I2C_MSSCL
-                + ioc::Config::IO_MODE::OpenDrain
-                + ioc::Config::PULL::Up,
-        );
-        // TODO(alevy): I couldn't find any justification for enabling input mode in the datasheet,
-        // but I2C master seems not to work without it. Maybe it's important for multi-master mode,
-        // or for allowing a slave to stretch the clock, but in any case, I2C master won't actually
-        // output anything without this line.
-        self.enable_input();
+        self.set_i2c_input(ioc::Config::PORT_ID::I2C_MSSCL);
     }
 
     /// Configures pin for UART0 receive (RX).
     pub fn enable_uart0_rx(&self) {
-        let pin_ioc = &self.ioc_registers.cfg[self.pin];
-
-        pin_ioc.modify(ioc::Config::PORT_ID::UART0_RX);
-        self.set_input_mode(hil::gpio::InputMode::PullNone);
-        self.enable_input();
+        self.standard_input(ioc::Config::PORT_ID::UART0_RX);
     }
 
     // Configures pin for UART0 transmit (TX).
     pub fn enable_uart0_tx(&self) {
-        let pin_ioc = &self.ioc_registers.cfg[self.pin];
-
-        pin_ioc.modify(ioc::Config::PORT_ID::UART0_TX);
-        self.set_input_mode(hil::gpio::InputMode::PullNone);
-        self.enable_output();
+        self.standard_output(ioc::Config::PORT_ID::UART0_TX);
     }
 
     // Configures pin for UART1 receive (RX).
     pub fn enable_uart1_rx(&self) {
-        let pin_ioc = &self.ioc_registers.cfg[self.pin];
-
-        pin_ioc.modify(ioc::Config::PORT_ID::UART1_RX);
-        self.set_input_mode(hil::gpio::InputMode::PullNone);
-        self.enable_input();
+        self.standard_input(ioc::Config::PORT_ID::UART1_RX);
     }
 
     // Configures pin for UART1 transmit (TX).
     pub fn enable_uart1_tx(&self) {
-        let pin_ioc = &self.ioc_registers.cfg[self.pin];
-
-        pin_ioc.modify(ioc::Config::PORT_ID::UART1_TX);
-        self.set_input_mode(hil::gpio::InputMode::PullNone);
-        self.enable_output();
-    }
-
-    // Rewrite of using the IOC_STD_OUTPUT macro
-    pub fn enable_standard_output(&self) {
-        let pin_ioc = &self.ioc_registers.cfg[self.pin];
-
-        pin_ioc.modify(
-            ioc::Config::CURRENT_MODE::Low
-                + ioc::Config::DRIVE_STRENGTH::Auto
-                + ioc::Config::PULL::None
-                + ioc::Config::SLEW_RED::CLEAR
-                + ioc::Config::HYST_EN::CLEAR
-                + ioc::Config::IO_MODE::Normal
-                + ioc::Config::WAKEUP_CFG::CLEAR
-                + ioc::Config::INPUT_EN::CLEAR,
-        );
+        self.standard_output(ioc::Config::PORT_ID::UART1_TX);
     }
 
     // configure a pin as an input for 32kHz system clock
