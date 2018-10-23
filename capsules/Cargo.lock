@@ -2,8 +2,13 @@
 name = "capsules"
 version = "0.1.0"
 dependencies = [
+ "enum_primitive 0.1.0",
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "enum_primitive"
+version = "0.1.0"
 
 [[package]]
 name = "kernel"
