@@ -12,7 +12,7 @@ use radio::rfc;
 use radio::test_settings;
 use rtc;
 
-const TEST_PAYLOAD: [u32; 20] = [0; 20];
+const TEST_PAYLOAD: [u32; 30] = [0; 30];
 
 static mut GFSK_RFPARAMS: [u32; 25] = [
     // override_use_patch_prop_genfsk.xml
@@ -228,30 +228,26 @@ impl Radio {
 
         osc::OSC.request_switch_to_hf_xosc();
 
-        // mce_lr::LONGRANGE_PATCH.apply_patch();
-        // mce::MCE_PATCH.apply_patch();
-        rfe::RFE_PATCH.apply_patch();
-
         self.rfc.enable();
+
+        mce::MCE_PATCH.apply_patch();
+        rfe::RFE_PATCH.apply_patch();
 
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
 
-        // mce_lr::LONGRANGE_PATCH.apply_patch();
-        // mce::MCE_PATCH.apply_patch();
-        // rfe::RFE_PATCH.apply_patch();
-
-        /*
         unsafe {
             let reg_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
             self.rfc.setup(reg_overrides, 0x9F3F);
         }
-        */
+
+        /*
         unsafe {
             let reg_overrides: u32 = test_settings::LONGRANGE_RFPARAMS.as_mut_ptr() as u32;
             self.rfc.setup(reg_overrides, 0x9F3F);
         }
+        */
         self.test_radio_fs();
 
         self.test_radio_tx();
@@ -286,9 +282,9 @@ impl Radio {
                 packet.set_var_len(false);
                 packet
             };
-            cmd.packet_len = 0x14;
-            cmd.sync_word = 0x00000000;
-            // cmd.sync_word = 0x930B51DE;
+            cmd.packet_len = 0x1E;
+            // cmd.sync_word = 0x00000000;
+            cmd.sync_word = 0x930B51DE;
             cmd.packet_pointer = p_packet;
 
             RadioCommand::guard(cmd);

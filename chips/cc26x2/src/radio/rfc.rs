@@ -254,8 +254,8 @@ impl RFCore {
         while !prcm::Power::is_enabled(prcm::PowerDomain::RFC) {}
 
         // Set power and clock regs for RFC
-        let pwc_regs = &*self.pwc_regs;
-        pwc_regs.pwmclken.modify(
+        let pwc_regs = self.pwc_regs;
+        pwc_regs.pwmclken.write(
             RFCPWE::RFC::SET
                 + RFCPWE::CPE::SET
                 + RFCPWE::CPERAM::SET
@@ -340,7 +340,6 @@ impl RFCore {
     pub fn setup(&self, reg_overrides: u32, tx_power: u16) {
         // let mode = self.mode.get().expect("No RF mode selected, cannot setup");
 
-        /*
         let mut setup_cmd = prop::CommandRadioDivSetup {
             command_no: 0x3807,
             status: 0,
@@ -395,7 +394,8 @@ impl RFCore {
             int_freq: 0x8000,
             lo_divider: 0x05,
         };
-*/
+
+        /*
         let mut setup_cmd = prop::CommandRadioDivSetup {
             command_no: 0x3807,
             status: 0,
@@ -440,7 +440,7 @@ impl RFCore {
                 let mut cfg = cmd::RfcSetupConfig(0);
                 cfg.set_frontend_mode(0);
                 cfg.set_bias_mode(true);
-                cfg.set_analog_config_mode(0x0);
+                cfg.set_analog_config_mode(0x0); // 2D
                 cfg.set_no_fs_powerup(false);
                 cfg
             },
@@ -450,7 +450,7 @@ impl RFCore {
             int_freq: 0x8000,
             lo_divider: 0x05,
         };
-
+        */
         cmd::RadioCommand::guard(&mut setup_cmd);
 
         self.send_sync(&setup_cmd)
