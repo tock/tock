@@ -4,9 +4,6 @@
 pub mod oscfh;
 
 #[allow(unused_variables, unused_mut, non_snake_case)]
-pub mod ioc_rom;
-
-#[allow(unused_variables, unused_mut, non_snake_case)]
 pub mod ddi;
 
 pub mod aux_sysif;
@@ -41,8 +38,10 @@ pub mod ti_driverlib_rom;
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+use gpio;
 use prcm;
 use rtc;
+
 pub fn perform() {
     unsafe { SetupTrimDevice() }
 }
@@ -538,22 +537,11 @@ pub unsafe extern "C" fn SetupAfterColdResetWakeupFromShutDownCfg3(mut ccfg_Mode
 
             ccfgExtLfClk = *((0x50003000i32 + 0x1fa8i32) as (*mut usize)) as (u32);
             SetupSetAonRtcSubSecInc((ccfgExtLfClk & 0xffffffu32) >> 0i32);
+
             // IOC Port configure
-            ioc_rom::IOCPortConfigureSet(
-                (ccfgExtLfClk & 0xff000000u32) >> 24i32,
-                0x7u32,
-                (0x0i32
-                    | 0x0i32
-                    | 0x6000i32
-                    | 0x0i32
-                    | 0x0i32
-                    | 0x0i32
-                    | 0x0i32
-                    | 0x0i32
-                    | 0x0i32
-                    | 0x20000000i32
-                    | 0x40000000i32) as (u32),
-            );
+            gpio::PORT[((ccfgExtLfClk & 0xff000000u32) >> 24) as usize]
+                .enable_32khz_system_clock_input();
+
             *((0x400ca000i32 + 0x80i32 + 0x0i32) as (*mut usize)) = 0x400usize;
             oscfh::clock_source_set(0x4u32, 0x3u32);
         }
