@@ -199,12 +199,18 @@ impl GPIOPin {
         );
     }
 
-    // Rewrite of IOCPortConfigureSet(IOIDn, IOC_PORT_AON_CLK32K, IOC_STD_OUTPUT)
+    // configure a pin as an input for 32kHz system clock
     pub fn enable_32khz_system_clock_input(&self) {
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
-        pin_ioc.modify(
+        pin_ioc.write(
             ioc::Config::PORT_ID::AON_CLK32K
+                + ioc::Config::CURRENT_MODE::Low
+                + ioc::Config::DRIVE_STRENGTH::Auto
+                + ioc::Config::PULL::None
+                + ioc::Config::SLEW_RED::CLEAR
                 + ioc::Config::HYST_EN::SET
+                + ioc::Config::IO_MODE::Normal
+                + ioc::Config::WAKEUP_CFG::CLEAR
                 + ioc::Config::INPUT_EN::SET,
         );
     }
