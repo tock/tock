@@ -8,6 +8,8 @@
 //! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
+use core::convert::TryFrom;
+
 pub trait TxClient {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
 }
@@ -79,7 +81,7 @@ pub trait RadioConfig {
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    fn set_power_client(&self, client: &'static PowerClient);
+    //fn set_power_client(&self, client: &'static PowerClient);
 
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
@@ -102,14 +104,18 @@ pub trait RadioConfig {
 
 pub trait RadioData {
     fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
-    fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
+    fn set_receive_client(&self, client: &'static RxClient);
+    //fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     fn transmit(
         &self,
-        spi_buf: &'static mut [u8],
-        frame_len: usize,
+        buf: &'static mut [u8],
+        len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
+
+    fn receive(
+        &self
+    ) -> ReturnCode ;
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -133,7 +139,7 @@ pub enum RadioChannel {
 }
 
 impl RadioChannel {
-    pub fn get_channel_index(&self) -> u32 {
+    pub fn get_channel_index(&self) -> u8 {
         match *self {
             RadioChannel::DataChannel11 => 11,
             RadioChannel::DataChannel12 => 12,
@@ -154,4 +160,31 @@ impl RadioChannel {
         }
     }
 }
+
+impl TryFrom<u8> for RadioChannel {
+    type Error = ();
+
+    fn try_from(val: u8) -> Result<RadioChannel, ()> {
+        match val {
+            11 => Ok(RadioChannel::DataChannel11),
+            12 => Ok(RadioChannel::DataChannel12),
+            13 => Ok(RadioChannel::DataChannel13),
+            14 => Ok(RadioChannel::DataChannel14),
+            15 => Ok(RadioChannel::DataChannel15),
+            16 => Ok(RadioChannel::DataChannel16),
+            17 => Ok(RadioChannel::DataChannel17),
+            18 => Ok(RadioChannel::DataChannel18),
+            19 => Ok(RadioChannel::DataChannel19),
+            20 => Ok(RadioChannel::DataChannel20),
+            21 => Ok(RadioChannel::DataChannel21),
+            22 => Ok(RadioChannel::DataChannel22),
+            23 => Ok(RadioChannel::DataChannel23),
+            24 => Ok(RadioChannel::DataChannel24),
+            25 => Ok(RadioChannel::DataChannel25),
+            26 => Ok(RadioChannel::DataChannel26),
+            _ => Err(()),
+        }
+    }
+}
+
 

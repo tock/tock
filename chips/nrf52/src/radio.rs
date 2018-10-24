@@ -594,8 +594,7 @@ impl Radio {
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
-            tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
-            channel: Cell::new(11),
+            channel: Cell::new(radio::RadioChannel::DataChannel11),
         }
     }
 
@@ -645,6 +644,7 @@ impl Radio {
         }
     }
 
+    // TODO: Theres an additional step for 802154 rx/tx handling
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
@@ -679,7 +679,10 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.map(|client| client.transmit_event(result));
+                    //TODO: Acked is flagged as false until I feel like fixing it
+                    unsafe{
+                        self.tx_client.map(|client| client.send_done(&mut PAYLOAD,false,result));
+                    }
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
@@ -691,7 +694,10 @@ impl Radio {
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                             // And because the length field is directly read from the packet
                             // We need to add 2 to length to get the total length
-                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 2, result)
+
+                            // TODO: Check if the length is still valid
+                            // TODO: CRC_valid is autoflagged to true until I feel like fixing it
+                            client.receive(&mut PAYLOAD, (PAYLOAD[1] + 2) as usize,true, result)
                         });
                     }
                 }
@@ -741,12 +747,19 @@ impl Radio {
     fn radio_initialize(&self, channel: RadioChannel) {
         self.radio_on();
 
-        //self.ble_set_tx_power();
+        self.ieee802154_set_channel_rate();
 
-        //self.ble_set_channel_rate();
+        self.ieee802154_set_packet_config();
 
-        //self.ble_set_channel_freq(channel);
-        //self.ble_set_data_whitening(channel);
+        self.ieee802154_set_rampup_mode();
+
+        self.ieee802154_set_crc_config();
+        self.ieee802154_set_cca_config();
+
+        self.ieee802154_set_tx_power();
+
+
+        self.ieee802154_set_channel_freq(self.channel.get());
 
         self.set_tx_address();
         self.set_rx_address();
@@ -759,60 +772,65 @@ impl Radio {
         self.set_dma_ptr();
     }
 
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
-    fn ble_set_crc_config(&self) {
+    // IEEE802.15.4 SPECIFICATION Section 6.20.12.5 of the NRF52840 Datasheet
+    fn ieee802154_set_crc_config(&self) {
         let regs = &*self.registers;
         regs.crccnf
-            .write(CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE);
-        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
-        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
+            .write(CrcConfiguration::LEN::TWO + CrcConfiguration::SKIPADDR::IEEE802154);
+        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_IEEE802154);
+        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_IEEE802154);
     }
 
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1.2 Access Address
-    // Set access address to 0x8E89BED6
-    fn ble_set_advertising_access_address(&self) {
+    fn ieee802154_set_rampup_mode(&self) {
         let regs = &*self.registers;
-        regs.prefix0.set(0x0000008e);
-        regs.base0.set(0x89bed600);
+        regs.modecnf0.write(
+            RadioModeConfig::RU::FAST
+                + RadioModeConfig::DTX::CENTER
+        );
+    }
+
+    fn ieee802154_set_cca_config(&self){
+        let regs = &*self.registers;
+        regs.ccactrl.write(
+            CCAControl::CCAMODE.val(nrf5x::constants::IEEE802154_CCA_MODE)
+                + CCAControl::CCAEDTHRESH.val(nrf5x::constants::IEEE802154_CCA_ED_THRESH)
+                + CCAControl::CCACORRTHRESH.val(nrf5x::constants::IEEE802154_CCA_CORR_THRESH)
+                + CCAControl::CCACORRCNT.val(nrf5x::constants::IEEE802154_CCA_CORR_CNT)
+        );
     }
 
     // Packet configuration
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1 Packet Format
+    // Settings taken from OpenThread nrf_radio_init() in 
+    // openthread/third_party/NordicSemiconductor/drivers/radio/nrf_802154_core.c
     //
-    // LSB                                                      MSB
-    // +----------+   +----------------+   +---------------+   +------------+
-    // | Preamble | - | Access Address | - | PDU           | - | CRC        |
-    // | (1 byte) |   | (4 bytes)      |   | (2-255 bytes) |   | (3 bytes)  |
-    // +----------+   +----------------+   +---------------+   +------------+
-    //
-    fn ble_set_packet_config(&self) {
+    fn ieee802154_set_packet_config(&self) {
         let regs = &*self.registers;
 
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
         regs.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
-                + PacketConfiguration0::S0LEN.val(1)
+                + PacketConfiguration0::S0LEN.val(0)
                 + PacketConfiguration0::S1LEN::CLEAR
                 + PacketConfiguration0::S1INCL::CLEAR
-                + PacketConfiguration0::PLEN::EIGHT,
+                + PacketConfiguration0::PLEN::THIRTYTWOZEROS
+                + PacketConfiguration0::CRCINC::INCLUDE,
         );
 
         regs.pcnf1.write(
-            PacketConfiguration1::WHITEEN::ENABLED
-                + PacketConfiguration1::ENDIAN::LITTLE
-                + PacketConfiguration1::BALEN.val(3)
+            //PacketConfiguration1::WHITEEN::ENABLED
+            PacketConfiguration1::ENDIAN::LITTLE
+                //+ PacketConfiguration1::BALEN.val(3)
                 + PacketConfiguration1::STATLEN::CLEAR
-                + PacketConfiguration1::MAXLEN.val(255),
+                + PacketConfiguration1::MAXLEN.val(nrf5x::constants::IEEE802154_PAYLOAD_LENGTH as u32),
         );
     }
 
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
-    // Bit Rate = 1 Mb/s ±1 ppm
     fn ieee802154_set_channel_rate(&self) {
         let regs = &*self.registers;
-        regs.mode.write(Mode::MODE::BLE_1MBIT);
+        regs.mode.write(Mode::MODE::IEEE802154_250KBIT);
     }
+
     fn ieee802154_set_channel_freq(&self, channel: RadioChannel) {
         let regs = &*self.registers;
         regs.frequency
@@ -824,6 +842,8 @@ impl Radio {
     }
 }
 
+impl kernel::hil::radio::Radio for Radio {}
+
 impl kernel::hil::radio::RadioConfig for Radio {
     fn initialize(
         &self,
@@ -831,7 +851,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
         reg_write: &'static mut [u8],
         reg_read: &'static mut [u8],
     ) -> ReturnCode{
-        self.radio_initialize(self.channel);
+        self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
     }
 
@@ -859,9 +879,9 @@ impl kernel::hil::radio::RadioConfig for Radio {
     ///module over an interface
     //#################################################
 
-    fn set_power_client(&self, client: &'static radio::PowerClient){
+    //fn set_power_client(&self, client: &'static radio::PowerClient){
 
-    }
+    //}
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
@@ -890,11 +910,11 @@ impl kernel::hil::radio::RadioConfig for Radio {
     }
     /// The transmit power, in dBm
     fn get_tx_power(&self) -> i8 {
-        self.tx_power.get()
+        self.tx_power.get() as i8
     }
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
-        self.channel.get_channel_index() as u8
+        self.channel.get().get_channel_index()
     }
 
     //#################################################
@@ -914,17 +934,18 @@ impl kernel::hil::radio::RadioConfig for Radio {
     }
 
     fn set_channel(&self, chan: u8) -> ReturnCode {
-        if chan >= 11 && chan <= 26 {
-            self.channel.set(chan);
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EINVAL
+        match radio::RadioChannel::try_from(chan){
+            Err(_) => ReturnCode::ENOSUPPORT,
+            Ok(res) => {
+                self.channel.set(res);
+                ReturnCode::SUCCESS
+            }
         }
     }
 
     fn set_tx_power(&self, tx_power: i8) -> ReturnCode {
         // Convert u8 to TxPower
-        match nrf5x::constants::TxPower::try_from(tx_power) {
+        match nrf5x::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
             Err(_) => ReturnCode::ENOSUPPORT,
             // Valid transmitting power, propogate success
@@ -937,13 +958,10 @@ impl kernel::hil::radio::RadioConfig for Radio {
 }
 
 impl kernel::hil::radio::RadioData for Radio {
-    fn set_receive_client(&self, client: &'static radio::RxClient, receive_buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'static radio::RxClient) {
         self.rx_client.set(client);
     }
 
-    fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]){
-
-    }
 
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
         self.tx_client.set(client);
@@ -951,14 +969,23 @@ impl kernel::hil::radio::RadioData for Radio {
 
     fn transmit(
         &self,
-        spi_buf: &'static mut [u8],
+        buf: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
-        let res = self.replace_radio_buffer(spi_buf);
+        let res = self.replace_radio_buffer(buf);
         self.radio_initialize(self.channel.get());
         self.tx();
         self.enable_interrupts();
         (ReturnCode::SUCCESS,None)
+    }
+
+    fn receive(
+        &self
+    ) -> ReturnCode {
+        self.radio_initialize(self.channel.get());
+        self.rx();
+        self.enable_interrupts();
+        ReturnCode::SUCCESS
     }
 }
 

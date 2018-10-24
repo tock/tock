@@ -81,11 +81,7 @@ static mut RADIO_RX_BUF: [u8; kernel::hil::radio::MAX_BUF_SIZE] = [0x00; kernel:
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
-        'static,
-        nrf52::radio::Radio,
-        VirtualMuxAlarm<'static, Rtc>,
-    >,
+    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
@@ -114,7 +110,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
@@ -125,6 +121,17 @@ impl kernel::Platform for Platform {
     }
 }
 
+// This buffer is used as an intermediate buffer for AES CCM encryption
+    // An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
+const CRYPT_SIZE: usize = 1;
+static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
+
+// Constants related to the configuration of the 15.4 network stack
+const RADIO_CHANNEL: u8 = 26;
+const SRC_MAC: u16 = 0xf00f;
+//const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
+//const SRC_MAC_ADDR: MacAddress = MacAddress::Short(SRC_MAC);
+const PAN_ID: u16 = 0xABCD;
 /// Generic function for starting an nrf52dk board.
 #[inline]
 pub unsafe fn setup_board(
@@ -276,11 +283,18 @@ pub unsafe fn setup_board(
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
 
-
+    
 
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let aes_ccm = static_init!(
+        capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
+        capsules::aes_ccm::AES128CCM::new(&nrf5x::aes::AESECB, &mut CRYPT_BUF)
+    );
 
+    //    sam4l::aes::AES.set_client(aes_ccm);
+    //   sam4l::aes::AES.enable();
+    
     let awake_mac: &AwakeMac<nrf52::radio::Radio> =
         static_init!(
             AwakeMac<'static, nrf52::radio::Radio>, 
@@ -292,12 +306,54 @@ pub unsafe fn setup_board(
     );
     kernel::hil::radio::Radio::set_receive_client(
         &nrf52::radio::RADIO,
-        awake_mac,
-        &mut RADIO_RX_BUF
+        awake_mac
     );
 
+    
+    let mac_device = static_init!(
+        capsules::ieee802154::framer::Framer<
+            'static,
+            AwakeMac<'static, nrf52::radio::Radio>,
+            capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
+        >,
+        capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
+    );
+    //aes_ccm.set_client(mac_device);
+    awake_mac.set_transmit_client(mac_device);
+    awake_mac.set_receive_client(mac_device);
+    awake_mac.set_config_client(mac_device);
+    
+    let mux_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MuxMac<'static>,
+        capsules::ieee802154::virtual_mac::MuxMac::new(mac_device)
+    );
+    mac_device.set_transmit_client(mux_mac);
+    mac_device.set_receive_client(mux_mac);
+
+    let radio_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+    );
+    mux_mac.add_user(radio_mac);
+
+    let radio_driver = static_init!(
+        capsules::ieee802154::RadioDriver<'static>,
+        capsules::ieee802154::RadioDriver::new(
+            radio_mac,
+            board_kernel.create_grant(&grant_cap),
+            &mut RADIO_RX_BUF
+        )
+    );
+
+    mac_device.set_key_procedure(radio_driver);
+    mac_device.set_device_procedure(radio_driver);
+    radio_mac.set_transmit_client(radio_driver);
+    radio_mac.set_receive_client(radio_driver);
+    radio_mac.set_pan(PAN_ID);
+    radio_mac.set_address(SRC_MAC);
 
 
+    /*
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
             'static,
@@ -320,7 +376,7 @@ pub unsafe fn setup_board(
         ble_radio,
     );
     ble_radio_virtual_alarm.set_client(ble_radio);
-
+    */
 
 
 
@@ -454,7 +510,7 @@ pub unsafe fn setup_board(
 
     let platform = Platform {
         button: button,
-        ble_radio: ble_radio,
+        radio_driver: radio_driver,
         console: console,
         led: led,
         gpio: gpio,
