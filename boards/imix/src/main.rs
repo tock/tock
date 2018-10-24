@@ -46,6 +46,7 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
+use components::console::ConsoleComponent;
 use components::process_console::ProcessConsoleComponent;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
@@ -126,12 +127,13 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 #[allow(dead_code)]
 struct Imix {
-    console: &'static capsules::process_console::ProcessConsole<
+    pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         UartDevice<'static>,
         components::process_console::Capability,
     >,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
@@ -179,6 +181,7 @@ impl kernel::Platform for Imix {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::spi::DRIVER_NUM => f(Some(self.spi)),
@@ -309,7 +312,7 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // # CONSOLE
-    // Create a shared UART channel for the console and for kernel debug.
+    // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = static_init!(
         UartMux<'static>,
@@ -321,7 +324,8 @@ pub unsafe fn reset_handler() {
     );
     hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
 
-    let console = ProcessConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
+    let console = ConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
     let nrf_serialization =
@@ -396,6 +400,7 @@ pub unsafe fn reset_handler() {
     ).finalize();
 
     let imix = Imix {
+        pconsole,
         console,
         alarm,
         gpio,
@@ -428,7 +433,9 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
-    console.start();
+    console.initialize();
+    pconsole.initialize();
+    pconsole.start();
 
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
