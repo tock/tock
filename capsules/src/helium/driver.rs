@@ -1,8 +1,8 @@
+use core::cmp::min;
 use enum_primitive::cast::FromPrimitive;
-use helium::{device, device::Device, framer::FecType};
+use helium::{device, framer::FecType};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-
 // static mut PAYLOAD: [u8; 256] = [0; 256];
 
 // Syscall number
@@ -55,21 +55,19 @@ impl App {
     }
 }
 */
-pub struct Helium<'a, D>
-where
-    D: Device<'a>,
-{
+pub struct Helium<'a> {
     app: Grant<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     current_app: OptionalCell<AppId>,
-    device: &'a D,
+    device: &'a device::Device<'a>,
 }
 
-impl<D> Helium<'a, D>
-where
-    D: Device<'a>,
-{
-    pub fn new(container: Grant<App>, tx_buf: &'static mut [u8], device: &'a D) -> Helium<'a, D> {
+impl Helium<'a> {
+    pub fn new(
+        container: Grant<App>,
+        tx_buf: &'static mut [u8],
+        device: &'a device::Device<'a>,
+    ) -> Helium<'a> {
         Helium {
             app: container,
             kernel_tx: TakeCell::new(tx_buf),
@@ -211,10 +209,7 @@ where
     }
 }
 
-impl<D> Driver for Helium<'a, D>
-where
-    D: Device<'a>,
-{
+impl Driver for Helium<'a> {
     /// Setup buffers to read/write from.
     ///
     ///  `allow_num`
@@ -349,10 +344,7 @@ where
     }
 }
 
-impl<D> device::TxClient for Helium<'a, D>
-where
-    D: Device<'a>,
-{
+impl device::TxClient for Helium<'a> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
         self.kernel_tx.replace(buf);
         self.current_app.take().map(|appid| {
@@ -366,6 +358,21 @@ where
     }
 }
 
+impl device::RxClient for Helium<'a> {
+    fn receive_event<'b>(&self, buf: &'b [u8], data_offset: usize, data_len: usize) {
+        self.app.each(|app| {
+            app.app_read.take().as_mut().map(|rbuf| {
+                let rbuf = rbuf.as_mut();
+                let len = min(rbuf.len(), data_offset + data_len);
+                rbuf[..len].copy_from_slice(&buf[..len]);
+                rbuf[0] = data_offset as u8;
+                rbuf[1] = data_len as u8;
+
+                app.rx_callback.take().map(|mut cb| cb.schedule(0, 0, 0));
+            });
+        })
+    }
+}
 enum_from_primitive! {
 #[derive(Debug, Clone, Copy)]
 pub enum HeliumAllow {

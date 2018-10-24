@@ -93,20 +93,12 @@ impl Default for RadioMode {
     }
 }
 
-#[allow(unused)]
-#[derive(Copy, Clone)]
-pub enum RadioSetupCommand {
-    Ble,
-    PropGfsk { cmd: prop::CommandRadioDivSetup },
-}
-
 static mut COMMAND_BUF: [u8; 256] = [0; 256];
 
 #[allow(unused)]
 pub struct Radio {
     rfc: &'static rfc::RFCore,
     mode: OptionalCell<RadioMode>,
-    setup: OptionalCell<RadioSetupCommand>,
     tx_client: OptionalCell<&'static rfcore::TxClient>,
     rx_client: OptionalCell<&'static rfcore::RxClient>,
     cfg_client: OptionalCell<&'static rfcore::ConfigClient>,
@@ -123,7 +115,6 @@ impl Radio {
         Radio {
             rfc,
             mode: OptionalCell::empty(),
-            setup: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             cfg_client: OptionalCell::empty(),

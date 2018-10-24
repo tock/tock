@@ -77,5 +77,5 @@ pub trait RxClient {
     /// - `buf`: The entire buffer containing the frame, including extra bytes
     /// in front used for the physical layer.
     /// - `data_len`: Length of the data payload
-    fn receive_event<'a>(&self, buf: &'a [u8], data_len: usize);
+    fn receive_event<'a>(&self, buf: &'a [u8], data_offset: usize, data_len: usize);
 }

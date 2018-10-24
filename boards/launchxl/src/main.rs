@@ -11,6 +11,8 @@ extern crate fixedvec;
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
 
+use capsules::helium;
+use capsules::helium::{device::Device, virtual_rfcore::RFCore};
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
 use cc26x2::prcm;
@@ -19,7 +21,6 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
-
 #[macro_use]
 pub mod io;
 
@@ -54,10 +55,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
-    radio: &'static capsules::simple_rfcore::VirtualRadioDriver<
-        'static,
-        cc26x2::radio::multimode::Radio,
-    >,
+    helium: &'static capsules::helium::driver::Helium<'static>,
 }
 
 impl kernel::Platform for Platform {
@@ -72,7 +70,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::simple_rfcore::DRIVER_NUM => f(Some(self.radio)),
+            capsules::helium::driver::DRIVER_NUM => f(Some(self.helium)),
             _ => f(None),
         }
     }
@@ -368,23 +366,46 @@ pub unsafe fn reset_handler() {
     cc26x2::trng::TRNG.set_client(entropy_to_random);
     entropy_to_random.set_client(rng);
 
+    // Set underlying radio client to the radio mode wrapper
     radio::RFC.set_client(&radio::MULTIMODE_RADIO);
+    let radio = static_init!(
+        helium::virtual_rfcore::VirtualRadio<'static, cc26x2::radio::multimode::Radio>,
+        helium::virtual_rfcore::VirtualRadio::new(&cc26x2::radio::MULTIMODE_RADIO)
+    );
+    // Set mode client in hil
+    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::MULTIMODE_RADIO, radio);
+    kernel::hil::rfcore::RadioDriver::set_receive_client(
+        &radio::MULTIMODE_RADIO,
+        radio,
+        &mut HELIUM_BUF,
+    );
+    kernel::hil::rfcore::RadioDriver::set_power_client(&radio::MULTIMODE_RADIO, radio);
 
-    let virtual_radio = static_init!(
-        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::multimode::Radio>,
-        capsules::simple_rfcore::VirtualRadioDriver::new(
-            &cc26x2::radio::MULTIMODE_RADIO,
+    // Virtual device that will respond to callbacks from the underlying radio and library
+    // operations
+    let virtual_device = static_init!(
+        helium::framer::Framer<
+            'static,
+            helium::virtual_rfcore::VirtualRadio<'static, cc26x2::radio::multimode::Radio>,
+        >,
+        helium::framer::Framer::new(radio)
+    );
+    // Set client for underlying radio as virtual device
+    radio.set_transmit_client(virtual_device);
+    radio.set_receive_client(virtual_device);
+
+    // Driver for user to interface with
+    let radio_driver = static_init!(
+        helium::driver::Helium<'static>,
+        helium::driver::Helium::new(
             board_kernel.create_grant(&memory_allocation_capability),
-            &mut HELIUM_BUF
+            &mut HELIUM_BUF,
+            virtual_device
         )
     );
 
-    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::MULTIMODE_RADIO, virtual_radio);
-    kernel::hil::rfcore::RadioDriver::set_receive_client(
-        &radio::MULTIMODE_RADIO,
-        virtual_radio,
-        &mut HELIUM_BUF,
-    );
+    virtual_device.set_transmit_client(radio_driver);
+    virtual_device.set_receive_client(radio_driver);
 
     let rfc = &cc26x2::radio::MULTIMODE_RADIO;
     rfc.run_tests();
@@ -396,7 +417,7 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
-        radio: virtual_radio,
+        helium: radio_driver,
     };
 
     let chip = cc26x2::chip::Cc26X2::new();

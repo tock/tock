@@ -18,6 +18,7 @@ pub trait RFCore {
     /// Sets the buffer for packet reception
     fn set_receive_buffer(&self, buffer: &'static mut [u8]);
 
+    fn set_power_client(&self, client: &'static rfcore::PowerClient);
     /// Must be called after one or more calls to `set_*`. If
     /// `set_*` is called without calling `config_commit`, there is no guarantee
     /// that the underlying hardware configuration (addresses, pan ID) is in
@@ -54,28 +55,24 @@ pub enum RadioState {
     TxPending,
 }
 
-pub struct VirtualRadio<'a, R>
-where
-    R: rfcore::Radio,
-{
+pub struct VirtualRadio<'a, R: rfcore::Radio> {
     radio: &'a R,
     tx_client: OptionalCell<&'static rfcore::TxClient>,
     rx_client: OptionalCell<&'static rfcore::RxClient>,
+    power_client: OptionalCell<&'static rfcore::PowerClient>,
     tx_payload: TakeCell<'static, [u8]>,
     tx_payload_len: Cell<usize>,
     tx_pending: Cell<bool>,
     radio_state: Cell<RadioState>,
 }
 
-impl<R> VirtualRadio<'a, R>
-where
-    R: rfcore::Radio,
-{
+impl<R: rfcore::Radio> VirtualRadio<'a, R> {
     pub fn new(radio: &'a R) -> VirtualRadio<'a, R> {
         VirtualRadio {
             radio: radio,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
+            power_client: OptionalCell::empty(),
             tx_payload: TakeCell::empty(),
             tx_payload_len: Cell::new(0),
             tx_pending: Cell::new(false),
@@ -102,10 +99,7 @@ where
     }
 }
 
-impl<R> RFCore for VirtualRadio<'a, R>
-where
-    R: rfcore::Radio,
-{
+impl<R: rfcore::Radio> RFCore for VirtualRadio<'a, R> {
     fn initialize(&self) -> ReturnCode {
         self.radio_state.set(RadioState::StartUp);
         self.radio.initialize();
@@ -130,6 +124,10 @@ where
 
     fn set_receive_client(&self, client: &'static rfcore::RxClient) {
         self.rx_client.set(client);
+    }
+
+    fn set_power_client(&self, client: &'static rfcore::PowerClient) {
+        self.power_client.set(client);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {

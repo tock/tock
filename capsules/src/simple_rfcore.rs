@@ -31,106 +31,13 @@ pub enum RxState {
     RxPending,
 }
 
-pub trait Framer {
-    fn prepare_data_frame(
-        &self,
-        buf: &'static mut [u8],
-        _seq: u8,
-    ) -> Result<Frame, &'static mut [u8]>;
-}
-
-impl<R> Framer for VirtualRadioDriver<'a, R>
-where
-    R: rfcore::Radio,
-{
-    fn prepare_data_frame(
-        &self,
-        buf: &'static mut [u8],
-        seq: u8,
-    ) -> Result<Frame, &'static mut [u8]> {
-        let _header = Header {
-            frame_type: FrameType::Data,
-            id: None,
-            seq: Some(seq),
-        };
-
-        // encode header here and return some result
-        let frame = Frame {
-            buf: buf,
-            info: FrameInfo {
-                frame_type: FrameType::Data,
-                data_len: 0,
-            },
-            max_frame_size: 240,
-        };
-        Ok(frame)
-    }
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct Frame {
-    buf: &'static mut [u8],
-    info: FrameInfo,
-    max_frame_size: usize,
-}
-
-impl Frame {
-    pub fn into_buf(self) -> &'static mut [u8] {
-        self.buf
-    }
-
-    pub fn append_payload(&mut self, payload: &[u8]) -> ReturnCode {
-        if payload.len() > self.max_frame_size {
-            return ReturnCode::ENOMEM;
-        }
-        self.buf.copy_from_slice(payload);
-        self.info.data_len += payload.len();
-
-        ReturnCode::SUCCESS
-    }
-}
-
-pub struct Header {
-    frame_type: FrameType,
-    id: Option<u32>,
-    seq: Option<u8>,
-}
-
-pub const FRAME_TYPE_MASK: u8 = 0b11;
-#[repr(u8)]
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum FrameType {
-    Ping = 0b00,
-    Data = 0b01,
-    Fragment = 0b10,
-    Acknowledgement = 0b11,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct FrameInfo {
-    frame_type: FrameType,
-    data_len: usize,
-}
-
-impl FrameType {
-    pub fn from_slice(ft: u8) -> Option<FrameType> {
-        match ft & FRAME_TYPE_MASK {
-            0b00 => Some(FrameType::Ping),
-            0b01 => Some(FrameType::Data),
-            0b10 => Some(FrameType::Fragment),
-            0b11 => Some(FrameType::Acknowledgement),
-            _ => None,
-        }
-    }
-}
-
 pub struct App {
     process_status: Option<HeliumState>,
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
     app_send: Option<AppSlice<Shared, u8>>,
     app_receive: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<(u16, Option<FrameType>)>, // Change u32 to keyid and fec mode later on during implementation
+    pending_tx: Option<(u16, Option<u32>)>, // Change u32 to keyid and fec mode later on during implementation
 }
 
 impl App {

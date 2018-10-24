@@ -121,11 +121,8 @@ enum RxState {
     ReadyToReturn(&'static mut [u8]),
 }
 
-pub struct Framer<'a, V>
-where
-    V: virtual_rfcore::RFCore,
-{
-    vrfc: &'a V,
+pub struct Framer<'a, D: virtual_rfcore::RFCore> {
+    radio_device: &'a D,
     seq: Cell<u8>,
     address: Cell<[u8; 16]>,
     tx_state: MapCell<TxState>,
@@ -134,13 +131,10 @@ where
     rx_client: OptionalCell<&'a device::RxClient>,
 }
 
-impl<V> Framer<'a, V>
-where
-    V: virtual_rfcore::RFCore,
-{
-    pub fn new(vrfc: &'a V) -> Framer<'a, V> {
+impl<D: virtual_rfcore::RFCore> Framer<'a, D> {
+    pub fn new(radio_device: &'a D) -> Framer<'a, D> {
         Framer {
-            vrfc: vrfc,
+            radio_device,
             seq: Cell::new(0),
             address: Cell::new([0; 16]),
             tx_state: MapCell::new(TxState::Idle),
@@ -163,9 +157,10 @@ where
         // 1. The receive buffer decodes correctly and the buffer can be returned
         // 2. The receive buffer does not decode correctly and the radio continues to receive and
         //    retry decoding.
-        // 3. The receive buffer never decodes and the buffer needs to be flushed and start over
+        // 3. The receive buffer never decodes and the buffer needs to be flushed and start overi
+        let temp_data_offset: usize = 0;
         self.rx_client.map(|client| {
-            client.receive_event(&buf, frame_len);
+            client.receive_event(&buf, temp_data_offset, frame_len);
         });
         RxState::ReadyToReturn(buf)
     }
@@ -177,7 +172,7 @@ where
                 let (next_state, result) = match state {
                     TxState::Idle => (TxState::Idle, (ReturnCode::SUCCESS, None)),
                     TxState::ReadyToTransmit(info, buf) => {
-                        let (rval, buf) = self.vrfc.transmit(buf, info.data_len);
+                        let (rval, buf) = self.radio_device.transmit(buf, info.data_len);
                         match rval {
                             ReturnCode::EBUSY => match buf {
                                 None => (TxState::Idle, (ReturnCode::FAIL, None)),
@@ -235,18 +230,15 @@ where
             self.rx_state.replace(next_state);
 
             if let Some(buf) = buf {
-                self.vrfc.set_receive_buffer(buf);
+                self.radio_device.set_receive_buffer(buf);
             }
         });
     }
 }
 
-impl<V> device::Device<'a> for Framer<'a, V>
-where
-    V: virtual_rfcore::RFCore,
-{
+impl<D: virtual_rfcore::RFCore> device::Device<'a> for Framer<'a, D> {
     fn initialize(&self) -> ReturnCode {
-        self.vrfc.initialize()
+        self.radio_device.initialize()
     }
 
     fn set_transmit_client(&self, client: &'a device::TxClient) {
@@ -258,19 +250,19 @@ where
     }
 
     fn send_stop_command(&self) -> ReturnCode {
-        self.vrfc.send_stop_command()
+        self.radio_device.send_stop_command()
     }
 
     fn send_kill_command(&self) -> ReturnCode {
-        self.vrfc.send_kill_command()
+        self.radio_device.send_kill_command()
     }
 
     fn set_device_config(&self) -> ReturnCode {
-        self.vrfc.config_commit()
+        self.radio_device.config_commit()
     }
 
     fn is_on(&self) -> bool {
-        self.vrfc.get_radio_status()
+        self.radio_device.get_radio_status()
     }
 
     fn set_address_long(&self, address: [u8; 16]) {
@@ -329,10 +321,7 @@ where
     }
 }
 
-impl<V> rfcore::TxClient for Framer<'a, V>
-where
-    V: virtual_rfcore::RFCore,
-{
+impl<D: virtual_rfcore::RFCore> rfcore::TxClient for Framer<'a, D> {
     fn transmit_event(&self, buf: &'static mut [u8], _result: ReturnCode) {
         self.seq.set(self.seq.get() + 1);
         self.tx_client.map(move |client| {
@@ -341,10 +330,7 @@ where
     }
 }
 
-impl<V> rfcore::RxClient for Framer<'a, V>
-where
-    V: virtual_rfcore::RFCore,
-{
+impl<D: virtual_rfcore::RFCore> rfcore::RxClient for Framer<'a, D> {
     fn receive_event(
         &self,
         buf: &'static mut [u8],
@@ -353,7 +339,7 @@ where
         _result: ReturnCode,
     ) {
         if !crc_valid {
-            self.vrfc.set_receive_buffer(buf);
+            self.radio_device.set_receive_buffer(buf);
             return;
         }
 
@@ -366,7 +352,7 @@ where
                 other_state => {
                     // Should never occur unless a receive buffer was provided by something outside
                     // of virtual radio layer
-                    self.vrfc.set_receive_buffer(buf);
+                    self.radio_device.set_receive_buffer(buf);
                     other_state
                 }
             };
@@ -376,10 +362,7 @@ where
     }
 }
 
-impl<V> rfcore::ConfigClient for Framer<'a, V>
-where
-    V: virtual_rfcore::RFCore,
-{
+impl<D: virtual_rfcore::RFCore> rfcore::ConfigClient for Framer<'a, D> {
     fn config_event(&self, _: ReturnCode) {
         let (rval, buf) = self.step_transmit_state();
         if let Some(buf) = buf {
