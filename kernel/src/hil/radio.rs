@@ -111,3 +111,47 @@ pub trait RadioData {
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 }
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum RadioChannel {
+    DataChannel11 =  5,
+    DataChannel12 = 10,
+    DataChannel13 = 15,
+    DataChannel14 = 20,
+    DataChannel15 = 25,
+    DataChannel16 = 30,
+    DataChannel17 = 35,
+    DataChannel18 = 40,
+    DataChannel19 = 45,
+    DataChannel20 = 50,
+    DataChannel21 = 55,
+    DataChannel22 = 60,
+    DataChannel23 = 65,
+    DataChannel24 = 70,
+    DataChannel25 = 75,
+    DataChannel26 = 80
+}
+
+impl RadioChannel {
+    pub fn get_channel_index(&self) -> u32 {
+        match *self {
+            RadioChannel::DataChannel11 => 11,
+            RadioChannel::DataChannel12 => 12,
+            RadioChannel::DataChannel13 => 13,
+            RadioChannel::DataChannel14 => 14,
+            RadioChannel::DataChannel15 => 15,
+            RadioChannel::DataChannel16 => 16,
+            RadioChannel::DataChannel17 => 17,
+            RadioChannel::DataChannel18 => 18,
+            RadioChannel::DataChannel19 => 19,
+            RadioChannel::DataChannel20 => 20,
+            RadioChannel::DataChannel21 => 21,
+            RadioChannel::DataChannel22 => 22,
+            RadioChannel::DataChannel23 => 23,
+            RadioChannel::DataChannel24 => 24,
+            RadioChannel::DataChannel25 => 25,
+            RadioChannel::DataChannel26 => 26
+        }
+    }
+}
+

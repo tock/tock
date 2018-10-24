@@ -40,7 +40,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio;
-//use kernel::hil::ble_advertising::RadioChannel;
+use kernel::hil::radio::RadioChannel;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::constants::TxPower;
@@ -574,8 +574,12 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: OptionalCell<&'static ble_advertising::RxClient>,
-    tx_client: OptionalCell<&'static ble_advertising::TxClient>,
+    rx_client: OptionalCell<&'static radio::RxClient>,
+    tx_client: OptionalCell<&'static radio::TxClient>,
+    addr: Cell<u16>,
+    addr_long: Cell<[u8; 8]>,
+    pan: Cell<u16>,
+    channel: Cell<kernel::hil::radio::RadioChannel>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -587,6 +591,11 @@ impl Radio {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            addr: Cell::new(0),
+            addr_long: Cell::new([0x00; 8]),
+            pan: Cell::new(0),
+            tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
+            channel: Cell::new(11),
         }
     }
 
@@ -729,23 +738,23 @@ impl Radio {
         buf
     }
 
-    fn ble_initialize(&self, channel: RadioChannel) {
+    fn radio_initialize(&self, channel: RadioChannel) {
         self.radio_on();
 
-        self.ble_set_tx_power();
+        //self.ble_set_tx_power();
 
-        self.ble_set_channel_rate();
+        //self.ble_set_channel_rate();
 
-        self.ble_set_channel_freq(channel);
-        self.ble_set_data_whitening(channel);
+        //self.ble_set_channel_freq(channel);
+        //self.ble_set_data_whitening(channel);
 
         self.set_tx_address();
         self.set_rx_address();
 
-        self.ble_set_packet_config();
-        self.ble_set_advertising_access_address();
+        //self.ble_set_packet_config();
+        //self.ble_set_advertising_access_address();
 
-        self.ble_set_crc_config();
+        //self.ble_set_crc_config();
 
         self.set_dma_ptr();
     }
@@ -800,52 +809,161 @@ impl Radio {
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
     // Bit Rate = 1 Mb/s ±1 ppm
-    fn ble_set_channel_rate(&self) {
+    fn ieee802154_set_channel_rate(&self) {
         let regs = &*self.registers;
         regs.mode.write(Mode::MODE::BLE_1MBIT);
     }
-
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.2 Data Whitening
-    // Configure channel index to the LFSR and the hardware solves the rest
-    fn ble_set_data_whitening(&self, channel: RadioChannel) {
-        let regs = &*self.registers;
-        regs.datawhiteiv.set(channel.get_channel_index());
-    }
-
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 1.4.1
-    // RF Channels:     0 - 39
-    // Data:            0 - 36
-    // Advertising:     37, 38, 39
-    fn ble_set_channel_freq(&self, channel: RadioChannel) {
+    fn ieee802154_set_channel_freq(&self, channel: RadioChannel) {
         let regs = &*self.registers;
         regs.frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
-    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3 TRANSMITTER CHARACTERISTICS
-    // Minimum Output Power : -20dBm
-    // Maximum Output Power : +10dBm
-    //
-    // no check is required because the BleConfig::set_tx_power() method ensures that only
-    // valid tranmitting power is configured!
-    fn ble_set_tx_power(&self) {
+    fn ieee802154_set_tx_power(&self) {
         self.set_tx_power();
     }
 }
 
-impl ble_advertising::BleAdvertisementDriver for Radio {
-    fn transmit_advertisement(
+impl kernel::hil::radio::RadioConfig for Radio {
+    fn initialize(
         &self,
-        buf: &'static mut [u8],
-        _len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8] {
-        let res = self.replace_radio_buffer(buf);
-        self.ble_initialize(channel);
+        spi_buf: &'static mut [u8],
+        reg_write: &'static mut [u8],
+        reg_read: &'static mut [u8],
+    ) -> ReturnCode{
+        self.radio_initialize(self.channel);
+        ReturnCode::SUCCESS
+    }
+
+    fn reset(&self) -> ReturnCode{
+        self.radio_on();
+        ReturnCode::SUCCESS
+    }
+    fn start(&self) -> ReturnCode{
+        self.reset();
+        ReturnCode::SUCCESS
+    }
+    fn stop(&self) -> ReturnCode{
+        self.radio_off();
+        ReturnCode::SUCCESS
+    }
+    fn is_on(&self) -> bool{
+        true
+    }
+    fn busy(&self) -> bool{
+        false
+    }
+
+    //#################################################
+    ///These methods are holdovers from when the radio HIL was mostly to an external
+    ///module over an interface
+    //#################################################
+
+    fn set_power_client(&self, client: &'static radio::PowerClient){
+
+    }
+    /// Commit the config calls to hardware, changing the address,
+    /// PAN ID, TX power, and channel to the specified values, issues
+    /// a callback to the config client when done.
+    fn config_commit(&self){
+
+    }
+    fn set_config_client(&self, client: &'static radio::ConfigClient){
+
+    }
+
+    //#################################################
+    /// Accessors
+    //#################################################
+
+    fn get_address(&self) -> u16 {
+        self.addr.get()
+    }
+
+    fn get_address_long(&self) -> [u8; 8] {
+        self.addr_long.get()
+    }
+
+    /// The 16-bit PAN ID
+    fn get_pan(&self) -> u16 {
+        self.pan.get()
+    }
+    /// The transmit power, in dBm
+    fn get_tx_power(&self) -> i8 {
+        self.tx_power.get()
+    }
+    /// The 802.15.4 channel
+    fn get_channel(&self) -> u8 {
+        self.channel.get_channel_index() as u8
+    }
+
+    //#################################################
+    /// Mutators
+    //#################################################
+
+    fn set_address(&self, addr: u16) {
+        self.addr.set(addr);
+    }
+
+    fn set_address_long(&self, addr: [u8; 8]) {
+        self.addr_long.set(addr);
+    }
+
+    fn set_pan(&self, id: u16) {
+        self.pan.set(id);
+    }
+
+    fn set_channel(&self, chan: u8) -> ReturnCode {
+        if chan >= 11 && chan <= 26 {
+            self.channel.set(chan);
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EINVAL
+        }
+    }
+
+    fn set_tx_power(&self, tx_power: i8) -> ReturnCode {
+        // Convert u8 to TxPower
+        match nrf5x::constants::TxPower::try_from(tx_power) {
+            // Invalid transmitting power, propogate error
+            Err(_) => ReturnCode::ENOSUPPORT,
+            // Valid transmitting power, propogate success
+            Ok(res) => {
+                self.tx_power.set(res);
+                ReturnCode::SUCCESS
+            }
+        }
+    }
+}
+
+impl kernel::hil::radio::RadioData for Radio {
+    fn set_receive_client(&self, client: &'static radio::RxClient, receive_buffer: &'static mut [u8]) {
+        self.rx_client.set(client);
+    }
+
+    fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]){
+
+    }
+
+    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit(
+        &self,
+        spi_buf: &'static mut [u8],
+        frame_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>){
+        let res = self.replace_radio_buffer(spi_buf);
+        self.radio_initialize(self.channel.get());
         self.tx();
         self.enable_interrupts();
-        res
+        (ReturnCode::SUCCESS,None)
     }
+}
+
+/*
+impl ble_advertising::BleAdvertisementDriver for Radio {
 
     fn receive_advertisement(&self, channel: RadioChannel) {
         self.ble_initialize(channel);
@@ -853,28 +971,6 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
         self.enable_interrupts();
     }
 
-    fn set_receive_client(&self, client: &'static ble_advertising::RxClient) {
-        self.rx_client.set(client);
-    }
-
-    fn set_transmit_client(&self, client: &'static ble_advertising::TxClient) {
-        self.tx_client.set(client);
-    }
 }
+*/
 
-impl ble_advertising::BleConfig for Radio {
-    // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
-    // underlying chip must validate if the current `tx_power` is supported as well
-    fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
-        // Convert u8 to TxPower
-        match nrf5x::constants::TxPower::try_from(tx_power) {
-            // Invalid transmitting power, propogate error
-            Err(_) => kernel::ReturnCode::ENOSUPPORT,
-            // Valid transmitting power, propogate success
-            Ok(res) => {
-                self.tx_power.set(res);
-                kernel::ReturnCode::SUCCESS
-            }
-        }
-    }
-}
