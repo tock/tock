@@ -39,6 +39,7 @@ register_bitfields![
     u32,
     Control [
         UART_ENABLE OFFSET(0) NUMBITS(1) [],
+        LB_ENABLE OFFSET(7) NUMBITS(1) [],
         TX_ENABLE OFFSET(8) NUMBITS(1) [],
         RX_ENABLE OFFSET(9) NUMBITS(1) []
     ],

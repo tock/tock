@@ -1,16 +1,13 @@
 //! Tock core scheduler.
 
 use core::cell::Cell;
-use core::ptr;
 use core::ptr::NonNull;
 
-use callback;
-use callback::{AppId, Callback};
+use callback::Callback;
 use capabilities;
 use common::cells::NumericCellExt;
 use grant::Grant;
 use ipc;
-use mem::AppSlice;
 use memop;
 use platform::mpu::MPU;
 use platform::systick::SysTick;
@@ -85,14 +82,14 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    crate fn process_each_enumerate<F>(&self, closure: F)
+    crate fn process_each<F>(&self, closure: F)
     where
-        F: Fn(usize, &process::ProcessType),
+        F: Fn(&process::ProcessType),
     {
-        for (i, process) in self.processes.iter().enumerate() {
+        for process in self.processes.iter() {
             match process {
                 Some(p) => {
-                    closure(i, *p);
+                    closure(*p);
                 }
                 None => {}
             }
@@ -103,14 +100,14 @@ impl Kernel {
     /// `FAIL`. That is, if the closure returns any other return code than
     /// `FAIL`, that value will be returned from this function and the iteration
     /// of the array of processes will stop.
-    crate fn process_each_enumerate_stop<F>(&self, closure: F) -> ReturnCode
+    crate fn process_until<F>(&self, closure: F) -> ReturnCode
     where
-        F: Fn(usize, &process::ProcessType) -> ReturnCode,
+        F: Fn(&process::ProcessType) -> ReturnCode,
     {
-        for (i, process) in self.processes.iter().enumerate() {
+        for process in self.processes.iter() {
             match process {
                 Some(p) => {
-                    let ret = closure(i, *p);
+                    let ret = closure(*p);
                     if ret != ReturnCode::FAIL {
                         return ret;
                     }
@@ -193,15 +190,9 @@ impl Kernel {
             unsafe {
                 chip.service_pending_interrupts();
 
-                for (i, p) in self.processes.iter().enumerate() {
+                for p in self.processes.iter() {
                     p.map(|process| {
-                        self.do_process(
-                            platform,
-                            chip,
-                            process,
-                            callback::AppId::new(self, i),
-                            ipc,
-                        );
+                        self.do_process(platform, chip, process, ipc);
                     });
                     if chip.has_pending_interrupts() {
                         break;
@@ -222,9 +213,9 @@ impl Kernel {
         platform: &P,
         chip: &C,
         process: &process::ProcessType,
-        appid: AppId,
         ipc: Option<&::ipc::IPC>,
     ) {
+        let appid = process.appid();
         let systick = chip.systick();
         systick.reset();
         systick.set_timer(KERNEL_TICK_DURATION_US);
@@ -243,7 +234,7 @@ impl Kernel {
                     // Running means that this process expects to be running,
                     // so go ahead and set things up and switch to executing
                     // the process.
-                    process.setup_mpu(chip.mpu());
+                    process.setup_mpu();
                     chip.mpu().enable_mpu();
                     systick.enable(true);
                     let context_switch_reason = process.switch_to();
@@ -320,26 +311,11 @@ impl Kernel {
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
-                                                if allow_address != ptr::null_mut() {
-                                                    if process.in_app_owned_memory(
-                                                        allow_address,
-                                                        allow_size,
-                                                    ) {
-                                                        let slice = AppSlice::new(
-                                                            allow_address,
-                                                            allow_size,
-                                                            appid,
-                                                        );
-                                                        d.allow(
-                                                            appid,
-                                                            subdriver_number,
-                                                            Some(slice),
-                                                        )
-                                                    } else {
-                                                        ReturnCode::EINVAL /* memory not allocated to process */
+                                                match process.allow(allow_address, allow_size) {
+                                                    Ok(oslice) => {
+                                                        d.allow(appid, subdriver_number, oslice)
                                                     }
-                                                } else {
-                                                    d.allow(appid, subdriver_number, None)
+                                                    Err(err) => err, /* memory not valid */
                                                 }
                                             }
                                             None => ReturnCode::ENODEVICE,

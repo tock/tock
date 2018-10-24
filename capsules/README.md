@@ -75,7 +75,8 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[CRC](src/crc.rs)**: CRC calculation.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
-- **[I2C](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
+- **[I2C_MASTER](src/i2c_master_driver.rs)**: I2C master access only.
+- **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI](src/spi.rs)**: SPI master and slave.
 

@@ -34,7 +34,7 @@ impl Introspection {
     /// long as it has been loaded.
     pub fn number_loaded_processes(&self, _capability: &ProcessManagementCapability) -> usize {
         let count: Cell<usize> = Cell::new(0);
-        self.kernel.process_each_enumerate(|_, _| count.increment());
+        self.kernel.process_each(|_| count.increment());
         count.get()
     }
 
@@ -46,7 +46,7 @@ impl Introspection {
     pub fn number_active_processes(&self, _capability: &ProcessManagementCapability) -> usize {
         let count: Cell<usize> = Cell::new(0);
         self.kernel
-            .process_each_enumerate(|_, process| match process.get_state() {
+            .process_each(|process| match process.get_state() {
                 process::State::Running => count.increment(),
                 process::State::Yielded => count.increment(),
                 process::State::Fault => {}
@@ -60,7 +60,7 @@ impl Introspection {
     pub fn number_inactive_processes(&self, _capability: &ProcessManagementCapability) -> usize {
         let count: Cell<usize> = Cell::new(0);
         self.kernel
-            .process_each_enumerate(|_, process| match process.get_state() {
+            .process_each(|process| match process.get_state() {
                 process::State::Running => {}
                 process::State::Yielded => {}
                 process::State::Fault => count.increment(),
@@ -75,7 +75,7 @@ impl Introspection {
         _capability: &ProcessManagementCapability,
     ) -> &'static str {
         self.kernel
-            .process_map_or("", app.idx(), |process| process.get_process_name())
+            .process_map_or("unknown", app.idx(), |process| process.get_process_name())
     }
 
     /// Returns the number of syscalls the app has called.

@@ -33,6 +33,7 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
+use kernel::Chip;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -48,6 +49,7 @@ use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
+use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_6lowpan::UDPComponent;
@@ -133,6 +135,7 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
         sam4l::acifc::Acifc<'static>,
@@ -191,6 +194,7 @@ impl kernel::Platform for Imix {
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -370,6 +374,7 @@ pub unsafe fn reset_handler() {
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
     let analog_comparator = AcComponent::new().finalize();
+    let rng = RngComponent::new(board_kernel).finalize();
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
@@ -400,6 +405,7 @@ pub unsafe fn reset_handler() {
         adc,
         led,
         button,
+        rng,
         analog_comparator,
         crc,
         spi: spi_syscalls,
@@ -412,7 +418,7 @@ pub unsafe fn reset_handler() {
         nonvolatile_storage: nonvolatile_storage,
     };
 
-    let chip = sam4l::chip::Sam4l::new();
+    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();
@@ -436,6 +442,7 @@ pub unsafe fn reset_handler() {
     kernel::procs::load_processes(
         board_kernel,
         &cortexm4::syscall::SysCall::new(),
+        chip.mpu(),
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -443,5 +450,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &chip, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
