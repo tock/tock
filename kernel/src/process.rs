@@ -50,6 +50,7 @@ pub fn load_processes<S: UserspaceKernelBoundary, M: MPU>(
                 app_memory_ptr,
                 app_memory_size,
                 fault_response,
+                i,
             );
 
             if process.is_none() {
@@ -997,6 +998,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
+        index: usize,
     ) -> (Option<&'static ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
@@ -1121,6 +1123,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             let mut process: &mut Process<S, M> =
                 &mut *(process_struct_memory_location as *mut Process<'static, S, M>);
 
+            process.app_idx = index;
             process.kernel = kernel;
             process.syscall = syscall;
             process.memory = app_memory;

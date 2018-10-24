@@ -170,6 +170,7 @@ impl<'a> I2CMaster<'a> {
         self.registers.mstat_ctrl.ctrl().write(
             Control::RUN.val(1)
                 + Control::RUN.val(1)
+                + Control::ACK.val(!last as u32)
                 + Control::START.val(first as u32)
                 + Control::STOP.val(last as u32),
         );
@@ -217,7 +218,6 @@ impl<'a> I2CMaster<'a> {
                     transfer.buf[transfer.index] = self.registers.mdr.get();
                     transfer.index += 1;
                     if transfer.len > transfer.index {
-                        transfer.index += 1;
                         self.read_byte(false, transfer.len == transfer.index + 1);
                         self.transfer.put(transfer);
                     } else {

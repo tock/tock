@@ -4,7 +4,8 @@
 
 extern crate capsules;
 extern crate cortexm4;
-
+#[macro_use]
+extern crate enum_primitive;
 extern crate cc26x2;
 
 #[allow(unused_imports)]
@@ -17,6 +18,7 @@ use cc26x2::prcm;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
+use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 use kernel::Chip;
 
@@ -54,6 +56,7 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
+    i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
 }
 
 impl kernel::Platform for Platform {
@@ -68,103 +71,29 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
 }
 
-/// Booster pack standard pinout
-///
-/// 1  -> 3v3
-/// 2  -> DIO23 (analog)
-/// 3  -> DIO3  (UARTRX)
-/// 4  -> DIO2  (UARTTX)
-/// 5  -> DIO22 (GPIO)
-/// 6  -> DIO24 (analog)
-/// 7  -> DIO10 (SPI CLK)
-/// 8  -> DIO21 (GPIO)
-/// 9  -> DIO4  (I2CSCL)
-/// 10 -> DIO5  (I2CSDA)
-///
-/// 11 -> DIO15 (GPIO)
-/// 12 -> DIO14 (SPI CS - other)
-/// 13 -> DIO13 (SPI CS - display)
-/// 14 -> DIO8  (SPI MISO)
-/// 15 -> DIO9  (SPI MOSI)
-/// 16 -> LPRST
-/// 17 -> unused
-/// 18 -> DIO11 (SPI CS - RF)
-/// 19 -> DIO12 (PWM)
-/// 20 -> GND
-///
-/// 21 -> 5v
-/// 22 -> GND
-/// 23 -> DIO25 (analog)
-/// 24 -> DIO26 (analog)
-/// 25 -> DIO17 (analog)
-/// 26 -> DIO28 (analog)
-/// 27 -> DIO29 (analog)
-/// 28 -> DIO30 (analog)
-/// 29 -> DIO0  (GPIO)
-/// 30 -> DIO1  (GPIO)
-///
-/// 31 -> DIO17
-/// 32 -> DIO16
-/// 33 -> TMS
-/// 34 -> TCK
-/// 35 -> BPRST
-/// 36 -> DIO18 (PWM)
-/// 37 -> DIO19 (PWM)
-/// 38 -> DIO20 (PWM)
-/// 39 -> DIO6  (PWM)
-/// 40 -> DIO7  (PWM)
+mod pin_mapping_cc1352p;
+use pin_mapping_cc1352p::PIN_FN;
 ///
 unsafe fn configure_pins() {
-    cc26x2::gpio::PORT[0].enable_gpio();
-    cc26x2::gpio::PORT[1].enable_gpio();
+    cc26x2::gpio::PORT[PIN_FN::UART0_RX as usize].enable_uart0_rx();
+    cc26x2::gpio::PORT[PIN_FN::UART0_TX as usize].enable_uart0_tx();
 
-    cc26x2::gpio::PORT[2].enable_uart0_rx();
-    cc26x2::gpio::PORT[3].enable_uart0_tx();
+    cc26x2::gpio::PORT[PIN_FN::I2C0_SCL as usize].enable_i2c_scl();
+    cc26x2::gpio::PORT[PIN_FN::I2C0_SDA as usize].enable_i2c_sda();
 
-    cc26x2::gpio::PORT[4].enable_i2c_scl();
-    cc26x2::gpio::PORT[5].enable_i2c_sda();
+    cc26x2::gpio::PORT[PIN_FN::RED_LED as usize].enable_gpio();
+    cc26x2::gpio::PORT[PIN_FN::GREEN_LED as usize].enable_gpio();
 
-    cc26x2::gpio::PORT[6].enable_gpio(); // Red LED
-    cc26x2::gpio::PORT[7].enable_gpio(); // Green LED
+    cc26x2::gpio::PORT[PIN_FN::BUTTON_1 as usize].enable_gpio();
+    cc26x2::gpio::PORT[PIN_FN::BUTTON_2 as usize].enable_gpio();
 
-    // SPI MISO cc26x2::gpio::PORT[8]
-    // SPI MOSI cc26x2::gpio::PORT[9]
-    // SPI CLK  cc26x2::gpio::PORT[10]
-    // SPI CS   cc26x2::gpio::PORT[11]
-
-    // PWM      cc26x2::gpio::PORT[12]
-
-    cc26x2::gpio::PORT[13].enable_gpio();
-    cc26x2::gpio::PORT[14].enable_gpio();
-
-    cc26x2::gpio::PORT[15].enable_gpio();
-
-    // avoid TDO cc26x2::gpio::PORT[16]
-    // avoid TDI cc26x2::gpio::PORT[17]
-
-    cc26x2::gpio::PORT[18].enable_uart1_rx();
-    cc26x2::gpio::PORT[19].enable_uart1_tx();
-
-    // PWM      cc26x2::gpio::PORT[18]
-    // PWM      cc26x2::gpio::PORT[19]
-    // PWM      cc26x2::gpio::PORT[20]
-
-    cc26x2::gpio::PORT[21].enable_gpio();
-    cc26x2::gpio::PORT[22].enable_gpio();
-
-    // analog   cc26x2::gpio::PORT[23]
-    // analog   cc26x2::gpio::PORT[24]
-    // analog   cc26x2::gpio::PORT[25]
-    // analog   cc26x2::gpio::PORT[26]
-    // analog   cc26x2::gpio::PORT[27]
-    // analog   cc26x2::gpio::PORT[28]
-    // analog   cc26x2::gpio::PORT[29]
-    // analog   cc26x2::gpio::PORT[30]
+    cc26x2::gpio::PORT[PIN_FN::GPIO0 as usize].enable_gpio();
 }
 
 #[no_mangle]
@@ -202,11 +131,11 @@ pub unsafe fn reset_handler() {
         ); 2],
         [
             (
-                &cc26x2::gpio::PORT[6],
+                &cc26x2::gpio::PORT[PIN_FN::RED_LED as usize],
                 capsules::led::ActivationMode::ActiveHigh
             ), // Red
             (
-                &cc26x2::gpio::PORT[7],
+                &cc26x2::gpio::PORT[PIN_FN::GREEN_LED as usize],
                 capsules::led::ActivationMode::ActiveHigh
             ), // Green
         ]
@@ -221,11 +150,11 @@ pub unsafe fn reset_handler() {
         [(&'static cc26x2::gpio::GPIOPin, capsules::button::GpioMode); 2],
         [
             (
-                &cc26x2::gpio::PORT[13],
+                &cc26x2::gpio::PORT[PIN_FN::BUTTON_1 as usize],
                 capsules::button::GpioMode::LowWhenPressed
             ), // Button 1
             (
-                &cc26x2::gpio::PORT[14],
+                &cc26x2::gpio::PORT[PIN_FN::BUTTON_2 as usize],
                 capsules::button::GpioMode::LowWhenPressed
             ), // Button 2
         ]
@@ -292,21 +221,27 @@ pub unsafe fn reset_handler() {
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    // TODO(alevy): Enable I2C, but it's not used anywhere yet. We need a system
-    // call driver
     cc26x2::i2c::I2C0.initialize();
+
+    let i2c_master = static_init!(
+        capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
+        capsules::i2c_master::I2CMasterDriver::new(
+            &cc26x2::i2c::I2C0,
+            &mut capsules::i2c_master::BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+
+    cc26x2::i2c::I2C0.set_client(i2c_master);
+    cc26x2::i2c::I2C0.enable();
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static cc26x2::gpio::GPIOPin; 5],
+        [&'static cc26x2::gpio::GPIOPin; 1],
         [
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            &cc26x2::gpio::PORT[22],
-            &cc26x2::gpio::PORT[21],
-            &cc26x2::gpio::PORT[15],
-            &cc26x2::gpio::PORT[0],
-            &cc26x2::gpio::PORT[1],
+            &cc26x2::gpio::PORT[PIN_FN::GPIO0 as usize],
         ]
     );
     let gpio = static_init!(
@@ -363,6 +298,7 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
+        i2c_master,
     };
 
     let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());

@@ -50,6 +50,7 @@ use components::console::ConsoleComponent;
 use components::process_console::ProcessConsoleComponent;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
+use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_6lowpan::UDPComponent;
@@ -141,6 +142,7 @@ gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
         sam4l::acifc::Acifc<'static>,
@@ -199,6 +201,7 @@ impl kernel::Platform for Imix {
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -379,6 +382,7 @@ pub unsafe fn reset_handler() {
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
     let analog_comparator = AcComponent::new().finalize();
+    let rng = RngComponent::new(board_kernel).finalize();
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
@@ -410,6 +414,7 @@ pub unsafe fn reset_handler() {
         adc,
         led,
         button,
+        rng,
         analog_comparator,
         crc,
         spi: spi_syscalls,
