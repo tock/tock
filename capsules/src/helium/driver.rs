@@ -42,19 +42,7 @@ impl Default for App {
         }
     }
 }
-/*
-impl App {
-    // Returns a new pseudo-random number and updates the randomness state.
-    fn random_nonce(&mut self) -> u32 {
-        let mut next_nonce = ::core::num::Wrapping(self.random_nonce);
-        next_nonce ^= next_nonce << 13;
-        next_nonce ^= next_nonce >> 17;
-        next_nonce ^= next_nonce << 5;
-        self.random_nonce = next_nonce.0;
-        self.random_nonce
-    }
-}
-*/
+
 pub struct Helium<'a> {
     app: Grant<App>,
     kernel_tx: TakeCell<'static, [u8]>,
