@@ -40,7 +40,7 @@ pub trait RadioConfig {
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    fn get_tx_power(&self) -> u32;
+    fn get_tx_power(&self) -> u16;
     fn get_radio_status(&self) -> u32;
     fn send_stop_command(&self) -> ReturnCode;
     fn send_kill_command(&self) -> ReturnCode;

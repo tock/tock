@@ -9,7 +9,6 @@ use radio::patch_mce_genfsk as mce;
 use radio::patch_mce_longrange as mce_lr;
 use radio::patch_rfe_genfsk as rfe;
 use radio::rfc;
-use radio::test_settings;
 use rtc;
 
 const TEST_PAYLOAD: [u32; 30] = [0; 30];
@@ -96,6 +95,8 @@ impl Default for RadioMode {
 static mut COMMAND_BUF: [u8; 256] = [0; 256];
 
 #[allow(unused)]
+// TODO Implement update config for changing radio modes and tie in the WIP power client to manage
+// power state.
 pub struct Radio {
     rfc: &'static rfc::RFCore,
     mode: OptionalCell<RadioMode>,
@@ -105,9 +106,9 @@ pub struct Radio {
     power_client: OptionalCell<&'static rfcore::PowerClient>,
     update_config: Cell<bool>,
     schedule_powerdown: Cell<bool>,
-    yeilded: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
+    tx_power: Cell<u16>,
 }
 
 impl Radio {
@@ -121,9 +122,9 @@ impl Radio {
             power_client: OptionalCell::empty(),
             update_config: Cell::new(false),
             schedule_powerdown: Cell::new(false),
-            yeilded: Cell::new(false),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
+            tx_power: Cell::new(0x9F3F),
         }
     }
 
@@ -233,12 +234,6 @@ impl Radio {
             self.rfc.setup(reg_overrides, 0x9F3F);
         }
 
-        /*
-        unsafe {
-            let reg_overrides: u32 = test_settings::LONGRANGE_RFPARAMS.as_mut_ptr() as u32;
-            self.rfc.setup(reg_overrides, 0x9F3F);
-        }
-        */
         self.test_radio_fs();
 
         self.test_radio_tx();
@@ -274,7 +269,6 @@ impl Radio {
                 packet
             };
             cmd.packet_len = 0x1E;
-            // cmd.sync_word = 0x00000000;
             cmd.sync_word = 0x930B51DE;
             cmd.packet_pointer = p_packet;
 
@@ -428,12 +422,12 @@ impl rfcore::RadioConfig for Radio {
     }
 
     fn is_on(&self) -> bool {
-        // IMPL RADIO OPERATION COMMAND PING HERE
+        // TODO IMPL RADIO OPERATION COMMAND PING HERE
         true
     }
 
     fn busy(&self) -> bool {
-        // Might be an obsolete command here in favor of get_command_status and some logic on the
+        // TODO Might be an obsolete command here in favor of get_command_status and some logic on the
         // user size to determine if the radio is busy. Not sure what is best to have here but
         // arguing best might be bikeshedding
         let status = self.rfc.status.get();
@@ -449,9 +443,9 @@ impl rfcore::RadioConfig for Radio {
         ReturnCode::SUCCESS
     }
 
-    fn get_tx_power(&self) -> u32 {
+    fn get_tx_power(&self) -> u16 {
         // TODO get tx power radio command
-        0x00000000
+        self.tx_power.get()
     }
 
     fn get_radio_status(&self) -> u32 {
@@ -472,6 +466,8 @@ impl rfcore::RadioConfig for Radio {
 
     fn set_tx_power(&self, power: u16) -> ReturnCode {
         // Send direct command for TX power change
+        // TODO put some guards around the possible range for TX power
+        self.tx_power.set(power);
         let command = DirectCommand::new(0x0010, power);
         if self.rfc.send_direct(&command).is_ok() {
             return ReturnCode::SUCCESS;
