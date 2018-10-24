@@ -94,7 +94,6 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
     }
 
     pub fn start(&self) -> ReturnCode {
-        debug!("ProcessConsole::start");
         if self.running.get() == false {
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
@@ -188,7 +187,6 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                             );
                         } else {
                             debug!("Valid commands are: help status list stop start");
-                            debug!("Command: {:?}", command);
                         }
                     }
                     Err(_e) => debug!("Invalid command: {:?}", command),
@@ -247,7 +245,6 @@ impl<U: UART, C: ProcessManagementCapability> Client for ProcessConsole<'a, U, C
                 1 => {
                     self.command_buffer.map(|command| {
                         let index = self.command_index.get() as usize;
-                        //debug!("read {}", read_buf[0]);
                         if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
                             execute = true;
                             self.write_bytes(&['\r' as u8, '\n' as u8]);
