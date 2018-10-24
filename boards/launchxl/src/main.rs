@@ -88,8 +88,8 @@ impl kernel::Platform for Platform {
 
 static mut HELIUM_BUF: [u8; 128] = [0x00; 128];
 
-mod pin_mapping_cc1352p;
-use pin_mapping_cc1352p::PIN_FN;
+mod pin_mapping_cc1312r;
+use pin_mapping_cc1312r::PIN_FN;
 
 unsafe fn configure_pins() {
     cc26x2::gpio::PORT[PIN_FN::UART0_RX as usize].enable_uart0_rx();
@@ -360,6 +360,18 @@ pub unsafe fn reset_handler() {
     let ipc = &kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
 
     adc::ADC.configure(adc::SOURCE::NominalVdds, adc::SAMPLE_CYCLE::_170_us);
+
+    for n in 23..30 {
+        adc::ADC.set_input(n);
+        adc::ADC.flush_fifo();
+        adc::ADC.single_shot();
+        while !adc::ADC.has_data() {}
+
+        debug!("READ {} = {}", n,  adc::ADC.pop_fifo());
+    }
+
+
+    debug!("Launching Processes");
 
     kernel::procs::load_processes(
         board_kernel,
