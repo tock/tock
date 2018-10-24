@@ -25,4 +25,3 @@ version = "0.1.0"
 [[package]]
 name = "tock-registers"
 version = "0.2.0"
-

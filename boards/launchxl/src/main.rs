@@ -3,18 +3,22 @@
 #![feature(lang_items, asm, panic_implementation)]
 
 extern crate capsules;
+extern crate cc26x2;
 extern crate cortexm4;
 #[macro_use]
 extern crate enum_primitive;
-extern crate cc26x2;
+extern crate fixedvec;
 
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
 
 use capsules::virtual_uart::{UartDevice, UartMux};
+use cc26x2::adc;
 use cc26x2::aon;
+use cc26x2::osc;
 use cc26x2::prcm;
+use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -56,6 +60,10 @@ pub struct Platform {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
+    radio: &'static capsules::simple_rfcore::VirtualRadioDriver<
+        'static,
+        cc26x2::radio::multimode::Radio,
+    >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
 }
 
@@ -71,15 +79,18 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::simple_rfcore::DRIVER_NUM => f(Some(self.radio)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             _ => f(None),
         }
     }
 }
 
+static mut HELIUM_BUF: [u8; 128] = [0x00; 128];
+
 mod pin_mapping_cc1352p;
 use pin_mapping_cc1352p::PIN_FN;
-///
+
 unsafe fn configure_pins() {
     cc26x2::gpio::PORT[PIN_FN::UART0_RX as usize].enable_uart0_rx();
     cc26x2::gpio::PORT[PIN_FN::UART0_TX as usize].enable_uart0_tx();
@@ -94,6 +105,15 @@ unsafe fn configure_pins() {
     cc26x2::gpio::PORT[PIN_FN::BUTTON_2 as usize].enable_gpio();
 
     cc26x2::gpio::PORT[PIN_FN::GPIO0 as usize].enable_gpio();
+
+    cc26x2::gpio::PORT[23].enable_analog_input();
+    cc26x2::gpio::PORT[24].enable_analog_input();
+    cc26x2::gpio::PORT[25].enable_analog_input();
+    cc26x2::gpio::PORT[26].enable_analog_input();
+    cc26x2::gpio::PORT[27].enable_analog_input();
+    cc26x2::gpio::PORT[28].enable_analog_input();
+    cc26x2::gpio::PORT[29].enable_analog_input();
+    cc26x2::gpio::PORT[30].enable_analog_input();
 }
 
 #[no_mangle]
@@ -115,6 +135,14 @@ pub unsafe fn reset_handler() {
 
     // Wait for it to turn on until we continue
     while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
+
+    // Power on Serial domain
+    prcm::Power::enable_domain(prcm::PowerDomain::Serial);
+
+    while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
+
+    osc::OSC.request_switch_to_hf_xosc();
+    osc::OSC.switch_to_hf_xosc();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -291,6 +319,26 @@ pub unsafe fn reset_handler() {
     cc26x2::trng::TRNG.set_client(entropy_to_random);
     entropy_to_random.set_client(rng);
 
+    radio::RFC.set_client(&radio::SUBG_RADIO);
+
+    let virtual_radio = static_init!(
+        capsules::simple_rfcore::VirtualRadioDriver<'static, cc26x2::radio::multimode::Radio>,
+        capsules::simple_rfcore::VirtualRadioDriver::new(
+            &cc26x2::radio::MULTIMODE_RADIO,
+            board_kernel.create_grant(&memory_allocation_capability),
+            &mut HELIUM_BUF
+        )
+    );
+
+    kernel::hil::rfcore::RadioDriver::set_transmit_client(&radio::MULTIMODE_RADIO, virtual_radio);
+    kernel::hil::rfcore::RadioDriver::set_receive_client(
+        &radio::MULTIMODE_RADIO,
+        virtual_radio,
+        &mut HELIUM_BUF,
+    );
+
+    let _rfc = &cc26x2::radio::MULTIMODE_RADIO;
+
     let launchxl = Platform {
         console,
         gpio,
@@ -298,6 +346,7 @@ pub unsafe fn reset_handler() {
         button,
         alarm,
         rng,
+        radio: virtual_radio,
         i2c_master,
     };
 
@@ -309,6 +358,8 @@ pub unsafe fn reset_handler() {
     }
 
     let ipc = &kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+
+    adc::ADC.configure(adc::SOURCE::NominalVdds, adc::SAMPLE_CYCLE::_170_us);
 
     kernel::procs::load_processes(
         board_kernel,

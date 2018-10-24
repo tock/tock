@@ -5,7 +5,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 #[macro_use]
 extern crate enum_primitive;
@@ -14,6 +14,8 @@ pub mod test;
 
 #[macro_use]
 pub mod net;
+extern crate fixedvec;
+extern crate msg;
 
 pub mod adc;
 pub mod aes_ccm;
@@ -53,6 +55,7 @@ pub mod rng;
 pub mod sdcard;
 pub mod segger_rtt;
 pub mod si7021;
+pub mod simple_rfcore;
 pub mod spi;
 pub mod temperature;
 pub mod tmp006;

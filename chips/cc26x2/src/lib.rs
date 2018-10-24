@@ -9,18 +9,30 @@ extern crate cortexm4;
 extern crate kernel;
 #[macro_use]
 extern crate enum_primitive;
+#[macro_use]
+extern crate bitfield;
+extern crate fixedvec;
 
+pub mod adc;
+pub mod adi;
 pub mod aon;
+pub mod aux;
 pub mod chip;
 pub mod crt1;
 pub mod event_priority;
 pub mod events;
 pub mod gpio;
 pub mod i2c;
+pub mod ioc;
+pub mod memory_map;
+pub mod osc;
 pub mod peripheral_interrupts;
 pub mod prcm;
+pub mod radio;
+pub mod rat;
+pub mod rom;
 pub mod rtc;
+pub mod setup;
 pub mod trng;
 pub mod uart;
-
 pub use crt1::init;

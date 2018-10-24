@@ -1,0 +1,28 @@
+[package]
+name = "msg"
+version = "0.2.0"
+authors = ["author"]
+
+[lib]
+name = "msg"
+path = "src/msg.rs"
+# See https://github.com/rust-lang/rust/issues/21246
+doctest = false
+
+[features]
+default = ["std"]
+std = ["byteorder"]
+
+[dependencies]
+byteorder = { version = "1", optional = true }
+
+[[bin]]
+required-features = ["std"]
+name = "tester"
+path = "bin/tester.rs"
+
+[target.'cfg(feature = "std")'.dependencies]
+cauterize = { path = "cauterize" }
+
+[target.'cfg(not(feature = "std"))'.dependencies]
+cauterize = { path = "cauterize", default-features = false }
