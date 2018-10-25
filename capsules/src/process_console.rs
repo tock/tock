@@ -1,5 +1,5 @@
-//! Provides implements a text console over the UART that allows
-//! someone to control which processes are running.
+//! Implements a text console over the UART that allows
+//! a terminal to inspect and control userspace processes.
 //!
 //! Protocol
 //! --------
@@ -9,24 +9,37 @@
 //!  - 'help' prints the available commands and arguments
 //!  - 'status' prints the current system status
 //!  - 'list' lists the current processes with their IDs and running state
-//!  - 'stop n' stops the process with ID n
-//!  - 'start n' starts the stopped process with ID n
+//!  - 'stop n' stops the process with name n
+//!  - 'start n' starts the stopped process with name n
 //!
 //! Setup
 //! -----
 //!
-//! You need a device that provides the `hil::uart::UART` trait.
+//! You need a device that provides the `hil::uart::UART` trait. This code
+//! connects a `ProcessConsole` directly up to USART0:
 //!
 //! ```rust
-//! let console = static_init!(
+//! pub struct Capability;
+//! unsafe impl capabilities::ProcessManagementCapability for Capability {}
+//! 
+//! let pconsole = static_init!(
 //!     ProcessConsole<usart::USART>,
 //!     ProcessConsole::new(&usart::USART0,
 //!                  115200,
 //!                  &mut console::WRITE_BUF,
 //!                  &mut console::READ_BUF,
-//!                  &mut console::COMMAND_BUF);
-//! hil::uart::UART::set_client(&usart::USART0, console);
+//!                  &mut console::COMMAND_BUF,
+//!                  kernel,
+//!                  Capability);
+//! hil::uart::UART::set_client(&usart::USART0, pconsole);
 //! ```
+//!
+//! Buffer use and output
+//! --------------------- 
+//! `ProcessConsole` does not use its own write buffer for output:
+//! it uses the debug!() buffer, so as not to repeat all of its buffering and
+//! to maintain a correct ordering with debug!() calls. The write buffer of
+//! `ProcessConsole` is used solely for echoing what someone types.
 
 use core::cell::Cell;
 use core::cmp;
@@ -38,12 +51,15 @@ use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
 
-/// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000001;
-
-pub static mut WRITE_BUF: [u8; 64] = [0; 64];
-pub static mut READ_BUF: [u8; 16] = [0; 16];
-pub static mut COMMAND_BUF: [u8; 16] = [0; 16];
+// Since writes are character echoes, we do not need more than 4 bytes:
+// the longest write is 3 bytes for a backspace (backspace, space, backspace).
+pub static mut WRITE_BUF: [u8; 4] = [0; 4];
+// Since reads are byte-by-byte, to properly echo what's typed,
+// we can use a very small read buffer.
+pub static mut READ_BUF: [u8; 4] = [0; 4];
+// Commands can be up to 32 bytes long: since commands themselves are 4-5
+// characters, limiting arguments to 25 bytes or so seems fine for now.
+pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
 pub struct ProcessConsole<'a, U: UART, C: ProcessManagementCapability> {
     uart: &'a U,

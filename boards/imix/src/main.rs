@@ -126,7 +126,6 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-#[allow(dead_code)]
 struct Imix {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -438,9 +437,9 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
-    console.initialize();
-    pconsole.initialize();
-    pconsole.start();
+    imix.console.initialize();
+    imix.pconsole.initialize();
+    imix.pconsole.start();
 
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
