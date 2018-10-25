@@ -65,6 +65,7 @@ pub struct Platform {
         cc26x2::radio::multimode::Radio,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
+    adc: &'static capsules::adc::Adc<'static, cc26x2::adc::Adc>,
 }
 
 impl kernel::Platform for Platform {
@@ -81,6 +82,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::simple_rfcore::DRIVER_NUM => f(Some(self.radio)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -339,6 +341,40 @@ pub unsafe fn reset_handler() {
 
     let _rfc = &cc26x2::radio::MULTIMODE_RADIO;
 
+    // set nominal voltage
+    cc26x2::adc::ADC.nominal_voltage = Some(3300);
+    cc26x2::adc::ADC.configure(adc::Source::Fixed4P5V, adc::SampleCycle::_170_us);
+
+    // Setup ADC
+    let adc_channels = static_init!(
+        [&cc26x2::adc::Input; 8],
+        [
+            &cc26x2::adc::Input::Auxio0, // pin 30
+            &cc26x2::adc::Input::Auxio1, // pin 29
+            &cc26x2::adc::Input::Auxio2, // pin 28
+            &cc26x2::adc::Input::Auxio3, // pin 27
+            &cc26x2::adc::Input::Auxio4, // pin 26
+            &cc26x2::adc::Input::Auxio5, // pin 25
+            &cc26x2::adc::Input::Auxio6, // pin 24
+            &cc26x2::adc::Input::Auxio7, // pin 23
+        ]
+    );
+
+    let adc = static_init!(
+        capsules::adc::Adc<'static, cc26x2::adc::Adc>,
+        capsules::adc::Adc::new(
+            &mut cc26x2::adc::ADC,
+            adc_channels,
+            &mut capsules::adc::ADC_BUFFER1,
+            &mut capsules::adc::ADC_BUFFER2,
+            &mut capsules::adc::ADC_BUFFER3
+        )
+    );
+
+    for channel in adc_channels.iter() {
+        cc26x2::adc::ADC.set_client(adc, channel);
+    }
+
     let launchxl = Platform {
         console,
         gpio,
@@ -348,6 +384,7 @@ pub unsafe fn reset_handler() {
         rng,
         radio: virtual_radio,
         i2c_master,
+        adc
     };
 
     let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());
@@ -358,18 +395,6 @@ pub unsafe fn reset_handler() {
     }
 
     let ipc = &kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
-
-    adc::ADC.configure(adc::SOURCE::NominalVdds, adc::SAMPLE_CYCLE::_170_us);
-
-    for n in 23..30 {
-        adc::ADC.set_input(n);
-        adc::ADC.flush_fifo();
-        adc::ADC.single_shot();
-        while !adc::ADC.has_data() {}
-
-        debug!("READ {} = {}", n,  adc::ADC.pop_fifo());
-    }
-
 
     debug!("Launching Processes");
 
