@@ -4,9 +4,6 @@
 //! implements a command console for controlling processes over USART3
 //! (the DEBUG USB connector). It also attaches kernel debug output to this
 //! console (for panic!, print!, debug!, etc.).
-//!
-//! Usage
-//! -----
 
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
