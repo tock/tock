@@ -221,12 +221,12 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            debug!(" PID    Name\tSlices  Syscalls  Dropped Callbacks    State");
+                            debug!(" PID    Name                Slices  Syscalls  Dropped Callbacks    State");
                             self.kernel
                                 .process_each_capability(&self.capability, |i, proc| {
                                     let pname = proc.get_process_name();
                                     debug!(
-                                        "  {:02}\t{}\t{:6}{:10}{:19}  {:?}",
+                                        "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}",
                                         i,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
