@@ -134,3 +134,5 @@ various elements of Tock.
 
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
+- **[Process Console](src/process_console.rs)**: Provide a UART console to
+  inspect the status of process and stop/start them.

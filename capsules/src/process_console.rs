@@ -32,6 +32,9 @@
 //!                  kernel,
 //!                  Capability);
 //! hil::uart::UART::set_client(&usart::USART0, pconsole);
+//!
+//! pconsole.initialize();
+//! pconsole.start();
 //! ```
 //!
 //! Buffer use and output
@@ -40,6 +43,51 @@
 //! it uses the debug!() buffer, so as not to repeat all of its buffering and
 //! to maintain a correct ordering with debug!() calls. The write buffer of
 //! `ProcessConsole` is used solely for echoing what someone types.
+//!
+//! Using ProcessConsole
+//! --------------------
+//!
+//! With this capsule properly added to a board's `main.rs` and that kernel
+//! loaded to the board, make sure there is a serial connection to the board.
+//! Likely, this just means connecting a USB cable from a computer to the board.
+//! Next, establish a serial console connection to the board. An easy way to do
+//! this is to run:
+//!
+//!     $ tockloader listen
+//!
+//! With that console open, you can issue commands. For example, to see all of
+//! the processes on the board, use `list`:
+//!
+//! ```text
+//! $ tockloader listen
+//! Using "/dev/cu.usbserial-c098e513000c - Hail IoT Module - TockOS"
+//!
+//! Listening for serial output.
+//! ProcessConsole::start
+//! Starting process console
+//! Initialization complete. Entering main loop
+//! Hello World!
+//! list
+//! PID    Name    Slices  Syscalls  Dropped Callbacks    State
+//! 00    blink        0       113                  0  Yielded
+//! 01    c_hello      0         8                  0  Yielded
+//! ```
+//!
+//! To get a general view of the system, use the status command:
+//!
+//! ```text
+//! status
+//! Total processes: 2
+//! Active processes: 2
+//! Timeslice expirations: 0
+//! ```
+//!
+//! and you can control processes with the `start` and `stop` commands:
+//!
+//! ```text
+//! stop blink
+//! Process blink stopped
+//! ```
 
 use core::cell::Cell;
 use core::cmp;
