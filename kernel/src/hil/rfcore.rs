@@ -8,6 +8,11 @@
 //! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
+
+pub trait PowerClient {
+    fn power_mode_changed(&self, changed: bool);
+}
+
 pub trait ConfigClient {
     fn config_event(&self, result: ReturnCode);
 }
@@ -29,13 +34,13 @@ pub trait RxClient {
 pub trait Radio: RadioConfig + RadioDriver {}
 
 pub trait RadioConfig {
-    fn initialize(&self) -> ReturnCode;
-    fn reset(&self) -> ReturnCode;
+    fn initialize(&self);
+    fn reset(&self);
     fn stop(&self) -> ReturnCode;
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    fn get_tx_power(&self) -> u32;
+    fn get_tx_power(&self) -> u16;
     fn get_radio_status(&self) -> u32;
     fn send_stop_command(&self) -> ReturnCode;
     fn send_kill_command(&self) -> ReturnCode;
@@ -43,13 +48,15 @@ pub trait RadioConfig {
     // fn get_rat_time(&self) -> u32;
 
     fn set_tx_power(&self, power: u16) -> ReturnCode;
-    fn config_commit(&self);
+    fn set_frequency(&self, frequency: u16) -> ReturnCode;
+    fn config_commit(&self) -> ReturnCode;
 }
 
 pub trait RadioDriver {
     fn set_transmit_client(&self, &'static TxClient);
     fn set_receive_client(&self, &'static RxClient, receive_buffer: &'static mut [u8]);
     fn set_config_client(&self, &'static ConfigClient);
+    fn set_power_client(&self, &'static PowerClient);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
     fn transmit(
         &self,
@@ -64,12 +71,10 @@ pub enum RadioOperation {
     Tx = 1,
     Rx = 2,
     Configure = 3,
-    SetPower = 4,
-    StartTimer = 5,
-    StopTimer = 6,
-    Disable = 7,
-    Abort = 8,
-    Sleep = 9,
+    SetFrequency = 4,
+    Disable = 5,
+    Abort = 6,
+    Sleep = 7,
 }
 
 impl RadioOperation {
@@ -79,12 +84,10 @@ impl RadioOperation {
             RadioOperation::Tx => 1,
             RadioOperation::Rx => 2,
             RadioOperation::Configure => 3,
-            RadioOperation::SetPower => 4,
-            RadioOperation::StartTimer => 5,
-            RadioOperation::StopTimer => 6,
-            RadioOperation::Disable => 7,
-            RadioOperation::Abort => 8,
-            RadioOperation::Sleep => 9,
+            RadioOperation::SetFrequency => 4,
+            RadioOperation::Disable => 5,
+            RadioOperation::Abort => 6,
+            RadioOperation::Sleep => 7,
         }
     }
 }

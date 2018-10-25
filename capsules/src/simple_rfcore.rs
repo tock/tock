@@ -1,4 +1,5 @@
 #![allow(unused)]
+use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::rfcore;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
@@ -10,114 +11,56 @@ pub const DRIVER_NUM: usize = 0xCC_13_12;
 pub enum HeliumState {
     NotInitialized,
     Idle,
+    Tx(TxState),
+    Rx(RxState),
     PendingCommand,
-    Pending(rfcore::RadioOperation),
+    PendingTx(rfcore::RadioOperation),
     Done,
     Invalid,
 }
 
-pub trait Framer {
-    fn prepare_data_frame(
-        &self,
-        buf: &'static mut [u8],
-        _seq: u8,
-    ) -> Result<Frame, &'static mut [u8]>;
+#[derive(Debug, Copy, Clone)]
+pub enum TxState {
+    TxReady,
+    TxPending,
 }
 
-impl<R> Framer for VirtualRadioDriver<'a, R>
-where
-    R: rfcore::Radio,
-{
-    fn prepare_data_frame(
-        &self,
-        buf: &'static mut [u8],
-        seq: u8,
-    ) -> Result<Frame, &'static mut [u8]> {
-        let _header = Header {
-            frame_type: FrameType::Data,
-            id: None,
-            seq: Some(seq),
-        };
-
-        // encode header here and return some result
-        let frame = Frame {
-            buf: buf,
-            info: FrameInfo {
-                frame_type: FrameType::Data,
-                data_len: 0,
-            },
-            max_frame_size: 128,
-        };
-        Ok(frame)
-    }
+#[derive(Debug, Copy, Clone)]
+pub enum RxState {
+    RxReady,
+    RxPending,
 }
 
-#[derive(Eq, PartialEq, Debug)]
-pub struct Frame {
-    buf: &'static mut [u8],
-    info: FrameInfo,
-    max_frame_size: usize,
-}
-
-impl Frame {
-    pub fn into_buf(self) -> &'static mut [u8] {
-        self.buf
-    }
-
-    pub fn append_payload(&mut self, payload: &[u8]) -> ReturnCode {
-        if payload.len() > self.max_frame_size {
-            return ReturnCode::ENOMEM;
-        }
-        self.buf.copy_from_slice(payload);
-        self.info.data_len += payload.len();
-
-        ReturnCode::SUCCESS
-    }
-}
-
-pub struct Header {
-    frame_type: FrameType,
-    id: Option<u32>,
-    seq: Option<u8>,
-}
-
-pub const FRAME_TYPE_MASK: u8 = 0b11;
-#[repr(u8)]
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum FrameType {
-    Ping = 0b00,
-    Data = 0b01,
-    Fragment = 0b10,
-    Acknowledgement = 0b11,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct FrameInfo {
-    frame_type: FrameType,
-    data_len: usize,
-}
-
-impl FrameType {
-    pub fn from_slice(ft: u8) -> Option<FrameType> {
-        match ft & FRAME_TYPE_MASK {
-            0b00 => Some(FrameType::Ping),
-            0b01 => Some(FrameType::Data),
-            0b10 => Some(FrameType::Fragment),
-            0b11 => Some(FrameType::Acknowledgement),
-            _ => None,
-        }
-    }
-}
-
-// #[derive(Default)]
 pub struct App {
     process_status: Option<HeliumState>,
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
-    app_cfg: Option<AppSlice<Shared, u8>>,
-    app_write: Option<AppSlice<Shared, u8>>,
-    app_read: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<(u16, Option<FrameType>)>, // Change u32 to keyid and fec mode later on during implementation
+    app_send: Option<AppSlice<Shared, u8>>,
+    app_receive: Option<AppSlice<Shared, u8>>,
+    pending_tx: Option<(u16, Option<u32>)>, // Change u32 to keyid and fec mode later on during implementation
+}
+
+impl App {
+    fn attempt_transmit<'a, R>(&self, virtual_radio: &VirtualRadioDriver<'a, R>) -> ReturnCode
+    where
+        R: rfcore::Radio,
+    {
+        self.app_send
+            .as_ref()
+            .map(|app_data| {
+                virtual_radio
+                    .kernel_tx
+                    .take()
+                    .map(|ktx| {
+                        let app_data_len = app_data.len();
+                        let app_data_ref = &app_data.as_ref()[..app_data_len];
+                        ktx[..app_data_len].copy_from_slice(app_data_ref);
+                        let (result, rbuf) = virtual_radio.radio.transmit(ktx, app_data_len);
+                        rbuf.map(|r| virtual_radio.kernel_tx.replace(r));
+                        result
+                    }).unwrap_or(ReturnCode::FAIL)
+            }).unwrap_or(ReturnCode::FAIL)
+    }
 }
 
 impl Default for App {
@@ -126,9 +69,8 @@ impl Default for App {
             process_status: Some(HeliumState::NotInitialized),
             tx_callback: None,
             rx_callback: None,
-            app_cfg: None,
-            app_write: None,
-            app_read: None,
+            app_send: None,
+            app_receive: None,
             pending_tx: None,
         }
     }
@@ -142,8 +84,7 @@ where
     app: Grant<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     current_app: OptionalCell<AppId>,
-    tx_client: OptionalCell<&'static rfcore::TxClient>,
-    rx_client: OptionalCell<&'static rfcore::RxClient>,
+    frequency: Cell<u16>,
 }
 
 impl<R> VirtualRadioDriver<'a, R>
@@ -160,69 +101,8 @@ where
             app: container,
             kernel_tx: TakeCell::new(tx_buf),
             current_app: OptionalCell::empty(),
-            tx_client: OptionalCell::empty(),
-            rx_client: OptionalCell::empty(),
+            frequency: Cell::new(0x0393),
         }
-    }
-
-    /// If the driver is currently idle and there are pending transmissions,
-    /// pick an app with a pending transmission and return its `AppId`.
-    fn get_next_tx_if_idle(&self) -> Option<AppId> {
-        if self.current_app.is_some() {
-            return None;
-        }
-        let mut pending_app = None;
-        for app in self.app.iter() {
-            app.enter(|app, _| {
-                if app.pending_tx.is_some() {
-                    pending_app = Some(app.appid());
-                }
-            });
-            if pending_app.is_some() {
-                break;
-            }
-        }
-        pending_app
-    }
-
-    /// Utility function to perform an action using an app's config buffer.
-    #[inline]
-    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&[u8]) -> ReturnCode,
-    {
-        self.app
-            .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_ref())
-                    })
-            }).unwrap_or_else(|err| err.into())
-    }
-
-    /// Utility function to perform a write to an app's config buffer.
-    #[inline]
-    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-    where
-        F: FnOnce(&mut [u8]) -> ReturnCode,
-    {
-        self.app
-            .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_mut())
-                    })
-            }).unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform an action on an app in a system call.
@@ -236,75 +116,10 @@ where
             .unwrap_or_else(|err| err.into())
     }
 
-    /// Schedule the next transmission if there is one pending. If the next
-    /// transmission happens to be the one that was just queued, then the
-    /// transmission is synchronous. Hence, errors must be returned immediately.
-    /// On the other hand, if it is some other app, then return any errors via
-    /// callbacks.
-    #[inline]
-    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
-        self.get_next_tx_if_idle()
-            .map(|appid| {
-                if appid == new_appid {
-                    self.perform_tx_sync(appid)
-                } else {
-                    self.perform_tx_async(appid);
-                    ReturnCode::SUCCESS
-                }
-            }).unwrap_or(ReturnCode::SUCCESS)
-    }
-
-    /// Performs `appid`'s pending transmission asynchronously. If the
-    /// transmission is not successful, the error is returned to the app via its
-    /// `tx_callback`. Assumes that the driver is currently idle and the app has
-    /// a pending transmission.
-    #[inline]
-    fn perform_tx_async(&self, appid: AppId) {
-        let result = self.perform_tx_sync(appid);
-        if result != ReturnCode::SUCCESS {
-            let _ = self.app.enter(appid, |app, _| {
-                app.tx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
-            });
-        }
-    }
-
-    /// Performs `appid`'s pending transmission synchronously. The result is
-    /// returned immediately to the app. Assumes that the driver is currently
-    /// idle and the app has a pending transmission.
-    #[inline]
-    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
-        self.do_with_app(appid, |app| {
-            let _device_id = match app.pending_tx.take() {
-                Some(pending_tx) => pending_tx,
-                None => {
-                    return ReturnCode::SUCCESS;
-                }
-            };
-
-            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
-                let seq: u8 = 0; // TEMP SEQ # ALWAYS 0
-                let frame = match self.prepare_data_frame(kbuf, seq) {
-                    Ok(frame) => frame,
-                    Err(kbuf) => {
-                        self.kernel_tx.replace(kbuf);
-                        return ReturnCode::FAIL;
-                    }
-                };
-                // Transmit the framei
-                let len = frame.info.data_len;
-                let (result, mbuf) = self.radio.transmit(frame.into_buf(), len);
-                if let Some(buf) = mbuf {
-                    self.kernel_tx.replace(buf);
-                }
-                result
-            });
-            if result == ReturnCode::SUCCESS {
-                self.current_app.set(appid);
-            }
-            result
-        })
+    fn parse_incoming_rx(&self, buf: &'static mut [u8], len: usize) -> HeliumState {
+        // Do decoding header after decauterize here and other things if needed, for now assuming
+        // the whole word is a single packet and if crc and decaut valid, its ok
+        HeliumState::Idle
     }
 }
 
@@ -328,11 +143,10 @@ where
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
         match allow_num {
-            0 | 1 | 2 => self.do_with_app(appid, |app| {
+            0 | 1 => self.do_with_app(appid, |app| {
                 match allow_num {
-                    0 => app.app_read = slice,
-                    1 => app.app_write = slice,
-                    2 => app.app_cfg = slice,
+                    0 => app.app_send = slice,
+                    1 => app.app_receive = slice,
                     _ => {}
                 }
                 ReturnCode::SUCCESS
@@ -364,6 +178,7 @@ where
             _ => ReturnCode::ENOSUPPORT,
         }
     }
+
     /// COMMANDS
     ///
     /// ### `command_num`
@@ -377,16 +192,12 @@ where
     /// - `6`: Get radio command status
     /// - `7`: Force stop radio operation (no powerdown)
     /// - `8`: Set next TX transaction
-
-    fn command(&self, command_num: usize, r2: usize, _r3: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _r3: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {
-                let status = self.radio.initialize();
-                match status {
-                    ReturnCode::SUCCESS => ReturnCode::SUCCESS,
-                    _ => ReturnCode::FAIL,
-                }
+                self.radio.initialize();
+                ReturnCode::SUCCESS
             }
             2 => {
                 let status = self.radio.stop();
@@ -403,7 +214,7 @@ where
                 }
             }
             4 => {
-                let status = self.radio.set_tx_power(r2 as u16);
+                let status = self.radio.set_tx_power(data as u16);
                 match status {
                     ReturnCode::SUCCESS => ReturnCode::SUCCESS,
                     _ => ReturnCode::FAIL,
@@ -423,32 +234,6 @@ where
                 status
             }
             7 => self.radio.send_kill_command(),
-            8 => self.do_with_app(appid, |app| {
-                if app.pending_tx.is_some() {
-                    return ReturnCode::EBUSY;
-                }
-                let addr = r2 as u16;
-
-                let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
-                    if cfg.len() != 11 {
-                        return None;
-                    }
-
-                    let frame_type = match FrameType::from_slice(cfg.as_ref()[0]) {
-                        Some(frame_type) => frame_type,
-                        None => {
-                            return None;
-                        }
-                    };
-                    Some((addr, Some(frame_type)))
-                });
-                if next_tx.is_none() {
-                    return ReturnCode::EINVAL;
-                }
-                app.pending_tx = next_tx;
-
-                self.do_next_tx_sync(appid)
-            }),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -456,18 +241,31 @@ where
 
 impl<R: rfcore::Radio> rfcore::TxClient for VirtualRadioDriver<'a, R> {
     fn transmit_event(&self, buf: &'static mut [u8], result: ReturnCode) {
-        /*
-        self.kernel_tx.replace(buf);
-        self.current_app.take().map(|app_id| {
-            let _ = self.app.enter(app_id, |app, _| {
-                app.tx_callback
-                    .take()
-                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+        self.current_app.map(|appid| {
+            let _ = self.app.enter(*appid, |app, _| {
+                match app.process_status {
+                    // Need to arbitrate between Tx mode and Rx mode here
+                    Some(HeliumState::Idle) => {
+                        app.process_status = Some(HeliumState::Tx(TxState::TxPending));
+                        self.current_app.set(app.appid());
+                        self.radio.initialize();
+                        self.radio.set_frequency(self.frequency.get());
+                        app.attempt_transmit(&self);
+                    }
+
+                    Some(HeliumState::Tx(TxState::TxReady)) => {
+                        app.process_status = Some(HeliumState::Tx(TxState::TxPending));
+                        self.current_app.set(app.appid());
+                        self.radio.set_frequency(self.frequency.get());
+                        app.attempt_transmit(&self);
+                    }
+
+                    Some(HeliumState::Tx(TxState::TxPending)) => {
+                        app.attempt_transmit(&self);
+                    }
+                    _ => (),
+                }
             });
-        });
-        */
-        self.tx_client.map(move |c| {
-            c.transmit_event(buf, result);
         });
     }
 }
@@ -480,14 +278,35 @@ impl<R: rfcore::Radio> rfcore::RxClient for VirtualRadioDriver<'a, R> {
         crc_valid: bool,
         result: ReturnCode,
     ) {
-        let decaut_valid = true;
-        // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE
-        if decaut_valid {
-            self.rx_client.map(move |c| {
-                c.receive_event(buf, frame_len, crc_valid, result);
+        self.current_app.map(|appid| {
+            let _ = self.app.enter(*appid, move |app, _| {
+                // No CRC, drop
+                if !crc_valid {
+                    self.radio.set_receive_buffer(buf);
+                    return;
+                }
+
+                let decaut_valid = true;
+                // CHECK IF THE RECEIVE PACKET DECAUT AND DECODE IS OK HERE
+                if !decaut_valid {
+                    self.radio.set_receive_buffer(buf);
+                    return;
+                }
+
+                match app.process_status {
+                    // Need to arbitrate between config in Tx mode or Rx mode here
+                    Some(HeliumState::Idle) => {
+                        app.process_status = Some(HeliumState::Rx(RxState::RxReady));
+                        self.current_app.set(app.appid());
+                        self.radio.set_frequency(self.frequency.get());
+                    }
+                    Some(HeliumState::Rx(RxState::RxReady)) => {
+                        let next_status = self.parse_incoming_rx(buf, frame_len);
+                        app.process_status = Some(next_status);
+                    }
+                    _ => (),
+                }
             });
-        } else {
-            self.radio.set_receive_buffer(buf);
-        }
+        });
     }
 }

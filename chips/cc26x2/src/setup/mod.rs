@@ -286,7 +286,7 @@ unsafe extern "C" fn TrimAfterColdResetWakeupFromShutDown(mut ui32Fcfg1Revision:
     // -Configure HPOSC.
     // -Setup the LF clock.
     SetupAfterColdResetWakeupFromShutDownCfg3(ccfg_ModeConfReg);
-    //aux_sysif::AUXSYSIFOpModeChange(0x02u32);
+
     aux::sysif::REGISTERS
         .op_mode_req
         .write(aux::sysif::OpModeReq::CLOCK::PowerDownActive);
