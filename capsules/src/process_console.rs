@@ -21,7 +21,7 @@
 //! ```rust
 //! pub struct Capability;
 //! unsafe impl capabilities::ProcessManagementCapability for Capability {}
-//! 
+//!
 //! let pconsole = static_init!(
 //!     ProcessConsole<usart::USART>,
 //!     ProcessConsole::new(&usart::USART0,
@@ -35,7 +35,7 @@
 //! ```
 //!
 //! Buffer use and output
-//! --------------------- 
+//! ---------------------
 //! `ProcessConsole` does not use its own write buffer for output:
 //! it uses the debug!() buffer, so as not to repeat all of its buffering and
 //! to maintain a correct ordering with debug!() calls. The write buffer of

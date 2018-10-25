@@ -39,6 +39,7 @@ use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
 use components::analog_comparator::AcComponent;
 use components::button::ButtonComponent;
+use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
 use components::fxos8700::NineDofComponent;
 use components::gpio::GpioComponent;
@@ -46,7 +47,6 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
-use components::console::ConsoleComponent;
 use components::process_console::ProcessConsoleComponent;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
@@ -133,7 +133,7 @@ struct Imix {
         components::process_console::Capability,
     >,
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
-gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
