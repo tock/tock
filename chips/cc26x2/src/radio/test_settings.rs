@@ -1,5 +1,6 @@
 use radio::commands as cmd;
-use radio::subghz::prop_commands as prop;
+use radio::commands::prop_commands as prop;
+
 const TEST_PAYLOAD: [u32; 30] = [0; 30];
 
 // This setup command sets the radio in DSSS, FEC (4x spreading factor) with the following
@@ -154,7 +155,7 @@ impl CommandTxLongRangeTest {
     }
 }
 
-static mut LONGRANGE_RFPARAMS: [u32; 28] = [
+pub static mut LONGRANGE_RFPARAMS: [u32; 28] = [
     // override_use_patch_prop_genfsk.xml
     0x00000847, // PHY: Use MCE RAM patch, RFE RAM patch MCE_RFE_OVERRIDE(1,0,0,1,0,0),
     0x006E88E3, // PHY: Use MCE RAM patch only for Rx (0xE), use MCE ROM bank 6 for Tx (0x6)
@@ -176,7 +177,7 @@ static mut LONGRANGE_RFPARAMS: [u32; 28] = [
     0x7AB80603, // Synth: Set loop bandwidth after lock to 20 kHz
     0x00000623, // Synth: Set loop bandwidth after lock to 20 kHz
     // override_phy_simplelink_long_range_dsss2.xml
-    0x030c5068, // PHY: Configure DSSS SF=2 for payload data HW_REG_OVERRIDE(0x5068,0x0100),
+    0x030c5068, // PHY: Configure DSSS SF=2 for payload data HW_REG_OVERRIDE(0x5068,0x030C),
     0x146f5128, // PHY: Set SimpleLink Long Range bit-inverted sync word pattern (uncoded, before spreading to fixed-size 64-bit pattern): 0x146F HW_REG_OVERRIDE(0x5128,0x146F),
     0xeb90512c, // PHY: Set SimpleLink Long Range sync word pattern (uncoded, before spreading to fixed-size 64-bit pattern): 0xEB90 HW_REG_OVERRIDE(0x512C,0xEB90),
     0x362e5124, // PHY: Reduce demodulator correlator threshold for improved Rx sensitivity HW_REG_OVERRIDE(0x5124,0x362E),

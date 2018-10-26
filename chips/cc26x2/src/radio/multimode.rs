@@ -46,8 +46,6 @@ static mut GFSK_RFPARAMS: [u32; 25] = [
     0xFFFFFFFF, // Stop word
 ];
 
-type MultiModeResult = Result<(), ReturnCode>;
-
 #[allow(unused)]
 #[derive(Copy, Clone)]
 pub enum CpePatch {
@@ -94,28 +92,23 @@ impl Default for RadioMode {
     }
 }
 
-#[allow(unused)]
-#[derive(Copy, Clone)]
-pub enum RadioSetupCommand {
-    Ble,
-    PropGfsk { cmd: prop::CommandRadioDivSetup },
-}
-
 static mut COMMAND_BUF: [u8; 256] = [0; 256];
 
 #[allow(unused)]
+// TODO Implement update config for changing radio modes and tie in the WIP power client to manage
+// power state.
 pub struct Radio {
     rfc: &'static rfc::RFCore,
     mode: OptionalCell<RadioMode>,
-    setup: OptionalCell<RadioSetupCommand>,
     tx_client: OptionalCell<&'static rfcore::TxClient>,
     rx_client: OptionalCell<&'static rfcore::RxClient>,
     cfg_client: OptionalCell<&'static rfcore::ConfigClient>,
+    power_client: OptionalCell<&'static rfcore::PowerClient>,
     update_config: Cell<bool>,
     schedule_powerdown: Cell<bool>,
-    yeilded: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
+    tx_power: Cell<u16>,
 }
 
 impl Radio {
@@ -123,19 +116,19 @@ impl Radio {
         Radio {
             rfc,
             mode: OptionalCell::empty(),
-            setup: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             cfg_client: OptionalCell::empty(),
+            power_client: OptionalCell::empty(),
             update_config: Cell::new(false),
             schedule_powerdown: Cell::new(false),
-            yeilded: Cell::new(false),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
+            tx_power: Cell::new(0x9F3F),
         }
     }
 
-    pub fn power_up(&self) -> MultiModeResult {
+    pub fn power_up(&self) {
         // TODO Need so have some mode setting done in initialize callback perhaps to pass into
         // power_up() here, the RadioMode enum is defined above which will set a mode in this
         // multimode context along with applying the patches which are attached. Maybe it would be
@@ -159,21 +152,18 @@ impl Radio {
 
         unsafe {
             let reg_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
-
-            let status = self.rfc.setup(reg_overrides, 0x9F3F);
-            match status {
-                ReturnCode::SUCCESS => Ok(()),
-                _ => Err(status),
-            }
+            self.rfc.setup(reg_overrides, 0x9F3F);
         }
+
+        self.power_client
+            .map(|client| client.power_mode_changed(true));
     }
 
-    pub fn power_down(&self) -> MultiModeResult {
-        let status = self.rfc.disable();
-        match status {
-            ReturnCode::SUCCESS => Ok(()),
-            _ => Err(status),
-        }
+    pub fn power_down(&self) {
+        self.rfc.disable();
+
+        self.power_client
+            .map(|client| client.power_mode_changed(false));
     }
 
     unsafe fn replace_and_send_tx_buffer(
@@ -231,12 +221,12 @@ impl Radio {
 
         self.rfc.enable();
 
+        mce::MCE_PATCH.apply_patch();
+        rfe::RFE_PATCH.apply_patch();
+
         self.rfc.start_rat();
 
         osc::OSC.switch_to_hf_xosc();
-
-        mce::MCE_PATCH.apply_patch();
-        rfe::RFE_PATCH.apply_patch();
 
         unsafe {
             let reg_overrides: u32 = GFSK_RFPARAMS.as_mut_ptr() as u32;
@@ -273,11 +263,11 @@ impl Radio {
             cmd.packet_conf = {
                 let mut packet = prop::RfcPacketConf(0);
                 packet.set_fs_off(false);
-                packet.set_use_crc(true);
-                packet.set_var_len(true);
+                packet.set_use_crc(false);
+                packet.set_var_len(false);
                 packet
             };
-            cmd.packet_len = 0x14;
+            cmd.packet_len = 0x1E;
             cmd.sync_word = 0x930B51DE;
             cmd.packet_pointer = p_packet;
 
@@ -327,7 +317,7 @@ impl rfc::RFCoreClient for Radio {
         if self.schedule_powerdown.get() {
             // TODO Need to handle powerdown failure here or we will not be able to enter low power
             // modes
-            self.power_down().ok();
+            self.power_down();
             osc::OSC.switch_to_hf_rcosc();
 
             self.schedule_powerdown.set(false);
@@ -344,7 +334,7 @@ impl rfc::RFCoreClient for Radio {
         if self.schedule_powerdown.get() {
             // TODO Need to handle powerdown failure here or we will not be able to enter low power
             // modes
-            self.power_down().ok();
+            self.power_down();
             osc::OSC.switch_to_hf_rcosc();
 
             self.schedule_powerdown.set(false);
@@ -390,6 +380,10 @@ impl rfcore::RadioDriver for Radio {
         self.cfg_client.set(config_client);
     }
 
+    fn set_power_client(&self, power_client: &'static rfcore::PowerClient) {
+        self.power_client.set(power_client);
+    }
+
     fn transmit(
         &self,
         tx_buf: &'static mut [u8],
@@ -406,19 +400,13 @@ impl rfcore::RadioDriver for Radio {
 }
 
 impl rfcore::RadioConfig for Radio {
-    fn initialize(&self) -> ReturnCode {
-        match self.power_up() {
-            Ok(()) => ReturnCode::SUCCESS,
-            Err(e) => e,
-        }
+    fn initialize(&self) {
+        self.power_up();
     }
 
-    fn reset(&self) -> ReturnCode {
-        let status = self.power_down().and_then(|_| self.power_up());
-        match status {
-            Ok(()) => ReturnCode::SUCCESS,
-            Err(e) => e,
-        }
+    fn reset(&self) {
+        self.power_down();
+        self.power_up();
     }
 
     fn stop(&self) -> ReturnCode {
@@ -432,11 +420,12 @@ impl rfcore::RadioConfig for Radio {
     }
 
     fn is_on(&self) -> bool {
+        // TODO IMPL RADIO OPERATION COMMAND PING HERE
         true
     }
 
     fn busy(&self) -> bool {
-        // Might be an obsolete command here in favor of get_command_status and some logic on the
+        // TODO Might be an obsolete command here in favor of get_command_status and some logic on the
         // user size to determine if the radio is busy. Not sure what is best to have here but
         // arguing best might be bikeshedding
         let status = self.rfc.status.get();
@@ -447,13 +436,14 @@ impl rfcore::RadioConfig for Radio {
         }
     }
 
-    fn config_commit(&self) {
+    fn config_commit(&self) -> ReturnCode {
         // TODO confirm set new config here
+        ReturnCode::SUCCESS
     }
 
-    fn get_tx_power(&self) -> u32 {
+    fn get_tx_power(&self) -> u16 {
         // TODO get tx power radio command
-        0x00000000
+        self.tx_power.get()
     }
 
     fn get_radio_status(&self) -> u32 {
@@ -474,6 +464,8 @@ impl rfcore::RadioConfig for Radio {
 
     fn set_tx_power(&self, power: u16) -> ReturnCode {
         // Send direct command for TX power change
+        // TODO put some guards around the possible range for TX power
+        self.tx_power.set(power);
         let command = DirectCommand::new(0x0010, power);
         if self.rfc.send_direct(&command).is_ok() {
             return ReturnCode::SUCCESS;
@@ -499,6 +491,42 @@ impl rfcore::RadioConfig for Radio {
             return ReturnCode::SUCCESS;
         } else {
             return ReturnCode::FAIL;
+        }
+    }
+
+    fn set_frequency(&self, frequency: u16) -> ReturnCode {
+        let mut cmd_fs = prop::CommandFS {
+            command_no: 0x0803,
+            status: 0,
+            p_nextop: 0,
+            start_time: 0,
+            start_trigger: 0,
+            condition: {
+                let mut cond = RfcCondition(0);
+                cond.set_rule(0x01);
+                cond
+            },
+            frequency: frequency,
+            fract_freq: 0x0000,
+            synth_conf: {
+                let mut synth = prop::RfcSynthConf(0);
+                synth.set_tx_mode(false);
+                synth.set_ref_freq(0x00);
+                synth
+            },
+        };
+
+        RadioCommand::guard(&mut cmd_fs);
+
+        if self
+            .rfc
+            .send_sync(&cmd_fs)
+            .and_then(|_| self.rfc.wait(&cmd_fs))
+            .is_ok()
+        {
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::FAIL
         }
     }
 }

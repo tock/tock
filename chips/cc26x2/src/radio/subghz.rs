@@ -342,8 +342,8 @@ impl rfcore::RadioDriver for Radio {
         &self,
         tx_buf: &'static mut [u8],
         _frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        (ReturnCode::SUCCESS, Some(tx_buf))
+    ) -> (ReturnCode, &'static mut [u8]) {
+        (ReturnCode::SUCCESS, tx_buf)
     }
 }
 
