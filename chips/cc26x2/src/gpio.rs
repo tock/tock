@@ -181,7 +181,7 @@ impl GPIOPin {
     }
 
     pub fn enable_analog_input(&self) {
-        self.standard_output(ioc::Config::PORT_ID::AUX_DOMAIN_IO);
+        self.standard_input(ioc::Config::PORT_ID::AUX_DOMAIN_IO);
     }
 
     pub fn enable_analog_output(&self) {
