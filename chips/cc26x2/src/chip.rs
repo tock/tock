@@ -1,3 +1,4 @@
+use adc;
 use cortexm4;
 use event_priority::EVENT_PRIORITY;
 use events;
@@ -65,6 +66,7 @@ impl kernel::Chip for Cc26X2 {
                     EVENT_PRIORITY::I2C0 => i2c::I2C0.handle_events(),
                     EVENT_PRIORITY::UART0 => uart::UART0.handle_events(),
                     EVENT_PRIORITY::UART1 => uart::UART1.handle_events(),
+                    EVENT_PRIORITY::AUX_ADC => adc::ADC.handle_events(),
                     EVENT_PRIORITY::RF_CORE_HW => {
                         radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Hardware)
                     }

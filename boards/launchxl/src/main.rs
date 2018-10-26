@@ -343,7 +343,7 @@ pub unsafe fn reset_handler() {
 
     // set nominal voltage
     cc26x2::adc::ADC.nominal_voltage = Some(3300);
-    cc26x2::adc::ADC.configure(adc::Source::Fixed4P5V, adc::SampleCycle::_170_us);
+    cc26x2::adc::ADC.configure(adc::Source::Fixed4P5V, adc::SampleCycle::_10p9_ms);
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -384,7 +384,7 @@ pub unsafe fn reset_handler() {
         rng,
         radio: virtual_radio,
         i2c_master,
-        adc
+        adc,
     };
 
     let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());

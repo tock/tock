@@ -54,6 +54,8 @@ generic_isr!(rfc_cpe1_isr, EVENT_PRIORITY::RF_CORE_CPE1);
 generic_isr!(rfc_hw_isr, EVENT_PRIORITY::RF_CORE_HW);
 generic_isr!(rfc_cmd_ack_isr, EVENT_PRIORITY::RF_CMD_ACK);
 generic_isr!(osc_isr, EVENT_PRIORITY::OSC);
+generic_isr!(adc_complete, EVENT_PRIORITY::AUX_ADC);
+
 use uart::{uart0_isr, uart1_isr};
 custom_isr!(uart0_nvic, EVENT_PRIORITY::UART0, uart0_isr);
 custom_isr!(uart1_nvic, EVENT_PRIORITY::UART1, uart1_isr);
@@ -114,8 +116,8 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     generic_isr,         // AON programmable 0
     generic_isr,         // Dynamic Programmable interrupt
     // source (Default: PRCM)
-    generic_isr, // AUX Comparator A
-    generic_isr, // AUX ADC new sample or ADC DMA
+    generic_isr,  // AUX Comparator A
+    adc_complete, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
     generic_isr, // TRNG event (hw_ints.h 49)
     osc_isr,

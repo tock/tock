@@ -1,30 +1,31 @@
 use adi;
 use adi::AuxAdi4Registers;
 use aux;
-use kernel::common::StaticRef;
-use rom;
-use kernel::common::cells::OptionalCell;
+use cortexm4::nvic;
 use enum_primitive::cast::FromPrimitive;
-
+use kernel::common::cells::OptionalCell;
+use kernel::common::StaticRef;
+use peripheral_interrupts;
+use rom;
 
 use memory_map::AUX_ADI4_BASE;
 
 // Redeclaration of bitfield enums s.t. client only needs adc.rs dependency
 #[allow(non_camel_case_types)]
 pub enum SampleCycle {
-    _2p7_us,    // 2.7  uS
-    _5p3_us,    // 5.3  uS
-    _10p6_us,   // 10.6 uS
-    _21p3_us,   // 21.3 uS
-    _42p6_us,   // 42.6 uS
-    _85p3_us,   // 85.3.uS
-    _170_us,    // 170  uS
-    _341_us,    // 341  uS
-    _682_us,    // 682  uS
-    _1p37_us,   // 1.37 mS
-    _2p73_us,   // 2.73 mS
-    _5p46_ms,   // 5.46 mS
-    _10p9_ms,   // 10.9 mS
+    _2p7_us,  // 2.7  uS
+    _5p3_us,  // 5.3  uS
+    _10p6_us, // 10.6 uS
+    _21p3_us, // 21.3 uS
+    _42p6_us, // 42.6 uS
+    _85p3_us, // 85.3.uS
+    _170_us,  // 170  uS
+    _341_us,  // 341  uS
+    _682_us,  // 682  uS
+    _1p37_us, // 1.37 mS
+    _2p73_us, // 2.73 mS
+    _5p46_ms, // 5.46 mS
+    _10p9_ms, // 10.9 mS
 }
 
 enum_from_primitive!{
@@ -53,34 +54,40 @@ const CC26X_MAX_CHANNELS: usize = 8;
 const AUX_ADI4: StaticRef<AuxAdi4Registers> =
     unsafe { StaticRef::new(AUX_ADI4_BASE as *const AuxAdi4Registers) };
 
+const AUX_ADI_NVIQ: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::AUX_ADC as u32) };
 
-pub static mut ADC: Adc = Adc::new();
+pub static mut ADC: Adc = Adc::new(&AUX_ADI_NVIQ);
 
 pub struct Channel {
     aux_input: Input,
-    client: OptionalCell<&'static hil::adc::Client>
+    client: OptionalCell<&'static hil::adc::Client>,
 }
 
+// giving each Channel it's own client, because in theory, ADC driver could support this
 impl Channel {
     const fn new(aux_input: Input) -> Channel {
         Channel {
             aux_input,
-            client: OptionalCell::empty()
+            client: OptionalCell::empty(),
         }
     }
 }
 
 pub struct Adc {
     aux_adi4: StaticRef<AuxAdi4Registers>,
+    nvic: &'static nvic::Nvic,
     voltage_setting: OptionalCell<Source>,
     pub nominal_voltage: Option<usize>,
-    channel: [Channel; CC26X_MAX_CHANNELS]
+    channel: [Channel; CC26X_MAX_CHANNELS],
+    single_shot_channel: OptionalCell<usize>,
 }
 
 impl Adc {
-    const fn new() -> Adc {
+    const fn new(nvic: &'static nvic::Nvic) -> Adc {
         Adc {
             aux_adi4: AUX_ADI4,
+            nvic,
             voltage_setting: OptionalCell::empty(),
             nominal_voltage: None,
             channel: [
@@ -91,8 +98,9 @@ impl Adc {
                 Channel::new(Input::Auxio4),
                 Channel::new(Input::Auxio5),
                 Channel::new(Input::Auxio6),
-                Channel::new(Input::Auxio7)
-            ]
+                Channel::new(Input::Auxio7),
+            ],
+            single_shot_channel: OptionalCell::empty(),
         }
     }
 
@@ -158,15 +166,9 @@ impl Adc {
         {}
 
         // Enable the ADC data interface
-        // assume manual for now
         aux::anaif::REG
             .adc_ctl
             .write(aux::anaif::AdcCtl::START_SRC::NO_EVENT + aux::anaif::AdcCtl::CMD::Enable);
-
-        // Notes on how to do it with special events
-        // GPT trigger: Configure event routing via MCU_EV to the AUX domain
-        // HWREG(EVENT_BASE + EVENT_O_AUXSEL0) = trigger;
-        // HWREG(AUX_ANAIF_BASE + AUX_ANAIF_O_ADCCTL) = AUX_ANAIF_ADCCTL_START_SRC_MCU_EV | AUX_ANAIF_ADCCTL_CMD_EN;
 
         let sample_time_value;
         match sample_time {
@@ -195,16 +197,33 @@ impl Adc {
         );
     }
 
-    // todo: recurring event mode
+    pub fn handle_events(&self) {
+        if self.has_data() {
+            let data = self.pop_fifo();
+
+            if let Some(index) = self.single_shot_channel.take() {
+                self.channel[index].client.map(|client| {
+                    client.sample_ready(data);
+                });
+            }
+        }
+
+        // clear the event flags in AUX_EVTCTL otherwise NVIC fires again
+        aux::evtctl::REG
+            .ev_to_mcu_flags_clr
+            .write(aux::evtctl::EvToMcu::ADC_IRQ::SET + aux::evtctl::EvToMcu::ADC_DONE::SET);
+
+        self.nvic.clear_pending();
+        self.nvic.enable();
+    }
+
     pub fn single_shot(&self) {
-        //unsafe { *(0x400C901c as *mut usize) = 0b1 };
         aux::anaif::REG
             .adc_trigger
             .write(aux::anaif::AdcTrigger::START::SET);
     }
 
-    // adding in concept of channel because in theory, multiple clients could
-    pub fn set_client(&self, client: &'static hil::adc::Client, channel: &Input){
+    pub fn set_client(&self, client: &'static hil::adc::Client, channel: &Input) {
         let index: usize = (*channel) as usize;
         self.channel[index].client.set(client);
     }
@@ -213,8 +232,7 @@ impl Adc {
 use kernel::hil;
 use kernel::ReturnCode;
 
-impl hil::adc::Adc for Adc{
-
+impl hil::adc::Adc for Adc {
     type Channel = Input;
 
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
@@ -224,43 +242,36 @@ impl hil::adc::Adc for Adc{
         self.flush_fifo();
         self.single_shot();
 
-        // blocking for now
-        while !self.has_data() {}
+        // save index so we can fire it back to the right channel
+        self.single_shot_channel.set(index);
 
-        let data =  self.pop_fifo();
-
-        self.channel[index].client.map_or(  ReturnCode::FAIL, |client| {
-            client.sample_ready(data);
-            ReturnCode::SUCCESS
-        })
+        ReturnCode::SUCCESS
     }
 
     fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 
-    fn stop_sampling(&self) -> ReturnCode{
+    fn stop_sampling(&self) -> ReturnCode {
         ReturnCode::SUCCESS
     }
 
-    fn get_resolution_bits(&self) -> usize{
+    fn get_resolution_bits(&self) -> usize {
         ADC_BITS
     }
 
     /// The returned reference voltage is in millivolts, or `None` if unknown.
     fn get_voltage_reference_mv(&self) -> Option<usize> {
-        self.voltage_setting.map_or( None, move |setting| {
-            match setting {
+        self.voltage_setting
+            .map_or(None, move |setting| match setting {
                 Source::Fixed4P5V => Some(4500),
-                Source::NominalVdds => self.nominal_voltage
-            }
-        })
+                Source::NominalVdds => self.nominal_voltage,
+            })
     }
 }
 
-/// Interface for continuously sampling at a given frequency on a channel.
-/// Requires the AdcSimple interface to have been implemented as well.
-impl hil::adc::AdcHighSpeed for Adc{
+/// Not implemented at all yet
+impl hil::adc::AdcHighSpeed for Adc {
     fn sample_highspeed(
         &self,
         _channel: &Self::Channel,
@@ -273,42 +284,25 @@ impl hil::adc::AdcHighSpeed for Adc{
         ReturnCode,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
-    ){
+    ) {
         (ReturnCode::ENOSUPPORT, None, None)
     }
 
-    /// Provide a new buffer to fill with the ongoing `sample_continuous`
-    /// configuration.
-    /// Expected to be called in a `buffer_ready` callback. Note that if this
-    /// is not called before the second buffer is filled, samples will be
-    /// missed. Length field corresponds to the number of samples that should
-    /// be collected in the buffer. If an error occurs, the buffer will be
-    /// returned.
-    ///
-    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn provide_buffer(
         &self,
         _buf: &'static mut [u16],
         _length: usize,
-    ) -> (ReturnCode, Option<&'static mut [u16]>){
+    ) -> (ReturnCode, Option<&'static mut [u16]>) {
         (ReturnCode::ENOSUPPORT, None)
     }
 
-    /// Reclaim ownership of buffers.
-    /// Can only be called when the ADC is inactive, which occurs after a
-    /// successful `stop_sampling`. Used to reclaim buffers after a sampling
-    /// operation is complete. Returns success if the ADC was inactive, but
-    /// there may still be no buffers that are `some` if the driver had already
-    /// returned all buffers.
-    ///
-    /// All ADC samples will be the raw ADC value left-justified in the u16.
     fn retrieve_buffers(
         &self,
     ) -> (
         ReturnCode,
         Option<&'static mut [u16]>,
         Option<&'static mut [u16]>,
-    ){
+    ) {
         (ReturnCode::ENOSUPPORT, None, None)
     }
 }
