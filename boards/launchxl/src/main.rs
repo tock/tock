@@ -92,32 +92,52 @@ impl kernel::Platform for Platform {
 
 static mut HELIUM_BUF: [u8; 128] = [0x00; 128];
 
-mod pin_mapping_cc1312r;
-use pin_mapping_cc1312r::PIN_FN;
+mod cc1312r;
+mod cc1352p;
 
-unsafe fn configure_pins() {
-    cc26x2::gpio::PORT[PIN_FN::UART0_RX as usize].enable_uart0_rx();
-    cc26x2::gpio::PORT[PIN_FN::UART0_TX as usize].enable_uart0_tx();
+pub struct Pinmap {
+    uart0_rx: usize,
+    uart0_tx: usize,
+    i2c0_scl: usize,
+    i2c0_sda: usize,
+    red_led: usize,
+    green_led: usize,
+    button1: usize,
+    button2: usize,
+    gpio0: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+    a5: usize,
+    a6: usize,
+    a7: usize,
+}
 
-    cc26x2::gpio::PORT[PIN_FN::I2C0_SCL as usize].enable_i2c_scl();
-    cc26x2::gpio::PORT[PIN_FN::I2C0_SDA as usize].enable_i2c_sda();
+unsafe fn configure_pins(pin: &Pinmap) {
+    cc26x2::gpio::PORT[pin.uart0_rx].enable_uart0_rx();
+    cc26x2::gpio::PORT[pin.uart0_tx].enable_uart0_tx();
 
-    cc26x2::gpio::PORT[PIN_FN::RED_LED as usize].enable_gpio();
-    cc26x2::gpio::PORT[PIN_FN::GREEN_LED as usize].enable_gpio();
+    cc26x2::gpio::PORT[pin.i2c0_scl].enable_i2c_scl();
+    cc26x2::gpio::PORT[pin.i2c0_sda].enable_i2c_sda();
 
-    cc26x2::gpio::PORT[PIN_FN::BUTTON_1 as usize].enable_gpio();
-    cc26x2::gpio::PORT[PIN_FN::BUTTON_2 as usize].enable_gpio();
+    cc26x2::gpio::PORT[pin.red_led].enable_gpio();
+    cc26x2::gpio::PORT[pin.green_led].enable_gpio();
 
-    cc26x2::gpio::PORT[PIN_FN::GPIO0 as usize].enable_gpio();
+    cc26x2::gpio::PORT[pin.button1].enable_gpio();
+    cc26x2::gpio::PORT[pin.button2].enable_gpio();
 
-    cc26x2::gpio::PORT[23].enable_analog_input();
-    cc26x2::gpio::PORT[24].enable_analog_input();
-    cc26x2::gpio::PORT[25].enable_analog_input();
-    cc26x2::gpio::PORT[26].enable_analog_input();
-    cc26x2::gpio::PORT[27].enable_analog_input();
-    cc26x2::gpio::PORT[28].enable_analog_input();
-    cc26x2::gpio::PORT[29].enable_analog_input();
-    cc26x2::gpio::PORT[30].enable_analog_input();
+    cc26x2::gpio::PORT[pin.gpio0].enable_gpio();
+
+    cc26x2::gpio::PORT[pin.a7].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a6].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a5].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a4].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a3].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a2].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a1].enable_analog_input();
+    cc26x2::gpio::PORT[pin.a0].enable_analog_input();
 }
 
 #[no_mangle]
@@ -153,7 +173,17 @@ pub unsafe fn reset_handler() {
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();
 
-    configure_pins();
+    let pinmap: &Pinmap;
+    let chip_id = (cc26x2::rom::HAPI.get_chip_id)();
+
+    if chip_id == 0x2282f000 {
+        pinmap = &cc1352p::PINMAP;
+    } else {
+        //chip_id == 0x20828000
+        pinmap = &cc1312r::PINMAP;
+    }
+
+    configure_pins(pinmap);
 
     // LEDs
     let led_pins = static_init!(
@@ -163,11 +193,11 @@ pub unsafe fn reset_handler() {
         ); 2],
         [
             (
-                &cc26x2::gpio::PORT[PIN_FN::RED_LED as usize],
+                &cc26x2::gpio::PORT[pinmap.red_led],
                 capsules::led::ActivationMode::ActiveHigh
             ), // Red
             (
-                &cc26x2::gpio::PORT[PIN_FN::GREEN_LED as usize],
+                &cc26x2::gpio::PORT[pinmap.green_led],
                 capsules::led::ActivationMode::ActiveHigh
             ), // Green
         ]
@@ -182,11 +212,11 @@ pub unsafe fn reset_handler() {
         [(&'static cc26x2::gpio::GPIOPin, capsules::button::GpioMode); 2],
         [
             (
-                &cc26x2::gpio::PORT[PIN_FN::BUTTON_1 as usize],
+                &cc26x2::gpio::PORT[pinmap.button1],
                 capsules::button::GpioMode::LowWhenPressed
             ), // Button 1
             (
-                &cc26x2::gpio::PORT[PIN_FN::BUTTON_2 as usize],
+                &cc26x2::gpio::PORT[pinmap.button2],
                 capsules::button::GpioMode::LowWhenPressed
             ), // Button 2
         ]
@@ -273,7 +303,7 @@ pub unsafe fn reset_handler() {
         [
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            &cc26x2::gpio::PORT[PIN_FN::GPIO0 as usize],
+            &cc26x2::gpio::PORT[pinmap.gpio0],
         ]
     );
     let gpio = static_init!(
@@ -397,8 +427,6 @@ pub unsafe fn reset_handler() {
     }
 
     let ipc = &kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
-
-    debug!("Launching Processes");
 
     kernel::procs::load_processes(
         board_kernel,
