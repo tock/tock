@@ -5,5 +5,5 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
-crt0s = { path = "../../libraries/crt0s" }
+tock_rt0 = { path = "../../libraries/tock-rt0" }
 kernel = { path = "../../kernel" }

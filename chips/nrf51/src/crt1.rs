@@ -1,5 +1,5 @@
 use cortexm0::{generic_isr, nvic, SVC_Handler};
-use crt0s;
+use tock_rt0;
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -131,8 +131,8 @@ pub unsafe extern "C" fn init() {
     // or System OFF mode" found at the Errata doc
     *(0x40000ee4i32 as (*mut u32)) = *(0x10000258i32 as (*mut u32)) & 0x4fu32;
 
-    crt0s::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    crt0s::zero_bss(&mut _szero, &mut _ezero);
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
     nvic::enable_all();
 }

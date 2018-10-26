@@ -5,7 +5,7 @@
 #![no_std]
 
 extern crate cortexm4;
-extern crate crt0s;
+extern crate tock_rt0;
 #[allow(unused_imports)]
 #[macro_use(
     debug,
@@ -84,8 +84,8 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 pub static IRQS: [unsafe extern "C" fn(); 111] = [generic_isr; 111];
 
 pub unsafe fn init() {
-    crt0s::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    crt0s::zero_bss(&mut _szero, &mut _ezero);
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
     cortexm4::nvic::disable_all();
     cortexm4::nvic::clear_all_pending();

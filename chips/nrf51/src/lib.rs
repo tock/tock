@@ -4,8 +4,8 @@
 #![crate_type = "rlib"]
 
 extern crate cortexm0;
-extern crate crt0s;
 extern crate nrf5x;
+extern crate tock_rt0;
 
 #[allow(unused_imports)]
 #[macro_use(

@@ -1,5 +1,5 @@
 use cortexm4::{generic_isr, hard_fault_handler, nvic, svc_handler, systick_handler};
-use crt0s;
+use tock_rt0;
 
 extern "C" {
     // Symbols defined in the linker file
@@ -83,7 +83,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    crt0s::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
-    crt0s::zero_bss(&mut _szero, &mut _ezero);
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
     nvic::enable_all();
 }

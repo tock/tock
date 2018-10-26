@@ -1,8 +1,9 @@
-//! Tock generic `crt0s` helpers
+//! Tock generic initial runtime (`rt0`) helpers
 
 #![no_std]
 
-/// Initializes the `static data`, by copying it into memory (RAM) from non-volatile memory (Flash)
+/// Initializes the `static data`, by copying it into memory (RAM) from
+/// non-volatile memory (Flash)
 // Relocate data segment.
 // Assumes data starts right after text segment as specified by the linker
 pub unsafe fn init_data(mut edata: *mut u32, mut sdata: *mut u32, sdata_end: *mut u32) {
