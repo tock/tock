@@ -143,6 +143,15 @@ following signature:
 void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break);
 ```
 
+The Tock kernel tries to impart no restrictions on the stack and heap layout of
+application processes. As such, a process starts in a very minimal environment,
+with an initial stack sufficient to support a syscall, but not much more.
+Application startup routines should first
+[move their program break](/doc/syscalls/memop.md#operation-type-0-brk) to accomodate
+their desired layout, and then setup local stack and heap tracking in accordance
+with thier runtime.
+
+
 ## Stack and Heap
 
 Applications can memory requirements by setting the `minimum_ram_size` variable
