@@ -14,7 +14,7 @@ pub static CCFG_CONF: [u32; 22] = [
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00FFFFFF, 0xFFFFFFFF, 0xFFFFFF00, 0xFFC5C5C5,
     0xFFC5C5C5, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
 ];
-// 0xF3BBFF3A,
+
 #[panic_implementation]
 #[no_mangle]
 pub unsafe extern "C" fn panic_fmt(_pi: &core::panic::PanicInfo) -> ! {

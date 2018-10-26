@@ -17,6 +17,7 @@ pub mod adc;
 pub mod adi;
 pub mod aon;
 pub mod aux;
+pub mod ccfg;
 pub mod chip;
 pub mod crt1;
 pub mod event_priority;

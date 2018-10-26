@@ -14,7 +14,7 @@ use kernel::common::registers::ReadWrite;
 // 9h           ADC1         ADC Control 1      Section 19.8.1.9
 // Ah           ADCREF0      ADC Reference 0    Section 19.8.1.10
 // Bh           ADCREF1      ADC Reference 1    Section 19.8.1.11
-
+#[repr(C)]
 pub struct AuxAdi4Registers {
     _reserved_mux0to3: [u8; 0x4], // the HWAPI touches these for you
     pub current_source: ReadWrite<u8, CurrentSource::Register>,
