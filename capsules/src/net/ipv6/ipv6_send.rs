@@ -192,7 +192,8 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
                                 send = true;
                                 return (send_complete_return, send);
                             } else {
-                                self.radio.transmit(frame);
+                                let (err, _frame_option) = self.radio.transmit(frame);
+                                return (err, send);
                             }
                         }
                         Err((retcode, buf)) => {
