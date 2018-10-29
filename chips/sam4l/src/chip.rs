@@ -22,8 +22,9 @@ use usart;
 use usbc;
 
 pub struct Sam4l {
-    pub mpu: cortexm4::mpu::MPU,
-    pub systick: cortexm4::systick::SysTick,
+    mpu: cortexm4::mpu::MPU,
+    userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    systick: cortexm4::systick::SysTick,
 }
 
 impl Sam4l {
@@ -62,6 +63,7 @@ impl Sam4l {
 
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             systick: cortexm4::systick::SysTick::new(),
         }
     }
@@ -69,6 +71,7 @@ impl Sam4l {
 
 impl Chip for Sam4l {
     type MPU = cortexm4::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&self) {
@@ -161,6 +164,10 @@ impl Chip for Sam4l {
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         &self.systick
+    }
+
+    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+        &self.userspace_kernel_boundary
     }
 
     fn sleep(&self) {

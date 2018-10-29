@@ -12,6 +12,7 @@ use common::{Queue, RingBuffer};
 use core::cmp::max;
 use mem::{AppSlice, Shared};
 use platform::mpu::{self, MPU};
+use platform::Chip;
 use returncode::ReturnCode;
 use sched::Kernel;
 use syscall::{self, Syscall, UserspaceKernelBoundary};
@@ -27,10 +28,9 @@ use tbfheader;
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub fn load_processes<S: UserspaceKernelBoundary, M: MPU>(
+pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
-    syscall: &'static S,
-    mpu: &'static M,
+    chip: &'static C,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
     procs: &'static mut [Option<&'static ProcessType>],
@@ -44,8 +44,7 @@ pub fn load_processes<S: UserspaceKernelBoundary, M: MPU>(
         unsafe {
             let (process, flash_offset, memory_offset) = Process::create(
                 kernel,
-                syscall,
-                mpu,
+                chip,
                 apps_in_flash_ptr,
                 app_memory_ptr,
                 app_memory_size,
@@ -336,7 +335,7 @@ struct ProcessDebug {
     timeslice_expiration_count: usize,
 }
 
-pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
+pub struct Process<'a, C: 'static + Chip> {
     /// Index of the process in the process table.
     ///
     /// Corresponds to AppId
@@ -345,9 +344,12 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
-    /// Pointer to the struct that handles the architecture-specific syscall
-    /// functions.
-    syscall: &'static S,
+    /// Pointer to the struct that defines the actual chip the kernel is running
+    /// on. This is used because processes have subtle hardware-based
+    /// differences. Specifically, the actual syscall interface and how
+    /// processes are switched to is architecture-specific, and how memory must
+    /// be allocated for memory protection units is also hardware-specific.
+    chip: &'static C,
 
     /// Application memory layout:
     ///
@@ -403,7 +405,8 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
-    stored_state: Cell<S::StoredState>,
+    stored_state:
+        Cell<<<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState>,
 
     /// Whether the scheduler can schedule this app.
     state: Cell<State>,
@@ -411,11 +414,8 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
     /// How to deal with Faults occurring in the process
     fault_response: FaultResponse,
 
-    /// Pointer to the MPU
-    mpu: &'static M,
-
     /// Configuration data for the MPU
-    mpu_config: MapCell<M::MpuConfig>,
+    mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
 
     /// MPU regions are saved as a pointer-size pair.
     mpu_regions: [Cell<Option<mpu::Region>>; 6],
@@ -431,7 +431,7 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary, M: 'static + MPU> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
+impl<C: Chip> ProcessType for Process<'a, C> {
     fn appid(&self) -> AppId {
         AppId::new(self.kernel, self.app_idx)
     }
@@ -619,7 +619,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.mpu.configure_mpu(&config);
+            self.chip.mpu().configure_mpu(&config);
         });
     }
 
@@ -630,7 +630,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         min_region_size: usize,
     ) -> Option<mpu::Region> {
         self.mpu_config.and_then(|mut config| {
-            let new_region = self.mpu.allocate_region(
+            let new_region = self.chip.mpu().allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
@@ -666,7 +666,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
                     Err(Error::AddressOutOfBounds)
                 } else if new_break > self.kernel_memory_break.get() {
                     Err(Error::OutOfMemory)
-                } else if let Err(_) = self.mpu.update_app_memory_region(
+                } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                     new_break,
                     self.kernel_memory_break.get(),
                     mpu::Permissions::ReadWriteExecute,
@@ -676,7 +676,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.mpu.configure_mpu(&mut config);
+                    self.chip.mpu().configure_mpu(&mut config);
                     Ok(old_break)
                 }
             })
@@ -711,7 +711,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
             let new_break = self.kernel_memory_break.get().offset(-(size as isize));
             if new_break < self.app_break.get() {
                 None
-            } else if let Err(_) = self.mpu.update_app_memory_region(
+            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
                 new_break,
                 mpu::Permissions::ReadWriteExecute,
@@ -737,7 +737,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     unsafe fn get_syscall(&self) -> Option<Syscall> {
-        let last_syscall = self.syscall.get_syscall(self.sp());
+        let last_syscall = self.chip.userspace_kernel_boundary().get_syscall(self.sp());
 
         // Record this for debugging purposes.
         self.debug.map(|debug| {
@@ -749,14 +749,16 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
-        self.syscall
+        self.chip
+            .userspace_kernel_boundary()
             .set_syscall_return_value(self.sp(), return_value);
     }
 
     unsafe fn pop_syscall_stack_frame(&self) {
         let mut stored_state = self.stored_state.get();
         let new_stack_pointer = self
-            .syscall
+            .chip
+            .userspace_kernel_boundary()
             .pop_syscall_stack_frame(self.sp(), &mut stored_state);
         self.current_stack_pointer
             .set(new_stack_pointer as *const u8);
@@ -774,7 +776,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         // since we don't know the details of exactly what the stack frames look
         // like.
         let stored_state = self.stored_state.get();
-        match self.syscall.push_function_call(
+        match self.chip.userspace_kernel_boundary().push_function_call(
             self.sp(),
             remaining_stack_bytes,
             callback,
@@ -819,8 +821,10 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         let mut stored_state = self.stored_state.get();
-        let (stack_pointer, switch_reason) =
-            self.syscall.switch_to_process(self.sp(), &mut stored_state);
+        let (stack_pointer, switch_reason) = self
+            .chip
+            .userspace_kernel_boundary()
+            .switch_to_process(self.sp(), &mut stored_state);
         self.current_stack_pointer.set(stack_pointer as *const u8);
         self.stored_state.set(stored_state);
 
@@ -860,7 +864,7 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 
     unsafe fn fault_fmt(&self, writer: &mut Write) {
-        self.syscall.fault_fmt(writer);
+        self.chip.userspace_kernel_boundary().fault_fmt(writer);
     }
 
     unsafe fn process_detail_fmt(&self, writer: &mut Write) {
@@ -977,8 +981,11 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
   flash_protected_size,
   flash_start));
 
-        self.syscall
-            .process_detail_fmt(self.sp(), &self.stored_state.get(), writer);
+        self.chip.userspace_kernel_boundary().process_detail_fmt(
+            self.sp(),
+            &self.stored_state.get(),
+            writer,
+        );
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -989,11 +996,10 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
     }
 }
 
-impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
+impl<C: 'static + Chip> Process<'a, C> {
     crate unsafe fn create(
         kernel: &'static Kernel,
-        syscall: &'static S,
-        mpu: &'static M,
+        chip: &'static C,
         app_flash_address: *const u8,
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
@@ -1016,10 +1022,10 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
             // Initialize MPU region configuration.
-            let mut mpu_config: M::MpuConfig = Default::default();
+            let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
             // Allocate MPU region for flash.
-            if let None = mpu.allocate_region(
+            if let None = chip.mpu().allocate_region(
                 app_flash_address,
                 app_flash_size,
                 app_flash_size,
@@ -1044,7 +1050,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             let callbacks_offset = callback_len * callback_size;
 
             // Make room to store this process's metadata.
-            let process_struct_offset = mem::size_of::<Process<S, M>>();
+            let process_struct_offset = mem::size_of::<Process<C>>();
 
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
             // Provide the app with plenty of initial process accessible memory.
@@ -1060,7 +1066,7 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
             // Determine where process memory will go and allocate MPU region for app-owned memory.
-            let (memory_start, memory_size) = match mpu.allocate_app_memory_region(
+            let (memory_start, memory_size) = match chip.mpu().allocate_app_memory_region(
                 remaining_app_memory as *const u8,
                 remaining_app_memory_size,
                 min_total_memory_size,
@@ -1120,12 +1126,12 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             let mut app_stack_start_pointer = None;
 
             // Create the Process struct in the app grant region.
-            let mut process: &mut Process<S, M> =
-                &mut *(process_struct_memory_location as *mut Process<'static, S, M>);
+            let mut process: &mut Process<C> =
+                &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
             process.app_idx = index;
             process.kernel = kernel;
-            process.syscall = syscall;
+            process.chip = chip;
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = Cell::new(kernel_memory_break);
@@ -1142,7 +1148,6 @@ impl<S: 'static + UserspaceKernelBoundary, M: 'static + MPU> Process<'a, S, M> {
             process.state = Cell::new(State::Yielded);
             process.fault_response = fault_response;
 
-            process.mpu = mpu;
             process.mpu_config = MapCell::new(mpu_config);
             process.mpu_regions = [
                 Cell::new(None),
