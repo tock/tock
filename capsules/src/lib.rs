@@ -47,6 +47,7 @@ pub mod nonvolatile_storage_driver;
 pub mod nonvolatile_to_pages;
 pub mod nrf51822_serialization;
 pub mod pca9544a;
+pub mod process_console;
 pub mod rf233;
 pub mod rf233_const;
 pub mod rng;

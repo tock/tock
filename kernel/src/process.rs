@@ -100,6 +100,12 @@ pub trait ProcessType {
     /// Move this process from the running state to the yielded state.
     fn set_yielded_state(&self);
 
+    /// Move this process from running or yielded state into the stopped state
+    fn stop(&self);
+
+    /// Move this stopped process back into its original state
+    fn resume(&self);
+
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
     fn set_fault_state(&self);
@@ -257,6 +263,8 @@ impl From<Error> for ReturnCode {
 pub enum State {
     Running,
     Yielded,
+    StoppedRunning,
+    StoppedYielded,
     Fault,
 }
 
@@ -458,6 +466,22 @@ impl<S: UserspaceKernelBoundary, M: MPU> ProcessType for Process<'a, S, M> {
         if self.state.get() == State::Running {
             self.state.set(State::Yielded);
             self.kernel.decrement_work();
+        }
+    }
+
+    fn stop(&self) {
+        match self.state.get() {
+            State::Running => self.state.set(State::StoppedRunning),
+            State::Yielded => self.state.set(State::StoppedYielded),
+            _ => {} // Do nothing
+        }
+    }
+
+    fn resume(&self) {
+        match self.state.get() {
+            State::StoppedRunning => self.state.set(State::Running),
+            State::StoppedYielded => self.state.set(State::Yielded),
+            _ => {} // Do nothing
         }
     }
 
