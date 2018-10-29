@@ -22,6 +22,7 @@ pub mod chip;
 pub mod crt1;
 pub mod event_priority;
 pub mod events;
+pub mod fcfg1;
 pub mod gpio;
 pub mod i2c;
 pub mod ioc;
