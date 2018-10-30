@@ -10,12 +10,12 @@ contribute, and we appreciate all of them.
 * [Issue Triage](#issue-triage)
 
 If you have questions, please make a post on the [mailing list][listserv] or
-hop on [#tock][irc].
+join us on [Slack][slack].
 
 As a reminder, all contributors are expected to follow the Rust [Code of
 Conduct][coc].
 
-[irc]: https://kiwiirc.com/client/irc.freenode.net/tock
+[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LTg4YzE1MTkwYzI0YjhjNjA0YWExOGY2ZGYwNjQ2YmFiZjdhOTdlMzY0YTBiYTA2YTRlYzMyZTI1MDdmMTgwMzc
 [listserv]: https://groups.google.com/forum/#!forum/tock-dev
 [coc]: https://www.rust-lang.org/conduct.html
 
@@ -28,7 +28,7 @@ core kernel live here.
 If you are porting Tock to a different hardware platform or building an
 application for an existing platform, that code should go in a [separate
 repository][out-of-tree]. We still encourage you to join the [mailing
-list][listserv] and [IRC channel][irc] and ask questions there. Of course, if
+list][listserv] and [Slack][slack] and ask questions there. Of course, if
 building your application or port requires in changes in this code base, we
 encourage you to contribute them here.
 

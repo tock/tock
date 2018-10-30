@@ -400,7 +400,7 @@ pub unsafe fn reset_handler() {
 
     rtc.start();
 
-    let mut chip = nrf51::chip::NRF51::new();
+    let chip = static_init!(nrf51::chip::NRF51, nrf51::chip::NRF51::new());
     chip.systick().reset();
     chip.systick().enable(true);
 
@@ -412,7 +412,7 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm0::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -422,7 +422,7 @@ pub unsafe fn reset_handler() {
 
     board_kernel.kernel_loop(
         &platform,
-        &mut chip,
+        chip,
         Some(&kernel::ipc::IPC::new(
             board_kernel,
             &memory_allocation_capability,

@@ -7,6 +7,8 @@ use kernel::hil::uart;
 use kernel::ReturnCode;
 use prcm;
 
+use core::cmp;
+
 const MCU_CLOCK: u32 = 48_000_000;
 
 #[repr(C)]
@@ -28,12 +30,14 @@ struct UartRegisters {
     dmactl: ReadWrite<u32>,
 }
 
-pub static mut UART0: UART = UART::new();
+pub static mut UART0: UART = UART::new(&UART0_BASE);
+pub static mut UART1: UART = UART::new(&UART1_BASE);
 
 register_bitfields![
     u32,
     Control [
         UART_ENABLE OFFSET(0) NUMBITS(1) [],
+        LB_ENABLE OFFSET(7) NUMBITS(1) [],
         TX_ENABLE OFFSET(8) NUMBITS(1) [],
         RX_ENABLE OFFSET(9) NUMBITS(1) []
     ],
@@ -53,15 +57,37 @@ register_bitfields![
         DIVISOR OFFSET(0) NUMBITS(6) []
     ],
     Flags [
-        TX_FIFO_FULL OFFSET(5) NUMBITS(1) []
+        CTS OFFSET(0) NUMBITS(1) [],
+        BUSY OFFSET(3) NUMBITS(1) [],
+        RX_FIFO_EMPTY OFFSET(4) NUMBITS(1) [],
+        TX_FIFO_FULL OFFSET(5) NUMBITS(1) [],
+        RX_FIFO_FULL OFFSET(6) NUMBITS(1) [],
+        TX_FIFO_EMPTY OFFSET(7) NUMBITS(1) []
     ],
     Interrupts [
-        ALL_INTERRUPTS OFFSET(0) NUMBITS(12) []
+         ALL_INTERRUPTS OFFSET(0) NUMBITS(12) [
+            // sets all interrupts without writing 1's to reg with undefined behavior
+            Set =  0b111111110010,
+            // you are allowed to write 0 to everyone
+            Clear = 0x000000
+        ],
+        CTSIMM OFFSET(1) NUMBITS(1) [],              // clear to send interrupt mask
+        RX OFFSET(4) NUMBITS(1) [],                  // receive interrupt mask
+        TX OFFSET(5) NUMBITS(1) [],                  // transmit interrupt mask
+        RX_TIMEOUT OFFSET(6) NUMBITS(1) [],          // receive timeout interrupt mask
+        FE OFFSET(7) NUMBITS(1) [],                  // framing error interrupt mask
+        PE OFFSET(8) NUMBITS(1) [],                  // parity error interrupt mask
+        BE OFFSET(9) NUMBITS(1) [],                  // break error interrupt mask
+        OE OFFSET(10) NUMBITS(1) [],                 // overrun error interrupt mask
+        END_OF_TRANSMISSION OFFSET(11) NUMBITS(1) [] // end of transmission interrupt mask
     ]
 ];
 
-const UART_BASE: StaticRef<UartRegisters> =
+const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const UartRegisters) };
+
+const UART1_BASE: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x4000B000 as *const UartRegisters) };
 
 /// Stores an ongoing TX transaction
 struct Transaction {
@@ -75,17 +101,23 @@ struct Transaction {
 }
 
 pub struct UART {
-    registers: StaticRef<UartRegisters>,
-    client: OptionalCell<&'static uart::Client>,
-    transaction: MapCell<Transaction>,
+    registers: &'static StaticRef<UartRegisters>,
+    tx_client: OptionalCell<&'static uart::Client>,
+    rx_client: OptionalCell<&'static uart::Client>,
+    tx: MapCell<Transaction>,
+    rx: MapCell<Transaction>,
 }
 
 impl UART {
-    const fn new() -> UART {
+    const fn new(registers: &'static StaticRef<UartRegisters>) -> UART {
         UART {
-            registers: UART_BASE,
-            client: OptionalCell::empty(),
-            transaction: MapCell::empty(),
+            registers,
+
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
+            tx: MapCell::empty(),
+            rx: MapCell::empty(),
         }
     }
 
@@ -120,6 +152,8 @@ impl UART {
 
         self.fifo_enable();
 
+        self.enable_interrupts();
+
         // Enable UART, RX and TX
         self.registers
             .ctl
@@ -131,7 +165,7 @@ impl UART {
     fn power_and_clock(&self) {
         prcm::Power::enable_domain(prcm::PowerDomain::Serial);
         while !prcm::Power::is_enabled(prcm::PowerDomain::Serial) {}
-        prcm::Clock::enable_uart();
+        prcm::Clock::enable_uarts();
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -153,6 +187,8 @@ impl UART {
     }
 
     fn disable(&self) {
+        // disable interrupts
+        self.registers.imsc.write(Interrupts::ALL_INTERRUPTS::CLEAR);
         self.fifo_disable();
         self.registers.ctl.modify(
             Control::UART_ENABLE::CLEAR + Control::TX_ENABLE::CLEAR + Control::RX_ENABLE::CLEAR,
@@ -160,8 +196,12 @@ impl UART {
     }
 
     fn enable_interrupts(&self) {
-        // Disable all UART interrupts
-        self.registers.imsc.modify(Interrupts::ALL_INTERRUPTS::SET);
+        // set only interrupts used
+        self.registers.imsc.modify(
+            Interrupts::RX::SET
+                + Interrupts::RX_TIMEOUT::SET
+                + Interrupts::END_OF_TRANSMISSION::SET,
+        );
     }
 
     /// Clears all interrupts related to UART.
@@ -169,59 +209,140 @@ impl UART {
         // Clear interrupts
         self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
 
-        self.transaction.take().map(|mut transaction| {
-            transaction.index += 1;
-            if transaction.index < transaction.length {
-                self.send_byte(transaction.buffer[transaction.index]);
-                self.transaction.put(transaction);
-            } else {
-                self.client.map(move |client| {
-                    client.transmit_complete(
-                        transaction.buffer,
+        self.rx.take().map(|mut rx| {
+            while self.rx_fifo_not_empty() && rx.index < rx.length {
+                let byte = self.read_byte();
+                rx.buffer[rx.index] = byte;
+                rx.index += 1;
+            }
+
+            if rx.index == rx.length {
+                self.rx_client.map(move |client| {
+                    client.receive_complete(
+                        rx.buffer,
+                        rx.index,
                         kernel::hil::uart::Error::CommandComplete,
                     );
                 });
+            } else {
+                self.rx.put(rx);
+            }
+        });
+        // if there is no client, empty the buffer into the void
+        if self.rx_fifo_not_empty() {
+            self.read_byte();
+        }
+
+        self.tx.take().map(|mut tx| {
+            // if a big buffer was given, this could be a very long call
+            if self.tx_fifo_not_full() && tx.index < tx.length {
+                self.send_byte(tx.buffer[tx.index]);
+                tx.index += 1;
+            }
+            if tx.index == tx.length {
+                self.tx_client.map(move |client| {
+                    client.transmit_complete(tx.buffer, kernel::hil::uart::Error::CommandComplete);
+                });
+            } else {
+                self.tx.put(tx);
             }
         });
     }
 
-    /// Transmits a single byte if the hardware is ready.
+    // Pushes a byte into the TX FIFO.
+    #[inline]
     pub fn send_byte(&self, c: u8) {
         // Put byte in data register
         self.registers.dr.set(c as u32);
     }
 
+    // Pulls a byte out of the RX FIFO.
+    #[inline]
+    pub fn read_byte(&self) -> u8 {
+        self.registers.dr.get() as u8
+    }
+
     /// Checks if there is space in the transmit fifo queue.
-    pub fn tx_ready(&self) -> bool {
+    #[inline]
+    pub fn rx_fifo_not_empty(&self) -> bool {
+        !self.registers.fr.is_set(Flags::RX_FIFO_EMPTY)
+    }
+
+    /// Checks if there is space in the transmit fifo queue.
+    #[inline]
+    pub fn tx_fifo_not_full(&self) -> bool {
         !self.registers.fr.is_set(Flags::TX_FIFO_FULL)
+    }
+
+    pub fn set_tx_client(&self, client: &'static kernel::hil::uart::Client) {
+        self.tx_client.set(client);
+    }
+
+    pub fn set_rx_client(&self, client: &'static kernel::hil::uart::Client) {
+        self.rx_client.set(client);
     }
 }
 
 impl kernel::hil::uart::UART for UART {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(client);
+        self.rx_client.set(client);
+        self.tx_client.set(client);
     }
 
     fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
         self.configure(params)
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        if tx_len > 0 && tx_data.len() > 0 {
-            self.send_byte(tx_data[0]);
-        }
+    fn transmit(&self, buffer: &'static mut [u8], len: usize) {
+        // if there is a weird input, don't try to do any transfers
+        if len == 0 {
+            self.tx_client.map(move |client| {
+                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
+            });
+        } else {
+            // if client set len too big, we will receive what we can
+            let tx_len = cmp::min(len, buffer.len());
 
-        self.transaction.put(Transaction {
-            buffer: tx_data,
-            length: tx_len,
-            index: 0,
-        });
+            // we will send one byte, causing EOT interrupt
+            if self.tx_fifo_not_full() {
+                self.send_byte(buffer[0]);
+            }
+
+            // Transaction will be continued in interrupt handler
+            self.tx.put(Transaction {
+                buffer: buffer,
+                length: tx_len,
+                index: 1,
+            });
+        }
     }
 
-    #[allow(unused)]
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {}
+    fn receive(&self, buffer: &'static mut [u8], len: usize) {
+        if len == 0 {
+            self.rx_client.map(move |client| {
+                client.receive_complete(buffer, len, kernel::hil::uart::Error::CommandComplete);
+            });
+        } else {
+            // if client set len too big, we will receive what we can
+            let rx_len = cmp::min(len, buffer.len());
+
+            self.rx.put(Transaction {
+                buffer: buffer,
+                length: rx_len,
+                index: 0,
+            });
+        }
+    }
 
     fn abort_receive(&self) {
-        unimplemented!()
+        self.rx.take().map(|rx| {
+            self.rx_client.map(move |client| {
+                client.receive_complete(
+                    rx.buffer,
+                    rx.index,
+                    kernel::hil::uart::Error::CommandComplete,
+                );
+            });
+        });
     }
 }

@@ -12,7 +12,14 @@
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init, create_capability)]
+#[macro_use(
+    debug,
+    debug_gpio,
+    static_init,
+    create_capability,
+    register_bitfields,
+    register_bitmasks
+)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate sam4l;
@@ -46,8 +53,10 @@ use components::isl29035::AmbientLightComponent;
 use components::led::LedComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
+use components::process_console::ProcessConsoleComponent;
 use components::radio::RadioComponent;
 use components::rf233::RF233Component;
+use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_6lowpan::UDPComponent;
@@ -91,24 +100,18 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 2;
 
 // Constants related to the configuration of the 15.4 network stack
+// TODO: Notably, the radio MAC addresses can be configured from userland at the moment
+// We probably want to change this from a security perspective (multiple apps being
+// able to change the MAC address seems problematic), but it is very convenient for
+// development to be able to just flash two corresponding apps onto two devices and
+// have those devices talk to each other without having to modify the kernel flashed
+// onto each device. This makes MAC address configuration a good target for capabilities -
+// only allow one app per board to have control of MAC address configuration?
 const RADIO_CHANNEL: u8 = 26;
-const SRC_MAC: u16 = 0xf00f;
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
-const SRC_MAC_ADDR: MacAddress = MacAddress::Short(SRC_MAC);
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(57330);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 const PAN_ID: u16 = 0xABCD;
-
-static LOCAL_IP_IFACES: [IPAddr; 2] = [
-    IPAddr([
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-        0x0f,
-    ]),
-    IPAddr([
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
-        0x1f,
-    ]),
-];
 
 // how should the kernel respond when a process faults
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
@@ -121,9 +124,14 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 struct Imix {
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        UartDevice<'static>,
+        components::process_console::Capability,
+    >,
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
@@ -133,6 +141,7 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
         'static,
         sam4l::acifc::Acifc<'static>,
@@ -191,6 +200,7 @@ impl kernel::Platform for Imix {
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -304,7 +314,7 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // # CONSOLE
-    // Create a shared UART channel for the console and for kernel debug.
+    // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = static_init!(
         UartMux<'static>,
@@ -316,6 +326,7 @@ pub unsafe fn reset_handler() {
     );
     hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
 
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
     let console = ConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
@@ -370,16 +381,38 @@ pub unsafe fn reset_handler() {
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
     let analog_comparator = AcComponent::new().finalize();
+    let rng = RngComponent::new(board_kernel).finalize();
+
+    // For now, assign the MAC address on the device as simply a 16-bit short address which represents
+    // the last 16 bits of the serial number of the sam4l for this device.
+    // In the future, we could generate the MAC address by hashing the full 120-bit serial number
+    let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
+    let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
+
+    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, SRC_MAC).finalize();
+        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
 
-    // ** UDP **
+    let local_ip_ifaces = static_init!(
+        [IPAddr; 3],
+        [
+            IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+            ]),
+            IPAddr([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ]),
+            IPAddr::generate_from_mac(src_mac_from_serial_num),
+        ]
+    );
 
     let udp_driver = UDPComponent::new(
         board_kernel,
@@ -387,11 +420,13 @@ pub unsafe fn reset_handler() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        SRC_MAC_ADDR,
-        &LOCAL_IP_IFACES,
+        src_mac_from_serial_num,
+        local_ip_ifaces,
+        mux_alarm,
     ).finalize();
 
     let imix = Imix {
+        pconsole,
         console,
         alarm,
         gpio,
@@ -401,6 +436,7 @@ pub unsafe fn reset_handler() {
         adc,
         led,
         button,
+        rng,
         analog_comparator,
         crc,
         spi: spi_syscalls,
@@ -413,7 +449,7 @@ pub unsafe fn reset_handler() {
         nonvolatile_storage: nonvolatile_storage,
     };
 
-    let mut chip = sam4l::chip::Sam4l::new();
+    let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();
@@ -424,19 +460,22 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
+    imix.console.initialize();
+    imix.pconsole.initialize();
+    imix.pconsole.start();
+
     //    debug!("Starting virtual read test.");
     //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
 
-    rng_test::run_entropy32();
-
+    //    rng_test::run_entropy32();
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
@@ -444,5 +483,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, &mut chip, Some(&imix.ipc), &main_cap);
+    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

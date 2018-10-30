@@ -18,7 +18,7 @@ memory layout](Memory_Layout.md).
 
 Memory isolation is a key property of Tock. Without it, processes could just
 access any part of memory, and the security of the entire system would be
-compromised. Although Rust preserves memory safety (e.g. no double frees or
+compromised. The reason for this is that although Rust preserves memory safety (e.g. no double frees or
 buffer overflows) and type safety at compile-time, this doesn't prevent
 processes, which can be written in any language, from accessing certain
 addresses which they should not have access to in memory. Some other component
@@ -40,8 +40,8 @@ process, Tock reconfigures the MPU for that process.
 
 When the system is executing kernel code, the MPU is disabled. This means there
 are no hardware restrictions preventing the kernel from accessing the entire
-address space. In practice however, the Rust type system restricts what the
-kernel can do. For example, a capsule (which cannot use `unsafe`) cannot access
+address space. Instead, what the kernel can do is restricted by the
+Rust type system. For example, a capsule (which cannot use `unsafe`) cannot access
 a process's memory because it cannot create and dereference an arbitrary
 pointer. In general, Tock tries to minimize the amount of trusted code (i.e.
 code that can call `unsafe`), and tries to encapsulate code that does need
@@ -62,7 +62,7 @@ cannot access arbitrary addresses in flash, and are certainly prohibited from
 accessing bootloader or kernel code. They are also prohibited from reading or
 writing the nonvolatile regions of other processes.
 
-Processes generally have access to their own memory in flash. Certain regions,
+Processes do have access to their own memory in flash. Certain regions,
 including their Tock Binary Format (TBF) header and a protected region after the
 header, are read-only, as the kernel must be able to ensure the integrity of the
 header. In particular, the kernel needs to know the total size of the app to find

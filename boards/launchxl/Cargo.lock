@@ -2,6 +2,7 @@
 name = "capsules"
 version = "0.1.0"
 dependencies = [
+ "enum_primitive 0.1.0",
  "kernel 0.1.0",
 ]
 
@@ -10,6 +11,7 @@ name = "cc26x2"
 version = "0.1.0"
 dependencies = [
  "cortexm4 0.1.0",
+ "enum_primitive 0.1.0",
  "kernel 0.1.0",
 ]
 
@@ -29,11 +31,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum_primitive"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
  "tock-cells 0.1.0",
- "tock-registers 0.1.0",
+ "tock-registers 0.2.0",
 ]
 
 [[package]]
@@ -43,6 +49,7 @@ dependencies = [
  "capsules 0.1.0",
  "cc26x2 0.1.0",
  "cortexm4 0.1.0",
+ "enum_primitive 0.1.0",
  "kernel 0.1.0",
 ]
 
@@ -52,5 +59,5 @@ version = "0.1.0"
 
 [[package]]
 name = "tock-registers"
-version = "0.1.0"
+version = "0.2.0"
 

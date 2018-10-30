@@ -1,13 +1,15 @@
 use cortexm4::{self, nvic};
+use enum_primitive::cast::FromPrimitive;
 use gpio;
 use i2c;
 use kernel;
-use peripheral_interrupts;
+use peripheral_interrupts::NVIC_IRQ;
 use rtc;
 use uart;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
+    userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -15,6 +17,7 @@ impl Cc26X2 {
     pub unsafe fn new() -> Cc26X2 {
         Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The systick clocks with 48MHz by default
             systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
         }
@@ -23,6 +26,7 @@ impl Cc26X2 {
 
 impl kernel::Chip for Cc26X2 {
     type MPU = cortexm4::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
 
     fn mpu(&self) -> &Self::MPU {
@@ -32,18 +36,24 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
-    fn service_pending_interrupts(&mut self) {
+
+    fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
+        &self.userspace_kernel_boundary
+    }
+
+    fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
-                match interrupt {
-                    peripheral_interrupts::GPIO => gpio::PORT.handle_interrupt(),
-                    peripheral_interrupts::AON_RTC => rtc::RTC.handle_interrupt(),
-                    peripheral_interrupts::UART0 => uart::UART0.handle_interrupt(),
-                    peripheral_interrupts::I2C => i2c::I2C0.handle_interrupt(),
-                    // AON Programmable interrupt
+                let irq = NVIC_IRQ::from_u32(interrupt)
+                    .expect("Pending IRQ flag not enumerated in NVIQ_IRQ");
+                match irq {
+                    NVIC_IRQ::GPIO => gpio::PORT.handle_interrupt(),
+                    NVIC_IRQ::AON_RTC => rtc::RTC.handle_interrupt(),
+                    NVIC_IRQ::UART0 => uart::UART0.handle_interrupt(),
+                    NVIC_IRQ::I2C0 => i2c::I2C0.handle_interrupt(),
                     // We need to ignore JTAG events since some debuggers emit these
-                    peripheral_interrupts::AON_PROG => (),
-                    _ => panic!("unhandled interrupt {}", interrupt),
+                    NVIC_IRQ::AON_PROG => (),
+                    _ => panic!("Unhandled interrupt {:?}", irq),
                 }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();

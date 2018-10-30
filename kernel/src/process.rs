@@ -8,9 +8,11 @@ use core::{mem, ptr, slice, str};
 use callback::AppId;
 use capabilities::ProcessManagementCapability;
 use common::cells::MapCell;
-use common::math;
 use common::{Queue, RingBuffer};
-use platform::mpu;
+use core::cmp::max;
+use mem::{AppSlice, Shared};
+use platform::mpu::{self, MPU};
+use platform::Chip;
 use returncode::ReturnCode;
 use sched::Kernel;
 use syscall::{self, Syscall, UserspaceKernelBoundary};
@@ -26,9 +28,9 @@ use tbfheader;
 /// number of processes are created, with process structures placed in the
 /// provided array. How process faults are handled by the kernel is also
 /// selected.
-pub fn load_processes<S: UserspaceKernelBoundary>(
+pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
-    syscall: &'static S,
+    chip: &'static C,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
     procs: &'static mut [Option<&'static ProcessType>],
@@ -42,11 +44,12 @@ pub fn load_processes<S: UserspaceKernelBoundary>(
         unsafe {
             let (process, flash_offset, memory_offset) = Process::create(
                 kernel,
-                syscall,
+                chip,
                 apps_in_flash_ptr,
                 app_memory_ptr,
                 app_memory_size,
                 fault_response,
+                i,
             );
 
             if process.is_none() {
@@ -70,6 +73,9 @@ pub fn load_processes<S: UserspaceKernelBoundary>(
 
 /// This trait is implemented by process structs.
 pub trait ProcessType {
+    /// Returns the process's identifier
+    fn appid(&self) -> AppId;
+
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
     /// should run, for example a callback or an IPC call.
@@ -93,20 +99,27 @@ pub trait ProcessType {
     /// Move this process from the running state to the yielded state.
     fn set_yielded_state(&self);
 
+    /// Move this process from running or yielded state into the stopped state
+    fn stop(&self);
+
+    /// Move this stopped process back into its original state
+    fn resume(&self);
+
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
     fn set_fault_state(&self);
 
     /// Get the name of the process. Used for IPC.
-    fn get_process_name(&self) -> &[u8];
+    fn get_process_name(&self) -> &'static str;
 
     // memop operations
 
-    /// Change the location of the program break.
+    /// Change the location of the program break and reallocate the MPU region
+    /// covering program memory.
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
 
-    /// Change the location of the program break and return the previous break
-    /// address.
+    /// Change the location of the program break, reallocate the MPU region
+    /// covering program memory, and return the previous break address.
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
 
     /// The start address of allocated RAM for this process.
@@ -144,11 +157,18 @@ pub trait ProcessType {
 
     // additional memop like functions
 
-    /// Check if the buffer address and size is contained within the memory
-    /// owned by this process. This isn't quite the same as the memory allocated
-    /// to the process as this does not include the grant region which is owned
-    /// by the kernel.
-    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool;
+    /// Creates an `AppSlice` from the given offset and size in process memory.
+    ///
+    /// ## Returns
+    ///
+    /// If the buffer is null (a zero-valued offset), return None, signaling the capsule to delete
+    /// the entry.  If the buffer is within the process's accessible memory, returns an AppSlice
+    /// wrapping that buffer. Otherwise, returns an error `ReturnCode`.
+    fn allow(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode>;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -158,13 +178,22 @@ pub trait ProcessType {
 
     // mpu
 
-    fn setup_mpu(&self, mpu: &mpu::MPU);
+    /// Configure the MPU to use the process's allocated regions.
+    fn setup_mpu(&self);
 
-    fn add_mpu_region(&self, base: *const u8, size: u32) -> bool;
+    /// Allocate a new MPU region for the process that is at least `min_region_size`
+    /// bytes and lies within the specified stretch of unallocated memory.
+    fn add_mpu_region(
+        &self,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_region_size: usize,
+    ) -> Option<mpu::Region>;
 
     // grants
 
-    /// Create new memory in the grant region.
+    /// Create new memory in the grant region, and check that the MPU region
+    /// covering program memory does not extend past the kernel memory break.
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]>;
 
     unsafe fn free(&self, _: *mut u8);
@@ -193,6 +222,20 @@ pub trait ProcessType {
 
     unsafe fn fault_fmt(&self, writer: &mut Write);
     unsafe fn process_detail_fmt(&self, writer: &mut Write);
+
+    // debug
+
+    /// Returns how many syscalls this app has called.
+    fn debug_syscall_count(&self) -> usize;
+
+    /// Returns how many callbacks for this process have been dropped.
+    fn debug_dropped_callback_count(&self) -> usize;
+
+    /// Returns how many times this process has been restarted.
+    fn debug_restart_count(&self) -> usize;
+
+    /// Returns how many times this process has exceeded its timeslice.
+    fn debug_timeslice_expiration_count(&self) -> usize;
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -200,6 +243,8 @@ pub enum Error {
     NoSuchApp,
     OutOfMemory,
     AddressOutOfBounds,
+    KernelError, // This likely indicates a bug in the kernel and that some
+                 // state is inconsistent in the kernel.
 }
 
 impl From<Error> for ReturnCode {
@@ -208,6 +253,7 @@ impl From<Error> for ReturnCode {
             Error::OutOfMemory => ReturnCode::ENOMEM,
             Error::AddressOutOfBounds => ReturnCode::EINVAL,
             Error::NoSuchApp => ReturnCode::EINVAL,
+            Error::KernelError => ReturnCode::FAIL,
         }
     }
 }
@@ -216,6 +262,8 @@ impl From<Error> for ReturnCode {
 pub enum State {
     Running,
     Yielded,
+    StoppedRunning,
+    StoppedYielded,
     Fault,
 }
 
@@ -281,15 +329,27 @@ struct ProcessDebug {
     /// How many times this process has entered into a fault condition and the
     /// kernel has restarted it.
     restart_count: usize,
+
+    /// How many times this process has been paused because it exceeded its
+    /// timeslice.
+    timeslice_expiration_count: usize,
 }
 
-pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
+pub struct Process<'a, C: 'static + Chip> {
+    /// Index of the process in the process table.
+    ///
+    /// Corresponds to AppId
+    app_idx: usize,
+
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
-    /// Pointer to the struct that handles the architecture-specific syscall
-    /// functions.
-    syscall: &'static S,
+    /// Pointer to the struct that defines the actual chip the kernel is running
+    /// on. This is used because processes have subtle hardware-based
+    /// differences. Specifically, the actual syscall interface and how
+    /// processes are switched to is architecture-specific, and how memory must
+    /// be allocated for memory protection units is also hardware-specific.
+    chip: &'static C,
 
     /// Application memory layout:
     ///
@@ -329,6 +389,9 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     app_break: Cell<*const u8>,
     original_app_break: *const u8,
 
+    /// Pointer to high water mark for process buffers shared through `allow`
+    allow_high_water_mark: Cell<*const u8>,
+
     /// Saved when the app switches to the kernel.
     current_stack_pointer: Cell<*const u8>,
     original_stack_pointer: *const u8,
@@ -342,7 +405,8 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
-    stored_state: Cell<S::StoredState>,
+    stored_state:
+        Cell<<<C as Chip>::UserspaceKernelBoundary as UserspaceKernelBoundary>::StoredState>,
 
     /// Whether the scheduler can schedule this app.
     state: Cell<State>,
@@ -350,18 +414,11 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     /// How to deal with Faults occurring in the process
     fault_response: FaultResponse,
 
+    /// Configuration data for the MPU
+    mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
+
     /// MPU regions are saved as a pointer-size pair.
-    ///
-    /// size is encoded as X where
-    /// SIZE = 2<sup>(X + 1)</sup> and X >= 4.
-    ///
-    /// A null pointer represents an empty region.
-    ///
-    /// #### Invariants
-    ///
-    /// The pointer must be aligned to the size. E.g. if the size is 32 bytes, the pointer must be
-    /// 32-byte aligned.
-    mpu_regions: [Cell<(*const u8, math::PowerOfTwo)>; 5],
+    mpu_regions: [Cell<Option<mpu::Region>>; 6],
 
     /// Essentially a list of callbacks that want to call functions in the
     /// process.
@@ -374,7 +431,11 @@ pub struct Process<'a, S: 'static + UserspaceKernelBoundary> {
     debug: MapCell<ProcessDebug>,
 }
 
-impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
+impl<C: Chip> ProcessType for Process<'a, C> {
+    fn appid(&self) -> AppId {
+        AppId::new(self.kernel, self.app_idx)
+    }
+
     fn enqueue_task(&self, task: Task) -> bool {
         // If this app is in the `Fault` state then we shouldn't schedule
         // any work for it.
@@ -405,6 +466,22 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         if self.state.get() == State::Running {
             self.state.set(State::Yielded);
             self.kernel.decrement_work();
+        }
+    }
+
+    fn stop(&self) {
+        match self.state.get() {
+            State::Running => self.state.set(State::StoppedRunning),
+            State::Yielded => self.state.set(State::StoppedYielded),
+            _ => {} // Do nothing
+        }
+    }
+
+    fn resume(&self) {
+        match self.state.get() {
+            State::StoppedRunning => self.state.set(State::Running),
+            State::StoppedYielded => self.state.set(State::Yielded),
+            _ => {} // Do nothing
         }
     }
 
@@ -540,111 +617,41 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         }
     }
 
-    fn setup_mpu(&self, mpu: &mpu::MPU) {
-        // Flash segment read/execute (no write)
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_len = self.flash.len();
-
-        match mpu.create_region(
-            0,
-            flash_start,
-            flash_len,
-            mpu::ExecutePermission::ExecutionPermitted,
-            mpu::AccessPermission::ReadOnly,
-        ) {
-            None => panic!(
-                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                flash_start, flash_len
-            ),
-            Some(region) => mpu.set_mpu(region),
-        }
-
-        let data_start = self.memory.as_ptr() as usize;
-        let data_len = self.memory.len();
-
-        match mpu.create_region(
-            1,
-            data_start,
-            data_len,
-            mpu::ExecutePermission::ExecutionPermitted,
-            mpu::AccessPermission::ReadWrite,
-        ) {
-            None => panic!(
-                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                data_start, data_len
-            ),
-            Some(region) => mpu.set_mpu(region),
-        }
-
-        // Disallow access to grant region
-        let grant_len = unsafe {
-            math::PowerOfTwo::ceiling(
-                self.memory.as_ptr().offset(self.memory.len() as isize) as u32
-                    - (self.kernel_memory_break.get() as u32),
-            ).as_num::<u32>()
-        };
-        let grant_base = unsafe {
-            self.memory
-                .as_ptr()
-                .offset(self.memory.len() as isize)
-                .offset(-(grant_len as isize))
-        };
-
-        match mpu.create_region(
-            2,
-            grant_base as usize,
-            grant_len as usize,
-            mpu::ExecutePermission::ExecutionNotPermitted,
-            mpu::AccessPermission::PrivilegedOnly,
-        ) {
-            None => panic!(
-                "Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                grant_base as usize, grant_len
-            ),
-            Some(region) => mpu.set_mpu(region),
-        }
-
-        // Setup IPC MPU regions
-        for (i, region) in self.mpu_regions.iter().enumerate() {
-            if region.get().0.is_null() {
-                mpu.set_mpu(mpu::Region::empty(i + 3));
-                continue;
-            }
-            match mpu.create_region(
-                i + 3,
-                region.get().0 as usize,
-                region.get().1.as_num::<u32>() as usize,
-                mpu::ExecutePermission::ExecutionPermitted,
-                mpu::AccessPermission::ReadWrite,
-            ) {
-                None => panic!(
-                    "Unexpected: Infeasible MPU allocation: Num: {}, \
-                     Base: {:#x}, Length: {:#x}",
-                    i + 3,
-                    region.get().0 as usize,
-                    region.get().1.as_num::<u32>()
-                ),
-                Some(region) => mpu.set_mpu(region),
-            }
-        }
+    fn setup_mpu(&self) {
+        self.mpu_config.map(|config| {
+            self.chip.mpu().configure_mpu(&config);
+        });
     }
 
-    fn add_mpu_region(&self, base: *const u8, size: u32) -> bool {
-        if size >= 16 && size.count_ones() == 1 && (base as u32) % size == 0 {
-            let mpu_size = math::PowerOfTwo::floor(size);
+    fn add_mpu_region(
+        &self,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_region_size: usize,
+    ) -> Option<mpu::Region> {
+        self.mpu_config.and_then(|mut config| {
+            let new_region = self.chip.mpu().allocate_region(
+                unallocated_memory_start,
+                unallocated_memory_size,
+                min_region_size,
+                mpu::Permissions::ReadWriteExecute,
+                &mut config,
+            );
+
+            if new_region.is_none() {
+                return None;
+            }
+
             for region in self.mpu_regions.iter() {
-                if region.get().0 == ptr::null() {
-                    region.set((base, mpu_size));
-                    return true;
-                } else if region.get().0 == base {
-                    if region.get().1 < mpu_size {
-                        region.set((base, mpu_size));
-                    }
-                    return true;
+                if region.get().is_none() {
+                    region.set(new_region);
+                    return new_region;
                 }
             }
-        }
-        return false;
+
+            // Not enough room in Process struct to store the MPU region.
+            None
+        })
     }
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
@@ -653,38 +660,69 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 
     fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
-        if new_break < self.mem_start() || new_break >= self.mem_end() {
-            Err(Error::AddressOutOfBounds)
-        } else if new_break > self.kernel_memory_break.get() {
-            Err(Error::OutOfMemory)
-        } else {
-            let old_break = self.app_break.get();
-            self.app_break.set(new_break);
-            Ok(old_break)
-        }
+        self.mpu_config
+            .map_or(Err(Error::KernelError), |mut config| {
+                if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
+                    Err(Error::AddressOutOfBounds)
+                } else if new_break > self.kernel_memory_break.get() {
+                    Err(Error::OutOfMemory)
+                } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+                    new_break,
+                    self.kernel_memory_break.get(),
+                    mpu::Permissions::ReadWriteExecute,
+                    &mut config,
+                ) {
+                    Err(Error::OutOfMemory)
+                } else {
+                    let old_break = self.app_break.get();
+                    self.app_break.set(new_break);
+                    self.chip.mpu().configure_mpu(&mut config);
+                    Ok(old_break)
+                }
+            })
     }
 
-    /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the memory bounds currently exposed to the processes (i.e.
-    /// ending at `kernel_memory_break`. If this method returns true, the buffer
-    /// is guaranteed to be accessible to the process and to not overlap with
-    /// the grant region.
-    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
-        let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
-
-        buf_end_addr >= buf_start_addr
-            && buf_start_addr >= self.mem_start()
-            && buf_end_addr <= self.mem_break()
+    fn allow(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode> {
+        if buf_start_addr == ptr::null_mut() {
+            // A null buffer means pass in `None` to the capsule
+            Ok(None)
+        } else if self.in_app_owned_memory(buf_start_addr, size) {
+            // Valid slice, we need to adjust the app's watermark
+            // in_app_owned_memory eliminates this offset actually wrapping
+            let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            self.allow_high_water_mark.set(new_water_mark);
+            Ok(Some(AppSlice::new(
+                buf_start_addr as *mut u8,
+                size,
+                self.appid(),
+            )))
+        } else {
+            Err(ReturnCode::EINVAL)
+        }
     }
 
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
-        let new_break = self.kernel_memory_break.get().offset(-(size as isize));
-        if new_break < self.app_break.get() {
-            None
-        } else {
-            self.kernel_memory_break.set(new_break);
-            Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
-        }
+        self.mpu_config.and_then(|mut config| {
+            let new_break = self.kernel_memory_break.get().offset(-(size as isize));
+            if new_break < self.app_break.get() {
+                None
+            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+                self.app_break.get(),
+                new_break,
+                mpu::Permissions::ReadWriteExecute,
+                &mut config,
+            ) {
+                None
+            } else {
+                self.kernel_memory_break.set(new_break);
+                Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
+            }
+        })
     }
 
     unsafe fn free(&self, _: *mut u8) {}
@@ -694,12 +732,12 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
     }
 
-    fn get_process_name(&self) -> &[u8] {
-        self.process_name.as_bytes()
+    fn get_process_name(&self) -> &'static str {
+        self.process_name
     }
 
     unsafe fn get_syscall(&self) -> Option<Syscall> {
-        let last_syscall = self.syscall.get_syscall(self.sp());
+        let last_syscall = self.chip.userspace_kernel_boundary().get_syscall(self.sp());
 
         // Record this for debugging purposes.
         self.debug.map(|debug| {
@@ -711,14 +749,16 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
-        self.syscall
+        self.chip
+            .userspace_kernel_boundary()
             .set_syscall_return_value(self.sp(), return_value);
     }
 
     unsafe fn pop_syscall_stack_frame(&self) {
         let mut stored_state = self.stored_state.get();
         let new_stack_pointer = self
-            .syscall
+            .chip
+            .userspace_kernel_boundary()
             .pop_syscall_stack_frame(self.sp(), &mut stored_state);
         self.current_stack_pointer
             .set(new_stack_pointer as *const u8);
@@ -736,7 +776,7 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
         // since we don't know the details of exactly what the stack frames look
         // like.
         let stored_state = self.stored_state.get();
-        match self.syscall.push_function_call(
+        match self.chip.userspace_kernel_boundary().push_function_call(
             self.sp(),
             remaining_stack_bytes,
             callback,
@@ -781,16 +821,50 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
 
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         let mut stored_state = self.stored_state.get();
-        let (stack_pointer, switch_reason) =
-            self.syscall.switch_to_process(self.sp(), &mut stored_state);
+        let (stack_pointer, switch_reason) = self
+            .chip
+            .userspace_kernel_boundary()
+            .switch_to_process(self.sp(), &mut stored_state);
         self.current_stack_pointer.set(stack_pointer as *const u8);
-        self.debug_set_max_stack_depth();
         self.stored_state.set(stored_state);
+
+        // Update debug state as needed after running this process.
+        self.debug.map(|debug| {
+            // Update max stack depth if needed.
+            if self.current_stack_pointer.get() < debug.min_stack_pointer {
+                debug.min_stack_pointer = self.current_stack_pointer.get();
+            }
+
+            // More debugging help. If this occurred because of a timeslice
+            // expiration, mark that so we can check later if a process is
+            // exceeding its timeslices too often.
+            if switch_reason == syscall::ContextSwitchReason::TimesliceExpired {
+                debug.timeslice_expiration_count += 1;
+            }
+        });
+
         Some(switch_reason)
     }
 
+    fn debug_syscall_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.syscall_count)
+    }
+
+    fn debug_dropped_callback_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.dropped_callback_count)
+    }
+
+    fn debug_restart_count(&self) -> usize {
+        self.debug.map_or(0, |debug| debug.restart_count)
+    }
+
+    fn debug_timeslice_expiration_count(&self) -> usize {
+        self.debug
+            .map_or(0, |debug| debug.timeslice_expiration_count)
+    }
+
     unsafe fn fault_fmt(&self, writer: &mut Write) {
-        self.syscall.fault_fmt(writer);
+        self.chip.userspace_kernel_boundary().fault_fmt(writer);
     }
 
     unsafe fn process_detail_fmt(&self, writer: &mut Write) {
@@ -907,8 +981,11 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
   flash_protected_size,
   flash_start));
 
-        self.syscall
-            .process_detail_fmt(self.sp(), &self.stored_state.get(), writer);
+        self.chip.userspace_kernel_boundary().process_detail_fmt(
+            self.sp(),
+            &self.stored_state.get(),
+            writer,
+        );
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -919,14 +996,15 @@ impl<S: UserspaceKernelBoundary> ProcessType for Process<'a, S> {
     }
 }
 
-impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
+impl<C: 'static + Chip> Process<'a, C> {
     crate unsafe fn create(
         kernel: &'static Kernel,
-        syscall: &'static S,
+        chip: &'static C,
         app_flash_address: *const u8,
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
+        index: usize,
     ) -> (Option<&'static ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
@@ -938,16 +1016,26 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             }
 
             // Otherwise, actually load the app.
-            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size();
+            let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
             let process_name = tbf_header.get_package_name();
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
-            // Set the initial process stack and memory to 128 bytes.
-            let initial_stack_pointer = remaining_app_memory.offset(128);
-            let initial_sbrk_pointer = remaining_app_memory.offset(128);
+            // Initialize MPU region configuration.
+            let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
-            // First determine how much space we need in the application's
+            // Allocate MPU region for flash.
+            if let None = chip.mpu().allocate_region(
+                app_flash_address,
+                app_flash_size,
+                app_flash_size,
+                mpu::Permissions::ReadExecuteOnly,
+                &mut mpu_config,
+            ) {
+                return (None, app_flash_size, 0);
+            }
+
+            // Determine how much space we need in the application's
             // memory space just for kernel and grant state. We need to make
             // sure we allocate enough memory just for that.
 
@@ -962,31 +1050,47 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             let callbacks_offset = callback_len * callback_size;
 
             // Make room to store this process's metadata.
-            let process_struct_offset = mem::size_of::<Process<S>>();
+            let process_struct_offset = mem::size_of::<Process<C>>();
 
-            // Need to make sure that the amount of memory we allocate for
-            // this process at least covers this state.
-            if min_app_ram_size
-                < (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32
-            {
-                min_app_ram_size =
-                    (grant_ptrs_offset + callbacks_offset + process_struct_offset) as u32;
+            // Initial sizes of the app-owned and kernel-owned parts of process memory.
+            // Provide the app with plenty of initial process accessible memory.
+            let initial_kernel_memory_size =
+                grant_ptrs_offset + callbacks_offset + process_struct_offset;
+            let initial_app_memory_size = 3 * 1024;
+
+            if min_app_ram_size < initial_app_memory_size {
+                min_app_ram_size = initial_app_memory_size;
             }
 
-            // TODO round app_ram_size up to a closer MPU unit.
-            // This is a very conservative approach that rounds up to power of
-            // two. We should be able to make this closer to what we actually need.
-            let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
+            // Minimum memory size for the process.
+            let min_total_memory_size = min_app_ram_size + initial_kernel_memory_size;
 
-            // Check that we can actually give this app this much memory.
-            if app_ram_size > remaining_app_memory_size {
-                panic!(
-                    "{:?} failed to load. Insufficient memory. Requested {} have {}",
-                    process_name, app_ram_size, remaining_app_memory_size
-                );
-            }
+            // Determine where process memory will go and allocate MPU region for app-owned memory.
+            let (memory_start, memory_size) = match chip.mpu().allocate_app_memory_region(
+                remaining_app_memory as *const u8,
+                remaining_app_memory_size,
+                min_total_memory_size,
+                initial_app_memory_size,
+                initial_kernel_memory_size,
+                mpu::Permissions::ReadWriteExecute,
+                &mut mpu_config,
+            ) {
+                Some((memory_start, memory_size)) => (memory_start, memory_size),
+                None => {
+                    // Failed to load process. Insufficient memory.
+                    return (None, app_flash_size, 0);
+                }
+            };
 
-            let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_ram_size);
+            // Compute how much padding before start of process memory.
+            let memory_padding_size = (memory_start as usize) - (remaining_app_memory as usize);
+
+            // Set up process memory.
+            let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
+
+            // Set the initial process stack and memory to 3072 bytes.
+            let initial_stack_pointer = memory_start.offset(initial_app_memory_size as isize);
+            let initial_sbrk_pointer = memory_start.offset(initial_app_memory_size as isize);
 
             // Set up initial grant region.
             let mut kernel_memory_break = app_memory.as_mut_ptr().offset(app_memory.len() as isize);
@@ -1022,17 +1126,19 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             let mut app_stack_start_pointer = None;
 
             // Create the Process struct in the app grant region.
-            let mut process: &mut Process<S> =
-                &mut *(process_struct_memory_location as *mut Process<'static, S>);
+            let mut process: &mut Process<C> =
+                &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
+            process.app_idx = index;
             process.kernel = kernel;
-            process.syscall = syscall;
+            process.chip = chip;
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = Cell::new(kernel_memory_break);
             process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;
+            process.allow_high_water_mark = Cell::new(remaining_app_memory);
             process.current_stack_pointer = Cell::new(initial_stack_pointer);
             process.original_stack_pointer = initial_stack_pointer;
 
@@ -1042,12 +1148,14 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
             process.state = Cell::new(State::Yielded);
             process.fault_response = fault_response;
 
+            process.mpu_config = MapCell::new(mpu_config);
             process.mpu_regions = [
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
-                Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
             ];
             process.tasks = MapCell::new(tasks);
             process.process_name = process_name;
@@ -1060,6 +1168,7 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
                 last_syscall: None,
                 dropped_callback_count: 0,
                 restart_count: 0,
+                timeslice_expiration_count: 0,
             });
 
             if (init_fn & 0x1) != 1 {
@@ -1085,17 +1194,30 @@ impl<S: 'static + UserspaceKernelBoundary> Process<'a, S> {
 
             kernel.increment_work();
 
-            return (Some(process), app_flash_size, app_ram_size);
+            return (
+                Some(process),
+                app_flash_size,
+                memory_padding_size + memory_size,
+            );
         }
         (None, 0, 0)
     }
 
-    fn mem_break(&self) -> *const u8 {
-        self.kernel_memory_break.get()
-    }
-
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
+    }
+
+    /// Checks if the buffer represented by the passed in base pointer and size
+    /// are within the memory bounds currently exposed to the processes (i.e.
+    /// ending at `app_break`. If this method returns true, the buffer
+    /// is guaranteed to be accessible to the process and to not overlap with
+    /// the grant region.
+    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+
+        buf_end_addr >= buf_start_addr
+            && buf_start_addr >= self.mem_start()
+            && buf_end_addr <= self.app_break.get()
     }
 
     /// Reset all `grant_ptr`s to NULL.

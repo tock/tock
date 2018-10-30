@@ -44,6 +44,7 @@ pub mod i2c;
 pub mod nvic;
 pub mod pm;
 pub mod scif;
+pub mod serial_num;
 pub mod spi;
 pub mod trng;
 pub mod usart;

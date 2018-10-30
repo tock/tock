@@ -75,7 +75,8 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[CRC](src/crc.rs)**: CRC calculation.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
-- **[I2C](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
+- **[I2C_MASTER](src/i2c_master_driver.rs)**: I2C master access only.
+- **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI](src/spi.rs)**: SPI master and slave.
 
@@ -133,3 +134,5 @@ various elements of Tock.
 
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
+- **[Process Console](src/process_console.rs)**: Provide a UART console to
+  inspect the status of process and stop/start them.

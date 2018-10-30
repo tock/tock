@@ -7,27 +7,36 @@ use nrf5x::peripheral_interrupts;
 use radio;
 use uart;
 
-pub struct NRF51(());
+pub struct NRF51 {
+    userspace_kernel_boundary: cortexm0::syscall::SysCall,
+}
 
 impl NRF51 {
     pub unsafe fn new() -> NRF51 {
-        NRF51(())
+        NRF51 {
+            userspace_kernel_boundary: cortexm0::syscall::SysCall::new(),
+        }
     }
 }
 
 impl kernel::Chip for NRF51 {
     type MPU = ();
+    type UserspaceKernelBoundary = cortexm0::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &self.0
+        &()
     }
 
     fn systick(&self) -> &Self::SysTick {
-        &self.0
+        &()
     }
 
-    fn service_pending_interrupts(&mut self) {
+    fn userspace_kernel_boundary(&self) -> &cortexm0::syscall::SysCall {
+        &self.userspace_kernel_boundary
+    }
+
+    fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
                 match interrupt {

@@ -7,6 +7,8 @@
 #[allow(unused_imports)]
 #[macro_use(debug)]
 extern crate kernel;
+#[macro_use]
+extern crate enum_primitive;
 
 pub mod test;
 
@@ -30,6 +32,7 @@ pub mod fxos8700cq;
 pub mod gpio;
 pub mod gpio_async;
 pub mod humidity;
+pub mod i2c_master;
 pub mod i2c_master_slave_driver;
 pub mod ieee802154;
 pub mod isl29035;
@@ -44,6 +47,7 @@ pub mod nonvolatile_storage_driver;
 pub mod nonvolatile_to_pages;
 pub mod nrf51822_serialization;
 pub mod pca9544a;
+pub mod process_console;
 pub mod rf233;
 pub mod rf233_const;
 pub mod rng;

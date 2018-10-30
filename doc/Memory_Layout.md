@@ -18,6 +18,7 @@ kernel, applications, and supporting state.
   * [SAM4L](#sam4l)
     + [Flash](#flash-1)
     + [RAM](#ram-1)
+    + [Overview](#overview)
 
 <!-- tocstop -->
 
@@ -84,8 +85,6 @@ The figure below shows the memory space of one process.
 
 ## Hardware Implementations
 
-Here is an example of how things are laid out in practice.
-
 ### SAM4L
 
 The SAM4L is a microcontroller used on the Hail and Imix platforms, among
@@ -107,3 +106,9 @@ others. The structure of its flash and RAM is as follows.
 | Address Range         | Length (bytes) | Content            | Description                                                                                       |
 |-----------------------|----------------|--------------------|---------------------------------------------------------------------------------------------------|
 | 0x20000000-0x2000FFFF | 64k            | Kernel and app RAM | The kernel links with all of the RAM, and then allocates a buffer internally for application use. |
+
+#### Overview
+
+The following image gives an example of how things are currently laid out in practice. It shows the address space of both flash and RAM with three running applications: crc, ip_sense and analog_comparator.
+
+![Process memory layout](process_memory_layout.png)

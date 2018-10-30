@@ -240,7 +240,7 @@ pub unsafe fn reset_handler() {
         button: button,
     };
 
-    let mut chip = tm4c129x::chip::Tm4c129x::new();
+    let chip = static_init!(tm4c129x::chip::Tm4c129x, tm4c129x::chip::Tm4c129x::new());
 
     tm4c1294.console.initialize();
 
@@ -254,17 +254,12 @@ pub unsafe fn reset_handler() {
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_management_capability,
     );
-    board_kernel.kernel_loop(
-        &tm4c1294,
-        &mut chip,
-        Some(&tm4c1294.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&tm4c1294, chip, Some(&tm4c1294.ipc), &main_loop_capability);
 }

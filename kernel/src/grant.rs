@@ -233,14 +233,13 @@ impl<T: Default> Grant<T> {
     where
         F: Fn(&mut Owned<T>),
     {
-        self.kernel
-            .process_each_enumerate(|app_id, process| unsafe {
-                let root_ptr = *(process.grant_ptr(self.grant_num) as *mut *mut T);
-                if !root_ptr.is_null() {
-                    let mut root = Owned::new(root_ptr, AppId::new(self.kernel, app_id));
-                    fun(&mut root);
-                }
-            });
+        self.kernel.process_each(|process| unsafe {
+            let root_ptr = *(process.grant_ptr(self.grant_num) as *mut *mut T);
+            if !root_ptr.is_null() {
+                let mut root = Owned::new(root_ptr, process.appid());
+                fun(&mut root);
+            }
+        });
     }
 
     pub fn iter(&self) -> Iter<T> {
