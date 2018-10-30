@@ -233,6 +233,25 @@ pull requests:
     fn configure(&self, params: UARTParameters) -> ReturnCode;
     ```
 
+* [#1145](https://github.com/tock/tock/pull/1145) rewrites the HILs
+  for random number generation. There are now two HILs, `entropy` and
+  `rng` (random number generation).  They differ in the guarantees they give
+  about the bits they produce. The `entropy` traits guarantee high entropy bits:
+  1 bit of entropy per bit generated, such that every bit generated has an
+  equal chance of being 0 or 1 and is independent of any other bit produced
+  by the trait: that observing the stream of bits provides zero
+  information on what the future bits will be. Entropy's guarantees make
+  it suitable for use in security and cryptography. The `rng` traits
+  provide bits that are assured to satisfy all standard NIST randomness
+  tests, but do not promise that future bits cannot be guessed from
+  past ones. E.g., the bits are random but not robust against an adversary.
+
+  It also adds library components for converting between different entropy
+  sources as well as converting an entropy source into a random number
+  generator (but *not* a random number generator into an entropy source!).
+  Any software that needs entropy for security or cryptography should use
+  an `entropy` trait and not an `rng` trait.
+
 * Updates to linker and toolchain: As of
   [#993](https://github.com/tock/tock/pull/993) and
   [#1031](https://github.com/tock/tock/pull/1031), the Tock kernel no longer
