@@ -132,7 +132,10 @@ to program a board.
 The training is divided into three sections, each starting with a short
 presentation to introduce some concepts, followed by a practical exercise.
 
-TODO
+1. [Environment Setup](environment.md): Get familiar with the Tock tools
+   and getting a board setup.
+2. [Deliver for the Client](client.md): Help an important client get a
+   new board setup.
 
 
 
