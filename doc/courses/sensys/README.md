@@ -65,6 +65,10 @@ If you choose to install manually, you will need the following software:
 
         $ git clone https://github.com/tock/tock.git
 
+1. A local clone of the Tock applications repository (for apps written in C)
+
+        $ git clone https://github.com/tock/libtock-c.git
+
 1. [rustup](http://rustup.rs/). This tool helps manage installations of the
    Rust compiler and related tools.
 

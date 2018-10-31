@@ -8,8 +8,8 @@
 
 - [Intro](README.md)
 - Getting started with Tock
-- [Write an environment sensing BLE application](application.md)
-- [Add a new capsule to the kernel](capsule.md)
+- [TODO](application.md)
+- [TODO](capsule.md)
 
 The goal of this part of the course is to make sure you have a working
 development environment for Tock.
@@ -17,7 +17,7 @@ development environment for Tock.
 During this portion of the course you will:
 
 - Get a high-level overview of how Tock works.
-- Learn how to compile and flash the kernel onto a Hail board.
+- Learn how to compile and flash the kernel onto a Imix board.
 
 ## 1. Presentation: Tock's goals, architecture and components
 
@@ -28,7 +28,9 @@ terms of resource consumption at the expense of preemptive scheduling (so a
 malicious component could block the system by, e.g., spinning in an infinite
 loop). This is accomplished by the following architecture:
 
-![Tock architecture](architecture.png)
+
+
+<img src="architecture.png" width="50%">
 
 Tock includes three architectural components:
 
@@ -36,7 +38,7 @@ Tock includes three architectural components:
     abstraction layer (HAL), scheduler, and platform-specific configuration.
   - _Capsules_, which are compiled with the kernel and use Rust's type and
     module systems for safety.
-  - _Processes_, which use the MPU for protection at runtime.
+  - _Processes_, which use the memory protection unit (MPU) for protection at runtime.
 
 Read the Tock documentation for more details on its
 [design](https://github.com/tock/tock/blob/master/doc/Design.md).
@@ -63,77 +65,65 @@ Read the Tock documentation for more details on its
 
 ### Build the kernel
 
-To build the kernel, just type make in `boards/hail/`.
+To build the kernel, just type make in `boards/imix/`.
 
-    $ cd boards/hail/
+    $ cd boards/imix/
     $ make
 
 If this is the first time you are trying to make the kernel, the build system
 will use cargo and rustup to install various Tock dependencies.
 
 Kernels must be compiled from within the desired board's folder. For example, to
-compile for imix instead you must first run `cd boards/imix/`.
+compile for Hail instead you must first run `cd boards/hail/`.
 
-### Connect to a Hail board
+### Connect to a imix board
 
-> On Linux, you might need to give your user access to the Hail's serial port.
+> On Linux, you might need to give your user access to the imix's serial port.
 > If you are using the VM, this is already done for you.
 > You can do this by adding a udev rule:
 >
->     $ sudo bash -c "echo 'ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6015\", MODE=\"0666\"' > /etc/udev/rules.d/99-hail"
+>     $ sudo bash -c "echo 'ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6015\", MODE=\"0666\"' > /etc/udev/rules.d/99-imix"
 >
-> Afterwards, detach and re-attach the Hail to reload the rule.
+> Afterwards, detach and re-attach the imix to reload the rule.
 
 > With the virtual machine, you might need to attach the USB device to the
-> VM. To do so, after plugging in Hail, select in the VirtualBox/VMWare menu bar:
+> VM. To do so, after plugging in imix, select in the VirtualBox/VMWare menu bar:
 >
->     Devices -> USB -> "Lab11 Hail IoT Module - TockOS"
+>     Devices -> USB -> "??????" TODO
 >
 > If this generates an error, often unplugging/replugging fixes it. You can also
-> create a rule in the VM USB settings which will auto-attach the Hail to the VM.
+> create a rule in the VM USB settings which will auto-attach the imix to the VM.
 
-To connect your development machine to the Hail, connect them with a micro-USB
-cable. Any cable will do. Hail should come with the Tock kernel and the Hail
-test app pre-loaded. When you plug in Hail, the blue LED should blink slowly
-(about once per second). Pressing the User Button—just to the right of the USB
-plug—should turn on the green LED (if the blue LED turned off, the other button
-is the Reset button, make sure you hit the right one!).
+To connect your development machine to the imix, connect them with a micro-USB
+cable. Any cable will do. imix should come with ???? installed... TODO
 
-The Hail board should appear as a regular serial device (e.g.
+The imix board should appear as a regular serial device (e.g.
 `/dev/tty.usbserial-c098e5130006` on my Mac and `/dev/ttyUSB0` on my Linux box).
 While you can connect with any standard serial program (set to 115200 baud),
 tockloader makes this easier. Tockloader can read attributes from connected
-serial devices, and will automatically find your connected Hail. Simply run:
+serial devices, and will automatically find your connected imix. Simply run:
 
     $ tockloader listen
     No device name specified. Using default "tock"
-    Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+    Using "/dev/ttyUSB0 - ???????????"
 
     Listening for serial output.
 
-    [Hail] Test App!
-    [Hail] Samples all sensors.
-    [Hail] Transmits name over BLE.
-    [Hail] Button controls LED.
-    [Hail Sensor Reading]
-      Temperature:  3174 1/100 degrees C
-      Humidity:     3915 0.01%
-      Light:        15
-      Acceleration: 987
+    ??????????????
     ...
 
 ### Flash the kernel
 
-Now that the Hail board is connected and you have verified that the kernel
-compiles, we can flash the Hail board with the latest Tock kernel:
+Now that the imix board is connected and you have verified that the kernel
+compiles, we can flash the imix board with the latest Tock kernel:
 
-    $ cd boards/hail/
+    $ cd boards/imix/
     $ make program
 
 This command will compile the kernel if needed, and then use `tockloader` to
-flash it onto the Hail. When the flash command succeeds, the Hail test app
-should still be running and the blue LED will be blinking.
-You now have the bleeding-edge Tock kernel running on your Hail board!
+flash it onto the imix. When the flash command succeeds, the imix test app
+should still be running and the blue LED will be blinking TODO IS THIS TRUE?????.
+You now have the bleeding-edge Tock kernel running on your imix board!
 
 ### Clear out the applications and re-flash the test app.
 
@@ -142,23 +132,24 @@ Lets check what's on the board right now:
     $ tockloader list
     ...
     [App 0]
-      Name:                  hail
+      Name:                  imix
       Enabled:               True
       Sticky:                False
       Total Size in Flash:   65536 bytes
     ...
 
-As you can see, the old Hail test app is still installed on the board. This
+As you can see, the old imix test app is still installed on the board. This
 also nicely demonstrates that user applications are nicely isolated from the
 kernel: it is possible to update one independently of the other. Remove it with
 the following command:
 
     $ tockloader uninstall
 
-The blue LED should no longer blink, and another `tockloader list` should show
-nothing installed. Compile and re-flash the Hail test app:
+The blue LED ??????? should no longer blink, and another `tockloader list` should show
+nothing installed. Compile and re-flash the imix test app, using the app in
+the `libtock-c` repository you cloned:
 
-    $ cd userland/examples/tests/hail/
+    $ cd libtock-c/examples/tests/imix/
     $ make program
 
 ## 4. (Optional) Familiarize yourself with `tockloader` commands
@@ -177,7 +168,7 @@ Use the `--no-replace` flag to install multiple copies of the same app.
 In order to install an app, navigate to the correct directory, make the program,
 then issue the install command:
 
-    $ cd tock/userland/examples/blink
+    $ cd libtock-c/examples/blink
     $ make
     $ tockloader install
 
@@ -216,8 +207,8 @@ board with `make program`.
 
 ## 5. (Optional) Explore other Tock example applications
 
-Other applications can be found in the `userland/examples/` directory. Try
-loading them on your Hail and then try modifying them. By default, `tockloader
+Other applications can be found in the `libtock-c/examples/` directory. Try
+loading them on your imix and then try modifying them. By default, `tockloader
 install` adds the new application, but does not erase any others. Be aware, not
 all applications will work well together if they need the same resources (Tock
 is in active development to add virtualization to all resources to remove this
