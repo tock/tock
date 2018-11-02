@@ -25,6 +25,9 @@ use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
+use kernel::hil::gpio::InterruptMode;
+use kernel::hil::gpio::Pin;
+use kernel::hil::gpio::PinCtl;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 use kernel::Chip;
@@ -232,8 +235,13 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+
+    let mut count = 0;
     for &(btn, _) in button_pins.iter() {
+        btn.set_input_mode(hil::gpio::InputMode::PullUp);
+        btn.enable_interrupt(count, InterruptMode::FallingEdge);
         btn.set_client(button);
+        count += 1;
     }
 
     // UART

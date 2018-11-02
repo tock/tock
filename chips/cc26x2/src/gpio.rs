@@ -120,7 +120,7 @@ impl GPIOPin {
         pin_ioc.modify(ioc::Config::INPUT_EN::SET);
     }
 
-    pub fn enable_interrupt(&self, mode: hil::gpio::InterruptMode) {
+    pub fn enable_int(&self, mode: hil::gpio::InterruptMode) {
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
 
         let ioc_edge_mode = match mode {
@@ -318,7 +318,7 @@ impl hil::gpio::Pin for GPIOPin {
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
         self.client_data.set(client_data);
-        self.enable_interrupt(mode);
+        self.enable_int(mode);
     }
 
     fn disable_interrupt(&self) {
@@ -348,21 +348,19 @@ impl IndexMut<usize> for Port {
 impl Port {
     pub fn handle_events(&self) {
         let regs = GPIO_BASE;
-        let evflags = regs.evflags.get();
+        let mut evflags = regs.evflags.get();
         // Clear all interrupts by setting their bits to 1 in evflags
         regs.evflags.set(evflags);
 
-        // evflags indicate which pins has triggered an interrupt,
-        // we need to call the respective handler for positive bit in evflags.
-        let mut pin: usize = usize::max_value();
-        while pin < self.pins.len() {
-            pin = evflags.trailing_zeros() as usize;
-            if pin >= self.pins.len() {
-                break;
+        let mut count = 0;
+        while evflags != 0 && count < self.pins.len() {
+            if (evflags & 0b1) != 0 {
+                self.pins[count].handle_interrupt();
             }
-
-            self.pins[pin].handle_interrupt();
+            count += 1;
+            evflags >>= 1;
         }
+
         self.nvic.clear_pending();
         self.nvic.enable();
     }
