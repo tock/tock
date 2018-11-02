@@ -34,14 +34,12 @@ pub struct Cc26X2 {
     systick: cortexm4::systick::SysTick,
 }
 
-pub const HFREQ: u32 = 48 * 1_000_000;
-
 impl Cc26X2 {
-    pub unsafe fn new() -> Cc26X2 {
+    pub unsafe fn new(hfreq: u32) -> Cc26X2 {
         Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
             // The systick clocks with 48MHz by default
-            systick: cortexm4::systick::SysTick::new_with_calibration(HFREQ),
+            systick: cortexm4::systick::SysTick::new_with_calibration(hfreq),
         }
     }
 }
