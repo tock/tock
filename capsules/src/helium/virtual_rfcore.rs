@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use helium::framer::FrameInfo;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::rfcore;
 use kernel::ReturnCode;
@@ -42,7 +43,7 @@ pub trait RFCore {
     fn transmit(
         &self,
         full_mac_frame: &'static mut [u8],
-        frame_len: usize,
+        frame_info: FrameInfo,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 }
 
@@ -53,6 +54,7 @@ pub enum RadioState {
     StartUp,
     TxDone,
     TxPending,
+    TxDelay,
 }
 
 pub struct VirtualRadio<'a, R: rfcore::Radio> {
@@ -86,13 +88,17 @@ impl<R: rfcore::Radio> VirtualRadio<'a, R> {
             match result {
                 ReturnCode::SUCCESS => (),
                 _ => {
-                    self.send_client_result(rbuf.unwrap(), result);
+                    debug!("VR: radio transmit failure...");
+                    if rbuf.is_some() {
+                        self.send_client_result(rbuf.unwrap(), result);
+                    }
                 }
             };
         });
     }
 
     pub fn send_client_result(&self, buf: &'static mut [u8], result: ReturnCode) {
+        self.radio_state.set(RadioState::Awake);
         self.tx_client.map(move |c| {
             c.transmit_event(buf, result);
         });
@@ -160,19 +166,20 @@ impl<R: rfcore::Radio> RFCore for VirtualRadio<'a, R> {
     fn transmit(
         &self,
         frame: &'static mut [u8],
-        frame_len: usize,
+        frame_info: FrameInfo,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.tx_payload.is_some() {
             return (ReturnCode::EBUSY, Some(frame));
-        } else if frame_len > 240 {
+        } else if frame_info.header.data_len > 240 {
             return (ReturnCode::ESIZE, Some(frame));
         }
 
         self.tx_payload.replace(frame);
-        self.tx_payload_len.set(frame_len);
+        self.tx_payload_len.set(frame_info.header.data_len);
 
         if self.radio.is_on() {
             self.radio_state.set(RadioState::TxPending);
+            self.transmit_packet();
             return (ReturnCode::SUCCESS, None);
         } else {
             self.radio_state.set(RadioState::StartUp);
@@ -189,7 +196,22 @@ impl<R: rfcore::Radio> rfcore::TxClient for VirtualRadio<'a, R> {
             // Transmission Completed
             RadioState::TxDone => self.send_client_result(buf, result),
             // Transmission Pending
-            RadioState::TxPending => self.transmit_packet(),
+            RadioState::TxPending => match result {
+                ReturnCode::SUCCESS => {
+                    self.radio_state.set(RadioState::TxDone);
+                    self.send_client_result(buf, result);
+                }
+                ReturnCode::EBUSY => {
+                    self.tx_payload.replace(buf);
+                    self.transmit_packet();
+                }
+                _ => self.radio_state.set(RadioState::TxDone),
+            },
+            RadioState::TxDelay => {
+                // Something has happened and the last TxPending has failed for some reason so
+                // replace the buffer and try again
+                self.tx_payload.replace(buf);
+            }
             _ => {}
         };
     }

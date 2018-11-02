@@ -93,7 +93,7 @@ impl kernel::Platform for Platform {
     }
 }
 
-static mut HELIUM_BUF: [u8; 128] = [0x00; 128];
+static mut HELIUM_BUF: [u8; 200] = [0x00; 200];
 
 mod cc1312r;
 mod cc1352p;
@@ -406,7 +406,8 @@ pub unsafe fn reset_handler() {
     virtual_device.set_transmit_client(radio_driver);
     virtual_device.set_receive_client(radio_driver);
 
-    let _rfc = &cc26x2::radio::MULTIMODE_RADIO;
+    let rfc = &cc26x2::radio::MULTIMODE_RADIO;
+    rfc.run_tests();
 
     // set nominal voltage
     cc26x2::adc::ADC.nominal_voltage = Some(3300);

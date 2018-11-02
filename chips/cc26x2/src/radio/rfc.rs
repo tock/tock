@@ -22,15 +22,14 @@
 //!
 use core::cell::Cell;
 use cortexm4::nvic;
-use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
 use prcm;
 use radio::commands as cmd;
 use radio::commands::prop_commands as prop;
+use radio::RFC;
 use rtc;
-
 // This section defines the register offsets of
 // RFC_DBELL component
 
@@ -41,7 +40,7 @@ pub struct RfcDBellRegisters {
     // RFC Command Status register
     cmdsta: ReadOnly<u32>,
     // Interrupt Flags From RF HW Modules
-    _rfhw_ifg: ReadWrite<u32>,
+    rfhw_ifg: ReadWrite<u32>,
     // Interrupt Flags For RF HW Modules
     _rfhw_ien: ReadWrite<u32>,
     // Interrupt Flags For CPE Generated Interrupts
@@ -128,11 +127,13 @@ macro_rules! rfc_cmd_ack_nvic {
             unsafe {
                 // handle ACK
                 $rfc.dbell_regs.rfack_ifg.set(0);
+                $rfc.ack_nvic.clear_pending();
             }
         }
     };
 }
 
+rfc_cmd_ack_nvic!(cmd_ack_isr, RFC);
 // This section defines the register offsets of
 // RFC_PWC component
 
@@ -206,7 +207,7 @@ pub struct RFCore {
     pub mode: Cell<Option<RfcMode>>,
     pub rat: Cell<u32>,
     pub status: Cell<u32>,
-    pub ack_status: OptionalCell<RadioReturnCode>,
+    pub ack_status: Cell<u32>,
     ack_nvic: &'static nvic::Nvic,
     cpe0_nvic: &'static nvic::Nvic,
     cpe1_nvic: &'static nvic::Nvic,
@@ -225,7 +226,7 @@ impl RFCore {
             mode: Cell::new(None),
             rat: Cell::new(0),
             status: Cell::new(0),
-            ack_status: OptionalCell::empty(),
+            ack_status: Cell::new(0),
             ack_nvic,
             cpe0_nvic,
             cpe1_nvic,
@@ -271,8 +272,9 @@ impl RFCore {
         let dbell_regs = self.dbell_regs;
 
         // Clear ack flag
+        dbell_regs.rfhw_ifg.set(0);
         dbell_regs.rfack_ifg.set(0);
-
+        self.ack_status.set(0x00);
         // Enable interrupts and clear flags
         dbell_regs
             .rfcpe_isl
@@ -281,8 +283,7 @@ impl RFCore {
             CPEInterrupts::INTERNAL_ERROR::SET
                 + CPEInterrupts::COMMAND_DONE::SET
                 + CPEInterrupts::TX_DONE::SET
-                + CPEInterrupts::BOOT_DONE::SET
-                + CPEInterrupts::SYNTH_NO_LOCK::SET,
+                + CPEInterrupts::BOOT_DONE::SET,
         );
         dbell_regs.rfcpe_ifg.set(0x0000);
 
@@ -493,6 +494,7 @@ impl RFCore {
         while timeout < MAX_TIMEOUT {
             status = dbell_regs.cmdsta.get();
             if (status & 0xFF) == 0x01 {
+                dbell_regs.rfack_ifg.set(0);
                 return Ok(());
             }
 
@@ -536,8 +538,8 @@ impl RFCore {
         let dbell_regs = &*self.dbell_regs;
         let status: u32 = dbell_regs.cmdsta.get();
         match status & 0xFF {
-            0x01 => self.ack_status.set(Ok(())),
-            _ => self.ack_status.set(Err(status)),
+            0x01 => self.ack_status.set(0x01),
+            _ => self.ack_status.set(status),
         };
     }
 
@@ -569,47 +571,45 @@ impl RFCore {
         return self.wait_cmdr(command);
     }
 
-    pub fn handle_interrupt(&self, int: RfcInterrupt) {
+    pub fn handle_ack_event(&self) {
         let dbell_regs = &*self.dbell_regs;
-        match int {
-            // Hardware interrupt handler unimplemented
-            RfcInterrupt::CmdAck => {
-                self.cmdsta();
-                // Clear the interrupt
-                dbell_regs.rfack_ifg.set(0);
-                self.ack_nvic.clear_pending();
-                self.ack_nvic.enable();
-            }
-            RfcInterrupt::Cpe0 => {
-                let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);
-                let last_command_done = dbell_regs
-                    .rfcpe_ifg
-                    .is_set(CPEInterrupts::LAST_COMMAND_DONE);
-                let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
-                let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
-                dbell_regs.rfcpe_ifg.set(0);
-                if command_done || last_command_done {
-                    self.client.get().map(|client| client.command_done());
-                }
-                if tx_done {
-                    self.client.get().map(|client| client.tx_done());
-                }
-                if rx_ok {
-                    self.client.get().map(|client| client.rx_ok());
-                }
+        // Clear the interrupt
+        dbell_regs.rfack_ifg.set(0);
+        self.ack_nvic.clear_pending();
+        self.ack_nvic.enable();
+    }
 
-                self.cpe0_nvic.clear_pending();
-                self.cpe0_nvic.enable();
-            }
-            RfcInterrupt::Cpe1 => {
-                dbell_regs.rfcpe_ifg.set(0x7FFFFFFF);
-                self.cpe1_nvic.clear_pending();
-                self.cpe1_nvic.enable();
-
-                panic!("Internal occurred during radio command!\r");
-            }
-            _ => panic!("Unhandled RFC interrupt: {}\r", int as u8),
+    pub fn handle_cpe0_event(&self) {
+        let dbell_regs = &*self.dbell_regs;
+        let command_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::COMMAND_DONE);
+        let last_command_done = dbell_regs
+            .rfcpe_ifg
+            .is_set(CPEInterrupts::LAST_COMMAND_DONE);
+        let tx_done = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::TX_DONE);
+        let rx_ok = dbell_regs.rfcpe_ifg.is_set(CPEInterrupts::RX_OK);
+        dbell_regs.rfcpe_ifg.set(0);
+        if tx_done {
+            self.client.get().map(|client| client.tx_done());
         }
+        if command_done || last_command_done {
+            self.client.get().map(|client| client.command_done());
+        }
+        if rx_ok {
+            self.client.get().map(|client| client.rx_ok());
+        }
+
+        self.cpe0_nvic.clear_pending();
+        self.cpe0_nvic.enable();
+    }
+
+    pub fn handle_cpe1_event(&self) {
+        let dbell_regs = &*self.dbell_regs;
+
+        dbell_regs.rfcpe_ifg.set(0x7FFFFFFF);
+        self.cpe1_nvic.clear_pending();
+        self.cpe1_nvic.enable();
+
+        panic!("Internal occurred during radio command!\r");
     }
 }
 

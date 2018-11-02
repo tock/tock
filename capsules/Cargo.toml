@@ -6,5 +6,6 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 [dependencies]
 kernel = { path = "../kernel" }
 fixedvec = "0.2.3"
-msg = { path = "../caut-rust", default-features=false }
+msg = { path = "../libraries/caut-rust", default-features=false }
+cauterize = { path = "../libraries//caut-rust//cauterize", default-features=false }
 enum_primitive = { path = "../libraries/enum_primitive" }
