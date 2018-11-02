@@ -28,7 +28,7 @@ enum Gpt {
 
 use kernel::common::registers::{Field, ReadWrite};
 // this struct helps group together 16-bit timers
-pub struct Channel<'a> {
+pub struct Signal<'a> {
     gpt: Gpt,
     mode: &'a ReadWrite<u32, gpt::Mode::Register>,
     prescale: &'a ReadWrite<u32, gpt::Prescale::Register>,
@@ -39,8 +39,8 @@ pub struct Channel<'a> {
     ctl_output_invert_field: &'a Field<u32, gpt::Ctl::Register>,
 }
 
-impl<'a> Channel<'a> {
-    pub fn new(timer: Timer) -> Channel<'a> {
+impl<'a> Signal<'a> {
+    pub fn new(timer: Timer) -> Signal<'a> {
         let gpt;
         match timer {
             Timer::GPT0A => gpt = Gpt::GPT0,
@@ -54,7 +54,7 @@ impl<'a> Channel<'a> {
         }
 
         match timer {
-            Timer::GPT0A | Timer::GPT1A | Timer::GPT2A | Timer::GPT3A => Channel {
+            Timer::GPT0A | Timer::GPT1A | Timer::GPT2A | Timer::GPT3A => Signal {
                 gpt,
                 mode: &gpt::GPT[gpt as usize].timer_a_mode,
                 prescale: &gpt::GPT[gpt as usize].timer_a_prescale,
@@ -64,7 +64,7 @@ impl<'a> Channel<'a> {
                 ctl_enable_field: &gpt::Ctl::TIMER_A_EN,
                 ctl_output_invert_field: &gpt::Ctl::TIMER_A_PWM_OUTPUT_INVERT,
             },
-            Timer::GPT0B | Timer::GPT1B | Timer::GPT2B | Timer::GPT3B => Channel {
+            Timer::GPT0B | Timer::GPT1B | Timer::GPT2B | Timer::GPT3B => Signal {
                 gpt,
                 mode: &gpt::GPT[gpt as usize].timer_b_mode,
                 prescale: &gpt::GPT[gpt as usize].timer_b_prescale,
@@ -87,11 +87,23 @@ impl<'a> Channel<'a> {
         self.timer_load.write(gpt::Value32::SET.val(period as u32));
     }
 
-    pub fn set_on_period(&self, duty: u16) {
-        self.timer_match.write(gpt::Value32::SET.val(duty as u32));
+    pub fn set_on_period(&self, on_period: u16) {
+        self.timer_match
+            .write(gpt::Value32::SET.val(on_period as u32));
     }
 
-    pub fn enable(&self, period: u16, on_period: u16) {
+    pub fn configure(&self, period: u16, on_period: u16) {
+        self.set_prescalar(0);
+        self.set_period(period);
+        self.set_on_period(on_period);
+
+        // enable the PWM and invert it so that on_period 255 ~= 100% duty cyle
+        gpt::GPT[self.gpt as usize]
+            .ctl
+            .modify(self.ctl_enable_field.val(1) + self.ctl_output_invert_field.val(1));
+    }
+
+    pub fn enable(&self) {
         prcm::Clock::enable_gpt(self.gpt as usize);
 
         // // 1. Ensure the timer is disabled (clear the TnEN bit) before making any changes.
@@ -113,19 +125,17 @@ impl<'a> Channel<'a> {
                 + gpt::Mode::PWM_INT::ENABLE
                 + gpt::Mode::REG_UPDATE_MODE::CYCLE,
         );
+    }
+}
 
-        // // 5. If a prescaler is to be used, write the prescale value to the GPTM Timer n Prescale register (GPT:TnPR).
-        self.set_prescalar(0);
+use kernel::hil;
+use kernel::ReturnCode;
 
-        // // 7. Load the timer start value into the GPTM Timer n Interval Load register (GPT:TnILR).
-        self.set_period(period);
-
-        // // 8. Load the GPTM Timer n Match register (GPT:TnMATCHR) with the match value.
-        self.set_on_period(on_period);
-
-        // // enable the PWM and invert it so that on_period 255 ~= 100% duty cyle
-        gpt::GPT[self.gpt as usize]
-            .ctl
-            .modify(self.ctl_enable_field.val(1) + self.ctl_output_invert_field.val(1));
+impl<'a> hil::pwm::Signal for Signal<'a> {
+    // Configure with 16-bit period length and on_period
+    // Duty-cycle  = on_period/period
+    fn configure(&self, period: u16, on_period: u16) -> ReturnCode {
+        Signal::configure(self, period, on_period);
+        ReturnCode::SUCCESS
     }
 }

@@ -42,6 +42,9 @@ mod i2c_tests;
 #[allow(dead_code)]
 mod uart_echo;
 
+// High frequency oscillator speed
+pub const HFREQ: u32 = 48 * 1_000_000;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -58,7 +61,7 @@ static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-pub struct Platform {
+pub struct Platform<'a> {
     gpio: &'static capsules::gpio::GPIO<'static, cc26x2::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc26x2::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
@@ -71,9 +74,10 @@ pub struct Platform {
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
     adc: &'static capsules::adc::Adc<'static, cc26x2::adc::Adc>,
     helium: &'static capsules::helium::driver::Helium<'static>,
+    pwm: &'a capsules::pwm::Pwm<'a, cc26x2::pwm::Signal<'a>>,
 }
 
-impl kernel::Platform for Platform {
+impl<'a> kernel::Platform for Platform<'a> {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&kernel::Driver>) -> R,
@@ -88,6 +92,7 @@ impl kernel::Platform for Platform {
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::helium::driver::DRIVER_NUM => f(Some(self.helium)),
+            capsules::pwm::DRIVER_NUM => f(Some(self.pwm)),
             _ => f(None),
         }
     }
@@ -443,20 +448,24 @@ pub unsafe fn reset_handler() {
     }
 
     let pwm_channels = [
-        pwm::Channel::new(pwm::Timer::GPT0A),
-        pwm::Channel::new(pwm::Timer::GPT0B),
-        pwm::Channel::new(pwm::Timer::GPT1A),
-        pwm::Channel::new(pwm::Timer::GPT1B),
-        pwm::Channel::new(pwm::Timer::GPT2A),
-        pwm::Channel::new(pwm::Timer::GPT2B),
-        pwm::Channel::new(pwm::Timer::GPT3A),
-        pwm::Channel::new(pwm::Timer::GPT3B),
+        pwm::Signal::new(pwm::Timer::GPT0A),
+        pwm::Signal::new(pwm::Timer::GPT0B),
+        pwm::Signal::new(pwm::Timer::GPT1A),
+        pwm::Signal::new(pwm::Timer::GPT1B),
+        pwm::Signal::new(pwm::Timer::GPT2A),
+        pwm::Signal::new(pwm::Timer::GPT2B),
+        pwm::Signal::new(pwm::Timer::GPT3A),
+        pwm::Signal::new(pwm::Timer::GPT3B),
     ];
 
     // for testing for now, just enable all channels with PWM
     for pwm_channel in pwm_channels.iter() {
-        pwm_channel.enable(0xFF, 0xFF >> 1)
+        pwm_channel.enable();
+        // basically a 50% duty cycle
+        //pwm_channel.configure(0xFF, 0xFF >> 1)
     }
+
+    let pwm = capsules::pwm::Pwm::new(HFREQ as usize, &pwm_channels);
 
     let launchxl = Platform {
         console,
@@ -468,9 +477,10 @@ pub unsafe fn reset_handler() {
         i2c_master,
         adc,
         helium: radio_driver,
+        pwm: &pwm,
     };
 
-    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());
+    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -491,4 +501,5 @@ pub unsafe fn reset_handler() {
     );
 
     board_kernel.kernel_loop(&launchxl, chip, Some(&ipc), &main_loop_capability);
+    loop {}
 }
