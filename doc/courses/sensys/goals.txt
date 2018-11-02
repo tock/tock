@@ -1,21 +1,32 @@
-At the end of the SenSys 2017 tutorial, attendees should be able to:
+At the end of the SenSys 2018 tutorial, attendees should be able to:
 
-1) Set up a Hail/imix board, compile Tock and flash, compile applications,
+1) Set up an Imix board, compile Tock and flash, compile applications,
    and install applications.
 
-2) Add a new capsule to the kernel (write it, include it in the crate,
-   initialize it in a boot sequence).
+2) Use the process management capsule to inspect the state of multiple running
+   processes, detect a misbehaving application, and stop its execution without
+   interrupting other processes on the board.
 
-3) Write a system call interface to a capsule.
+3) Understand the Tock process/Syscall model well enough to identify apps that
+   fail to yield the processor fairly.
 
-4) Write a new chip driver for a (chip) peripheral.
-   - Maybe not, but understanding unsafe use here is important.
+4) Build apps that communicate over 802.15.4/6lowpan/IPv6
 
-5) Write down/diagram what happens when a process makes a blocking
-   system call (context switch, interrupt setup, wait_for, interrupt 
-   handling, kernel thread, resuming process).
+5) Build an app that advertises sensor data over 6LoWPAN to another Imix
+    acting as a server
 
-6a) Build two apps the communicate over 802.15.4/6lowpan/Thread (depending on
-how far we get)
+6) Do at least one of the following (depending on how they spend the last two
+   hours):
 
-6b) Build app app that advertises sensor data over BLE to a phone.
+  a) Add a new capsule to the kernel (write it, include it in the crate,
+     initialize it in a boot sequence).
+
+  b) Write a system call interface to a capsule.
+
+  c) Write a new chip driver for a (chip) peripheral.
+     - Maybe not, but understanding unsafe use here is important.
+
+  d) Write down/diagram what happens when a process makes a blocking
+     system call (context switch, interrupt setup, wait_for, interrupt
+     handling, kernel thread, resuming process).
+

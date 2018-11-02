@@ -1,4 +1,4 @@
-use core::fmt::*;
+use core::fmt::Result;
 use core::str;
 use kernel::debug;
 use kernel::hil::led;

@@ -33,15 +33,35 @@ list` and see the following:
 ```
 $tockloader list
 
-app1
-app2
-blink
+ device name specified. Using default "tock"
+Using "/dev/ttyUSB1 - imix IoT Module - TockOS"
 
-TODO
+[App 0]
+  Name:                  app2
+  Enabled:               True
+  Sticky:                False
+  Total Size in Flash:   16384 bytes
+
+
+[App 1]
+  Name:                  app1
+  Enabled:               True
+  Sticky:                False
+  Total Size in Flash:   8192 bytes
+
+
+[App 2]
+  Name:                  blink
+  Enabled:               True
+  Sticky:                False
+  Total Size in Flash:   2048 bytes
+
+
+Finished in 1.959 seconds
 ```
 
 Great! Now you check that the LEDs are blinking, and sure enough, no problems
-there. The blink app was just for testing, so you `tockloader uninstall`
+there. The blink app was just for testing, so you `tockloader uninstall blink`
 to remove that. So far, so good, Tock!
 But, before you prepare to head home after a
 successful day, you start to wonder if maybe this was a little too easy. Also,
@@ -111,8 +131,11 @@ But which process is at fault? Perhaps we should try another command.
 Maybe `list`:
 
 ```
-PID    Name                Quanta  Syscalls  Dropped Callbacks    State
-  00	printf                  0        17                  0  Yielded
+ PID    Name                Quanta  Syscalls  Dropped Callbacks    State
+  00    app2                     0     ?????                  0  <???????>
+  01    app1                     0     ?????                  0  ???????
+
+
 ```
 
 Ok! Now we have the status of individual applications. And aha! We can clearly

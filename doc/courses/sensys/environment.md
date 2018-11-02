@@ -8,7 +8,7 @@
 
 - [Intro](README.md)
 - Getting started with Tock
-- [TODO](application.md)
+- [Client Delivery](client.md)
 - [TODO](capsule.md)
 
 The goal of this part of the course is to make sure you have a working
@@ -95,7 +95,8 @@ compile for Hail instead you must first run `cd boards/hail/`.
 > create a rule in the VM USB settings which will auto-attach the imix to the VM.
 
 To connect your development machine to the imix, connect them with a micro-USB
-cable. Any cable will do. imix should come with ???? installed... TODO
+cable. Any cable will do, but make sure you connect to the micro-USB port
+labeled 'debug' on the Imix. imix should come with ???? installed... TODO
 
 The imix board should appear as a regular serial device (e.g.
 `/dev/tty.usbserial-c098e5130006` on my Mac and `/dev/ttyUSB0` on my Linux box).
