@@ -44,7 +44,8 @@
 //! have had interrupts enabled.
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000004;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::GPIO as usize;
 
 use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};

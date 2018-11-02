@@ -9,8 +9,9 @@ use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice, SpiSlaveClient, SpiSlaveDevice};
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x20001;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::SPI as usize;
 
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.

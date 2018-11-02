@@ -55,7 +55,8 @@ use kernel::hil::gpio::{Client, InterruptMode};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000003;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::BUTTON as usize;
 
 /// This capsule keeps track for each app of which buttons it has a registered
 /// interrupt for. `SubscribeMap` is a bit array where bits are set to one if

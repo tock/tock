@@ -45,7 +45,8 @@ use kernel::hil::time::Frequency;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x50002;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::SD_CARD as usize;
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:

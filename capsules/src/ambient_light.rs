@@ -14,8 +14,9 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60002;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::AMBIENT_LIGHT as usize;
 
 /// Per-process metadata
 #[derive(Default)]

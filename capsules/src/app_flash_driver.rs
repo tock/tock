@@ -26,7 +26,8 @@ use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x50000;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::APP_FLASH as usize;
 
 #[derive(Default)]
 pub struct App {
