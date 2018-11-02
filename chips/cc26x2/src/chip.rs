@@ -68,19 +68,11 @@ impl kernel::Chip for Cc26X2 {
                     EVENT_PRIORITY::I2C0 => i2c::I2C0.handle_events(),
                     EVENT_PRIORITY::UART0 => uart::UART0.handle_events(),
                     EVENT_PRIORITY::UART1 => uart::UART1.handle_events(),
+                    EVENT_PRIORITY::RF_CMD_ACK => radio::RFC.handle_ack_event(),
+                    EVENT_PRIORITY::RF_CORE_CPE0 => radio::RFC.handle_cpe0_event(),
+                    EVENT_PRIORITY::RF_CORE_CPE1 => radio::RFC.handle_cpe1_event(),
+                    EVENT_PRIORITY::RF_CORE_HW => panic!("Unhandled RFC interupt event!"),
                     EVENT_PRIORITY::AUX_ADC => adc::ADC.handle_events(),
-                    EVENT_PRIORITY::RF_CORE_HW => {
-                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Hardware)
-                    }
-                    EVENT_PRIORITY::RF_CMD_ACK => {
-                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::CmdAck)
-                    }
-                    EVENT_PRIORITY::RF_CORE_CPE0 => {
-                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe0)
-                    }
-                    EVENT_PRIORITY::RF_CORE_CPE1 => {
-                        radio::RFC.handle_interrupt(radio::rfc::RfcInterrupt::Cpe1)
-                    }
                     EVENT_PRIORITY::OSC => prcm::handle_osc_interrupt(),
                     EVENT_PRIORITY::AON_PROG => (),
                     _ => panic!("unhandled event {:?} ", event),
