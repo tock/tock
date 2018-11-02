@@ -459,11 +459,9 @@ pub unsafe fn reset_handler() {
         pwm::Signal::new(pwm::Timer::GPT3B),
     ];
 
-    // for testing for now, just enable all channels with PWM
+    // all PWM channels are enabled, but not necessarily corrected
     for pwm_channel in pwm_channels.iter() {
         pwm_channel.enable();
-        // basically a 50% duty cycle
-        //pwm_channel.configure(0xFF, 0xFF >> 1)
     }
 
     let pwm = capsules::pwm::Pwm::new(HFREQ as usize, &pwm_channels);

@@ -109,7 +109,8 @@ impl<'a, S: hil::pwm::Signal> Driver for Pwm<'a, S> {
                     // exp will accumulate the exponent of the floating point representaiton
                     let mut exp = duty_cycle as u32;
                     for _n in 0..3 {
-                        // by multipling the float by 100 and casting to u32, we extact the exponent
+                        // by multipling the float by 100, we bring convert some bits of the fractional float
+                        // to the exponent bits and by casting to u32, we extact the exponent
                         let extract = ((duty_cycle - exp as f32) * 100.0) as u32;
                         // update the exponent
                         exp = exp * 100 + extract;
@@ -121,9 +122,6 @@ impl<'a, S: hil::pwm::Signal> Driver for Pwm<'a, S> {
                     // convert the percentage into a fraction of the 0xFFFF period
                     // 100*100**3 *10 / float(0xFFFF) ~= 15259
                     let on_period = (exp / 15259) as u16;
-
-                    // let period = 0xFFFF;
-                    // let on_period = (65535000 * duty_cycle ) as u16;
                     self.signals[signal_index].configure(0xFFFF, on_period);
 
                     ReturnCode::SUCCESS
