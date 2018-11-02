@@ -280,9 +280,7 @@ impl Driver for Helium<'a> {
             match command {
                 // Handle callback for CMDSTA after write to CMDR
                 HeliumCommand::DriverCheck => ReturnCode::SUCCESS,
-                HeliumCommand::Initialize => {
-                    self.device.initialize()
-                }
+                HeliumCommand::Initialize => self.device.initialize(),
                 HeliumCommand::GetRadioStatus => {
                     if self.device.is_on() {
                         ReturnCode::SUCCESS

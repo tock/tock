@@ -339,7 +339,6 @@ impl RFCore {
 
     // Call commands to setup RFCore with optional register overrides and power output
     pub fn setup(&self, reg_overrides: u32, tx_power: u16) {
-
         let mut setup_cmd = prop::CommandRadioDivSetup {
             command_no: 0x3807,
             status: 0,
