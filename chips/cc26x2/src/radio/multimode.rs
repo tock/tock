@@ -213,7 +213,6 @@ impl Radio {
             cmd.packet_pointer = p_packet;
 
             RadioCommand::guard(cmd);
-            debug!("BUF: {:?}", buf);
             self.rfc
                 .send_sync(cmd)
                 .and_then(|_| self.rfc.wait(cmd))
@@ -222,7 +221,6 @@ impl Radio {
     }
 
     pub fn run_tests(&self) {
-        debug!("\r\nRunning RFC Tests...\r\n");
         self.rfc.set_mode(rfc::RfcMode::BLE);
 
         osc::OSC.request_switch_to_hf_xosc();
@@ -321,7 +319,6 @@ impl Radio {
 
 impl rfc::RFCoreClient for Radio {
     fn command_done(&self) {
-        debug!("Command Done!");
         unsafe { rtc::RTC.sync() };
 
         if self.schedule_powerdown.get() {
@@ -402,7 +399,6 @@ impl rfcore::RadioDriver for Radio {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        debug!("RFC: Send transmit command...");
         if frame_len > 240 {
             return (ReturnCode::ENOSUPPORT, Some(buf));
         }
@@ -418,7 +414,6 @@ impl rfcore::RadioDriver for Radio {
 
 impl rfcore::RadioConfig for Radio {
     fn initialize(&self) {
-        debug!("Power up radio...");
         self.power_up();
     }
 
@@ -494,7 +489,6 @@ impl rfcore::RadioConfig for Radio {
 
     fn send_stop_command(&self) -> ReturnCode {
         // Send "Gracefull" stop radio operation direct command
-        debug!("Send stop radio command...");
         let command = DirectCommand::new(0x0402, 0);
         if self.rfc.send_direct(&command).is_ok() {
             return ReturnCode::SUCCESS;
@@ -505,7 +499,6 @@ impl rfcore::RadioConfig for Radio {
 
     fn send_kill_command(&self) -> ReturnCode {
         // Send immidiate command kill all radio operation commands
-        debug!("Send kill radio command");
         let command = DirectCommand::new(0x0401, 0);
         if self.rfc.send_direct(&command).is_ok() {
             return ReturnCode::SUCCESS;
@@ -515,7 +508,6 @@ impl rfcore::RadioConfig for Radio {
     }
 
     fn set_frequency(&self, frequency: u16) -> ReturnCode {
-        debug!("Send set frequency command...");
         let mut cmd_fs = prop::CommandFS {
             command_no: 0x0803,
             status: 0,

@@ -161,7 +161,6 @@ impl Helium<'a> {
                     .take()
                     .as_ref()
                     .map(|payload| frame.append_payload(payload.as_ref()))
-//                    .map(|payload| frame.cauterize_payload(payload.as_ref()))
                     .unwrap_or(ReturnCode::EINVAL);
                 if result != ReturnCode::SUCCESS {
                     return result;
@@ -223,7 +222,6 @@ impl Driver for Helium<'a> {
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
-        debug!("Allow called: {:?}", allow_num);
         match allow_num {
             0 | 1 | 2 => self.do_with_app(appid, |app| {
                 match allow_num {
@@ -278,13 +276,11 @@ impl Driver for Helium<'a> {
     /// = `7`: Set device endpoint address.
     ///
     fn command(&self, command_num: usize, addr: usize, _r3: usize, appid: AppId) -> ReturnCode {
-        debug!("Command called: {:?}", command_num);
         if let Some(command) = HeliumCommand::from_usize(command_num) {
             match command {
                 // Handle callback for CMDSTA after write to CMDR
                 HeliumCommand::DriverCheck => ReturnCode::SUCCESS,
                 HeliumCommand::Initialize => {
-                    debug!("Initialize device...");
                     self.device.initialize()
                 }
                 HeliumCommand::GetRadioStatus => {

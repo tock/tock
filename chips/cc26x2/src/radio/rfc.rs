@@ -244,7 +244,6 @@ impl RFCore {
 
     // Enable RFCore
     pub fn enable(&self) {
-        debug!("Enable Radio");
         // Make sure RFC power is enabled
         prcm::Power::enable_domain(prcm::PowerDomain::RFC);
         prcm::Clock::enable_rfc();
@@ -303,7 +302,6 @@ impl RFCore {
 
     // Disable RFCore
     pub fn disable(&self) {
-        debug!("Disable Radio");
         let dbell_regs = &*self.dbell_regs;
         self.send_direct(&cmd::DirectCommand::new(cmd::RFC_STOP, 0))
             .ok();
@@ -341,7 +339,6 @@ impl RFCore {
 
     // Call commands to setup RFCore with optional register overrides and power output
     pub fn setup(&self, reg_overrides: u32, tx_power: u16) {
-        debug!("Setup Radio");
 
         let mut setup_cmd = prop::CommandRadioDivSetup {
             command_no: 0x3807,
@@ -577,7 +574,6 @@ impl RFCore {
 
     pub fn handle_ack_event(&self) {
         let dbell_regs = &*self.dbell_regs;
-        debug!("CMD_ACK! Clearing interrupt.");
         // Clear the interrupt
         dbell_regs.rfack_ifg.set(0);
         self.ack_nvic.clear_pending();

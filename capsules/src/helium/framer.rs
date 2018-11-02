@@ -38,7 +38,6 @@ impl Frame {
             self.buf[i] = *c;
         }
 
-        // self.buf.copy_from_slice(payload);
         self.info.header.data_len = payload.len();
         ReturnCode::SUCCESS
     }
@@ -74,7 +73,6 @@ impl Frame {
             .ok();
 
         self.info.header.data_len = ectx.consume();
-        debug!("Data len: {:?}", self.info.header.data_len);
 
         if self.info.header.data_len > 200 {
             return ReturnCode::ENOMEM;
@@ -274,7 +272,6 @@ impl<D: virtual_rfcore::RFCore> device::Device<'a> for Framer<'a, D> {
     }
 
     fn set_address_long(&self, address: [u8; 10]) {
-        debug!("address set: {:?}", address);
         self.address.set(address);
     }
 
