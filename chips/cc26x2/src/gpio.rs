@@ -12,8 +12,10 @@ use kernel::common::StaticRef;
 use kernel::hil;
 
 use cortexm4::nvic;
+use event;
 use ioc;
 use peripheral_interrupts;
+use pwm;
 
 pub const NUM_PINS: usize = 32;
 
@@ -158,6 +160,62 @@ impl GPIOPin {
     /// Configures pin for I2C SDA
     pub fn enable_i2c_scl(&self) {
         self.set_i2c_input(ioc::Config::PORT_ID::I2C_MSSCL);
+    }
+
+    fn pwm_output(&self, port_id: FieldValue<u32, ioc::Config::Register>) {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+
+        pin_ioc.write(
+            port_id
+                + ioc::Config::DRIVE_STRENGTH::Max
+                + ioc::Config::PULL::None
+                + ioc::Config::SLEW_RED::CLEAR
+                + ioc::Config::HYST_EN::CLEAR
+                + ioc::Config::IO_MODE::Normal
+                + ioc::Config::WAKEUP_CFG::CLEAR
+                + ioc::Config::INPUT_EN::CLEAR,
+        );
+    }
+
+    // Configures pin for PWM
+    // In addition, The PORT_EVENT must be connected to the timer periperhal
+    pub fn enable_pwm(&self, pwm: pwm::Timer) {
+        let port_id;
+        match pwm {
+            pwm::Timer::GPT0A => {
+                event::REG.gpt0a_sel.write(event::Gpt0A::EVENT::PORT_EVENT0);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT0;
+            }
+            pwm::Timer::GPT0B => {
+                event::REG.gpt0b_sel.write(event::Gpt0B::EVENT::PORT_EVENT1);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT1;
+            }
+            pwm::Timer::GPT1A => {
+                event::REG.gpt1a_sel.write(event::Gpt1A::EVENT::PORT_EVENT2);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT2;
+            }
+            pwm::Timer::GPT1B => {
+                event::REG.gpt1b_sel.write(event::Gpt1B::EVENT::PORT_EVENT3);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT3;
+            }
+            pwm::Timer::GPT2A => {
+                event::REG.gpt2a_sel.write(event::Gpt2A::EVENT::PORT_EVENT4);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT4;
+            }
+            pwm::Timer::GPT2B => {
+                event::REG.gpt2b_sel.write(event::Gpt2B::EVENT::PORT_EVENT5);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT5;
+            }
+            pwm::Timer::GPT3A => {
+                event::REG.gpt3a_sel.write(event::Gpt3A::EVENT::PORT_EVENT6);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT6;
+            }
+            pwm::Timer::GPT3B => {
+                event::REG.gpt3b_sel.write(event::Gpt3B::EVENT::PORT_EVENT7);
+                port_id = ioc::Config::PORT_ID::PORT_EVENT7;
+            }
+        }
+        self.pwm_output(port_id);
     }
 
     /// Configures pin for UART0 receive (RX).
