@@ -45,9 +45,9 @@ struct PrcmRegisters {
     pub gpio_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
     // GPT Clock Gate for run, sleep, and deep sleep modes
-    pub gpt_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
-    pub gpt_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
-    pub gpt_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
+    pub gpt_clk_gate_run: ReadWrite<u32, ClockGate4::Register>,
+    pub gpt_clk_gate_sleep: ReadWrite<u32, ClockGate4::Register>,
+    pub gpt_clk_gate_deep_sleep: ReadWrite<u32, ClockGate4::Register>,
 
     // I2C Clock Gate for run, sleep, and deep sleep modes
     pub i2c_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
@@ -154,6 +154,16 @@ register_bitfields![
         CLK_EN1      OFFSET(1) NUMBITS(1) [],
         AM_EN0       OFFSET(8) NUMBITS(1) [],
         AM_EN1       OFFSET(9) NUMBITS(1) []
+    ],
+    ClockGate4 [
+        CLK_EN0      OFFSET(0) NUMBITS(1) [],
+        CLK_EN1      OFFSET(1) NUMBITS(1) [],
+        CLK_EN2      OFFSET(2) NUMBITS(1) [],
+        CLK_EN3      OFFSET(3) NUMBITS(1) [],
+        AM_EN0       OFFSET(8) NUMBITS(1) [],
+        AM_EN1       OFFSET(9) NUMBITS(1) [],
+        AM_EN2       OFFSET(10) NUMBITS(1) [],
+        AM_EN3       OFFSET(11) NUMBITS(1) []
     ],
     PowerDomain0 [
         // RESERVED (bits 3-31)
@@ -431,22 +441,69 @@ impl Clock {
         prcm_commit();
     }
 
-    pub fn enable_gpt() {
+    pub fn enable_gpt(num: usize) {
         let regs = PRCM_BASE;
-        regs.gpt_clk_gate_run.modify(ClockGate::CLK_EN::SET);
-        regs.gpt_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
-        regs.gpt_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
 
+        match num {
+            0 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN0::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN0::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN0::SET);
+            }
+            1 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN1::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN1::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN1::SET);
+            }
+            2 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN2::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN2::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN2::SET);
+            }
+            3 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN3::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN3::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN3::SET);
+            }
+            _ => return,
+        }
         prcm_commit();
     }
 
-    pub fn disable_gpt() {
+    pub fn disable_gpt(num: usize) {
         let regs = PRCM_BASE;
-        regs.gpt_clk_gate_run.modify(ClockGate::CLK_EN::CLEAR);
-        regs.gpt_clk_gate_sleep.modify(ClockGate::CLK_EN::CLEAR);
-        regs.gpt_clk_gate_deep_sleep
-            .modify(ClockGate::CLK_EN::CLEAR);
 
+        match num {
+            0 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN0::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN0::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN0::CLEAR);
+            }
+            1 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN1::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN1::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN1::CLEAR);
+            }
+            2 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN2::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN2::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN2::CLEAR);
+            }
+            3 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN3::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN3::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN3::CLEAR);
+            }
+            _ => return,
+        }
         prcm_commit();
     }
 

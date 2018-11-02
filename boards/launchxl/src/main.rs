@@ -20,10 +20,14 @@ use cc26x2::adc;
 use cc26x2::aon;
 use cc26x2::osc;
 use cc26x2::prcm;
+use cc26x2::pwm;
 use cc26x2::radio;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
+use kernel::hil::gpio::InterruptMode;
+use kernel::hil::gpio::Pin;
+use kernel::hil::gpio::PinCtl;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 use kernel::Chip;
@@ -112,6 +116,8 @@ pub struct Pinmap {
     a5: usize,
     a6: usize,
     a7: usize,
+    pwm0: usize,
+    pwm1: usize,
 }
 
 unsafe fn configure_pins(pin: &Pinmap) {
@@ -137,6 +143,9 @@ unsafe fn configure_pins(pin: &Pinmap) {
     cc26x2::gpio::PORT[pin.a2].enable_analog_input();
     cc26x2::gpio::PORT[pin.a1].enable_analog_input();
     cc26x2::gpio::PORT[pin.a0].enable_analog_input();
+
+    cc26x2::gpio::PORT[pin.pwm0].enable_pwm(pwm::Timer::GPT0A);
+    cc26x2::gpio::PORT[pin.pwm1].enable_pwm(pwm::Timer::GPT0B);
 }
 
 #[no_mangle]
@@ -175,10 +184,9 @@ pub unsafe fn reset_handler() {
     let pinmap: &Pinmap;
     let chip_id = (cc26x2::rom::HAPI.get_chip_id)();
 
-    if chip_id == 0x2282f000 {
+    if chip_id == cc1352p::CHIP_ID {
         pinmap = &cc1352p::PINMAP;
     } else {
-        //chip_id == 0x20828000
         pinmap = &cc1312r::PINMAP;
     }
 
@@ -227,8 +235,13 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+
+    let mut count = 0;
     for &(btn, _) in button_pins.iter() {
+        btn.set_input_mode(hil::gpio::InputMode::PullUp);
+        btn.enable_interrupt(count, InterruptMode::FallingEdge);
         btn.set_client(button);
+        count += 1;
     }
 
     // UART
@@ -393,8 +406,7 @@ pub unsafe fn reset_handler() {
     virtual_device.set_transmit_client(radio_driver);
     virtual_device.set_receive_client(radio_driver);
 
-    let rfc = &cc26x2::radio::MULTIMODE_RADIO;
-    rfc.run_tests();
+    let _rfc = &cc26x2::radio::MULTIMODE_RADIO;
 
     // set nominal voltage
     cc26x2::adc::ADC.nominal_voltage = Some(3300);
@@ -428,6 +440,22 @@ pub unsafe fn reset_handler() {
 
     for channel in adc_channels.iter() {
         cc26x2::adc::ADC.set_client(adc, channel);
+    }
+
+    let pwm_channels = [
+        pwm::Channel::new(pwm::Timer::GPT0A),
+        pwm::Channel::new(pwm::Timer::GPT0B),
+        pwm::Channel::new(pwm::Timer::GPT1A),
+        pwm::Channel::new(pwm::Timer::GPT1B),
+        pwm::Channel::new(pwm::Timer::GPT2A),
+        pwm::Channel::new(pwm::Timer::GPT2B),
+        pwm::Channel::new(pwm::Timer::GPT3A),
+        pwm::Channel::new(pwm::Timer::GPT3B),
+    ];
+
+    // for testing for now, just enable all channels with PWM
+    for pwm_channel in pwm_channels.iter() {
+        pwm_channel.enable(0xFF, 0xFF >> 1)
     }
 
     let launchxl = Platform {

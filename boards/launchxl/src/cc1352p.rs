@@ -1,6 +1,8 @@
 use super::Pinmap;
 use enum_primitive::cast::FromPrimitive;
 
+pub const CHIP_ID: u32 = 0x2282f000;
+
 enum_from_primitive!{
 pub enum PIN_FN {
     UART0_RX = 12,
@@ -22,6 +24,8 @@ pub enum PIN_FN {
     ADC5 = 25,
     ADC6 = 24,
     ADC7 = 23,
+    PWM0 = 18,
+    PWM1 = 19,
 }
 }
 
@@ -43,4 +47,6 @@ pub static PINMAP: Pinmap = Pinmap {
     a5: PIN_FN::ADC5 as usize,
     a6: PIN_FN::ADC6 as usize,
     a7: PIN_FN::ADC7 as usize,
+    pwm0: PIN_FN::PWM0 as usize,
+    pwm1: PIN_FN::PWM1 as usize,
 };
