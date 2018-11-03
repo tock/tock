@@ -97,7 +97,7 @@ mod virtual_uart_rx_test;
 
 // State for loading apps.
 
-const NUM_PROCS: usize = 2;
+const NUM_PROCS: usize = 4;
 
 // Constants related to the configuration of the 15.4 network stack
 // TODO: Notably, the radio MAC addresses can be configured from userland at the moment
@@ -117,9 +117,9 @@ const PAN_ID: u16 = 0xABCD;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 16384] = [0; 16384];
+static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
