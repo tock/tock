@@ -179,8 +179,8 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
                 c.receive(buf, frame_len, crc_valid, result);
             });
         } else {
-            debug!("[AwakeMAC] Received a packet, but not addressed to us");
-            debug!("radio addr is: {:?}", self.radio.get_address());
+            //debug!("[AwakeMAC] Received a packet, but not addressed to us");
+            //debug!("radio addr is: {:?}", self.radio.get_address());
             self.radio.set_receive_buffer(buf);
         }
     }
