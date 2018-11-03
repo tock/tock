@@ -1,6 +1,6 @@
 ---
 title: Tock Embedded OS Tutorial
-date: SenSys 2017
+date: SenSys 2018
 header-includes:
   - \beamertemplatenavigationsymbolsempty
   - \usepackage{pifont}
@@ -12,41 +12,37 @@ header-includes:
   - \setsansfont{Source Sans Pro}
 ---
 
-## Welcome to the Tock OS Training!
-
-> Please make sure you have completed all of the tutorial pre-requisites.  If
-> you prefer, you can download a virtual machine image with all the
-> pre-requisites already installed.
-
-<https://github.com/tock/tock/tree/master/doc/courses/sensys/README.md>
-
-> aka
-
-<tt><http://j2x.us/tock></tt>
-
 ## Agenda Today
 
-  1. Intro to hardware, tools and development environment
-
-  2. Write an end-to-end Bluetooth Low Energy environment sensing application
-
-  3. Add functionality to the Tock kernel
-
-    - Write some Rust!
+|             |             |
+|-------------+-------------|
+| 09:30-10:40 | Intro to Tock, Development Environment & Hardware |
+| 10:40-11:00 | Coffee break |
+| 11:00-12:00 | Hardware setup and installing apps |
+| 12:00-13:30 | Lunch        |
+| 13:30-15:20 | Find and fix a real world bug |
+| 15:20-15:40 | Coffee break |
+| 15:40-17:30 | Choose your own adventure |
 
 # Part 1: Hardware, tools, and development environment
 
-## Hail
+* * *
 
-![](hail.png)
+![](imix.png)
 
-## We need the Hails back at the end of the tutorial
+## imix
 
-But you can take one home with you! Purchase here:
+  - Atmel SAM4L, Cortex-M4, 64 kB RAM, 256 kB flash
 
-<https://tockos.org/hardware>
+  - Nordic NRF51 Bluetooth SoC
 
-Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.
+  - 802.15.4 radio (6lowpan)
+
+  - Temperature, humidity, and light sensors
+
+  - 2 USBs (target USB + FTDI serial USB)
+
+  - 2 LEDs, 1 "user" button
 
 ## Binaries on-board in flash
 
@@ -54,17 +50,17 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
   - `0x10000`: **Kernel**
 
-  - `0x30000`: **Processes**: Packed back-to-back
+  - `0x40000`: **Processes**: Packed back-to-back
 
 ## Tools
 
   * `make`
 
-  * Rust/Cargo (Rust code → LLVM)
+  * Rust/Cargo (Rust code → Cortex-M)
 
-  * `arm-none-eabi` (LLVM → Cortex-M)
+  * `arm-none-eabi` (C → Cortex-M)
 
-  * `tockloader` to interact with Hail and the bootloader
+  * `tockloader` to interact with imix and the bootloader
 
 ## Tools: `tockloader`
 
@@ -72,7 +68,7 @@ Write a binary to a particular address in flash
 
 ```bash
 $ tockloader flash --address 0x10000 \
-    target/thumbv7em-none-eabi/release/hail.bin
+    target/thumbv7em-none-eabi/release/imix.bin
 ```
 
 Program a process in Tock Binary Format[^footnote]:
@@ -95,13 +91,10 @@ $ tockloader listen
 
 Turn to the person next to you:
 
-  1. What kinds of binaries exist on a Tock board? Hint: There are three, and
-     only two can be programmed using `tockloader`.
+  1. What kinds of binaries exist on a Tock board?  
+    _Hint: There are three, and only two can be programmed using `tockloader`._
 
-<!--   2. Can you point to the chip on the Hail that runs the Tock kernel? How about
-     the processes? -->
-
-  2. What steps would you follow to program a process onto Hail? What about
+  2. What steps would you follow to program a process onto imix? What about
      to replace the kernel?
 
 ## Answers
@@ -114,7 +107,7 @@ Turn to the person next to you:
 
      * `tockloader install app.tab`
 
-     * `tockloader flash --address 0x10000 hail-kernel.bin`
+     * `tockloader flash --address 0x10000 imix-kernel.bin`
 
 ## Hands-on: Set-up development environment
 
@@ -132,7 +125,7 @@ Turn to the person next to you:
 
 
  - Head to <http://j2x.us/tock1> to get started!
- - \tiny ([https://github.com/tock/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/tock/tock/blob/master/doc/courses/sensys/environment.md))
+ - \tiny ([https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/environment.md](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/environment.md))
 
 # Part 2: User space
 
@@ -227,91 +220,16 @@ int putnstr(const char *str, size_t len) {
 }
 ```
 
-## Inter Process Communication (IPC)
+## Hands-on: Write a simple application
 
-![](ipc.pdf)
+  3. Get an application running on imix
 
-## Tock Inter Process Communication Overview
+  4. [Print "Hello World" every second](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
 
-*Servers*
-
- * Register as an IPC service
- * Call `notify` to trigger callback in connected client
- * Receive a callback when a client calls `notify`
-
-*Clients*
-
- * Discover IPC services by application name
- * Able to share a buffer with a connected service
- * Call `notify` to trigger callback in connected service
- * Receive a callback when service calls `notify`
-
-## Client Inter Process Communication API
-
-```c
-// Discover IPC service by name
-int ipc_discover(const char* pkg_name);
-
-// Share memory slice with IPC service
-int ipc_share(int pid, void* base, int len);
-
-// Register for callback on server `notify`
-int ipc_register_client_cb(int pid, subscribe_cb cb,
-                           void* userdata);
-
-// Trigger callback in service
-int ipc_notify_svc(int pid);
-```
-
-## Check your understanding
-
-Turn to the person next to you:
-
-1. How does a process perform a blocking operation? Can you draw the flow of
-   operations when a process calls `delay_ms(1000)`?
-
-2. Which functions would a client call to interact with an IPC service that
-   provides a UART console? What does the design of the console service look like?
-
-## Answers
-
-\footnotesize
-
-  1. A blocking call follows these steps:
-
-     * Set up a callback using `subscribe`
-
-     * Initiate an operation with `command`
-
-     * Continually `yield` using `yield_for`
-
-  2. A console service first registers a callback to receive notifications from
-     clients. When the callback triggers, it uses a buffer shared by the client
-     and prints the contents to the console.
-
-     * Call `ipc_discover()` to find the ID of the console service.
-
-     * Call `ipc_share` to share a buffer where output will live
-
-     * Fill the buffer with output
-
-     * Call `ipc_notify_svc` to invoke a console write.
-
-
-
-## Hands-on: Write a BLE environment sensing application
-
-  3. Get an application running on Hail
-
-  4. [Print "Hello World" every second](https://github.com/tock/tock/blob/master/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
-
-  5. [Extend your app to sample on-board sensors](https://github.com/tock/tock/blob/master/doc/courses/sensys/exercises/app/solutions/sensors.c)
-
-  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/tock/tock/blob/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
-
+  5. [Extend your app to sample on-board sensors](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/exercises/app/solutions/sensors.c)
 
  - Head to <http://j2x.us/tock2> to get started!
- - \tiny ([https://github.com/tock/tock/blob/master/doc/courses/sensys/application.md](https://github.com/tock/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
+ - \tiny ([https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/application.md](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
 
@@ -448,7 +366,7 @@ Turn to the person next to you:
 
 ## Hands-on: Write and add a capsule to the kernel
 
-  4. Read the Hail boot sequence in `boards/hail/src/main.rs`
+  4. Read the imix boot sequence in `boards/imix/src/main.rs`
 
   5. Write a new capsule that prints "Hello World" to the debug
      console.
@@ -461,34 +379,7 @@ Turn to the person next to you:
 
 
  - Head to <http://j2x.us/tock3> to get started!
- - \tiny ([https://github.com/tock/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/tock/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
-
-## We need the Hails back!
-
-But you can take one home with you! Purchase here:
-
-
-<https://tockos.org/hardware>
-
-
-Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.
-
-* * *
-
-|                             | imix ($100)             | Hail ($60)      |
-|-----------------------------|-------------------------|-----------------|
-| Sensors                     |                         |                 |
-| - Accelerometer             | ✓                       | ✓               |
-| - Temperature/Humidity      | ✓                       | ✓               |
-| - Light                     | ✓                       | ✓               |
-| - Accelerometer             | ✓                       | ✓               |
-| Radios                      | BLE & 802.15.4          | BLE             |
-| Buttons                     | 1 user, 1 reset         | 1 user, 1 reset |
-| LEDs                        | 3                       | 1 blue, 1 RGB   |
-| Hardware RNG                | ✓                       |                 |
-| USB Host                    | ✓                       | pins only       |
-| Independent Power Domains   | ✓                       |                 |
-| Form Factor                 | Custom, 2.45" x 4"      | Particle Photon |
+ - \tiny ([https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/capsule.md](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/capsule.md#2-check-your-understanding))
 
 ## Stay in touch!
 
@@ -498,20 +389,7 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
 <tock-dev@googlegroups.com>
 
-\#tock on Freenode
-
 \medskip
 
 \hrule
 
-### Quick Survey!
-
-- <https://j2x.us/tock-survey>
-
-\hrule
-
-### Hardware!
-
-<https://tockos.org/hardware>
-
-Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.

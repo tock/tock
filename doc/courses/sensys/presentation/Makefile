@@ -1,4 +1,4 @@
 all: presentation.pdf
 
 presentation.pdf: slides.md
-	pandoc -s --latex-engine xelatex -t beamer $< -o $@
+	pandoc -s --pdf-engine xelatex -t beamer $< -o $@
