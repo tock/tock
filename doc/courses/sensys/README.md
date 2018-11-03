@@ -106,6 +106,8 @@ presentation to introduce some concepts, followed by a practical exercise.
 3. [Deliver for the Client](client.md): Help an important client get a
    new board setup.
 
+4. [Free-form Experimentation](freeform.md): Open-ended exploration with
+   support from the Tock team.
 
 
 ## Older Version of this Course

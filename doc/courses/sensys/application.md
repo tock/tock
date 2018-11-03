@@ -5,7 +5,7 @@
 
 - [Introduction](README.md)
 - Part 1: [Getting started with Tock](environment.md)
-- **Part 2: Application Basics**
+- **Part 2: [Application Basics](application.md)**
 - Part 3: [Client Delivery](client.md)
 - Part 4: [Free-form Play](freeform.md)
 
