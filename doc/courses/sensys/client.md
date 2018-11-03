@@ -1,6 +1,17 @@
-Your First Assignment: Keep the client happy
-==============================
+Part 3: Keep the client happy
+=============================
 
+---
+
+## Course Agenda
+
+- [Introduction](README.md)
+- Part 1: [Getting started with Tock](environment.md)
+- Part 2: [Application Basics](application.md)
+- **Part 3: Client Delivery**
+- Part 4: [Free-form Play](freeform.md)
+
+---
 
 You, an engineer newly added to a top-secret project in your organization,
 have been directed to commission a new imix node for your most important client.
@@ -10,7 +21,7 @@ The directions you receive are terse, but helpful:
 On Sunday, Nov 4, 2018, Director Hines wrote:
 
 Welcome to the team, need you to get started right away. The client needs
-an imix setup with their two apps --- ASAP. Make sure it is working,
+an imix setup with their two apps -- ASAP. Make sure it is working,
 we need to keep this client happy.
 
 - DH
@@ -31,9 +42,9 @@ familiar with: the "blink" app. After doing all of that, you run `tockloader
 list` and see the following:
 
 ```
-$tockloader list
+$ tockloader list
 
- device name specified. Using default "tock"
+No device name specified. Using default "tock"
 Using "/dev/ttyUSB1 - imix IoT Module - TockOS"
 
 [App 0]
@@ -60,7 +71,14 @@ Using "/dev/ttyUSB1 - imix IoT Module - TockOS"
 Finished in 1.959 seconds
 ```
 
-Great! Now you check that the LEDs are blinking, and sure enough, no problems
+---
+> ### Checkpoint
+>
+> Make sure you have these apps installed correctly and `tockloader list`
+> produces similar output as shown here.
+---
+
+Great! Now you check that the LED is blinking, and sure enough, no problems
 there. The blink app was just for testing, so you `tockloader uninstall blink`
 to remove that. So far, so good, Tock!
 But, before you prepare to head home after a
@@ -70,7 +88,7 @@ if you get this wrong, it's not going to look good as the new person on the team
 Looking in the folders for the two applications, you notice a brief description
 of the apps, and a URL. Ok, maybe you can check if everything is working.
 After trying things for a little bit, everything seems to be in order. You
-tell the director the board is ready and head home a little early---you did
+tell the director the board is ready and head home a little early&mdash;you did
 just successfully complete your first project for a major client after all.
 
 
@@ -84,7 +102,7 @@ On Monday, Nov 5, 2018, Director Hines wrote:
 
 I know you are new, but what did you do?? I've been getting calls all morning
 from the client, the imix board you gave them ran out battery already!! Are you
-sure you setup the board correctly? Fix it, and get it back to me later today.
+sure you set up the board correctly? Fix it, and get it back to me later today.
 
 - DH
 ```
