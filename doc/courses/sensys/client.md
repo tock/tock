@@ -133,9 +133,9 @@ Valid commands are: help status list stop start
 Ok! Maybe the process console can help. Try the `status` command:
 
 ```
-Total processes:
-Active processes:
-Timeslice expirations:
+Total processes: 2
+Active processes: 2
+Timeslice expirations: 4277
 ```
 
 It seems this tool is actually able to inspect the current system and the active
@@ -150,8 +150,8 @@ Maybe `list`:
 
 ```
  PID    Name                Quanta  Syscalls  Dropped Callbacks    State
-  00    app2                     0     ?????                  0  <???????>
-  01    app1                     0     ?????                  0  ???????
+  00	app2                     0       336                  0  Yielded
+  01	app1                  8556   1439951                  0  Running
 
 
 ```
@@ -172,11 +172,31 @@ have to fix.
 
 ## Time to Fix the App
 
-After debugging, we now know three things about the issue: 1) the name of the
-faulty app, 2) what that app is supposed to do, and 3) that it is functionally
-correct but is for some reason consuming excess CPU cycles.
+After debugging, we now know three things about the issue:
 
+- The name of the faulty app.
+- What that app is supposed to do.
+- That it is functionally correct but is for some reason consuming excess CPU cycles.
 
+Using this information, dig into the the faulty app.
 
+### A Quick Fix
 
+To get the director off your back, you should be able to introduce a simple fix
+that will reduce wakeups by
+[waiting a bit](https://github.com/tock/libtock-c/blob/21234c671eee0ae491faa5d23f35f3762b25c522/libtock/timer.h#L76)
+between samples.
+
+### A Better Way
+
+While the quick fix will slow the number of wakeups, you know that you can do
+better than polling for something like a button press! Tock supports
+asynchronous operations allowing user processes to _subscribe_ to interrupts.
+
+Looking at the [button interface](https://github.com/tock/libtock-c/blob/master/libtock/button.h),
+it looks like we'll first have to enable interrupts and then sign up to listen to them.
+
+Once this energy-optimal patch is in place, it'll be time to kick off a
+triumphant e-mail to the director, and then off to celebrate with some
+[baijiu](https://en.wikipedia.org/wiki/Baijiu)!
 
