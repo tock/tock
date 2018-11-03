@@ -109,19 +109,19 @@ until the delay is complete.
 ## 5. Write an app that periodically samples the on-board sensors
 
 Now that we have the ability to write applications, let's do something a little
-more complex. The development board you are using has several sensors on it,
-[as shown here](https://github.com/tock/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
-for the Hail board. These sensors include a light sensor, a humidity sensor, and
-a temperature sensor. Each sensing medium can be accessed separately via the
-Tock user library. We'll just be using the light, temperature, and humidity
-measurements for today's tutorial.
+more complex. The development board you are using has several sensors on it.
+These sensors include a light sensor, a humidity sensor, and a temperature
+sensor. Each sensing medium can be accessed separately via the Tock user
+library. We'll just be using the light, temperature, and humidity measurements
+for today's tutorial.
 
 #### Light
 
-The interface in `userland/libtock/ambient_light.h` is used to measure ambient light conditions
-in [lux](https://en.wikipedia.org/wiki/Lux). Specifically, it uses the sensor
-[ISL29035](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html).
-It contains the function:
+The interface in `userland/libtock/ambient_light.h` is used to measure ambient
+light conditions in [lux](https://en.wikipedia.org/wiki/Lux). imix uses the
+[ISL29035](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html)
+sensor, but the userland library is abstracted from the details of particular
+sensors.  It contains the function:
 
 ```c
 #include <ambient_light.h>
@@ -133,8 +133,9 @@ argument, and the function returns non-zero in the case of an error.
 
 #### Temperature
 
-The interface in `userland/libtock/temperature.h` is used to measure ambient temperature in degrees
-Celsius, times 100. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
+The interface in `userland/libtock/temperature.h` is used to measure ambient
+temperature in degrees Celsius, times 100. imix uses the
+[SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
 sensor. It contains the function:
 
 ```c
@@ -196,75 +197,4 @@ int led_toggle(int led_num);
 ```
 
 Which toggles the state of an LED, accessed by its number.
-
-
-## 6. Extend your app to report through the `ble-env-sense` service
-
-Finally, let's explore accessing the Bluetooth Low-Energy (BLE) capabilities of
-the hardware. The Hail board has an
-[nRF51822](https://www.nordicsemi.com/eng/Products/Bluetooth-low-energy/nRF51822)
-radio which provides BLE communications. With that and the available sensors,
-we can use Tock to provide the BLE
-[Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
-(ESS).
-
-Tock exposes raw BLE functionality from kernelspace to userland via a syscall
-interface. There is also a userland app that leverages the BLE syscall API to
-implement an environment sensing service (ESS) as a separate process, instead
-of in the kernel. Publishing ESS characteristics (eg. temperature, ambient
-light, etc.) is thus as simple as creating another process on the board that
-reads the sensors and communicates with the ESS service over Tock's
-inter-process communication (IPC) mechanism.
-
-### Loading the BLE ESS Service
-
-The BLE ESS service can be found in the main Tock repository under
-`userland/examples/services/ble-env-sense`. It accepts commands over IPC and
-updates the BLE ESS service, which is broadcasts through the BLE radio.
-
-Before we load the service though, you should modify its name so that
-you'll be able to tell your Hail apart from everyone else's. Pick
-something short but reasonably unique. On Line 32 of `main.c`, change the
-`adv_name` to a string of your choice. For example:
-
-```
-   .adv_name          = "AmitHail",
-```
-
-Once you've changed the name, we can load the service onto the Hail.
-
-```
-$ tockloader erase-apps
-$ cd userland/examples/services/ble-env-sense/
-$ make program
-$ tockloader listen
-...
-[BLE] Environmental Sensing IPC Service
-...
-```
-
-### Using the BLE ESS Service from an application
-
-Now that we've got the service loaded, we can extend the application
-we've been working on to send environmental measurements over BLE.
-
-#### IPC to the BLE ESS Service
-
-The `ipc.h` interface can be used to send data to the BLE ESS service via
-Tock's inter-process communication mechanism.  Details about how to do this
-are [here](../../../userland/examples/services/ble-env-sense/README.md), and example
-code for sending BLE ESS updates is
-[here](../../../userland/examples/services/ble-env-sense/test/main.c).
-
-Now you should be able to write an app that sends data over BLE.  You can load
-your app alongside the service that's already loaded on the board, and they
-will communicate via IPC.
-
-To test that everything is working, you can connect to your development board
-with a smartphone. We recommend the nRF Connect app
-[[Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&hl=en)
- | [iOS](https://itunes.apple.com/us/app/nrf-connect/id1054362403?mt=8)].
-The BLE address of the Hail is labeled on its bottom, but iOS devices
-cannot access the address of a BLE device. However, you should be able to see
-the unique name that you chose earlier.
 
