@@ -12,6 +12,67 @@ header-includes:
   - \setsansfont{Source Sans Pro}
 ---
 
+## Tock
+
+A secure operating system for microcontrollers
+
+  * Kernel components in Rust
+
+  * Type-safe API for safe driver development
+
+  * Hardware isolated processes for application code
+
+## Microcontrollers
+
+System-on-a-chip with integrated flash, SRAM, CPU and a bunch of hardware
+controllers.
+
+Typically:
+
+  * Communication: UART, SPI, I2C, USB, CAN...
+
+  * External I/O: GPIO, external interrupt, ADC, DAC
+
+  * Timers: RTC, countdown timers
+
+Maybe...
+
+  * Radio (Bluetooth, 15.4)
+
+  * Cryptographic accelerators
+
+  * Other specialized hardware...
+
+## Low Resource
+
+  * 10's of µA average power draw
+
+  * 10's of kBs of RAM
+
+  * Moderate clock speeds
+
+## Use cases
+
+  * Security applications (e.g. authentication keys)
+
+  * Sensor networks
+
+  * Programmable wearables
+
+  * PC/phone peripherals
+
+  * Home/industrial automation
+
+  * Flight control
+
+## Two types of components: capsules and processes
+
+![](architecture.pdf)
+
+## Two types of scheduling: cooperative and preemptive
+
+![](execution.pdf)
+
 ## Agenda Today
 
 |             |             |
@@ -127,7 +188,7 @@ Turn to the person next to you:
  - Head to <http://j2x.us/tock1> to get started!
  - \tiny ([https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/environment.md](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/environment.md))
 
-# Part 2: User space
+# Part 2: User space programming
 
 ## System calls
 
@@ -380,6 +441,49 @@ Turn to the person next to you:
 
  - Head to <http://j2x.us/tock3> to get started!
  - \tiny ([https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/capsule.md](https://github.com/tock/tock/blob/tutorial-sensys-2018/doc/courses/sensys/capsule.md#2-check-your-understanding))
+
+# Part 3: Deliver for the Client
+
+## Debugging in a Multi-app Setting
+
+  * Multiprogramming -> multiple things can go wrong
+
+  * Multiprogramming _enables_ better debugging facilities
+
+    - Monitor individual application state
+
+    - Disable only faulty applications
+
+    - Replace only parts of the system
+
+## The Process Console on imix
+
+Keeps track of system calls and timeslice expirations for each process.
+
+Provides basic debugging facilities over UART:
+
+  * `status`
+
+  * `list`
+
+  * `stop [app_name]`
+
+  * `start [app_name]`
+
+## Our task
+
+  * Fix a "deployed" with two mysteriously named processes:
+    - `app1` & `app2`
+
+  * Networked over UDP/6LoWPAN
+
+    - One sends button presses
+
+    - Another sends periodic temperature, humidty and light data
+
+  * Functional, but seem to be draining battery!
+
+_Find and fix the problem!_
 
 ## Stay in touch!
 
