@@ -2,14 +2,20 @@
 
 > While we're getting set up and started, please make sure you have
 > completed all of the [tutorial pre-requisites](README.md#preparation).
-> If you prefer, you can download a
+> You can download a
 > [virtual machine image](README.md#virtual-machine) with all the pre-requisites
 > already installed.
 
-- [Intro](README.md)
-- Getting started with Tock
-- [Client Delivery](client.md)
+---
+
+## Course Agenda
+
+- [Introduction](README.md)
+- **Part 1: Getting started with Tock**
+- Part 2: [Client Delivery](client.md)
 - [TODO](capsule.md)
+
+---
 
 The goal of this part of the course is to make sure you have a working
 development environment for Tock.
@@ -17,24 +23,22 @@ development environment for Tock.
 During this portion of the course you will:
 
 - Get a high-level overview of how Tock works.
-- Learn how to compile and flash the kernel onto a Imix board.
+- Learn how to compile and flash the kernel onto an Imix board.
 
 ## 1. Presentation: Tock's goals, architecture and components
 
+<img align="right" src="architecture.png" width="40%">
+
 A key contribution of Tock is that it uses Rust's borrow checker as a
 language sandbox for isolation and a cooperative scheduling model for
-concurrency in the kernel.  As a result, isolation is (more or less) free in
-terms of resource consumption at the expense of preemptive scheduling (so a
-malicious component could block the system by, e.g., spinning in an infinite
-loop). This is accomplished by the following architecture:
-
-
-
-<img src="architecture.png" width="50%">
+concurrency in the kernel.  As a result, for the kernel isolation is
+(more or less) free in terms of resource consumption at the expense of
+preemptive scheduling (so a malicious component could block the system by,
+e.g., spinning in an infinite loop).
 
 Tock includes three architectural components:
 
-  - A small trusted _kernel_, written in Rust, that implements a hardware
+  - A small trusted _core kernel_, written in Rust, that implements a hardware
     abstraction layer (HAL), scheduler, and platform-specific configuration.
   - _Capsules_, which are compiled with the kernel and use Rust's type and
     module systems for safety.
@@ -54,7 +58,7 @@ Read the Tock documentation for more details on its
    and memory overhead does each entail? Why would you choose to write
    something as a process instead of a capsule and vice versa?
 
-3. Clearly, the kernel should never enter an infinite loop. But is it
+3. Clearly, the core kernel should never enter an infinite loop. But is it
    acceptable for a process to spin? What about a capsule?
 
 ## 3. Compile and program the kernel
@@ -76,27 +80,31 @@ will use cargo and rustup to install various Tock dependencies.
 Kernels must be compiled from within the desired board's folder. For example, to
 compile for Hail instead you must first run `cd boards/hail/`.
 
-### Connect to a imix board
+### Connect to an imix board
 
-> On Linux, you might need to give your user access to the imix's serial port.
-> If you are using the VM, this is already done for you.
-> You can do this by adding a udev rule:
+> #### One-Time Fixups
 >
->     $ sudo bash -c "echo 'ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6015\", MODE=\"0666\"' > /etc/udev/rules.d/99-imix"
+> * On Linux, you might need to give your user access to the imix's serial port.
+>   If you are using the VM, this is already done for you.
+>   You can do this by adding a udev rule:
 >
-> Afterwards, detach and re-attach the imix to reload the rule.
-
-> With the virtual machine, you might need to attach the USB device to the
-> VM. To do so, after plugging in imix, select in the VirtualBox/VMWare menu bar:
+>       $ sudo bash -c "echo 'ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6015\", MODE=\"0666\"' > /etc/udev/rules.d/99-imix"
 >
->     Devices -> USB -> "??????" TODO
+>   Afterwards, detach and re-attach the imix to reload the rule.
 >
-> If this generates an error, often unplugging/replugging fixes it. You can also
-> create a rule in the VM USB settings which will auto-attach the imix to the VM.
+> * With the virtual machine, you might need to attach the USB device to the
+>   VM. To do so, after plugging in imix, select in the VirtualBox/VMWare menu bar:
+>
+>       Devices -> USB Devices -> imix IoT Module - TockOS
+>
+>   If this generates an error, often unplugging/replugging fixes it. You can also
+>   create a rule in the VM USB settings which will auto-attach the imix to the VM.
 
 To connect your development machine to the imix, connect them with a micro-USB
-cable. Any cable will do, but make sure you connect to the micro-USB port
-labeled 'debug' on the Imix. imix should come with ???? installed... TODO
+cable. Any cable will do, but notice that there are two USB ports on the imix.
+Make sure you connect to the micro-USB port labeled 'debug' on the imix. The
+imix should come with `blink` and `c_hello` installed, which will blink the
+status LED and print `Hello World` on boot respectively.
 
 The imix board should appear as a regular serial device (e.g.
 `/dev/tty.usbserial-c098e5130006` on my Mac and `/dev/ttyUSB0` on my Linux box).
@@ -106,12 +114,11 @@ serial devices, and will automatically find your connected imix. Simply run:
 
     $ tockloader listen
     No device name specified. Using default "tock"
-    Using "/dev/ttyUSB0 - ???????????"
+    Using "/dev/ttyUSB0 - Imix - TockOS"
 
     Listening for serial output.
-
-    ??????????????
-    ...
+    Initialization complete. Entering main loop
+    Hello World!
 
 ### Flash the kernel
 
@@ -122,8 +129,8 @@ compiles, we can flash the imix board with the latest Tock kernel:
     $ make program
 
 This command will compile the kernel if needed, and then use `tockloader` to
-flash it onto the imix. When the flash command succeeds, the imix test app
-should still be running and the blue LED will be blinking TODO IS THIS TRUE?????.
+flash it onto the imix. When the flash command succeeds, the `blink` and
+`c_hello` apps should still be running and the LED will be blinking.
 You now have the bleeding-edge Tock kernel running on your imix board!
 
 ### Clear out the applications and re-flash the test app.
@@ -133,32 +140,58 @@ Lets check what's on the board right now:
     $ tockloader list
     ...
     [App 0]
-      Name:                  imix
+      Name:                  blink
       Enabled:               True
       Sticky:                False
-      Total Size in Flash:   65536 bytes
-    ...
+      Total Size in Flash:   2048 bytes
 
-As you can see, the old imix test app is still installed on the board. This
-also nicely demonstrates that user applications are nicely isolated from the
-kernel: it is possible to update one independently of the other. Remove it with
-the following command:
+    [App 1]
+      Name:                  c_hello
+      Enabled:               True
+      Sticky:                False
+      Total Size in Flash:   1024 bytes
+
+
+As you can see, the old apps are still installed on the board.
+This also nicely demonstrates that user applications are isolated from the
+kernel: it is possible to update one independently of the other.
+We can remove apps with the following command:
 
     $ tockloader uninstall
 
-The blue LED ??????? should no longer blink, and another `tockloader list` should show
-nothing installed. Compile and re-flash the imix test app, using the app in
-the `libtock-c` repository you cloned:
+Following the prompt, if you remove the `blink` app, the LED will stop
+blinking, however the console will still print `Hello World`.
 
-    $ cd libtock-c/examples/tests/imix/
+Now let's try adding a more interesting app:
+
+    $ cd libtock-c/examples/sensors/
     $ make program
+
+The `sensors` app will automatically discover all available sensors,
+sample them once a second, and print the results.
+
+    Listening for serial output.
+    Starting process console
+    Initialization complete. Entering main loop
+    [Sensors] Starting Sensors App.
+    Hello World!
+    [Sensors] All available sensors on the platform will be sampled.
+    ISL29035:   Light Intensity: 453
+    Temperature:                 24 deg C
+    Humidity:                    63%
+
+    ISL29035:   Light Intensity: 453
+    Temperature:                 24 deg C
+    Humidity:                    63%
+
 
 ## 4. (Optional) Familiarize yourself with `tockloader` commands
 The `tockloader` tool is a useful and versatile tool for managing and installing
 applications on Tock. It supports a number of commands, and a more complete
 list can be found in the tockloader repository, located at
-https://github.com/tock/tockloader. Below is a list of the more useful
-and important commands for programming and querying a board.
+[github.com/tock/tockloader](https://github.com/tock/tockloader#usage).
+Below is a list of the more useful and important commands for programming and
+querying a board.
 
 ### `tockloader install`
 This is the main tockloader command, used to load Tock applications onto a
@@ -215,3 +248,8 @@ all applications will work well together if they need the same resources (Tock
 is in active development to add virtualization to all resources to remove this
 issue!).
 
+**Note:** By default, the imix platform is limited to only running two
+concurrent processes at once. Tockloader is (currently) unaware of this
+limitation, and will allow to you to load additional apps. However the kernel
+will only load the first two apps. One option for the free-form section at the
+end of the tutorial will be to explore this limitation and allow more apps.
