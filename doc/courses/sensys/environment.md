@@ -12,8 +12,9 @@
 
 - [Introduction](README.md)
 - **Part 1: Getting started with Tock**
-- Part 2: [Client Delivery](client.md)
-- [TODO](capsule.md)
+- Part 2: [Application Basics](application.md)
+- Part 3: [Client Delivery](client.md)
+- Part 4: [Free-form Play](freeform.md)
 
 ---
 
@@ -248,8 +249,8 @@ all applications will work well together if they need the same resources (Tock
 is in active development to add virtualization to all resources to remove this
 issue!).
 
-**Note:** By default, the imix platform is limited to only running two
+**Note:** By default, the imix platform is limited to only running four
 concurrent processes at once. Tockloader is (currently) unaware of this
 limitation, and will allow to you to load additional apps. However the kernel
-will only load the first two apps. One option for the free-form section at the
+will only load the first four apps. One option for the free-form section at the
 end of the tutorial will be to explore this limitation and allow more apps.
