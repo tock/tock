@@ -1,9 +1,15 @@
 # Write an environment sensing Bluetooth Low Energy application
+---
 
-- [Intro](README.md)
-- [Getting started with Tock](environment.md)
-- Write an environment sensing BLE application
-- [Add a new capsule to the kernel](capsule.md)
+## Course Agenda
+
+- [Introduction](README.md)
+- Part 1: [Getting started with Tock](environment.md)
+- **Part 2: Application Basics**
+- Part 3: [Client Delivery](client.md)
+- Part 4: [Free-form Play](freeform.md)
+
+---
 
 ## 1. Presentation: Process overview, relocation model and system call API
 
