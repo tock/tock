@@ -43,7 +43,7 @@ installation before the course.
 
 If you're comfortable working inside a Debian virtual machine, you can download
 an image with all of the dependencies already installed
-[here](http://www.scs.stanford.edu/~alevy/Tock.ova)
+[here](http://www.cs.princeton.edu/~aalevy/Tock.ova)
 
  * VirtualBox users: [File → Import Appliance...](https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html),
  * VMWare users: [File → Open...](https://pubs.vmware.com/workstation-9/index.jsp?topic=%2Fcom.vmware.ws.using.doc%2FGUID-DDCBE9C0-0EC9-4D09-8042-18436DA62F7A.html)
