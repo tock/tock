@@ -153,7 +153,7 @@ impl Component for UDPComponent {
 
         // Initially, set src IP of the sender to be the first IP in the Interface
         // list. Userland apps can change this if they so choose.
-        ip_send.set_addr(self.interface_list[0]);
+        ip_send.set_addr(self.interface_list[2]);
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
