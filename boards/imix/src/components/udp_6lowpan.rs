@@ -151,9 +151,9 @@ impl Component for UDPComponent {
         );
         ipsender_virtual_alarm.set_client(ip_send);
 
-        // Initially, set src IP of the sender to be the first IP in the Interface
-        // list. Userland apps can change this if they so choose.
-        ip_send.set_addr(self.interface_list[0]);
+        // Set src IP of the sender to be the address configured via the sam4l.
+        // Userland apps can change this if they so choose.
+        ip_send.set_addr(self.interface_list[2]);
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
