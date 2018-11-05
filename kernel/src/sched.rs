@@ -243,10 +243,12 @@ impl Kernel {
         systick.enable(true);
 
         loop {
-            if chip.has_pending_interrupts()
-                || systick.overflowed()
-                || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
-            {
+            if chip.has_pending_interrupts() {
+                break;
+            }
+
+            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+                process.debug_timeslice_expired();
                 break;
             }
 
