@@ -49,6 +49,8 @@ use kernel::ReturnCode;
 const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 
+pub static mut RX_BUF1: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
+
 pub struct UartMux<'a> {
     uart: &'a hil::uart::UART,
     speed: u32,

@@ -129,7 +129,7 @@ impl UART {
         self.enable_interrupts();
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+    pub fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != kernel::hil::uart::StopBits::One {

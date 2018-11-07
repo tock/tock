@@ -13,5 +13,7 @@ pub enum PIN_FN {
     BUTTON_1 = 15,
     BUTTON_2 = 14,
     GPIO0 = 24,
+    UART1_RX = 21,
+    UART1_TX = 11
 }
 }
