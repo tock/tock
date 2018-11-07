@@ -362,15 +362,3 @@ impl<D: virtual_rfcore::RFCore> rfcore::RxClient for Framer<'a, D> {
         });
     }
 }
-
-impl<D: virtual_rfcore::RFCore> rfcore::ConfigClient for Framer<'a, D> {
-    fn config_event(&self, _: ReturnCode) {
-        let (rval, buf) = self.step_transmit_state();
-        if let Some(buf) = buf {
-            // Return buf to tx client
-            self.tx_client.map(move |client| {
-                client.transmit_event(buf, rval);
-            });
-        }
-    }
-}

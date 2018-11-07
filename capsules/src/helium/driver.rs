@@ -161,6 +161,7 @@ impl Helium<'a> {
                     .take()
                     .as_ref()
                     .map(|payload| frame.append_payload(payload.as_ref()))
+//                    .map(|payload| frame.cauterize_payload(payload.as_ref()))
                     .unwrap_or(ReturnCode::EINVAL);
                 if result != ReturnCode::SUCCESS {
                     return result;

@@ -16,9 +16,9 @@ pub enum PIN_FN {
     BUTTON_1 = 15,
     BUTTON_2 = 14,
     GPIO0 = 21,
-    ADC0 = 30,
-    ADC1 = 29,
-    ADC2 = 28,
+    //ADC0 = 30,
+    //ADC1 = 29,
+    //ADC2 = 28,
     ADC3 = 27,
     ADC4 = 26,
     ADC5 = 25,
@@ -26,6 +26,9 @@ pub enum PIN_FN {
     ADC7 = 23,
     PWM0 = 18,
     PWM1 = 19,
+    RF24 = 28,
+    RFHIPA = 29,
+    RFSUBG = 30,
 }
 }
 
@@ -39,9 +42,9 @@ pub static PINMAP: Pinmap = Pinmap {
     button1: PIN_FN::BUTTON_1 as usize,
     button2: PIN_FN::BUTTON_2 as usize,
     gpio0: PIN_FN::GPIO0 as usize,
-    a0: PIN_FN::ADC0 as usize,
-    a1: PIN_FN::ADC1 as usize,
-    a2: PIN_FN::ADC2 as usize,
+    //a0: PIN_FN::ADC0 as usize,
+    //a1: PIN_FN::ADC1 as usize,
+    //a2: PIN_FN::ADC2 as usize,
     a3: PIN_FN::ADC3 as usize,
     a4: PIN_FN::ADC4 as usize,
     a5: PIN_FN::ADC5 as usize,
@@ -49,4 +52,7 @@ pub static PINMAP: Pinmap = Pinmap {
     a7: PIN_FN::ADC7 as usize,
     pwm0: PIN_FN::PWM0 as usize,
     pwm1: PIN_FN::PWM1 as usize,
+    rf_2_4: PIN_FN::RF24 as usize,
+    rf_high_pa: PIN_FN::RFHIPA as usize,
+    rf_subg: PIN_FN::RFSUBG as usize,
 };

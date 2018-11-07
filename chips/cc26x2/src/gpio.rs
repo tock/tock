@@ -261,6 +261,40 @@ impl GPIOPin {
                 + ioc::Config::INPUT_EN::SET,
         );
     }
+
+    /// Configures pin for radio antenna
+    pub fn enable_pa_output(&self) {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+        pin_ioc.write(
+            ioc::Config::PORT_ID::RFC_GPO3
+                + ioc::Config::CURRENT_MODE::Low
+                + ioc::Config::DRIVE_STRENGTH::Max
+                + ioc::Config::PULL::None
+                + ioc::Config::INPUT_EN::SET,
+        );
+    }
+
+    pub fn enable_subg_output(&self) {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+        pin_ioc.write(
+            ioc::Config::PORT_ID::RFC_GPO0
+                + ioc::Config::CURRENT_MODE::Low
+                + ioc::Config::DRIVE_STRENGTH::Max
+                + ioc::Config::PULL::None
+                + ioc::Config::INPUT_EN::SET,
+        );
+    }
+
+    pub fn enable_24ghz_output(&self) {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+        pin_ioc.write(
+            ioc::Config::PORT_ID::GPIO
+                + ioc::Config::CURRENT_MODE::Low
+                + ioc::Config::DRIVE_STRENGTH::Max
+                + ioc::Config::PULL::None
+                + ioc::Config::INPUT_EN::SET,
+        );
+    }
 }
 
 impl hil::gpio::PinCtl for GPIOPin {

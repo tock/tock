@@ -31,7 +31,6 @@ use kernel::hil::gpio::PinCtl;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 use kernel::Chip;
-
 #[macro_use]
 pub mod io;
 
@@ -100,7 +99,7 @@ impl<'a> kernel::Platform for Platform<'a> {
 
 static mut HELIUM_BUF: [u8; 200] = [0x00; 200];
 
-mod cc1312r;
+//mod cc1312r;
 mod cc1352p;
 
 pub struct Pinmap {
@@ -113,9 +112,9 @@ pub struct Pinmap {
     button1: usize,
     button2: usize,
     gpio0: usize,
-    a0: usize,
-    a1: usize,
-    a2: usize,
+    //a0: usize,
+    //a1: usize,
+    //a2: usize,
     a3: usize,
     a4: usize,
     a5: usize,
@@ -123,6 +122,9 @@ pub struct Pinmap {
     a7: usize,
     pwm0: usize,
     pwm1: usize,
+    rf_2_4: usize,
+    rf_subg: usize,
+    rf_high_pa: usize,
 }
 
 unsafe fn configure_pins(pin: &Pinmap) {
@@ -145,12 +147,16 @@ unsafe fn configure_pins(pin: &Pinmap) {
     cc26x2::gpio::PORT[pin.a5].enable_analog_input();
     cc26x2::gpio::PORT[pin.a4].enable_analog_input();
     cc26x2::gpio::PORT[pin.a3].enable_analog_input();
-    cc26x2::gpio::PORT[pin.a2].enable_analog_input();
-    cc26x2::gpio::PORT[pin.a1].enable_analog_input();
-    cc26x2::gpio::PORT[pin.a0].enable_analog_input();
+    //cc26x2::gpio::PORT[pin.a2].enable_analog_input();
+    //cc26x2::gpio::PORT[pin.a1].enable_analog_input();
+    //cc26x2::gpio::PORT[pin.a0].enable_analog_input();
 
     cc26x2::gpio::PORT[pin.pwm0].enable_pwm(pwm::Timer::GPT0A);
     cc26x2::gpio::PORT[pin.pwm1].enable_pwm(pwm::Timer::GPT0B);
+
+    cc26x2::gpio::PORT[pin.rf_2_4].enable_24ghz_output();
+    cc26x2::gpio::PORT[pin.rf_high_pa].enable_pa_output();
+    cc26x2::gpio::PORT[pin.rf_subg].enable_subg_output();
 }
 
 #[no_mangle]
@@ -192,7 +198,8 @@ pub unsafe fn reset_handler() {
     if chip_id == cc1352p::CHIP_ID {
         pinmap = &cc1352p::PINMAP;
     } else {
-        pinmap = &cc1312r::PINMAP;
+        pinmap = &cc1352p::PINMAP;
+        // pinmap = &cc1312r::PINMAP;
     }
 
     configure_pins(pinmap);
@@ -411,8 +418,8 @@ pub unsafe fn reset_handler() {
     virtual_device.set_transmit_client(radio_driver);
     virtual_device.set_receive_client(radio_driver);
 
-    let rfc = &cc26x2::radio::MULTIMODE_RADIO;
-    rfc.run_tests();
+    // let rfc = &cc26x2::radio::MULTIMODE_RADIO;
+    // rfc.run_tests();
 
     // set nominal voltage
     cc26x2::adc::ADC.nominal_voltage = Some(3300);
@@ -487,6 +494,10 @@ pub unsafe fn reset_handler() {
     }
 
     let ipc = &kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+
+    adc::ADC.configure(adc::Source::NominalVdds, adc::SampleCycle::_170_us);
+
+    // debug!("Loading processes");
 
     kernel::procs::load_processes(
         board_kernel,
