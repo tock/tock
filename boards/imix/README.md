@@ -13,7 +13,7 @@ and run:
 $ make program
 ```
 
-This will build `boards/imix/target/sam4l/release/imix/imix` and use tockloader to
+This will build `boards/imix/target/thumbv7em-none-eabi/release/imix/imix` and use tockloader to
 flash it to the board.
 
 If you have connected to the board over a JTAG interface, you should instead
@@ -72,7 +72,7 @@ the `release` profile):
 
 ```bash
 $ cd boards/imix/
-$ arm-none-eabi-gdb target/sam4l/release/imix.elf
+$ arm-none-eabi-gdb target/thumbv7em-none-eabi/release/imix
 (gdb) target remote localhost:3333
 (gdb) monitor reset halt
 (gdb) break <?>   # try tab-completion to find useful name-mangled breakpoints
