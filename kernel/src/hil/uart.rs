@@ -71,7 +71,7 @@ pub trait Configure {
     ///         hardware USART controller because it is set up for SPI.
     /// - EINVAL: Impossible parameters (e.g. a `baud_rate` of 0)
     /// - ENOSUPPORT: The underlying UART cannot satisfy this configuration.
-    fn configure(&self, params: UartParameters) -> ReturnCode;
+    fn configure(&self, params: Parameters) -> ReturnCode;
 }
 
 pub trait Transmit<'a> {
@@ -91,18 +91,21 @@ pub trait Transmit<'a> {
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
-    ///
+    ///  - FAIL: some other error.
+    /// 
     /// Each byte in `tx_data` is a UART transfer word of 8 or fewer
-    /// bits.  The width is determined by the UART
-    /// configuration. Clients that need to transfer 9-bit words
-    /// should use `transmit_word`.  Calling `transmit_word` while
-    /// there is an outstanding `transmit_buffer` or `transmit_word`
-    /// operation will return EBUSY.
+    /// bits.  The word width is determined by the UART configuration, 
+    /// truncating any more significant bits. E.g., 0x18f transmitted in 
+    /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients 
+    /// that need to transfer 9-bit words should use `transmit_word`.  
+    ///
+    /// Calling `transmit_word` while there is an outstanding 
+    /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
     fn transmit_buffer(&self, tx_data: &'a mut [u8], tx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>);
 
 
-    /// Transmit a single word of data. The word length is determined
-    /// by the UART configuration: it can be 6, 7, 8, or 9 bits long.
+    /// Transmit a single word of data asynchronously. The word length is 
+    /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
     /// If the `ReturnCode` is SUCCESS, on completion,
     /// `transmitted_word` will be called on the `TransmitClient`.
     /// Other valid `ReturnCode` values are:
@@ -111,20 +114,28 @@ pub trait Transmit<'a> {
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
+    ///  - FAIL: some other error.
     /// If the `ReturnCode` is not SUCCESS, no callback will be made.
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return
     /// EBUSY.
     fn transmit_word(&self, word: u32) -> ReturnCode;
 
-    /// Abort the ongoing transmission.  If SUCCESS is returned, there
-    /// will be no callback (no call to `transmit` was
-    /// outstanding). If there was a `transmit` outstanding, which is
-    /// cancelled successfully then `EBUSY` will be returned and a
-    /// there will be a callback with a `ReturnCode` of `ECANCEL`.  If
-    /// there was a transmit outstanding, which is not cancelled
-    /// successfully, then `FAIL` will be returned and there will be a
-    /// later callback.
+    /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
+    /// The return code indicates whether the call has fully terminated or
+    /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
+    /// always make a callback, to return the passed buffer back to the caller.
+    ///
+    /// If abort_transmit returns SUCCESS, there will be no future callback
+    /// and the client may retransmit immediately. If abort_transmit returns
+    /// any other `ReturnCode` there will be a callback. This means that if
+    /// there is no outstanding call to `transmit_word` or `transmit_buffer`
+    /// then a call to `abort_transmit` returns SUCCESS.
+    ///
+    /// Returns SUCCESS or
+    ///  - FAIL if the outstanding call to either transmit operation could
+    ///    not be synchronously cancelled. A callback will be made on the
+    ///    client indicating whether the call was successfully cancelled.
     fn abort(&self) -> ReturnCode;
 }
 
@@ -180,148 +191,9 @@ pub trait Receive<'a> {
 }
 
 
-/// Implement Client to receive callbacks from UART.
-pub trait TransmitClient<'a> {
-    /// UART transmit complete.
-    fn transmitted_buffer(&self, tx_buffer: &'a mut [u8], rval: ReturnCode);
-    fn transmitted_word(&self, _rval: ReturnCode) {}
-}
-
-pub trait ReceiveClient<'a> {
-    /// UART receive complete.
-    fn received_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize, code: ReturnCode, error: Error);
-    fn received_word(&self, _word: u32, _rcode: ReturnCode, _err: Error) {}
-}
-
-=======
-    fn configure(&self, params: Parameters) -> ReturnCode;
-}
-
-/// Trait for transmitting data over a UART.
-pub trait Transmit {
-   /// Set the transmit client for this UART peripheral. The client will be
-   /// called when transmission requests finish.
-   fn set_transmit_client(&self, client: &'static TransmitClient);
-
-   /// Transmit a single word asynchronously. If the call returns SUCCESS
-   /// it will later make a transmit_word_complete callback on its
-   /// TransmitClient. If the call returns something other than SUCCESS it
-   /// will not make a callback. The word width is determined by the UART
-   /// configuration, truncating any more significant bits. E.g., 0x18f
-   /// transmitted in 8N1 will be sent as 0x8f and in 7N1 will be sent as
-   /// 0x0f.
-   ///
-   /// Returns SUCCESS or
-   ///   - EOFF: the UART is currently powered down or otherwise unable to
-   ///     transmit, e.g., due to being off, a lack of initialization, or
-   ///     being a USART currently configured to be an SPI.
-   ///   - EBUSY: the UART is currently transmitting (it has a call to
-   ///     transmit_word or transmit_buffer outstanding).
-   ///   - FAIL: some other error
-   fn transmit_word(&self, tx_data: u32) -> ReturnCode;
-
-   /// Transmit a buffer asynchronously. If the call returns SUCCESS
-   /// it will later make a transmit_buffer_complete callback on its
-   /// TransmitClient. If the call returns something other than SUCCESS it
-   /// will not make a callback.
-   ///
-   /// Each byte of the buffer is transmitted as a UART word. This
-   /// method therefore does not support word widths larger than 8 bits:
-   /// clients in such cases should use `transmit_word` instead. If the
-   /// word width is smaller than 8 bits, the higher bits of each byte
-   /// will be ignored.
-   ///
-   /// Returns SUCCESS or
-   ///   - EOFF: the UART is currently powered down or otherwise unable to
-   ///     transmit, e.g., due to being off, a lack of initialization, or
-   ///     being a USART currently configured to be an SPI.
-   ///   - EBUSY: the UART is currently transmitting (it has a call to
-   ///     transmit_word or transmit_buffer outstanding).
-   ///   - ESIZE: tx_len is larger than the buffer size
-   ///   - FAIL: some other error
-   fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode;
-
-   /// Abort an outstanding call to `transmit_word` or `transmit_buffer`.
-   /// The return code indicates whether the call has fully terminated or
-   /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
-   /// always make a callback, to return the passed buffer back to the caller.
-   ///
-   /// If abort_transmit returns SUCCESS, there will be no future callback
-   /// and the client may retransmit immediately. If abort_transmit returns
-   /// any other `ReturnCode` there will be a callback. This means that if
-   /// there is no outstanding call to `transmit_word` or `transmit_buffer`
-   /// then a call to `abort_transmit` returns SUCCESS.
-   ///
-   /// Returns SUCCESS or
-   ///  - FAIL if the outstanding call to either transmit operation could
-   ///    not be synchronously cancelled. A callback will be made on the
-   ///    client indicating whether the call was successfully cancelled.
-   fn abort_transmit(&self) -> ReturnCode;
-}
-
-/// Trait for receiving data from a UART.
-pub trait Receive {
-   /// Set the receive client for this UART peripheral. The client will be
-   /// called when reception requests finish.
-   fn set_receive_client(&self, client: &'static ReceiveClient) -> ReturnCode;
-
-   /// Receive a single UART word. The word width is determined by the
-   /// UART configuration. A call to `receive_word` returning SUCCESS will
-   /// result in a `receive_word_complete` callback being issued on the
-   /// `ReceiveClient`. Other return codes will not result in a callback.
-   ///
-   /// Return SUCCESS if the reception successsfully started and will result
-   /// in a `receive_word_complete` callback, or
-   ///   - EOFF: the UART is currently powered down or otherwise unable to
-   ///     receive, e.g., due to being off, a lack of initialization, or
-   ///     being a USART currently configured to be an SPI.
-   ///   - EBUSY: the UART is currently receiving (it has a call to
-   ///     receive_word or receive_buffer outstanding).
-   ///   - FAIL: some other error
-   fn receive_word(&self) -> ReturnCode;
-   
-   /// Receive a buffer asynchronously. If the call returns SUCCESS
-   /// it will later make a receive_buffer_complete callback on its
-   /// ReceiveClient. If the call returns something other than SUCCESS it
-   /// will not make a callback.
-   ///
-   /// Each byte of the buffer is received as a UART word. This
-   /// method therefore does not support word widths larger than 8 bits:
-   /// clients in such cases should use `receive_word` instead. If the
-   /// word width is smaller than 8 bits, the higher bits of each byte
-   /// will be ignored.
-   ///
-   /// Returns SUCCESS or
-   ///   - EOFF: the UART is currently powered down or otherwise unable to
-   ///     receive, e.g., due to being off, a lack of initialization, or
-   ///     being a USART currently configured to be an SPI.
-   ///   - EBUSY: the UART is currently receiving (it has a call to
-   ///     `receive_word` or `receive_buffer` outstanding).
-   ///   - ESIZE: rx_len is larger than the buffer size
-   ///   - FAIL: some other error
-   fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> ReturnCode;
-
-   /// Abort an outstanding call to `receive_word` or `receive_buffer`.
-   /// The return code indicates whether the call has fully terminated or
-   /// there will be a callback. Cancelled calls to `receive_buffer` MUST
-   /// always make a callback, to return the passed buffer back to the caller.
-   ///
-   /// If abort_receive returns SUCCESS, there will be no future callback
-   /// and the client may receive again immediately. If abort_receive returns
-   /// any other `ReturnCode` there will be a callback. This means that if
-   /// there is no outstanding call to `receive_word` or `receive_buffer`
-   /// then a call to `abort_receive` returns SUCCESS.
-   ///
-   /// Returns SUCCESS or
-   ///  - FAIL if the outstanding call to either receive operation could
-   ///    not be synchronously cancelled. A callback will be made on the
-   ///    client indicating whether the call was successfully cancelled.
-   fn abort_receive(&self) -> ReturnCode;
-}
-
 /// Trait implemented by a UART transmitter to receive callbacks when
 /// operations complete.
-pub trait TransmitClient {
+pub trait TransmitClient<'a> {
 
    /// A call to `Transmit::transmit_word` completed. The `ReturnCode`
    /// indicates whether the word was successfully transmitted. A call
@@ -333,7 +205,7 @@ pub trait TransmitClient {
    ///   - ECANCEL if the call to `transmit_word` was cancelled and
    ///     the word was not transmitted.
    ///   - FAIL if the transmission failed in some way.
-   fn transmit_word_complete(&self, rval: ReturnCode);
+   fn transmitted_word(&self, rval: ReturnCode);
 
    /// A call to `Transmit::transmit_buffer` completed. The `ReturnCode`
    /// indicates whether the buffer was successfully transmitted. A call
@@ -353,10 +225,10 @@ pub trait TransmitClient {
    ///   - ESIZE if the buffer could only be partially transmitted. `tx_len`
    //.     contains how many words were transmitted.
    ///   - FAIL if the transmission failed in some way.
-   fn transmit_buffer_complete(&self, tx_buffer: &'static mut [u8], tx_len: usize, rval: ReturnCode);
+   fn transmitted_buffer(&self, tx_buffer: &'a mut [u8], tx_len: usize, rval: ReturnCode);
 }
 
-pub trait ReceiveClient {
+pub trait ReceiveClient<'a> {
 
    /// A call to `Receive::receive_word` completed. The `ReturnCode`
    /// indicates whether the word was successfully received. A call
@@ -370,7 +242,7 @@ pub trait ReceiveClient {
    ///   - FAIL if the reception failed in some way and `word`
    ///     should be ignored. `error` may contain further information
    ///     on the sort of error.
-   fn receive_word_complete(&self, word: u32, rval: ReturnCode, error: Error);
+   fn received_word(&self, word: u32, rval: ReturnCode, error: Error);
 
    /// A call to `Receive::receive_buffer` completed. The `ReturnCode`
    /// indicates whether the buffer was successfully received. A call
@@ -391,7 +263,7 @@ pub trait ReceiveClient {
    //.     contains how many words were transmitted.
    ///   - FAIL if reception failed in some way: `error` may contain further
    ///     information.
-   fn receive_buffer_complete(&self, rx_buffer: &'static mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
+   fn received_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
 
 }
 
@@ -418,6 +290,6 @@ pub trait ReceiveAdvanced<'a>: Receive<'a> {
     /// has been received.
     ///
     /// * `interbyte_timeout`: number of bit periods since last data received.
-    fn receive_automatic(&self, rx_buffer: &'static mut [u8], rx_len: usize, interbyte_timeout: u8) -> ReturnCode;
+    fn receive_automatic(&self, rx_buffer: &'a mut [u8], rx_len: usize, interbyte_timeout: u8) -> (ReturnCode, Option<&'a mut [u8]>);
 }
 

@@ -350,7 +350,7 @@ impl DebugWriter {
 }
 
 impl hil::uart::TransmitClient<'static> for DebugWriter {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _rcode: ReturnCode) {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], tx_len: usize, _rcode: ReturnCode) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 

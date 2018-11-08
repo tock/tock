@@ -94,7 +94,7 @@ use core::cmp;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
-use kernel::hil::uart::{self, Client, UART};
+use kernel::hil::uart::{self, ReceiveClient, TransmitClient, Transmit, Receive};
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
@@ -149,7 +149,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
     }
 
     pub fn initialize(&self) {
-        self.uart.configure(uart::UARTParameters {
+        self.uart.configure(uart::Parameters {
             baud_rate: self.baud_rate,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
