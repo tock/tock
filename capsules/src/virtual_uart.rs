@@ -50,7 +50,7 @@ const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 
 pub struct UartMux<'a> {
-    uart: &'a hil::uart::UART,
+    uart: &'a (uart::Transmit<'a> + uart::Receive<'a> + uart::Configure),
     speed: u32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
@@ -58,16 +58,19 @@ pub struct UartMux<'a> {
     completing_read: Cell<bool>,
 }
 
-impl<'a> hil::uart::Client for UartMux<'a> {
-    fn transmit_complete(&self, tx_buffer: &'static mut [u8], error: hil::uart::Error) {
+impl<'a> uart::TransmitClient<'a> for UartMux<'a> {
+    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], rcode: ReturnCode, error: hil::uart::Error) {
         self.inflight.map(move |device| {
             self.inflight.clear();
-            device.transmit_complete(tx_buffer, error);
+            device.transmitted_buffer(tx_buffer, rcode, error);
         });
         self.do_next_op();
     }
 
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: hil::uart::Error) {
+}
+
+impl <'a> uart::ReceiveClient<'a> for UartMux<'a> {
+    fn received_buffer(&self, buffer: &'static mut [u8], rx_len: usize, rcode: ReturnCode, error: hil::uart::Error) {
         let mut next_read_len = RX_BUF_LEN;
         let mut read_pending = false;
         self.completing_read.set(true);
@@ -113,14 +116,14 @@ impl<'a> hil::uart::Client for UartMux<'a> {
                     // more data.
                     if remaining == 0 {
                         device.state.set(UartDeviceReceiveState::Idle);
-                        device.receive_complete(rxbuf, position, error);
+                        device.received_buffer(rxbuf, position, rcode, error);
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
                         }
                     } else if state == UartDeviceReceiveState::Aborting {
                         device.state.set(UartDeviceReceiveState::Idle);
-                        device.receive_complete(rxbuf, position, hil::uart::Error::Aborted);
+                        device.received_buffer(rxbuf, position, ReturnCode::ECANCEL, hil::uart::Error::Aborted);
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;

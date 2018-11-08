@@ -36,7 +36,7 @@
 
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::uart::{self, Client, UART};
+use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
@@ -58,20 +58,18 @@ pub struct App {
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a, U: UART> {
+pub struct Console<'a, U: uart::UartData> {
     uart: &'a U,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: OptionalCell<AppId>,
     rx_buffer: TakeCell<'static, [u8]>,
-    baud_rate: u32,
 }
 
-impl<U: UART> Console<'a, U> {
+impl<U: uart::UartData> Console<'a, U> {
     pub fn new(
         uart: &'a U,
-        baud_rate: u32,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         grant: Grant<App>,
@@ -83,17 +81,7 @@ impl<U: UART> Console<'a, U> {
             tx_buffer: TakeCell::new(tx_buffer),
             rx_in_progress: OptionalCell::empty(),
             rx_buffer: TakeCell::new(rx_buffer),
-            baud_rate: baud_rate,
         }
-    }
-
-    pub fn initialize(&self) {
-        self.uart.configure(uart::UARTParameters {
-            baud_rate: self.baud_rate,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
     }
 
     /// Internal helper function for setting up a new send transaction
@@ -192,7 +180,7 @@ impl<U: UART> Console<'a, U> {
     }
 }
 
-impl<U: UART> Driver for Console<'a, U> {
+impl<U: uart::Transmit> Driver for Console<'a, U> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -285,8 +273,8 @@ impl<U: UART> Driver for Console<'a, U> {
     }
 }
 
-impl<U: UART> Client for Console<'a, U> {
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+impl<U: uart::UartData> uart::TransmitClient for Console<'a, U> {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _rcode: ReturnCode, _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -348,8 +336,11 @@ impl<U: UART> Client for Console<'a, U> {
             }
         }
     }
+}
 
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
+
+impl<U: uart::UartData> uart::ReceiveClient for Console<'a, U> {
+    fn received_buffer(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
         self.rx_in_progress
             .take()
             .map(|appid| {
