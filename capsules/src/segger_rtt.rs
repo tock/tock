@@ -11,12 +11,12 @@
 //!	With the jlink tools, reciving RTT messages is a two step process. First,
 //!	open a JTAG connection with a command like:
 //!
-//!	    $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
+//!         $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
 //!
 //!	Then, use the `JLinkRTTClient` tool in a different terminal to print the
 //!	messages:
 //!
-//!	    $ JLinkRTTClient
+//!         $ JLinkRTTClient
 //!
 //! Notes
 //! -----
@@ -160,7 +160,7 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm> {
     config: TakeCell<'static, SeggerRttMemory>,
     up_buffer: TakeCell<'static, [u8]>,
     _down_buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static hil::uart::Client>,
+    client: OptionalCell<&'static hil::uart::TransmitClient>,
     client_buffer: TakeCell<'static, [u8]>,
 }
 
@@ -183,7 +183,7 @@ impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
 }
 
 impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
-    fn set_client(&self, client: &'static hil::uart::Client) {
+    fn set_client(&self, client: &'static hil::uart::TransmitClient) {
         self.client.set(client);
     }
 

@@ -3,8 +3,8 @@
 
 use kernel::common::cells::TakeCell;
 use kernel::hil;
-use kernel::hil::uart::Client;
-use kernel::hil::uart::UART;
+use kernel::hil::uart;
+use kernel::ReturnCode;
 use virtual_uart::UartDevice;
 
 pub struct TestVirtualUartReceive {
@@ -28,20 +28,21 @@ impl TestVirtualUartReceive {
     }
 }
 
-impl Client for TestVirtualUartReceive {
-    fn transmit_complete(&self, _tx_buffer: &'static mut [u8], _error: hil::uart::Error) {}
+impl uart::ReceiveClient for TestVirtualUartReceive {
 
-    fn receive_complete(
+    fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-        error: hil::uart::Error,
+        rcode: ReturnCode,
     ) {
-        debug!("Virtual uart read complete: {:?}: ", error);
+        debug!("Virtual uart read complete: {:?}: ", rcode);
         for i in 0..rx_len {
             debug!("{:02x} ", rx_buffer[i]);
         }
         debug!("Starting receive of length {}", rx_len);
         self.device.receive(rx_buffer, rx_len);
     }
+
+    fn received_word(&self, word: u32) {}
 }
