@@ -104,8 +104,9 @@ use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
-/// Syscall Number
-pub const DRIVER_NUM: usize = 0x03_00_00;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::BLE_ADVERTISING as usize;
 
 /// Advertisement Buffer
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];

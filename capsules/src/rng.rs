@@ -25,8 +25,9 @@ use kernel::hil::rng;
 use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x40001;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::RNG as usize;
 
 #[derive(Default)]
 pub struct App {

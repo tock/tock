@@ -17,8 +17,9 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60004;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::NINEDOF as usize;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NineDofCommand {
