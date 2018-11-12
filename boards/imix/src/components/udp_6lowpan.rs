@@ -33,6 +33,8 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel;
 use kernel::capabilities;
+use kernel::udp_port_table::{UDPPortTable, UDPID};
+
 use kernel::component::Component;
 use kernel::hil::radio;
 use sam4l;
@@ -46,20 +48,26 @@ const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by u
 //   3. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
 
 const UDP_HDR_SIZE: usize = 8;
+
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
 
 pub struct UDPComponent {
     board_kernel: &'static kernel::Kernel,
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
+    // TODO: consider putting bound_port_table in a TakeCell
+    bound_port_table: &'static UDPPortTable,
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
+
+
 
 impl UDPComponent {
     pub fn new(
@@ -77,6 +85,7 @@ impl UDPComponent {
             mux_mac: mux_mac,
             ctx_pfix_len: ctx_pfix_len,
             ctx_pfix: ctx_pfix,
+            bound_port_table: unsafe {static_init!(UDPPortTable, UDPPortTable::new())},
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
@@ -164,7 +173,7 @@ impl Component for UDPComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(ip_send)
+            UDPSendStruct::new(ip_send, self.bound_port_table)
         );
         ip_send.set_client(udp_send);
 

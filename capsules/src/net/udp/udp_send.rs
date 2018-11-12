@@ -11,6 +11,7 @@ use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::TransportHeader;
 use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use net::udp::udp::UDPHeader;
+use::kernel::udp_port_table::{UDPPortTable};
 
 /// The `send_done` function in this trait is invoked after the UDPSender
 /// has completed sending the requested packet. Note that the
@@ -67,7 +68,11 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a UDPSendClient>,
+    id: usize, // or shoudl this be a UDPID? should there be a port field?
+    port_table: &'static UDPPortTable,
 }
+
+// example in /Users/armin/src/rust
 
 /// Below is the implementation of the `UDPSender` traits for the
 /// `UDPSendStruct`.
@@ -80,10 +85,15 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
-        self.send(dest, udp_header, buf)
+        // Make sure that the UDPSendStruct is bound to the desired port.
+        match self.port_table.get_port_at_idx(self.id) {
+            Some(src_port) => self.send(dest, udp_header, buf),
+            _ => ReturnCode::FAIL,
+        }
     }
 
     fn send(&self, dest: IPAddr, mut udp_header: UDPHeader, buf: &[u8]) -> ReturnCode {
+        // TODO: need to enforce port binding here?
         let total_length = buf.len() + udp_header.get_hdr_size();
         udp_header.set_len(total_length as u16);
         let transport_header = TransportHeader::UDP(udp_header);
@@ -92,10 +102,13 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
-    pub fn new(ip_send_struct: &'a T) -> UDPSendStruct<'a, T> {
+    pub fn new(ip_send_struct: &'a T, port_table: &'static UDPPortTable)
+        -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             ip_send_struct: ip_send_struct,
             client: OptionalCell::empty(),
+            id: 0,
+            port_table: port_table,
         }
     }
 }

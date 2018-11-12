@@ -25,12 +25,14 @@ pub trait UDPRecvClient {
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a UDPRecvClient>,
+    id: usize,
 }
 
 impl<'a> UDPReceiver<'a> {
     pub fn new() -> UDPReceiver<'a> {
         UDPReceiver {
             client: OptionalCell::empty(),
+            id: 0,
         }
     }
 

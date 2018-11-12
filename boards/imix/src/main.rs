@@ -52,7 +52,7 @@ use components::rf233::RF233Component;
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
-use components::udp_6lowpan::UDPComponent;
+use components::udp_6lowpan::{UDPComponent};
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
