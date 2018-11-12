@@ -57,3 +57,50 @@ pub unsafe trait MainLoopCapability {}
 /// The `MemoryAllocationCapability` capability allows the holder to allocate
 /// memory, for example by creating grants.
 pub unsafe trait MemoryAllocationCapability {}
+
+/// The `UDPBindCapability` allows the holder to modify the UDP port table and
+/// bind to a particular port.
+pub unsafe trait UDPBindCapability {}
+
+/// The `NetworkSendCapability` capability allows the holder to send to a
+/// particular range of ports
+pub unsafe trait NetworkSendCapability {}
+
+pub unsafe trait UDPSendCapability {
+    fn can_send(self, port: u16, ip: u32, data: [u8; 128]) -> // don't need data
+    // returns a UDP port handle! (cert)
+    // no-one else can use this port handle -- how do we maintain this state?
+    // send-to vs. send-from (want both)
+        Result<u8, &'static str>;
+    fn send_using_cap<F>(self, port: u16, ip: u32, data: [u8; 128],
+        send_fn: F) -> Result<u8, &'static str>
+        where F: Fn(u16, u32, [u8; 128]) -> u8;
+}
+
+pub unsafe trait IPSendCapability {}
+
+pub struct UDPSendCapRange {
+    port_lower_bound: u16,
+    port_upper_bound: u16,
+}
+
+unsafe impl UDPSendCapability for UDPSendCapRange {
+    fn can_send(self, port: u16, ip: u32, data: [u8; 128]) ->
+        Result<u8, &'static str> {
+        if self.port_lower_bound <= port && self.port_upper_bound >= port {
+            Ok(128)
+        } else {
+            Err("Tried to send to port out of range")
+        }
+    }
+
+    fn send_using_cap<F>(self, port: u16, ip: u32, data: [u8; 128],
+        send_fn: F) -> Result<u8, &'static str>
+        where F: Fn(u16, u32, [u8; 128]) -> u8 {
+        if self.port_lower_bound <= port && self.port_upper_bound >= port {
+            Ok(send_fn(port, ip, data))
+        } else {
+            Err("Tried to send to port out of range")
+        }
+    }
+}
