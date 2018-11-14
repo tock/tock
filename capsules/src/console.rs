@@ -40,7 +40,8 @@ use kernel::hil::uart::{self, Client, UART};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000001;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::CONSOLE as usize;
 
 #[derive(Default)]
 pub struct App {

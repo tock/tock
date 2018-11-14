@@ -22,7 +22,9 @@ pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
 pub static mut BUFFER3: [u8; 256] = [0; 256];
 
-pub const DRIVER_NUM: usize = 0x80020006;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::I2C_MASTER_SLAVE as usize;
 
 #[derive(Default)]
 pub struct App {

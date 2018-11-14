@@ -70,8 +70,9 @@ use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x40002;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::CRC as usize;
 
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]

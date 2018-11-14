@@ -25,7 +25,6 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
-use kernel::Chip;
 use kernel::Platform;
 
 /// Support routines for debugging I/O.
@@ -250,6 +249,26 @@ pub unsafe fn reset_handler() {
         )
     );
     hil::uart::UART::set_client(console_uart, console);
+
+    // Setup the process inspection console
+    let process_console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    process_console_uart.setup();
+    pub struct ProcessConsoleCapability;
+    unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
+    let process_console = static_init!(
+        capsules::process_console::ProcessConsole<UartDevice, ProcessConsoleCapability>,
+        capsules::process_console::ProcessConsole::new(
+            process_console_uart,
+            115200,
+            &mut capsules::process_console::WRITE_BUF,
+            &mut capsules::process_console::READ_BUF,
+            &mut capsules::process_console::COMMAND_BUF,
+            board_kernel,
+            ProcessConsoleCapability,
+        )
+    );
+    hil::uart::UART::set_client(process_console_uart, process_console);
+    process_console.initialize();
 
     // Initialize USART3 for Uart
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -584,6 +603,8 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.reset();
     hail.nrf51822.initialize();
 
+    process_console.start();
+
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
@@ -598,8 +619,7 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
-        chip.mpu(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,

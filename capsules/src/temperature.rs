@@ -51,8 +51,9 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60000;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::TEMPERATURE as usize;
 
 #[derive(Default)]
 pub struct App {

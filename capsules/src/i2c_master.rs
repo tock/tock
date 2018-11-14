@@ -3,7 +3,8 @@ use kernel::hil::i2c;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x80040006;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::I2C_MASTER as usize;
 
 #[derive(Default)]
 pub struct App {

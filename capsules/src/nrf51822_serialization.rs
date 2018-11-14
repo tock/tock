@@ -23,8 +23,9 @@ use kernel::hil;
 use kernel::hil::uart::{self, Client, UARTReceiveAdvanced};
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x80004;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::NRF51822_SERIALIZATION as usize;
 
 #[derive(Default)]
 struct App {

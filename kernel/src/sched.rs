@@ -96,6 +96,27 @@ impl Kernel {
         }
     }
 
+    /// Run a closure on every valid process. This will iterate the
+    /// array of processes and call the closure on every process that
+    /// exists. Ths method is available outside the kernel crate but
+    /// requires a `ProcessManagementCapability` to use.
+    pub fn process_each_capability<F>(
+        &'static self,
+        _capability: &capabilities::ProcessManagementCapability,
+        closure: F,
+    ) where
+        F: Fn(usize, &process::ProcessType),
+    {
+        for (i, process) in self.processes.iter().enumerate() {
+            match process {
+                Some(p) => {
+                    closure(i, *p);
+                }
+                None => {}
+            }
+        }
+    }
+
     /// Run a closure on every process, but only continue if the closure returns
     /// `FAIL`. That is, if the closure returns any other return code than
     /// `FAIL`, that value will be returned from this function and the iteration
@@ -222,10 +243,12 @@ impl Kernel {
         systick.enable(true);
 
         loop {
-            if chip.has_pending_interrupts()
-                || systick.overflowed()
-                || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
-            {
+            if chip.has_pending_interrupts() {
+                break;
+            }
+
+            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+                process.debug_timeslice_expired();
                 break;
             }
 
@@ -369,6 +392,14 @@ impl Kernel {
                 process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
+                }
+                process::State::StoppedRunning => {
+                    break;
+                    // Do nothing
+                }
+                process::State::StoppedYielded => {
+                    break;
+                    // Do nothing
                 }
             }
         }
