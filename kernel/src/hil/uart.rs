@@ -38,7 +38,7 @@ pub struct Parameters {
 pub enum Error {
     /// No error occurred and the command completed successfully
     None,
-    
+
     /// Parity error during receive
     ParityError,
 
@@ -62,6 +62,7 @@ pub enum Error {
 pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
 pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
+pub trait Client<'a>: ReceiveClient<'a> + TransmitClient<'a> {}
 
 /// Trait for configuring a UART.
 pub trait Configure {
@@ -77,34 +78,34 @@ pub trait Configure {
 pub trait Transmit<'a> {
     /// Set the transmit client, which will be called when transmissions
     /// complete.
-    fn set_client(&self, client: &'a TransmitClient);
+    fn set_transmit_client(&self, client: &'a TransmitClient<'a>);
 
     /// Transmit a buffer of data. On completion, `transmitted_buffer`
     /// in the `TransmitClient` will be called.  If the `ReturnCode`
     /// of `transmit`'s return tuple is SUCCESS, the `Option` will be
-    /// `None` and the struct will issue a `complete` callback in the
-    /// future. If the value of the `ReturnCode` is not SUCCESS, then
-    /// the `tx_data` argument is returned in the `Option`. Other
-    /// valid `ReturnCode` values are:
+    /// `None` and the struct will issue a `transmitted_buffer`
+    /// callback in the future. If the value of the `ReturnCode` is
+    /// not SUCCESS, then the `tx_data` argument is returned in the
+    /// `Option`. Other valid `ReturnCode` values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
     ///          because it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
     ///  - FAIL: some other error.
-    /// 
-    /// Each byte in `tx_data` is a UART transfer word of 8 or fewer
-    /// bits.  The word width is determined by the UART configuration, 
-    /// truncating any more significant bits. E.g., 0x18f transmitted in 
-    /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients 
-    /// that need to transfer 9-bit words should use `transmit_word`.  
     ///
-    /// Calling `transmit_word` while there is an outstanding 
+    /// Each byte in `tx_data` is a UART transfer word of 8 or fewer
+    /// bits.  The word width is determined by the UART configuration,
+    /// truncating any more significant bits. E.g., 0x18f transmitted in
+    /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients
+    /// that need to transfer 9-bit words should use `transmit_word`.
+    ///
+    /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
     fn transmit_buffer(&self, tx_data: &'a mut [u8], tx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>);
 
 
-    /// Transmit a single word of data asynchronously. The word length is 
+    /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
     /// If the `ReturnCode` is SUCCESS, on completion,
     /// `transmitted_word` will be called on the `TransmitClient`.
@@ -136,12 +137,12 @@ pub trait Transmit<'a> {
     ///  - FAIL if the outstanding call to either transmit operation could
     ///    not be synchronously cancelled. A callback will be made on the
     ///    client indicating whether the call was successfully cancelled.
-    fn abort(&self) -> ReturnCode;
+    fn transmit_abort(&self) -> ReturnCode;
 }
 
 pub trait Receive<'a> {
     /// Set the receive client, which will he called when reads complete.
-    fn set_client(&self, client: &'a ReceiveClient);
+    fn set_receive_client(&self, client: &'a ReceiveClient<'a>);
 
     /// Receive `rx_len` bytes into `rx_buffer`, making a callback to
     /// the `ReceiveClient` when complete.  If the `ReturnCode` of
@@ -187,7 +188,7 @@ pub trait Receive<'a> {
     /// of `ECANCEL`.  If there was a reception outstanding, which is
     /// not cancelled successfully, then `FAIL` will be returned and
     /// there will be a later callback.
-    fn abort(&self) -> ReturnCode;
+    fn receive_abort(&self) -> ReturnCode;
 }
 
 
@@ -195,75 +196,75 @@ pub trait Receive<'a> {
 /// operations complete.
 pub trait TransmitClient<'a> {
 
-   /// A call to `Transmit::transmit_word` completed. The `ReturnCode`
-   /// indicates whether the word was successfully transmitted. A call
-   /// to `transmit_word` or `transmit_buffer` made within this callback
-   /// SHOULD NOT return EBUSY: when this callback is made the UART should
-   /// be ready to receive another call.
-   /// 
-   /// `rval` is SUCCESS if the word was successfully transmitted, or
-   ///   - ECANCEL if the call to `transmit_word` was cancelled and
-   ///     the word was not transmitted.
-   ///   - FAIL if the transmission failed in some way.
-   fn transmitted_word(&self, rval: ReturnCode);
+    /// A call to `Transmit::transmit_word` completed. The `ReturnCode`
+    /// indicates whether the word was successfully transmitted. A call
+    /// to `transmit_word` or `transmit_buffer` made within this callback
+    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// `rval` is SUCCESS if the word was successfully transmitted, or
+    ///   - ECANCEL if the call to `transmit_word` was cancelled and
+    ///     the word was not transmitted.
+    ///   - FAIL if the transmission failed in some way.
+    fn transmitted_word(&self, _rval: ReturnCode) {}
 
-   /// A call to `Transmit::transmit_buffer` completed. The `ReturnCode`
-   /// indicates whether the buffer was successfully transmitted. A call
-   /// to `transmit_word` or `transmit_buffer` made within this callback
-   /// SHOULD NOT return EBUSY: when this callback is made the UART should
-   /// be ready to receive another call.
-   ///
-   /// The `tx_len` argument specifies how many words were transmitted.
-   /// An `rval` of SUCCESS indicates that every requested word was
-   /// transmitted: `tx_len` in the callback should be the same as
-   /// `tx_len` in the initiating call.
-   /// 
-   /// `rval` is SUCCESS if the full buffer was successfully transmitted, or
-   ///   - ECANCEL if the call to `transmit_buffer` was cancelled and
-   ///     the buffer was not fully transmitted. `tx_len` contains
-   ///     how many words were transmitted.
-   ///   - ESIZE if the buffer could only be partially transmitted. `tx_len`
-   //.     contains how many words were transmitted.
-   ///   - FAIL if the transmission failed in some way.
-   fn transmitted_buffer(&self, tx_buffer: &'a mut [u8], tx_len: usize, rval: ReturnCode);
+    /// A call to `Transmit::transmit_buffer` completed. The `ReturnCode`
+    /// indicates whether the buffer was successfully transmitted. A call
+    /// to `transmit_word` or `transmit_buffer` made within this callback
+    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// The `tx_len` argument specifies how many words were transmitted.
+    /// An `rval` of SUCCESS indicates that every requested word was
+    /// transmitted: `tx_len` in the callback should be the same as
+    /// `tx_len` in the initiating call.
+    ///
+    /// `rval` is SUCCESS if the full buffer was successfully transmitted, or
+    ///   - ECANCEL if the call to `transmit_buffer` was cancelled and
+    ///     the buffer was not fully transmitted. `tx_len` contains
+    ///     how many words were transmitted.
+    ///   - ESIZE if the buffer could only be partially transmitted. `tx_len`
+    //.     contains how many words were transmitted.
+    ///   - FAIL if the transmission failed in some way.
+    fn transmitted_buffer(&self, tx_buffer: &'a mut [u8], tx_len: usize, rval: ReturnCode);
 }
 
 pub trait ReceiveClient<'a> {
 
-   /// A call to `Receive::receive_word` completed. The `ReturnCode`
-   /// indicates whether the word was successfully received. A call
-   /// to `receive_word` or `receive_buffer` made within this callback
-   /// SHOULD NOT return EBUSY: when this callback is made the UART should
-   /// be ready to receive another call.
-   /// 
-   /// `rval` SUCCESS if the word was successfully received, or
-   ///   - ECANCEL if the call to `receive_word` was cancelled and
-   ///     the word was not received: `word` should be ignored.
-   ///   - FAIL if the reception failed in some way and `word`
-   ///     should be ignored. `error` may contain further information
-   ///     on the sort of error.
-   fn received_word(&self, word: u32, rval: ReturnCode, error: Error);
+    /// A call to `Receive::receive_word` completed. The `ReturnCode`
+    /// indicates whether the word was successfully received. A call
+    /// to `receive_word` or `receive_buffer` made within this callback
+    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// `rval` SUCCESS if the word was successfully received, or
+    ///   - ECANCEL if the call to `receive_word` was cancelled and
+    ///     the word was not received: `word` should be ignored.
+    ///   - FAIL if the reception failed in some way and `word`
+    ///     should be ignored. `error` may contain further information
+    ///     on the sort of error.
+    fn received_word(&self, _word: u32, _rval: ReturnCode, _error: Error) {}
 
-   /// A call to `Receive::receive_buffer` completed. The `ReturnCode`
-   /// indicates whether the buffer was successfully received. A call
-   /// to `receive_word` or `receive_buffer` made within this callback
-   /// SHOULD NOT return EBUSY: when this callback is made the UART should
-   /// be ready to receive another call.
-   ///
-   /// The `rx_len` argument specifies how many words were transmitted.
-   /// An `rval` of SUCCESS indicates that every requested word was
-   /// received: `rx_len` in the callback should be the same as
-   /// `rx_len` in the initiating call.
-   /// 
-   /// `rval` is SUCCESS if the full buffer was successfully received, or
-   ///   - ECANCEL if the call to `received_buffer` was cancelled and
-   ///     the buffer was not fully received. `rx_len` contains
-   ///     how many words were received.
-   ///   - ESIZE if the buffer could only be partially received. `rx_len`
-   //.     contains how many words were transmitted.
-   ///   - FAIL if reception failed in some way: `error` may contain further
-   ///     information.
-   fn received_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
+    /// A call to `Receive::receive_buffer` completed. The `ReturnCode`
+    /// indicates whether the buffer was successfully received. A call
+    /// to `receive_word` or `receive_buffer` made within this callback
+    /// SHOULD NOT return EBUSY: when this callback is made the UART should
+    /// be ready to receive another call.
+    ///
+    /// The `rx_len` argument specifies how many words were transmitted.
+    /// An `rval` of SUCCESS indicates that every requested word was
+    /// received: `rx_len` in the callback should be the same as
+    /// `rx_len` in the initiating call.
+    ///
+    /// `rval` is SUCCESS if the full buffer was successfully received, or
+    ///   - ECANCEL if the call to `received_buffer` was cancelled and
+    ///     the buffer was not fully received. `rx_len` contains
+    ///     how many words were received.
+    ///   - ESIZE if the buffer could only be partially received. `rx_len`
+    ///     contains how many words were transmitted.
+    ///   - FAIL if reception failed in some way: `error` may contain further
+    ///     information.
+    fn received_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
 
 }
 
@@ -292,4 +293,3 @@ pub trait ReceiveAdvanced<'a>: Receive<'a> {
     /// * `interbyte_timeout`: number of bit periods since last data received.
     fn receive_automatic(&self, rx_buffer: &'a mut [u8], rx_len: usize, interbyte_timeout: u8) -> (ReturnCode, Option<&'a mut [u8]>);
 }
-

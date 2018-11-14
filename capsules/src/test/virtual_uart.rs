@@ -2,8 +2,8 @@
 //! instantiated and tested in parallel.
 
 use kernel::common::cells::TakeCell;
-use kernel::hil;
 use kernel::hil::uart;
+use kernel::hil::uart::Receive;
 use kernel::ReturnCode;
 use virtual_uart::UartDevice;
 
@@ -24,25 +24,30 @@ impl TestVirtualUartReceive {
         let buf = self.buffer.take().unwrap();
         let len = buf.len();
         debug!("Starting receive of length {}", len);
-        self.device.receive(buf, len);
+        let (err, _opt) = self.device.receive_buffer(buf, len);
+        if err != ReturnCode::SUCCESS {
+            panic!("Calling receive_buffer() in virtual_uart test failed: {:?}",  err);
+        }
     }
 }
 
-impl uart::ReceiveClient for TestVirtualUartReceive {
+impl uart::ReceiveClient<'static> for TestVirtualUartReceive {
 
     fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
         rcode: ReturnCode,
+        _error: uart::Error,
     ) {
         debug!("Virtual uart read complete: {:?}: ", rcode);
         for i in 0..rx_len {
             debug!("{:02x} ", rx_buffer[i]);
         }
         debug!("Starting receive of length {}", rx_len);
-        self.device.receive(rx_buffer, rx_len);
+        let (err, _opt) = self.device.receive_buffer(rx_buffer, rx_len);
+        if err != ReturnCode::SUCCESS {
+            panic!("Calling receive_buffer() in virtual_uart test failed: {:?}",  err);
+        }
     }
-
-    fn received_word(&self, word: u32) {}
 }

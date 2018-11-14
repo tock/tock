@@ -58,22 +58,22 @@ pub struct App {
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a, U: uart::UartData> {
-    uart: &'a U,
+pub struct Console<'a> {
+    uart: &'a uart::UartData<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: TakeCell<'a, [u8]>,
     rx_in_progress: OptionalCell<AppId>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: TakeCell<'a, [u8]>,
 }
 
-impl<U: uart::UartData> Console<'a, U> {
+impl<'a> Console<'a> {
     pub fn new(
-        uart: &'a U,
-        tx_buffer: &'static mut [u8],
-        rx_buffer: &'static mut [u8],
+        uart: &'a uart::UartData<'a>,
+        tx_buffer: &'a mut [u8],
+        rx_buffer: &'a mut [u8],
         grant: Grant<App>,
-    ) -> Console<'a, U> {
+    ) -> Console<'a> {
         Console {
             uart: uart,
             apps: grant,
@@ -139,7 +139,7 @@ impl<U: uart::UartData> Console<'a, U> {
                     app.write_remaining = 0;
                 }
 
-                self.uart.transmit(buffer, transaction_len);
+                let (_err, _opt) = self.uart.transmit_buffer(buffer, transaction_len);
             });
         } else {
             app.pending_write = true;
@@ -167,7 +167,7 @@ impl<U: uart::UartData> Console<'a, U> {
                     app.read_len = read_len;
                     self.rx_buffer.take().map(|buffer| {
                         self.rx_in_progress.set(app_id);
-                        self.uart.receive(buffer, app.read_len);
+                        let (_err, _opt) = self.uart.receive_buffer(buffer, app.read_len);
                     });
                     ReturnCode::SUCCESS
                 }
@@ -180,7 +180,7 @@ impl<U: uart::UartData> Console<'a, U> {
     }
 }
 
-impl<U: uart::Transmit> Driver for Console<'a, U> {
+impl<'a> Driver for Console<'a> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -265,7 +265,7 @@ impl<U: uart::Transmit> Driver for Console<'a, U> {
                 }).unwrap_or_else(|err| err.into())
             },
             3 /* abort rx */ => {
-                self.uart.abort_receive();
+                self.uart.receive_abort();
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT
@@ -273,8 +273,11 @@ impl<U: uart::Transmit> Driver for Console<'a, U> {
     }
 }
 
-impl<U: uart::UartData> uart::TransmitClient for Console<'a, U> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _rcode: ReturnCode, _error: uart::Error) {
+impl<'a> uart::TransmitClient<'a> for Console<'a> {
+    fn transmitted_buffer(&self,
+                          buffer: &'a mut [u8],
+                          _tx_len: usize,
+                          _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -339,8 +342,8 @@ impl<U: uart::UartData> uart::TransmitClient for Console<'a, U> {
 }
 
 
-impl<U: uart::UartData> uart::ReceiveClient for Console<'a, U> {
-    fn received_buffer(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
+impl<'a> uart::ReceiveClient<'a> for Console<'a> {
+    fn received_buffer(&self, buffer: &'a mut [u8], rx_len: usize, rcode: ReturnCode, error: uart::Error) {
         self.rx_in_progress
             .take()
             .map(|appid| {
@@ -351,18 +354,13 @@ impl<U: uart::UartData> uart::ReceiveClient for Console<'a, U> {
                             // bytes
                             let rx_buffer = buffer.iter().take(rx_len);
                             match error {
-                                uart::Error::CommandComplete | uart::Error::Aborted => {
+                                uart::Error::None| uart::Error::Aborted => {
                                     // Receive some bytes, signal error type and return bytes to process buffer
                                     if let Some(mut app_buffer) = app.read_buffer.take() {
                                         for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
                                             *a = *b;
                                         }
-                                        let rettype = if error == uart::Error::CommandComplete {
-                                            ReturnCode::SUCCESS
-                                        } else {
-                                            ReturnCode::ECANCEL
-                                        };
-                                        cb.schedule(From::from(rettype), rx_len, 0);
+                                        cb.schedule(From::from(rcode), rx_len, 0);
                                     } else {
                                         // Oops, no app buffer
                                         cb.schedule(From::from(ReturnCode::EINVAL), 0, 0);

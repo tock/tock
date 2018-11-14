@@ -326,8 +326,8 @@ pub unsafe fn reset_handler() {
     );
     hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
 
-    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
-    let console = ConsoleComponent::new(board_kernel, uart_mux, 115200).finalize();
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize();
+    let console = ConsoleComponent::new(board_kernel, uart_mux).finalize();
 
     // Allow processes to communicate over BLE through the nRF51822
     let nrf_serialization =

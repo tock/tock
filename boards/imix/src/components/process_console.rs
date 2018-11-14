@@ -20,20 +20,17 @@ use kernel::component::Component;
 pub struct ProcessConsoleComponent {
     board_kernel: &'static kernel::Kernel,
     uart_mux: &'static UartMux<'static>,
-    baud_rate: u32,
 }
 
 impl ProcessConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         uart_mux: &'static UartMux,
-        rate: u32,
     ) -> ProcessConsoleComponent {
         ProcessConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
-            baud_rate: rate,
-        }
+         }
     }
 }
 
@@ -53,7 +50,6 @@ impl Component for ProcessConsoleComponent {
             process_console::ProcessConsole<UartDevice, Capability>,
             process_console::ProcessConsole::new(
                 console_uart,
-                self.baud_rate,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
                 &mut process_console::COMMAND_BUF,

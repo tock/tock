@@ -90,8 +90,10 @@
 //! console.initialize();
 //! ```
 
+use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
@@ -125,7 +127,7 @@ pub struct SeggerRttBuffer {
 
 impl SeggerRttMemory {
     pub fn new(
-        up_buffer_name: &'static [u8],
+        up_buffer_name: &'a [u8],
         up_buffer: &'static [u8],
         down_buffer_name: &'static [u8],
         down_buffer: &'static [u8],
@@ -157,19 +159,20 @@ impl SeggerRttMemory {
 
 pub struct SeggerRtt<'a, A: hil::time::Alarm> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
-    config: TakeCell<'static, SeggerRttMemory>,
-    up_buffer: TakeCell<'static, [u8]>,
-    _down_buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static hil::uart::TransmitClient>,
-    client_buffer: TakeCell<'static, [u8]>,
+    config: TakeCell<'a, SeggerRttMemory>,
+    up_buffer: TakeCell<'a, [u8]>,
+    _down_buffer: TakeCell<'a, [u8]>,
+    client: OptionalCell<&'a uart::TransmitClient<'a>>,
+    client_buffer: TakeCell<'a, [u8]>,
+    tx_len: Cell<usize>,
 }
 
-impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
+impl<'a, A: hil::time::Alarm> SeggerRtt<'a, A> {
     pub fn new(
         alarm: &'a A,
-        config: &'static mut SeggerRttMemory,
-        up_buffer: &'static mut [u8],
-        down_buffer: &'static mut [u8],
+        config: &'a mut SeggerRttMemory,
+        up_buffer: &'a mut [u8],
+        down_buffer: &'a mut [u8],
     ) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm: alarm,
@@ -178,57 +181,63 @@ impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
             _down_buffer: TakeCell::new(down_buffer),
             client: OptionalCell::empty(),
             client_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
         }
     }
 }
 
-impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
-    fn set_client(&self, client: &'static hil::uart::TransmitClient) {
+impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient<'a>) {
         self.client.set(client);
     }
 
-    fn configure(&self, _params: hil::uart::UARTParameters) -> ReturnCode {
-        ReturnCode::SUCCESS
-    }
-
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        self.up_buffer.map(|buffer| {
-            self.config.map(|config| {
-                // Copy the incoming data into the buffer. Once we increment
-                // the `write_position` the RTT listener will go ahead and read
-                // the message from us.
-                let mut index = config.up_buffer.write_position as usize;
-                let buffer_len = config.up_buffer.length as usize;
+    fn transmit_buffer(&self, tx_data: &'a mut [u8], tx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>) {
+        if self.up_buffer.is_some() && self.config.is_some() {
+            self.up_buffer.map(|buffer| {
+                self.config.map(move |config| {
+                    // Copy the incoming data into the buffer. Once we increment
+                    // the `write_position` the RTT listener will go ahead and read
+                    // the message from us.
+                    let mut index = config.up_buffer.write_position as usize;
+                    let buffer_len = config.up_buffer.length as usize;
 
                 for i in 0..tx_len {
                     buffer[(i + index) % buffer_len] = tx_data[i];
                 }
 
-                index = (index + tx_len) % buffer_len;
-                config.up_buffer.write_position = index as u32;
+                    index = (index + tx_len) % buffer_len;
+                    config.up_buffer.write_position = index as u32;
+                    self.tx_len.set(tx_len);
+                    // Save the client buffer so we can pass it back with the callback.
+                    self.client_buffer.replace(tx_data);
+
+                    // Start a short timer so that we get a callback and
+                    // can issue the callback to the client.
+                    let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
+                })
             });
-        });
-
-        // Save the client buffer so we can pass it back with the callback.
-        self.client_buffer.replace(tx_data);
-
-        // Start a short timer so that we get a callback and can issue the
-        // callback to the client.
-        let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
+            (ReturnCode::SUCCESS, None)
+        } else {
+            (ReturnCode::EBUSY, Some(tx_data))
+        }
     }
 
-    fn receive(&self, _rx_buf: &'static mut [u8], _rx_len: usize) {}
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
 
-    fn abort_receive(&self) {}
+    fn transmit_abort(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
 }
 
 impl<A: hil::time::Alarm> hil::time::Client for SeggerRtt<'a, A> {
     fn fired(&self) {
         self.client.map(|client| {
             self.client_buffer.take().map(|buffer| {
-                client.transmit_complete(buffer, hil::uart::Error::CommandComplete);
+                client.transmitted_buffer(buffer, self.tx_len.get(), ReturnCode::SUCCESS);
             });
         });
     }

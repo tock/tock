@@ -354,8 +354,12 @@ impl hil::uart::TransmitClient<'static> for DebugWriter {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 
-        let written_length = self.active_len.get();
-        self.active_len.set(0);
+        // Mark how many bytes outstanding so we don't overwrite buffer
+        // in transmit calls.
+        let goal_length = self.active_len.get();
+        let remainder = goal_length - tx_len;
+        self.active_len.set(remainder);
+
         let len = self
             .internal_buffer
             .map_or(0, |internal_buffer| internal_buffer.len());
@@ -364,7 +368,7 @@ impl hil::uart::TransmitClient<'static> for DebugWriter {
 
         // Increment the tail with how many bytes were written to the output
         // mechanism, and wrap if needed.
-        tail += written_length;
+        tail += tx_len;
         if tail > len {
             tail = tail - len;
         }
