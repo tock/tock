@@ -35,7 +35,7 @@ impl Write for Writer {
 }
 
 #[cfg(not(test))]
-#[panic_implementation]
+#[panic_handler]
 #[no_mangle]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // 6 = Red led, 7 = Green led

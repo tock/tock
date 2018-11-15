@@ -4,15 +4,8 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(
-    asm,
-    concat_idents,
-    const_fn,
-    core_intrinsics,
-    try_from,
-    used
-)]
-#![feature(in_band_lifetimes, tool_attributes)]
+#![feature(asm, concat_idents, const_fn, core_intrinsics, try_from)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 extern crate cortexm4;
