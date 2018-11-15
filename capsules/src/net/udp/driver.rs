@@ -124,15 +124,12 @@ impl<'a> UDPDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_ref())
-                    })
+                app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_ref())
+                })
             }).unwrap_or_else(|err| err.into())
     }
 
@@ -144,15 +141,12 @@ impl<'a> UDPDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_mut())
-                    })
+                app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_mut())
+                })
             }).unwrap_or_else(|err| err.into())
     }
 
@@ -167,7 +161,6 @@ impl<'a> UDPDriver<'a> {
         self.apps
             .enter(appid, |app, _| {
                 app.app_rx_cfg
-                    .take()
                     .as_ref()
                     .map_or(ReturnCode::EINVAL, |cfg| closure(cfg.as_ref()))
             }).unwrap_or_else(|err| err.into())
@@ -183,15 +176,12 @@ impl<'a> UDPDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_rx_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_mut())
-                    })
+                app.app_rx_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_mut())
+                })
             }).unwrap_or_else(|err| err.into())
     }
 
