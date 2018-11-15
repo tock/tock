@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, asm, panic_implementation)]
+#![feature(lang_items, asm)]
 
 extern crate capsules;
 extern crate cortexm4;

@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, lang_items, used)]
+#![feature(asm, const_fn, lang_items)]
 #![no_std]
 
 #[macro_use(register_bitfields, register_bitmasks)]

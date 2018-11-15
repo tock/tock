@@ -6,8 +6,6 @@
 #![no_std]
 #![no_main]
 #![feature(in_band_lifetimes)]
-#![feature(infer_outlives_requirements)]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
