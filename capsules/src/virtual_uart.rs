@@ -55,13 +55,13 @@ pub struct UartMux<'a> {
     speed: u32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
-    buffer: TakeCell<'a, [u8]>,
+    buffer: TakeCell<'static, [u8]>,
     completing_read: Cell<bool>,
 }
 
-impl<'a> uart::TransmitClient<'a> for UartMux<'a> {
+impl<'a> uart::TransmitClient for UartMux<'a> {
     fn transmitted_buffer(&self,
-                          tx_buffer: &'a mut [u8],
+                          tx_buffer: &'static mut [u8],
                           tx_len: usize,
                           rcode: ReturnCode) {
         self.inflight.map(move |device| {
@@ -73,9 +73,9 @@ impl<'a> uart::TransmitClient<'a> for UartMux<'a> {
 
 }
 
-impl <'a> uart::ReceiveClient<'a> for UartMux<'a> {
+impl <'a> uart::ReceiveClient for UartMux<'a> {
     fn received_buffer(&self,
-                       buffer: &'a mut [u8],
+                       buffer: &'static mut [u8],
                        rx_len: usize,
                        rcode: ReturnCode,
                        error: uart::Error) {
@@ -153,7 +153,7 @@ impl <'a> uart::ReceiveClient<'a> for UartMux<'a> {
 
 impl<'a> UartMux<'a> {
     pub fn new(uart: &'a uart::Uart<'a>,
-               buffer: &'a mut [u8],
+               buffer: &'static mut [u8],
                speed: u32) -> UartMux<'a> {
         UartMux {
             uart: uart,
@@ -255,15 +255,15 @@ pub struct UartDevice<'a> {
     state: Cell<UartDeviceReceiveState>,
     mux: &'a UartMux<'a>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
-    tx_buffer: TakeCell<'a, [u8]>,
+    tx_buffer: TakeCell<'static, [u8]>,
     transmitting: Cell<bool>,
-    rx_buffer: TakeCell<'a, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
     next: ListLink<'a, UartDevice<'a>>,
-    rx_client: OptionalCell<&'a uart::ReceiveClient<'a>>,
-    tx_client: OptionalCell<&'a uart::TransmitClient<'a>>,
+    rx_client: OptionalCell<&'a uart::ReceiveClient>,
+    tx_client: OptionalCell<&'a uart::TransmitClient>,
 }
 
 impl<'a> UartDevice<'a> {
@@ -290,9 +290,9 @@ impl<'a> UartDevice<'a> {
     }
 }
 
-impl<'a> uart::TransmitClient<'a> for UartDevice<'a> {
+impl<'a> uart::TransmitClient for UartDevice<'a> {
     fn transmitted_buffer(&self,
-                          tx_buffer: &'a mut [u8],
+                          tx_buffer: &'static mut [u8],
                           tx_len: usize,
                           rcode: ReturnCode) {
         self.tx_client.map(move |client| {
@@ -309,10 +309,10 @@ impl<'a> uart::TransmitClient<'a> for UartDevice<'a> {
         });
     }
 }
-impl<'a> uart::ReceiveClient<'a> for UartDevice<'a> {
+impl<'a> uart::ReceiveClient for UartDevice<'a> {
     fn received_buffer(
         &self,
-        rx_buffer: &'a mut [u8],
+        rx_buffer: &'static mut [u8],
         rx_len: usize,
         rcode: ReturnCode,
         error: uart::Error,
@@ -332,7 +332,7 @@ impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
 
 impl<'a> uart::Transmit<'a> for UartDevice<'a> {
 
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient<'a>) {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -341,7 +341,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
     }
 
     /// Transmit data.
-    fn transmit_buffer(&self, tx_data: &'a mut [u8], tx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>) {
+    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.transmitting.get() {
             (ReturnCode::EBUSY, Some(tx_data))
         } else {
@@ -367,12 +367,12 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
 }
 
 impl<'a> uart::Receive<'a> for UartDevice<'a> {
-    fn set_receive_client(&self, client: &'a uart::ReceiveClient<'a>) {
+    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 
     /// Receive data until buffer is full.
-    fn receive_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>) {
+    fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(rx_buffer))
         } else {

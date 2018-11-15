@@ -128,9 +128,9 @@ pub struct SeggerRttBuffer {
 impl SeggerRttMemory {
     pub fn new(
         up_buffer_name: &'a [u8],
-        up_buffer: &'static [u8],
+        up_buffer: &'static mut [u8],
         down_buffer_name: &'static [u8],
-        down_buffer: &'static [u8],
+        down_buffer: &'static mut [u8],
     ) -> SeggerRttMemory {
         SeggerRttMemory {
             // Must be "SEGGER RTT".
@@ -160,10 +160,10 @@ impl SeggerRttMemory {
 pub struct SeggerRtt<'a, A: hil::time::Alarm> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
     config: TakeCell<'a, SeggerRttMemory>,
-    up_buffer: TakeCell<'a, [u8]>,
-    _down_buffer: TakeCell<'a, [u8]>,
-    client: OptionalCell<&'a uart::TransmitClient<'a>>,
-    client_buffer: TakeCell<'a, [u8]>,
+    up_buffer: TakeCell<'static, [u8]>,
+    _down_buffer: TakeCell<'static, [u8]>,
+    client: OptionalCell<&'a uart::TransmitClient>,
+    client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
 }
 
@@ -171,8 +171,8 @@ impl<'a, A: hil::time::Alarm> SeggerRtt<'a, A> {
     pub fn new(
         alarm: &'a A,
         config: &'a mut SeggerRttMemory,
-        up_buffer: &'a mut [u8],
-        down_buffer: &'a mut [u8],
+        up_buffer: &'static mut [u8],
+        down_buffer: &'static mut [u8],
     ) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm: alarm,
@@ -187,11 +187,11 @@ impl<'a, A: hil::time::Alarm> SeggerRtt<'a, A> {
 }
 
 impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient<'a>) {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.client.set(client);
     }
 
-    fn transmit_buffer(&self, tx_data: &'a mut [u8], tx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>) {
+    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.up_buffer.is_some() && self.config.is_some() {
             self.up_buffer.map(|buffer| {
                 self.config.map(move |config| {

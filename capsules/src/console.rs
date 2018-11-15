@@ -62,16 +62,16 @@ pub struct Console<'a> {
     uart: &'a uart::UartData<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
-    tx_buffer: TakeCell<'a, [u8]>,
+    tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: OptionalCell<AppId>,
-    rx_buffer: TakeCell<'a, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> Console<'a> {
     pub fn new(
         uart: &'a uart::UartData<'a>,
-        tx_buffer: &'a mut [u8],
-        rx_buffer: &'a mut [u8],
+        tx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
         grant: Grant<App>,
     ) -> Console<'a> {
         Console {
@@ -273,9 +273,9 @@ impl<'a> Driver for Console<'a> {
     }
 }
 
-impl<'a> uart::TransmitClient<'a> for Console<'a> {
+impl<'a> uart::TransmitClient for Console<'a> {
     fn transmitted_buffer(&self,
-                          buffer: &'a mut [u8],
+                          buffer: &'static mut [u8],
                           _tx_len: usize,
                           _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
@@ -342,8 +342,12 @@ impl<'a> uart::TransmitClient<'a> for Console<'a> {
 }
 
 
-impl<'a> uart::ReceiveClient<'a> for Console<'a> {
-    fn received_buffer(&self, buffer: &'a mut [u8], rx_len: usize, rcode: ReturnCode, error: uart::Error) {
+impl<'a> uart::ReceiveClient for Console<'a> {
+    fn received_buffer(&self, 
+                       buffer: &'static mut [u8], 
+                       rx_len: usize, 
+                       rcode: ReturnCode, 
+                       error: uart::Error) {
         self.rx_in_progress
             .take()
             .map(|appid| {

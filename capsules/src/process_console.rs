@@ -112,10 +112,10 @@ pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     uart: &'a uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
-    tx_buffer: TakeCell<'a, [u8]>,
+    tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: Cell<bool>,
-    rx_buffer: TakeCell<'a, [u8]>,
-    command_buffer: TakeCell<'a, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
+    command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
     running: Cell<bool>,
     kernel: &'static Kernel,
@@ -125,9 +125,9 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
         uart: &'a uart::UartData<'a>,
-        tx_buffer: &'a mut [u8],
-        rx_buffer: &'a mut [u8],
-        cmd_buffer: &'a mut [u8],
+        tx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
+        cmd_buffer: &'static mut [u8],
         kernel: &'static Kernel,
         capability: C,
     ) -> ProcessConsole<'a, C> {
@@ -281,16 +281,16 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     }
 }
 
-impl<'a, C: ProcessManagementCapability> uart::TransmitClient<'a> for ProcessConsole<'a, C> {
-    fn transmitted_buffer(&self, buffer: &'a mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
+    fn transmitted_buffer(&self, buffer: &'static  mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
     }
 }
-impl<'a, C: ProcessManagementCapability> uart::ReceiveClient<'a> for ProcessConsole<'a, C> {
-    fn received_buffer(&self, read_buf: &'a mut [u8], rx_len: usize, _rcode: ReturnCode, error: uart::Error) {
+impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
+    fn received_buffer(&self, read_buf: &'static mut [u8], rx_len: usize, _rcode: ReturnCode, error: uart::Error) {
         let mut execute = false;
         if error == uart::Error::None {
             match rx_len {

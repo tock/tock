@@ -31,7 +31,7 @@ impl TestVirtualUartReceive {
     }
 }
 
-impl uart::ReceiveClient<'static> for TestVirtualUartReceive {
+impl uart::ReceiveClient for TestVirtualUartReceive {
 
     fn received_buffer(
         &self,

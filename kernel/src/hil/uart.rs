@@ -62,7 +62,7 @@ pub enum Error {
 pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
 pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
-pub trait Client<'a>: ReceiveClient<'a> + TransmitClient<'a> {}
+pub trait Client: ReceiveClient + TransmitClient {}
 
 /// Trait for configuring a UART.
 pub trait Configure {
@@ -78,7 +78,7 @@ pub trait Configure {
 pub trait Transmit<'a> {
     /// Set the transmit client, which will be called when transmissions
     /// complete.
-    fn set_transmit_client(&self, client: &'a TransmitClient<'a>);
+    fn set_transmit_client(&self, client: &'a TransmitClient);
 
     /// Transmit a buffer of data. On completion, `transmitted_buffer`
     /// in the `TransmitClient` will be called.  If the `ReturnCode`
@@ -102,7 +102,7 @@ pub trait Transmit<'a> {
     ///
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
-    fn transmit_buffer(&self, tx_data: &'a mut [u8], tx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>);
+    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>);
 
 
     /// Transmit a single word of data asynchronously. The word length is
@@ -142,7 +142,7 @@ pub trait Transmit<'a> {
 
 pub trait Receive<'a> {
     /// Set the receive client, which will he called when reads complete.
-    fn set_receive_client(&self, client: &'a ReceiveClient<'a>);
+    fn set_receive_client(&self, client: &'a ReceiveClient);
 
     /// Receive `rx_len` bytes into `rx_buffer`, making a callback to
     /// the `ReceiveClient` when complete.  If the `ReturnCode` of
@@ -162,7 +162,7 @@ pub trait Receive<'a> {
     /// should use `receive_word`.  Calling `receive_word` while
     /// there is an outstanding `receive_buffer` or `receive_word`
     /// operation will return EBUSY.
-    fn receive_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize) -> (ReturnCode, Option<&'a mut [u8]>);
+    fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>);
 
     /// Receive a single word of data. The word length is determined
     /// by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -194,7 +194,7 @@ pub trait Receive<'a> {
 
 /// Trait implemented by a UART transmitter to receive callbacks when
 /// operations complete.
-pub trait TransmitClient<'a> {
+pub trait TransmitClient {
 
     /// A call to `Transmit::transmit_word` completed. The `ReturnCode`
     /// indicates whether the word was successfully transmitted. A call
@@ -226,10 +226,10 @@ pub trait TransmitClient<'a> {
     ///   - ESIZE if the buffer could only be partially transmitted. `tx_len`
     //.     contains how many words were transmitted.
     ///   - FAIL if the transmission failed in some way.
-    fn transmitted_buffer(&self, tx_buffer: &'a mut [u8], tx_len: usize, rval: ReturnCode);
+    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rval: ReturnCode);
 }
 
-pub trait ReceiveClient<'a> {
+pub trait ReceiveClient {
 
     /// A call to `Receive::receive_word` completed. The `ReturnCode`
     /// indicates whether the word was successfully received. A call
@@ -264,7 +264,7 @@ pub trait ReceiveClient<'a> {
     ///     contains how many words were transmitted.
     ///   - FAIL if reception failed in some way: `error` may contain further
     ///     information.
-    fn received_buffer(&self, rx_buffer: &'a mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
+    fn received_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
 
 }
 
@@ -291,5 +291,5 @@ pub trait ReceiveAdvanced<'a>: Receive<'a> {
     /// has been received.
     ///
     /// * `interbyte_timeout`: number of bit periods since last data received.
-    fn receive_automatic(&self, rx_buffer: &'a mut [u8], rx_len: usize, interbyte_timeout: u8) -> (ReturnCode, Option<&'a mut [u8]>);
+    fn receive_automatic(&self, rx_buffer: &'static mut [u8], rx_len: usize, interbyte_timeout: u8) -> (ReturnCode, Option<&'static mut [u8]>);
 }
