@@ -42,7 +42,7 @@ impl ConsoleComponent {
 }
 
 impl Component for ConsoleComponent {
-    type Output = &'static console::Console<'static, UartDevice<'static>>;
+    type Output = &'static console::Console<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -52,7 +52,7 @@ impl Component for ConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            console::Console<UartDevice>,
+            console::Console<'static>,
             console::Console::new(
                 console_uart,
                 &mut console::WRITE_BUF,
@@ -60,8 +60,8 @@ impl Component for ConsoleComponent {
                 self.board_kernel.create_grant(&grant_cap)
             )
         );
-        hil::uart::UART::set_client(console_uart, console);
-        console.initialize();
+        hil::uart::Transmit::set_transmit_client(console_uart, console);
+        hil::uart::Receive::set_receive_client(console_uart, console);
 
         // Create virtual device for kernel debug.
         let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
@@ -74,7 +74,7 @@ impl Component for ConsoleComponent {
                 &mut kernel::debug::INTERNAL_BUF,
             )
         );
-        hil::uart::UART::set_client(debugger_uart, debugger);
+        hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
         let debug_wrapper = static_init!(
             kernel::debug::DebugWriterWrapper,

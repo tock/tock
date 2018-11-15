@@ -127,11 +127,17 @@ pub trait Transmit<'a> {
     /// there will be a callback. Cancelled calls to `transmit_buffer` MUST
     /// always make a callback, to return the passed buffer back to the caller.
     ///
-    /// If abort_transmit returns SUCCESS, there will be no future callback
-    /// and the client may retransmit immediately. If abort_transmit returns
-    /// any other `ReturnCode` there will be a callback. This means that if
-    /// there is no outstanding call to `transmit_word` or `transmit_buffer`
-    /// then a call to `abort_transmit` returns SUCCESS.
+    /// If abort_transmit returns SUCCESS, there will be no future
+    /// callback and the client may retransmit immediately. If
+    /// abort_transmit returns any other `ReturnCode` there will be a
+    /// callback. This means that if there is no outstanding call to
+    /// `transmit_word` or `transmit_buffer` then a call to
+    /// `abort_transmit` returns SUCCESS. If there was a `transmit`
+    /// outstanding and is cancelled successfully then `EBUSY` will
+    /// be returned and a there will be a callback with a `ReturnCode`
+    /// of `ECANCEL`.  If there was a reception outstanding, which is
+    /// not cancelled successfully, then `FAIL` will be returned and
+    /// there will be a later callback.
     ///
     /// Returns SUCCESS or
     ///  - FAIL if the outstanding call to either transmit operation could

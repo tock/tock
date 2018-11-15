@@ -1,6 +1,6 @@
 use capsules::test::virtual_uart::TestVirtualUartReceive;
 use capsules::virtual_uart::{UartDevice, UartMux};
-use kernel::hil::uart::UART;
+use kernel::hil::uart::Receive;
 
 pub unsafe fn run_virtual_uart_receive(mux: &'static UartMux<'static>) {
     debug!("Starting virtual reads.");
@@ -20,7 +20,7 @@ unsafe fn static_init_test_receive_small(
         TestVirtualUartReceive,
         TestVirtualUartReceive::new(device, &mut SMALL)
     );
-    device.set_client(test);
+    device.set_receive_client(test);
     test
 }
 
@@ -34,6 +34,6 @@ unsafe fn static_init_test_receive_large(
         TestVirtualUartReceive,
         TestVirtualUartReceive::new(device, &mut BUFFER)
     );
-    device.set_client(test);
+    device.set_receive_client(test);
     test
 }

@@ -366,6 +366,8 @@ impl hil::uart::TransmitClient for DebugWriter {
         let head = self.head.get();
         let mut tail = self.tail.get();
 
+        //panic!("Tail: {}, head: {}, tx_len: {}, rcode: {:?}", tail, head, tx_len, _rcode);
+
         // Increment the tail with how many bytes were written to the output
         // mechanism, and wrap if needed.
         tail += tx_len;

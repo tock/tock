@@ -31,7 +31,7 @@ use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::UartMux;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -129,10 +129,9 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 struct Imix {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
-        UartDevice<'static>,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -156,10 +155,7 @@ struct Imix {
         'static,
         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
     >,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<
-        'static,
-        sam4l::usart::USART,
-    >,
+    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
@@ -324,7 +320,11 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
-    hil::uart::UART::set_client(&sam4l::usart::USART3, uart_mux);
+
+    uart_mux.initialize();
+
+    hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART3, uart_mux);
+    hil::uart::Receive::set_receive_client(&sam4l::usart::USART3, uart_mux);
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize();
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize();
@@ -460,8 +460,6 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
-    imix.console.initialize();
-    imix.pconsole.initialize();
     imix.pconsole.start();
 
     //    debug!("Starting virtual read test.");

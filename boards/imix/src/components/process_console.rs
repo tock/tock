@@ -39,7 +39,7 @@ unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl Component for ProcessConsoleComponent {
     type Output =
-        &'static process_console::ProcessConsole<'static, UartDevice<'static>, Capability>;
+        &'static process_console::ProcessConsole<'static, Capability>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         // Create virtual device for console.
@@ -47,7 +47,7 @@ impl Component for ProcessConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            process_console::ProcessConsole<UartDevice, Capability>,
+            process_console::ProcessConsole<'static, Capability>,
             process_console::ProcessConsole::new(
                 console_uart,
                 &mut process_console::WRITE_BUF,
@@ -57,8 +57,8 @@ impl Component for ProcessConsoleComponent {
                 Capability,
             )
         );
-        hil::uart::UART::set_client(console_uart, console);
-        console.initialize();
+        hil::uart::Transmit::set_transmit_client(console_uart, console);
+        hil::uart::Receive::set_receive_client(console_uart, console);
 
         // Create virtual device for kernel debug.
         let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
@@ -71,7 +71,7 @@ impl Component for ProcessConsoleComponent {
                 &mut kernel::debug::INTERNAL_BUF,
             )
         );
-        hil::uart::UART::set_client(debugger_uart, debugger);
+        hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
         let debug_wrapper = static_init!(
             kernel::debug::DebugWriterWrapper,

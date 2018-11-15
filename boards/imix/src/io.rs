@@ -3,7 +3,7 @@ use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
+use kernel::hil::uart::{self, Configure};
 use sam4l;
 
 use PROCESSES;
@@ -20,8 +20,9 @@ impl Write for Writer {
         let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::UARTParameters {
+            uart.configure(uart::Parameters {
                 baud_rate: 115200,
+                width: uart::Width::Eight,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,

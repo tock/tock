@@ -151,7 +151,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                 self.rx_in_progress.set(true);
                 self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
-                debug!("Starting process console");
+                //debug!("Starting process console");
             });
         }
         ReturnCode::SUCCESS

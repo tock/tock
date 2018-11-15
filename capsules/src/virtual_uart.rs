@@ -266,6 +266,8 @@ pub struct UartDevice<'a> {
     tx_client: OptionalCell<&'a uart::TransmitClient>,
 }
 
+impl uart::UartData<'a> for UartDevice<'a> {}
+
 impl<'a> UartDevice<'a> {
     pub const fn new(mux: &'a UartMux<'a>, receiver: bool) -> UartDevice<'a> {
         UartDevice {
