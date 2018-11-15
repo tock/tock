@@ -618,7 +618,7 @@ impl USART<'a> {
 
             // Now that we know the TX transaction is finished we can get the
             // buffer back from DMA and pass it back to the client. If we don't
-            // wait until we are co6mpletely finished, then the
+            // wait until we are completely finished, then the
             // `transmit_complete` callback is in a "bad" part of the USART
             // state machine, and clients cannot issue other USART calls from
             // the callback.
@@ -849,13 +849,10 @@ impl uart::Receive<'a> for USART<'a> {
 
 
     fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if rx_len > rx_buffer.len() {
+            return (ReturnCode::ESIZE, Some(rx_buffer));
+        }
         let usart = &USARTRegManager::new(&self);
-
-        // quit current reception if any
-        //self.abort_rx(usart, uart::Error::RepeatCallError);
-
-        // truncate rx_len if necessary
-        let length = cmp::min(rx_len, rx_buffer.len());
 
         // enable RX
         self.enable_rx(usart);
@@ -865,8 +862,8 @@ impl uart::Receive<'a> for USART<'a> {
         if self.rx_dma.get().is_some() {
             self.rx_dma.get().map(move |dma| {
                 dma.enable();
-                self.rx_len.set(length);
-                dma.do_transfer(self.rx_dma_peripheral, rx_buffer, length);
+                self.rx_len.set(rx_len);
+                dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
             });
             (ReturnCode::SUCCESS, None)
         } else {
@@ -892,8 +889,10 @@ impl uart::Transmit<'a> for USART<'a> {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             (ReturnCode::EBUSY, Some(tx_buffer))
         } else {
+            if tx_len > tx_buffer.len() {
+                return (ReturnCode::ESIZE, Some(tx_buffer));
+            }
             let usart = &USARTRegManager::new(&self);
-            let real_len = cmp::min(tx_len, tx_buffer.len());
             // enable TX
             self.enable_tx(usart);
             self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
@@ -902,11 +901,8 @@ impl uart::Transmit<'a> for USART<'a> {
             if self.tx_dma.get().is_some() {
                 self.tx_dma.get().map(move |dma| {
                     dma.enable();
-                    self.tx_len.set(real_len);
-                    if real_len == 0 {
-                        panic!("Calling transmit_buffer with real_len of 0: tx_len is {} and tx_buffer.len() is {}", tx_len, tx_buffer.len());
-                    }
-                    dma.do_transfer(self.tx_dma_peripheral, tx_buffer, real_len);
+                    self.tx_len.set(tx_len);
+                    dma.do_transfer(self.tx_dma_peripheral, tx_buffer, tx_len);
                 });
                 (ReturnCode::SUCCESS, None)
              } else {

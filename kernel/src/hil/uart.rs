@@ -92,6 +92,7 @@ pub trait Transmit<'a> {
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
+    ///  - ESIZE : `tx_len` is larger than the passed slice.
     ///  - FAIL: some other error.
     ///
     /// Each byte in `tx_data` is a UART transfer word of 8 or fewer
@@ -161,7 +162,8 @@ pub trait Receive<'a> {
     ///          because it has not been initialized or in the case of a shared
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already receiving and has not made a
-    ///           transmission `complete` callback yet.
+    ///           reception `complete` callback yet.
+    ///  - ESIZE : `rx_len` is larger than the passed slice.
     /// Each byte in `rx_data` is a UART transfer word of 8 or fewer
     /// bits.  The width is determined by the UART
     /// configuration. Clients that need to transfer 9-bit words
@@ -230,7 +232,7 @@ pub trait TransmitClient {
     ///     the buffer was not fully transmitted. `tx_len` contains
     ///     how many words were transmitted.
     ///   - ESIZE if the buffer could only be partially transmitted. `tx_len`
-    //.     contains how many words were transmitted.
+    ///     contains how many words were transmitted.
     ///   - FAIL if the transmission failed in some way.
     fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rval: ReturnCode);
 }
