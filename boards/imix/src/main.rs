@@ -462,11 +462,10 @@ pub unsafe fn reset_handler() {
 
     imix.pconsole.start();
 
-    //    debug!("Starting virtual read test.");
-    //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    debug!("Starting virtual read test.");
+    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     debug!("Initialization complete. Entering main loop");
 
-    //    rng_test::run_entropy32();
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
