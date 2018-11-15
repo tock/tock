@@ -272,7 +272,8 @@ impl NonvolatileStorage<'a> {
                                     ReturnCode::SUCCESS
                                 }
                             }
-                        }).unwrap_or_else(|err| err.into())
+                        })
+                        .unwrap_or_else(|err| err.into())
                 })
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
@@ -484,7 +485,8 @@ impl Driver for NonvolatileStorage<'a> {
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Setup callbacks.
@@ -507,7 +509,8 @@ impl Driver for NonvolatileStorage<'a> {
                     _ => return ReturnCode::ENOSUPPORT,
                 }
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Command interface.

@@ -347,7 +347,8 @@ impl RadioDriver<'a> {
                         }
                         closure(cfg.as_ref())
                     })
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's config buffer.
@@ -367,7 +368,8 @@ impl RadioDriver<'a> {
                         }
                         closure(cfg.as_mut())
                     })
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
@@ -486,7 +488,8 @@ impl RadioDriver<'a> {
                     self.perform_tx_async(appid);
                     ReturnCode::SUCCESS
                 }
-            }).unwrap_or(ReturnCode::SUCCESS)
+            })
+            .unwrap_or(ReturnCode::SUCCESS)
     }
 }
 
@@ -500,7 +503,8 @@ impl framer::DeviceProcedure for RadioDriver<'a> {
                 .find(|neighbor| match addr {
                     MacAddress::Short(addr) => addr == neighbor.short_addr,
                     MacAddress::Long(addr) => addr == neighbor.long_addr,
-                }).map(|neighbor| neighbor.long_addr)
+                })
+                .map(|neighbor| neighbor.long_addr)
         })
     }
 }
