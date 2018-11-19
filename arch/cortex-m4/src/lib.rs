@@ -10,12 +10,11 @@
 extern crate kernel;
 extern crate cortexm;
 
-pub mod mpu;
-
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m4.
 pub use cortexm::support;
 
+pub use cortexm::mpu;
 pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::syscall;
@@ -25,7 +24,7 @@ extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
-
+    static mut _sstack: u32;
     static mut _szero: u32;
     static mut _ezero: u32;
     static mut _etext: u32;
@@ -301,7 +300,7 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
         ipsr_isr_number_to_str(exception_number),
         faulting_stack as u32,
         (_estack as *const ()) as u32,
-        (&_ezero as *const u32) as u32,
+        (&_sstack as *const u32) as u32,
         shcsr,
         cfsr,
         hfsr,

@@ -8,6 +8,7 @@
 #[macro_use(register_bitfields, register_bitmasks)]
 extern crate kernel;
 
+pub mod mpu;
 pub mod nvic;
 pub mod scb;
 pub mod support;
