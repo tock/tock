@@ -5,27 +5,36 @@ use gpio;
 use interrupts;
 use uart;
 
-pub struct E310x(());
+pub struct E310x {
+    userspace_kernel_boundary: riscv32i::syscall::SysCall,
+}
 
 impl E310x {
     pub unsafe fn new() -> E310x {
-        E310x(())
+        E310x {
+            userspace_kernel_boundary: riscv32i::syscall::SysCall::new(),
+        }
     }
 }
 
 impl kernel::Chip for E310x {
     type MPU = ();
+    type UserspaceKernelBoundary = riscv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &self.0
+        &()
     }
 
     fn systick(&self) -> &Self::SysTick {
-        &self.0
+        &()
     }
 
-    fn service_pending_interrupts(&mut self) {
+    fn userspace_kernel_boundary(&self) -> &riscv32i::syscall::SysCall {
+        &self.userspace_kernel_boundary
+    }
+
+    fn service_pending_interrupts(&self) {
 
         unsafe {
             while let Some(interrupt) = plic::next_pending() {

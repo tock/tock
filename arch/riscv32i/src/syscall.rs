@@ -10,6 +10,7 @@
 //! the safety properties of the OS. As hardware starts to exist that supports M
 //! and U modes we will remove this.
 
+use core::fmt::Write;
 use core::ptr::{read_volatile, write_volatile};
 
 use kernel;
@@ -21,7 +22,7 @@ extern "C" {
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub struct RiscvimacStoredState {
 }
 
@@ -72,4 +73,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
         (stack_pointer as *mut usize, kernel::syscall::ContextSwitchReason::Fault)
     }
+
+    unsafe fn fault_fmt(&self, writer: &mut Write) {
+    }
+
+    unsafe fn process_detail_fmt(
+        &self,
+        stack_pointer: *const usize,
+        state: &RiscvimacStoredState,
+        writer: &mut Write,
+    ) {}
 }

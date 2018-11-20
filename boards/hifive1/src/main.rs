@@ -127,7 +127,7 @@ pub unsafe fn reset_handler() {
         None,
     );
 
-    let mut chip = e310x::chip::E310x::new();
+    let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
 
 
 
@@ -314,12 +314,12 @@ pub unsafe fn reset_handler() {
 
     kernel::procs::load_processes(
         board_kernel,
-        &riscv32i::syscall::SysCall::new(),
+        chip,
         &_sapps as *const u8,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
         &process_mgmt_cap,
     );
-    board_kernel.kernel_loop(&hifive1, &mut chip, None, &main_loop_cap);
+    board_kernel.kernel_loop(&hifive1, chip, None, &main_loop_cap);
 }
