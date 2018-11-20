@@ -78,7 +78,15 @@ struct RadioRegisters {
     /// - Address: 0x020 - 0x024
     task_bcstop: WriteOnly<u32, Task::Register>,
     /// Reserved
-    _reserved1: [u32; 55],
+    _reserved1: [u32; 2],
+    /// Stop the bit counter
+    /// - Address: 0x02c - 0x030
+    task_ccastart: WriteOnly<u32, Task::Register>,
+    /// Stop the bit counter
+    /// - Address: 0x030 - 0x034
+    task_ccastop: WriteOnly<u32, Task::Register>,
+    /// Reserved
+    _reserved2: [u32; 51],
     /// Radio has ramped up and is ready to be started
     /// - Address: 0x100 - 0x104
     event_ready: ReadWrite<u32, Event::Register>,
@@ -104,25 +112,36 @@ struct RadioRegisters {
     /// - Address: 0x11c - 0x120
     event_rssiend: ReadWrite<u32, Event::Register>,
     /// Reserved
-    _reserved2: [u32; 2],
+    _reserved3: [u32; 2],
     /// Bit counter reached bit count value
     /// - Address: 0x128 - 0x12c
     event_bcmatch: ReadWrite<u32, Event::Register>,
     /// Reserved
-    _reserved3: [u32; 1],
+    _reserved4: [u32; 1],
     /// Packet received with CRC ok
     /// - Address: 0x130 - 0x134
     event_crcok: ReadWrite<u32, Event::Register>,
     /// Packet received with CRC error
     /// - Address: 0x134 - 0x138
     crcerror: ReadWrite<u32, Event::Register>,
+    /// IEEE 802.15.4 length field received
+    /// - Address: 0x138 - 0x13c
+    event_framestart: ReadWrite<u32, Event::Register>,
     /// Reserved
-    _reserved4: [u32; 50],
+    _reserved5: [u32; 2],
+    /// Wireless medium in idle - clear to send
+    /// - Address: 0x144-0x148
+    event_ccaidle: ReadWrite<u32, Event::Register>,
+    /// Wireless medium busy - do not send
+    /// - Address: 0x148-0x14c
+    event_ccabusy: ReadWrite<u32, Event::Register>,
+    /// Reserved
+    _reserved6: [u32; 45],
     /// Shortcut register
     /// - Address: 0x200 - 0x204
     shorts: ReadWrite<u32, Shortcut::Register>,
     /// Reserved
-    _reserved5: [u32; 64],
+    _reserved7: [u32; 64],
     /// Enable interrupt
     /// - Address: 0x304 - 0x308
     intenset: ReadWrite<u32, Interrupt::Register>,
@@ -130,12 +149,12 @@ struct RadioRegisters {
     /// - Address: 0x308 - 0x30c
     intenclr: ReadWrite<u32, Interrupt::Register>,
     /// Reserved
-    _reserved6: [u32; 61],
+    _reserved8: [u32; 61],
     /// CRC status
     /// - Address: 0x400 - 0x404
     crcstatus: ReadOnly<u32, Event::Register>,
     /// Reserved
-    _reserved7: [u32; 1],
+    _reserved9: [u32; 1],
     /// Received address
     /// - Address: 0x408 - 0x40c
     rxmatch: ReadOnly<u32, ReceiveMatch::Register>,
@@ -146,7 +165,7 @@ struct RadioRegisters {
     /// - Address: 0x410 - 0x414
     dai: ReadOnly<u32, DeviceAddressIndex::Register>,
     /// Reserved
-    _reserved8: [u32; 60],
+    _reserved10: [u32; 60],
     /// Packet pointer
     /// - Address: 0x504 - 0x508
     packetptr: ReadWrite<u32, PacketPointer::Register>,
@@ -193,7 +212,7 @@ struct RadioRegisters {
     /// - Address: 0x53c - 0x540
     crcinit: ReadWrite<u32, CrcInitialValue::Register>,
     /// Reserved
-    _reserved9: [u32; 1],
+    _reserved11: [u32; 1],
     /// Interframe spacing in microseconds
     /// - Address: 0x544 - 0x548
     tifs: ReadWrite<u32, InterFrameSpacing::Register>,
@@ -201,7 +220,7 @@ struct RadioRegisters {
     /// - Address: 0x548 - 0x54c
     rssisample: ReadWrite<u32, RssiSample::Register>,
     /// Reserved
-    _reserved10: [u32; 1],
+    _reserved12: [u32; 1],
     /// Current radio state
     /// - Address: 0x550 - 0x554
     state: ReadOnly<u32, State::Register>,
@@ -209,12 +228,12 @@ struct RadioRegisters {
     /// - Address: 0x554 - 0x558
     datawhiteiv: ReadWrite<u32, DataWhiteIv::Register>,
     /// Reserved
-    _reserved11: [u32; 2],
+    _reserved13: [u32; 2],
     /// Bit counter compare
     /// - Address: 0x560 - 0x564
     bcc: ReadWrite<u32, BitCounterCompare::Register>,
     /// Reserved
-    _reserved12: [u32; 39],
+    _reserved14: [u32; 39],
     /// Device address base segments
     /// - Address: 0x600 - 0x620
     dab: [ReadWrite<u32, DeviceAddressBase::Register>; 8],
@@ -231,17 +250,17 @@ struct RadioRegisters {
     /// - Address: 0x648 - 0x64C
     mhrmatchmas: ReadWrite<u32,MACHeaderMask::Register>,
     /// Reserved
-    _reserved13: [u32; 1],
+    _reserved15: [u32; 1],
     /// Radio mode configuration register
     /// - Address: 0x650 - 0x654
     modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
     /// Reserved
-    _reserved14: [u32; 6],
+    _reserved16: [u32; 6],
     /// Clear Channel Assesment (CCA) control register
     /// - Address: 0x66C - 0x670
     ccactrl: ReadWrite<u32, CCAControl::Register>,
     /// Reserved
-    _reserved15: [u32; 611],
+    _reserved17: [u32; 611],
     /// Peripheral power control
     /// - Address: 0xFFC - 0x1000
     power: ReadWrite<u32, Task::Register>,
@@ -300,7 +319,13 @@ register_bitfields! [u32,
         /// CRCOK event
         CRCOK OFFSET(12) NUMBITS(1),
         /// CRCERROR event
-        CRCERROR OFFSET(13) NUMBITS(1)
+        CRCERROR OFFSET(13) NUMBITS(1),
+        /// CCAIDLE event
+        FRAMESTART OFFSET(14) NUMBITS(1),
+        /// CCAIDLE event
+        CCAIDLE OFFSET(17) NUMBITS(1),
+        /// CCABUSY event
+        CCABUSY OFFSET(18) NUMBITS(1)
     ],
     /// Receive match register
     ReceiveMatch [
@@ -580,6 +605,7 @@ pub struct Radio {
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
     channel: Cell<kernel::hil::radio::RadioChannel>,
+    transmitting: Cell<bool>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -595,13 +621,15 @@ impl Radio {
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
             channel: Cell::new(radio::RadioChannel::DataChannel11),
+            transmitting: Cell::new(false),
         }
     }
 
     fn tx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
-        regs.task_txen.write(Task::ENABLE::SET);
+        self.transmitting.set(true);
+        regs.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
@@ -649,18 +677,43 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
         self.disable_all_interrupts();
-
+        
         if regs.event_ready.is_set(Event::READY) {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
-            regs.task_start.write(Task::ENABLE::SET);
+            if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
+                debug!("Starting CCA.\r");
+                regs.task_ccastart.write(Task::ENABLE::SET);
+            } else { 
+                regs.task_start.write(Task::ENABLE::SET);
+            }   
         }
 
-        if regs.event_address.is_set(Event::READY) {
-            regs.event_address.write(Event::READY::CLEAR);
+        if regs.event_framestart.is_set(Event::READY) {
+            regs.event_framestart.write(Event::READY::CLEAR);
         }
-        if regs.event_payload.is_set(Event::READY) {
-            regs.event_payload.write(Event::READY::CLEAR);
+
+        //   IF we receive the go ahead (channel is clear)
+        // THEN start the transmit part of the radio
+        if regs.event_ccaidle.is_set(Event::READY){
+            debug!("Channel Ready. Transmitting from:\r");
+            unsafe{
+            debug!("{:?}\r",&PAYLOAD.as_ptr())};
+            //debug!("{}", &PAYLOAD.to_string());
+
+            regs.event_ccaidle.write(Event::READY::CLEAR);
+            //enable the radio
+            regs.task_txen.write(Task::ENABLE::SET)
+        }
+
+        if regs.event_ccabusy.is_set(Event::READY){
+            debug!("Channel Busy...Restarting.\r");
+            regs.event_ccabusy.write(Event::READY::CLEAR);
+            regs.task_ccastart.write(Task::ENABLE::SET);
+            //need to back off for a period of time outlined 
+            //in the IEEE 802.15.4 standard (see Figure 69 in
+            //section 7.5.1.4 The CSMA-CA algorithm of the 
+            //standard).
         }
 
         // tx or rx finished!
@@ -678,8 +731,12 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
+                    debug!("TX Finished\r");
                     self.radio_off();
-                    //TODO: Acked is flagged as false until I feel like fixing it
+                    self.transmitting.set(false);
+                    //if we are transmitting, the CRCstatus check is always going to be an error
+                    let result = ReturnCode::SUCCESS;
+                    //TODO: Acked is flagged as false until I get around to fixing it.
                     unsafe{
                         self.tx_client.map(|client| client.send_done(&mut PAYLOAD,false,result));
                     }
@@ -712,9 +769,10 @@ impl Radio {
         let regs = &*self.registers;
         regs.intenset.write(
             Interrupt::READY::SET
-                + Interrupt::ADDRESS::SET
-                + Interrupt::PAYLOAD::SET
-                + Interrupt::END::SET,
+                + Interrupt::CCAIDLE::SET
+                + Interrupt::CCABUSY::SET
+                + Interrupt::END::SET
+                + Interrupt::FRAMESTART::SET,
         );
     }
 
@@ -745,6 +803,8 @@ impl Radio {
     }
 
     fn radio_initialize(&self, channel: RadioChannel) {
+        debug!("Initializating Radio\r");
+
         self.radio_on();
 
         self.ieee802154_set_channel_rate();
@@ -888,6 +948,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
     fn config_commit(&self){
 
     }
+    
     fn set_config_client(&self, client: &'static radio::ConfigClient){
 
     }
