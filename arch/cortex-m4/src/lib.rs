@@ -10,11 +10,12 @@
 extern crate kernel;
 extern crate cortexm;
 
+pub mod mpu;
+
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m4.
 pub use cortexm::support;
 
-pub use cortexm::mpu;
 pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::syscall;
