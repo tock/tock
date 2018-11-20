@@ -4,6 +4,7 @@ version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
  "riscv32i 0.1.0",
+ "sifive 0.1.0",
 ]
 
 [[package]]
@@ -19,6 +20,14 @@ name = "riscv32i"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
+]
+
+[[package]]
+name = "sifive"
+version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+ "riscv32i 0.1.0",
 ]
 
 [[package]]

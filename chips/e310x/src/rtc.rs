@@ -1,6 +1,5 @@
 use kernel::common::StaticRef;
-use kernel::common::registers::ReadWrite;
-use sifive::rtc::Rtc;
+use sifive::rtc::{Rtc, RtcRegisters};
 
 pub static mut RTC: Rtc = Rtc::new(RTC_BASE);
 

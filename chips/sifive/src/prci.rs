@@ -4,7 +4,7 @@ use kernel::common::StaticRef;
 use kernel::common::registers::ReadWrite;
 
 #[repr(C)]
-struct PrciRegisters {
+pub struct PrciRegisters {
     /// Clock Configuration Register
     hfrosccfg: ReadWrite<u32, hfrosccfg::Register>,
     /// Clock Configuration Register
@@ -55,7 +55,7 @@ pub struct Prci {
 }
 
 impl Prci {
-    const fn new(base: StaticRef<PrciRegisters>) -> Prci {
+    pub const fn new(base: StaticRef<PrciRegisters>) -> Prci {
         Prci {
             registers: base,
         }

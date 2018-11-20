@@ -1,8 +1,7 @@
 //! Power Reset Clock Interrupts
 
 use kernel::common::StaticRef;
-use kernel::common::registers::ReadWrite;
-use sifive::prci::Prci;
+use sifive::prci::{Prci, PrciRegisters};
 
 pub static mut PRCI: Prci = Prci::new(PRCI_BASE);
 

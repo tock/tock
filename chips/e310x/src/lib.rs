@@ -5,6 +5,7 @@
 #![crate_type = "rlib"]
 
 extern crate riscv32i;
+extern crate sifive;
 
 #[allow(unused_imports)]
 #[macro_use(

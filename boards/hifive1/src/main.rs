@@ -12,6 +12,7 @@ extern crate capsules;
 extern crate kernel;
 extern crate riscv32i;
 extern crate e310x;
+extern crate sifive;
 
 // use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // use capsules::virtual_i2c::{I2CDevice, MuxI2C};
@@ -49,12 +50,12 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct HiFive1 {
     // console: &'static capsules::console::Console<'static, UartDevice<'static>>,
-    gpio: &'static capsules::gpio::GPIO<'static, e310x::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, sifive::gpio::GpioPin>,
     // alarm: &'static capsules::alarm::AlarmDriver<
     //     'static,
     //     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     // >,
-    led: &'static capsules::led::LED<'static, e310x::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
     // button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     // ipc: kernel::ipc::IPC,
 }
@@ -96,7 +97,7 @@ pub unsafe fn reset_handler() {
     e310x::pwm::PWM2.disable();
 
 
-    e310x::prci::PRCI.set_clock_frequency(e310x::prci::ClockFrequency::Freq18Mhz);
+    e310x::prci::PRCI.set_clock_frequency(sifive::prci::ClockFrequency::Freq18Mhz);
 
 
     riscv32i::enable_plic_interrupts();
@@ -183,7 +184,7 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static e310x::gpio::GpioPin, capsules::led::ActivationMode); 3],
+        [(&'static sifive::gpio::GpioPin, capsules::led::ActivationMode); 3],
         [
             (
                 // Red
@@ -203,7 +204,7 @@ pub unsafe fn reset_handler() {
         ]
     );
     let led = static_init!(
-        capsules::led::LED<'static, e310x::gpio::GpioPin>,
+        capsules::led::LED<'static, sifive::gpio::GpioPin>,
         capsules::led::LED::new(led_pins)
     );
 
@@ -227,7 +228,7 @@ pub unsafe fn reset_handler() {
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static e310x::gpio::GpioPin; 3],
+        [&'static sifive::gpio::GpioPin; 3],
         [
             &e310x::gpio::PORT[9],
             &e310x::gpio::PORT[10],
@@ -235,7 +236,7 @@ pub unsafe fn reset_handler() {
         ]
     );
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, e310x::gpio::GpioPin>,
+        capsules::gpio::GPIO<'static, sifive::gpio::GpioPin>,
         capsules::gpio::GPIO::new(gpio_pins)
     );
     for pin in gpio_pins.iter() {

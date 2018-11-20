@@ -1,6 +1,5 @@
 use kernel::common::StaticRef;
-use kernel::common::registers::ReadWrite;
-use sifive::pwm::Pwm;
+use sifive::pwm::{Pwm, PwmRegisters};
 
 pub static mut PWM0: Pwm = Pwm::new(PWM0_BASE);
 pub static mut PWM1: Pwm = Pwm::new(PWM1_BASE);

@@ -4,7 +4,7 @@ use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly};
 
 #[repr(C)]
-	struct WatchdogRegisters {
+pub struct WatchdogRegisters {
 	/// Watchdog Configuration Register
 	wdogcfg: ReadWrite<u32, cfg::Register>,
 	_reserved0: [u8; 4],
@@ -44,7 +44,7 @@ pub struct Watchdog {
 }
 
 impl Watchdog {
-    const fn new(base: StaticRef<WatchdogRegisters>) -> Watchdog {
+    pub const fn new(base: StaticRef<WatchdogRegisters>) -> Watchdog {
         Watchdog {
             registers: base,
         }

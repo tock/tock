@@ -21,3 +21,4 @@ riscv32i = { path = "../../arch/riscv32i" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 e310x = { path = "../../chips/e310x" }
+sifive = { path = "../../chips/sifive" }
