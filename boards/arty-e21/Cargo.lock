@@ -1,0 +1,63 @@
+[[package]]
+name = "arty-e21"
+version = "0.1.0"
+dependencies = [
+ "arty_exx 0.1.0",
+ "capsules 0.1.0",
+ "kernel 0.1.0",
+ "riscv32i 0.1.0",
+ "sifive 0.1.0",
+]
+
+[[package]]
+name = "arty_exx"
+version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+ "riscv32i 0.1.0",
+ "sifive 0.1.0",
+]
+
+[[package]]
+name = "capsules"
+version = "0.1.0"
+dependencies = [
+ "enum_primitive 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
+name = "enum_primitive"
+version = "0.1.0"
+
+[[package]]
+name = "kernel"
+version = "0.1.0"
+dependencies = [
+ "tock-cells 0.1.0",
+ "tock-registers 0.2.0",
+]
+
+[[package]]
+name = "riscv32i"
+version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+]
+
+[[package]]
+name = "sifive"
+version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+ "riscv32i 0.1.0",
+]
+
+[[package]]
+name = "tock-cells"
+version = "0.1.0"
+
+[[package]]
+name = "tock-registers"
+version = "0.2.0"
+

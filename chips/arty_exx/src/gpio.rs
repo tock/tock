@@ -1,14 +1,14 @@
-
+use core::ops::{Index, IndexMut};
 
 use kernel::common::StaticRef;
-use sifive::gpio::GpioPin;
+use sifive::gpio::{pins, GpioPin, GpioRegisters};
 
 
 const GPIO0_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x1001_2000 as *const GpioRegisters) };
+    unsafe { StaticRef::new(0x2000_2000 as *const GpioRegisters) };
 
 pub struct Port {
-    pins: [GpioPin; 32],
+    pins: [GpioPin; 16],
 }
 
 impl Index<usize> for Port {
@@ -43,21 +43,5 @@ pub static mut PORT: Port = Port {
         GpioPin::new(GPIO0_BASE, pins::pin13, pins::pin13::SET, pins::pin13::CLEAR),
         GpioPin::new(GPIO0_BASE, pins::pin14, pins::pin14::SET, pins::pin14::CLEAR),
         GpioPin::new(GPIO0_BASE, pins::pin15, pins::pin15::SET, pins::pin15::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin16, pins::pin16::SET, pins::pin16::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin17, pins::pin17::SET, pins::pin17::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin18, pins::pin18::SET, pins::pin18::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin19, pins::pin19::SET, pins::pin19::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin20, pins::pin20::SET, pins::pin20::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin21, pins::pin21::SET, pins::pin21::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin22, pins::pin22::SET, pins::pin22::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin23, pins::pin23::SET, pins::pin23::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin24, pins::pin24::SET, pins::pin24::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin25, pins::pin25::SET, pins::pin25::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin26, pins::pin26::SET, pins::pin26::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin27, pins::pin27::SET, pins::pin27::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin28, pins::pin28::SET, pins::pin28::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin29, pins::pin29::SET, pins::pin29::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin30, pins::pin30::SET, pins::pin30::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin31, pins::pin31::SET, pins::pin31::CLEAR),
     ],
 };

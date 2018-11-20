@@ -12,7 +12,7 @@ include ../Makefile.common
 
 flash: target/$(TARGET)/release/$(PLATFORM).elf
 	openocd -f hifive1-openocd.cfg \
-		-c "flash protect 0 64 last off; program $<; resume 0x20400000; exit"
+		-c "flash protect 0 64 last off; program $<; resume 0x40400000; exit"
 
 
 # TOCKLOADER=tockloader
