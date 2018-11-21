@@ -593,8 +593,8 @@ register_bitfields! [u32,
 ];
 
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
-    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; nrf5x::constants::IEEE802154_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::IEEE802154_PAYLOAD_LENGTH];
 
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
@@ -634,6 +634,7 @@ impl Radio {
     fn rx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
+        self.set_dma_ptr();
         regs.task_rxen.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
@@ -755,7 +756,7 @@ impl Radio {
 
                             // TODO: Check if the length is still valid
                             // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                            client.receive(&mut PAYLOAD, (PAYLOAD[1] + 2) as usize,true, result)
+                            client.receive(&mut PAYLOAD, (PAYLOAD[2] + 2) as usize,true, result)
                         });
                     }
                 }
