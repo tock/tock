@@ -33,8 +33,8 @@ any standard serial program (set to 115200 baud), Tock ships with the
 install tockloader, use pip:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.7.1
-(MacOS): pip3 install tockloader==0.7.1
+(Linux): sudo pip3 install --upgrade
+(MacOS): pip3 install --upgrade
 ```
 
 Tockloader can read attributes from connected serial devices, and will

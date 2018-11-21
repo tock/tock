@@ -20,13 +20,13 @@ $ nix-shell
 MacOS:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
-$ pip3 install tockloader
+$ pip3 install --upgrade tockloader
 ```
 
 Ubuntu:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
-$ pip3 install tockloader --user
+$ pip3 install --upgrade tockloader --user
 $ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
 ```
 
@@ -70,8 +70,8 @@ Tockloader is a Python application and can be installed with the Python
 package manager (pip).
 
 ```bash
-(Linux): sudo pip3 install tockloader
-(MacOS): pip3 install tockloader
+(Linux): sudo pip3 install --upgrade tockloader
+(MacOS): pip3 install --upgrade tockloader
 ```
 
 ## Compiling the Kernel
