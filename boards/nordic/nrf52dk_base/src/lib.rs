@@ -321,6 +321,7 @@ pub unsafe fn setup_board(
     awake_mac.set_transmit_client(mac_device);
     awake_mac.set_receive_client(mac_device);
     awake_mac.set_config_client(mac_device);
+    //awake_mac.initialize();
     
     let mux_mac = static_init!(
         capsules::ieee802154::virtual_mac::MuxMac<'static>,
@@ -350,7 +351,7 @@ pub unsafe fn setup_board(
     radio_mac.set_receive_client(radio_driver);
     radio_mac.set_pan(PAN_ID);
     radio_mac.set_address(SRC_MAC);
-
+    //&nrf52::radio::RADIO.startup();
 
     /*
     let ble_radio = static_init!(

@@ -628,7 +628,6 @@ impl Radio {
     fn tx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
-        self.transmitting.set(true);
         regs.task_rxen.write(Task::ENABLE::SET);
     }
 
@@ -636,6 +635,7 @@ impl Radio {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
         regs.task_rxen.write(Task::ENABLE::SET);
+        self.enable_interrupts();
     }
 
     fn set_rx_address(&self) {
@@ -685,11 +685,13 @@ impl Radio {
                 debug!("Starting CCA.\r");
                 regs.task_ccastart.write(Task::ENABLE::SET);
             } else { 
+                debug!("Starting Receive.\r");
                 regs.task_start.write(Task::ENABLE::SET);
             }   
         }
 
         if regs.event_framestart.is_set(Event::READY) {
+            debug!("Frame Received.\r");
             regs.event_framestart.write(Event::READY::CLEAR);
         }
 
@@ -732,7 +734,6 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     debug!("TX Finished\r");
-                    self.radio_off();
                     self.transmitting.set(false);
                     //if we are transmitting, the CRCstatus check is always going to be an error
                     let result = ReturnCode::SUCCESS;
@@ -745,7 +746,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    self.radio_off();
+                    debug!("RX Finished\r");
                     unsafe {
                         self.rx_client.map(|client| {
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
@@ -761,6 +762,9 @@ impl Radio {
                 // Radio state - Disabled
                 _ => (),
             }
+            self.radio_off();
+            self.radio_initialize(self.channel.get());
+            self.rx();
         }
         self.enable_interrupts();
     }
@@ -824,12 +828,9 @@ impl Radio {
         self.set_tx_address();
         self.set_rx_address();
 
-        //self.ble_set_packet_config();
-        //self.ble_set_advertising_access_address();
-
-        //self.ble_set_crc_config();
-
         self.set_dma_ptr();
+
+        self.rx();
     }
 
     // IEEE802.15.4 SPECIFICATION Section 6.20.12.5 of the NRF52840 Datasheet
@@ -900,6 +901,13 @@ impl Radio {
     fn ieee802154_set_tx_power(&self) {
         self.set_tx_power();
     }
+
+    pub fn startup(
+        &self,
+    ) -> ReturnCode{
+        self.radio_initialize(self.channel.get());
+        ReturnCode::SUCCESS
+    }
 }
 
 impl kernel::hil::radio::Radio for Radio {}
@@ -914,6 +922,8 @@ impl kernel::hil::radio::RadioConfig for Radio {
         self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
     }
+
+
 
     fn reset(&self) -> ReturnCode{
         self.radio_on();
@@ -946,7 +956,8 @@ impl kernel::hil::radio::RadioConfig for Radio {
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
     fn config_commit(&self){
-
+        self.radio_off();
+        self.radio_initialize(self.channel.get());
     }
     
     fn set_config_client(&self, client: &'static radio::ConfigClient){
@@ -1034,19 +1045,11 @@ impl kernel::hil::radio::RadioData for Radio {
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
         let res = self.replace_radio_buffer(buf);
+        self.transmitting.set(true);
+        self.radio_off();
         self.radio_initialize(self.channel.get());
-        self.tx();
-        self.enable_interrupts();
+        //self.enable_interrupts();
         (ReturnCode::SUCCESS,None)
-    }
-
-    fn receive(
-        &self
-    ) -> ReturnCode {
-        self.radio_initialize(self.channel.get());
-        self.rx();
-        self.enable_interrupts();
-        ReturnCode::SUCCESS
     }
 }
 
