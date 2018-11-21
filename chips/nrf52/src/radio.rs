@@ -593,8 +593,8 @@ register_bitfields! [u32,
 ];
 
 
-static mut PAYLOAD: [u8; nrf5x::constants::IEEE802154_PAYLOAD_LENGTH] =
-    [0x00; nrf5x::constants::IEEE802154_PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
@@ -700,8 +700,8 @@ impl Radio {
         // THEN start the transmit part of the radio
         if regs.event_ccaidle.is_set(Event::READY){
             debug!("Channel Ready. Transmitting from:\r");
-            unsafe{
-            debug!("{:?}\r",&PAYLOAD.as_ptr())};
+            //unsafe{
+            //debug!("{:?}\r",&PAYLOAD.as_ptr())};
             //debug!("{}", &PAYLOAD.to_string());
 
             regs.event_ccaidle.write(Event::READY::CLEAR);
@@ -872,7 +872,7 @@ impl Radio {
         // sets the header length to 1 byte
         regs.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
-                + PacketConfiguration0::S0LEN.val(0)
+                + PacketConfiguration0::S0LEN.val(8)
                 + PacketConfiguration0::S1LEN::CLEAR
                 + PacketConfiguration0::S1INCL::CLEAR
                 + PacketConfiguration0::PLEN::THIRTYTWOZEROS
@@ -884,7 +884,7 @@ impl Radio {
             PacketConfiguration1::ENDIAN::LITTLE
                 //+ PacketConfiguration1::BALEN.val(3)
                 + PacketConfiguration1::STATLEN::CLEAR
-                + PacketConfiguration1::MAXLEN.val(nrf5x::constants::IEEE802154_PAYLOAD_LENGTH as u32),
+                + PacketConfiguration1::MAXLEN.val(nrf5x::constants::RADIO_PAYLOAD_LENGTH as u32),
         );
     }
 
@@ -1046,6 +1046,9 @@ impl kernel::hil::radio::RadioData for Radio {
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
         let res = self.replace_radio_buffer(buf);
+        unsafe{
+            PAYLOAD[1] = frame_len as u8;
+        }
         self.transmitting.set(true);
         self.radio_off();
         self.radio_initialize(self.channel.get());
