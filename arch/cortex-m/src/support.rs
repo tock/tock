@@ -24,6 +24,17 @@ pub unsafe fn wfi() {
 /// WFI instruction (mock)
 pub unsafe fn wfi() {}
 
+#[cfg(target_os = "none")]
+#[inline(always)]
+/// DSB instruction
+pub unsafe fn dsb() {
+    asm!("dsb 0xf" :::: "volatile");
+}
+
+#[cfg(not(target_os = "none"))]
+/// DSB instruction (mock)
+pub unsafe fn dsb() {}
+
 #[cfg(not(target_os = "none"))]
 pub unsafe fn atomic<F, R>(f: F) -> R
 where
