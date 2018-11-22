@@ -37,7 +37,6 @@
 //! 61
 //! 61
 
-
 use capsules::test::virtual_uart::TestVirtualUartReceive;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::hil::uart::UART;
