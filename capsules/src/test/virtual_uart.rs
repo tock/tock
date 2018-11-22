@@ -1,6 +1,5 @@
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
-
 use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::uart::Client;
