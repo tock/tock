@@ -175,7 +175,6 @@ impl<A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for TestAe
                     "In-place"
                 }
             );
-
         }
         self.aes.disable();
 
