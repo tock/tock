@@ -1,4 +1,5 @@
-//! To run this test, include the code ```
+//! To run this test, include the code i
+//! ```
 //!    aes_ccm_test::run();
 //! ```
 //! In the boot sequence. If it runs correctly, you should see the following
