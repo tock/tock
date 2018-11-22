@@ -4,10 +4,10 @@
 //! ```
 //!     rng_test::run_entropy32();
 //! ```
-//! This test takes a 32-bit entropy generator, puts its output into a 
-//! 32-8 conversion to be an 8-bit generator, puts that output into an 
+//! This test takes a 32-bit entropy generator, puts its output into a
+//! 32-8 conversion to be an 8-bit generator, puts that output into an
 //! 8-to-32 conversion to be a 32-bit generator again, and makes this final
-//! 32-bit entropy source be the tested RNG. This therefore tests not only 
+//! 32-bit entropy source be the tested RNG. This therefore tests not only
 //! the underlying entropy source but also the conversion library.
 //!
 //! The expected output is a series of random numbers that should be

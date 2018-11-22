@@ -1,4 +1,4 @@
-//! To run this test, include the code 
+//! To run this test, include the code
 //! ```
 //!    aes_ccm_test::run();
 //! ```

@@ -1,21 +1,21 @@
 //! Test that AES (either CTR or CBC mode) is working properly.
 //!
-//! To test CBC mode, add the following line to the imix boot sequence: 
+//! To test CBC mode, add the following line to the imix boot sequence:
 //! ```
 //!     aes_test::run_aes128_cbc();
 //! ```
-//! You should see the following output: 
+//! You should see the following output:
 //! ```
 //!     aes_test passed (CBC Enc Src/Dst)
 //!     aes_test passed (CBC Dec Src/Dst)
 //!     aes_test passed (CBC Enc In-place)
 //!     aes_test passed (CBC Dec In-place)
 //! ```
-//! To test CTR mode, add the following line to the imix boot sequence: 
+//! To test CTR mode, add the following line to the imix boot sequence:
 //! ```
 //!     aes_test::run_aes128_ctr();
 //! ```
-//! You should see the following output: 
+//! You should see the following output:
 //! ```
 //!     aes_test CTR passed: (CTR Enc Ctr Src/Dst)
 //!     aes_test CTR passed: (CTR Dec Ctr Src/Dst)
