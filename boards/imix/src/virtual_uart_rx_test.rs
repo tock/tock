@@ -1,3 +1,49 @@
+//! Test reception on the virtualized UART by creating two readers that
+//! read in parallel. To add this test, include the line
+//! ```
+//!    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+//! ```
+//! to the imix boot sequence, where `uart_mux` is a
+//! `capsules::virtual_uart::UartMux`.  There is a 3-byte and a 7-byte
+//! read running in parallel. Test that they are both working by typing
+//! and seeing that they both get all characters. If you repeatedly
+//! type 'a', for example (0x61), you should see something like:
+//! ```
+//! Starting receive of length 3
+//! Virtual uart read complete: CommandComplete:
+//! 61
+//! 61
+//! 61
+//! 61
+//! 61
+//! 61
+//! 61
+//! Starting receive of length 7
+//! Virtual uart read complete: CommandComplete:
+//! 61
+//! 61
+//! 61
+//! Starting receive of length 3
+//! Virtual uart read complete: CommandComplete:
+//! 61
+//! 61
+//! 61
+//! Starting receive of length 3
+//! Virtual uart read complete: CommandComplete:
+//! 61
+//! 61
+//! 61
+//! 61
+//! 61
+//! 61
+//! 61
+//! Starting receive of length 7
+//! Virtual uart read complete: CommandComplete:
+//! 61
+//! 61
+//! 61
+//! ```
+
 use capsules::test::virtual_uart::TestVirtualUartReceive;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::hil::uart::UART;

@@ -1,4 +1,4 @@
-//! Test the AES hardware
+//! Test the AES hardware.
 
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
@@ -155,7 +155,7 @@ impl<A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for TestAe
             &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
         }) {
             debug!(
-                "OK! ({} {} {})",
+                "aes_test CTR passed: (CTR {} {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 "Ctr",
                 if self.use_source.get() {
@@ -165,7 +165,16 @@ impl<A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for TestAe
                 }
             );
         } else {
-            panic!("FAIL");
+            debug!(
+                "aes_test failed: (CTR {} {} {})",
+                if self.encrypting.get() { "Enc" } else { "Dec" },
+                "Ctr",
+                if self.use_source.get() {
+                    "Src/Dst"
+                } else {
+                    "In-place"
+                }
+            );
         }
         self.aes.disable();
 
@@ -236,10 +245,10 @@ impl<A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
         if !self.use_source.get() {
             // Copy source into dest for in-place encryption
             self.source.map_or_else(
-                || panic!("No source"),
+                || panic!("aes_test: no source"),
                 |source| {
                     self.data.map_or_else(
-                        || panic!("No data"),
+                        || panic!("aes_test: no data"),
                         |data| {
                             for (i, b) in source.iter().enumerate() {
                                 data[DATA_OFFSET + i] = *b;
@@ -295,11 +304,10 @@ impl<A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for TestAe
         };
 
         if self.data.map_or(false, |data| {
-            // panic!("PASS: {:?}", &data[0..DATA_LEN] == expected.as_ref());
             &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
         }) {
             debug!(
-                "OK! ({} {})",
+                "aes_test passed (CBC {} {})",
                 if self.encrypting.get() { "Enc" } else { "Dec" },
                 if self.use_source.get() {
                     "Src/Dst"
@@ -308,7 +316,15 @@ impl<A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for TestAe
                 }
             );
         } else {
-            panic!("FAIL");
+            debug!(
+                "aes_test failed: (CBC {} {})",
+                if self.encrypting.get() { "Enc" } else { "Dec" },
+                if self.use_source.get() {
+                    "Src/Dst"
+                } else {
+                    "In-place"
+                }
+            );
         }
         self.aes.disable();
 

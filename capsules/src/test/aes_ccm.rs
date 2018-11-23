@@ -84,7 +84,7 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
         let encrypting = self.encrypting.get();
 
         let buf = match self.buf.take() {
-            None => panic!("Test failed: buffer is not present."),
+            None => panic!("aes_ccm_test failed: buffer is not present."),
             Some(buf) => buf,
         };
 
@@ -99,7 +99,7 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
         if self.aes_ccm.set_key(&KEY) != ReturnCode::SUCCESS
             || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
         {
-            panic!("Test failed: cannot set key or nonce.");
+            panic!("aes_ccm_test failed: cannot set key or nonce.");
         }
 
         let (res, opt_buf) =
@@ -120,7 +120,7 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
         let encrypting = self.encrypting.get();
 
         let buf = match self.buf.take() {
-            None => panic!("Test failed: buffer is not present."),
+            None => panic!("aes_ccm_test failed: buffer is not present."),
             Some(buf) => buf,
         };
 
@@ -135,13 +135,13 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
                 .all(|(a, b)| *a == *b);
             if a_matches && c_matches && tag_is_valid {
                 debug!(
-                    "OK! (current_test={}, encrypting={}, tag_is_valid={})",
+                    "aes_ccm_test passed: (current_test={}, encrypting={}, tag_is_valid={})",
                     self.current_test.get(),
                     self.encrypting.get(),
                     tag_is_valid
                 );
             } else {
-                debug!("Failed: a_matches={}, c_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                debug!("aes_ccm_test failed: a_matches={}, c_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
                        a_matches,
                        c_matches,
                        self.current_test.get(),
@@ -165,13 +165,13 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
                 .all(|(a, b)| *a == *b);
             if a_matches && m_matches && tag_is_valid {
                 debug!(
-                    "OK! (current_test={}, encrypting={}, tag_is_valid={})",
+                    "aes_ccm_test passed: (current_test={}, encrypting={}, tag_is_valid={})",
                     self.current_test.get(),
                     self.encrypting.get(),
                     tag_is_valid
                 );
             } else {
-                debug!("Failed: a_matches={}, m_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                debug!("aes_ccm_test failed: a_matches={}, m_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
                        a_matches,
                        m_matches,
                        self.current_test.get(),
@@ -188,7 +188,7 @@ impl<A: AES128CCM<'a>> CCMClient for Test<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != ReturnCode::SUCCESS {
-            debug!("Test failed: crypt_done returned {:?}", res);
+            debug!("aes_ccm_test failed: crypt_done returned {:?}", res);
         } else {
             self.check_test(tag_is_valid);
             if self.next_test() {

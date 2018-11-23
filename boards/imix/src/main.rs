@@ -117,7 +117,7 @@ const PAN_ID: u16 = 0xABCD;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 16384] = [0; 16384];
+static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
 
@@ -371,10 +371,6 @@ pub unsafe fn reset_handler() {
         RADIO_CHANNEL,
     ).finalize();
 
-    // Clear sensors enable pin to enable sensor rail
-    // sam4l::gpio::PC[16].enable_output();
-    // sam4l::gpio::PC[16].clear();
-
     let adc = AdcComponent::new().finalize();
     let gpio = GpioComponent::new().finalize();
     let led = LedComponent::new().finalize();
@@ -383,12 +379,13 @@ pub unsafe fn reset_handler() {
     let analog_comparator = AcComponent::new().finalize();
     let rng = RngComponent::new(board_kernel).finalize();
 
-    // For now, assign the MAC address on the device as simply a 16-bit short address which represents
-    // the last 16 bits of the serial number of the sam4l for this device.
-    // In the future, we could generate the MAC address by hashing the full 120-bit serial number
+    // For now, assign the 802.15.4 MAC address on the device as
+    // simply a 16-bit short address which represents the last 16 bits
+    // of the serial number of the sam4l for this device.  In the
+    // future, we could generate the MAC address by hashing the full
+    // 120-bit serial number
     let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
     let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
-
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
 
     // Can this initialize be pushed earlier, or into component? -pal
@@ -464,11 +461,20 @@ pub unsafe fn reset_handler() {
     imix.pconsole.initialize();
     imix.pconsole.start();
 
-    //    debug!("Starting virtual read test.");
-    //    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    // Optional kernel tests. Note that these might conflict
+    // with normal operation (e.g., steal callbacks from drivers, etc.),
+    // so do not run these and expect all services/applications to work.
+    // Once everything is virtualized in the kernel this won't be a problem.
+    // -pal, 11/20/18
+    //
+    // virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    // rng_test::run_entropy32();
+    // aes_ccm_test::run();
+    // aes_test::run_aes128_ctr();
+    // aes_test::run_aes128_cbc();
+
     debug!("Initialization complete. Entering main loop");
 
-    //    rng_test::run_entropy32();
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
