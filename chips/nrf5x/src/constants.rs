@@ -68,7 +68,6 @@ pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
 // BUFFER SIZE
 pub const RADIO_PAYLOAD_LENGTH: usize = 255;
-pub const IEEE802154_PAYLOAD_LENGTH: usize = 127;
 
 pub enum RadioMode {
     Nrf1Mbit = 0,

@@ -223,7 +223,8 @@ pub unsafe fn setup_board(
         )
     );
     virtual_alarm1.set_client(alarm);
-    let ble_radio_virtual_alarm = static_init!(
+
+    let radio_virtual_alarm = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
@@ -280,9 +281,6 @@ pub unsafe fn setup_board(
         kernel::debug::DebugWriterWrapper::new(debugger)
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-
-
-    
 
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -351,6 +349,10 @@ pub unsafe fn setup_board(
     radio_mac.set_receive_client(radio_driver);
     radio_mac.set_pan(PAN_ID);
     radio_mac.set_address(SRC_MAC);
+
+    radio_virtual_alarm.set_client(ble_radio);
+
+
     //&nrf52::radio::RADIO.startup();
 
     /*
@@ -377,14 +379,6 @@ pub unsafe fn setup_board(
     );
     ble_radio_virtual_alarm.set_client(ble_radio);
     */
-
-
-
-
-
-
-
-
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,

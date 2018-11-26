@@ -59,7 +59,7 @@ pub const MAX_MTU: usize = 127;
 pub const MIN_FRAME_SIZE: usize = MIN_MHR_SIZE + MFR_SIZE;
 pub const MAX_FRAME_SIZE: usize = MAX_MTU;
 
-pub const PSDU_OFFSET: usize = 2;
+pub const PSDU_OFFSET: usize = 0;
 pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU;
 pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
 

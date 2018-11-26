@@ -36,7 +36,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::common::cells::OptionalCell;
+use kernel::common::cells::{TakeCell,OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio;
@@ -47,6 +47,18 @@ use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
+
+
+pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
+
+pub const RAM_S0_BYTES: usize = 0; 
+
+pub const RAM_LEN_BITS: usize = 8; 
+
+pub const RAM_S1_BITS: usize = 0; 
+
+pub const PREBUF_LEN_BYTES: usize = 1;
+
 
 #[repr(C)]
 struct RadioRegisters {
@@ -593,8 +605,8 @@ register_bitfields! [u32,
 ];
 
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
-    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; IEEE802154_PAYLOAD_LENGTH+PREBUF_LEN_BYTES] =
+    [0x00; IEEE802154_PAYLOAD_LENGTH+PREBUF_LEN_BYTES];
 
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
@@ -606,6 +618,7 @@ pub struct Radio {
     pan: Cell<u16>,
     channel: Cell<kernel::hil::radio::RadioChannel>,
     transmitting: Cell<bool>,
+    kernel_tx: TakeCell<'static, [u8]>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -622,6 +635,7 @@ impl Radio {
             pan: Cell::new(0),
             channel: Cell::new(radio::RadioChannel::DataChannel11),
             transmitting: Cell::new(false),
+            kernel_tx: TakeCell::empty(),
         }
     }
 
@@ -740,7 +754,7 @@ impl Radio {
                     let result = ReturnCode::SUCCESS;
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     unsafe{
-                        self.tx_client.map(|client| client.send_done(&mut PAYLOAD,false,result));
+                        self.tx_client.map(|client| client.send_done(self.kernel_tx.take().unwrap(),false,result));
                     }
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
@@ -756,7 +770,7 @@ impl Radio {
 
                             // TODO: Check if the length is still valid
                             // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                            client.receive(&mut PAYLOAD, (PAYLOAD[2] + 2) as usize,true, result)
+                            client.receive(&mut PAYLOAD[PREBUF_LEN_BYTES..], (PAYLOAD[RAM_S0_BYTES]) as usize,true, result)
                         });
                     }
                 }
@@ -799,9 +813,12 @@ impl Radio {
 
     fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
         // set payload
+        unsafe{
+            debug!("{:?}\t{:?}\t{:?}",PAYLOAD.as_ptr(),buf.as_ptr(),buf.len());
+        }
         for (i, c) in buf.as_ref().iter().enumerate() {
             unsafe {
-                PAYLOAD[i] = *c;
+                PAYLOAD[i+PREBUF_LEN_BYTES] = *c;
             }
         }
         buf
@@ -1045,9 +1062,9 @@ impl kernel::hil::radio::RadioData for Radio {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
-        let res = self.replace_radio_buffer(buf);
+        self.kernel_tx.replace(self.replace_radio_buffer(buf));
         unsafe{
-            PAYLOAD[1] = frame_len as u8;
+            PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
         }
         self.transmitting.set(true);
         self.radio_off();
