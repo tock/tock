@@ -4,51 +4,18 @@
 //! in the chip scheduler if the hardware doesn't support interrupts where
 //! they are needed.
 
-use core::cell::UnsafeCell;
 use core::convert::Into;
 use core::convert::TryFrom;
 use core::convert::TryInto;
-use core::intrinsics;
 use core::marker::Copy;
-use core::marker::Sync;
-
-/// AtomicUsize with no CAS operations that works on targets that have "no atomic
-/// support" according to their specification. This makes it work on thumbv6
-/// platforms.
-///
-/// Borrowed from https://github.com/japaric/heapless/blob/master/src/ring_buffer/mod.rs
-/// See: https://github.com/japaric/heapless/commit/37c8b5b63780ed8811173dc1ec8859cd99efa9ad
-struct AtomicUsize {
-    v: UnsafeCell<usize>,
-}
-
-impl AtomicUsize {
-    crate const fn new(v: usize) -> AtomicUsize {
-        AtomicUsize {
-            v: UnsafeCell::new(v),
-        }
-    }
-
-    crate fn load_relaxed(&self) -> usize {
-        unsafe { intrinsics::atomic_load_relaxed(self.v.get()) }
-    }
-
-    crate fn store_relaxed(&self, val: usize) {
-        unsafe { intrinsics::atomic_store_relaxed(self.v.get(), val) }
-    }
-
-    crate fn fetch_or_relaxed(&self, val: usize) {
-        unsafe { intrinsics::atomic_store_relaxed(self.v.get(), self.load_relaxed() | val) }
-    }
-}
-
-unsafe impl Sync for AtomicUsize {}
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering;
 
 static DEFERRED_CALL: AtomicUsize = AtomicUsize::new(0);
 
 /// Are there any pending `DeferredCall`s?
 pub fn has_tasks() -> bool {
-    DEFERRED_CALL.load_relaxed() != 0
+    DEFERRED_CALL.load(Ordering::Relaxed) != 0
 }
 
 /// Represents a way to generate an asynchronous call without a hardware
@@ -66,18 +33,21 @@ impl<T: Into<usize> + TryFrom<usize> + Copy> DeferredCall<T> {
 
     /// Set the `DeferredCall` as pending
     pub fn set(&self) {
-        DEFERRED_CALL.fetch_or_relaxed(1 << self.0.into() as usize);
+        // DEFERRED_CALL.fetch_or(1 << self.0.into() as usize, Ordering::Relaxed);
+        let val = DEFERRED_CALL.load(Ordering::Relaxed);
+        let new_val = val | (1 << self.0.into());
+        DEFERRED_CALL.store(new_val, Ordering::Relaxed);
     }
 
     /// Gets and clears the next pending `DeferredCall`
     pub fn next_pending() -> Option<T> {
-        let val = DEFERRED_CALL.load_relaxed();
+        let val = DEFERRED_CALL.load(Ordering::Relaxed);
         if val == 0 {
             None
         } else {
             let bit = val.trailing_zeros() as usize;
             let new_val = val & !(1 << bit);
-            DEFERRED_CALL.store_relaxed(new_val);
+            DEFERRED_CALL.store(new_val, Ordering::Relaxed);
             bit.try_into().ok()
         }
     }
