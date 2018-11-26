@@ -245,7 +245,7 @@ pub unsafe fn reset_handler() {
 
 
     hil::gpio::Pin::make_output(&arty_exx::gpio::PORT[0]);
-    hil::gpio::Pin::clear(&arty_exx::gpio::PORT[0]);
+    hil::gpio::Pin::set(&arty_exx::gpio::PORT[0]);
 
     hil::gpio::Pin::make_output(&arty_exx::gpio::PORT[1]);
     hil::gpio::Pin::clear(&arty_exx::gpio::PORT[1]);

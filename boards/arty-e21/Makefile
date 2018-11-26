@@ -10,7 +10,17 @@ TOOLCHAIN ?= /Users/bradjc/git/riscv-rust-toolchain/toolchain/bin/riscv32-unknow
 
 include ../Makefile.common
 
-flash: target/$(TARGET)/release/$(PLATFORM).elf
-	openocd -f arty-openocd.cfg \
+flash-jlink: target/$(TARGET)/release/$(PLATFORM).elf
+	openocd -f arty-openocd-jlink.cfg \
 		-c "flash protect 0 64 last off; program $<; resume 0x40400000; exit"
+
+
+flash: target/$(TARGET)/release/$(PLATFORM).bin
+	openocd -f arty-openocd-digilent.cfg \
+		-c "init; jtagspi_init 0 bscan_spi_xc7a35t.bit; jtagspi_program $< 0x400000; shutdown"
+
+
+flash-e21: sifive_coreip_E21_FPGA_Evaluation_v1p0_rc2.mcs
+	openocd -f arty-openocd-digilent.cfg \
+		-c "init; jtagspi_init 0 bscan_spi_xc7a35t.bit; jtagspi_program $< 0x0; shutdown"
 
