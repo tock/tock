@@ -1,4 +1,4 @@
-#![feature(asm, concat_idents, const_fn, try_from, used)]
+#![feature(asm, concat_idents, const_fn, try_from)]
 #![feature(exclusive_range_pattern)]
 #![no_std]
 #![crate_name = "arty_exx"]
