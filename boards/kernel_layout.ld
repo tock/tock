@@ -288,6 +288,12 @@ SECTIONS
         . = ALIGN(MPU_MIN_ALIGN);
         *(.app_memory)
     } > ram
+
+    /* Discard .eh_frame, we are not doing unwind on panic so it is not needed */
+    /DISCARD/ :
+    {
+      *(.eh_frame);
+    }
 }
 
 ASSERT((_etext - _stext) + (_erelocate - _srelocate) < LENGTH(rom), "
