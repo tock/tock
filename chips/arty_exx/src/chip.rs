@@ -59,8 +59,8 @@ impl kernel::Chip for ArtyExx {
 
     fn sleep(&self) {
         // unsafe {
-            // riscv32i::support::wfi();
-            riscv32i::support::nop();
+        // riscv32i::support::wfi();
+        riscv32i::support::nop();
         // }
     }
 

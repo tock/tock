@@ -11,7 +11,7 @@ pub mod support;
 pub mod syscall;
 
 extern "C" {
-	  // External function defined by the board main.rs.
+    // External function defined by the board main.rs.
     fn reset_handler();
 
     // Where the end of the stack region is (and hence where the stack should
@@ -33,14 +33,14 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-
 /// Entry point of all programs (_start).
 ///
 /// It initializes DWARF call frame information, the stack pointer, the
 /// frame pointer (needed for closures to work in start_rust) and the global
 /// pointer. Then it calls _start_rust.
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-global_asm!(r#"
+global_asm!(
+    r#"
 .section .riscv.start, "ax"
 .globl _start
 _start:
@@ -73,7 +73,8 @@ _start:
   jal zero, reset_handler
 
   .cfi_endproc
-"#);
+"#
+);
 
 /// Setup memory for the kernel.
 ///
@@ -108,7 +109,7 @@ pub unsafe fn init_memory() {
 ///
 /// The trap handler is called on exceptions and for interrupts.
 pub unsafe fn configure_trap_handler() {
-	asm!("
+    asm!("
 		// The csrw instruction writes a Control and Status Register (CSR)
 		// with a new value.
 		//
@@ -126,9 +127,9 @@ pub unsafe fn configure_trap_handler() {
 /// Enable all PLIC interrupts so that individual peripheral drivers do not have
 /// to manage these.
 pub unsafe fn enable_plic_interrupts() {
-	plic::disable_all();
-	plic::clear_all_pending();
-	plic::enable_all();
+    plic::disable_all();
+    plic::clear_all_pending();
+    plic::enable_all();
 }
 
 /// Trap entry point (_start_trap)
@@ -136,7 +137,8 @@ pub unsafe fn enable_plic_interrupts() {
 /// Saves caller saved registers ra, t0..6, a0..7, calls _start_trap_rust,
 /// restores caller saved registers and then returns.
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-global_asm!(r#"
+global_asm!(
+    r#"
   .section .riscv.trap, "ax"
   .align 4
   .global _start_trap
@@ -182,8 +184,8 @@ _start_trap:
 
   addi sp, sp, 16*4
   mret
-"#);
-
+"#
+);
 
 /// Trap entry point rust (_start_trap_rust)
 ///
@@ -202,14 +204,15 @@ pub extern "C" fn start_trap_rust() {
     // }
 }
 
-
 // Make sure there is an abort when linking.
 //
 // I don't know why we need this, or why cortex-m doesn't seem to have it.
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-global_asm!(r#"
+global_asm!(
+    r#"
 .section .init
 .globl abort
 abort:
   jal zero, _start
-"#);
+"#
+);

@@ -21,8 +21,8 @@ mod interrupts;
 
 pub mod chip;
 pub mod gpio;
+pub mod prci;
+pub mod pwm;
+pub mod rtc;
 pub mod uart;
 pub mod watchdog;
-pub mod rtc;
-pub mod pwm;
-pub mod prci;

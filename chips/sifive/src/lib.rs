@@ -17,8 +17,8 @@ extern crate riscv32i;
 extern crate kernel;
 
 pub mod gpio;
+pub mod prci;
+pub mod pwm;
+pub mod rtc;
 pub mod uart;
 pub mod watchdog;
-pub mod rtc;
-pub mod pwm;
-pub mod prci;

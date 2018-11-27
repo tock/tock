@@ -23,9 +23,7 @@ extern "C" {
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
 #[derive(Copy, Clone, Default)]
-pub struct RiscvimacStoredState {
-}
-
+pub struct RiscvimacStoredState {}
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
 pub struct SysCall();
@@ -44,9 +42,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         None
     }
 
-    unsafe fn set_syscall_return_value(&self, _stack_pointer: *const usize, _return_value: isize) {
-
-    }
+    unsafe fn set_syscall_return_value(&self, _stack_pointer: *const usize, _return_value: isize) {}
 
     unsafe fn pop_syscall_stack_frame(
         &self,
@@ -71,16 +67,19 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         stack_pointer: *const usize,
         _state: &mut RiscvimacStoredState,
     ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
-        (stack_pointer as *mut usize, kernel::syscall::ContextSwitchReason::Fault)
+        (
+            stack_pointer as *mut usize,
+            kernel::syscall::ContextSwitchReason::Fault,
+        )
     }
 
-    unsafe fn fault_fmt(&self, writer: &mut Write) {
-    }
+    unsafe fn fault_fmt(&self, writer: &mut Write) {}
 
     unsafe fn process_detail_fmt(
         &self,
         stack_pointer: *const usize,
         state: &RiscvimacStoredState,
         writer: &mut Write,
-    ) {}
+    ) {
+    }
 }

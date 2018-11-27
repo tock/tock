@@ -1,7 +1,7 @@
 //! Power Reset Clock Interrupts
 
-use kernel::common::StaticRef;
 use kernel::common::registers::ReadWrite;
+use kernel::common::StaticRef;
 
 #[repr(C)]
 pub struct PrciRegisters {
@@ -56,9 +56,7 @@ pub struct Prci {
 
 impl Prci {
     pub const fn new(base: StaticRef<PrciRegisters>) -> Prci {
-        Prci {
-            registers: base,
-        }
+        Prci { registers: base }
     }
 
     pub fn set_clock_frequency(&self, frequency: ClockFrequency) {
@@ -72,12 +70,7 @@ impl Prci {
                 // 4, // this seems wrong, but it works??
                 regs.hfrosccfg.modify(hfrosccfg::div.val(4));
             }
-            ClockFrequency::Freq384Mhz => {
-
-            }
-
+            ClockFrequency::Freq384Mhz => {}
         };
-
-
     }
 }

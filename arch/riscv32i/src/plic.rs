@@ -1,23 +1,23 @@
 //! Platform Level Interrupt Control
 
-use kernel::common::StaticRef;
 use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 #[repr(C)]
 struct PlicRegisters {
-	/// Interrupt Priority Register
-	priority: [ReadWrite<u32, priority::Register>; 255],
-	_reserved0: [u8; 3076],
-	/// Interrupt Pending Register
-	pending: [ReadWrite<u32>; 8],
-	_reserved1: [u8; 4064],
-	/// Interrupt Enable Register
-	enable: [ReadWrite<u32>; 8],
-	_reserved2: [u8; 2088928],
-	/// Priority Threshold Register
-	threshold: ReadWrite<u32, priority::Register>,
-	/// Claim/Complete Register
-	claim: ReadWrite<u32>,
+    /// Interrupt Priority Register
+    priority: [ReadWrite<u32, priority::Register>; 255],
+    _reserved0: [u8; 3076],
+    /// Interrupt Pending Register
+    pending: [ReadWrite<u32>; 8],
+    _reserved1: [u8; 4064],
+    /// Interrupt Enable Register
+    enable: [ReadWrite<u32>; 8],
+    _reserved2: [u8; 2088928],
+    /// Priority Threshold Register
+    threshold: ReadWrite<u32, priority::Register>,
+    /// Claim/Complete Register
+    claim: ReadWrite<u32>,
 }
 
 register_bitfields![u32,
@@ -28,7 +28,6 @@ register_bitfields![u32,
 
 const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(0x0c00_0000 as *const PlicRegisters) };
-
 
 /// Clear all pending interrupts.
 pub unsafe fn clear_all_pending() {

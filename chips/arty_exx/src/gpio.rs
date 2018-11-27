@@ -3,7 +3,6 @@ use core::ops::{Index, IndexMut};
 use kernel::common::StaticRef;
 use sifive::gpio::{pins, GpioPin, GpioRegisters};
 
-
 const GPIO0_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x2000_2000 as *const GpioRegisters) };
 
@@ -37,11 +36,41 @@ pub static mut PORT: Port = Port {
         GpioPin::new(GPIO0_BASE, pins::pin7, pins::pin7::SET, pins::pin7::CLEAR),
         GpioPin::new(GPIO0_BASE, pins::pin8, pins::pin8::SET, pins::pin8::CLEAR),
         GpioPin::new(GPIO0_BASE, pins::pin9, pins::pin9::SET, pins::pin9::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin10, pins::pin10::SET, pins::pin10::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin11, pins::pin11::SET, pins::pin11::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin12, pins::pin12::SET, pins::pin12::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin13, pins::pin13::SET, pins::pin13::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin14, pins::pin14::SET, pins::pin14::CLEAR),
-        GpioPin::new(GPIO0_BASE, pins::pin15, pins::pin15::SET, pins::pin15::CLEAR),
+        GpioPin::new(
+            GPIO0_BASE,
+            pins::pin10,
+            pins::pin10::SET,
+            pins::pin10::CLEAR,
+        ),
+        GpioPin::new(
+            GPIO0_BASE,
+            pins::pin11,
+            pins::pin11::SET,
+            pins::pin11::CLEAR,
+        ),
+        GpioPin::new(
+            GPIO0_BASE,
+            pins::pin12,
+            pins::pin12::SET,
+            pins::pin12::CLEAR,
+        ),
+        GpioPin::new(
+            GPIO0_BASE,
+            pins::pin13,
+            pins::pin13::SET,
+            pins::pin13::CLEAR,
+        ),
+        GpioPin::new(
+            GPIO0_BASE,
+            pins::pin14,
+            pins::pin14::SET,
+            pins::pin14::CLEAR,
+        ),
+        GpioPin::new(
+            GPIO0_BASE,
+            pins::pin15,
+            pins::pin15::SET,
+            pins::pin15::CLEAR,
+        ),
     ],
 };

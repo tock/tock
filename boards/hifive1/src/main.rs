@@ -10,8 +10,8 @@ extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
-extern crate riscv32i;
 extern crate e310x;
+extern crate riscv32i;
 extern crate sifive;
 
 // use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -22,7 +22,6 @@ use kernel::hil;
 use kernel::Platform;
 
 pub mod io;
-
 
 // State for loading and holding applications.
 
@@ -37,9 +36,8 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [
-    None, None, None, None,
-];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -96,19 +94,13 @@ pub unsafe fn reset_handler() {
     e310x::pwm::PWM1.disable();
     e310x::pwm::PWM2.disable();
 
-
     e310x::prci::PRCI.set_clock_frequency(sifive::prci::ClockFrequency::Freq18Mhz);
 
-
     riscv32i::enable_plic_interrupts();
-
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
     // let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-
-
 
     // sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
     //     frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
@@ -117,7 +109,6 @@ pub unsafe fn reset_handler() {
 
     // // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     // sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
-
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -129,8 +120,6 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
-
-
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -159,7 +148,6 @@ pub unsafe fn reset_handler() {
     // );
     // hil::uart::UART::set_client(console_uart, console);
 
-
     // let ast = &sam4l::ast::AST;
 
     // let mux_alarm = static_init!(
@@ -167,9 +155,6 @@ pub unsafe fn reset_handler() {
     //     MuxAlarm::new(&sam4l::ast::AST)
     // );
     // ast.configure(mux_alarm);
-
-
-
 
     // // Initialize and enable SPI HAL
     // // Set up an SPI MUX, so there can be multiple clients
@@ -181,10 +166,12 @@ pub unsafe fn reset_handler() {
     // sam4l::spi::SPI.set_client(mux_spi);
     // sam4l::spi::SPI.init();
 
-
     // LEDs
     let led_pins = static_init!(
-        [(&'static sifive::gpio::GpioPin, capsules::led::ActivationMode); 3],
+        [(
+            &'static sifive::gpio::GpioPin,
+            capsules::led::ActivationMode
+        ); 3],
         [
             (
                 // Red
@@ -207,8 +194,6 @@ pub unsafe fn reset_handler() {
         capsules::led::LED<'static, sifive::gpio::GpioPin>,
         capsules::led::LED::new(led_pins)
     );
-
-
 
     // // BUTTONs
     // let button_pins = static_init!(
@@ -242,7 +227,6 @@ pub unsafe fn reset_handler() {
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
-
 
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);
     hil::gpio::Pin::set(&e310x::gpio::PORT[22]);
@@ -283,13 +267,9 @@ pub unsafe fn reset_handler() {
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-
-
     e310x::uart::UART0.initialize_gpio_pins(&e310x::gpio::PORT[17], &e310x::gpio::PORT[16]);
 
-
     debug!("Initialization complete. Entering main loop");
-
 
     // testing some mret jump-around code
 
@@ -302,9 +282,6 @@ pub unsafe fn reset_handler() {
     //     // now go to what is in mepc
     //     mret
     //     " ::::);
-
-
-
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

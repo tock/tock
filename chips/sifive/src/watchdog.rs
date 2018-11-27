@@ -1,25 +1,25 @@
 //! Watchdog
 
-use kernel::common::StaticRef;
 use kernel::common::registers::{ReadWrite, WriteOnly};
+use kernel::common::StaticRef;
 
 #[repr(C)]
 pub struct WatchdogRegisters {
-	/// Watchdog Configuration Register
-	wdogcfg: ReadWrite<u32, cfg::Register>,
-	_reserved0: [u8; 4],
-	/// Watchdog Counter Register
-	wdogcount: ReadWrite<u32>,
-	_reserved1: [u8; 4],
-	/// Watchdog Scaled Counter Register
-	wdogs: ReadWrite<u32>,
-	_reserved2: [u8; 4],
-	/// Watchdog Feed Register
-	wdogfeed: ReadWrite<u32, feed::Register>,
-	/// Watchdog Key Register
-	wdogkey: WriteOnly<u32, key::Register>,
-	/// Watchdog Compare Register
-	wdogcmp: ReadWrite<u32>,
+    /// Watchdog Configuration Register
+    wdogcfg: ReadWrite<u32, cfg::Register>,
+    _reserved0: [u8; 4],
+    /// Watchdog Counter Register
+    wdogcount: ReadWrite<u32>,
+    _reserved1: [u8; 4],
+    /// Watchdog Scaled Counter Register
+    wdogs: ReadWrite<u32>,
+    _reserved2: [u8; 4],
+    /// Watchdog Feed Register
+    wdogfeed: ReadWrite<u32, feed::Register>,
+    /// Watchdog Key Register
+    wdogkey: WriteOnly<u32, key::Register>,
+    /// Watchdog Compare Register
+    wdogcmp: ReadWrite<u32>,
 }
 
 register_bitfields![u32,
@@ -45,32 +45,32 @@ pub struct Watchdog {
 
 impl Watchdog {
     pub const fn new(base: StaticRef<WatchdogRegisters>) -> Watchdog {
-        Watchdog {
-            registers: base,
-        }
+        Watchdog { registers: base }
     }
 
     fn unlock(&self) {
-    	let regs = &*self.registers;
-    	regs.wdogkey.write(key::key.val(0x51F15E));
+        let regs = &*self.registers;
+        regs.wdogkey.write(key::key.val(0x51F15E));
     }
 
     fn feed(&self) {
-    	let regs = &*self.registers;
+        let regs = &*self.registers;
 
-    	self.unlock();
-    	regs.wdogfeed.write(feed::feed.val(0xD09F00D));
+        self.unlock();
+        regs.wdogfeed.write(feed::feed.val(0xD09F00D));
     }
 
     pub fn disable(&self) {
-    	let regs = &*self.registers;
+        let regs = &*self.registers;
 
-    	self.unlock();
-    	regs.wdogcfg.write(cfg::scale.val(0) +
-    						cfg::rsten::CLEAR +
-    						cfg::zerocmp::CLEAR +
-    						cfg::enalways::CLEAR +
-    						cfg::encoreawake::CLEAR);
-    	self.feed();
+        self.unlock();
+        regs.wdogcfg.write(
+            cfg::scale.val(0)
+                + cfg::rsten::CLEAR
+                + cfg::zerocmp::CLEAR
+                + cfg::enalways::CLEAR
+                + cfg::encoreawake::CLEAR,
+        );
+        self.feed();
     }
 }

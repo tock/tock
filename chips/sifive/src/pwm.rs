@@ -1,7 +1,7 @@
 //! Pulse Width Modulation (PWM) Driver
 
-use kernel::common::StaticRef;
 use kernel::common::registers::ReadWrite;
+use kernel::common::StaticRef;
 
 #[repr(C)]
 pub struct PwmRegisters {
@@ -52,9 +52,7 @@ pub struct Pwm {
 
 impl Pwm {
     pub const fn new(base: StaticRef<PwmRegisters>) -> Pwm {
-        Pwm {
-            registers: base,
-        }
+        Pwm { registers: base }
     }
 
     /// Disable the PWM so it does not generate interrupts.

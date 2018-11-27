@@ -8,8 +8,8 @@ extern crate capsules;
 #[allow(unused_imports)]
 #[macro_use(create_capability, debug, debug_gpio, static_init)]
 extern crate kernel;
-extern crate riscv32i;
 extern crate arty_exx;
+extern crate riscv32i;
 extern crate sifive;
 
 // use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -20,7 +20,6 @@ use kernel::hil;
 use kernel::Platform;
 
 pub mod io;
-
 
 // State for loading and holding applications.
 
@@ -35,9 +34,8 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [
-    None, None, None, None,
-];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
+    [None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -94,21 +92,15 @@ pub unsafe fn reset_handler() {
     // arty_exx::pwm::PWM1.disable();
     // arty_exx::pwm::PWM2.disable();
 
-
     // arty_exx::prci::PRCI.set_clock_frequency(arty_exx::prci::ClockFrequency::Freq18Mhz);
-
 
     // THIS WORKED ON FE310, not on E21
     // E21 HAS CLIC, NOT PLIC
     // riscv32i::enable_plic_interrupts();
 
-
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
     // let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-
-
 
     // sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
     //     frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
@@ -117,7 +109,6 @@ pub unsafe fn reset_handler() {
 
     // // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     // sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
-
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -129,8 +120,6 @@ pub unsafe fn reset_handler() {
     // );
 
     let chip = static_init!(arty_exx::chip::ArtyExx, arty_exx::chip::ArtyExx::new());
-
-
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -159,7 +148,6 @@ pub unsafe fn reset_handler() {
     // );
     // hil::uart::UART::set_client(console_uart, console);
 
-
     // let ast = &sam4l::ast::AST;
 
     // let mux_alarm = static_init!(
@@ -167,9 +155,6 @@ pub unsafe fn reset_handler() {
     //     MuxAlarm::new(&sam4l::ast::AST)
     // );
     // ast.configure(mux_alarm);
-
-
-
 
     // // Initialize and enable SPI HAL
     // // Set up an SPI MUX, so there can be multiple clients
@@ -181,10 +166,12 @@ pub unsafe fn reset_handler() {
     // sam4l::spi::SPI.set_client(mux_spi);
     // sam4l::spi::SPI.init();
 
-
     // LEDs
     let led_pins = static_init!(
-        [(&'static sifive::gpio::GpioPin, capsules::led::ActivationMode); 3],
+        [(
+            &'static sifive::gpio::GpioPin,
+            capsules::led::ActivationMode
+        ); 3],
         [
             (
                 // Red
@@ -207,8 +194,6 @@ pub unsafe fn reset_handler() {
         capsules::led::LED<'static, sifive::gpio::GpioPin>,
         capsules::led::LED::new(led_pins)
     );
-
-
 
     // // BUTTONs
     // let button_pins = static_init!(
@@ -242,7 +227,6 @@ pub unsafe fn reset_handler() {
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
-
 
     hil::gpio::Pin::make_output(&arty_exx::gpio::PORT[0]);
     hil::gpio::Pin::set(&arty_exx::gpio::PORT[0]);
@@ -283,13 +267,9 @@ pub unsafe fn reset_handler() {
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-
-
     // arty_exx::uart::UART0.initialize_gpio_pins(&arty_exx::gpio::PORT[17], &arty_exx::gpio::PORT[16]);
 
-
     debug!("Initialization complete. Entering main loop");
-
 
     // testing some mret jump-around code
 
@@ -302,9 +282,6 @@ pub unsafe fn reset_handler() {
     //     // now go to what is in mepc
     //     mret
     //     " ::::);
-
-
-
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

@@ -1,46 +1,46 @@
 use core::cell::Cell;
 
-use kernel::common::StaticRef;
-use kernel::common::registers::{ReadOnly, ReadWrite, Field, FieldValue};
-use kernel::hil;
 use kernel::common::cells::OptionalCell;
+use kernel::common::registers::{Field, FieldValue, ReadOnly, ReadWrite};
+use kernel::common::StaticRef;
+use kernel::hil;
 
 #[repr(C)]
 pub struct GpioRegisters {
-	/// Pin value.
-	value: ReadOnly<u32, pins::Register>,
-	/// Pin Input Enable Register
-	input_en: ReadWrite<u32, pins::Register>,
-	/// Pin Output Enable Register
-	output_en: ReadWrite<u32, pins::Register>,
-	/// Output Port Value Register
-	port: ReadWrite<u32, pins::Register>,
-	/// Internal Pull-Up Enable Register
-	pullup: ReadWrite<u32, pins::Register>,
-	/// Drive Strength Register
-	drive: ReadWrite<u32, pins::Register>,
-	/// Rise Interrupt Enable Register
-	rise_ie: ReadWrite<u32, pins::Register>,
-	/// Rise Interrupt Pending Register
-	rise_ip: ReadWrite<u32, pins::Register>,
-	/// Fall Interrupt Enable Register
-	fall_ie: ReadWrite<u32, pins::Register>,
-	/// Fall Interrupt Pending Register
-	fall_ip: ReadWrite<u32, pins::Register>,
-	/// High Interrupt Enable Register
-	high_ie: ReadWrite<u32, pins::Register>,
-	/// High Interrupt Pending Register
-	high_ip: ReadWrite<u32, pins::Register>,
-	/// Low Interrupt Enable Register
-	low_ie: ReadWrite<u32, pins::Register>,
-	/// Low Interrupt Pending Register
-	low_ip: ReadWrite<u32, pins::Register>,
-	/// HW I/O Function Enable Register
-	iof_en: ReadWrite<u32, pins::Register>,
-	/// HW I/O Function Select Register
-	iof_sel: ReadWrite<u32, pins::Register>,
-	/// Output XOR (invert) Register
-	out_xor: ReadWrite<u32, pins::Register>,
+    /// Pin value.
+    value: ReadOnly<u32, pins::Register>,
+    /// Pin Input Enable Register
+    input_en: ReadWrite<u32, pins::Register>,
+    /// Pin Output Enable Register
+    output_en: ReadWrite<u32, pins::Register>,
+    /// Output Port Value Register
+    port: ReadWrite<u32, pins::Register>,
+    /// Internal Pull-Up Enable Register
+    pullup: ReadWrite<u32, pins::Register>,
+    /// Drive Strength Register
+    drive: ReadWrite<u32, pins::Register>,
+    /// Rise Interrupt Enable Register
+    rise_ie: ReadWrite<u32, pins::Register>,
+    /// Rise Interrupt Pending Register
+    rise_ip: ReadWrite<u32, pins::Register>,
+    /// Fall Interrupt Enable Register
+    fall_ie: ReadWrite<u32, pins::Register>,
+    /// Fall Interrupt Pending Register
+    fall_ip: ReadWrite<u32, pins::Register>,
+    /// High Interrupt Enable Register
+    high_ie: ReadWrite<u32, pins::Register>,
+    /// High Interrupt Pending Register
+    high_ip: ReadWrite<u32, pins::Register>,
+    /// Low Interrupt Enable Register
+    low_ie: ReadWrite<u32, pins::Register>,
+    /// Low Interrupt Pending Register
+    low_ip: ReadWrite<u32, pins::Register>,
+    /// HW I/O Function Enable Register
+    iof_en: ReadWrite<u32, pins::Register>,
+    /// HW I/O Function Select Register
+    iof_sel: ReadWrite<u32, pins::Register>,
+    /// Output XOR (invert) Register
+    out_xor: ReadWrite<u32, pins::Register>,
 }
 
 register_bitfields![u32,
@@ -90,9 +90,14 @@ pub struct GpioPin {
 }
 
 impl GpioPin {
-    pub const fn new(base: StaticRef<GpioRegisters>, pin: Field<u32, pins::Register>, set: FieldValue<u32, pins::Register>, clear: FieldValue<u32, pins::Register>) -> GpioPin {
+    pub const fn new(
+        base: StaticRef<GpioRegisters>,
+        pin: Field<u32, pins::Register>,
+        set: FieldValue<u32, pins::Register>,
+        clear: FieldValue<u32, pins::Register>,
+    ) -> GpioPin {
         GpioPin {
-        	registers: base,
+            registers: base,
             pin: pin,
             set: set,
             clear: clear,
@@ -110,9 +115,9 @@ impl GpioPin {
     pub fn iof0(&self) {
         let regs = self.registers;
 
-    	regs.out_xor.modify(self.clear);
-    	regs.iof_sel.modify(self.clear);
-    	regs.iof_en.modify(self.set);
+        regs.out_xor.modify(self.clear);
+        regs.iof_sel.modify(self.clear);
+        regs.iof_en.modify(self.set);
     }
 
     /// Configure this pin as IO Function 1. What that maps to is chip- and pin-
@@ -120,9 +125,9 @@ impl GpioPin {
     pub fn iof1(&self) {
         let regs = self.registers;
 
-    	regs.out_xor.modify(self.clear);
-    	regs.iof_sel.modify(self.set);
-    	regs.iof_en.modify(self.set);
+        regs.out_xor.modify(self.clear);
+        regs.iof_sel.modify(self.set);
+        regs.iof_en.modify(self.set);
     }
 
     /// There are separate interrupts in PLIC for each pin, so the interrupt
@@ -140,10 +145,10 @@ impl hil::gpio::PinCtl for GpioPin {
 
         match mode {
             hil::gpio::InputMode::PullUp => {
-            	regs.pullup.modify(self.set);
+                regs.pullup.modify(self.set);
             }
             hil::gpio::InputMode::PullDown => {
-            	regs.pullup.modify(self.clear);
+                regs.pullup.modify(self.clear);
             }
             hil::gpio::InputMode::PullNone => {
                 regs.pullup.modify(self.clear);
@@ -161,47 +166,47 @@ impl hil::gpio::Pin for GpioPin {
     fn make_output(&self) {
         let regs = self.registers;
 
-    	regs.drive.modify(self.clear);
-    	regs.out_xor.modify(self.clear);
-    	regs.output_en.modify(self.set);
-    	regs.iof_en.modify(self.clear);
+        regs.drive.modify(self.clear);
+        regs.out_xor.modify(self.clear);
+        regs.output_en.modify(self.set);
+        regs.iof_en.modify(self.clear);
     }
 
     fn make_input(&self) {
         let regs = self.registers;
 
-    	regs.pullup.modify(self.clear);
-    	regs.input_en.modify(self.set);
-    	regs.iof_en.modify(self.clear);
+        regs.pullup.modify(self.clear);
+        regs.input_en.modify(self.set);
+        regs.iof_en.modify(self.clear);
     }
 
     fn read(&self) -> bool {
         let regs = self.registers;
 
-    	regs.value.is_set(self.pin)
+        regs.value.is_set(self.pin)
     }
 
     fn toggle(&self) {
         let regs = self.registers;
 
-    	let current_outputs = regs.port.extract();
-    	if current_outputs.is_set(self.pin) {
-    		regs.port.modify_no_read(current_outputs, self.clear);
-    	} else {
-    		regs.port.modify_no_read(current_outputs, self.set);
-    	}
+        let current_outputs = regs.port.extract();
+        if current_outputs.is_set(self.pin) {
+            regs.port.modify_no_read(current_outputs, self.clear);
+        } else {
+            regs.port.modify_no_read(current_outputs, self.set);
+        }
     }
 
     fn set(&self) {
         let regs = self.registers;
 
-    	regs.port.modify(self.set);
+        regs.port.modify(self.set);
     }
 
     fn clear(&self) {
         let regs = self.registers;
 
-    	regs.port.modify(self.clear);
+        regs.port.modify(self.clear);
     }
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {

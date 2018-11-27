@@ -21,5 +21,5 @@ mod interrupts;
 
 pub mod chip;
 pub mod gpio;
-pub mod uart;
 pub mod pwm;
+pub mod uart;

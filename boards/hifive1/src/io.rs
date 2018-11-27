@@ -1,17 +1,17 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
-use riscv32i;
+use e310x;
 use kernel::debug;
 use kernel::hil::gpio;
 use kernel::hil::led;
-use e310x;
+use riscv32i;
 
 use PROCESSES;
 
 struct Writer {}
 
-static mut WRITER: Writer = Writer { };
+static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {

@@ -1,12 +1,12 @@
 use core::cell::Cell;
 
+use gpio;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
-use kernel::common::registers::{ReadWrite, ReadOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
-use gpio;
 
 #[repr(C)]
 pub struct UartRegisters {
@@ -137,13 +137,12 @@ impl Uart {
                     });
                 });
             } else {
-
                 // More to send. Fill the buffer until it is full.
                 self.buffer.map(|buffer| {
                     for i in self.index.get()..self.len.get() {
                         // Write the byte from the array to the tx register.
                         regs.txdata.write(txdata::data.val(buffer[i] as u32));
-                        self.index.set(i+1);
+                        self.index.set(i + 1);
                         // Check if the buffer is full
                         if regs.txdata.is_set(txdata::full) {
                             // If it is, break and wait for the TX interrupt.
@@ -193,7 +192,7 @@ impl hil::uart::UART for Uart {
         for i in 0..tx_len {
             // Write the byte from the array to the tx register.
             regs.txdata.write(txdata::data.val(tx_data[i] as u32));
-            self.index.set(i+1);
+            self.index.set(i + 1);
             // Check if the buffer is full
             if regs.txdata.is_set(txdata::full) {
                 // If it is, break and wait for the TX interrupt.
@@ -211,11 +210,11 @@ impl hil::uart::UART for Uart {
             hil::uart::StopBits::One => txctrl::nstop::OneStopBit,
             hil::uart::StopBits::Two => txctrl::nstop::TwoStopBits,
         };
-        regs.txctrl.write(txctrl::txen::SET + stop_bits + txctrl::txcnt.val(1));
+        regs.txctrl
+            .write(txctrl::txen::SET + stop_bits + txctrl::txcnt.val(1));
     }
 
-    fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {
-    }
+    fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {}
 
     fn abort_receive(&self) {
         unimplemented!()
