@@ -41,7 +41,7 @@ extern "C" {
 /// pointer. Then it calls _start_rust.
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 global_asm!(r#"
-.section .riscv.start
+.section .riscv.start, "ax"
 .globl _start
 _start:
   .cfi_startproc
@@ -137,7 +137,7 @@ pub unsafe fn enable_plic_interrupts() {
 /// restores caller saved registers and then returns.
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 global_asm!(r#"
-  .section .riscv.trap
+  .section .riscv.trap, "ax"
   .align 4
   .global _start_trap
 

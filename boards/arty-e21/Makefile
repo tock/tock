@@ -3,11 +3,6 @@
 TARGET=riscv32imac-unknown-none-elf
 PLATFORM=arty-e21
 
-# Need this to be different for now
-RUSTFLAGS_FOR_CARGO_LINKING ?= -C link-arg=-Tlayout.ld -C linker=riscv32-unknown-elf-ld
-
-TOOLCHAIN ?= /Users/bradjc/git/riscv-rust-toolchain/toolchain/bin/riscv32-unknown-elf
-
 include ../Makefile.common
 
 flash-jlink: target/$(TARGET)/release/$(PLATFORM).elf
