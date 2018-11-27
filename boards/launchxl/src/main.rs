@@ -38,7 +38,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
-static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
+static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
