@@ -182,7 +182,8 @@ impl Component for UDPComponent {
         );
         sixlowpan_state.set_rx_client(ip_receive);
 
-        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
+        // TODO: use seperate bound_port_table for receiver? Is this necessary?
+        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new(self.bound_port_table));
         ip_receive.set_client(udp_recv);
 
         let udp_driver = static_init!(
