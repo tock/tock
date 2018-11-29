@@ -3,6 +3,7 @@ use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::IP6Header;
 use net::ipv6::ipv6_recv::IP6RecvClient;
 use net::udp::udp::UDPHeader;
+use::kernel::udp_port_table::{UDPPortTable};
 
 /// The UDP driver implements this client interface trait to receive
 /// packets passed up the network stack to the UDPReceiver, and then
@@ -26,13 +27,15 @@ pub trait UDPRecvClient {
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a UDPRecvClient>,
     id: usize,
+    port_table: &'static UDPPortTable,
 }
 
 impl<'a> UDPReceiver<'a> {
-    pub fn new() -> UDPReceiver<'a> {
+    pub fn new(port_table: &'static UDPPortTable) -> UDPReceiver<'a> {
         UDPReceiver {
             client: OptionalCell::empty(),
-            id: 0,
+            id: port_table.add_new_client().unwrap(),
+            port_table: port_table,
         }
     }
 

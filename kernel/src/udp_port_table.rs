@@ -1,24 +1,39 @@
 use common::cells::TakeCell;
+use core::cell::Cell;
 use capabilities;
 const MAX_NUM_BOUND_PORTS: usize = 16;
 //#![allow(dead_code)]
 static mut port_table: [Option<u16>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 // Opaque way to pass id into function
+// Separate struct for send id and receive id.
 pub struct UDPID {
     id: usize,
 }
 // special Option object?
 pub struct UDPPortTable {
     udpid_to_port: TakeCell<'static, [Option<u16>]>,
+    max_counter: Cell<usize>,
 }
 
 
 impl UDPPortTable {
+    // TODO: update constructor to accept a reference to the port_table.
     pub fn new() -> UDPPortTable {
         unsafe {
             UDPPortTable {
                 udpid_to_port: TakeCell::new(&mut port_table),
+                max_counter: Cell::new(0),
             }
+        }
+    }
+
+    pub fn add_new_client(&self) -> Option<usize> { // TODO: add return code
+        let ret = self.max_counter.get();
+        if ret < MAX_NUM_BOUND_PORTS {
+            self.max_counter.set(ret + 1);
+            Some(ret)
+        } else {
+            None
         }
     }
 
