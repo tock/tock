@@ -12,7 +12,8 @@ use driver::Driver;
 use grant::Grant;
 use mem::{AppSlice, Shared};
 use process;
-use returncode::ReturnCode;
+use process::ProcessType;
+use returncode::{Success, Error};
 use sched::Kernel;
 
 struct IPCData {
@@ -90,7 +91,7 @@ impl Driver for IPC {
         subscribe_num: usize,
         callback: Option<Callback>,
         app_id: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Success, Error> {
         match subscribe_num {
             // subscribe(0)
             //
@@ -104,8 +105,8 @@ impl Driver for IPC {
                 .data
                 .enter(app_id, |data, _| {
                     data.callback = callback;
-                    ReturnCode::SUCCESS
-                }).unwrap_or(ReturnCode::EBUSY),
+                    Success::Success
+                }).map_err(Into::into),
 
             // subscribe(>=1)
             //
@@ -116,13 +117,13 @@ impl Driver for IPC {
             // service process calls notify_client().
             svc_id => {
                 if svc_id - 1 >= 8 {
-                    ReturnCode::EINVAL /* Maximum of 8 IPC's exceeded */
+                    Err(Error::EINVAL) /* Maximum of 8 IPC's exceeded */
                 } else {
                     self.data
                         .enter(app_id, |data, _| {
                             data.client_callbacks[svc_id - 1] = callback;
-                            ReturnCode::SUCCESS
-                        }).unwrap_or(ReturnCode::EBUSY)
+                            Success::Success
+                        }).map_err(Into::into)
                 }
             }
         }
@@ -141,7 +142,7 @@ impl Driver for IPC {
         client_or_svc: usize,
         _: usize,
         appid: AppId,
-    ) -> ReturnCode {
+    ) -> Result<Success, Error> {
         let cb_type = if client_or_svc == 0 {
             process::IPCType::Service
         } else {
@@ -150,11 +151,11 @@ impl Driver for IPC {
 
         self.data
             .kernel
-            .process_map_or(ReturnCode::EINVAL, target_id - 1, |target| {
-                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
-                match ret {
-                    true => ReturnCode::SUCCESS,
-                    false => ReturnCode::FAIL,
+            .process_map_or(Err(Error::EINVAL), target_id - 1, |target| {
+                if target.enqueue_task(process::Task::IPC((appid, cb_type))) {
+                    Ok(Success::Success)
+                } else {
+                    Err(Error::FAIL)
                 }
             })
     }
@@ -177,41 +178,37 @@ impl Driver for IPC {
         appid: AppId,
         target_id: usize,
         slice: Option<AppSlice<Shared, u8>>,
-    ) -> ReturnCode {
+    ) -> Result<Success, Error> {
         if target_id == 0 {
             match slice {
                 Some(slice_data) => {
-                    let ret = self.data.kernel.process_until(|p| {
+                    self.data.kernel.process_until(|p| {
                         let s = p.get_process_name().as_bytes();
                         // are slices equal?
                         if s.len() == slice_data.len()
                             && s.iter().zip(slice_data.iter()).all(|(c1, c2)| c1 == c2)
                         {
-                            ReturnCode::SuccessWithValue {
+                            Ok(Success::WithValue {
                                 value: (p.appid().idx() as usize) + 1,
-                            }
+                            })
                         } else {
-                            ReturnCode::FAIL
+                            Err(Error::FAIL)
                         }
-                    });
-                    if ret != ReturnCode::FAIL {
-                        return ret;
-                    }
+                    })
                 }
-                None => {}
+                None => Err(Error::EINVAL),
             }
-
-            return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
-        }
-        return self
+        } else {
+            self
             .data
             .enter(appid, |data, _| {
                 data.shared_memory
                     .get_mut(target_id - 1)
-                    .map(|smem| {
+                    .map_or(Err(Error::FAIL), |smem| {
                         *smem = slice;
-                        ReturnCode::SUCCESS
-                    }).unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
-            }).unwrap_or(ReturnCode::EBUSY);
+                        Ok(Success::Success)
+                    })
+            }).unwrap_or_else(Into::into)
+        }
     }
 }

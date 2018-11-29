@@ -1,14 +1,14 @@
-use adc;
+// use adc;
 use cortexm4::{self, nvic};
 use deferred_call_tasks::DeferredCallTask;
-use i2c;
+// use i2c;
 use kernel;
 use kernel::common::deferred_call;
 use nrf5x;
 use nrf5x::peripheral_interrupts;
 use nvmc;
-use radio;
-use spi;
+// use radio;
+// use spi;
 use uart;
 
 pub struct NRF52 {
@@ -55,46 +55,46 @@ impl kernel::Chip for NRF52 {
                     }
                 } else if let Some(interrupt) = nvic::next_pending() {
                     match interrupt {
-                        peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
-                        peripheral_interrupts::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                        peripheral_interrupts::RADIO => radio::RADIO.handle_interrupt(),
-                        peripheral_interrupts::RNG => nrf5x::trng::TRNG.handle_interrupt(),
-                        peripheral_interrupts::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
-                        peripheral_interrupts::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
-                        peripheral_interrupts::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
-                        peripheral_interrupts::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
-                        peripheral_interrupts::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
+                        // peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
+                        // peripheral_interrupts::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
+                        // peripheral_interrupts::RADIO => radio::RADIO.handle_interrupt(),
+                        // peripheral_interrupts::RNG => nrf5x::trng::TRNG.handle_interrupt(),
+                        // peripheral_interrupts::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
+                        // peripheral_interrupts::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
+                        // peripheral_interrupts::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
+                        // peripheral_interrupts::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
+                        // peripheral_interrupts::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
                         peripheral_interrupts::UART0 => uart::UARTE0.handle_interrupt(),
-                        peripheral_interrupts::SPI0_TWI0 => {
-                            // SPI0 and TWI0 share interrupts.
-                            // Dispatch the correct handler.
-                            match (spi::SPIM0.is_enabled(), i2c::TWIM0.is_enabled()) {
-                                (false, false) => (),
-                                (true, false) => spi::SPIM0.handle_interrupt(),
-                                (false, true) => i2c::TWIM0.handle_interrupt(),
-                                (true, true) => debug_assert!(
-                                    false,
-                                    "SPIM0 and TWIM0 cannot be \
-                                     enabled at the same time."
-                                ),
-                            }
-                        }
-                        peripheral_interrupts::SPI1_TWI1 => {
-                            // SPI1 and TWI1 share interrupts.
-                            // Dispatch the correct handler.
-                            match (spi::SPIM1.is_enabled(), i2c::TWIM1.is_enabled()) {
-                                (false, false) => (),
-                                (true, false) => spi::SPIM1.handle_interrupt(),
-                                (false, true) => i2c::TWIM1.handle_interrupt(),
-                                (true, true) => debug_assert!(
-                                    false,
-                                    "SPIM1 and TWIM1 cannot be \
-                                     enabled at the same time."
-                                ),
-                            }
-                        }
-                        peripheral_interrupts::SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
-                        peripheral_interrupts::ADC => adc::ADC.handle_interrupt(),
+                        // peripheral_interrupts::SPI0_TWI0 => {
+                        //     // SPI0 and TWI0 share interrupts.
+                        //     // Dispatch the correct handler.
+                        //     match (spi::SPIM0.is_enabled(), i2c::TWIM0.is_enabled()) {
+                        //         (false, false) => (),
+                        //         (true, false) => spi::SPIM0.handle_interrupt(),
+                        //         (false, true) => i2c::TWIM0.handle_interrupt(),
+                        //         (true, true) => debug_assert!(
+                        //             false,
+                        //             "SPIM0 and TWIM0 cannot be \
+                        //              enabled at the same time."
+                        //         ),
+                        //     }
+                        // }
+                        // peripheral_interrupts::SPI1_TWI1 => {
+                        //     // SPI1 and TWI1 share interrupts.
+                        //     // Dispatch the correct handler.
+                        //     match (spi::SPIM1.is_enabled(), i2c::TWIM1.is_enabled()) {
+                        //         (false, false) => (),
+                        //         (true, false) => spi::SPIM1.handle_interrupt(),
+                        //         (false, true) => i2c::TWIM1.handle_interrupt(),
+                        //         (true, true) => debug_assert!(
+                        //             false,
+                        //             "SPIM1 and TWIM1 cannot be \
+                        //              enabled at the same time."
+                        //         ),
+                        //     }
+                        // }
+                        // peripheral_interrupts::SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
+                        // peripheral_interrupts::ADC => adc::ADC.handle_interrupt(),
                         _ => debug!("NvicIdx not supported by Tock"),
                     }
                     let n = nvic::Nvic::new(interrupt);

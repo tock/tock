@@ -249,13 +249,26 @@ pub enum Error {
                  // state is inconsistent in the kernel.
 }
 
+use returncode::Error as TockError;
+
+impl From<Error> for TockError {
+    fn from(err: Error) -> TockError {
+        match err {
+            Error::OutOfMemory => TockError::ENOMEM,
+            Error::AddressOutOfBounds => TockError::EINVAL,
+            Error::NoSuchApp => TockError::EINVAL,
+            Error::KernelError => TockError::FAIL,
+        }
+    }
+}
+
 impl From<Error> for ReturnCode {
     fn from(err: Error) -> ReturnCode {
         match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-            Error::KernelError => ReturnCode::FAIL,
+            Error::OutOfMemory => Err(TockError::ENOMEM),
+            Error::AddressOutOfBounds => Err(TockError::EINVAL),
+            Error::NoSuchApp => Err(TockError::EINVAL),
+            Error::KernelError => Err(TockError::FAIL),
         }
     }
 }
@@ -704,7 +717,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 self.appid(),
             )))
         } else {
-            Err(ReturnCode::EINVAL)
+            Err(Err(TockError::EINVAL))
         }
     }
 

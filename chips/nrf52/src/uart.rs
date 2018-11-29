@@ -13,7 +13,7 @@ use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::ReturnCode;
+use kernel::{Error, Success, ReturnCode};
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -420,18 +420,18 @@ impl kernel::hil::uart::UART for Uarte {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != kernel::hil::uart::StopBits::One {
-            return ReturnCode::ENOSUPPORT;
+            return Err(Error::ENOSUPPORT)
         }
         if params.parity != kernel::hil::uart::Parity::None {
-            return ReturnCode::ENOSUPPORT;
+            return Err(Error::ENOSUPPORT)
         }
         if params.hw_flow_control != false {
-            return ReturnCode::ENOSUPPORT;
+            return Err(Error::ENOSUPPORT)
         }
 
         self.set_baud_rate(params.baud_rate);
 
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

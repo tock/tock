@@ -41,7 +41,7 @@ use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
-use kernel::ReturnCode;
+use kernel::{Error, Success, ReturnCode};
 use nrf5x;
 use nrf5x::constants::TxPower;
 
@@ -618,9 +618,9 @@ impl Radio {
             regs.event_end.write(Event::READY::CLEAR);
 
             let result = if regs.crcstatus.is_set(Event::READY) {
-                ReturnCode::SUCCESS
+                Ok(Success::Success)
             } else {
-                ReturnCode::FAIL
+                Err(Error::FAIL)
             };
 
             match regs.state.get() {
@@ -828,11 +828,11 @@ impl ble_advertising::BleConfig for Radio {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
-            Err(_) => kernel::ReturnCode::ENOSUPPORT,
+            Err(_) => Err(Error::ENOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);
-                kernel::ReturnCode::SUCCESS
+                Ok(Success::Success)
             }
         }
     }

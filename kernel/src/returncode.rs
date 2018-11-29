@@ -4,14 +4,16 @@
 //! - Author: Philip Levis <pal@cs.stanford.edu>
 //! - Date: Dec 22, 2016
 
-/// Standard return errors in Tock.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ReturnCode {
-    /// Success value must be positive
-    SuccessWithValue { value: usize },
-    /// Operation completed successfully
-    SUCCESS,
-    /// Generic failure condition
+pub type ReturnCode = Result<Success, Error>;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Success {
+    Success,
+    WithValue { value: usize },
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Error {
     FAIL,
     /// Underlying system is busy; retry
     EBUSY,
@@ -39,30 +41,43 @@ pub enum ReturnCode {
     ENOACK,
 }
 
-impl From<ReturnCode> for isize {
-    fn from(original: ReturnCode) -> isize {
-        match original {
-            ReturnCode::SuccessWithValue { value } => value as isize,
-            ReturnCode::SUCCESS => 0,
-            ReturnCode::FAIL => -1,
-            ReturnCode::EBUSY => -2,
-            ReturnCode::EALREADY => -3,
-            ReturnCode::EOFF => -4,
-            ReturnCode::ERESERVE => -5,
-            ReturnCode::EINVAL => -6,
-            ReturnCode::ESIZE => -7,
-            ReturnCode::ECANCEL => -8,
-            ReturnCode::ENOMEM => -9,
-            ReturnCode::ENOSUPPORT => -10,
-            ReturnCode::ENODEVICE => -11,
-            ReturnCode::EUNINSTALLED => -12,
-            ReturnCode::ENOACK => -13,
+impl From<Success> for isize {
+    fn from(s: Success) -> isize {
+        match s {
+            Success::WithValue { value } => value as isize,
+            Success::Success => 0,
         }
     }
 }
 
-impl From<ReturnCode> for usize {
-    fn from(original: ReturnCode) -> usize {
-        isize::from(original) as usize
+impl From<Error> for isize {
+    fn from(err: Error) -> isize {
+        match err {
+            Error::FAIL => -1,
+            Error::EBUSY => -2,
+            Error::EALREADY => -3,
+            Error::EOFF => -4,
+            Error::ERESERVE => -5,
+            Error::EINVAL => -6,
+            Error::ESIZE => -7,
+            Error::ECANCEL => -8,
+            Error::ENOMEM => -9,
+            Error::ENOSUPPORT => -10,
+            Error::ENODEVICE => -11,
+            Error::EUNINSTALLED => -12,
+            Error::ENOACK => -13,
+        }
+    }
+}
+
+impl From<Success> for usize {
+    fn from(s: Success) -> usize {
+        isize::from(s) as usize
+    }
+}
+
+impl From<Error> for usize {
+    fn from(err: Error) -> usize {
+        isize::from(err) as usize
     }
 }

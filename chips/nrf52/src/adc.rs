@@ -327,15 +327,15 @@ impl hil::adc::Adc for Adc {
         // Start the SAADC and wait for the started interrupt.
         regs.tasks_start.write(TASK::TASK::SET);
 
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn sample_continuous(&self, _channel: &Self::Channel, _frequency: u32) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(Error::FAIL)
     }
 
     fn stop_sampling(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(Error::FAIL)
     }
 
     fn get_resolution_bits(&self) -> usize {

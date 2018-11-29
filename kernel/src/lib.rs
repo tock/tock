@@ -47,7 +47,7 @@ pub use mem::{AppPtr, AppSlice, Private, Shared};
 pub use platform::systick::SysTick;
 pub use platform::{mpu, Chip, Platform};
 pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
-pub use returncode::ReturnCode;
+pub use returncode::{Success, Error, ReturnCode};
 pub use sched::Kernel;
 
 // Export only select items from the process module. To remove the name conflict

@@ -37,7 +37,7 @@ use kernel::common::cells::TakeCell;
 use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
-use kernel::ReturnCode;
+use kernel::{Error, Success, ReturnCode};
 
 // DMA buffer that the aes chip will mutate during encryption
 // Byte 0-15   - Key
@@ -270,27 +270,27 @@ impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
         if key.len() != symmetric_encryption::AES128_KEY_SIZE {
-            ReturnCode::EINVAL
+            Err(Error::EINVAL)
         } else {
             for (i, c) in key.iter().enumerate() {
                 unsafe {
                     ECB_DATA[i] = *c;
                 }
             }
-            ReturnCode::SUCCESS
+            Ok(Success::Success)
         }
     }
 
     fn set_iv(&self, iv: &[u8]) -> ReturnCode {
         if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
-            ReturnCode::EINVAL
+            Err(Error::EINVAL)
         } else {
             for (i, c) in iv.iter().enumerate() {
                 unsafe {
                     ECB_DATA[i + PLAINTEXT_START] = *c;
                 }
             }
-            ReturnCode::SUCCESS
+            Ok(Success::Success)
         }
     }
 
@@ -309,7 +309,7 @@ impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         stop_index: usize,
     ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
         match source {
-            None => Some((ReturnCode::EINVAL, source, dest)),
+            None => Some((Err(Error::EINVAL), source, dest)),
             Some(src) => {
                 if stop_index - start_index <= MAX_LENGTH {
                     // replace buffers
@@ -325,7 +325,7 @@ impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
                     self.crypt();
                     None
                 } else {
-                    Some((ReturnCode::ESIZE, Some(src), dest))
+                    Some((Err(Error::ESIZE), Some(src), dest))
                 }
             }
         }

@@ -17,7 +17,7 @@ extern crate nrf5x;
 )]
 extern crate kernel;
 
-pub mod adc;
+// pub mod adc;
 pub mod chip;
 pub mod clock;
 pub mod crt1;

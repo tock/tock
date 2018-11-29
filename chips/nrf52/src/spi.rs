@@ -35,7 +35,7 @@ use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::common::registers::{ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::{Error, Success, ReturnCode};
 use nrf5x::pinmux::Pinmux;
 
 /// SPI master instance 0.
@@ -353,7 +353,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Clear (set to low) chip-select
         if self.chip_select.is_none() {
-            return ReturnCode::ENODEVICE;
+            return Err(Error::ENODEVICE);
         }
         self.chip_select.map(|cs| cs.clear());
 
@@ -383,7 +383,7 @@ impl hil::spi::SpiMaster for SPIM {
         // Start the transfer
         self.busy.set(true);
         self.registers.tasks_start.write(TASK::TASK::SET);
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn write_byte(&self, _val: u8) {
@@ -413,9 +413,9 @@ impl hil::spi::SpiMaster for SPIM {
     // Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32 {
         debug_assert!(self.initialized.get());
-        let f = Frequency::from(rate);
-        self.registers.frequency.set(f as u32);
-        f.into()
+        let f: u32 = Frequency::from(rate).into();
+        self.registers.frequency.set(f);
+        f
     }
 
     fn get_rate(&self) -> u32 {

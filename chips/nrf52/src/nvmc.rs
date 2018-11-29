@@ -11,7 +11,7 @@ use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::{Error, Success, ReturnCode};
 
 use deferred_call_tasks::DeferredCallTask;
 
@@ -299,7 +299,7 @@ impl Nvmc {
         self.state.set(FlashState::Read);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn write_page(&self, page_number: usize, data: &'static mut NrfPage) -> ReturnCode {
@@ -334,7 +334,7 @@ impl Nvmc {
         self.state.set(FlashState::Write);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
@@ -346,7 +346,7 @@ impl Nvmc {
         self.state.set(FlashState::Erase);
         DEFERRED_CALL.set();
 
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 }
 

@@ -309,7 +309,7 @@ impl uart::UART for UART {
 
         self.set_baud_rate(params.baud_rate);
 
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

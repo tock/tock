@@ -37,11 +37,11 @@
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart::{self, Client, UART};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Error, Driver, Grant, ReturnCode, Success, Shared};
 
 /// Syscall driver number.
-use driver;
-pub const DRIVER_NUM: usize = driver::NUM::CONSOLE as usize;
+// use driver;
+pub const DRIVER_NUM: usize = 0;
 
 #[derive(Default)]
 pub struct App {
@@ -99,14 +99,13 @@ impl<U: UART> Console<'a, U> {
 
     /// Internal helper function for setting up a new send transaction
     fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
-        match app.write_buffer.take() {
-            Some(slice) => {
-                app.write_len = cmp::min(len, slice.len());
-                app.write_remaining = app.write_len;
-                self.send(app_id, app, slice);
-                ReturnCode::SUCCESS
-            }
-            None => ReturnCode::EBUSY,
+        if let Some(slice) = app.write_buffer.take() {
+            app.write_len = cmp::min(len, slice.len());
+            app.write_remaining = app.write_len;
+            self.send(app_id, app, slice);
+            Ok(Success::Success)
+        } else {
+            Err(Error::EBUSY)
         }
     }
 
@@ -116,7 +115,7 @@ impl<U: UART> Console<'a, U> {
         if app.write_remaining > 0 {
             app.write_buffer
                 .take()
-                .map_or(Err(ReturnCode::ERESERVE), |slice| {
+                .map_or(Err(Err(Error::ERESERVE)), |slice| {
                     self.send(app_id, app, slice);
                     Ok(true)
                 })
@@ -162,11 +161,10 @@ impl<U: UART> Console<'a, U> {
 
     /// Internal helper function for starting a receive operation
     fn receive_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
-        if self.rx_buffer.is_none() {
-            // For now, we tolerate only one concurrent receive operation on this console.
-            // Competing apps will have to retry until success.
-            return ReturnCode::EBUSY;
-        }
+        let rx_buf = match self.rx_buffer.take() {
+            Some(buffer) => buffer,
+            None => return Err(Error::EBUSY),
+        };
 
         match app.read_buffer {
             Some(ref slice) => {
@@ -174,21 +172,16 @@ impl<U: UART> Console<'a, U> {
                 if read_len > self.rx_buffer.map_or(0, |buf| buf.len()) {
                     // For simplicity, impose a small maximum receive length
                     // instead of doing incremental reads
-                    ReturnCode::EINVAL
+                    Err(Error::ESIZE)
                 } else {
                     // Note: We have ensured above that rx_buffer is present
                     app.read_len = read_len;
-                    self.rx_buffer.take().map(|buffer| {
-                        self.rx_in_progress.set(app_id);
-                        self.uart.receive(buffer, app.read_len);
-                    });
-                    ReturnCode::SUCCESS
+                    self.rx_in_progress.set(app_id);
+                    self.uart.receive(rx_buf, app.read_len);
+                    Ok(Success::Success)
                 }
             }
-            None => {
-                // Must supply read buffer before performing receive operation
-                ReturnCode::EINVAL
-            }
+            None => Err(Error::EINVAL),
         }
     }
 }
@@ -211,15 +204,15 @@ impl<U: UART> Driver for Console<'a, U> {
                 .apps
                 .enter(appid, |app, _| {
                     app.write_buffer = slice;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                    Success::Success
+                }).map_err(Into::into),
             2 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.read_buffer = slice;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
-            _ => ReturnCode::ENOSUPPORT,
+                    Success::Success
+                }).map_err(Into::into),
+            _ => Err(Error::ENOSUPPORT),
         }
     }
 
@@ -238,16 +231,16 @@ impl<U: UART> Driver for Console<'a, U> {
             1 /* putstr/write_done */ => {
                 self.apps.enter(app_id, |app, _| {
                     app.write_callback = callback;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into())
+                    Success::Success
+                }).map_err(Into::into)
             },
             2 /* getnstr done */ => {
                 self.apps.enter(app_id, |app, _| {
                     app.read_callback = callback;
-                    ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into())
+                    Success::Success
+                }).map_err(Into::into)
             },
-            _ => ReturnCode::ENOSUPPORT
+            _ => Err(Error::ENOSUPPORT)
         }
     }
 
@@ -264,12 +257,12 @@ impl<U: UART> Driver for Console<'a, U> {
     ///        what has been received so far.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+            0 /* check if present */ => Ok(Success::Success),
             1 /* putstr */ => {
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
                     self.send_new(appid, app, len)
-                }).unwrap_or_else(|err| err.into())
+                }).unwrap_or_else(Into::into)
             },
             2 /* getnstr */ => {
                 let len = arg1;
@@ -279,9 +272,9 @@ impl<U: UART> Driver for Console<'a, U> {
             },
             3 /* abort rx */ => {
                 self.uart.abort_receive();
-                ReturnCode::SUCCESS
+                Ok(Success::Success)
             }
-            _ => ReturnCode::ENOSUPPORT
+            _ => Err(Error::ENOSUPPORT)
         }
     }
 }
@@ -309,7 +302,10 @@ impl<U: UART> Client for Console<'a, U> {
                         app.write_len = 0;
                         app.write_remaining = 0;
                         app.pending_write = false;
-                        let r0 = isize::from(return_code) as usize;
+                        let r0: usize = match return_code {
+                            Ok(s) => s.into(),
+                            Err(e) => e.into(),
+                        };
                         app.write_callback.map(|mut cb| {
                             cb.schedule(r0, 0, 0);
                         });
@@ -332,7 +328,10 @@ impl<U: UART> Client for Console<'a, U> {
                                 app.write_len = 0;
                                 app.write_remaining = 0;
                                 app.pending_write = false;
-                                let r0 = isize::from(return_code) as usize;
+                                let r0: usize = match return_code {
+                                    Ok(s) => s.into(),
+                                    Err(e) => e.into(),
+                                };
                                 app.write_callback.map(|mut cb| {
                                     cb.schedule(r0, 0, 0);
                                 });
@@ -367,20 +366,20 @@ impl<U: UART> Client for Console<'a, U> {
                                         for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
                                             *a = *b;
                                         }
-                                        let rettype = if error == uart::Error::CommandComplete {
-                                            ReturnCode::SUCCESS
+                                        let rettype: usize = if error == uart::Error::CommandComplete {
+                                            Success::Success.into()
                                         } else {
-                                            ReturnCode::ECANCEL
+                                            Error::ECANCEL.into()
                                         };
-                                        cb.schedule(From::from(rettype), rx_len, 0);
+                                        cb.schedule(rettype, rx_len, 0);
                                     } else {
                                         // Oops, no app buffer
-                                        cb.schedule(From::from(ReturnCode::EINVAL), 0, 0);
+                                        cb.schedule(From::from(Error::EINVAL), 0, 0);
                                     }
                                 }
                                 _ => {
                                     // Some UART error occurred
-                                    cb.schedule(From::from(ReturnCode::FAIL), 0, 0);
+                                    cb.schedule(From::from(Error::FAIL), 0, 0);
                                 }
                             }
                         });

@@ -56,9 +56,9 @@
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { ReturnCode::FAIL }
-//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { ReturnCode::FAIL }
-//!     fn erase_page(&self, page_number: usize) -> ReturnCode { ReturnCode::FAIL }
+//!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { Err(Error::FAIL) }
+//!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { Err(Error::FAIL) }
+//!     fn erase_page(&self, page_number: usize) -> ReturnCode { Err(Error::FAIL) }
 //! }
 //! ```
 //!

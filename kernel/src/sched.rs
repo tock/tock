@@ -1,5 +1,3 @@
-//! Tock core scheduler.
-
 use core::cell::Cell;
 use core::ptr::NonNull;
 
@@ -13,7 +11,7 @@ use platform::mpu::MPU;
 use platform::systick::SysTick;
 use platform::{Chip, Platform};
 use process::{self, Task};
-use returncode::ReturnCode;
+use returncode::{Success, Error};
 use syscall::{ContextSwitchReason, Syscall};
 
 /// The time a process is permitted to run before being pre-empted
@@ -121,22 +119,19 @@ impl Kernel {
     /// `FAIL`. That is, if the closure returns any other return code than
     /// `FAIL`, that value will be returned from this function and the iteration
     /// of the array of processes will stop.
-    crate fn process_until<F>(&self, closure: F) -> ReturnCode
+    crate fn process_until<F>(&self, closure: F) -> Result<Success, Error>
     where
-        F: Fn(&process::ProcessType) -> ReturnCode,
+        F: Fn(&process::ProcessType) -> Result<Success, Error>,
     {
         for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    let ret = closure(*p);
-                    if ret != ReturnCode::FAIL {
-                        return ret;
-                    }
+            if let Some(p) = process {
+                let ret = closure(*p);
+                if ret != Err(Error::FAIL) {
+                    return ret;
                 }
-                None => {}
             }
         }
-        ReturnCode::FAIL
+        Err(Error::FAIL)
     }
 
     /// Return how many processes this board supports.
@@ -275,8 +270,11 @@ impl Kernel {
                             // Handle each of the syscalls.
                             match process.get_syscall() {
                                 Some(Syscall::MEMOP { operand, arg0 }) => {
-                                    let res = memop::memop(process, operand, arg0);
-                                    process.set_syscall_return_value(res.into());
+                                    let res: isize = match memop::memop(process, operand, arg0) {
+                                        Ok(s) => s.into(),
+                                        Err(e) => e.into(),
+                                    };
+                                    process.set_syscall_return_value(res)
                                 }
                                 Some(Syscall::YIELD) => {
                                     process.set_yielded_state();
@@ -295,17 +293,20 @@ impl Kernel {
                                     let callback = callback_ptr
                                         .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
 
-                                    let res =
+                                    let res: isize =
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
                                                 Some(d) => {
-                                                    d.subscribe(subdriver_number, callback, appid)
+                                                    match d.subscribe(subdriver_number, callback, appid) {
+                                                        Ok(s) => s.into(),
+                                                        Err(e) => e.into(),
+                                                    }
                                                 }
-                                                None => ReturnCode::ENODEVICE,
+                                                None => Error::ENODEVICE.into(),
                                             },
                                         );
-                                    process.set_syscall_return_value(res.into());
+                                    process.set_syscall_return_value(res);
                                 }
                                 Some(Syscall::COMMAND {
                                     driver_number,
@@ -313,14 +314,17 @@ impl Kernel {
                                     arg0,
                                     arg1,
                                 }) => {
-                                    let res =
+                                    let res: isize =
                                         platform.with_driver(
                                             driver_number,
                                             |driver| match driver {
                                                 Some(d) => {
-                                                    d.command(subdriver_number, arg0, arg1, appid)
+                                                    match d.command(subdriver_number, arg0, arg1, appid) {
+                                                        Ok(s) => s.into(),
+                                                        Err(e) => e.into(),
+                                                    }
                                                 }
-                                                None => ReturnCode::ENODEVICE,
+                                                None => Error::ENODEVICE.into(),
                                             },
                                         );
                                     process.set_syscall_return_value(res.into());
@@ -331,17 +335,25 @@ impl Kernel {
                                     allow_address,
                                     allow_size,
                                 }) => {
-                                    let res = platform.with_driver(driver_number, |driver| {
+                                    let res: isize = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
                                                 match process.allow(allow_address, allow_size) {
                                                     Ok(oslice) => {
-                                                        d.allow(appid, subdriver_number, oslice)
+                                                        match d.allow(appid, subdriver_number, oslice) {
+                                                            Ok(s) => s.into(),
+                                                            Err(e) => e.into(),
+                                                        }
                                                     }
-                                                    Err(err) => err, /* memory not valid */
+                                                    Err(err) => {
+                                                        match err {
+                                                            Ok(s) => s.into(),
+                                                            Err(e) => e.into(),
+                                                        }
+                                                    }
                                                 }
                                             }
-                                            None => ReturnCode::ENODEVICE,
+                                            None => Error::ENODEVICE.into(),
                                         }
                                     });
                                     process.set_syscall_return_value(res.into());

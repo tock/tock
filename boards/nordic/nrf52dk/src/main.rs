@@ -64,17 +64,22 @@
 #![no_main]
 #![feature(panic_implementation)]
 #![deny(missing_docs)]
+#![allow(unused)]
 
 extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_verbose, debug_gpio, static_init)]
+#[macro_use(create_capability,debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
 extern crate cortexm4;
 extern crate nrf52;
-extern crate nrf52dk_base;
+// extern crate nrf52dk_base;
 extern crate nrf5x;
 
-use nrf52dk_base::{SpiPins, UartPins};
+use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::capabilities;
+use kernel::hil;
+use kernel::hil::uart::UART;
+use nrf5x::pinmux::Pinmux;
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
@@ -106,7 +111,7 @@ pub mod io;
 //
 // Also read the instructions in `tests` how to run the tests
 #[allow(dead_code)]
-mod tests;
+// mod tests;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -132,86 +137,57 @@ pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52::init();
 
-    // GPIOs
-    let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 12],
-        [
-            &nrf5x::gpio::PORT[3], // Bottom right header on DK board
-            &nrf5x::gpio::PORT[4],
-            &nrf5x::gpio::PORT[28],
-            &nrf5x::gpio::PORT[29],
-            &nrf5x::gpio::PORT[30],
-            &nrf5x::gpio::PORT[31], // -----
-            &nrf5x::gpio::PORT[12], // Top mid header on DK board
-            &nrf5x::gpio::PORT[11], // -----
-            &nrf5x::gpio::PORT[27], // Top left header on DK board
-            &nrf5x::gpio::PORT[26],
-            &nrf5x::gpio::PORT[2],
-            &nrf5x::gpio::PORT[25]
-        ]
-    );
+    let uicr = nrf52::uicr::Uicr::new();
+    nrf52::nvmc::NVMC.erase_uicr();
+    nrf52::nvmc::NVMC.configure_writeable();
+    while !nrf52::nvmc::NVMC.is_ready() {}
+    uicr.set_psel0_reset_pin(BUTTON_RST_PIN);
+    while !nrf52::nvmc::NVMC.is_ready() {}
+    uicr.set_psel1_reset_pin(BUTTON_RST_PIN);
 
-    // LEDs
-    let led_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode); 4],
-        [
-            (
-                &nrf5x::gpio::PORT[LED1_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf5x::gpio::PORT[LED2_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf5x::gpio::PORT[LED3_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf5x::gpio::PORT[LED4_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-        ]
-    );
 
-    let button_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
-        [
-            (
-                &nrf5x::gpio::PORT[BUTTON1_PIN],
-                capsules::button::GpioMode::LowWhenPressed
-            ), // 13
-            (
-                &nrf5x::gpio::PORT[BUTTON2_PIN],
-                capsules::button::GpioMode::LowWhenPressed
-            ), // 14
-            (
-                &nrf5x::gpio::PORT[BUTTON3_PIN],
-                capsules::button::GpioMode::LowWhenPressed
-            ), // 15
-            (
-                &nrf5x::gpio::PORT[BUTTON4_PIN],
-                capsules::button::GpioMode::LowWhenPressed
-            ), // 16
-        ]
-    );
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    nrf52dk_base::setup_board(
-        board_kernel,
-        BUTTON_RST_PIN,
-        gpio_pins,
-        LED1_PIN,
-        LED2_PIN,
-        LED3_PIN,
-        led_pins,
-        &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
-        &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
-        &None,
-        button_pins,
-        &mut APP_MEMORY,
-        &mut PROCESSES,
-        FAULT_RESPONSE,
+    nrf52::uart::UARTE0.initialize(
+        nrf5x::pinmux::Pinmux::new(UART_TXD as u32),
+        nrf5x::pinmux::Pinmux::new(UART_RXD as u32),
+        nrf5x::pinmux::Pinmux::new(UART_CTS as u32),
+        nrf5x::pinmux::Pinmux::new(UART_RTS as u32),
     );
+
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = static_init!(
+        UartMux<'static>,
+        UartMux::new(
+            &nrf52::uart::UARTE0,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
+    );
+
+    hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
+
+    // Create a UartDevice for the console.
+    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_uart.setup();
+
+    let console = static_init!(
+        capsules::console::Console<UartDevice>,
+        capsules::console::Console::new(
+            console_uart,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    UART::set_client(console_uart, console);
+    console.initialize()
 }

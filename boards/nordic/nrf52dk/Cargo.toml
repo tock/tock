@@ -22,4 +22,4 @@ capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52 = { path = "../../../chips/nrf52" }
 nrf5x = { path = "../../../chips/nrf5x" }
-nrf52dk_base = { path = "../nrf52dk_base" }
+# nrf52dk_base = { path = "../nrf52dk_base" }

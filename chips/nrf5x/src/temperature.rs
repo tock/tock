@@ -12,6 +12,7 @@ use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use kernel::{Error, Success, ReturnCode};
 
 const TEMP_BASE: StaticRef<TempRegisters> =
     unsafe { StaticRef::new(0x4000C000 as *const TempRegisters) };
@@ -151,12 +152,12 @@ impl Temp {
 }
 
 impl kernel::hil::sensors::TemperatureDriver for Temp {
-    fn read_temperature(&self) -> kernel::ReturnCode {
+    fn read_temperature(&self) -> ReturnCode {
         let regs = &*self.registers;
         self.enable_interrupts();
         regs.event_datardy.write(Event::READY::CLEAR);
         regs.task_start.write(Task::ENABLE::SET);
-        kernel::ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {

@@ -44,7 +44,7 @@
 //!         let peripheral = &PeripheralManager::new(self);
 //!         peripheral.registers.control.set(0x0);
 //!         //         ^^^^^^^^^-- This is type &PeripheralRegisters
-//!         ReturnCode::SUCCESS
+//!         Ok(Success::Success)
 //!     }
 //!     # fn set_client(&self, _client: &'static hil::uart::Client) {}
 //!     # fn transmit(&self, _tx_data: &'static mut [u8], _tx_len: usize) {}

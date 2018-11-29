@@ -25,7 +25,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
-use kernel::ReturnCode;
+use kernel::{Error, Success, ReturnCode};
 
 const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
@@ -149,7 +149,7 @@ impl Trng<'a> {
             // fetched 4 bytes of data generated, then notify the capsule
             4 => {
                 self.client.map(|client| {
-                    let result = client.entropy_available(&mut TrngIter(self), ReturnCode::SUCCESS);
+                    let result = client.entropy_available(&mut TrngIter(self), Ok(Success::Success));
                     if Continue::Done != result {
                         // need more randomness i.e generate more randomness
                         self.start_rng();
@@ -210,11 +210,11 @@ impl Iterator for TrngIter<'a, 'b> {
 impl<'a> entropy::Entropy32<'a> for Trng<'a> {
     fn get(&self) -> ReturnCode {
         self.start_rng();
-        ReturnCode::SUCCESS
+        Ok(Success::Success)
     }
 
     fn cancel(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        Err(Error::FAIL)
     }
 
     fn set_client(&'a self, client: &'a entropy::Client32) {

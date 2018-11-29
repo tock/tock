@@ -1,7 +1,7 @@
 //! Implementation of the MEMOP family of syscalls.
 
 use process::ProcessType;
-use returncode::ReturnCode;
+use returncode::{Error, Success, ReturnCode};
 
 /// Handle the `memop` syscall.
 ///
@@ -41,43 +41,43 @@ crate fn memop(process: &ProcessType, op_type: usize, r1: usize) -> ReturnCode {
         // Op Type 0: BRK
         0 /* BRK */ => {
             process.brk(r1 as *const u8)
-                .map(|_| ReturnCode::SUCCESS)
-                .unwrap_or(ReturnCode::ENOMEM)
+                .map(|_| Success::Success)
+                .map_err(Into::into)
         },
 
         // Op Type 1: SBRK
         1 /* SBRK */ => {
             process.sbrk(r1 as isize)
-                .map(|addr| ReturnCode::SuccessWithValue { value: addr as usize })
-                .unwrap_or(ReturnCode::ENOMEM)
+                .map(|addr| Success::WithValue { value: addr as usize })
+                .map_err(Into::into)
         },
 
         // Op Type 2: Process memory start
-        2 => ReturnCode::SuccessWithValue { value: process.mem_start() as usize },
+        2 => Ok(Success::WithValue { value: process.mem_start() as usize }),
 
         // Op Type 3: Process memory end
-        3 => ReturnCode::SuccessWithValue { value: process.mem_end() as usize },
+        3 => Ok(Success::WithValue { value: process.mem_end() as usize }),
 
         // Op Type 4: Process flash start
-        4 => ReturnCode::SuccessWithValue { value: process.flash_start() as usize },
+        4 => Ok(Success::WithValue { value: process.flash_start() as usize }),
 
         // Op Type 5: Process flash end
-        5 => ReturnCode::SuccessWithValue { value: process.flash_end() as usize },
+        5 => Ok(Success::WithValue { value: process.flash_end() as usize }),
 
         // Op Type 6: Grant region begin
-        6 => ReturnCode::SuccessWithValue { value: process.kernel_memory_break() as usize },
+        6 => Ok(Success::WithValue { value: process.kernel_memory_break() as usize }),
 
         // Op Type 7: Number of defined writeable regions in the TBF header.
-        7 => ReturnCode::SuccessWithValue { value: process.number_writeable_flash_regions() },
+        7 => Ok(Success::WithValue { value: process.number_writeable_flash_regions() }),
 
         // Op Type 8: The start address of the writeable region indexed by r1.
         8 => {
             let flash_start = process.flash_start() as usize;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
-                ReturnCode::FAIL
+                Err(Error::FAIL)
             } else {
-                ReturnCode::SuccessWithValue { value: flash_start + offset as usize }
+                Ok(Success::WithValue { value: flash_start + offset as usize })
             }
         }
 
@@ -88,26 +88,26 @@ crate fn memop(process: &ProcessType, op_type: usize, r1: usize) -> ReturnCode {
             let flash_start = process.flash_start() as usize;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
-                ReturnCode::FAIL
+                Err(Error::FAIL)
             } else {
-                ReturnCode::SuccessWithValue { value: flash_start +
+                Ok(Success::WithValue { value: flash_start +
                                                       offset as usize +
-                                                      size as usize }
+                                                      size as usize })
             }
         }
 
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
             process.update_stack_start_pointer(r1 as *const u8);
-            ReturnCode::SUCCESS
+            Ok(Success::Success)
         }
 
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
             process.update_heap_start_pointer(r1 as *const u8);
-            ReturnCode::SUCCESS
+            Ok(Success::Success)
         }
 
-        _ => ReturnCode::ENOSUPPORT,
+        _ => Err(Error::ENOSUPPORT),
     }
 }

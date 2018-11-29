@@ -40,7 +40,7 @@
 
 use callback::{AppId, Callback};
 use mem::{AppSlice, Shared};
-use returncode::ReturnCode;
+use returncode::{Error, ReturnCode};
 
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
 /// `command` and `allow`.
@@ -73,7 +73,7 @@ pub trait Driver {
     /// as error type.
     #[allow(unused_variables)]
     fn subscribe(&self, minor_num: usize, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+        Err(Error::ENOSUPPORT)
     }
 
     /// `command` instructs a driver to perform some action synchronously. This
@@ -93,7 +93,7 @@ pub trait Driver {
     /// kernel for supported drivers on a given platform.
     #[allow(unused_variables)]
     fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+        Err(Error::ENOSUPPORT)
     }
 
     /// `allow` lets an application give the driver access to a buffer in the
@@ -109,6 +109,6 @@ pub trait Driver {
         minor_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
+        Err(Error::ENOSUPPORT)
     }
 }

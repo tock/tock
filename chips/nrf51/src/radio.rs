@@ -574,9 +574,9 @@ impl Radio {
             regs.disable.write(Task::EXECUTE::SET);
 
             let result = if regs.crcstatus.get() == 1 {
-                ReturnCode::SUCCESS
+                Ok(Success::Success)
             } else {
-                ReturnCode::FAIL
+                Err(Error::FAIL)
             };
 
             match regs.state.get() {
@@ -675,7 +675,7 @@ impl ble_advertising::BleConfig for Radio {
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);
-                kernel::ReturnCode::SUCCESS
+                kernel::Ok(Success::Success)
             }
         }
     }
