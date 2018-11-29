@@ -13,6 +13,8 @@ use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
 use::kernel::udp_port_table::{UDPPortTable};
 
+static mut curr_send_id: usize = 0;
+
 /// The `send_done` function in this trait is invoked after the UDPSender
 /// has completed sending the requested packet. Note that the
 /// `UDPSender::set_client` method must be called to set the client.
@@ -107,7 +109,7 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
         UDPSendStruct {
             ip_send_struct: ip_send_struct,
             client: OptionalCell::empty(),
-            id: 0,
+            id: port_table.add_new_client().unwrap(),
             port_table: port_table,
         }
     }
