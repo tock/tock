@@ -97,12 +97,12 @@ const BUTTON4_PIN: usize = 20;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 1;
+const NUM_PROCS: usize = 3;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 1024 * 24] = [0; 1024 * 24];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -123,6 +123,7 @@ pub struct Platform {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
     rng: &'static capsules::rng::RngDriver<'static>,
+    ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Platform {
@@ -139,6 +140,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -386,6 +388,8 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.low_started() {}
     while !nrf51::clock::CLOCK.high_started() {}
 
+    let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+
     let platform = Platform {
         // aes: aes,
         ble_radio: ble_radio,
@@ -396,6 +400,7 @@ pub unsafe fn reset_handler() {
         rng: rng,
         alarm: alarm,
         temp: temp,
+        ipc: ipc,
     };
 
     rtc.start();
@@ -420,13 +425,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        Some(&kernel::ipc::IPC::new(
-            board_kernel,
-            &memory_allocation_capability,
-        )),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
