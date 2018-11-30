@@ -206,7 +206,8 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
                     (send_complete_return, send)
                 }
                 None => (ReturnCode::EBUSY, false),
-            }).unwrap_or((ReturnCode::ENOMEM, false));
+            })
+            .unwrap_or((ReturnCode::ENOMEM, false));
         if call_send_complete {
             self.send_completed(ret);
             return ReturnCode::SUCCESS;

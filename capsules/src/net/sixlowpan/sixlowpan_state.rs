@@ -423,7 +423,8 @@ impl TxState<'a> {
                 self.src_pan.get(),
                 self.src_mac_addr.get(),
                 self.security.get(),
-            ).map_err(|frame| (ReturnCode::FAIL, frame))?;
+            )
+            .map_err(|frame| (ReturnCode::FAIL, frame))?;
 
         // If this is the first fragment
         if !self.busy.get() {
@@ -727,7 +728,8 @@ impl RxState<'a> {
                 &mut packet,
                 dgram_size,
                 true,
-            ).map_err(|_| ReturnCode::FAIL)?;
+            )
+            .map_err(|_| ReturnCode::FAIL)?;
             let remaining = payload_len - consumed;
             packet[written..written + remaining]
                 .copy_from_slice(&payload[consumed..consumed + remaining]);
@@ -763,7 +765,8 @@ impl RxState<'a> {
             self.packet
                 .map(|packet| {
                     client.receive(&packet, self.dgram_size.get() as usize, result);
-                }).expect("Error: `packet` is None in call to end_receive.");
+                })
+                .expect("Error: `packet` is None in call to end_receive.");
         });
     }
 }
@@ -950,7 +953,8 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                 }
                 state.packet.replace(packet);
                 (Some(state), ReturnCode::SUCCESS)
-            }).unwrap_or((None, ReturnCode::ENOMEM))
+            })
+            .unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     // This function returns an Err if an error occurred, returns Ok(Some(RxState))
@@ -1015,7 +1019,8 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                         }
                     }
                 }
-            }).unwrap_or((None, ReturnCode::ENOMEM))
+            })
+            .unwrap_or((None, ReturnCode::ENOMEM))
     }
 
     #[allow(dead_code)]

@@ -337,17 +337,17 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let kernel_stack: bool;
 
     asm!(
-        "mov    r1, 0                       \n\
-         tst    lr, #4                      \n\
-         itte   eq                          \n\
-         mrseq  r0, msp                     \n\
-         addeq  r1, 1                       \n\
-         mrsne  r0, psp                     "
-        : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
-        :
-        : "r0", "r1"
-        : "volatile"
-        );
+    "mov    r1, 0                       \n\
+     tst    lr, #4                      \n\
+     itte   eq                          \n\
+     mrseq  r0, msp                     \n\
+     addeq  r1, 1                       \n\
+     mrsne  r0, psp                     "
+    : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
+    :
+    : "r0", "r1"
+    : "volatile"
+    );
 
     if kernel_stack {
         kernel_hardfault(faulting_stack);

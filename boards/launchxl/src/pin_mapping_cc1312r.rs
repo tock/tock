@@ -1,6 +1,6 @@
 use enum_primitive::cast::FromPrimitive;
 
-enum_from_primitive!{
+enum_from_primitive! {
 pub enum PIN_FN {
     UART0_RX = 2,
     UART0_TX = 3,

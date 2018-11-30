@@ -28,12 +28,12 @@ unsafe extern "C" fn unhandled_interrupt() {
 
     // IPSR[8:0] holds the currently active interrupt
     asm!(
-        "mrs    r0, ipsr                    "
-        : "={r0}"(interrupt_number)
-        :
-        : "r0"
-        :
-        );
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
 
     interrupt_number = interrupt_number & 0x1ff;
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);

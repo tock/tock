@@ -106,7 +106,8 @@ impl MuxMac<'a> {
             // otherwise it succeeded.
             mbuf.map(|buf| {
                 node.send_done(buf, false, result);
-            }).unwrap_or_else(|| {
+            })
+            .unwrap_or_else(|| {
                 self.inflight.set(node);
             });
         }

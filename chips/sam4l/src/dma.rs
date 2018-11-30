@@ -287,7 +287,8 @@ impl DMAChannel {
 
         let registers: &DMARegisters = &*self.registers;
 
-        let maxlen = buf.len() / match self.width.get() {
+        let maxlen = buf.len()
+            / match self.width.get() {
                 DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
                 DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
                 DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,

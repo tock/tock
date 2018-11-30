@@ -5,13 +5,7 @@
 
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(
-    debug,
-    debug_gpio,
-    static_init,
-    register_bitfields,
-    register_bitmasks
-)]
+#[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 pub mod chip;
@@ -28,12 +22,12 @@ unsafe extern "C" fn unhandled_interrupt() {
 
     // TM4C129x IPSR[8:0] holds the currently active interrupt
     asm!(
-        "mrs    r0, ipsr                    "
-        : "={r0}"(interrupt_number)
-        :
-        : "r0"
-        :
-        );
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
 
     interrupt_number = interrupt_number & 0x1ff;
 
