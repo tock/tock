@@ -1,6 +1,5 @@
 use core::cell::Cell;
 use gpio;
-use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;

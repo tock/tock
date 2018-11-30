@@ -1,8 +1,6 @@
 use cortexm0;
 use cortexm0::nvic;
 use i2c;
-use kernel;
-use nrf5x;
 use nrf5x::peripheral_interrupts;
 use radio;
 use uart;

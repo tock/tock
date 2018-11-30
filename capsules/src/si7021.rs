@@ -34,7 +34,6 @@
 //! ```
 
 use core::cell::Cell;
-use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;

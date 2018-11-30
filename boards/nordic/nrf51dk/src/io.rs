@@ -4,8 +4,6 @@ use cortexm0;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
-use nrf51;
-use nrf5x;
 
 use PROCESSES;
 

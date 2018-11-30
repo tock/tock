@@ -18,7 +18,6 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use capsules;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
@@ -31,11 +30,9 @@ use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
-use sam4l;
 
 const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
 

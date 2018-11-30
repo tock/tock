@@ -97,7 +97,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;

@@ -19,7 +19,6 @@
 
 use capsules::gpio;
 use kernel::component::Component;
-use sam4l;
 
 pub struct GpioComponent {}
 

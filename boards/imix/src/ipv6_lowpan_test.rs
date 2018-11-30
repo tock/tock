@@ -38,7 +38,6 @@
 //! ...
 //! lowpan_frag_test.start(); // If flashing the transmitting Imix
 
-use capsules;
 extern crate sam4l;
 use capsules::ieee802154::device::{MacDevice, TxClient};
 use capsules::net::ieee802154::MacAddress;

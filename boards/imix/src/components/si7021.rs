@@ -25,10 +25,8 @@ use capsules::temperature::TemperatureSensor;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
-use sam4l;
 
 pub struct SI7021Component {
     i2c_mux: &'static MuxI2C<'static>,

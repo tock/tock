@@ -4,7 +4,6 @@ extern crate kernel;
 use kernel::hil::gpio;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiSlave};
-use sam4l;
 use sam4l::spi::SPI as SPI_SLAVE;
 
 #[allow(unused_variables,dead_code)]

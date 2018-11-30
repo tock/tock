@@ -1,4 +1,3 @@
-use cc26x2;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use cortexm4;
