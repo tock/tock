@@ -50,6 +50,8 @@ use common::cells::{MapCell, TakeCell};
 use hil;
 use process::ProcessType;
 
+use returncode::{Error, Success, ReturnCode};
+
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
 
@@ -205,7 +207,7 @@ pub struct DebugWriterWrapper {
 /// the UART provider and this debug module.
 pub struct DebugWriter {
     // What provides the actual writing mechanism.
-    uart: &'static hil::uart::UART,
+    uart: &'static hil::uart::Transmit<'static>,
     // The buffer that is passed to the writing mechanism.
     output_buffer: TakeCell<'static, [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
@@ -247,7 +249,7 @@ impl DebugWriterWrapper {
 
 impl DebugWriter {
     pub fn new(
-        uart: &'static hil::uart::UART,
+        uart: &'static hil::uart::Transmit,
         out_buffer: &'static mut [u8],
         internal_buffer: &'static mut [u8],
     ) -> DebugWriter {
@@ -331,7 +333,11 @@ impl DebugWriter {
             self.active_len.set(out_len);
 
             // Transmit the data in the output buffer.
-            self.uart.transmit(out_buffer, out_len);
+            let _ = self.uart.transmit_buffer(out_buffer, out_len)
+                .map(|_success| self.active_len.set(out_len))
+                .map_err(|err| {
+                    self.output_buffer.replace(err.buffer);
+                });
         });
     }
 
@@ -342,8 +348,8 @@ impl DebugWriter {
     }
 }
 
-impl hil::uart::Client for DebugWriter {
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: hil::uart::Error) {
+impl hil::uart::TransmitClient for DebugWriter {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], tx_len: usize, _rcode: ReturnCode){
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 
@@ -372,14 +378,6 @@ impl hil::uart::Client for DebugWriter {
             self.tail.set(tail);
             self.publish_str();
         }
-    }
-
-    fn receive_complete(
-        &self,
-        _buffer: &'static mut [u8],
-        _rx_len: usize,
-        _error: hil::uart::Error,
-    ) {
     }
 }
 

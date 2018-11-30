@@ -3,7 +3,6 @@ use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
 use nrf52;
 use nrf5x;
 
@@ -17,22 +16,6 @@ static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut nrf52::uart::UARTE0 };
-        if !self.initialized {
-            self.initialized = true;
-            uart.configure(uart::UARTParameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-            });
-        }
-        for c in s.bytes() {
-            unsafe {
-                uart.send_byte(c);
-            }
-            while !uart.tx_ready() {}
-        }
         Ok(())
     }
 }

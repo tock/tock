@@ -36,7 +36,7 @@
 
 use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::hil::uart::{self, Client, UART};
+use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Error, Driver, Grant, ReturnCode, Success, Shared};
 
 /// Syscall driver number.
@@ -59,8 +59,8 @@ pub struct App {
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a, U: UART> {
-    uart: &'a U,
+pub struct Console<'a> {
+    uart: &'a uart::UartData<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -69,14 +69,14 @@ pub struct Console<'a, U: UART> {
     baud_rate: u32,
 }
 
-impl<U: UART> Console<'a, U> {
+impl Console<'a> {
     pub fn new(
-        uart: &'a U,
+        uart: &'a uart::UartData<'a>,
         baud_rate: u32,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         grant: Grant<App>,
-    ) -> Console<'a, U> {
+    ) -> Console<'a> {
         Console {
             uart: uart,
             apps: grant,
@@ -86,15 +86,6 @@ impl<U: UART> Console<'a, U> {
             rx_buffer: TakeCell::new(rx_buffer),
             baud_rate: baud_rate,
         }
-    }
-
-    pub fn initialize(&self) {
-        self.uart.configure(uart::UARTParameters {
-            baud_rate: self.baud_rate,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
     }
 
     /// Internal helper function for setting up a new send transaction
@@ -151,7 +142,10 @@ impl<U: UART> Console<'a, U> {
                     app.write_remaining = 0;
                 }
 
-                self.uart.transmit(buffer, transaction_len);
+                // FIXME: what to do here?
+                self.uart.transmit_buffer(buffer, transaction_len)
+                    .map(|_success | ())
+                    .map_err(|_err| ());
             });
         } else {
             app.pending_write = true;
@@ -177,8 +171,11 @@ impl<U: UART> Console<'a, U> {
                     // Note: We have ensured above that rx_buffer is present
                     app.read_len = read_len;
                     self.rx_in_progress.set(app_id);
-                    self.uart.receive(rx_buf, app.read_len);
-                    Ok(Success::Success)
+                    self.uart.receive_buffer(rx_buf, app.read_len).map_err(|err| {
+                        // static mut [u8] buffer is borrowed here, thus can't move it
+                        self.rx_buffer.replace(err.buffer);
+                        err.error.into()
+                    })
                 }
             }
             None => Err(Error::EINVAL),
@@ -186,7 +183,7 @@ impl<U: UART> Console<'a, U> {
     }
 }
 
-impl<U: UART> Driver for Console<'a, U> {
+impl Driver for Console<'a> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -271,7 +268,7 @@ impl<U: UART> Driver for Console<'a, U> {
                 }).unwrap_or_else(|err| err.into())
             },
             3 /* abort rx */ => {
-                self.uart.abort_receive();
+                self.uart.receive_abort();
                 Ok(Success::Success)
             }
             _ => Err(Error::ENOSUPPORT)
@@ -279,8 +276,8 @@ impl<U: UART> Driver for Console<'a, U> {
     }
 }
 
-impl<U: UART> Client for Console<'a, U> {
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+impl uart::TransmitClient for Console<'a> {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -348,8 +345,10 @@ impl<U: UART> Client for Console<'a, U> {
             }
         }
     }
+}
 
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
+impl uart::ReceiveClient for Console<'a> {
+    fn received_buffer(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::UartError) {
         self.rx_in_progress
             .take()
             .map(|appid| {
@@ -359,14 +358,14 @@ impl<U: UART> Client for Console<'a, U> {
                             // An iterator over the returned buffer yielding only the first `rx_len`
                             // bytes
                             let rx_buffer = buffer.iter().take(rx_len);
-                            match error {
-                                uart::Error::CommandComplete | uart::Error::Aborted => {
+                            match error.error {
+                                uart::Error::None | uart::Error::Aborted => {
                                     // Receive some bytes, signal error type and return bytes to process buffer
                                     if let Some(mut app_buffer) = app.read_buffer.take() {
                                         for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
                                             *a = *b;
                                         }
-                                        let rettype: usize = if error == uart::Error::CommandComplete {
+                                        let rettype: usize = if error.error == uart::Error::None {
                                             Success::Success.into()
                                         } else {
                                             Error::ECANCEL.into()

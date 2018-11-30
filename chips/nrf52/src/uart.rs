@@ -10,6 +10,7 @@ use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel;
+use kernel::hil::uart;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -265,107 +266,7 @@ impl Uarte {
     /// UART interrupt handler that listens for both tx_end and rx_end events
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
-        let regs = &*self.registers;
-
-        if self.tx_ready() {
-            self.disable_tx_interrupts();
-            let regs = &*self.registers;
-            regs.event_endtx.write(Event::READY::CLEAR);
-            let tx_bytes = regs.txd_amount.get() as usize;
-
-            let rem = match self.tx_remaining_bytes.get().checked_sub(tx_bytes) {
-                None => {
-                    debug!(
-                        "Error more bytes transmitted than requested\n \
-                         remaining: {} \t transmitted: {}",
-                        self.tx_remaining_bytes.get(),
-                        tx_bytes
-                    );
-                    return;
-                }
-                Some(r) => r,
-            };
-
-            // All bytes have been transmitted
-            if rem == 0 {
-                // Signal client write done
-                self.client.map(|client| {
-                    self.tx_buffer.take().map(|tx_buffer| {
-                        client.transmit_complete(
-                            tx_buffer,
-                            kernel::hil::uart::Error::CommandComplete,
-                        );
-                    });
-                });
-            } else {
-                // Not all bytes have been transmitted then update offset and continue transmitting
-                self.offset.set(self.offset.get() + tx_bytes);
-                self.tx_remaining_bytes.set(rem);
-                self.set_tx_dma_pointer_to_buffer();
-                regs.txd_maxcnt
-                    .write(Counter::COUNTER.val(min(rem as u32, UARTE_MAX_BUFFER_SIZE)));
-                regs.task_starttx.write(Task::ENABLE::SET);
-                self.enable_tx_interrupts();
-            }
-        }
-
-        if self.rx_ready() {
-            self.disable_rx_interrupts();
-
-            // Clear the ENDRX event
-            regs.event_endrx.write(Event::READY::CLEAR);
-
-            // Get the number of bytes in the buffer that was received this time
-            let rx_bytes = regs.rxd_amount.get() as usize;
-
-            // Check if this ENDRX is due to an abort. If so, we want to
-            // do the receive callback immediately.
-            if self.rx_abort_in_progress.get() {
-                self.rx_abort_in_progress.set(false);
-                self.client.map(|client| {
-                    self.rx_buffer.take().map(|rx_buffer| {
-                        client.receive_complete(
-                            rx_buffer,
-                            self.offset.get() + rx_bytes,
-                            kernel::hil::uart::Error::CommandComplete,
-                        );
-                    });
-                });
-            } else {
-                // In the normal case, we need to either pass call the callback
-                // or do another read to get more bytes.
-
-                // Update how many bytes we still need to receive and
-                // where we are storing in the buffer.
-                self.rx_remaining_bytes
-                    .set(self.rx_remaining_bytes.get().saturating_sub(rx_bytes));
-                self.offset.set(self.offset.get() + rx_bytes);
-
-                let rem = self.rx_remaining_bytes.get();
-                if rem == 0 {
-                    // Signal client that the read is done
-                    self.client.map(|client| {
-                        self.rx_buffer.take().map(|rx_buffer| {
-                            client.receive_complete(
-                                rx_buffer,
-                                self.offset.get(),
-                                kernel::hil::uart::Error::CommandComplete,
-                            );
-                        });
-                    });
-                } else {
-                    // Setup how much we can read. We already made sure that
-                    // this will fit in the buffer.
-                    let to_read = core::cmp::min(rem, 255);
-                    regs.rxd_maxcnt.write(Counter::COUNTER.val(to_read as u32));
-
-                    // Actually do the receive.
-                    self.set_rx_dma_pointer_to_buffer();
-                    regs.task_startrx.write(Task::ENABLE::SET);
-                    self.enable_rx_interrupts();
-                }
-            }
-        }
+        panic!("this should implemeted ofc");
     }
 
     /// Transmit one byte at the time and the client is responsible for polling
@@ -411,74 +312,39 @@ impl Uarte {
     }
 }
 
-impl kernel::hil::uart::UART for Uarte {
-    fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(client);
+impl uart::Transmit<'static> for Uarte  {
+    fn transmit_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize) -> Result<Success, uart::UartError> {
+        unimplemented!()
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
-        // These could probably be implemented, but are currently ignored, so
-        // throw an error.
-        if params.stop_bits != kernel::hil::uart::StopBits::One {
-            return Err(Error::ENOSUPPORT)
-        }
-        if params.parity != kernel::hil::uart::Parity::None {
-            return Err(Error::ENOSUPPORT)
-        }
-        if params.hw_flow_control != false {
-            return Err(Error::ENOSUPPORT)
-        }
-
-        self.set_baud_rate(params.baud_rate);
-
-        Ok(Success::Success)
+    fn transmit_abort(&self) -> ReturnCode {
+        unimplemented!()
     }
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        let truncated_len = min(tx_data.len(), tx_len);
-
-        if truncated_len == 0 {
-            return;
-        }
-
-        self.tx_remaining_bytes.set(tx_len);
-        self.offset.set(0);
-        self.tx_buffer.replace(tx_data);
-        self.set_tx_dma_pointer_to_buffer();
-
-        let regs = &*self.registers;
-        regs.txd_maxcnt
-            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
-        regs.task_starttx.write(Task::ENABLE::SET);
-
-        self.enable_tx_interrupts();
+    fn set_transmit_client(&self, client: &'static uart::TransmitClient) {
+        unimplemented!()
     }
 
-    fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) {
-        let regs = &*self.registers;
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
+        unimplemented!()
+    }
+}
 
-        // truncate rx_len if necessary
-        let truncated_length = core::cmp::min(rx_len, rx_buf.len());
-
-        self.rx_remaining_bytes.set(truncated_length);
-        self.offset.set(0);
-        self.rx_buffer.replace(rx_buf);
-        self.set_rx_dma_pointer_to_buffer();
-
-        let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
-
-        regs.rxd_maxcnt
-            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
-        regs.task_stoprx.write(Task::ENABLE::SET);
-        regs.task_startrx.write(Task::ENABLE::SET);
-
-        self.enable_rx_interrupts();
+impl uart::Receive<'static> for Uarte {
+    fn set_receive_client(&self, client: &'static uart::ReceiveClient) {
+        unimplemented!()
     }
 
-    fn abort_receive(&self) {
-        // Trigger the STOPRX event to cancel the current receive call.
-        let regs = &*self.registers;
-        self.rx_abort_in_progress.set(true);
-        regs.task_stoprx.write(Task::ENABLE::SET);
+
+    fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> Result<Success, uart::UartError> {
+        unimplemented!()
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        Err(Error::FAIL)
+    }
+
+    fn receive_word(&self) -> ReturnCode {
+        Err(Error::FAIL)
     }
 }

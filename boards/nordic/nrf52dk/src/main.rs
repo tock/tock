@@ -77,8 +77,7 @@ extern crate nrf5x;
 
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
-use kernel::hil;
-use kernel::hil::uart::UART;
+use kernel::hil::uart;
 use nrf5x::pinmux::Pinmux;
 
 // The nRF52 DK LEDs (see back of board)
@@ -161,33 +160,4 @@ pub unsafe fn reset_handler() {
         nrf5x::pinmux::Pinmux::new(UART_CTS as u32),
         nrf5x::pinmux::Pinmux::new(UART_RTS as u32),
     );
-
-    // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
-            &nrf52::uart::UARTE0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
-
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-
-    let console = static_init!(
-        capsules::console::Console<UartDevice>,
-        capsules::console::Console::new(
-            console_uart,
-            115200,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    UART::set_client(console_uart, console);
-    console.initialize()
 }
