@@ -1,4 +1,4 @@
 [[package]]
-name = "crt0s"
+name = "tock_rt0"
 version = "0.1.0"
 
