@@ -293,10 +293,9 @@ build-date = 2017-03-20T19:37:11Z       // When the application was compiled
 ## Loading the kernel and processes onto a board
 
 There is no particular limitation on how code can be loaded onto a board. JTAG
-and various bootloaders are all equally possible. Currently, the `hail`
-platform uses either JTAG or a serial bootloader, the `imix` platform supports
-JTAG, and the `nrf51dk` platform supports the mbed bootloader which presents
-itself as a USB storage device that `.bin` files can be copied into. All of
+and various bootloaders are all equally possible. For example, the `hail` and
+`imix` platforms primarily use the serial "tock-bootloader", and the other
+platforms use jlink or openocd to flash code over a JTAG connection. In general,
 these methods are subject to change based on whatever is easiest for users of
 the platform.
 
