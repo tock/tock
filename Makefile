@@ -6,9 +6,9 @@ usage:
 	@echo "First things first, if you haven't yet, check out doc/Getting_Started."
 	@echo "You'll need to install a few requirements before we get going."
 	@echo
-	@echo "The next step is to choose a board to build Tock for."
-	@echo "Mainline Tock currently includes support for:"
-	@ls -p boards/ | grep '/$$' | cut -d'/' -f1 | xargs echo "  "
+	@echo "The next step is to choose a board to build Tock for. Mainline"
+	@echo "Tock currently includes support for the following platforms:"
+	@for f in `./tools/list_boards.sh`; do printf " - $$f\n"; done
 	@echo
 	@echo "Run 'make' in a board directory to build Tock for that board,"
 	@echo "and usually 'make program' or 'make flash' to load Tock onto hardware."
@@ -27,15 +27,15 @@ usage:
 
 .PHONY: allboards
 allboards:
-	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Build $$f"; $(MAKE) -C "boards/$$f" || exit 1; done
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Build $$f"; $(MAKE) -C "boards/$$f" || exit 1; done
 
 .PHONY: allcheck
 allcheck:
-	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Check $$f"; $(MAKE) -C "boards/$$f" check || exit 1; done
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Check $$f"; $(MAKE) -C "boards/$$f" check || exit 1; done
 
 .PHONY: alldoc
 alldoc:
-	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Documenting $$f"; $(MAKE) -C "boards/$$f" doc || exit 1; done
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Documenting $$f"; $(MAKE) -C "boards/$$f" doc || exit 1; done
 
 .PHONY: ci-travis
 ci-travis:
@@ -89,5 +89,11 @@ fmt format formatall:
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
-	@./tools/list_boards.sh
+	@echo "Supported Tock Boards:"
+	@for f in `./tools/list_boards.sh`; do printf " - $$f\n"; done
+	@echo
+	@echo "To build the kernel for a particular board, change to that directory"
+	@echo "and run make:"
+	@echo "    cd boards/hail"
+	@echo "    make"
 
