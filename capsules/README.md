@@ -40,7 +40,7 @@ These drivers provide support for various ICs.
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
-- **[MCP23008](src/mcp23008.rs)**: I2C GPIO extender.
+- **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.
 - **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
@@ -75,7 +75,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[CRC](src/crc.rs)**: CRC calculation.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
-- **[I2C_MASTER](src/i2c_master_driver.rs)**: I2C master access only.
+- **[I2C_MASTER](src/i2c_master.rs)**: I2C master access only.
 - **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI](src/spi.rs)**: SPI master and slave.

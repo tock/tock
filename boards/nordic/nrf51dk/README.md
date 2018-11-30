@@ -14,7 +14,7 @@ well.
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 JTAG is the preferred method to program. The development kit has an
 integrated JTAG debugger, you simply need to [install JTAG
