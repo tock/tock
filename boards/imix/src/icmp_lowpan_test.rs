@@ -20,7 +20,6 @@
 //! ...
 //! icmp_lowpan_test.start();
 
-use capsules;
 extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::icmpv6::icmpv6::{ICMP6Header, ICMP6Type};

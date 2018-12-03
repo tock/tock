@@ -4,26 +4,13 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(
-    asm,
-    concat_idents,
-    const_fn,
-    core_intrinsics,
-    try_from,
-    used
-)]
-#![feature(in_band_lifetimes, tool_attributes)]
+#![feature(asm, concat_idents, const_fn, core_intrinsics, try_from)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(
-    debug,
-    debug_gpio,
-    static_init,
-    register_bitfields,
-    register_bitmasks
-)]
+#[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 mod deferred_call_tasks;
@@ -58,12 +45,12 @@ unsafe extern "C" fn unhandled_interrupt() {
 
     // IPSR[8:0] holds the currently active interrupt
     asm!(
-        "mrs    r0, ipsr                    "
-        : "={r0}"(interrupt_number)
-        :
-        : "r0"
-        :
-        );
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
 
     interrupt_number = interrupt_number & 0x1ff;
 

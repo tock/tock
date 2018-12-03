@@ -23,7 +23,6 @@
 //! ...
 //! udp_lowpan_test.start();
 
-use capsules;
 extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;

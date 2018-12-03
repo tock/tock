@@ -15,19 +15,16 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use capsules;
 use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioData;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
-use sam4l;
 
 // Save some deep nesting
 type RF233Device =

@@ -16,10 +16,8 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::button;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
-use sam4l;
 
 pub struct ButtonComponent {
     board_kernel: &'static kernel::Kernel,

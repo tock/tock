@@ -16,7 +16,6 @@
 
 use capsules::led;
 use kernel::component::Component;
-use sam4l;
 
 pub struct LedComponent {}
 

@@ -1,5 +1,4 @@
 //! UART driver, cc26x2 family
-use kernel;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;

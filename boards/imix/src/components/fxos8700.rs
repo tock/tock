@@ -26,11 +26,9 @@ use capsules::fxos8700cq;
 use capsules::ninedof::NineDof;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use hil;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::Grant;
-use sam4l;
 
 pub struct Fxos8700Component {
     i2c_mux: &'static MuxI2C<'static>,

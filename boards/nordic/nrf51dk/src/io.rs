@@ -4,8 +4,6 @@ use cortexm0;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
-use nrf51;
-use nrf5x;
 
 use PROCESSES;
 
@@ -40,7 +38,7 @@ impl Write for Writer {
 /// Panic handler
 #[cfg(not(test))]
 #[no_mangle]
-#[panic_implementation]
+#[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF51 DK LEDs (see back of board)
     const LED1_PIN: usize = 21;

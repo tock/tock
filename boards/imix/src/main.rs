@@ -6,8 +6,6 @@
 #![no_std]
 #![no_main]
 #![feature(in_band_lifetimes)]
-#![feature(infer_outlives_requirements)]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
@@ -369,7 +367,8 @@ pub unsafe fn reset_handler() {
         &sam4l::gpio::PA[08], // irq
         &sam4l::gpio::PA[08],
         RADIO_CHANNEL,
-    ).finalize();
+    )
+    .finalize();
 
     let adc = AdcComponent::new().finalize();
     let gpio = GpioComponent::new().finalize();
@@ -420,7 +419,8 @@ pub unsafe fn reset_handler() {
         src_mac_from_serial_num,
         local_ip_ifaces,
         mux_alarm,
-    ).finalize();
+    )
+    .finalize();
 
     let imix = Imix {
         pconsole,
