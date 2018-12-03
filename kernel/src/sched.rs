@@ -401,6 +401,10 @@ impl Kernel {
                     break;
                     // Do nothing
                 }
+                process::State::StoppedFaulted => {
+                    break;
+                    // Do nothing
+                }
             }
         }
         systick.reset();
