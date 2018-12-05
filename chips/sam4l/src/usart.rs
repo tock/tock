@@ -713,11 +713,12 @@ impl USART {
             .rtor
             .write(RxTimeout::TO.val(timeout as u32));
 
+        // Start the timeout, and we must do this before enabling the interrupt.
+        // This ordering ensures that the interrupt does not fire prematurely.
+        usart.registers.cr.write(Control::STTTO::SET);
+
         // enable timeout interrupt
         usart.registers.ier.write(Interrupt::TIMEOUT::SET);
-
-        // start timeout
-        usart.registers.cr.write(Control::STTTO::SET);
     }
 
     fn disable_rx_timeout(&self, usart: &USARTRegManager) {
