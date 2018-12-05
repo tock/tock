@@ -1,4 +1,5 @@
 use cortexm0::{generic_isr, nvic, SVC_Handler};
+use tock_rt0;
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -65,10 +66,6 @@ pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let mut current_block;
-    let mut p_src: *mut u32;
-    let mut p_dest: *mut u32;
-
     // Apply early initialization workarounds for anomalies documented on
     // 2015-12-11 nRF52832 Errata v1.2
     // http://infocenter.nordicsemi.com/pdf/nRF52832_Errata_v1.2.pdf
@@ -134,45 +131,8 @@ pub unsafe extern "C" fn init() {
     // or System OFF mode" found at the Errata doc
     *(0x40000ee4i32 as (*mut u32)) = *(0x10000258i32 as (*mut u32)) & 0x4fu32;
 
-    // Move the relocate segment. This assumes it is located after the text
-    // segment, which is where the storm linker file puts it
-    p_src = &mut _etext as (*mut u32);
-    p_dest = &mut _srelocate as (*mut u32);
-    if p_src != p_dest {
-        current_block = 1;
-    } else {
-        current_block = 2;
-    }
-    'loop1: loop {
-        if current_block == 1 {
-            if !(p_dest < &mut _erelocate as (*mut u32)) {
-                current_block = 2;
-                continue;
-            }
-            *{
-                let _old = p_dest;
-                p_dest = p_dest.offset(1isize);
-                _old
-            } = *{
-                let _old = p_src;
-                p_src = p_src.offset(1isize);
-                _old
-            };
-            current_block = 1;
-        } else {
-            p_dest = &mut _szero as (*mut u32);
-            break;
-        }
-    }
-    'loop3: loop {
-        if !(p_dest < &mut _ezero as (*mut u32)) {
-            break;
-        }
-        *{
-            let _old = p_dest;
-            p_dest = p_dest.offset(1isize);
-            _old
-        } = 0u32;
-    }
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
+
     nvic::enable_all();
 }

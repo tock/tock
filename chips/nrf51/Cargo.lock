@@ -14,6 +14,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "crt0s"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -26,6 +30,7 @@ name = "nrf51"
 version = "0.1.0"
 dependencies = [
  "cortexm0 0.1.0",
+ "crt0s 0.1.0",
  "kernel 0.1.0",
  "nrf5x 0.1.0",
 ]

@@ -6,6 +6,7 @@
 #[allow(unused_imports)]
 extern crate cortexm4;
 extern crate nrf5x;
+extern crate tock_rt0;
 
 #[allow(unused)]
 #[macro_use(

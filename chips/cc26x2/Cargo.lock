@@ -4,6 +4,7 @@ version = "0.1.0"
 dependencies = [
  "cortexm4 0.1.0",
  "enum_primitive 0.1.0",
+ "crt0s 0.1.0",
  "kernel 0.1.0",
 ]
 
@@ -25,6 +26,10 @@ dependencies = [
 [[package]]
 name = "enum_primitive"
 version = "0.1.0"
+name = "crt0s"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
