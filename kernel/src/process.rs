@@ -260,19 +260,60 @@ impl From<Error> for ReturnCode {
     }
 }
 
+/// Various states a process can be in.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
+    /// Process expects to be running code. The process may not be currently
+    /// scheduled by the scheduler, but the process has work to do if it is
+    /// scheduled.
     Running,
+
+    /// Process stopped executing and returned to the kernel because it called
+    /// the `yield` syscall. This likely means it is waiting for some event to
+    /// occur, but it could also mean it has finished and doesn't need to be
+    /// scheduled again.
     Yielded,
+
+    /// The process is stopped, and its previous state was Running. This is used
+    /// if the kernel forcibly stops a process when it is in the `Running`
+    /// state. This state indicates to the kernel not to schedule the process,
+    /// but if the process is to be resumed later it should be put back in the
+    /// running state so it will execute correctly.
     StoppedRunning,
+
+    /// The process is stopped, and it was stopped while it was yielded. If this
+    /// process needs to be resumed it should be put back in the `Yield` state.
     StoppedYielded,
+
+    /// The process is stopped, and it was stopped after it faulted. This
+    /// basically means the app crashed, and the kernel decided to just stop it
+    /// and continue executing other things.
+    StoppedFaulted,
+
+    /// The process has caused a fault.
     Fault,
 }
 
+/// The reaction the kernel should take when an app encounters a fault.
+///
+/// When an exception occurs during an app's execution (a common example is an
+/// app trying to access memory outside of its allowed regions) the system will
+/// trap back to the kernel, and the kernel has to decide what to do with the
+/// app at that point.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FaultResponse {
+    /// Generate a `panic!()` call and crash the entire system. This is useful
+    /// for debugging applications as the error is displayed immediately after
+    /// it occurs.
     Panic,
+
+    /// Attempt to cleanup and restart the app which caused the fault. This
+    /// resets the app's memory to how it was when the app was started and
+    /// schedules the app to run again from its init function.
     Restart,
+
+    /// Stop the app by no longer scheduling it to run.
+    Stop,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -554,6 +595,33 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 });
 
                 self.kernel.increment_work();
+            }
+            FaultResponse::Stop => {
+                // This looks a lot like restart, except we just leave the app
+                // how it faulted and mark it as `StoppedFaulted`. By clearing
+                // all of the app's todo work it will not be scheduled, and
+                // clearing all of the grant regions will cause capsules to drop
+                // this app as well.
+
+                // Remove the tasks that were scheduled for the app from the
+                // amount of work queue.
+                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
+                for _ in 0..tasks_len {
+                    self.kernel.decrement_work();
+                }
+
+                // And remove those tasks
+                self.tasks.map(|tasks| {
+                    tasks.empty();
+                });
+
+                // Clear any grant regions this app has setup with any capsules.
+                unsafe {
+                    self.grant_ptrs_reset();
+                }
+
+                // Mark the app as stopped so the scheduler won't try to run it.
+                self.state.set(State::StoppedFaulted);
             }
         }
     }
