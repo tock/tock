@@ -88,6 +88,8 @@ These provide common and better abstractions for userspace.
 - **[Ambient Light](src/ambient_light.rs)**: Query light sensors.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
+- **[AT Commands](src/at_commands_driver.rs)**: Allow userspace to send AT
+  commands.
 - **[Button](src/button.rs)**: Detect button presses.
 - **[Console](src/console.rs)**: UART console support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
