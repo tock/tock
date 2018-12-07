@@ -61,7 +61,10 @@ impl Chip for Stm32f446re {
     }
 
     fn sleep(&self) {
-        // TODO
+        unsafe {
+            cortexm4::scb::unset_sleepdeep();
+            cortexm4::support::wfi();
+        }
     }
 
     unsafe fn atomic<F, R>(&self, f: F) -> R
