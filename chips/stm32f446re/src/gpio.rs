@@ -1,10 +1,13 @@
 use core::cell::Cell;
+use cortexm4;
+use cortexm4::support::atomic;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
 
+use crate::exti;
 use crate::rcc;
 
 /// General-purpose I/Os
@@ -647,10 +650,12 @@ impl ClockInterface for PortClock {
     }
 }
 
+// `exti_lineid` is used to configure EXTI settings for the Pin.
 pub struct Pin<'a> {
     pinid: PinId,
     client_data: Cell<usize>,
     client: OptionalCell<&'a hil::gpio::Client>,
+    exti_lineid: OptionalCell<exti::LineId>,
 }
 
 macro_rules! declare_gpio_pins {
@@ -718,11 +723,17 @@ impl Pin<'a> {
             pinid: pinid,
             client_data: Cell::new(0),
             client: OptionalCell::empty(),
+            exti_lineid: OptionalCell::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'a hil::gpio::Client) {
         self.client.set(client);
+    }
+
+    pub fn handle_interrupt(&self) {
+        self.client
+            .map(|client| client.fired(self.client_data.get()));
     }
 
     pub fn set_mode(&self, mode: Mode) {
@@ -775,6 +786,10 @@ impl Pin<'a> {
 
     pub fn get_pinid(&self) -> PinId {
         self.pinid
+    }
+
+    pub fn set_exti_lineid(&self, lineid: exti::LineId) {
+        self.exti_lineid.set(lineid);
     }
 
     fn set_mode_output_pushpull(&self) {
@@ -968,12 +983,48 @@ impl hil::gpio::Pin for Pin<'a> {
         self.read_input()
     }
 
-    fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
-        // TODO
+    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+        unsafe {
+            atomic(|| {
+                self.exti_lineid.map(|lineid| {
+                    let l = lineid.clone();
+
+                    // disable the interrupt
+                    exti::EXTI.mask_interrupt(l);
+                    exti::EXTI.clear_pending(l);
+
+                    match mode {
+                        hil::gpio::InterruptMode::EitherEdge => {
+                            exti::EXTI.select_rising_trigger(l);
+                            exti::EXTI.select_falling_trigger(l);
+                        }
+                        hil::gpio::InterruptMode::RisingEdge => {
+                            exti::EXTI.select_rising_trigger(l);
+                            exti::EXTI.deselect_falling_trigger(l);
+                        }
+                        hil::gpio::InterruptMode::FallingEdge => {
+                            exti::EXTI.deselect_rising_trigger(l);
+                            exti::EXTI.select_falling_trigger(l);
+                        }
+                    }
+
+                    exti::EXTI.unmask_interrupt(l);
+                });
+                self.client_data.set(client_data);
+            });
+        }
     }
 
     fn disable_interrupt(&self) {
-        // TODO
+        unsafe {
+            atomic(|| {
+                self.exti_lineid.map(|lineid| {
+                    let l = lineid.clone();
+                    exti::EXTI.mask_interrupt(l);
+                    exti::EXTI.clear_pending(l);
+                });
+            });
+        }
     }
 }
 
