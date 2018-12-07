@@ -7,12 +7,11 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
-use capsules::virtual_uart::MuxUart;
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
-use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::Platform;
-use kernel::{create_capability, debug_gpio, static_init};
+use kernel::{create_capability, debug, debug_verbose, static_init};
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -111,21 +110,51 @@ pub unsafe fn reset_handler() {
 
     hil::uart::UART::set_client(&stm32f446re::usart::USART2, mux_uart);
 
+    // Create a virtual device for kernel debug.
+    let debugger_uart = static_init!(UartDevice, UartDevice::new(mux_uart, false));
+    debugger_uart.setup();
+    let debugger = static_init!(
+        kernel::debug::DebugWriter,
+        kernel::debug::DebugWriter::new(
+            debugger_uart,
+            &mut kernel::debug::OUTPUT_BUF,
+            &mut kernel::debug::INTERNAL_BUF,
+        )
+    );
+    hil::uart::UART::set_client(debugger_uart, debugger);
+
+    let debug_wrapper = static_init!(
+        kernel::debug::DebugWriterWrapper,
+        kernel::debug::DebugWriterWrapper::new(debugger)
+    );
+    // required by `debug::panic`. If panic occurs before this point, you only
+    // have `gdb` and `debug_gpio!`
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+
     // Normally `console.initialize()` will call `USART2.configure()`. We do not
     // have console capsule as yet. So, we call `mux_uart.initialize()`, which
     // does the same thing.
     mux_uart.initialize();
 
-    // Hello World!
-    static mut HELLO_WORLD: [u8; 14] = [
-        b'\n', b'H', b'e', b'l', b'l', b'o', b' ', b'w', b'o', b'r', b'l', b'd', b'!', b'\n',
-    ];
+    // Since `mux_uart.initialize()` configures the underlying USART, we need to
+    // tell `send_byte()` not to configure the USART again.
+    io::WRITER.set_initialized();
 
-    let uart_test: TakeCell<'static, [u8]> = TakeCell::new(&mut HELLO_WORLD);
+    // // Uncomment to test `debug!`, `debug_verbose!`, `panic!` and hardfault
 
-    uart_test.take().map(|buf| {
-        hil::uart::UART::transmit(&stm32f446re::usart::USART2, buf, 12);
-    });
+    // debug!("Hello debug! macro");
+
+    // debug_verbose!("Hello debug_verbose! macro");
+
+    // panic!("Hello panic! macro");
+
+    // // generate hardfault
+    // asm!(
+    //     "
+    //     movw r0, #0xFFFF
+    //     movt r0, #0xFFFF
+    //     ldr r1, [r0, #0]"
+    //     :::: "volatile");
 
     asm!("bkpt" :::: "volatile");
 

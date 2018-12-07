@@ -38,6 +38,7 @@ name = "nucleo_f446re"
 version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
+ "cortexm4 0.1.0",
  "kernel 0.1.0",
  "stm32f446re 0.1.0",
 ]
