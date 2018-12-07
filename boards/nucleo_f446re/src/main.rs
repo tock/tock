@@ -41,6 +41,7 @@ struct NucleoF446RE {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, stm32f446re::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -52,6 +53,7 @@ impl Platform for NucleoF446RE {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -87,7 +89,11 @@ unsafe fn setup_dma() {
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use kernel::hil::gpio::Pin;
+    use stm32f446re::exti::{LineId, EXTI};
     use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
+    use stm32f446re::syscfg::SYSCFG;
+
+    SYSCFG.enable_clock();
 
     PORT[PortId::A as usize].enable_clock();
 
@@ -110,6 +116,20 @@ unsafe fn set_pin_primary_functions() {
         // AF7 is USART2_RX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
+
+    PORT[PortId::C as usize].enable_clock();
+
+    // button is connected on pc13
+    PinId::PC13.get_pin().as_ref().map(|pin| {
+        // By default, upon reset, the pin is in input mode, with no internal
+        // pull-up, no internal pull-down (i.e., floating).
+        //
+        // Only set the mapping between EXTI line and the Pin and let capsule do
+        // the rest.
+        EXTI.associate_line_gpiopin(LineId::Exti13, pin);
+    });
+    // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
+    cortexm4::nvic::Nvic::new(stm32f446re::nvic::EXTI15_10).enable();
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -221,10 +241,30 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins)
     );
 
+    // BUTTONs
+    let button_pins = static_init!(
+        [(&'static stm32f446re::gpio::Pin, capsules::button::GpioMode); 1],
+        [(
+            &stm32f446re::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+            capsules::button::GpioMode::LowWhenPressed
+        )]
+    );
+    let button = static_init!(
+        capsules::button::Button<'static, stm32f446re::gpio::Pin>,
+        capsules::button::Button::new(
+            button_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    for &(btn, _) in button_pins.iter() {
+        btn.set_client(button);
+    }
+
     let nucleo_f446re = NucleoF446RE {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
+        button: button,
     };
 
     debug!("Initialization complete. Entering main loop");
