@@ -46,6 +46,13 @@ impl Platform for NucleoF446RE {
     }
 }
 
+/// Helper function called during bring-up that configures DMA.
+unsafe fn setup_dma() {
+    use stm32f446re::dma1::DMA1;
+
+    DMA1.enable_clock();
+}
+
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use kernel::hil::gpio::Pin;
@@ -74,6 +81,9 @@ unsafe fn set_pin_primary_functions() {
     });
 }
 
+/// Helper function for miscellaneous peripheral functions
+unsafe fn setup_peripherals() {}
+
 /// Reset Handler.
 ///
 /// This symbol is loaded into vector table by the STM32F446RE chip crate.
@@ -87,6 +97,10 @@ pub unsafe fn reset_handler() {
     // We use the default HSI 16Mhz clock
 
     set_pin_primary_functions();
+
+    setup_dma();
+
+    setup_peripherals();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
