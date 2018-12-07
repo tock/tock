@@ -735,6 +735,20 @@ impl Rcc {
         }
     }
 
+    // DMA1 clock
+
+    fn is_enabled_dma1_clock(&self) -> bool {
+        self.registers.ahb1enr.is_set(AHB1ENR::DMA1EN)
+    }
+
+    fn enable_dma1_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::SET)
+    }
+
+    fn disable_dma1_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::CLEAR)
+    }
+
     // GPIOH clock
 
     fn is_enabled_gpioh_clock(&self) -> bool {
@@ -884,6 +898,7 @@ pub enum PeripheralClock {
 
 /// Peripherals clocked by HCLK1
 pub enum HCLK1 {
+    DMA1,
     GPIOH,
     GPIOG,
     GPIOF,
@@ -903,6 +918,7 @@ impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
             &PeripheralClock::AHB1(ref v) => match v {
+                HCLK1::DMA1 => unsafe { RCC.is_enabled_dma1_clock() },
                 HCLK1::GPIOH => unsafe { RCC.is_enabled_gpioh_clock() },
                 HCLK1::GPIOG => unsafe { RCC.is_enabled_gpiog_clock() },
                 HCLK1::GPIOF => unsafe { RCC.is_enabled_gpiof_clock() },
@@ -921,6 +937,9 @@ impl ClockInterface for PeripheralClock {
     fn enable(&self) {
         match self {
             &PeripheralClock::AHB1(ref v) => match v {
+                HCLK1::DMA1 => unsafe {
+                    RCC.enable_dma1_clock();
+                },
                 HCLK1::GPIOH => unsafe {
                     RCC.enable_gpioh_clock();
                 },
@@ -957,6 +976,9 @@ impl ClockInterface for PeripheralClock {
     fn disable(&self) {
         match self {
             &PeripheralClock::AHB1(ref v) => match v {
+                HCLK1::DMA1 => unsafe {
+                    RCC.disable_dma1_clock();
+                },
                 HCLK1::GPIOH => unsafe {
                     RCC.disable_gpioh_clock();
                 },
