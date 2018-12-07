@@ -7,6 +7,7 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
@@ -42,6 +43,10 @@ struct NucleoF446RE {
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, stm32f446re::gpio::Pin<'static>>,
     button: &'static capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -54,6 +59,7 @@ impl Platform for NucleoF446RE {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -134,8 +140,15 @@ unsafe fn set_pin_primary_functions() {
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
+    use stm32f446re::tim2::TIM2;
+
     // USART2 IRQn is 38
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::USART2).enable();
+
+    // TIM2 IRQn is 28
+    TIM2.enable_clock();
+    TIM2.start();
+    cortexm4::nvic::Nvic::new(stm32f446re::nvic::TIM2).enable();
 }
 
 /// Reset Handler.
@@ -260,11 +273,32 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
+    // ALARM
+    let mux_alarm = static_init!(
+        MuxAlarm<'static, stm32f446re::tim2::Tim2>,
+        MuxAlarm::new(&stm32f446re::tim2::TIM2)
+    );
+    stm32f446re::tim2::TIM2.set_client(mux_alarm);
+
+    let virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2>>,
+        capsules::alarm::AlarmDriver::new(
+            virtual_alarm,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    virtual_alarm.set_client(alarm);
+
     let nucleo_f446re = NucleoF446RE {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
         button: button,
+        alarm: alarm,
     };
 
     debug!("Initialization complete. Entering main loop");
