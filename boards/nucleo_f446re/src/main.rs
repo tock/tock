@@ -4,12 +4,12 @@
 
 #![no_std]
 #![no_main]
-#![feature(core_intrinsics)]
+#![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
 use kernel::capabilities;
 use kernel::Platform;
-use kernel::{create_capability, static_init};
+use kernel::{create_capability, debug_gpio, static_init};
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -46,9 +46,18 @@ impl Platform for NucleoF446RE {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    //
-    // No pins are being set right now!
-    //
+    use kernel::hil::gpio::Pin;
+    use stm32f446re::gpio::{PinId, PortId, PORT};
+
+    PORT[PortId::A as usize].enable_clock();
+
+    // User LD2 is connected to PA05. Configure PA05 as `debug_gpio!(0, ...)`
+    PinId::PA05.get_pin().as_ref().map(|pin| {
+        pin.make_output();
+
+        // Configure kernel debug gpios as early as possible
+        kernel::debug::assign_gpios(Some(pin), None, None);
+    });
 }
 
 /// Reset Handler.
@@ -64,6 +73,13 @@ pub unsafe fn reset_handler() {
     // We use the default HSI 16Mhz clock
 
     set_pin_primary_functions();
+
+    // Test debug_gpio
+    debug_gpio!(0, toggle);
+
+    asm!("bkpt" :::: "volatile");
+
+    debug_gpio!(0, toggle);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
