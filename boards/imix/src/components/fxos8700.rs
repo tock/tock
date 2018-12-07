@@ -25,9 +25,11 @@
 use capsules::fxos8700cq;
 use capsules::ninedof::NineDof;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use hil;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
+use kernel::hil;
+use kernel::static_init;
 use kernel::Grant;
 
 pub struct Fxos8700Component {

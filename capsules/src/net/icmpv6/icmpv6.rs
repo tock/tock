@@ -4,9 +4,9 @@
 //!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
-use net::stream::SResult;
-use net::stream::{decode_u16, decode_u32, decode_u8};
-use net::stream::{encode_u16, encode_u32, encode_u8};
+use crate::net::stream::SResult;
+use crate::net::stream::{decode_u16, decode_u32, decode_u8};
+use crate::net::stream::{encode_u16, encode_u32, encode_u8};
 
 /// A struct representing an ICMPv6 header.
 #[derive(Copy, Clone)]

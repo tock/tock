@@ -20,6 +20,8 @@
 use capsules::gpio;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
+use kernel::static_init;
 
 pub struct GpioComponent {
     board_kernel: &'static kernel::Kernel,

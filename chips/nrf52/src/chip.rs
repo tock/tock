@@ -1,13 +1,14 @@
-use adc;
+use crate::adc;
+use crate::deferred_call_tasks::DeferredCallTask;
+use crate::i2c;
+use crate::nvmc;
+use crate::radio;
+use crate::spi;
+use crate::uart;
 use cortexm4::{self, nvic};
-use deferred_call_tasks::DeferredCallTask;
-use i2c;
 use kernel::common::deferred_call;
+use kernel::debug;
 use nrf5x::peripheral_interrupts;
-use nvmc;
-use radio;
-use spi;
-use uart;
 
 pub struct NRF52 {
     mpu: cortexm4::mpu::MPU,

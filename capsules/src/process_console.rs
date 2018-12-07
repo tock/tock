@@ -95,6 +95,7 @@ use core::cmp;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
+use kernel::debug;
 use kernel::hil::uart::{self, Client, UART};
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;

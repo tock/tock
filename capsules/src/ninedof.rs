@@ -18,7 +18,7 @@ use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::NINEDOF as usize;
 
 #[derive(Clone, Copy, PartialEq)]

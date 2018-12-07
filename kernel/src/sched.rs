@@ -3,18 +3,18 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use callback::Callback;
-use capabilities;
-use common::cells::NumericCellExt;
-use grant::Grant;
-use ipc;
-use memop;
-use platform::mpu::MPU;
-use platform::systick::SysTick;
-use platform::{Chip, Platform};
-use process::{self, Task};
-use returncode::ReturnCode;
-use syscall::{ContextSwitchReason, Syscall};
+use crate::callback::Callback;
+use crate::capabilities;
+use crate::common::cells::NumericCellExt;
+use crate::grant::Grant;
+use crate::ipc;
+use crate::memop;
+use crate::platform::mpu::MPU;
+use crate::platform::systick::SysTick;
+use crate::platform::{Chip, Platform};
+use crate::process::{self, Task};
+use crate::returncode::ReturnCode;
+use crate::syscall::{ContextSwitchReason, Syscall};
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -234,7 +234,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         process: &process::ProcessType,
-        ipc: Option<&::ipc::IPC>,
+        ipc: Option<&crate::ipc::IPC>,
     ) {
         let appid = process.appid();
         let systick = chip.systick();

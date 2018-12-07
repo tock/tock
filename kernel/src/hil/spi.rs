@@ -1,7 +1,7 @@
 //! Interfaces for SPI master and slave communication.
 
+use crate::returncode::ReturnCode;
 use core::option::Option;
-use returncode::ReturnCode;
 
 /// Values for the ordering of bits
 #[derive(Copy, Clone, Debug)]

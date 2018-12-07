@@ -7,13 +7,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-extern crate capsules;
-#[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_gpio, static_init)]
-extern crate kernel;
-extern crate cortexm4;
-extern crate sam4l;
-
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -25,6 +18,8 @@ use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
+#[allow(unused_imports)]
+use kernel::{create_capability, debug, debug_gpio, static_init};
 
 /// Support routines for debugging I/O.
 ///

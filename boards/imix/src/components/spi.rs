@@ -21,6 +21,7 @@
 use capsules::spi::Spi;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
+use kernel::static_init;
 
 pub struct SpiSyscallComponent {
     spi_mux: &'static MuxSpiMaster<'static, sam4l::spi::SpiHw>,

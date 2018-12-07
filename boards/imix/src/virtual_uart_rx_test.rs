@@ -46,7 +46,9 @@
 
 use capsules::test::virtual_uart::TestVirtualUartReceive;
 use capsules::virtual_uart::{UartDevice, UartMux};
+use kernel::debug;
 use kernel::hil::uart::UART;
+use kernel::static_init;
 
 pub unsafe fn run_virtual_uart_receive(mux: &'static UartMux<'static>) {
     debug!("Starting virtual reads.");

@@ -145,7 +145,7 @@
 //! }
 //! ```
 
-use ClockInterface;
+use crate::ClockInterface;
 
 /// A structure encapsulating a peripheral should implement this trait.
 pub trait PeripheralManagement<C>
@@ -166,13 +166,13 @@ where
     ///
     /// Responsible for ensure the periphal can be safely accessed, e.g. that
     /// its clock is powered on.
-    fn before_peripheral_access(&self, &C, &Self::RegisterType);
+    fn before_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 
     /// Called after periphal access.
     ///
     /// Currently used primarily for power management to check whether the
     /// peripheral can be powered off.
-    fn after_peripheral_access(&self, &C, &Self::RegisterType);
+    fn after_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 }
 
 /// Structures encapsulating periphal hardware (those implementing the

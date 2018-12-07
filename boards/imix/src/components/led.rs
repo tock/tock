@@ -16,6 +16,7 @@
 
 use capsules::led;
 use kernel::component::Component;
+use kernel::static_init;
 
 pub struct LedComponent {}
 

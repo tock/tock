@@ -10,7 +10,7 @@ use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice, SpiSlaveClient, SpiSlav
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SPI as usize;
 
 // SPI operations are handled by coping into a kernel buffer for

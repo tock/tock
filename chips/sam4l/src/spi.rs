@@ -6,14 +6,15 @@
 //!
 //! - Authors: Sam Crow <samcrow@uw.edu>, Philip Levis <pal@cs.stanford.edu>
 
+use crate::dma::DMAChannel;
+use crate::dma::DMAClient;
+use crate::dma::DMAPeripheral;
+use crate::pm;
 use core::cell::Cell;
 use core::cmp;
-use dma::DMAChannel;
-use dma::DMAClient;
-use dma::DMAPeripheral;
 use kernel::common::cells::OptionalCell;
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::{self, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
@@ -21,7 +22,6 @@ use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
 use kernel::{ClockInterface, ReturnCode};
-use pm;
 
 #[repr(C)]
 pub struct SpiRegisters {

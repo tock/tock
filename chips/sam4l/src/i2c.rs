@@ -9,15 +9,15 @@
 //! The point is that until this changes, and this notice is taken away: IF YOU
 //! CHANGE THIS DRIVER, TEST RIGOROUSLY!!!
 
+use crate::dma::{DMAChannel, DMAClient, DMAPeripheral};
+use crate::pm;
 use core::cell::Cell;
-use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use pm;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet

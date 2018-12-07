@@ -5,9 +5,6 @@
 #![feature(asm, const_fn, lang_items)]
 #![no_std]
 
-#[macro_use(register_bitfields, register_bitmasks)]
-extern crate kernel;
-
 pub mod nvic;
 pub mod scb;
 pub mod support;

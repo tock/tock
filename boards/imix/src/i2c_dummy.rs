@@ -1,6 +1,7 @@
 //! A dummy I2C client
 
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
 use sam4l::i2c;

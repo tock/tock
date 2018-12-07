@@ -1,6 +1,6 @@
 //! Interfaces for Pulse Width Modulation output.
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// PWM control for a single pin.
 pub trait Pwm {

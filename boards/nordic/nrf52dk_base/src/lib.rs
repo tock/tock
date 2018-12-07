@@ -2,13 +2,8 @@
 
 #![no_std]
 
-extern crate capsules;
-extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
-extern crate kernel;
-extern crate nrf52;
-extern crate nrf5x;
+use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;

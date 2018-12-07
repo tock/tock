@@ -2,15 +2,8 @@
 #![no_main]
 #![feature(lang_items, asm)]
 
-extern crate capsules;
-extern crate cortexm4;
-#[macro_use]
-extern crate enum_primitive;
-extern crate cc26x2;
-
 #[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_gpio, static_init)]
-extern crate kernel;
+use kernel::{create_capability, debug, debug_gpio, static_init};
 
 use capsules::virtual_uart::{UartDevice, UartMux};
 use cc26x2::aon;
@@ -79,7 +72,7 @@ impl kernel::Platform for Platform {
 }
 
 mod pin_mapping_cc1312r;
-use pin_mapping_cc1312r::PIN_FN;
+use crate::pin_mapping_cc1312r::PIN_FN;
 ///
 unsafe fn configure_pins() {
     cc26x2::gpio::PORT[PIN_FN::UART0_RX as usize].enable_uart0_rx();

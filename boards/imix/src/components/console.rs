@@ -19,9 +19,11 @@
 
 use capsules::console;
 use capsules::virtual_uart::{UartDevice, UartMux};
-use hil;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
+use kernel::hil;
+use kernel::static_init;
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,

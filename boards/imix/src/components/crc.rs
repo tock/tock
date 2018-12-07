@@ -18,6 +18,8 @@
 use capsules::crc;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
+use kernel::static_init;
 
 pub struct CrcComponent {
     board_kernel: &'static kernel::Kernel,

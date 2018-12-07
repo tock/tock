@@ -1,6 +1,5 @@
 //! A dummy SPI client to test the SPI implementation
 
-extern crate kernel;
 use kernel::hil::gpio;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiSlave};
