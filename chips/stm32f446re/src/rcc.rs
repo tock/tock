@@ -735,6 +735,20 @@ impl Rcc {
         }
     }
 
+    // SYSCFG clock
+
+    fn is_enabled_syscfg_clock(&self) -> bool {
+        self.registers.apb2enr.is_set(APB2ENR::SYSCFGEN)
+    }
+
+    fn enable_syscfg_clock(&self) {
+        self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::SET)
+    }
+
+    fn disable_syscfg_clock(&self) {
+        self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::CLEAR)
+    }
+
     // DMA1 clock
 
     fn is_enabled_dma1_clock(&self) -> bool {
@@ -890,10 +904,10 @@ pub enum CPUClock {
 ///
 /// AHB2(HCLK2)
 /// AHB3(HCLK3)
-/// APB2(PCLK2),
 pub enum PeripheralClock {
     AHB1(HCLK1),
     APB1(PCLK1),
+    APB2(PCLK2),
 }
 
 /// Peripherals clocked by HCLK1
@@ -914,6 +928,11 @@ pub enum PCLK1 {
     USART2,
 }
 
+/// Peripherals clocked by PCLK2
+pub enum PCLK2 {
+    SYSCFG,
+}
+
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
@@ -930,6 +949,9 @@ impl ClockInterface for PeripheralClock {
             },
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
+            },
+            &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::SYSCFG => unsafe { RCC.is_enabled_syscfg_clock() },
             },
         }
     }
@@ -970,6 +992,11 @@ impl ClockInterface for PeripheralClock {
                     RCC.enable_usart2_clock();
                 },
             },
+            &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::SYSCFG => unsafe {
+                    RCC.enable_syscfg_clock();
+                },
+            },
         }
     }
 
@@ -1007,6 +1034,11 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::USART2 => unsafe {
                     RCC.disable_usart2_clock();
+                },
+            },
+            &PeripheralClock::APB2(ref v) => match v {
+                PCLK2::SYSCFG => unsafe {
+                    RCC.disable_syscfg_clock();
                 },
             },
         }

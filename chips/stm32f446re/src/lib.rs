@@ -17,6 +17,7 @@ pub mod nvic;
 pub mod dma1;
 pub mod gpio;
 pub mod rcc;
+pub mod syscfg;
 pub mod usart;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
