@@ -6,29 +6,26 @@ use kernel::Chip;
 
 use crate::deferred_call_tasks::Task;
 
-// There is a MPU, SysCall and SysTick impl for `()`. Use that till we are ready
-// to add `cortexm4::mpu::MPU`, `cortexm4::syscall::SysCall` and
-// `cortexm4::systick::SysTick`
 pub struct Stm32f446re {
-    mpu: (),
+    mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
-    systick: (),
+    systick: cortexm4::systick::SysTick,
 }
 
 impl Stm32f446re {
     pub unsafe fn new() -> Stm32f446re {
         Stm32f446re {
-            mpu: (),
+            mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
-            systick: (),
+            systick: cortexm4::systick::SysTick::new(),
         }
     }
 }
 
 impl Chip for Stm32f446re {
-    type MPU = ();
+    type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
-    type SysTick = ();
+    type SysTick = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -48,11 +45,11 @@ impl Chip for Stm32f446re {
         unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
     }
 
-    fn mpu(&self) -> &() {
+    fn mpu(&self) -> &cortexm4::mpu::MPU {
         &self.mpu
     }
 
-    fn systick(&self) -> &() {
+    fn systick(&self) -> &cortexm4::systick::SysTick {
         &self.systick
     }
 
