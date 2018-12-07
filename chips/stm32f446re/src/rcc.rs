@@ -846,6 +846,20 @@ impl Rcc {
     fn disable_gpioa_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOAEN::CLEAR)
     }
+
+    // USART2 clock
+
+    fn is_enabled_usart2_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::USART2EN)
+    }
+
+    fn enable_usart2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART2EN::SET)
+    }
+
+    fn disable_usart2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
+    }
 }
 
 /// Clock sources for CPU
@@ -862,10 +876,10 @@ pub enum CPUClock {
 ///
 /// AHB2(HCLK2)
 /// AHB3(HCLK3)
-/// APB1(PCLK1),
 /// APB2(PCLK2),
 pub enum PeripheralClock {
     AHB1(HCLK1),
+    APB1(PCLK1),
 }
 
 /// Peripherals clocked by HCLK1
@@ -880,6 +894,11 @@ pub enum HCLK1 {
     GPIOA,
 }
 
+/// Peripherals clocked by PCLK1
+pub enum PCLK1 {
+    USART2,
+}
+
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
@@ -892,6 +911,9 @@ impl ClockInterface for PeripheralClock {
                 HCLK1::GPIOC => unsafe { RCC.is_enabled_gpioc_clock() },
                 HCLK1::GPIOB => unsafe { RCC.is_enabled_gpiob_clock() },
                 HCLK1::GPIOA => unsafe { RCC.is_enabled_gpioa_clock() },
+            },
+            &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
             },
         }
     }
@@ -924,6 +946,11 @@ impl ClockInterface for PeripheralClock {
                     RCC.enable_gpioa_clock();
                 },
             },
+            &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::USART2 => unsafe {
+                    RCC.enable_usart2_clock();
+                },
+            },
         }
     }
 
@@ -953,6 +980,11 @@ impl ClockInterface for PeripheralClock {
                 },
                 HCLK1::GPIOA => unsafe {
                     RCC.disable_gpioa_clock();
+                },
+            },
+            &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::USART2 => unsafe {
+                    RCC.disable_usart2_clock();
                 },
             },
         }
