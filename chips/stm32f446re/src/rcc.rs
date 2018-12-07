@@ -735,6 +735,20 @@ impl Rcc {
         }
     }
 
+    // TIM2 clock
+
+    fn is_enabled_tim2_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::TIM2EN)
+    }
+
+    fn enable_tim2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::TIM2EN::SET)
+    }
+
+    fn disable_tim2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::TIM2EN::CLEAR)
+    }
+
     // SYSCFG clock
 
     fn is_enabled_syscfg_clock(&self) -> bool {
@@ -925,6 +939,7 @@ pub enum HCLK1 {
 
 /// Peripherals clocked by PCLK1
 pub enum PCLK1 {
+    TIM2,
     USART2,
 }
 
@@ -948,6 +963,7 @@ impl ClockInterface for PeripheralClock {
                 HCLK1::GPIOA => unsafe { RCC.is_enabled_gpioa_clock() },
             },
             &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::TIM2 => unsafe { RCC.is_enabled_tim2_clock() },
                 PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
             },
             &PeripheralClock::APB2(ref v) => match v {
@@ -988,6 +1004,9 @@ impl ClockInterface for PeripheralClock {
                 },
             },
             &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::TIM2 => unsafe {
+                    RCC.enable_tim2_clock();
+                },
                 PCLK1::USART2 => unsafe {
                     RCC.enable_usart2_clock();
                 },
@@ -1032,6 +1051,9 @@ impl ClockInterface for PeripheralClock {
                 },
             },
             &PeripheralClock::APB1(ref v) => match v {
+                PCLK1::TIM2 => unsafe {
+                    RCC.disable_tim2_clock();
+                },
                 PCLK1::USART2 => unsafe {
                     RCC.disable_usart2_clock();
                 },

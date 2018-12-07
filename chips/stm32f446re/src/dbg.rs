@@ -100,4 +100,10 @@ impl Dbg {
             registers: DBG_BASE,
         }
     }
+
+    pub fn disable_tim2_counter(&self) {
+        self.registers
+            .dbgmcu_apb1_fz
+            .modify(DBGMCU_APB1_FZ::DBG_TIM2_STOP::SET);
+    }
 }

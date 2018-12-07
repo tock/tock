@@ -8,6 +8,7 @@ use crate::deferred_call_tasks::Task;
 use crate::dma1;
 use crate::exti;
 use crate::nvic;
+use crate::tim2;
 use crate::usart;
 
 pub struct Stm32f446re {
@@ -56,6 +57,8 @@ impl Chip for Stm32f446re {
                         nvic::EXTI4 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI9_5 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI15_10 => exti::EXTI.handle_interrupt(),
+
+                        nvic::TIM2 => tim2::TIM2.handle_interrupt(),
 
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
