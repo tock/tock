@@ -38,6 +38,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF446RE {
+    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     ipc: kernel::ipc::IPC,
 }
 
@@ -48,6 +49,7 @@ impl Platform for NucleoF446RE {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -56,9 +58,28 @@ impl Platform for NucleoF446RE {
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma() {
-    use stm32f446re::dma1::DMA1;
+    use stm32f446re::dma1::{Dma1Peripheral, DMA1};
+    use stm32f446re::usart;
+    use stm32f446re::usart::USART2;
 
     DMA1.enable_clock();
+
+    let usart2_tx_stream = Dma1Peripheral::USART2_TX.get_stream();
+    let usart2_rx_stream = Dma1Peripheral::USART2_RX.get_stream();
+
+    USART2.set_dma(
+        usart::TxDMA(usart2_tx_stream),
+        usart::RxDMA(usart2_rx_stream),
+    );
+
+    usart2_tx_stream.set_client(&USART2);
+    usart2_rx_stream.set_client(&USART2);
+
+    usart2_tx_stream.setup(Dma1Peripheral::USART2_TX);
+    usart2_rx_stream.setup(Dma1Peripheral::USART2_RX);
+
+    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART2_TX.get_stream_irqn()).enable();
+    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART2_RX.get_stream_irqn()).enable();
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
@@ -90,7 +111,10 @@ unsafe fn set_pin_primary_functions() {
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals() {}
+unsafe fn setup_peripherals() {
+    // USART2 IRQn is 38
+    cortexm4::nvic::Nvic::new(stm32f446re::nvic::USART2).enable();
+}
 
 /// Reset Handler.
 ///
@@ -150,15 +174,6 @@ pub unsafe fn reset_handler() {
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    // Normally `console.initialize()` will call `USART2.configure()`. We do not
-    // have console capsule as yet. So, we call `mux_uart.initialize()`, which
-    // does the same thing.
-    mux_uart.initialize();
-
-    // Since `mux_uart.initialize()` configures the underlying USART, we need to
-    // tell `send_byte()` not to configure the USART again.
-    io::WRITER.set_initialized();
-
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
@@ -166,7 +181,28 @@ pub unsafe fn reset_handler() {
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
+    // Create a UartDevice for console
+    let console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
+    console_uart.setup();
+    let console = static_init!(
+        capsules::console::Console<UartDevice>,
+        capsules::console::Console::new(
+            console_uart,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+    hil::uart::UART::set_client(console_uart, console);
+    console.initialize();
+
+    // `console.initialize()` configures the underlying USART, so we need to
+    // tell `send_byte()` not to configure the USART again.
+    io::WRITER.set_initialized();
+
     let nucleo_f446re = NucleoF446RE {
+        console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
