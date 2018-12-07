@@ -40,6 +40,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF446RE {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     ipc: kernel::ipc::IPC,
+    led: &'static capsules::led::LED<'static, stm32f446re::gpio::Pin<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -50,6 +51,7 @@ impl Platform for NucleoF446RE {
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -201,9 +203,28 @@ pub unsafe fn reset_handler() {
     // tell `send_byte()` not to configure the USART again.
     io::WRITER.set_initialized();
 
+    // LEDs
+
+    // Clock to Port A is enabled in `set_pin_primary_functions()`
+    let led_pins = static_init!(
+        [(
+            &'static stm32f446re::gpio::Pin,
+            capsules::led::ActivationMode
+        ); 1],
+        [(
+            &stm32f446re::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+            capsules::led::ActivationMode::ActiveHigh
+        )]
+    );
+    let led = static_init!(
+        capsules::led::LED<'static, stm32f446re::gpio::Pin<'static>>,
+        capsules::led::LED::new(led_pins)
+    );
+
     let nucleo_f446re = NucleoF446RE {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        led: led,
     };
 
     debug!("Initialization complete. Entering main loop");
