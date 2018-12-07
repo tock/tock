@@ -4,11 +4,16 @@
 
 #![crate_name = "stm32f446re"]
 #![crate_type = "rlib"]
-#![feature(asm)]
+#![feature(asm, const_fn)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 pub mod chip;
 pub mod nvic;
+
+// Peripherals
+pub mod gpio;
+pub mod rcc;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
