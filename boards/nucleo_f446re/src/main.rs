@@ -11,16 +11,24 @@ use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
 use kernel::Platform;
-use kernel::{create_capability, debug, debug_verbose, static_init};
+use kernel::{create_capability, debug, static_init};
 
 /// Support routines for debugging I/O.
 pub mod io;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 0;
+const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
+    [None, None, None, None];
+
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
+
+// RAM to be shared by all application processes.
+#[link_section = ".app_memory"]
+static mut APP_MEMORY: [u8; 65536] = [0; 65536];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -121,7 +129,6 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
-
     hil::uart::UART::set_client(&stm32f446re::usart::USART2, mux_uart);
 
     // Create a virtual device for kernel debug.
@@ -141,8 +148,6 @@ pub unsafe fn reset_handler() {
         kernel::debug::DebugWriterWrapper,
         kernel::debug::DebugWriterWrapper::new(debugger)
     );
-    // required by `debug::panic`. If panic occurs before this point, you only
-    // have `gdb` and `debug_gpio!`
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     // Normally `console.initialize()` will call `USART2.configure()`. We do not
@@ -154,32 +159,35 @@ pub unsafe fn reset_handler() {
     // tell `send_byte()` not to configure the USART again.
     io::WRITER.set_initialized();
 
-    // // Uncomment to test `debug!`, `debug_verbose!`, `panic!` and hardfault
-
-    // debug!("Hello debug! macro");
-
-    // debug_verbose!("Hello debug_verbose! macro");
-
-    // panic!("Hello panic! macro");
-
-    // // generate hardfault
-    // asm!(
-    //     "
-    //     movw r0, #0xFFFF
-    //     movt r0, #0xFFFF
-    //     ldr r1, [r0, #0]"
-    //     :::: "volatile");
-
-    asm!("bkpt" :::: "volatile");
-
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
 
     let nucleo_f446re = NucleoF446RE {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
+
+    debug!("Initialization complete. Entering main loop");
+
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
+        static _sapps: u8;
+    }
+
+    kernel::procs::load_processes(
+        board_kernel,
+        chip,
+        &_sapps as *const u8,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+        &process_management_capability,
+    );
 
     board_kernel.kernel_loop(
         &nucleo_f446re,
