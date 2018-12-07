@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
@@ -5,6 +6,7 @@ use kernel::hil;
 use kernel::ClockInterface;
 use kernel::ReturnCode;
 
+use crate::dma1;
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -144,11 +146,40 @@ register_bitfields![u32,
 const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004400 as *const UsartRegisters) };
 
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateRX {
+    Idle,
+    DMA_Receiving,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
+enum USARTStateTX {
+    Idle,
+    DMA_Transmitting,
+    Transfer_Completing, // DMA finished, but not all bytes sent
+}
+
 pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: UsartClock,
+
     client: OptionalCell<&'a hil::uart::Client>,
+
+    tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    rx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+
+    tx_len: Cell<usize>,
+    rx_len: Cell<usize>,
+
+    usart_tx_state: Cell<USARTStateTX>,
+    usart_rx_state: Cell<USARTStateRX>,
 }
+
+// for use by `set_dma`
+pub struct TxDMA<'a>(pub &'a dma1::Stream<'a>);
+pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
 
 pub static mut USART2: Usart = Usart::new(
     USART2_BASE,
@@ -160,7 +191,17 @@ impl Usart<'a> {
         Usart {
             registers: base_addr,
             clock: clock,
+
             client: OptionalCell::empty(),
+
+            tx_dma: OptionalCell::empty(),
+            rx_dma: OptionalCell::empty(),
+
+            tx_len: Cell::new(0),
+            rx_len: Cell::new(0),
+
+            usart_tx_state: Cell::new(USARTStateTX::Idle),
+            usart_rx_state: Cell::new(USARTStateRX::Idle),
         }
     }
 
@@ -176,12 +217,121 @@ impl Usart<'a> {
         self.clock.disable();
     }
 
+    pub fn set_dma(&self, tx_dma: TxDMA<'a>, rx_dma: RxDMA<'a>) {
+        self.tx_dma.set(tx_dma.0);
+        self.rx_dma.set(rx_dma.0);
+    }
+
+    // According to section 25.4.13, we need to make sure that USART TC flag is
+    // set before disabling the DMA TX on the peripheral side.
+    pub fn handle_interrupt(&self) {
+        self.clear_transmit_complete();
+        self.disable_transmit_complete_interrupt();
+
+        // Ignore if USARTStateTX is in some other state other than
+        // Transfer_Completing.
+        if self.usart_tx_state.get() == USARTStateTX::Transfer_Completing {
+            self.disable_tx();
+            self.usart_tx_state.set(USARTStateTX::Idle);
+
+            // get buffer
+            let buffer = self.tx_dma.map_or(None, |tx_dma| tx_dma.return_buffer());
+            self.tx_len.set(0);
+
+            // alert client
+            self.client.map(|client| {
+                buffer.map(|buf| {
+                    client.transmit_complete(buf, hil::uart::Error::CommandComplete);
+                });
+            });
+        }
+    }
+
+    // for use by dma1
+    pub fn get_address_dr(&self) -> u32 {
+        &self.registers.dr as *const ReadWrite<u32> as u32
+    }
+
     // for use by panic in io.rs
     pub fn send_byte(&self, byte: u8) {
         // loop till TXE (Transmit data register empty) becomes 1
         while !self.registers.sr.is_set(SR::TXE) {}
 
         self.registers.dr.set(byte.into());
+    }
+
+    // enable DMA TX from the peripheral side
+    fn enable_tx(&self) {
+        self.registers.cr3.modify(CR3::DMAT::SET);
+    }
+
+    // disable DMA TX from the peripheral side
+    fn disable_tx(&self) {
+        self.registers.cr3.modify(CR3::DMAT::CLEAR);
+    }
+
+    // enable DMA RX from the peripheral side
+    fn enable_rx(&self) {
+        self.registers.cr3.modify(CR3::DMAR::SET);
+    }
+
+    // disable DMA RX from the peripheral side
+    fn disable_rx(&self) {
+        self.registers.cr3.modify(CR3::DMAR::CLEAR);
+    }
+
+    fn abort_tx(&self, error: hil::uart::Error) {
+        self.disable_tx();
+        self.usart_tx_state.set(USARTStateTX::Idle);
+
+        // get buffer
+        let buffer = self.tx_dma.map_or(None, |tx_dma| {
+            // `abort_transfer` also disables the stream
+            let buf = tx_dma.abort_transfer();
+            buf
+        });
+        self.tx_len.set(0);
+
+        // alert client
+        self.client.map(|client| {
+            buffer.map(|buf| {
+                client.transmit_complete(buf, error);
+            });
+        });
+    }
+
+    fn abort_rx(&self, error: hil::uart::Error) {
+        self.disable_rx();
+        self.usart_rx_state.set(USARTStateRX::Idle);
+
+        // get buffer
+        let mut length = 0;
+        let buffer = self.rx_dma.map_or(None, |rx_dma| {
+            // `abort_transfer` also disables the stream
+            let buf = rx_dma.abort_transfer();
+            length = self.rx_len.get() - rx_dma.get_transfer_counter();
+            buf
+        });
+        self.rx_len.set(0);
+
+        // alert client
+        self.client.map(|client| {
+            buffer.map(|buf| {
+                client.receive_complete(buf, length, error);
+            });
+        });
+    }
+
+    fn enable_transmit_complete_interrupt(&self) {
+        self.registers.cr1.modify(CR1::TCIE::SET);
+    }
+
+    fn disable_transmit_complete_interrupt(&self) {
+        self.registers.cr1.modify(CR1::TCIE::CLEAR);
+    }
+
+    fn clear_transmit_complete(&self) {
+        self.registers.sr.modify(SR::TC::CLEAR);
     }
 }
 
@@ -200,9 +350,6 @@ impl hil::uart::UART for Usart<'a> {
                 "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
             );
         }
-
-        // Right now in order to get the debug console working, only configure
-        // the transmit block
 
         // Configure the word length - 0: 1 Start bit, 8 Data bits, n Stop bits
         self.registers.cr1.modify(CR1::M::CLEAR);
@@ -224,28 +371,95 @@ impl hil::uart::UART for Usart<'a> {
         // Enable transmit block
         self.registers.cr1.modify(CR1::TE::SET);
 
+        // Enable receive block
+        self.registers.cr1.modify(CR1::RE::SET);
+
         // Enable USART
         self.registers.cr1.modify(CR1::UE::SET);
 
         ReturnCode::SUCCESS
     }
 
-    // Blocking transmit for now
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        for i in 0..tx_len {
-            // loop till TXE (Transmit data register empty) becomes 1
-            while !self.registers.sr.is_set(SR::TXE) {}
+        // In virtual_uart.rs, transmit is only called when inflight is None. So
+        // if the state machine is working correctly, transmit should never
+        // abort.
 
-            self.registers.dr.set(tx_data[i].into());
+        if self.usart_tx_state.get() != USARTStateTX::Idle {
+            // there is an ongoing transmission, quit it
+            self.abort_tx(hil::uart::Error::RepeatCallError);
         }
+
+        // setup and enable dma stream
+        self.tx_dma.map(move |dma| {
+            self.tx_len.set(tx_len);
+            dma.do_transfer(tx_data, tx_len);
+        });
+
+        self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+
+        // enable dma tx on peripheral side
+        self.enable_tx();
     }
 
-    fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {
-        unimplemented!();
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
+        if self.usart_rx_state.get() != USARTStateRX::Idle {
+            // there is an ongoing reception, quit it
+            self.abort_rx(hil::uart::Error::RepeatCallError);
+        }
+
+        // truncate rx_len if necessary
+        let mut length = rx_len;
+        if rx_len > rx_buffer.len() {
+            length = rx_buffer.len();
+        }
+
+        // setup and enable dma stream
+        self.rx_dma.map(move |dma| {
+            self.rx_len.set(length);
+            dma.do_transfer(rx_buffer, rx_len);
+        });
+
+        self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
+
+        // enable dma rx on the peripheral side
+        self.enable_rx();
     }
 
     fn abort_receive(&self) {
-        unimplemented!();
+        self.abort_rx(hil::uart::Error::Aborted);
+    }
+}
+
+impl dma1::StreamClient for Usart<'a> {
+    fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
+        match pid {
+            dma1::Dma1Peripheral::USART2_TX => {
+                self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
+                self.enable_transmit_complete_interrupt();
+            }
+            dma1::Dma1Peripheral::USART2_RX => {
+                // In case of RX, we can call the client directly without having
+                // to trigger an interrupt.
+                if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
+                    self.disable_rx();
+                    self.usart_rx_state.set(USARTStateRX::Idle);
+
+                    // get buffer
+                    let buffer = self.rx_dma.map_or(None, |rx_dma| rx_dma.return_buffer());
+
+                    let length = self.rx_len.get();
+                    self.rx_len.set(0);
+
+                    // alert client
+                    self.client.map(|client| {
+                        buffer.map(|buf| {
+                            client.receive_complete(buf, length, hil::uart::Error::CommandComplete);
+                        });
+                    });
+                }
+            }
+        }
     }
 }
 

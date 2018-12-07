@@ -5,6 +5,9 @@ use kernel::common::deferred_call;
 use kernel::Chip;
 
 use crate::deferred_call_tasks::Task;
+use crate::dma1;
+use crate::nvic;
+use crate::usart;
 
 pub struct Stm32f446re {
     mpu: cortexm4::mpu::MPU,
@@ -34,6 +37,25 @@ impl Chip for Stm32f446re {
                     match task {
                         Task::Nop => {}
                     }
+                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                    match interrupt {
+                        nvic::DMA1_Stream5 => dma1::Dma1Peripheral::USART2_RX
+                            .get_stream()
+                            .handle_interrupt(),
+                        nvic::DMA1_Stream6 => dma1::Dma1Peripheral::USART2_TX
+                            .get_stream()
+                            .handle_interrupt(),
+
+                        nvic::USART2 => usart::USART2.handle_interrupt(),
+
+                        _ => {
+                            panic!("unhandled interrupt {}", interrupt);
+                        }
+                    }
+
+                    let n = cortexm4::nvic::Nvic::new(interrupt);
+                    n.clear_pending();
+                    n.enable();
                 } else {
                     break;
                 }

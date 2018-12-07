@@ -1,9 +1,12 @@
+use cortexm4;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
 
+use crate::nvic;
 use crate::rcc;
+use crate::usart;
 
 /// DMA controller
 #[repr(C)]
@@ -776,7 +779,8 @@ enum TransferMode {
 #[allow(non_camel_case_types, non_snake_case)]
 #[derive(Copy, Clone)]
 pub enum Dma1Peripheral {
-    NOP,
+    USART2_TX,
+    USART2_RX,
 }
 
 impl Dma1Peripheral {
@@ -784,7 +788,8 @@ impl Dma1Peripheral {
     // to enable interrupt on the NVIC.
     pub fn get_stream_irqn(&self) -> u32 {
         match self {
-            Dma1Peripheral::NOP => 0,
+            Dma1Peripheral::USART2_TX => nvic::DMA1_Stream6,
+            Dma1Peripheral::USART2_RX => nvic::DMA1_Stream5,
         }
     }
 
@@ -796,7 +801,8 @@ impl Dma1Peripheral {
 impl From<Dma1Peripheral> for StreamId {
     fn from(pid: Dma1Peripheral) -> StreamId {
         match pid {
-            Dma1Peripheral::NOP => StreamId::Stream0,
+            Dma1Peripheral::USART2_TX => StreamId::Stream6,
+            Dma1Peripheral::USART2_RX => StreamId::Stream5,
         }
     }
 }
@@ -920,38 +926,100 @@ impl Stream<'a> {
     }
 
     fn set_channel(&self) {
-        self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+        self.peripheral.map(|pid| {
+            match pid {
+                Dma1Peripheral::USART2_TX => unsafe {
+                    // USART2_TX Stream 6, Channel 4
+                    DMA1.registers
+                        .s6cr
+                        .modify(S6CR::CHSEL.val(ChannelId::Channel4 as u32));
+                },
+                Dma1Peripheral::USART2_RX => unsafe {
+                    // USART2_RX Stream 5, Channel 4
+                    DMA1.registers
+                        .s5cr
+                        .modify(S5CR::CHSEL.val(ChannelId::Channel4 as u32));
+                },
+            }
         });
     }
 
     fn set_direction(&self) {
-        self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+        self.peripheral.map(|pid| {
+            match pid {
+                Dma1Peripheral::USART2_TX => unsafe {
+                    // USART2_TX Stream 6
+                    DMA1.registers
+                        .s6cr
+                        .modify(S6CR::DIR.val(Direction::MemoryToPeripheral as u32));
+                },
+                Dma1Peripheral::USART2_RX => unsafe {
+                    // USART2_RX Stream 5
+                    DMA1.registers
+                        .s5cr
+                        .modify(S5CR::DIR.val(Direction::PeripheralToMemory as u32));
+                },
+            }
         });
     }
 
     fn set_peripheral_address(&self) {
-        self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+        self.peripheral.map(|pid| {
+            match pid {
+                Dma1Peripheral::USART2_TX => unsafe {
+                    // USART2_TX Stream 6
+                    DMA1.registers.s6par.set(usart::USART2.get_address_dr());
+                },
+                Dma1Peripheral::USART2_RX => unsafe {
+                    // USART2_RX Stream 5
+                    DMA1.registers.s5par.set(usart::USART2.get_address_dr());
+                },
+            }
         });
     }
 
     fn set_peripheral_address_increment(&self) {
-        self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+        self.peripheral.map(|pid| {
+            match pid {
+                Dma1Peripheral::USART2_TX => unsafe {
+                    // USART2_TX Stream 6
+                    DMA1.registers.s6cr.modify(S6CR::PINC::CLEAR);
+                },
+                Dma1Peripheral::USART2_RX => unsafe {
+                    // USART2_RX Stream 5
+                    DMA1.registers.s5cr.modify(S5CR::PINC::CLEAR);
+                },
+            }
         });
     }
 
     fn set_memory_address(&self, buf_addr: u32) {
-        self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+        self.peripheral.map(|pid| {
+            match pid {
+                Dma1Peripheral::USART2_TX => unsafe {
+                    // USART2_TX Stream 6
+                    DMA1.registers.s6m0ar.set(buf_addr);
+                },
+                Dma1Peripheral::USART2_RX => unsafe {
+                    // USART2_RX Stream 5
+                    DMA1.registers.s5m0ar.set(buf_addr);
+                },
+            }
         });
     }
 
     fn set_memory_address_increment(&self) {
-        self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+        self.peripheral.map(|pid| {
+            match pid {
+                Dma1Peripheral::USART2_TX => unsafe {
+                    // USART2_TX Stream 6
+                    DMA1.registers.s6cr.modify(S6CR::MINC::SET);
+                },
+                Dma1Peripheral::USART2_RX => unsafe {
+                    // USART2_RX Stream 5
+                    DMA1.registers.s5cr.modify(S5CR::MINC::SET);
+                },
+            }
         });
     }
 
@@ -986,7 +1054,12 @@ impl Stream<'a> {
 
     fn set_data_width_for_peripheral(&self) {
         self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+            Dma1Peripheral::USART2_TX => {
+                self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
+            }
+            Dma1Peripheral::USART2_RX => {
+                self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
+            }
         });
     }
 
@@ -1029,7 +1102,12 @@ impl Stream<'a> {
 
     fn set_transfer_mode_for_peripheral(&self) {
         self.peripheral.map(|pid| match pid {
-            Dma1Peripheral::NOP => {}
+            Dma1Peripheral::USART2_TX => {
+                self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
+            }
+            Dma1Peripheral::USART2_RX => {
+                self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
+            }
         });
     }
 
