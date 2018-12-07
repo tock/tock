@@ -7,7 +7,10 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::cells::TakeCell;
+use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug_gpio, static_init};
 
@@ -47,7 +50,7 @@ impl Platform for NucleoF446RE {
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use kernel::hil::gpio::Pin;
-    use stm32f446re::gpio::{PinId, PortId, PORT};
+    use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
 
     PORT[PortId::A as usize].enable_clock();
 
@@ -57,6 +60,18 @@ unsafe fn set_pin_primary_functions() {
 
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
+    });
+
+    // pa2 and pa3 (USART2) is connected to ST-LINK virtual COM port
+    PinId::PA02.get_pin().as_ref().map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF7 is USART2_TX
+        pin.set_alternate_function(AlternateFunction::AF7);
+    });
+    PinId::PA03.get_pin().as_ref().map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF7 is USART2_RX
+        pin.set_alternate_function(AlternateFunction::AF7);
     });
 }
 
@@ -74,19 +89,45 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
-    // Test debug_gpio
-    debug_gpio!(0, toggle);
-
-    asm!("bkpt" :::: "volatile");
-
-    debug_gpio!(0, toggle);
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let chip = static_init!(
         stm32f446re::chip::Stm32f446re,
         stm32f446re::chip::Stm32f446re::new()
     );
+
+    // UART
+
+    // Create a shared UART channel for kernel debug.
+    stm32f446re::usart::USART2.enable_clock();
+    let mux_uart = static_init!(
+        MuxUart<'static>,
+        MuxUart::new(
+            &stm32f446re::usart::USART2,
+            &mut capsules::virtual_uart::RX_BUF,
+            115200
+        )
+    );
+
+    hil::uart::UART::set_client(&stm32f446re::usart::USART2, mux_uart);
+
+    // Normally `console.initialize()` will call `USART2.configure()`. We do not
+    // have console capsule as yet. So, we call `mux_uart.initialize()`, which
+    // does the same thing.
+    mux_uart.initialize();
+
+    // Hello World!
+    static mut HELLO_WORLD: [u8; 14] = [
+        b'\n', b'H', b'e', b'l', b'l', b'o', b' ', b'w', b'o', b'r', b'l', b'd', b'!', b'\n',
+    ];
+
+    let uart_test: TakeCell<'static, [u8]> = TakeCell::new(&mut HELLO_WORLD);
+
+    uart_test.take().map(|buf| {
+        hil::uart::UART::transmit(&stm32f446re::usart::USART2, buf, 12);
+    });
+
+    asm!("bkpt" :::: "volatile");
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
