@@ -63,7 +63,6 @@ add_board nordic/nrf51dk
 add_board nordic/nrf52dk
 add_board nordic/nrf52840dk
 add_board launchxl
-add_board ek-tm4c1294xl
 
 # Temporary redirect rule
 # https://www.netlify.com/docs/redirects/
