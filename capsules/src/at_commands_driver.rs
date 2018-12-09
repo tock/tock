@@ -1,6 +1,23 @@
 //! Userspace driver for AT commands.
 //!
-//! This driver was implemented for the ESP32 using AT commands.
+//! This capsule exposes a userspace driver interface designed to support
+//! sending AT commands to radios. To control a radio, userspace can `allow` a
+//! TX buffer, and then use a command to send a desired number of bytes from
+//! that buffer to the radio. Also, there is an optional TX done callback that
+//! can be subscribed to. On the receive path, userspace applications should
+//! `allow` an RX buffer and then use a command to enable receiving into that
+//! buffer. This should likely be done _before_ a TX to make sure that no bytes
+//! are missed.
+//!
+//! This driver uses grant space to accommodate multiple applications, but given
+//! the nature of AT command based radios it isn't designed to be used by
+//! multiple applications. The first application to request a TX or RX will win
+//! with this driver, and other requests will return errors until the first
+//! app's transaction finishes.
+//!
+//! This driver was implemented and tested using an ESP32 Wi-Fi chip
+//! programmed to support AT commands. It is largely generic, and should support
+//! any generic AT command-based radio, but it has not been tested extensively.
 //!
 //! Usage
 //! -----
@@ -138,7 +155,7 @@ impl<U: UARTReceiveAdvanced> Driver for AtCommands<'a, U> {
     /// - `0`: Driver check.
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`.
-    /// - `2`: Receives into a buffer passed via `allow`, waiting for a `\n`.
+    /// - `2`: Receives into a buffer passed via `allow`.
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -152,7 +169,7 @@ impl<U: UARTReceiveAdvanced> Driver for AtCommands<'a, U> {
                             ReturnCode::EINVAL
                         } else {
                             // Copy into our buffer and then TX.
-                            self.tx_buffer.take().map(|buffer| {
+                            self.tx_buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
                                 for (i, c) in slice.as_ref()[0..len]
                                     .iter()
                                     .enumerate()
@@ -165,8 +182,8 @@ impl<U: UARTReceiveAdvanced> Driver for AtCommands<'a, U> {
 
                                 self.tx_in_progress.set(appid);
                                 self.uart.transmit(buffer, len);
-                            });
-                            ReturnCode::SUCCESS
+                                ReturnCode::SUCCESS
+                            })
                         }
                     })
                 }).unwrap_or_else(|err| err.into())
@@ -185,8 +202,9 @@ impl<U: UARTReceiveAdvanced> Driver for AtCommands<'a, U> {
 
 impl<U: UARTReceiveAdvanced> hil::uart::Client for AtCommands<'a, U> {
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: hil::uart::Error) {
-        // Either print more from the AppSlice or send a callback to the
-        // application.
+        // Replace the buffer and then issue a callback to the app (if it
+        // subscribed to the callback) notifying that the transmission has
+        // finished.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.take().map(|appid| {
             self.apps.enter(appid, |app, _| {
