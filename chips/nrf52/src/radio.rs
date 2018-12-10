@@ -770,7 +770,7 @@ impl Radio {
 
                             // TODO: Check if the length is still valid
                             // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                            client.receive(&mut PAYLOAD[PREBUF_LEN_BYTES..], (PAYLOAD[RAM_S0_BYTES]) as usize,true, result)
+                            client.receive(&mut PAYLOAD[PREBUF_LEN_BYTES..], (PAYLOAD[RAM_S0_BYTES] as usize),true, result)
                         });
                     }
                 }
@@ -889,7 +889,7 @@ impl Radio {
         // sets the header length to 1 byte
         regs.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
-                + PacketConfiguration0::S0LEN.val(8)
+                + PacketConfiguration0::S0LEN.val(0)
                 + PacketConfiguration0::S1LEN::CLEAR
                 + PacketConfiguration0::S1INCL::CLEAR
                 + PacketConfiguration0::PLEN::THIRTYTWOZEROS
@@ -1063,6 +1063,7 @@ impl kernel::hil::radio::RadioData for Radio {
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
         self.kernel_tx.replace(self.replace_radio_buffer(buf));
+        
         unsafe{
             PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
         }

@@ -165,6 +165,7 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
         // Filter packets by destination because radio is in promiscuous mode
         let mut addr_match = false;
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {
+            //debug!("[AwakeMac] Addr: {:?}\t PAN:{:?}",header.dst_addr,header.dst_pan);
             if let Some(dst_addr) = header.dst_addr {
                 addr_match = match dst_addr {
                     MacAddress::Short(addr) => addr == self.radio.get_address(),
@@ -180,7 +181,7 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
             });
         } else {
             debug!("[AwakeMAC] Received a packet, but not addressed to us");
-            debug!("radio addr is: {:?}", self.radio.get_address());
+            debug!("radio addr is: {:x}", self.radio.get_address());
             //self.radio.set_receive_buffer(buf);
         }
     }

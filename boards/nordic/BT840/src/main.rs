@@ -20,7 +20,7 @@ extern crate nrf5x;
 use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: usize = 13;
+const LED1_PIN: usize = 17;
 const LED2_PIN: usize = 14;
 const LED3_PIN: usize = 15;
 const LED4_PIN: usize = 16;

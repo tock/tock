@@ -350,7 +350,7 @@ pub unsafe fn setup_board(
     radio_mac.set_pan(PAN_ID);
     radio_mac.set_address(SRC_MAC);
 
-    radio_virtual_alarm.set_client(ble_radio);
+    //radio_virtual_alarm.set_client(ble_radio);
 
 
     //&nrf52::radio::RADIO.startup();
