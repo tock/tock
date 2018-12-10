@@ -51,13 +51,13 @@ const RADIO_BASE: StaticRef<RadioRegisters> =
 
 pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
 
-pub const RAM_S0_BYTES: usize = 0; 
+pub const RAM_S0_BYTES: usize = 1; 
 
 pub const RAM_LEN_BITS: usize = 8; 
 
 pub const RAM_S1_BITS: usize = 0; 
 
-pub const PREBUF_LEN_BYTES: usize = 1;
+pub const PREBUF_LEN_BYTES: usize = 2;
 
 
 #[repr(C)]
@@ -770,7 +770,7 @@ impl Radio {
 
                             // TODO: Check if the length is still valid
                             // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                            client.receive(&mut PAYLOAD[PREBUF_LEN_BYTES..], (PAYLOAD[RAM_S0_BYTES] as usize),true, result)
+                            client.receive(&mut PAYLOAD, (PAYLOAD[RAM_S0_BYTES] as usize) +PREBUF_LEN_BYTES,true, result)
                         });
                     }
                 }
@@ -818,7 +818,7 @@ impl Radio {
         }
         for (i, c) in buf.as_ref().iter().enumerate() {
             unsafe {
-                PAYLOAD[i+PREBUF_LEN_BYTES] = *c;
+                PAYLOAD[i] = *c;
             }
         }
         buf
@@ -889,7 +889,7 @@ impl Radio {
         // sets the header length to 1 byte
         regs.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
-                + PacketConfiguration0::S0LEN.val(0)
+                + PacketConfiguration0::S0LEN.val(1)
                 + PacketConfiguration0::S1LEN::CLEAR
                 + PacketConfiguration0::S1INCL::CLEAR
                 + PacketConfiguration0::PLEN::THIRTYTWOZEROS
@@ -1067,7 +1067,6 @@ impl kernel::hil::radio::RadioData for Radio {
         unsafe{
             PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
             debug!("[PHY] {:?}",PAYLOAD[1..10].as_ref());
-
         }
         self.transmitting.set(true);
         self.radio_off();
