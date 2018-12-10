@@ -832,6 +832,7 @@ impl device::RxClient for RadioDriver<'a> {
                 // Copy the entire frame over to userland, preceded by two
                 // bytes: the data offset and the data length.
                 rbuf[..len].copy_from_slice(&buf[..len]);
+                //debug!("[Driver] {:?}",rbuf[0..9].as_ref());
                 rbuf[0] = data_offset as u8;
                 rbuf[1] = data_len as u8;
 
@@ -839,9 +840,7 @@ impl device::RxClient for RadioDriver<'a> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                debug!("{:x}\t{:x}\t{:x}\r",pans,dst_addr,src_addr);
                 //debug!("{:?}\t{:?}\r",rbuf.len(), data_offset + data_len);
-                debug!("{:?}\r",buf.len());
                 app.rx_callback
                     .take()
                     .map(|mut cb| cb.schedule(pans, dst_addr, src_addr));

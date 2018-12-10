@@ -1066,6 +1066,8 @@ impl kernel::hil::radio::RadioData for Radio {
         
         unsafe{
             PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
+            debug!("[PHY] {:?}",PAYLOAD[1..10].as_ref());
+
         }
         self.transmitting.set(true);
         self.radio_off();
