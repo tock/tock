@@ -11,6 +11,7 @@
 //!  - 'list' lists the current processes with their IDs and running state
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
+//!  - 'fault n' forces the process with name n into a fault state
 //!
 //! Setup
 //! -----
@@ -220,6 +221,20 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                                     },
                                 );
                             });
+                        } else if clean_str.starts_with("fault") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel.process_each_capability(
+                                    &self.capability,
+                                    |_i, proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.set_fault_state();
+                                            debug!("Process {} now faulted", proc_name);
+                                        }
+                                    },
+                                );
+                            });
                         } else if clean_str.starts_with("list") {
                             debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks    State");
                             self.kernel
@@ -250,7 +265,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                                 info.timeslice_expirations(&self.capability)
                             );
                         } else {
-                            debug!("Valid commands are: help status list stop start");
+                            debug!("Valid commands are: help status list stop start fault");
                         }
                     }
                     Err(_e) => debug!("Invalid command: {:?}", command),
