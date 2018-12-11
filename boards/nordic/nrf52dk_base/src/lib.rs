@@ -292,17 +292,17 @@ pub unsafe fn setup_board(
     //    sam4l::aes::AES.set_client(aes_ccm);
     //   sam4l::aes::AES.enable();
     
-    let awake_mac: &AwakeMac<nrf52::radio::Radio> =
+    let awake_mac: &AwakeMac<nrf52::nrf_radio::Radio> =
         static_init!(
-            AwakeMac<'static, nrf52::radio::Radio>, 
-            AwakeMac::new(&nrf52::radio::RADIO)
+            AwakeMac<'static, nrf52::nrf_radio::Radio>, 
+            AwakeMac::new(&nrf52::nrf_radio::RADIO)
         );
     kernel::hil::radio::Radio::set_transmit_client(
-        &nrf52::radio::RADIO,
+        &nrf52::nrf_radio::RADIO,
         awake_mac,
     );
     kernel::hil::radio::Radio::set_receive_client(
-        &nrf52::radio::RADIO,
+        &nrf52::nrf_radio::RADIO,
         awake_mac
     );
 
@@ -310,7 +310,7 @@ pub unsafe fn setup_board(
     let mac_device = static_init!(
         capsules::ieee802154::framer::Framer<
             'static,
-            AwakeMac<'static, nrf52::radio::Radio>,
+            AwakeMac<'static, nrf52::nrf_radio::Radio>,
             capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
         >,
         capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
@@ -353,28 +353,28 @@ pub unsafe fn setup_board(
     //radio_virtual_alarm.set_client(ble_radio);
 
 
-    //&nrf52::radio::RADIO.startup();
+    //&nrf52::nrf_radio::RADIO.startup();
 
     /*
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
             'static,
-            nrf52::radio::Radio,
+            nrf52::nrf_radio::Radio,
             VirtualMuxAlarm<'static, Rtc>,
         >,
         capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::radio::RADIO,
+            &mut nrf52::nrf_radio::RADIO,
             board_kernel.create_grant(&memory_allocation_capability),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
     );
     kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::radio::RADIO,
+        &nrf52::nrf_radio::RADIO,
         ble_radio,
     );
     kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::radio::RADIO,
+        &nrf52::nrf_radio::RADIO,
         ble_radio,
     );
     ble_radio_virtual_alarm.set_client(ble_radio);

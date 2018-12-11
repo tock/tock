@@ -7,7 +7,7 @@ use kernel::common::deferred_call;
 use nrf5x;
 use nrf5x::peripheral_interrupts;
 use nvmc;
-use radio;
+use nrf_radio;
 use spi;
 use uart;
 
@@ -57,7 +57,7 @@ impl kernel::Chip for NRF52 {
                     match interrupt {
                         peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
                         peripheral_interrupts::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                        peripheral_interrupts::RADIO => radio::RADIO.handle_interrupt(),
+                        peripheral_interrupts::RADIO => nrf_radio::RADIO.handle_interrupt(),
                         peripheral_interrupts::RNG => nrf5x::trng::TRNG.handle_interrupt(),
                         peripheral_interrupts::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
                         peripheral_interrupts::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
