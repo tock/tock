@@ -59,7 +59,6 @@ cp -r boards/hail/target/thumbv7em-none-eabi/doc doc/rustdoc
 
 # Now can do all the rest.
 add_board imix
-add_board nordic/nrf51dk
 add_board nordic/nrf52dk
 add_board nordic/nrf52840dk
 add_board launchxl
