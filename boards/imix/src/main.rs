@@ -371,7 +371,7 @@ pub unsafe fn reset_handler() {
     .finalize();
 
     let adc = AdcComponent::new().finalize();
-    let gpio = GpioComponent::new().finalize();
+    let gpio = GpioComponent::new(board_kernel).finalize();
     let led = LedComponent::new().finalize();
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();

@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let button = ButtonComponent::new().finalize();
+//! let button = ButtonComponent::new(board_kernel).finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>

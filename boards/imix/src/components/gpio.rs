@@ -9,7 +9,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let gpio = GpioComponent::new().finalize();
+//! let gpio = GpioComponent::new(board_kernel).finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -18,13 +18,18 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::gpio;
+use kernel::capabilities;
 use kernel::component::Component;
 
-pub struct GpioComponent {}
+pub struct GpioComponent {
+    board_kernel: &'static kernel::Kernel,
+}
 
 impl GpioComponent {
-    pub fn new() -> GpioComponent {
-        GpioComponent {}
+    pub fn new(board_kernel: &'static kernel::Kernel) -> GpioComponent {
+        GpioComponent {
+            board_kernel: board_kernel,
+        }
     }
 }
 
@@ -32,6 +37,8 @@ impl Component for GpioComponent {
     type Output = &'static gpio::GPIO<'static, sam4l::gpio::GPIOPin>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
         let gpio_pins = static_init!(
             [&'static sam4l::gpio::GPIOPin; 7],
             [
@@ -47,7 +54,7 @@ impl Component for GpioComponent {
 
         let gpio = static_init!(
             gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-            gpio::GPIO::new(gpio_pins)
+            gpio::GPIO::new(gpio_pins, self.board_kernel.create_grant(&grant_cap))
         );
         for pin in gpio_pins.iter() {
             pin.set_client(gpio);
