@@ -8,7 +8,7 @@ use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::mpu;
 
-/// MPU Registers for the Cortex-M[34] families
+/// MPU Registers for the Cortex-M3 and Cortex-M4 families
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
 #[repr(C)]

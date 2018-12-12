@@ -29,7 +29,7 @@ struct AdcRegisters {
     events_calibratedone: ReadWrite<u32, EVENT::Register>,
     /// The ADC has stopped
     events_stopped: ReadWrite<u32, EVENT::Register>,
-    /// Last result is equal or above CH[X].LIMIT
+    /// Last result is equal or above `CH[X].LIMIT`
     events_ch: [AdcEventChRegisters; 8],
     _reserved1: [u8; 424],
     /// Enable or disable interrupt
