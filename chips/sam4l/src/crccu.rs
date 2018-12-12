@@ -48,12 +48,12 @@
 //
 // - Support continuous-mode CRC
 
+use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::crc::{self, CrcAlg};
 use kernel::ReturnCode;
-use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 const BASE_ADDRESS: StaticRef<CrccuRegisters> =

@@ -98,13 +98,14 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::common::cells::OptionalCell;
+use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::BLE_ADVERTISING as usize;
 
 /// Advertisement Buffer

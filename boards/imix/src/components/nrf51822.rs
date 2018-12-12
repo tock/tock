@@ -15,8 +15,9 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::nrf51822_serialization;
-use hil;
 use kernel::component::Component;
+use kernel::hil;
+use kernel::static_init;
 
 pub struct Nrf51822Component {
     uart: &'static sam4l::usart::USART,

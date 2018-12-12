@@ -18,6 +18,7 @@ use capsules::rng;
 use capsules::test::rng::TestRng;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng::Rng;
+use kernel::static_init;
 use sam4l::trng::TRNG;
 
 pub unsafe fn run_entropy32() {

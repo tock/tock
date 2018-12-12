@@ -5,22 +5,8 @@
 
 #![no_std]
 #![no_main]
-#![feature(in_band_lifetimes)]
+#![feature(in_band_lifetimes, uniform_paths)]
 #![deny(missing_docs)]
-
-extern crate capsules;
-#[allow(unused_imports)]
-#[macro_use(
-    debug,
-    debug_gpio,
-    static_init,
-    create_capability,
-    register_bitfields,
-    register_bitmasks
-)]
-extern crate kernel;
-extern crate cortexm4;
-extern crate sam4l;
 
 mod components;
 use capsules::alarm::AlarmDriver;
@@ -38,6 +24,8 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
+#[allow(unused_imports)]
+use kernel::{create_capability, debug, debug_gpio, static_init};
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;

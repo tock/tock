@@ -5,8 +5,6 @@
 //!
 //! ```rust
 //! # #![feature(const_fn)]
-//! # extern crate core;
-//! # extern crate kernel;
 //! use core::ops::{Index, IndexMut};
 //!
 //! use kernel::hil;
@@ -89,7 +87,7 @@
 //! }
 //! ```
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// Flash errors returned in the callbacks.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

@@ -24,6 +24,7 @@
 use capsules::test::aes::TestAes128Cbc;
 use capsules::test::aes::TestAes128Ctr;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::static_init;
 use sam4l::aes::{Aes, AES};
 
 pub unsafe fn run_aes128_ctr() {

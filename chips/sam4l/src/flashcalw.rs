@@ -21,16 +21,16 @@
 //! - Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
 //! - Date: July 27, 2016
 
+use crate::deferred_call_tasks::Task;
+use crate::pm;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use deferred_call_tasks::Task;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::deferred_call::DeferredCall;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
-use pm;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
 #[repr(C)]

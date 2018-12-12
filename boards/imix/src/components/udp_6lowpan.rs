@@ -32,7 +32,9 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil::radio;
+use kernel::static_init;
 
 const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
 

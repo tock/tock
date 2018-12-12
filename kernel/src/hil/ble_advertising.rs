@@ -47,7 +47,7 @@
 //!
 //! ```
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(

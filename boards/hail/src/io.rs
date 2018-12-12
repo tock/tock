@@ -6,7 +6,7 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,

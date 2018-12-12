@@ -51,7 +51,7 @@ use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::LTC294X as usize;
 
 pub static mut BUFFER: [u8; 20] = [0; 20];

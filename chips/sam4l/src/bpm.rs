@@ -1,6 +1,6 @@
 //! Implementation of the BPM peripheral.
 
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
 #[repr(C)]

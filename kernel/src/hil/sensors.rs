@@ -1,6 +1,6 @@
 //! Interfaces for environment sensors
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// A basic interface for a temperature sensor
 pub trait TemperatureDriver {

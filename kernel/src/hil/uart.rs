@@ -1,6 +1,6 @@
 //! Interfaces for UART communications.
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum StopBits {

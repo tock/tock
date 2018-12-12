@@ -5,12 +5,12 @@
 //! - Author: Justin Hsieh <hsiehju@umich.edu>
 //! - Date: May 26th, 2017
 
+use crate::pm::{self, Clock, PBAClock};
 use core::cell::Cell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
-use pm::{self, Clock, PBAClock};
 
 #[repr(C)]
 pub struct DacRegisters {
