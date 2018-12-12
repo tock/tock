@@ -28,6 +28,7 @@ The list of Tock capsules and a brief description.
 
 These implement a driver to setup and read various physical sensors.
 
+- **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
@@ -89,6 +90,7 @@ These provide common and better abstractions for userspace.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
 - **[Button](src/button.rs)**: Detect button presses.
+- **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Console](src/console.rs)**: UART console support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
