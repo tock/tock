@@ -8,12 +8,6 @@
 #![feature(in_band_lifetimes)]
 #![no_std]
 
-extern crate cortexm4;
-extern crate tock_rt0;
-#[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
-extern crate kernel;
-
 mod deferred_call_tasks;
 
 pub mod acifc;

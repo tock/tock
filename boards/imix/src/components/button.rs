@@ -18,6 +18,8 @@
 use capsules::button;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
+use kernel::static_init;
 
 pub struct ButtonComponent {
     board_kernel: &'static kernel::Kernel,

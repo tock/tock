@@ -12,9 +12,10 @@
 
 use capsules::process_console;
 use capsules::virtual_uart::{UartDevice, UartMux};
-use hil;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil;
+use kernel::static_init;
 
 pub struct ProcessConsoleComponent {
     board_kernel: &'static kernel::Kernel,

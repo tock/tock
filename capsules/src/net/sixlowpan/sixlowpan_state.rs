@@ -224,22 +224,22 @@
 //     reassembled.
 //
 
+use crate::ieee802154::device::{MacDevice, RxClient};
+use crate::ieee802154::framer::Frame;
+use crate::net::frag_utils::Bitmap;
+use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
+use crate::net::ipv6::ipv6::IP6Packet;
+use crate::net::sixlowpan::sixlowpan_compression;
+use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
+use crate::net::util::{slice_to_u16, u16_to_slice};
 use core::cell::Cell;
 use core::cmp::min;
-use ieee802154::device::{MacDevice, RxClient};
-use ieee802154::framer::Frame;
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
-use net::frag_utils::Bitmap;
-use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
-use net::ipv6::ipv6::IP6Packet;
-use net::sixlowpan::sixlowpan_compression;
-use net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
-use net::util::{slice_to_u16, u16_to_slice};
 
 // Reassembly timeout in seconds
 const FRAG_TIMEOUT: u32 = 60;

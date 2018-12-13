@@ -18,8 +18,10 @@
 use capsules::rng;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
+use kernel::static_init;
 
 pub struct RngComponent {
     board_kernel: &'static kernel::Kernel,

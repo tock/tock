@@ -2,7 +2,7 @@
 //!
 //! see boards/imix/src/aes_test.rs for example usage
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks from an `AES128`
 /// instance.

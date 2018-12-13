@@ -6,7 +6,7 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use sam4l;
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,

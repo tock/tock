@@ -1,7 +1,7 @@
 //! Implementation of the MEMOP family of syscalls.
 
-use process::ProcessType;
-use returncode::ReturnCode;
+use crate::process::ProcessType;
+use crate::returncode::ReturnCode;
 
 /// Handle the `memop` syscall.
 ///

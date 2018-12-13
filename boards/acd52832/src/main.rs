@@ -4,14 +4,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-extern crate capsules;
-extern crate cortexm4;
-#[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
-extern crate kernel;
-extern crate nrf52;
-extern crate nrf5x;
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use kernel::capabilities;
@@ -19,6 +11,8 @@ use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::Pin;
 use kernel::hil::rng::Rng;
+#[allow(unused_imports)]
+use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf5x::rtc::Rtc;
 
 const LED1_PIN: usize = 26;

@@ -1,7 +1,7 @@
 //! Interface for GPIO pins that require split-phase operation to control.
 
-use hil;
-use returncode::ReturnCode;
+use crate::hil;
+use crate::returncode::ReturnCode;
 
 /// Interface for banks of asynchronous GPIO pins. GPIO pins are asynchronous
 /// when there is an asynchronous interface used to control them. The most

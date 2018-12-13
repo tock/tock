@@ -51,6 +51,8 @@
 //! sam4l::aes::AES.enable();
 //! ```
 
+use crate::net::stream::SResult;
+use crate::net::stream::{encode_bytes, encode_u16};
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::symmetric_encryption;
@@ -58,8 +60,6 @@ use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
 };
 use kernel::ReturnCode;
-use net::stream::SResult;
-use net::stream::{encode_bytes, encode_u16};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum CCMState {

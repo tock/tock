@@ -71,7 +71,7 @@ use kernel::hil::crc::CrcAlg;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CRC as usize;
 
 /// An opaque value maintaining state for one application's request

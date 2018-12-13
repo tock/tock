@@ -23,7 +23,6 @@
 //! ...
 //! udp_lowpan_test.start();
 
-extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
@@ -35,9 +34,11 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::static_init;
 use kernel::ReturnCode;
 
 pub const SRC_ADDR: IPAddr = IPAddr([

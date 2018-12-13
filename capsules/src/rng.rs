@@ -26,7 +26,7 @@ use kernel::hil::rng::{Client, Continue, Random, Rng};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::RNG as usize;
 
 #[derive(Default)]

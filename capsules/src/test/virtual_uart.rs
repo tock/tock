@@ -1,10 +1,11 @@
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
+use crate::virtual_uart::UartDevice;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart;
 use kernel::hil::uart::Receive;
+use kernel::debug;
 use kernel::ReturnCode;
-use virtual_uart::UartDevice;
 
 pub struct TestVirtualUartReceive {
     device: &'static UartDevice<'static>,

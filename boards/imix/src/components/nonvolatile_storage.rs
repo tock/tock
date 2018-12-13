@@ -19,7 +19,9 @@ use capsules::nonvolatile_storage_driver::NonvolatileStorage;
 use capsules::nonvolatile_to_pages::NonvolatileToPages;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil;
+use kernel::static_init;
 
 pub struct NonvolatileStorageComponent {
     board_kernel: &'static kernel::Kernel,

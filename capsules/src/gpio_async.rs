@@ -29,7 +29,7 @@ use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::GPIO_ASYNC as usize;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port> {

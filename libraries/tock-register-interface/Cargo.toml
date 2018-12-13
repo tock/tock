@@ -9,6 +9,7 @@ readme = "README.md"
 keywords = ["tock", "embedded", "registers", "mmio", "bare-metal"]
 categories = ["data-structures", "embedded", "no-std"]
 license = "MIT/Apache-2.0"
+edition = "2018"
 
 [badges]
 travis-ci = { repository = "tock/tock", branch = "master" }

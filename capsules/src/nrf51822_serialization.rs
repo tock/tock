@@ -24,7 +24,7 @@ use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::NRF51822_SERIALIZATION as usize;
 
 #[derive(Default)]

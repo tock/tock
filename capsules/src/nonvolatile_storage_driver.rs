@@ -59,7 +59,7 @@ use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::NVM_STORAGE as usize;
 
 pub static mut BUFFER: [u8; 512] = [0; 512];

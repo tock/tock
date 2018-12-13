@@ -26,12 +26,12 @@
 //! mux_mac.add_user(virtual_mac);
 //! ```
 
+use crate::ieee802154::{device, framer};
+use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use core::cell::Cell;
-use ieee802154::{device, framer};
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::ReturnCode;
-use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
 /// any pending transmission requests. Any received frames from the underlying

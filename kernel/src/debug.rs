@@ -23,7 +23,7 @@
 //! -------
 //!
 //! ```no_run
-//! # #[macro_use] extern crate kernel;
+//! # use kernel::{debug, debug_gpio, debug_verbose};
 //! # fn main() {
 //! # let i = 42;
 //! debug!("Yes the code gets here with value {}", i);
@@ -45,11 +45,11 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-use common::cells::NumericCellExt;
-use common::cells::{MapCell, TakeCell};
-use hil;
-use ReturnCode;
-use process::ProcessType;
+use crate::common::cells::NumericCellExt;
+use crate::common::cells::{MapCell, TakeCell};
+use crate::hil;
+use crate::process::ProcessType;
+use crate::ReturnCode;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines

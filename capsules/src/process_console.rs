@@ -96,6 +96,7 @@ use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
 use kernel::hil::uart;
+use kernel::debug;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;

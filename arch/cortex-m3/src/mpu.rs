@@ -4,7 +4,7 @@
 use core::cmp;
 use kernel;
 use kernel::common::math;
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::mpu;
 

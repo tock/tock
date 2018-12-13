@@ -6,15 +6,15 @@ use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::spi;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 
-use dma;
-use pm;
+use crate::dma;
+use crate::pm;
 
 // Register map for SAM4L USART
 #[repr(C)]
@@ -1011,7 +1011,7 @@ impl spi::SpiMaster for USART<'a> {
 
     fn read_write_bytes(
         &self,
-        mut write_buffer: &'static mut [u8],
+        write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) -> ReturnCode {

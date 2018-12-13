@@ -8,12 +8,12 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
 use kernel::common::deferred_call::DeferredCall;
-use kernel::common::registers::{ReadOnly, ReadWrite};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
-use deferred_call_tasks::DeferredCallTask;
+use crate::deferred_call_tasks::DeferredCallTask;
 
 const NVMC_BASE: StaticRef<NvmcRegisters> =
     unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };

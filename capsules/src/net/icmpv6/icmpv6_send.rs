@@ -7,12 +7,12 @@
 //!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
+use crate::net::icmpv6::icmpv6::ICMP6Header;
+use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ipv6::TransportHeader;
+use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
-use net::icmpv6::icmpv6::ICMP6Header;
-use net::ipv6::ip_utils::IPAddr;
-use net::ipv6::ipv6::TransportHeader;
-use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 
 /// A trait for a client of an `ICMP6Sender`.
 pub trait ICMP6SendClient {

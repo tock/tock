@@ -15,6 +15,7 @@
 use capsules::aes_ccm;
 use capsules::test::aes_ccm::Test;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
+use kernel::static_init;
 use sam4l::aes::{Aes, AES};
 
 pub unsafe fn run() {

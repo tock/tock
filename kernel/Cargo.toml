@@ -2,6 +2,7 @@
 name = "kernel"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2018"
 
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }

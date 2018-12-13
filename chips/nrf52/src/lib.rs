@@ -3,21 +3,6 @@
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
 
-#[allow(unused_imports)]
-extern crate cortexm4;
-extern crate nrf5x;
-extern crate tock_rt0;
-
-#[allow(unused)]
-#[macro_use(
-    debug,
-    debug_verbose,
-    debug_gpio,
-    register_bitfields,
-    register_bitmasks
-)]
-extern crate kernel;
-
 pub mod adc;
 pub mod chip;
 pub mod clock;
@@ -33,4 +18,4 @@ pub mod spi;
 pub mod uart;
 pub mod uicr;
 
-pub use crt1::init;
+pub use crate::crt1::init;
