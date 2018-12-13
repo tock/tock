@@ -502,7 +502,7 @@ impl USART<'a> {
 
             // get buffer
             let mut length = 0;
-            let mut buffer = self.rx_dma.get().map_or(None, |rx_dma| {
+            let mut buffer = self.rx_dma.get().and_then(|rx_dma| {
                 length = self.rx_len.get() - rx_dma.transfer_counter();
                 let buf = rx_dma.abort_transfer();
                 rx_dma.disable();
@@ -512,13 +512,8 @@ impl USART<'a> {
 
             // alert client
             self.client.map(|usartclient| {
-                match usartclient {
-                    UsartClient::Uart(rx, _tx) => {
-                        if buffer.is_some() {
-                            rx.map(|client| client.received_buffer(buffer.take().unwrap(), length, rcode, error));
-                        }
-                    },
-                    _ => {}
+                if let UsartClient::Uart(Some(rx), _tx) = usartclient {
+                    buffer.take().map(|buf| rx.received_buffer(buf, length, rcode, error));
                 }
             });
         }
@@ -532,7 +527,7 @@ impl USART<'a> {
 
             // get buffer
             let mut length = 0;
-            let mut buffer = self.tx_dma.get().map_or(None, |tx_dma| {
+            let mut buffer = self.tx_dma.get().and_then(|tx_dma| {
                 length = self.tx_len.get() - tx_dma.transfer_counter();
                 let buf = tx_dma.abort_transfer();
                 tx_dma.disable();
@@ -542,13 +537,8 @@ impl USART<'a> {
 
             // alert client
             self.client.map(|usartclient| {
-                match usartclient {
-                    UsartClient::Uart(_rx, tx) => {
-                        if buffer.is_some() {
-                            tx.map(|client| client.transmitted_buffer(buffer.take().unwrap(), length, rcode));
-                        }
-                    },
-                    UsartClient::SpiMaster(_) => {}
+                if let UsartClient::Uart(_rx, Some(tx)) = usartclient {
+                    buffer.take().map(|buf| tx.transmitted_buffer(buf, length, rcode));
                 }
             });
         }
@@ -767,7 +757,7 @@ impl dma::DMAClient for USART<'a> {
                     self.usart_rx_state.set(USARTStateRX::Idle);
 
                     // get buffer
-                    let buffer = self.rx_dma.get().map_or(None, |rx_dma| {
+                    let buffer = self.rx_dma.get().and_then(|rx_dma| {
                         let buf = rx_dma.abort_transfer();
                         rx_dma.disable();
                         buf
@@ -775,21 +765,17 @@ impl dma::DMAClient for USART<'a> {
 
                     // alert client
                     self.client.map(|usartclient| {
-                        if buffer.is_some() {
-                            let length = self.rx_len.get();
-                            self.rx_len.set(0);
-                            match usartclient {
-                                UsartClient::Uart(rx, _tx) => {
-                                    rx.map(|client|
-                                           client.received_buffer(
-                                               buffer.unwrap(),
+                        if let UsartClient::Uart(Some(rx), _tx) = usartclient {
+                            buffer.map(|buf| {
+                                let length = self.rx_len.get();
+                                self.rx_len.set(0);
+                                rx.received_buffer(
+                                               buf,
                                                length,
                                                ReturnCode::SUCCESS,
                                                uart::Error::None,
-                                           ));
-                                }
-                                UsartClient::SpiMaster(_) => {}
-                            }
+                                           );
+                            });
                         }
                     });
                 } else if pid == self.tx_dma_peripheral {
@@ -832,22 +818,12 @@ impl dma::DMAClient for USART<'a> {
 /// Implementation of kernel::uart
 impl uart::Receive<'a> for USART<'a> {
     fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
-        if self.client.is_some() {
-            let existing = self.client.take().unwrap();
-            let new_client = match existing {
-                UsartClient::Uart(_rx, tx) => {
-                    UsartClient::Uart(Some(client), tx)
-                }
-                _ => {
-                    UsartClient::Uart(Some(client), None)
-                }
-            };
-            self.client.set(new_client);
+        if let Some(UsartClient::Uart(_rx, Some(tx))) = self.client.take() {
+            self.client.set(UsartClient::Uart(Some(client), Some(tx)));
         } else {
             self.client.set(UsartClient::Uart(Some(client), None));
         }
     }
-
 
     fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
         if rx_len > rx_buffer.len() {
@@ -860,12 +836,10 @@ impl uart::Receive<'a> for USART<'a> {
         self.enable_rx_error_interrupts(usart);
         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
         // set up dma transfer and start reception
-        if self.rx_dma.get().is_some() {
-            self.rx_dma.get().map(move |dma| {
-                dma.enable();
-                self.rx_len.set(rx_len);
-                dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
-            });
+        if let Some(dma) = self.rx_dma.get() {
+            dma.enable();
+            self.rx_len.set(rx_len);
+            dma.do_transfer(self.rx_dma_peripheral, rx_buffer, rx_len);
             (ReturnCode::SUCCESS, None)
         } else {
             (ReturnCode::EOFF, Some(rx_buffer))
@@ -923,22 +897,13 @@ impl uart::Transmit<'a> for USART<'a> {
     }
 
     fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
-        if self.client.is_some() {
-            let existing = self.client.take().unwrap();
-            let new_client = match existing {
-                UsartClient::Uart(rx, _tx) => {
-                    UsartClient::Uart(rx, Some(client))
-                }
-                _ => {
-                    UsartClient::Uart(None, Some(client))
-                }
-            };
-            self.client.set(new_client);
+        if let Some(UsartClient::Uart(Some(rx), _tx)) = self.client.take() {
+            self.client.set(UsartClient::Uart(Some(rx), Some(client)));
         } else {
             self.client.set(UsartClient::Uart(None, Some(client)));
         }
     }
-
+      
     fn transmit_word(&self, _word: u32) -> ReturnCode {
         ReturnCode::FAIL
     }

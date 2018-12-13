@@ -68,7 +68,7 @@ pub struct Console<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Console<'a> {
+impl Console<'a> {
     pub fn new(
         uart: &'a uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
@@ -181,7 +181,7 @@ impl<'a> Console<'a> {
     }
 }
 
-impl<'a> Driver for Console<'a> {
+impl Driver for Console<'a> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -276,7 +276,7 @@ impl<'a> Driver for Console<'a> {
     }
 }
 
-impl<'a> uart::TransmitClient for Console<'a> {
+impl uart::TransmitClient for Console<'a> {
     fn transmitted_buffer(&self,
                           buffer: &'static mut [u8],
                           _tx_len: usize,
@@ -345,7 +345,7 @@ impl<'a> uart::TransmitClient for Console<'a> {
 }
 
 
-impl<'a> uart::ReceiveClient for Console<'a> {
+impl uart::ReceiveClient for Console<'a> {
     fn received_buffer(&self, 
                        buffer: &'static mut [u8], 
                        rx_len: usize, 

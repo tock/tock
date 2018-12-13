@@ -51,7 +51,7 @@ pub struct Nrf51822Serialization<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Nrf51822Serialization<'a> {
+impl Nrf51822Serialization<'a> {
     pub fn new(
         uart: &'a uart::UartAdvanced<'a>,
         reset_pin: &'a hil::gpio::Pin,
@@ -88,7 +88,7 @@ impl<'a> Nrf51822Serialization<'a> {
     }
 }
 
-impl<'a> Driver for Nrf51822Serialization<'a> {
+impl Driver for Nrf51822Serialization<'a> {
     /// Pass application space memory to this driver.
     ///
     /// ### `allow_num`
@@ -193,7 +193,7 @@ impl<'a> Driver for Nrf51822Serialization<'a> {
 }
 
 // Callbacks from the underlying UART driver.
-impl<'a> uart::TransmitClient for Nrf51822Serialization<'a> {
+impl uart::TransmitClient for Nrf51822Serialization<'a> {
     // Called when the UART TX has finished.
     fn transmitted_buffer(&self,
                           buffer: &'static mut [u8],
@@ -213,7 +213,7 @@ impl<'a> uart::TransmitClient for Nrf51822Serialization<'a> {
     fn transmitted_word(&self, _rcode: ReturnCode) {}
 }
 
-impl<'a> uart::ReceiveClient for Nrf51822Serialization<'a> {
+impl uart::ReceiveClient for Nrf51822Serialization<'a> {
     // Called when a buffer is received on the UART.
     fn received_buffer(&self,
                        buffer: &'static mut [u8],
