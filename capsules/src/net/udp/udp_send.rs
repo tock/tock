@@ -11,7 +11,7 @@ use net::ipv6::ip_utils::IPAddr;
 use net::ipv6::ipv6::TransportHeader;
 use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use net::udp::udp::UDPHeader;
-use::kernel::udp_port_table::{UDPPortTable};
+use::kernel::udp_port_table::{UDPPortTable, UDPID};
 
 static mut curr_send_id: usize = 0;
 
@@ -70,7 +70,7 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a UDPSendClient>,
-    id: usize, // or shoudl this be a UDPID? should there be a port field?
+    id: UDPID, // or shoudl this be a UDPID? should there be a port field?
     port_table: &'static UDPPortTable,
 }
 
@@ -88,7 +88,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
         // Make sure that the UDPSendStruct is bound to the desired port.
-        match self.port_table.get_port_at_idx(self.id) {
+        match self.port_table.get_port_at_id(&self.id) {
             Some(src_port) => self.send(dest, udp_header, buf),
             _ => ReturnCode::FAIL,
         }
