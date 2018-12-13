@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let button = ButtonComponent::new().finalize();
+//! let button = ButtonComponent::new(board_kernel).finalize();
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -16,10 +16,8 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::button;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
-use sam4l;
 
 pub struct ButtonComponent {
     board_kernel: &'static kernel::Kernel,

@@ -13,8 +13,8 @@ These tutorials walk through how to use the various features of Tock
 
 | Tutorial #    | Supported boards                |
 |---------------|---------------------------------|
-| 1             | [hail](../../boards/hail), [imix](../../boards/imix), [nRF51-DK](../../boards/nrf51dk) & [nRF52-DK](../../boards/nrf52dk) |
-| 2             | [hail](../../boards/hail), [imix](../../boards/imix), [nRF51-DK](../../boards/nrf51dk) & [nRF52-DK](../../boards/nrf52dk) |
+| 1             | [hail](../../boards/hail), [imix](../../boards/imix), [nRF51-DK](../../boards/nordic/nrf51dk) & [nRF52-DK](../../boards/nordic/nrf52dk) |
+| 2             | [hail](../../boards/hail), [imix](../../boards/imix), [nRF51-DK](../../boards/nordic/nrf51dk) & [nRF52-DK](../../boards/nordic/nrf52dk) |
 | 3             | [hail](../../boards/hail) & [imix](../../boards/imix)|
 | 4             | [hail](../../boards/hail) & [imix](../../boards/imix)|
 | 5             | [hail](../../boards/hail) & [imix](../../boards/imix)|

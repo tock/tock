@@ -20,13 +20,13 @@ $ nix-shell
 MacOS:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
-$ pip3 install tockloader
+$ pip3 install --upgrade tockloader
 ```
 
 Ubuntu:
 ```
 $ curl https://sh.rustup.rs -sSf | sh
-$ pip3 install tockloader --user
+$ pip3 install --upgrade tockloader --user
 $ grep -q dialout <(groups $(whoami)) || sudo usermod -a -G dialout $(whoami) # Note, will need to reboot if prompted for password
 ```
 
@@ -39,7 +39,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2018-08-16`. We require
+We are using `nightly-2018-11-30`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -54,7 +54,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2018-08-16
+$ rustup install nightly-2018-11-30
 ```
 
 #### Tockloader
@@ -70,8 +70,8 @@ Tockloader is a Python application and can be installed with the Python
 package manager (pip).
 
 ```bash
-(Linux): sudo pip3 install tockloader
-(MacOS): pip3 install tockloader
+(Linux): sudo pip3 install --upgrade tockloader
+(MacOS): pip3 install --upgrade tockloader
 ```
 
 ## Compiling the Kernel

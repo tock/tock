@@ -1,33 +1,25 @@
-//! `app_layer_icmp_lowpan_frag.rs`: Test application layer sending of
-//! 6LoWPAN packets
+//! `icmp_lowpan_test.rs`: Test kernel space sending of
+//! ICMP packets over 6LoWPAN
 //!
 //! Currently this file only tests sending messages.
 //!
-//! To use this test suite, allocate space for a new LowpanICMPTest structure,
-//! and set it as the client for the Sixlowpan struct and for the respective
-//! TxState struct. For the transmit side, call the LowpanICMPTest::start method.
-//! The `initialize_all` function performs this initialization; simply call this
-//! function in `boards/imix/src/main.rs` as follows:
-//!
-//! Alternatively, you can call the `initialize_all` function, which performs
+//! To use this test suite, allocate space for a new LowpanICMPTest structure, and
+//! call the `initialize_all` function, which performs
 //! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
 //! structs. Insert the code into `boards/imix/src/main.rs` as follows:
 //!
 //! ...
 //! // Radio initialization code
 //! ...
-//! let app_lowpan_frag_test = app_layer_icmp_lowpan_frag::initialize_all(
-//!                                                 radio_mac as &'static Mac,
-//!                                                          mux_alarm as &'static
-//!                                                             MuxAlarm<'static,
-//!                                                                 sam4l::ast::Ast>);
-//! radio_mac.set_transmit_client(app_lowpan_frag_test);
+//!    let icmp_lowpan_test = icmp_lowpan_test::initialize_all(
+//!        mux_mac,
+//!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+//!    );
 //! ...
 //! // Imix initialization
 //! ...
-//! app_lowpan_frag_test.start(); // If flashing the transmitting Imix
+//! icmp_lowpan_test.start();
 
-use capsules;
 extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::icmpv6::icmpv6::{ICMP6Header, ICMP6Type};
@@ -75,12 +67,17 @@ pub struct LowpanICMPTest<'a, A: time::Alarm> {
 }
 
 pub unsafe fn initialize_all(
-    radio_mac: &'static MacDevice,
+    mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanICMPTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
+    let radio_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+    );
+    mux_mac.add_user(radio_mac);
     let sixlowpan = static_init!(
         Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
         Sixlowpan::new(
@@ -133,7 +130,7 @@ pub unsafe fn initialize_all(
         ICMP6SendStruct::new(ip6_sender)
     );
 
-    let app_lowpan_frag_test = static_init!(
+    let icmp_lowpan_test = static_init!(
         LowpanICMPTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         LowpanICMPTest::new(
             //sixlowpan_tx,
@@ -144,10 +141,11 @@ pub unsafe fn initialize_all(
     );
 
     ip6_sender.set_client(icmp_send_struct);
-    icmp_send_struct.set_client(app_lowpan_frag_test);
-    app_lowpan_frag_test.alarm.set_client(app_lowpan_frag_test);
+    icmp_send_struct.set_client(icmp_lowpan_test);
+    icmp_lowpan_test.alarm.set_client(icmp_lowpan_test);
+    ipsender_virtual_alarm.set_client(ip6_sender);
 
-    app_lowpan_frag_test
+    icmp_lowpan_test
 }
 
 impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
@@ -157,7 +155,10 @@ impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
         match result {
             ReturnCode::SUCCESS => {
                 debug!("ICMP Echo Request Packet Sent!");
-                self.schedule_next();
+                match self.test_counter.get() {
+                    2 => debug!("Test completed successfully."),
+                    _ => self.schedule_next(),
+                }
             }
             _ => debug!("Failed to send ICMP Packet!"),
         }
@@ -165,24 +166,15 @@ impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
 }
 
 impl<A: time::Alarm> LowpanICMPTest<'a, A> {
-    pub fn new(
-        //sixlowpan_tx: TxState<'a>,
-        //radio: &'a Mac<'a>,
-        alarm: A,
-        //ip6_packet: &'static mut IP6Packet<'a>
-        icmp_sender: &'a ICMP6Sender<'a>,
-    ) -> LowpanICMPTest<'a, A> {
+    pub fn new(alarm: A, icmp_sender: &'a ICMP6Sender<'a>) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
             alarm: alarm,
-            //sixlowpan_tx: sixlowpan_tx,
-            //radio: radio,
             test_counter: Cell::new(0),
             icmp_sender: icmp_sender,
         }
     }
 
     pub fn start(&self) {
-        //self.run_test_and_increment();
         self.schedule_next();
     }
 

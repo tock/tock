@@ -1,7 +1,7 @@
 /* Though TCP has not yet been implemented for the Tock Networking stackm
-   this file defines the structure of the TCPHeader and TCPPacket structs
-   so that TCPPacket can be included for clarity as part of the
-   TransportPacket enum */
+this file defines the structure of the TCPHeader and TCPPacket structs
+so that TCPPacket can be included for clarity as part of the
+TransportPacket enum */
 
 pub struct TCPHeader {
     pub src_port: u16,

@@ -5,7 +5,8 @@ use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000000;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::ALARM as usize;
 
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
@@ -86,7 +87,8 @@ impl<A: Alarm> Driver for AlarmDriver<'a, A> {
             .enter(app_id, |td, _allocator| {
                 td.callback = callback;
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Setup and read the alarm.
@@ -151,7 +153,8 @@ impl<A: Alarm> Driver for AlarmDriver<'a, A> {
                     self.reset_active_alarm(now);
                 }
                 return_code
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 

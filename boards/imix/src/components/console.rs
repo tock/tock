@@ -20,7 +20,6 @@
 use capsules::console;
 use capsules::virtual_uart::{UartDevice, UartMux};
 use hil;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 

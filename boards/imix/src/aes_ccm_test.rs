@@ -1,3 +1,17 @@
+//! To run this test, include the code
+//! ```
+//!    aes_ccm_test::run();
+//! ```
+//! In the boot sequence. If it runs correctly, you should see the following
+//! output:
+//!
+//! aes_ccm_test passed: (current_test=0, encrypting=true, tag_is_valid=true)
+//! aes_ccm_test passed: (current_test=0, encrypting=false, tag_is_valid=true)
+//! aes_ccm_test passed: (current_test=1, encrypting=true, tag_is_valid=true)
+//! aes_ccm_test passed: (current_test=1, encrypting=false, tag_is_valid=true)
+//! aes_ccm_test passed: (current_test=2, encrypting=true, tag_is_valid=true)
+//! aes_ccm_test passed: (current_test=2, encrypting=false, tag_is_valid=true)
+
 use capsules::aes_ccm;
 use capsules::test::aes_ccm::Test;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};

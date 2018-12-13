@@ -36,7 +36,8 @@ use kernel::hil;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000005;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::ADC as usize;
 
 /// ADC application driver, used by applications to interact with ADC.
 /// Not currently virtualized, only one application can use it at a time.

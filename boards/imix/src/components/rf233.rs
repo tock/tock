@@ -19,7 +19,6 @@ use capsules::rf233::RF233;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use hil;
 use kernel::component::Component;
-use sam4l;
 
 pub struct RF233Component {
     spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,

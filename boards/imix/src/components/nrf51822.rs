@@ -17,7 +17,6 @@
 use capsules::nrf51822_serialization;
 use hil;
 use kernel::component::Component;
-use sam4l;
 
 pub struct Nrf51822Component {
     uart: &'static sam4l::usart::USART<'static>,

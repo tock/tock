@@ -2,7 +2,6 @@ use cortexm4::{self, nvic};
 use enum_primitive::cast::FromPrimitive;
 use gpio;
 use i2c;
-use kernel;
 use peripheral_interrupts::NVIC_IRQ;
 use rtc;
 use uart;

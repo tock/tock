@@ -2,14 +2,14 @@ Platform-Specific Instructions: nRF52840-DK
 ===================================
 
 The [nRF52840 Development
-Kit](https://www.nordicsemi.com/eng/Products/nRF52840-DK) is a platform
+Kit](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK) is a platform
 based around the nRF52840, an SoC with an ARM Cortex-M4 and a BLE
 radio. The kit is Arduino shield compatible and includes several
 buttons.
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 JTAG is the preferred method to program. The development kit has an
 integrated JTAG debugger, you simply need to [install JTAG

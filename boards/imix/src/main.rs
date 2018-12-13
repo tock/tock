@@ -6,8 +6,6 @@
 #![no_std]
 #![no_main]
 #![feature(in_band_lifetimes)]
-#![feature(infer_outlives_requirements)]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
@@ -97,7 +95,7 @@ mod virtual_uart_rx_test;
 
 // State for loading apps.
 
-const NUM_PROCS: usize = 2;
+const NUM_PROCS: usize = 4;
 
 // Constants related to the configuration of the 15.4 network stack
 // TODO: Notably, the radio MAC addresses can be configured from userland at the moment
@@ -108,7 +106,7 @@ const NUM_PROCS: usize = 2;
 // onto each device. This makes MAC address configuration a good target for capabilities -
 // only allow one app per board to have control of MAC address configuration?
 const RADIO_CHANNEL: u8 = 26;
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(57330);
+const DST_MAC_ADDR: MacAddress = MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 const PAN_ID: u16 = 0xABCD;
@@ -117,9 +115,9 @@ const PAN_ID: u16 = 0xABCD;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 16384] = [0; 16384];
+static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -369,26 +367,24 @@ pub unsafe fn reset_handler() {
         &sam4l::gpio::PA[08], // irq
         &sam4l::gpio::PA[08],
         RADIO_CHANNEL,
-    ).finalize();
-
-    // Clear sensors enable pin to enable sensor rail
-    // sam4l::gpio::PC[16].enable_output();
-    // sam4l::gpio::PC[16].clear();
+    )
+    .finalize();
 
     let adc = AdcComponent::new().finalize();
-    let gpio = GpioComponent::new().finalize();
+    let gpio = GpioComponent::new(board_kernel).finalize();
     let led = LedComponent::new().finalize();
     let button = ButtonComponent::new(board_kernel).finalize();
     let crc = CrcComponent::new(board_kernel).finalize();
     let analog_comparator = AcComponent::new().finalize();
     let rng = RngComponent::new(board_kernel).finalize();
 
-    // For now, assign the MAC address on the device as simply a 16-bit short address which represents
-    // the last 16 bits of the serial number of the sam4l for this device.
-    // In the future, we could generate the MAC address by hashing the full 120-bit serial number
+    // For now, assign the 802.15.4 MAC address on the device as
+    // simply a 16-bit short address which represents the last 16 bits
+    // of the serial number of the sam4l for this device.  In the
+    // future, we could generate the MAC address by hashing the full
+    // 120-bit serial number
     let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
     let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
-
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
 
     // Can this initialize be pushed earlier, or into component? -pal
@@ -423,7 +419,8 @@ pub unsafe fn reset_handler() {
         src_mac_from_serial_num,
         local_ip_ifaces,
         mux_alarm,
-    ).finalize();
+    )
+    .finalize();
 
     let imix = Imix {
         pconsole,
@@ -462,8 +459,18 @@ pub unsafe fn reset_handler() {
 
     imix.pconsole.start();
 
-    debug!("Starting virtual read test.");
-    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    // Optional kernel tests. Note that these might conflict
+    // with normal operation (e.g., steal callbacks from drivers, etc.),
+    // so do not run these and expect all services/applications to work.
+    // Once everything is virtualized in the kernel this won't be a problem.
+    // -pal, 11/20/18
+    //
+    // virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
+    // rng_test::run_entropy32();
+    // aes_ccm_test::run();
+    // aes_test::run_aes128_ctr();
+    // aes_test::run_aes128_cbc();
+
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {

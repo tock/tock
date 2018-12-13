@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, asm, panic_implementation)]
+#![feature(lang_items, asm)]
 
 extern crate capsules;
 extern crate cortexm4;
@@ -33,12 +33,12 @@ mod uart_echo;
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 2;
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None];
+const NUM_PROCS: usize = 3;
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
-static mut APP_MEMORY: [u8; 0xA000] = [0; 0xA000];
+static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -56,6 +56,7 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
+    ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Platform {
@@ -71,13 +72,14 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
 }
 
-mod pin_mapping_cc1352p;
-use pin_mapping_cc1352p::PIN_FN;
+mod pin_mapping_cc1312r;
+use pin_mapping_cc1312r::PIN_FN;
 ///
 unsafe fn configure_pins() {
     cc26x2::gpio::PORT[PIN_FN::UART0_RX as usize].enable_uart0_rx();
@@ -245,7 +247,10 @@ pub unsafe fn reset_handler() {
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, cc26x2::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -290,6 +295,8 @@ pub unsafe fn reset_handler() {
     cc26x2::trng::TRNG.set_client(entropy_to_random);
     entropy_to_random.set_client(rng);
 
+    let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
+
     let launchxl = Platform {
         console,
         gpio,
@@ -298,6 +305,7 @@ pub unsafe fn reset_handler() {
         alarm,
         rng,
         i2c_master,
+        ipc,
     };
 
     let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new());
@@ -306,8 +314,6 @@ pub unsafe fn reset_handler() {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-
-    let ipc = &kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
 
     kernel::procs::load_processes(
         board_kernel,
@@ -319,5 +325,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, chip, Some(&ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&launchxl, chip, Some(&launchxl.ipc), &main_loop_capability);
 }

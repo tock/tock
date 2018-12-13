@@ -51,8 +51,9 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60000;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::TEMPERATURE as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -88,7 +89,8 @@ impl TemperatureSensor<'a> {
                 } else {
                     ReturnCode::EBUSY
                 }
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn configure_callback(&self, callback: Option<Callback>, app_id: AppId) -> ReturnCode {
@@ -96,7 +98,8 @@ impl TemperatureSensor<'a> {
             .enter(app_id, |app, _| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 

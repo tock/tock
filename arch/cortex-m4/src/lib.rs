@@ -25,7 +25,7 @@ extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
-
+    static mut _sstack: u32;
     static mut _szero: u32;
     static mut _ezero: u32;
     static mut _etext: u32;
@@ -301,7 +301,7 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
         ipsr_isr_number_to_str(exception_number),
         faulting_stack as u32,
         (_estack as *const ()) as u32,
-        (&_ezero as *const u32) as u32,
+        (&_sstack as *const u32) as u32,
         shcsr,
         cfsr,
         hfsr,
@@ -337,17 +337,17 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let kernel_stack: bool;
 
     asm!(
-        "mov    r1, 0                       \n\
-         tst    lr, #4                      \n\
-         itte   eq                          \n\
-         mrseq  r0, msp                     \n\
-         addeq  r1, 1                       \n\
-         mrsne  r0, psp                     "
-        : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
-        :
-        : "r0", "r1"
-        : "volatile"
-        );
+    "mov    r1, 0                       \n\
+     tst    lr, #4                      \n\
+     itte   eq                          \n\
+     mrseq  r0, msp                     \n\
+     addeq  r1, 1                       \n\
+     mrsne  r0, psp                     "
+    : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
+    :
+    : "r0", "r1"
+    : "volatile"
+    );
 
     if kernel_stack {
         kernel_hardfault(faulting_stack);

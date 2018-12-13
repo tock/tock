@@ -4,8 +4,6 @@ use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
-use nrf52;
-use nrf5x;
 
 use PROCESSES;
 
@@ -39,7 +37,7 @@ impl Write for Writer {
 
 #[cfg(not(test))]
 #[no_mangle]
-#[panic_implementation]
+#[panic_handler]
 /// Panic handler
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)

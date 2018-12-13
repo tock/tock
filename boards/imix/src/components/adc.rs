@@ -17,7 +17,6 @@
 
 use capsules::adc;
 use kernel::component::Component;
-use sam4l;
 
 pub struct AdcComponent {}
 

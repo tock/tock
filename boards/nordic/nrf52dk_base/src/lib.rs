@@ -5,13 +5,7 @@
 extern crate capsules;
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(
-    create_capability,
-    debug,
-    debug_verbose,
-    debug_gpio,
-    static_init
-)]
+#[macro_use(create_capability, debug, debug_verbose, debug_gpio, static_init)]
 extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;
@@ -161,7 +155,10 @@ pub unsafe fn setup_board(
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);

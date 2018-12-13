@@ -5,7 +5,6 @@
 
 #![no_std]
 #![no_main]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
@@ -51,10 +50,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None,
-];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -515,7 +511,10 @@ pub unsafe fn reset_handler() {
     ); // D7
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);

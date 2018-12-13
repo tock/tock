@@ -4,26 +4,14 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(
-    asm,
-    concat_idents,
-    const_fn,
-    core_intrinsics,
-    try_from,
-    used
-)]
-#![feature(in_band_lifetimes, tool_attributes)]
+#![feature(asm, concat_idents, const_fn, core_intrinsics, try_from)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 extern crate cortexm4;
+extern crate tock_rt0;
 #[allow(unused_imports)]
-#[macro_use(
-    debug,
-    debug_gpio,
-    static_init,
-    register_bitfields,
-    register_bitmasks
-)]
+#[macro_use(debug, debug_gpio, static_init, register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 mod deferred_call_tasks;
@@ -58,12 +46,12 @@ unsafe extern "C" fn unhandled_interrupt() {
 
     // IPSR[8:0] holds the currently active interrupt
     asm!(
-        "mrs    r0, ipsr                    "
-        : "={r0}"(interrupt_number)
-        :
-        : "r0"
-        :
-        );
+    "mrs    r0, ipsr                    "
+    : "={r0}"(interrupt_number)
+    :
+    : "r0"
+    :
+    );
 
     interrupt_number = interrupt_number & 0x1ff;
 
@@ -112,29 +100,8 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 pub unsafe fn init() {
-    // Relocate data segment.
-    // Assumes data starts right after text segment as specified by the linker
-    // file.
-    let mut pdest = &mut _srelocate as *mut u32;
-    let pend = &mut _erelocate as *mut u32;
-    let mut psrc = &_etext as *const u32;
-
-    if psrc != pdest {
-        while (pdest as *const u32) < pend {
-            *pdest = *psrc;
-            pdest = pdest.offset(1);
-            psrc = psrc.offset(1);
-        }
-    }
-
-    // Clear the zero segment (BSS)
-    let pzero = &_ezero as *const u32;
-    pdest = &mut _szero as *mut u32;
-
-    while (pdest as *const u32) < pzero {
-        *pdest = 0;
-        pdest = pdest.offset(1);
-    }
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 
     cortexm4::nvic::disable_all();
     cortexm4::nvic::clear_all_pending();

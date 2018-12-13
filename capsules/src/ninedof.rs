@@ -17,8 +17,9 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60004;
+/// Syscall driver number.
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::NINEDOF as usize;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NineDofCommand {
@@ -80,7 +81,8 @@ impl NineDof<'a> {
                         ReturnCode::SUCCESS
                     }
                 }
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
@@ -153,7 +155,8 @@ impl Driver for NineDof<'a> {
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

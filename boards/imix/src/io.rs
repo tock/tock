@@ -41,9 +41,9 @@ impl Write for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
-#[panic_implementation]
+#[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
-    let led = &mut led::LedLow::new(&mut sam4l::gpio::PC[10]);
+    let led = &mut led::LedLow::new(&mut sam4l::gpio::PC[22]);
     let writer = &mut WRITER;
     debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
 }

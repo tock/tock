@@ -32,7 +32,8 @@
 // Last modified August 9th, 2018
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00007;
+use driver;
+pub const DRIVER_NUM: usize = driver::NUM::ANALOG_COMPARATOR as usize;
 
 use core::cell::Cell;
 use kernel::hil;

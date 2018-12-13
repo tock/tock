@@ -200,29 +200,6 @@ impl hil::i2c::I2CMaster for TWIM {
     }
 }
 
-impl hil::i2c::I2CSlave for TWIM {
-    fn enable(&self) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn disable(&self) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn set_address(&self, _addr: u8) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn write_receive(&self, _data: &'static mut [u8], _max_len: u8) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn read_send(&self, _data: &'static mut [u8], _max_len: u8) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn listen(&self) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-}
-
-impl hil::i2c::I2CMasterSlave for TWIM {}
-
 /// I2C master instace 0.
 pub static mut TWIM0: TWIM = TWIM::new(INSTANCES[0]);
 /// I2C master instace 1.
