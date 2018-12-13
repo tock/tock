@@ -95,8 +95,8 @@ use core::cmp;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
-use kernel::hil::uart;
 use kernel::debug;
+use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
@@ -298,7 +298,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
 }
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
-    fn transmitted_buffer(&self, buffer: &'static  mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -306,7 +306,13 @@ impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole
     }
 }
 impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
-    fn received_buffer(&self, read_buf: &'static mut [u8], rx_len: usize, _rcode: ReturnCode, error: uart::Error) {
+    fn received_buffer(
+        &self,
+        read_buf: &'static mut [u8],
+        rx_len: usize,
+        _rcode: ReturnCode,
+        error: uart::Error,
+    ) {
         let mut execute = false;
         if error == uart::Error::None {
             match rx_len {

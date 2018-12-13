@@ -2,9 +2,9 @@
 //! instantiated and tested in parallel.
 use crate::virtual_uart::UartDevice;
 use kernel::common::cells::TakeCell;
+use kernel::debug;
 use kernel::hil::uart;
 use kernel::hil::uart::Receive;
-use kernel::debug;
 use kernel::ReturnCode;
 
 pub struct TestVirtualUartReceive {
@@ -26,13 +26,15 @@ impl TestVirtualUartReceive {
         debug!("Starting receive of length {}", len);
         let (err, _opt) = self.device.receive_buffer(buf, len);
         if err != ReturnCode::SUCCESS {
-            panic!("Calling receive_buffer() in virtual_uart test failed: {:?}",  err);
+            panic!(
+                "Calling receive_buffer() in virtual_uart test failed: {:?}",
+                err
+            );
         }
     }
 }
 
 impl uart::ReceiveClient for TestVirtualUartReceive {
-
     fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
@@ -47,7 +49,10 @@ impl uart::ReceiveClient for TestVirtualUartReceive {
         debug!("Starting receive of length {}", rx_len);
         let (err, _opt) = self.device.receive_buffer(rx_buffer, rx_len);
         if err != ReturnCode::SUCCESS {
-            panic!("Calling receive_buffer() in virtual_uart test failed: {:?}",  err);
+            panic!(
+                "Calling receive_buffer() in virtual_uart test failed: {:?}",
+                err
+            );
         }
     }
 }

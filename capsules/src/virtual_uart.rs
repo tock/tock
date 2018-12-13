@@ -60,25 +60,23 @@ pub struct UartMux<'a> {
 }
 
 impl<'a> uart::TransmitClient for UartMux<'a> {
-    fn transmitted_buffer(&self,
-                          tx_buffer: &'static mut [u8],
-                          tx_len: usize,
-                          rcode: ReturnCode) {
+    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
         self.inflight.map(move |device| {
             self.inflight.clear();
             device.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
         self.do_next_op();
     }
-
 }
 
-impl <'a> uart::ReceiveClient for UartMux<'a> {
-    fn received_buffer(&self,
-                       buffer: &'static mut [u8],
-                       rx_len: usize,
-                       rcode: ReturnCode,
-                       error: uart::Error) {
+impl<'a> uart::ReceiveClient for UartMux<'a> {
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        rcode: ReturnCode,
+        error: uart::Error,
+    ) {
         let mut next_read_len = RX_BUF_LEN;
         let mut read_pending = false;
         self.completing_read.set(true);
@@ -131,7 +129,12 @@ impl <'a> uart::ReceiveClient for UartMux<'a> {
                         }
                     } else if state == UartDeviceReceiveState::Aborting {
                         device.state.set(UartDeviceReceiveState::Idle);
-                        device.received_buffer(rxbuf, position, ReturnCode::ECANCEL, uart::Error::Aborted);
+                        device.received_buffer(
+                            rxbuf,
+                            position,
+                            ReturnCode::ECANCEL,
+                            uart::Error::Aborted,
+                        );
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
@@ -152,9 +155,7 @@ impl <'a> uart::ReceiveClient for UartMux<'a> {
 }
 
 impl<'a> UartMux<'a> {
-    pub fn new(uart: &'a uart::Uart<'a>,
-               buffer: &'static mut [u8],
-               speed: u32) -> UartMux<'a> {
+    pub fn new(uart: &'a uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> UartMux<'a> {
         UartMux {
             uart: uart,
             speed: speed,
@@ -241,7 +242,7 @@ impl<'a> UartMux<'a> {
 #[derive(Copy, Clone, PartialEq)]
 enum Operation {
     Transmit { len: usize },
-    TransmitWord { word: u32},
+    TransmitWord { word: u32 },
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -293,18 +294,14 @@ impl<'a> UartDevice<'a> {
 }
 
 impl<'a> uart::TransmitClient for UartDevice<'a> {
-    fn transmitted_buffer(&self,
-                          tx_buffer: &'static mut [u8],
-                          tx_len: usize,
-                          rcode: ReturnCode) {
+    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
             client.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
     }
 
-    fn transmitted_word(&self,
-                         rcode: ReturnCode) {
+    fn transmitted_word(&self, rcode: ReturnCode) {
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
             client.transmitted_word(rcode);
@@ -333,7 +330,6 @@ impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
 }
 
 impl<'a> uart::Transmit<'a> for UartDevice<'a> {
-
     fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -343,7 +339,11 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
     }
 
     /// Transmit data.
-    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.transmitting.get() {
             (ReturnCode::EBUSY, Some(tx_data))
         } else {
@@ -365,7 +365,6 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
             ReturnCode::SUCCESS
         }
     }
-
 }
 
 impl<'a> uart::Receive<'a> for UartDevice<'a> {
@@ -374,7 +373,11 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     }
 
     /// Receive data until buffer is full.
-    fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.rx_buffer.is_some() {
             (ReturnCode::EBUSY, Some(rx_buffer))
         } else {
@@ -399,5 +402,4 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     fn receive_word(&self) -> ReturnCode {
         ReturnCode::FAIL
     }
-
 }

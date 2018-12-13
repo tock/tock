@@ -367,7 +367,10 @@ pub enum UsartMode {
 
 #[derive(Copy, Clone)]
 enum UsartClient<'a> {
-    Uart(Option<&'a uart::ReceiveClient>, Option<&'a uart::TransmitClient>),
+    Uart(
+        Option<&'a uart::ReceiveClient>,
+        Option<&'a uart::TransmitClient>,
+    ),
     SpiMaster(&'a spi::SpiMasterClient),
 }
 
@@ -513,7 +516,9 @@ impl USART<'a> {
             // alert client
             self.client.map(|usartclient| {
                 if let UsartClient::Uart(Some(rx), _tx) = usartclient {
-                    buffer.take().map(|buf| rx.received_buffer(buf, length, rcode, error));
+                    buffer
+                        .take()
+                        .map(|buf| rx.received_buffer(buf, length, rcode, error));
                 }
             });
         }
@@ -538,7 +543,9 @@ impl USART<'a> {
             // alert client
             self.client.map(|usartclient| {
                 if let UsartClient::Uart(_rx, Some(tx)) = usartclient {
-                    buffer.take().map(|buf| tx.transmitted_buffer(buf, length, rcode));
+                    buffer
+                        .take()
+                        .map(|buf| tx.transmitted_buffer(buf, length, rcode));
                 }
             });
         }
@@ -625,9 +632,15 @@ impl USART<'a> {
                         if txbuffer.is_some() {
                             let len = self.tx_len.get();
                             self.tx_len.set(0);
-                            tx.map(|client| client.transmitted_buffer(txbuffer.unwrap(), len, ReturnCode::SUCCESS));
+                            tx.map(|client| {
+                                client.transmitted_buffer(
+                                    txbuffer.unwrap(),
+                                    len,
+                                    ReturnCode::SUCCESS,
+                                )
+                            });
                         }
-                    },
+                    }
                     UsartClient::SpiMaster(client) => {
                         // For the SPI case it is a little more complicated.
 
@@ -770,11 +783,11 @@ impl dma::DMAClient for USART<'a> {
                                 let length = self.rx_len.get();
                                 self.rx_len.set(0);
                                 rx.received_buffer(
-                                               buf,
-                                               length,
-                                               ReturnCode::SUCCESS,
-                                               uart::Error::None,
-                                           );
+                                    buf,
+                                    length,
+                                    ReturnCode::SUCCESS,
+                                    uart::Error::None,
+                                );
                             });
                         }
                     });
@@ -825,7 +838,11 @@ impl uart::Receive<'a> for USART<'a> {
         }
     }
 
-    fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if rx_len > rx_buffer.len() {
             return (ReturnCode::ESIZE, Some(rx_buffer));
         }
@@ -844,7 +861,6 @@ impl uart::Receive<'a> for USART<'a> {
         } else {
             (ReturnCode::EOFF, Some(rx_buffer))
         }
-
     }
 
     fn receive_abort(&self) -> ReturnCode {
@@ -860,7 +876,11 @@ impl uart::Receive<'a> for USART<'a> {
 }
 
 impl uart::Transmit<'a> for USART<'a> {
-    fn transmit_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.usart_tx_state.get() != USARTStateTX::Idle {
             (ReturnCode::EBUSY, Some(tx_buffer))
         } else {
@@ -880,9 +900,9 @@ impl uart::Transmit<'a> for USART<'a> {
                     dma.do_transfer(self.tx_dma_peripheral, tx_buffer, tx_len);
                 });
                 (ReturnCode::SUCCESS, None)
-             } else {
+            } else {
                 (ReturnCode::EOFF, Some(tx_buffer))
-             }
+            }
         }
     }
 
@@ -903,13 +923,13 @@ impl uart::Transmit<'a> for USART<'a> {
             self.client.set(UsartClient::Uart(None, Some(client)));
         }
     }
-      
+
     fn transmit_word(&self, _word: u32) -> ReturnCode {
         ReturnCode::FAIL
     }
 }
-impl uart::UartAdvanced<'a> for USART <'a> {}
-impl uart::Uart<'a> for USART <'a> {}
+impl uart::UartAdvanced<'a> for USART<'a> {}
+impl uart::Uart<'a> for USART<'a> {}
 
 impl uart::Configure for USART<'a> {
     fn configure(&self, parameters: uart::Parameters) -> ReturnCode {
@@ -949,7 +969,12 @@ impl uart::Configure for USART<'a> {
 }
 
 impl uart::ReceiveAdvanced<'a> for USART<'a> {
-    fn receive_automatic(&self, rx_buffer: &'static mut [u8], len: usize, interbyte_timeout: u8) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn receive_automatic(
+        &self,
+        rx_buffer: &'static mut [u8],
+        len: usize,
+        interbyte_timeout: u8,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
             (ReturnCode::EBUSY, Some(rx_buffer))
         } else {

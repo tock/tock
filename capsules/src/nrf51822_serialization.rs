@@ -195,10 +195,7 @@ impl Driver for Nrf51822Serialization<'a> {
 // Callbacks from the underlying UART driver.
 impl uart::TransmitClient for Nrf51822Serialization<'a> {
     // Called when the UART TX has finished.
-    fn transmitted_buffer(&self,
-                          buffer: &'static mut [u8],
-                          _tx_len: usize,
-                          _rcode: ReturnCode) {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
         // TODO(bradjc): Need to match this to the correct app!
         //               Can't just use 0!
@@ -215,11 +212,13 @@ impl uart::TransmitClient for Nrf51822Serialization<'a> {
 
 impl uart::ReceiveClient for Nrf51822Serialization<'a> {
     // Called when a buffer is received on the UART.
-    fn received_buffer(&self,
-                       buffer: &'static mut [u8],
-                       rx_len: usize,
-                       _rcode: ReturnCode,
-                       _error: uart::Error) {
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        _rcode: ReturnCode,
+        _error: uart::Error,
+    ) {
         self.rx_buffer.replace(buffer);
 
         self.app.map(|appst| {
@@ -244,12 +243,10 @@ impl uart::ReceiveClient for Nrf51822Serialization<'a> {
         });
 
         // Restart the UART receive.
-        self.rx_buffer
-            .take()
-            .map(|buffer| {
-                let len = buffer.len();
-                self.uart.receive_automatic(buffer, len, 250);
-            });
+        self.rx_buffer.take().map(|buffer| {
+            let len = buffer.len();
+            self.uart.receive_automatic(buffer, len, 250);
+        });
     }
 
     fn received_word(&self, _word: u32, _rcode: ReturnCode, _err: uart::Error) {}

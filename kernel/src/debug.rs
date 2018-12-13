@@ -334,7 +334,7 @@ impl DebugWriter {
                 ReturnCode::SUCCESS => {
                     // Set the outgoing length
                     self.active_len.set(out_len);
-                },
+                }
                 _ => {
                     self.output_buffer.replace(opt.unwrap());
                 }

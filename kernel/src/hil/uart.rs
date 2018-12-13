@@ -56,7 +56,6 @@ pub enum Error {
 
     /// Read or write was aborted early
     Aborted,
-
 }
 
 pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
@@ -103,8 +102,11 @@ pub trait Transmit<'a> {
     ///
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
-    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>);
-
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
 
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -170,7 +172,11 @@ pub trait Receive<'a> {
     /// should use `receive_word`.  Calling `receive_word` while
     /// there is an outstanding `receive_buffer` or `receive_word`
     /// operation will return EBUSY.
-    fn receive_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
 
     /// Receive a single word of data. The word length is determined
     /// by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -199,11 +205,9 @@ pub trait Receive<'a> {
     fn receive_abort(&self) -> ReturnCode;
 }
 
-
 /// Trait implemented by a UART transmitter to receive callbacks when
 /// operations complete.
 pub trait TransmitClient {
-
     /// A call to `Transmit::transmit_word` completed. The `ReturnCode`
     /// indicates whether the word was successfully transmitted. A call
     /// to `transmit_word` or `transmit_buffer` made within this callback
@@ -238,7 +242,6 @@ pub trait TransmitClient {
 }
 
 pub trait ReceiveClient {
-
     /// A call to `Receive::receive_word` completed. The `ReturnCode`
     /// indicates whether the word was successfully received. A call
     /// to `receive_word` or `receive_buffer` made within this callback
@@ -272,8 +275,13 @@ pub trait ReceiveClient {
     ///     contains how many words were transmitted.
     ///   - FAIL if reception failed in some way: `error` may contain further
     ///     information.
-    fn received_buffer(&self, rx_buffer: &'static mut [u8], rx_len: usize, rval: ReturnCode, error: Error);
-
+    fn received_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+        rval: ReturnCode,
+        error: Error,
+    );
 }
 
 /// Trait that isn't required for basic UART operation, but provides useful
@@ -299,5 +307,10 @@ pub trait ReceiveAdvanced<'a>: Receive<'a> {
     /// has been received.
     ///
     /// * `interbyte_timeout`: number of bit periods since last data received.
-    fn receive_automatic(&self, rx_buffer: &'static mut [u8], rx_len: usize, interbyte_timeout: u8) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn receive_automatic(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+        interbyte_timeout: u8,
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
 }

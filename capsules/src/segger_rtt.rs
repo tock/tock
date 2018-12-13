@@ -93,8 +93,8 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::hil::uart;
 use kernel::hil::time::Frequency;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 
 /// Buffer for transmitting to the host.
@@ -191,7 +191,11 @@ impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
         self.client.set(client);
     }
 
-    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.up_buffer.is_some() && self.config.is_some() {
             self.up_buffer.map(|buffer| {
                 self.config.map(move |config| {
@@ -201,9 +205,9 @@ impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     let mut index = config.up_buffer.write_position as usize;
                     let buffer_len = config.up_buffer.length as usize;
 
-                for i in 0..tx_len {
-                    buffer[(i + index) % buffer_len] = tx_data[i];
-                }
+                    for i in 0..tx_len {
+                        buffer[(i + index) % buffer_len] = tx_data[i];
+                    }
 
                     index = (index + tx_len) % buffer_len;
                     config.up_buffer.write_position = index as u32;

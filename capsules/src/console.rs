@@ -277,10 +277,7 @@ impl Driver for Console<'a> {
 }
 
 impl uart::TransmitClient for Console<'a> {
-    fn transmitted_buffer(&self,
-                          buffer: &'static mut [u8],
-                          _tx_len: usize,
-                          _rcode: ReturnCode) {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -344,13 +341,14 @@ impl uart::TransmitClient for Console<'a> {
     }
 }
 
-
 impl uart::ReceiveClient for Console<'a> {
-    fn received_buffer(&self, 
-                       buffer: &'static mut [u8], 
-                       rx_len: usize, 
-                       rcode: ReturnCode, 
-                       error: uart::Error) {
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        rcode: ReturnCode,
+        error: uart::Error,
+    ) {
         self.rx_in_progress
             .take()
             .map(|appid| {
@@ -361,7 +359,7 @@ impl uart::ReceiveClient for Console<'a> {
                             // bytes
                             let rx_buffer = buffer.iter().take(rx_len);
                             match error {
-                                uart::Error::None| uart::Error::Aborted => {
+                                uart::Error::None | uart::Error::Aborted => {
                                     // Receive some bytes, signal error type and return bytes to process buffer
                                     if let Some(mut app_buffer) = app.read_buffer.take() {
                                         for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {

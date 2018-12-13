@@ -30,7 +30,7 @@ impl ProcessConsoleComponent {
         ProcessConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
-         }
+        }
     }
 }
 
@@ -38,8 +38,7 @@ pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl Component for ProcessConsoleComponent {
-    type Output =
-        &'static process_console::ProcessConsole<'static, Capability>;
+    type Output = &'static process_console::ProcessConsole<'static, Capability>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         // Create virtual device for console.
