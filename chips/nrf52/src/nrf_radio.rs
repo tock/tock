@@ -42,8 +42,14 @@ use kernel::common::StaticRef;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioChannel;
 use kernel::ReturnCode;
+
 use nrf5x;
+use nrf5x::timer;
+use nrf52::ppi;
 use nrf5x::constants::TxPower;
+
+
+use net::ieee802154::{FrameType, Header};
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -726,6 +732,8 @@ impl Radio {
         if regs.event_ccabusy.is_set(Event::READY){
             debug!("Channel Busy...Restarting.\r");
             regs.event_ccabusy.write(Event::READY::CLEAR);
+            self.state.set(NRFRadioState::CCA_POLLING);
+            timer::TIMER0.
             regs.task_ccastart.write(Task::ENABLE::SET);
             //need to back off for a period of time outlined 
             //in the IEEE 802.15.4 standard (see Figure 69 in
