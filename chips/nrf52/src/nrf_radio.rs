@@ -37,19 +37,17 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::cells::{TakeCell,OptionalCell};
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioChannel;
+use kernel::hil::time::Alarm;
 use kernel::ReturnCode;
 
 use nrf5x;
 use nrf5x::timer;
-use nrf52::ppi;
+use ppi;
 use nrf5x::constants::TxPower;
-
-
-use net::ieee802154::{FrameType, Header};
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -622,6 +620,7 @@ pub struct Radio {
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
+    cca_count: Cell<u8>,
     channel: Cell<kernel::hil::radio::RadioChannel>,
     transmitting: Cell<bool>,
     kernel_tx: TakeCell<'static, [u8]>,
@@ -639,6 +638,7 @@ impl Radio {
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
+            cca_count: Cell::new(0),
             channel: Cell::new(radio::RadioChannel::DataChannel11),
             transmitting: Cell::new(false),
             kernel_tx: TakeCell::empty(),
@@ -703,6 +703,11 @@ impl Radio {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
             if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
+                if(self.cca_count.get() > 0){
+                    unsafe{
+                        ppi::PPI.disable(ppi::Channel::CH21::SET);
+                    }
+                }
                 debug!("Starting CCA.\r");
                 regs.task_ccastart.write(Task::ENABLE::SET);
             } else { 
@@ -719,22 +724,40 @@ impl Radio {
         //   IF we receive the go ahead (channel is clear)
         // THEN start the transmit part of the radio
         if regs.event_ccaidle.is_set(Event::READY){
-            debug!("Channel Ready. Transmitting from:\r");
-            //unsafe{
-            //debug!("{:?}\r",&PAYLOAD.as_ptr())};
-            //debug!("{}", &PAYLOAD.to_string());
-
             regs.event_ccaidle.write(Event::READY::CLEAR);
-            //enable the radio
-            regs.task_txen.write(Task::ENABLE::SET)
+            if (self.cca_count.get() < 3){            
+                debug!("Channel Busy (Count:{:?})...Restarting.\r",self.cca_count.get());
+                self.cca_count.set(self.cca_count.get()+1);
+                unsafe{                                
+                    ppi::PPI.enable(ppi::Channel::CH21::SET);
+                    nrf5x::timer::TIMER0.set_alarm(640);
+                }
+                self.enable_interrupts();
+            }
+            else{
+                debug!("Channel Ready. Transmitting from:\r");
+                //unsafe{
+                //debug!("{:?}\r",&PAYLOAD.as_ptr())};
+                //debug!("{}", &PAYLOAD.to_string());
+
+                //regs.event_ccaidle.write(Event::READY::CLEAR);
+                //enable the radio
+                regs.task_txen.write(Task::ENABLE::SET)
+            }
         }
 
         if regs.event_ccabusy.is_set(Event::READY){
-            debug!("Channel Busy...Restarting.\r");
+            debug!("Channel Busy (Count:{:?})...Restarting.\r",self.cca_count.get());
+            self.cca_count.set(self.cca_count.get()+1);
             regs.event_ccabusy.write(Event::READY::CLEAR);
-            self.state.set(NRFRadioState::CCA_POLLING);
-            timer::TIMER0.
-            regs.task_ccastart.write(Task::ENABLE::SET);
+            //self.state.set(NRFRadioState::CCA_POLLING);
+            //
+            //Set it for 40 symbol periods
+            unsafe{                                
+                ppi::PPI.enable(ppi::Channel::CH21::SET);
+                nrf5x::timer::TIMER0.set_alarm(640);
+            }
+            //regs.task_ccastart.write(Task::ENABLE::SET);
             //need to back off for a period of time outlined 
             //in the IEEE 802.15.4 standard (see Figure 69 in
             //section 7.5.1.4 The CSMA-CA algorithm of the 
@@ -1076,6 +1099,7 @@ impl kernel::hil::radio::RadioData for Radio {
             PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
             debug!("[PHY] {:?}",PAYLOAD[1..10].as_ref());
         }
+        self.cca_count.set(0);
         self.transmitting.set(true);
         self.radio_off();
         self.radio_initialize(self.channel.get());
