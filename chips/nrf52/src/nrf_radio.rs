@@ -55,6 +55,14 @@ const RADIO_BASE: StaticRef<RadioRegisters> =
 
 pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
 
+pub const IEEE802154_BACKOFF_PERIOD: usize = 128; //microseconds
+
+pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 3;
+
+pub const IEEE802154_MIN_BE: u8 = 3;
+
+pub const IEEE802154_MAX_BE: u8 = 6;
+
 pub const RAM_S0_BYTES: usize = 1; 
 
 pub const RAM_LEN_BITS: usize = 8; 
@@ -621,6 +629,8 @@ pub struct Radio {
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
     cca_count: Cell<u8>,
+    cca_be: Cell<u8>,
+    random_nonce: Cell<u32>,
     channel: Cell<kernel::hil::radio::RadioChannel>,
     transmitting: Cell<bool>,
     kernel_tx: TakeCell<'static, [u8]>,
@@ -639,6 +649,8 @@ impl Radio {
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
             cca_count: Cell::new(0),
+            cca_be: Cell::new(0),
+            random_nonce: Cell::new(0xDEADBEEF),
             channel: Cell::new(radio::RadioChannel::DataChannel11),
             transmitting: Cell::new(false),
             kernel_tx: TakeCell::empty(),
@@ -703,6 +715,7 @@ impl Radio {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
             if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
+                
                 if(self.cca_count.get() > 0){
                     unsafe{
                         ppi::PPI.disable(ppi::Channel::CH21::SET);
@@ -725,43 +738,55 @@ impl Radio {
         // THEN start the transmit part of the radio
         if regs.event_ccaidle.is_set(Event::READY){
             regs.event_ccaidle.write(Event::READY::CLEAR);
-            if (self.cca_count.get() < 3){            
-                debug!("Channel Busy (Count:{:?})...Restarting.\r",self.cca_count.get());
+            /*if (self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS){            
                 self.cca_count.set(self.cca_count.get()+1);
+                self.cca_be.set(self.cca_be.get()+1);
+                let backoff_periods = self.random_nonce() & ((1<<self.cca_be.get())-1); 
+                debug!("Channel Busy (Count:{:?})...Backing off for {:?} periods.\r",self.cca_count.get(),backoff_periods);
                 unsafe{                                
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0.set_alarm(640);
-                }
+                    nrf5x::timer::TIMER0.set_alarm(backoff_periods*(IEEE802154_BACKOFF_PERIOD as u32));
+                }        
+                regs.event_ready.write(Event::READY::CLEAR);
+                regs.task_disable.write(Task::ENABLE::SET);
                 self.enable_interrupts();
             }
-            else{
-                debug!("Channel Ready. Transmitting from:\r");
-                //unsafe{
-                //debug!("{:?}\r",&PAYLOAD.as_ptr())};
-                //debug!("{}", &PAYLOAD.to_string());
-
-                //regs.event_ccaidle.write(Event::READY::CLEAR);
-                //enable the radio
-                regs.task_txen.write(Task::ENABLE::SET)
-            }
+            else{*/
+            debug!("Channel Ready. Transmitting from:\r");
+            regs.task_txen.write(Task::ENABLE::SET)
+            //}
         }
 
         if regs.event_ccabusy.is_set(Event::READY){
-            debug!("Channel Busy (Count:{:?})...Restarting.\r",self.cca_count.get());
-            self.cca_count.set(self.cca_count.get()+1);
             regs.event_ccabusy.write(Event::READY::CLEAR);
-            //self.state.set(NRFRadioState::CCA_POLLING);
-            //
-            //Set it for 40 symbol periods
-            unsafe{                                
-                ppi::PPI.enable(ppi::Channel::CH21::SET);
-                nrf5x::timer::TIMER0.set_alarm(640);
-            }
-            //regs.task_ccastart.write(Task::ENABLE::SET);
             //need to back off for a period of time outlined 
             //in the IEEE 802.15.4 standard (see Figure 69 in
             //section 7.5.1.4 The CSMA-CA algorithm of the 
             //standard).
+            if (self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS){            
+                self.cca_count.set(self.cca_count.get()+1);
+                self.cca_be.set(self.cca_be.get()+1);
+                let backoff_periods = self.random_nonce() & ((1<<self.cca_be.get())-1); 
+                debug!("Channel Busy (Count:{:?})...Backing off for {:?} periods.\r",self.cca_count.get(),backoff_periods);
+                unsafe{                                
+                    ppi::PPI.enable(ppi::Channel::CH21::SET);
+                    nrf5x::timer::TIMER0.set_alarm(backoff_periods*(IEEE802154_BACKOFF_PERIOD as u32));
+                }        
+            }
+            else{
+                debug!("Max Polling Attempts Reached.\r");
+                self.transmitting.set(false);
+                //if we are transmitting, the CRCstatus check is always going to be an error
+                let result = ReturnCode::EBUSY;
+                //TODO: Acked is flagged as false until I get around to fixing it.
+                unsafe{
+                    self.tx_client.map(|client| client.send_done(self.kernel_tx.take().unwrap(),false,result));
+                }
+            }
+
+            regs.event_ready.write(Event::READY::CLEAR);
+            regs.task_disable.write(Task::ENABLE::SET);
+            self.enable_interrupts();
         }
 
         // tx or rx finished!
@@ -957,6 +982,20 @@ impl Radio {
         self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
     }
+
+    // Returns a new pseudo-random number and updates the randomness state.
+    //
+    // Uses the [Xorshift](https://en.wikipedia.org/wiki/Xorshift) algorithm to
+    // produce pseudo-random numbers. Uses the `random_nonce` field to keep
+    // state.
+    fn random_nonce(&self) -> u32 {
+        let mut next_nonce = ::core::num::Wrapping(self.random_nonce.get());
+        next_nonce ^= next_nonce << 13;
+        next_nonce ^= next_nonce >> 17;
+        next_nonce ^= next_nonce << 5;
+        self.random_nonce.set(next_nonce.0);
+        self.random_nonce.get()
+    }
 }
 
 impl kernel::hil::radio::Radio for Radio {}
@@ -1100,6 +1139,7 @@ impl kernel::hil::radio::RadioData for Radio {
             debug!("[PHY] {:?}",PAYLOAD[1..10].as_ref());
         }
         self.cca_count.set(0);
+        self.cca_be.set(IEEE802154_MIN_BE);
         self.transmitting.set(true);
         self.radio_off();
         self.radio_initialize(self.channel.get());

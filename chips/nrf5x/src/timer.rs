@@ -281,6 +281,7 @@ impl TimerAlarm {
     fn clear_alarm(&self) {
         self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
         self.registers.tasks_stop.write(Task::ENABLE::SET);
+        self.registers.tasks_clear.write(Task::ENABLE::SET);
         self.disable_interrupts();
     }
 
@@ -289,7 +290,7 @@ impl TimerAlarm {
     }
 
     pub fn handle_interrupt(&self) {
-        debug!("Interrupt!\r");
+        debug!("Value:{:?}",self.value());
         self.clear_alarm();
         self.client.map(|client| {
             client.fired();
@@ -336,9 +337,10 @@ impl hil::time::Alarm for TimerAlarm {
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
+        //self.clear_alarm();
+        self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
         self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
         self.registers.tasks_start.write(Task::ENABLE::SET);
-        self.clear_alarm();
         self.enable_interrupts();
     }
 
