@@ -55,13 +55,15 @@ const RADIO_BASE: StaticRef<RadioRegisters> =
 
 pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
 
-pub const IEEE802154_BACKOFF_PERIOD: usize = 128; //microseconds
+pub const IEEE802154_BACKOFF_PERIOD: usize = 320; //microseconds = 20 symbols
 
-pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 3;
+pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
+
+pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 4;
 
 pub const IEEE802154_MIN_BE: u8 = 3;
 
-pub const IEEE802154_MAX_BE: u8 = 6;
+pub const IEEE802154_MAX_BE: u8 = 5;
 
 pub const RAM_S0_BYTES: usize = 1; 
 
@@ -752,7 +754,7 @@ impl Radio {
                 self.enable_interrupts();
             }
             else{*/
-            debug!("Channel Ready. Transmitting from:\r");
+            //debug!("Channel Ready. Transmitting from:\r");
             regs.task_txen.write(Task::ENABLE::SET)
             //}
         }
@@ -763,7 +765,7 @@ impl Radio {
             //in the IEEE 802.15.4 standard (see Figure 69 in
             //section 7.5.1.4 The CSMA-CA algorithm of the 
             //standard).
-            if (self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS){            
+            if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {            
                 self.cca_count.set(self.cca_count.get()+1);
                 self.cca_be.set(self.cca_be.get()+1);
                 let backoff_periods = self.random_nonce() & ((1<<self.cca_be.get())-1); 

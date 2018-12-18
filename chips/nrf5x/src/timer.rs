@@ -337,7 +337,6 @@ impl hil::time::Alarm for TimerAlarm {
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
-        //self.clear_alarm();
         self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
         self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
         self.registers.tasks_start.write(Task::ENABLE::SET);
