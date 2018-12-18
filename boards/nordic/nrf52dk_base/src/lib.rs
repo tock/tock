@@ -7,7 +7,7 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -209,8 +209,8 @@ pub unsafe fn setup_board(
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &nrf52::uart::UARTE0,
             &mut capsules::virtual_uart::RX_BUF,
             115200

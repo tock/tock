@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use cc26x2::aon;
 use cc26x2::prcm;
 use kernel::capabilities;
@@ -168,8 +168,8 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &cc26x2::uart::UART0,
             &mut capsules::virtual_uart::RX_BUF,
             115200

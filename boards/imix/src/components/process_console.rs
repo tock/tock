@@ -11,7 +11,7 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::process_console;
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -19,14 +19,14 @@ use kernel::static_init;
 
 pub struct ProcessConsoleComponent {
     board_kernel: &'static kernel::Kernel,
-    uart_mux: &'static UartMux<'static>,
+    uart_mux: &'static MuxUart<'static>,
     baud_rate: u32,
 }
 
 impl ProcessConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        uart_mux: &'static UartMux,
+        uart_mux: &'static MuxUart,
         rate: u32,
     ) -> ProcessConsoleComponent {
         ProcessConsoleComponent {
