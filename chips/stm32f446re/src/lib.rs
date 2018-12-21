@@ -4,9 +4,11 @@
 
 #![crate_name = "stm32f446re"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn)]
+#![feature(asm, const_fn, try_from)]
 #![feature(in_band_lifetimes)]
 #![no_std]
+
+mod deferred_call_tasks;
 
 pub mod chip;
 pub mod nvic;

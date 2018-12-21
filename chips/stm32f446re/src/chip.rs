@@ -1,7 +1,10 @@
 //! Chip trait setup.
 
 use cortexm4;
+use kernel::common::deferred_call;
 use kernel::Chip;
+
+use crate::deferred_call_tasks::Task;
 
 // There is a MPU, SysCall and SysTick impl for `()`. Use that till we are ready
 // to add `cortexm4::mpu::MPU`, `cortexm4::syscall::SysCall` and
@@ -28,12 +31,21 @@ impl Chip for Stm32f446re {
     type SysTick = ();
 
     fn service_pending_interrupts(&self) {
-        // TODO
+        unsafe {
+            loop {
+                if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                    match task {
+                        Task::Nop => {}
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        // TODO
-        false
+        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
     }
 
     fn mpu(&self) -> &() {
