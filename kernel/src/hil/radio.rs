@@ -104,19 +104,14 @@ pub trait RadioConfig {
 
 pub trait RadioData {
     fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient);
-    //fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
+    fn set_receive_client(&self, client: &'static RxClient, buffer: &'static mut [u8]);
+    fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     fn transmit(
         &self,
         buf: &'static mut [u8],
         len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
-/*
-    fn receive(
-        &self
-    ) -> ReturnCode ;
-*/
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]

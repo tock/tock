@@ -81,7 +81,7 @@ impl Component for RadioComponent {
         let awake_mac: &AwakeMac<nrf52::nrf_radio::Radio> =
             static_init!(AwakeMac<'static, nrf52::nrf_radio::Radio>, AwakeMac::new(self.radio));
         self.radio.set_transmit_client(awake_mac);
-        self.radio.set_receive_client(awake_mac);//, &mut RADIO_RX_BUF);
+        self.radio.set_receive_client(awake_mac, &mut RADIO_RX_BUF);
 
         let mac_device = static_init!(
             capsules::ieee802154::framer::Framer<

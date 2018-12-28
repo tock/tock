@@ -627,6 +627,8 @@ pub struct Radio {
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'static radio::RxClient>,
     tx_client: OptionalCell<&'static radio::TxClient>,
+    tx_buf: TakeCell<'static, [u8]>,
+    rx_buf: TakeCell<'static, [u8]>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
@@ -647,6 +649,8 @@ impl Radio {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            tx_buf: TakeCell::empty(),
+            rx_buf: TakeCell::empty(),
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
@@ -668,7 +672,6 @@ impl Radio {
     fn rx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
-        self.set_dma_ptr();
         regs.task_rxen.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
@@ -700,11 +703,12 @@ impl Radio {
         regs.txpower.set(self.tx_power.get() as u32);
     }
 
-    fn set_dma_ptr(&self) {
+    fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8]{
         let regs = &*self.registers;
         unsafe {
-            regs.packetptr.set(PAYLOAD.as_ptr() as u32);
+            regs.packetptr.set(buffer.as_ptr() as u32);
         }
+        buffer
     }
 
     // TODO: Theres an additional step for 802154 rx/tx handling
@@ -727,6 +731,9 @@ impl Radio {
                 regs.task_ccastart.write(Task::ENABLE::SET);
             } else { 
                 debug!("Starting Receive.\r");
+                let rbuf = self.rx_buf.take().unwrap();
+                self.rx_buf.replace(self.set_dma_ptr(rbuf));
+                debug!("{:?}",self.rx_buf.take().unwrap().as_ptr());
                 regs.task_start.write(Task::ENABLE::SET);
             }   
         }
@@ -755,6 +762,7 @@ impl Radio {
             }
             else{*/
             //debug!("Channel Ready. Transmitting from:\r");
+            self.tx_buf.replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
             regs.task_txen.write(Task::ENABLE::SET)
             //}
         }
@@ -782,7 +790,7 @@ impl Radio {
                 let result = ReturnCode::EBUSY;
                 //TODO: Acked is flagged as false until I get around to fixing it.
                 unsafe{
-                    self.tx_client.map(|client| client.send_done(self.kernel_tx.take().unwrap(),false,result));
+                    self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
                 }
             }
 
@@ -812,7 +820,7 @@ impl Radio {
                     let result = ReturnCode::SUCCESS;
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     unsafe{
-                        self.tx_client.map(|client| client.send_done(self.kernel_tx.take().unwrap(),false,result));
+                        self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
                     }
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
@@ -822,13 +830,16 @@ impl Radio {
                     debug!("RX Finished\r");
                     unsafe {
                         self.rx_client.map(|client| {
+                            let rbuf = self.rx_buf.take().unwrap();
+                            let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                             // And because the length field is directly read from the packet
                             // We need to add 2 to length to get the total length
 
                             // TODO: Check if the length is still valid
                             // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                            client.receive(&mut PAYLOAD, (PAYLOAD[RAM_S0_BYTES] as usize) +PREBUF_LEN_BYTES,true, result)
+                            // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
+                            client.receive(rbuf, frame_len, true, result)
                         });
                     }
                 }
@@ -869,6 +880,7 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
+    /*
     fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
         // set payload
         unsafe{
@@ -881,6 +893,7 @@ impl Radio {
         }
         buf
     }
+    */
 
     fn radio_initialize(&self, channel: RadioChannel) {
         debug!("Initializating Radio\r");
@@ -904,7 +917,7 @@ impl Radio {
         self.set_tx_address();
         self.set_rx_address();
 
-        self.set_dma_ptr();
+        //self.set_dma_ptr();
 
         self.rx();
     }
@@ -1120,8 +1133,13 @@ impl kernel::hil::radio::RadioConfig for Radio {
 }
 
 impl kernel::hil::radio::RadioData for Radio {
-    fn set_receive_client(&self, client: &'static radio::RxClient) {
+    fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
+        self.rx_buf.replace(buffer);
+    }
+
+    fn set_receive_buffer(&self, buffer: &'static mut [u8]){
+        self.rx_buf.replace(buffer);
     }
 
 
@@ -1134,31 +1152,34 @@ impl kernel::hil::radio::RadioData for Radio {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
-        self.kernel_tx.replace(self.replace_radio_buffer(buf));
-        
+        //self.kernel_tx.replace(self.replace_radio_buffer(buf));
+        /*
         unsafe{
             PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
             debug!("[PHY] {:?}",PAYLOAD[1..10].as_ref());
         }
+        */
+        /*!self.is_on() {
+            return (ReturnCode::EOFF, Some(buf));
+        } else if */
+        if self.tx_buf.is_some() || self.transmitting.get() {
+            return (ReturnCode::EBUSY, Some(buf));
+        } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
+            // Not enough room for CRC
+            return (ReturnCode::ESIZE, Some(buf));
+        }
+
+        buf[RAM_S0_BYTES] = frame_len as u8;
+        self.tx_buf.replace(buf);
+        self.transmitting.set(true);
+
         self.cca_count.set(0);
         self.cca_be.set(IEEE802154_MIN_BE);
-        self.transmitting.set(true);
+
         self.radio_off();
         self.radio_initialize(self.channel.get());
         //self.enable_interrupts();
         (ReturnCode::SUCCESS,None)
     }
 }
-
-/*
-impl ble_advertising::BleAdvertisementDriver for Radio {
-
-    fn receive_advertisement(&self, channel: RadioChannel) {
-        self.ble_initialize(channel);
-        self.rx();
-        self.enable_interrupts();
-    }
-
-}
-*/
 
