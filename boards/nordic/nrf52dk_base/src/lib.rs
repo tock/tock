@@ -16,6 +16,7 @@ extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;
 
+
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{UartDevice, UartMux};
@@ -24,10 +25,14 @@ use capsules::ieee802154::device::MacDevice;
 use capsules::ieee802154::mac::{AwakeMac, Mac};
 
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
+
+mod components;
+use components::radio::RadioComponent;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -282,103 +287,11 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let aes_ccm = static_init!(
-        capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
-        capsules::aes_ccm::AES128CCM::new(&nrf5x::aes::AESECB, &mut CRYPT_BUF)
-    );
-
-    //    sam4l::aes::AES.set_client(aes_ccm);
-    //   sam4l::aes::AES.enable();
-    
-    let awake_mac: &AwakeMac<nrf52::nrf_radio::Radio> =
-        static_init!(
-            AwakeMac<'static, nrf52::nrf_radio::Radio>, 
-            AwakeMac::new(&nrf52::nrf_radio::RADIO)
-        );
-    kernel::hil::radio::Radio::set_transmit_client(
-        &nrf52::nrf_radio::RADIO,
-        awake_mac,
-    );
-    kernel::hil::radio::Radio::set_receive_client(
-        &nrf52::nrf_radio::RADIO,
-        awake_mac
-    );
-
-    
-    let mac_device = static_init!(
-        capsules::ieee802154::framer::Framer<
-            'static,
-            AwakeMac<'static, nrf52::nrf_radio::Radio>,
-            capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
-        >,
-        capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
-    );
-    //aes_ccm.set_client(mac_device);
-    awake_mac.set_transmit_client(mac_device);
-    awake_mac.set_receive_client(mac_device);
-    awake_mac.set_config_client(mac_device);
-    //awake_mac.initialize();
-    
-    let mux_mac = static_init!(
-        capsules::ieee802154::virtual_mac::MuxMac<'static>,
-        capsules::ieee802154::virtual_mac::MuxMac::new(mac_device)
-    );
-    mac_device.set_transmit_client(mux_mac);
-    mac_device.set_receive_client(mux_mac);
-
-    let radio_mac = static_init!(
-        capsules::ieee802154::virtual_mac::MacUser<'static>,
-        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
-    );
-    mux_mac.add_user(radio_mac);
-
-    let radio_driver = static_init!(
-        capsules::ieee802154::RadioDriver<'static>,
-        capsules::ieee802154::RadioDriver::new(
-            radio_mac,
-            board_kernel.create_grant(&grant_cap),
-            &mut RADIO_RX_BUF
-        )
-    );
-
-    mac_device.set_key_procedure(radio_driver);
-    mac_device.set_device_procedure(radio_driver);
-    radio_mac.set_transmit_client(radio_driver);
-    radio_mac.set_receive_client(radio_driver);
-    radio_mac.set_pan(PAN_ID);
-    radio_mac.set_address(SRC_MAC);
-
-    //radio_virtual_alarm.set_client(ble_radio);
-
-
-    //&nrf52::nrf_radio::RADIO.startup();
-
-    /*
-    let ble_radio = static_init!(
-        capsules::ble_advertising_driver::BLE<
-            'static,
-            nrf52::nrf_radio::Radio,
-            VirtualMuxAlarm<'static, Rtc>,
-        >,
-        capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::nrf_radio::RADIO,
-            board_kernel.create_grant(&memory_allocation_capability),
-            &mut capsules::ble_advertising_driver::BUF,
-            ble_radio_virtual_alarm
-        )
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::nrf_radio::RADIO,
-        ble_radio,
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::nrf_radio::RADIO,
-        ble_radio,
-    );
-    ble_radio_virtual_alarm.set_client(ble_radio);
-    */
+    let (radio_driver, mux_mac) = RadioComponent::new(
+                                    board_kernel, 
+                                    &nrf52::nrf_radio::RADIO, 
+                                    PAN_ID, 
+                                    SRC_MAC).finalize();
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
