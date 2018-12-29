@@ -666,13 +666,23 @@ impl Radio {
     fn tx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
+
         regs.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
+        
+        if self.transmitting.get(){
+            self.tx_buf.replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
+        }
+        else {
+            self.rx_buf.replace(self.set_dma_ptr(self.rx_buf.take().unwrap()));
+        }
+
         regs.task_rxen.write(Task::ENABLE::SET);
+
         self.enable_interrupts();
     }
 
@@ -721,7 +731,6 @@ impl Radio {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
             if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
-                
                 if(self.cca_count.get() > 0){
                     unsafe{
                         ppi::PPI.disable(ppi::Channel::CH21::SET);
@@ -731,8 +740,6 @@ impl Radio {
                 regs.task_ccastart.write(Task::ENABLE::SET);
             } else { 
                 debug!("Starting Receive.\r");
-                let rbuf = self.rx_buf.take().unwrap();
-                self.rx_buf.replace(self.set_dma_ptr(rbuf));
                 regs.task_start.write(Task::ENABLE::SET);
             }   
         }
@@ -761,7 +768,6 @@ impl Radio {
             }
             else{*/
             //debug!("Channel Ready. Transmitting from:\r");
-            self.tx_buf.replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
             regs.task_txen.write(Task::ENABLE::SET)
             //}
         }
@@ -830,6 +836,8 @@ impl Radio {
                     unsafe {
                         self.rx_client.map(|client| {
                             let rbuf = self.rx_buf.take().unwrap();
+                            debug!("[PHY] {:?}",rbuf[1..10].as_ref());
+
                             let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                             // And because the length field is directly read from the packet
@@ -1169,7 +1177,10 @@ impl kernel::hil::radio::RadioData for Radio {
         }
 
         buf[RAM_S0_BYTES] = frame_len as u8;
+
+        debug!("[PHY] {:?}",buf[1..10].as_ref());
         self.tx_buf.replace(buf);
+
         self.transmitting.set(true);
 
         self.cca_count.set(0);
@@ -1177,6 +1188,7 @@ impl kernel::hil::radio::RadioData for Radio {
 
         self.radio_off();
         self.radio_initialize(self.channel.get());
+
         //self.enable_interrupts();
         (ReturnCode::SUCCESS,None)
     }
