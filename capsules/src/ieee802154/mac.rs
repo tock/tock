@@ -134,7 +134,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
-        //self.radio.set_receive_buffer(buffer);
+        self.radio.set_receive_buffer(buffer);
     }
 
     fn transmit(
@@ -182,7 +182,7 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
         } else {
             debug!("[AwakeMAC] Received a packet, but not addressed to us");
             debug!("radio addr is: {:x}", self.radio.get_address());
-            //self.radio.set_receive_buffer(buf);
+            self.radio.set_receive_buffer(buf);
         }
     }
 }

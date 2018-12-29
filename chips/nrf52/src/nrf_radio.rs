@@ -733,7 +733,6 @@ impl Radio {
                 debug!("Starting Receive.\r");
                 let rbuf = self.rx_buf.take().unwrap();
                 self.rx_buf.replace(self.set_dma_ptr(rbuf));
-                debug!("{:?}",self.rx_buf.take().unwrap().as_ptr());
                 regs.task_start.write(Task::ENABLE::SET);
             }   
         }
