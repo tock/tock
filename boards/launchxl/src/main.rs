@@ -41,7 +41,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc26x2::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc26x2::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::console::Console<'static>,
     button: &'static capsules::button::Button<'static, cc26x2::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -175,7 +175,8 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
-    hil::uart::UART::set_client(&cc26x2::uart::UART0, uart_mux);
+    hil::uart::Receive::set_receive_client(&cc26x2::uart::UART0, uart_mux);
+    hil::uart::Transmit::set_transmit_client(&cc26x2::uart::UART0, uart_mux);
 
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
@@ -184,17 +185,16 @@ pub unsafe fn reset_handler() {
     cc26x2::uart::UART0.initialize();
 
     let console = static_init!(
-        capsules::console::Console<UartDevice>,
+        capsules::console::Console<'static>,
         capsules::console::Console::new(
             console_uart,
-            115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    kernel::hil::uart::UART::set_client(console_uart, console);
-    console.initialize();
+    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
+    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
 
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
@@ -207,7 +207,7 @@ pub unsafe fn reset_handler() {
             &mut kernel::debug::INTERNAL_BUF,
         )
     );
-    hil::uart::UART::set_client(debugger_uart, debugger);
+    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
