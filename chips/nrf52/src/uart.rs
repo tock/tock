@@ -13,6 +13,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::debug;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 use nrf5x::pinmux;
 
@@ -155,11 +156,13 @@ register_bitfields! [u32,
 /// UARTE
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
-pub struct Uarte {
+pub struct Uarte<'a>{
     registers: StaticRef<UarteRegisters>,
-    client: OptionalCell<&'static kernel::hil::uart::Client>,
+    tx_client: OptionalCell<&'a uart::TransmitClient>,
     tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
+    tx_len: Cell<usize>,
     tx_remaining_bytes: Cell<usize>,
+    rx_client: OptionalCell<&'a uart::ReceiveClient>,
     rx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
     rx_remaining_bytes: Cell<usize>,
     rx_abort_in_progress: Cell<bool>,
@@ -175,14 +178,16 @@ pub struct UARTParams {
 // This should only be accessed by the reset_handler on startup
 pub static mut UARTE0: Uarte = Uarte::new();
 
-impl Uarte {
+impl<'a> Uarte<'a> {
     /// Constructor
-    pub const fn new() -> Uarte {
+    pub const fn new() -> Uarte<'a> {
         Uarte {
             registers: UARTE_BASE,
-            client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
             tx_buffer: kernel::common::cells::TakeCell::empty(),
+            tx_len: Cell::new(0),
             tx_remaining_bytes: Cell::new(0),
+            rx_client: OptionalCell::empty(),
             rx_buffer: kernel::common::cells::TakeCell::empty(),
             rx_remaining_bytes: Cell::new(0),
             rx_abort_in_progress: Cell::new(false),
@@ -289,11 +294,12 @@ impl Uarte {
             // All bytes have been transmitted
             if rem == 0 {
                 // Signal client write done
-                self.client.map(|client| {
+                self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
-                        client.transmit_complete(
+                        client.transmitted_buffer(
                             tx_buffer,
-                            kernel::hil::uart::Error::CommandComplete,
+                            self.tx_len.get(),
+                            ReturnCode::SUCCESS,
                         );
                     });
                 });
@@ -322,12 +328,13 @@ impl Uarte {
             // do the receive callback immediately.
             if self.rx_abort_in_progress.get() {
                 self.rx_abort_in_progress.set(false);
-                self.client.map(|client| {
+                self.rx_client.map(|client| {
                     self.rx_buffer.take().map(|rx_buffer| {
-                        client.receive_complete(
+                        client.received_buffer(
                             rx_buffer,
                             self.offset.get() + rx_bytes,
-                            kernel::hil::uart::Error::CommandComplete,
+                            ReturnCode::ECANCEL,
+                            uart::Error::None,
                         );
                     });
                 });
@@ -344,12 +351,13 @@ impl Uarte {
                 let rem = self.rx_remaining_bytes.get();
                 if rem == 0 {
                     // Signal client that the read is done
-                    self.client.map(|client| {
+                    self.rx_client.map(|client| {
                         self.rx_buffer.take().map(|rx_buffer| {
-                            client.receive_complete(
+                            client.received_buffer(
                                 rx_buffer,
                                 self.offset.get(),
-                                kernel::hil::uart::Error::CommandComplete,
+                                ReturnCode::SUCCESS,
+                                uart::Error::None,
                             );
                         });
                     });
@@ -409,20 +417,63 @@ impl Uarte {
                 .set(rx_buffer[self.offset.get()..].as_ptr() as u32);
         });
     }
+
+    // Helper function used by both transmit_word and transmit_buffer
+    fn setup_buffer_transmit(&self, buf: &'static mut [u8], tx_len: usize) {
+        self.tx_remaining_bytes.set(tx_len);
+        self.tx_len.set(tx_len);
+        self.offset.set(0);
+        self.tx_buffer.replace(buf);
+        self.set_tx_dma_pointer_to_buffer();
+        
+        let regs = &*self.registers;
+        regs.txd_maxcnt
+            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
+        regs.task_starttx.write(Task::ENABLE::SET);
+        
+        self.enable_tx_interrupts();
+    }
 }
 
-impl kernel::hil::uart::UART for Uarte {
-    fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.client.set(client);
+impl<'a> uart::UartData<'a> for Uarte<'a> {}
+impl<'a> uart::Uart<'a> for Uarte<'a> {}
+
+
+impl<'a> uart::Transmit<'a> for Uarte<'a> {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+        self.tx_client.set(client);
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
+    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if tx_len == 0 || tx_len > tx_data.len() {
+            (ReturnCode::ESIZE, Some(tx_data))
+        } else if self.tx_buffer.is_some() {
+            (ReturnCode::EBUSY, Some(tx_data))
+        } else {
+            self.setup_buffer_transmit(tx_data, tx_len);
+            (ReturnCode::SUCCESS, None)
+        }
+    }
+
+    fn transmit_word(&self, _data: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn transmit_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+}
+
+impl<'a> uart::Configure for Uarte<'a> {
+
+    fn configure(&self, params: uart::Parameters) -> ReturnCode {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
-        if params.stop_bits != kernel::hil::uart::StopBits::One {
+        if params.stop_bits != uart::StopBits::One {
             return ReturnCode::ENOSUPPORT;
         }
-        if params.parity != kernel::hil::uart::Parity::None {
+        if params.parity != uart::Parity::None {
             return ReturnCode::ENOSUPPORT;
         }
         if params.hw_flow_control != false {
@@ -433,30 +484,19 @@ impl kernel::hil::uart::UART for Uarte {
 
         ReturnCode::SUCCESS
     }
+}
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        let truncated_len = min(tx_data.len(), tx_len);
+impl<'a> uart::Receive<'a> for Uarte<'a> {
 
-        if truncated_len == 0 {
-            return;
-        }
-
-        self.tx_remaining_bytes.set(tx_len);
-        self.offset.set(0);
-        self.tx_buffer.replace(tx_data);
-        self.set_tx_dma_pointer_to_buffer();
-
-        let regs = &*self.registers;
-        regs.txd_maxcnt
-            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
-        regs.task_starttx.write(Task::ENABLE::SET);
-
-        self.enable_tx_interrupts();
+    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
+        self.rx_client.set(client);
     }
-
-    fn receive(&self, rx_buf: &'static mut [u8], rx_len: usize) {
+    
+    fn receive_buffer(&self, rx_buf: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
         let regs = &*self.registers;
-
+        if self.rx_buffer.is_some() {
+            return (ReturnCode::EBUSY, Some(rx_buf));
+        }
         // truncate rx_len if necessary
         let truncated_length = core::cmp::min(rx_len, rx_buf.len());
 
@@ -473,12 +513,22 @@ impl kernel::hil::uart::UART for Uarte {
         regs.task_startrx.write(Task::ENABLE::SET);
 
         self.enable_rx_interrupts();
+        (ReturnCode::SUCCESS, None)
     }
 
-    fn abort_receive(&self) {
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+    
+    fn receive_abort(&self) -> ReturnCode {
         // Trigger the STOPRX event to cancel the current receive call.
-        let regs = &*self.registers;
-        self.rx_abort_in_progress.set(true);
-        regs.task_stoprx.write(Task::ENABLE::SET);
+        if self.rx_buffer.is_none() {
+            ReturnCode::SUCCESS
+        } else {
+            let regs = &*self.registers;
+            self.rx_abort_in_progress.set(true);
+            regs.task_stoprx.write(Task::ENABLE::SET);
+            ReturnCode::EBUSY
+        }
     }
 }
