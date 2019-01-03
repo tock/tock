@@ -721,10 +721,10 @@ pub enum StreamId {
     Stream7 = 7,
 }
 
-/// Each stream can be selected among upto eight channel requests. This is
+/// Each stream can be selected among up to eight channel requests. This is
 /// basically STM32F446RE's way of selecting the peripheral for the stream.
 /// Nevertheless, the use of the term channel here is confusing. Table 28
-/// describes the mapping between stream, channel and peripherals.
+/// describes the mapping between stream, channel, and peripherals.
 #[allow(dead_code)]
 #[repr(u32)]
 enum ChannelId {
