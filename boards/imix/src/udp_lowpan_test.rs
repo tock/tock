@@ -44,7 +44,7 @@ use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
-use kernel::udp_port_table::{UDPPortTable, UDPID};
+use kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -150,7 +150,7 @@ pub unsafe fn initialize_all(
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        UDPSendStruct::new(ip6_sender, unsafe {static_init!(UDPPortTable, UDPPortTable::new())})
+        UDPSendStruct::new(ip6_sender, unsafe {static_init!(UdpPortTable, UdpPortTable::new())})
     );
 
     let app_lowpan_frag_test = static_init!(
@@ -227,9 +227,12 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         match test_id {
             0 => self.ipv6_send_packet_test(),
             1 => self.ipv6_send_packet_test(),
+            2 => self.port_table_test(),
             _ => {}
         }
     }
+
+    fn port_table_test(&self) {}
 
     fn ipv6_send_packet_test(&self) {
         unsafe {
@@ -245,6 +248,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         //Insert code to send UDP PAYLOAD here.
         let src_port: u16 = 12321;
         let dst_port: u16 = 32123;
+
         unsafe {
             self.udp_sender
                 .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
