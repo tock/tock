@@ -203,10 +203,11 @@ commits (see notes about [rewriting-history](#rewriting-history)).
 ### Step 7: Style
 
 Mainline Tock uses [rustfmt](https://github.com/rust-lang-nursery/rustfmt) to
-format code, using mostly the default style options (see [rustfmt.toml](../rustfmt.toml)
-for details. As rustfmt is under development, Tock pegs a specific version for
-use in formatting. The build system will automatically use (and install if needed)
-the correct rustfmt version when you invoke `make format`.
+format code, using the default style options. As rustfmt is included as a component
+in nightly Rust releases, the version of rustfmt that Tock uses is directly tied
+to the nightly version Tock is currently using. The build system will
+automatically use (and install if needed) the correct rustfmt version when you
+invoke `make format`.
 
 The target `make formatall` in the root will automatically run all style checks
 and make any required changes. PRs must pass the formatting checks before landing.

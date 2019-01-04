@@ -1,33 +1,28 @@
-//! `app_layer_lowpan_frag.rs`: Test application layer sending of
-//! 6LoWPAN packets
+//! `udp_lowpan_test.rs`: Test kernel space sending of
+//! UDP Packets over 6LoWPAN.
 //!
-//! Currently this file only tests sending messages.
+//! Currently this file only tests sending messages. It sends two long UDP messages
+//! (long enough that each requires multiple fragments). The payload of each message
+//! is all 0's. Tests for UDP reception exist in userspace, but not in the kernel
+//! at this point in time. At the conclusion of the test, it prints "Test completed successfully."
 //!
 //! To use this test suite, allocate space for a new LowpanTest structure, and
-//! set it as the client for the Sixlowpan struct and for the respective TxState
-//! struct. For the transmit side, call the LowpanTest::start method. The
-//! `initialize_all` function performs this initialization; simply call this
-//! function in `boards/imix/src/main.rs` as follows:
-//!
-//! Alternatively, you can call the `initialize_all` function, which performs
+//! call the `initialize_all` function, which performs
 //! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
 //! structs. Insert the code into `boards/imix/src/main.rs` as follows:
 //!
 //! ...
 //! // Radio initialization code
 //! ...
-//! let app_lowpan_frag_test = app_layer_lowpan_frag::initialize_all(radio_mac as &'static Mac,
-//!                                                          mux_alarm as &'static
-//!                                                             MuxAlarm<'static,
-//!                                                                 sam4l::ast::Ast>);
-//! radio_mac.set_transmit_client(app_lowpan_frag_test);
+//!    let udp_lowpan_test = udp_lowpan_test::initialize_all(
+//!        mux_mac,
+//!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+//!    );
 //! ...
 //! // Imix initialization
 //! ...
-//! app_lowpan_frag_test.start(); // If flashing the transmitting Imix
+//! udp_lowpan_test.start();
 
-use capsules;
-extern crate sam4l;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
@@ -39,9 +34,11 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::static_init;
 use kernel::ReturnCode;
 
 use kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
@@ -63,7 +60,7 @@ const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
-static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP
+static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
 
 pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
 
@@ -71,19 +68,22 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 
 pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: A,
-    //sixlowpan_tx: TxState<'a>,
-    //radio: &'a Mac<'a>,
     test_counter: Cell<usize>,
     udp_sender: &'a UDPSender<'a>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
-    radio_mac: &'static MacDevice,
+    mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
+    let radio_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+    );
+    mux_mac.add_user(radio_mac);
     let sixlowpan = static_init!(
         Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
         Sixlowpan::new(
@@ -153,7 +153,7 @@ pub unsafe fn initialize_all(
         UDPSendStruct::new(ip6_sender, unsafe {static_init!(UdpPortTable, UdpPortTable::new())})
     );
 
-    let app_lowpan_frag_test = static_init!(
+    let udp_lowpan_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         LowpanTest::new(
             //sixlowpan_tx,
@@ -163,10 +163,11 @@ pub unsafe fn initialize_all(
         )
     );
     ip6_sender.set_client(udp_send_struct);
-    udp_send_struct.set_client(app_lowpan_frag_test);
-    app_lowpan_frag_test.alarm.set_client(app_lowpan_frag_test);
+    udp_send_struct.set_client(udp_lowpan_test);
+    udp_lowpan_test.alarm.set_client(udp_lowpan_test);
+    ipsender_virtual_alarm.set_client(ip6_sender);
 
-    app_lowpan_frag_test
+    udp_lowpan_test
 }
 
 impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
@@ -174,7 +175,10 @@ impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanT
         match result {
             ReturnCode::SUCCESS => {
                 debug!("Packet Sent!");
-                self.schedule_next();
+                match self.test_counter.get() {
+                    2 => debug!("Test completed successfully."),
+                    _ => self.schedule_next(),
+                }
             }
             _ => debug!("Failed to send UDP Packet!"),
         }
@@ -199,7 +203,6 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     pub fn start(&self) {
-        //self.run_test_and_increment();
         self.schedule_next();
     }
 
@@ -245,7 +248,6 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn send_next(&self) {
-        //Insert code to send UDP PAYLOAD here.
         let src_port: u16 = 12321;
         let dst_port: u16 = 32123;
 

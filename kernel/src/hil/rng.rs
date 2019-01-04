@@ -89,7 +89,7 @@
 //! }
 //! ```
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 /// Denotes whether the [Client](trait.Client.html) wants to be notified when
 /// `More` randomness is available or if they are `Done`
 #[derive(Debug, Eq, PartialEq)]
@@ -127,7 +127,7 @@ pub trait Rng<'a> {
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
     fn cancel(&self) -> ReturnCode;
-    fn set_client(&'a self, &'a Client);
+    fn set_client(&'a self, _: &'a Client);
 }
 
 /// An [Rng](trait.Rng.html) client

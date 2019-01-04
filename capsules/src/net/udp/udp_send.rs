@@ -5,12 +5,12 @@
 //! upper layer to allow them to receive the `send_done` callback once
 //! transmission has completed.
 
+use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ipv6::TransportHeader;
+use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
+use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
-use net::ipv6::ip_utils::IPAddr;
-use net::ipv6::ipv6::TransportHeader;
-use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
-use net::udp::udp::UDPHeader;
 use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
 
 static mut curr_send_id: usize = 0;

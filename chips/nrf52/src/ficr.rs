@@ -8,7 +8,7 @@
 //! - Date: November 27, 2017
 
 use core::fmt;
-use kernel::common::registers::ReadOnly;
+use kernel::common::registers::{register_bitfields, ReadOnly};
 use kernel::common::StaticRef;
 
 const FICR_BASE: StaticRef<FicrRegisters> =

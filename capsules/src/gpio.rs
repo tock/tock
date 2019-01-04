@@ -44,22 +44,22 @@
 //! have had interrupts enabled.
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000004;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::GPIO as usize;
 
-use kernel::common::cells::OptionalCell;
 use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 pub struct GPIO<'a, G: Pin> {
     pins: &'a [&'a G],
-    callback: OptionalCell<Callback>,
+    apps: Grant<Option<Callback>>,
 }
 
 impl<G: Pin + PinCtl> GPIO<'a, G> {
-    pub fn new(pins: &'a [&'a G]) -> GPIO<'a, G> {
+    pub fn new(pins: &'a [&'a G], grant: Grant<Option<Callback>>) -> GPIO<'a, G> {
         GPIO {
             pins: pins,
-            callback: OptionalCell::empty(),
+            apps: grant,
         }
     }
 
@@ -113,8 +113,9 @@ impl<G: Pin> Client for GPIO<'a, G> {
         let pin_state = pins[pin_num].read();
 
         // schedule callback with the pin number and value
-        self.callback
-            .map(|cb| cb.schedule(pin_num, pin_state as usize, 0));
+        self.apps.each(|callback| {
+            callback.map(|mut cb| cb.schedule(pin_num, pin_state as usize, 0));
+        });
     }
 }
 
@@ -129,15 +130,18 @@ impl<G: Pin + PinCtl> Driver for GPIO<'a, G> {
         &self,
         subscribe_num: usize,
         callback: Option<Callback>,
-        _app_id: AppId,
+        app_id: AppId,
     ) -> ReturnCode {
         match subscribe_num {
             // subscribe to all pin interrupts (no affect or reliance on
             // individual pins being configured as interrupts)
-            0 => {
-                self.callback.insert(callback);
-                ReturnCode::SUCCESS
-            }
+            0 => self
+                .apps
+                .enter(app_id, |app, _| {
+                    **app = callback;
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,

@@ -213,105 +213,31 @@ anyone else if the app implmenets 6lowpan itself on the received raw frames.
 
 ## Explanation of Configuration
 
-This section describes how the IP stack is currently configured, and previews how this
-configuration will change soon.
+This section describes how the IP stack can be configured, including setting
+addresses and other parameters of the MAC layer.
 
-###Current design (where each of the following values is configured and stored):
+* Source IP address: An array of local interfaces on the device is contained in main.rs.
+Currently, this array contains two hardcoded addresses, and one address generated from the
+unique serial number on the sam4l.
 
-* Source IP address: stored in IPSend struct, set in main.rs
+* Destination IP address: The destination IP address is configured by passing the address
+to the send_to() call when sending IPv6 packets.
 
-* Destination IP address: Stored in IPPacket on a per packet basis. Can be set
-individually for each packet sent from the userland UDP interface. For packets
-sent from userland via the UDP example app, this value is pulled from the
-INTERFACES array in net/udp/driver.rs.
+* src MAC address: This address is configured in main.rs. Currently, the src mac address
+for each device is configured by default to be a 16-bit short address representing the last 16 bits
+of the unique 120 bit serial number on the sam4l. However, userland apps can change the src address
+by calling ieee802154_set_address()
 
-* src MAC address: stored in the sixlowpan_tx object, currently passed in as the
-SRC_MAC_ADDR constant in ipv6_send.rs. This is for sent packets. However, the
-src mac is also stored in a register in the radio, which it is loaded into
-from the rf233 object when config_commit is called. Right now, the address
-known by the radio can be set by calling ieee802154_set_address() from
-userland, or by calling set_address on whatever implements the Mac trait.
+* dst MAC address: This is currently a constant set in main.rs. (DST_MAC_ADDR). In the future
+this will change, once Tock implements IPv6 Neighbor Discovery.
 
-* dst MAC address: stored in the sixlowpan_tx object, currently passed in as the
-DST_MAC_ADDR constant in ipv6_send.rs
+* src pan: This is set via a constant configured in main.rs (PAN_ID). The same constant is used
+for the dst pan.
 
-* src pan: Stored in three places -- the rf233 object, a register on the rf233
-(pulled from rf233.pan when config_commit() is called), and in the
-sixlowpan_tx object. The sixlowpant_tx init() call takes in a parameter
-radio_pan, which is set by calling the getter to obtain the pan from the
-radio. The pan for the radio therefore must be set before init() is
-called on sixlowpan_tx. The pan for the radio is set by calling
-ieee802154_set_pan() from userspace, or by calling set_pan() on
-whatever implements the Mac trait in the kernel.
+* dst pan: Same as src_pan. If we need to support use of the broadcast PAN as a dst_pan, this
+may change.
 
-* dst pan: Stored in the sixlowpan\_tx object, then passed to the
-prepare\_data\_frame() 15.4 function to be set for each frame. Set by main.rs.
-
-* radio channel: stored in the radio object (rf233.rs), pulled from a constant
-in rf233\_const.rs (PHY\_CHANNEL: u8 = 26;)
-
-
-### Future Design (where we think each of these should be set):
-
-* Source IP address: Clearly needs to be changed, as it should use the
-Interfaces array defined in net/udp/driver.rs if that array is
-actually where we are going to store the available interfaces. Worth noting
-that this array isn't used when adding anything to the kernel that uses
-the IP stack, so it probably doesn't make a lot of sense for the interfaces
-to be stored in this file. Instead, the interfaces should be stored somewhere
-like ip\_utils.rs or ipv6.rs, and perhaps referenced by udp/driver.rs
-
-* Destination IP address: The current implementation is probably correct.
-
-* src MAC address: This should just be a constant, but should probably be
-stored somewhere associated with the MAC layer, not the sixlowpan layer,
-as all packets sent by the radio should share the same src MAC.
-It doesn't make sense that the src\_mac used for outgoing packets can be
-different from the src\_mac loaded to the radio. I propose that the
-src\_mac should be stored in a single constant in, perhaps, net/ieee802154.rs,
-and that config\_commit() should simply pull that constant into the radio at
-runtime. Alternatively, for a more flexible interface, we could still allow
-for calls to set\_address on whatever implements the Mac trait, but we could
-add a set\_address method to the sixlowpan\_tx object, and have the call
-sixlowpan\_tx::set\_address() set the address for the sixlowpan\_tx object
-and call Mac::set\_address().
-
-* dst MAC address: This constant could simply be moved to wherever the constant
-for the SRC Mac address is moved, but that still doesnt really make sense.
-Instead, some method needs to exist to correctly pick the Mac address for
-each packet sent. In a typical networking stack, this would occur via
-an ARP table or something similar. However, we cannot expect other nodes to
-implement ARP. A more realistic and basic implementation might simply allow
-for the UDP userland interface to require that a Mac address be passed into
-each call to send along with the IP address, or might require that the UDP
-userland interface to provide a setter to set the destination IP address
-for each packet until the address is changed. Another alternative would
-involve a table mapping some set of IP addresses to MAC addresses, and
-would allow each userland app to add rows to this table. This method
-also is imperfect, as it has indefinite memory requirements given the
-absence of dynamic allocation etc. Perhaps each userland app
-could be allowed some set number of known addresses (5?) and the IP->mac
-mapping for each could be stored in the grant region for that app. If
-a given app wanted to talk to more than 5 external addresses, it would have to
-add and remove mappings from the list or something?
-
-* src pan: This setup also does not make sense for the same reasons the src MAC
-address setup does not make sense. Whatever changes are made for the src MAC
-address should also be made for the src pan.
-
-* dst pan: It seems as though the src\_pan and dst\_pan should always match
-except in scenarios where the dst\_pan should be broadcast. Perhaps the dst\_pan
-field should be replaced with a boolean send\_broadcast field which is set to
-1 whenever packets should be sent broadcast, and set to 0 when packets should
-be sent with the src\_pan set to the dst\_pan. This would remove any ability for
-cross PAN support, but I dont expect us to require such support anyway, and
-prevents the possibility of packets being sent with mismatched PAN due to poor
-configuration. Would have to make sure that the send\_broadcast field can be
-safely set independently by each app, which could be difficult.
-
-* radio channel: Probably fine for now, but I think constants like this and the
-radio power should simply be made parameters to new() once the IP stack is
-moved over to the component interface.
+* radio channel: Configured as a constant in main.rs (RADIO_CHANNEL).
 
 ## Tock Userland Networking Design
 
@@ -535,121 +461,6 @@ An example use of the userland networking stack can be found in libtock-c/exampl
 
 This section was written when the networking stack was incomplete, and aspects
 may be outdated. This goes for all sections following this point in the document.
-
-This section was written to include pseudocode examples of how different
-implementation of these traits should look for different Thread messages that
-might be sent, and for other messages (non-thread) that might be sent using
-this messaging stack.
-
-
-One Example Implementation of IP6Send:
-
-```rust
-/* Implementation of IP6Send Specifically for sending MLE messages. This
-implementation is incomplete and not entirely syntactically correct. However it
-is useful in that it provides insight into the benefit of having IP6Send
-merely be implemented as a trait instead of a layer. This function assumes
-that the buffer passed in contains an already formatted IP message. (A
-previous function would have been used to create the IP Header and place a UDP
-message with an MLE payload inside of it). This message then uses the
-appropriate 6lowpan trait implementation to compress/fragment this IP message,
-then sets the 15_4 link layer headers and settings as required. Accordingly
-this function reveals how an implementation of IP6Send could give control to
-Thread at the IP layer, 6lowpan layer, and 15.4 layer. */
-
-impl IP6Send for ThreadMLEIP6Send{
-    fn sendTo(&self, dest: IP6Addr, ip6_packet: IP6Packet) {
-        ip6_packet.setDestAddr(dest);
-        self.send(ip6_packet);
-    }
-
-    fn send(&self, ip6_packet: IP6Packet) {
-        ip6_packet.setTranspoCksum(); //If packet is UDP etc., this sets the cksum
-        ctx_store = sixlowpan_comp::ContextStore::new();
-        fragState = sixlowpan_frag::fragState::new(ip6_packet);
-
-        /* Note: the below loop should be replaced with repetitions on callbacks, but
-        you get the idea - multiple calls to the frag library are required to
-        send all of the link layer frames */
-
-        while(fragState != Done) {
-            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(&ip6_packet, fragState);
-            fragToSend.setSrcPANID(threadPANID);
-            if(ip6_packet.is_disc_request()) { // One example of a thread
-                                               // decision that affects link layer parameters
-                fragToSend.setSrcMAC(MAC::generate_random());
-            }
-            // etc.... (More Thread decision making)
-            let security = securityType::MLESecurity;
-            15_4_link_layer_send(fragToSend, security, len);
-        }
-    }
-}
-
-/* Implementation of IP6Send for an application sitting on top of Thread which
-simply wants to send an IP message through Thread. For such an instance the
-user does not need to worry about setting parameters below the IP layer, as
-Thread handles this. This function reflects Thread making those decisions in
-such a scenario */
-impl IP6Send for IP6SendThroughThread {
-    fn sendTo(&self, dest: IP6Addr, ip6_packet: IP6Packet) {
-        setDestAddr(ip6_packet, dest);
-        self.send(ip6_packet);
-    }
-
-    fn send(&self, ip6_packet: IP6Packet) {
-        ip6_packet.setTranspoCksum(); //If packet is UDP, this sets the cksum
-        fragState = new fragState(ip6_packet);
-        while(fragState != Done) {
-            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(&ip6_packet, fragState);
-            fragToSend.setSrcPANID(threadPANID);
-            fragToSend.setSrcMAC(getSrcMacFromSrcIPaddr(ip6_packet.getSrcIP));
-            // etc....
-            let security = securityType::LinkLayerSec;
-            15_4_link_layer_send(fragToSend, security, len);
-        }
-    }
-}
-
-/* Implementation of UDPSend for an application sitting on top of Thread which
-simply wants to send a UDP message through Thread. This simply calls on the
-appropriate implementation of IP6Send sitting beneath it. Recall that this
-function assumes it is passed an already formatted UDP Packet. Also recall the
-assumption that the IPSend function will calculate and set the UDP cksum. */
-
-impl UDPSend for UDPSendThroughThread {
-    fn send(&self, dest, udp_packet: UDPPacket) {
-
-        let trans_pkt = TransportPacket::UDP(udp_packet);
-
-        ip6_packet = IPPacket::new(trans_pkt);
-
-        /* First, library calls to format IP Packet */
-        ip6_packet.setDstAddr(dest);
-        ip6_packet.setSrcAddr(THREAD_GLOBAL_SRC_IP_CONST); /* this fn only
-          called for globally destined packets sent over Thread network */
-        ip6_packet.setTF(0);
-        ip6_packet.setHopLimit(64);
-        ip6_packet.setProtocol(UDP_PROTO_CONST);
-        ip6_packet.setLen(40 + trans_pkt.get_len());
-        /* Now, send the packet */
-        IP6SendThroughThread.sendTo(dest, ip6_packet);
-    }
-}
-```
-
-The above implementations are not meant to showcase accurate code, but rather
-give an example as to how multiple implementations of a given trait can be
-useful in the creation of a flexible network stack. Right now this section
-does not contain much, as actually writing all of this example code seems less
-productive than simply writing and testing actual code in Tock. These examples
-are merely intended to give an idea of how traits will be used in this stack,
-so please don't bother nitpicking the examples (for instance, I realize it
-doesn't make sense that the function doesn't set all of the IP Header fields,
-and that there should be decision making occurring to set the source address,
-etc.)
-
-## Example Message Traversals
 
 The Thread specification determines an entire control plane that spans many
 different layers in the OSI networking model. To adequately understand the

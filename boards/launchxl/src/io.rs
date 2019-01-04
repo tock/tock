@@ -1,4 +1,3 @@
-use cc26x2;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use cortexm4;
@@ -6,7 +5,7 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,
@@ -35,7 +34,7 @@ impl Write for Writer {
 }
 
 #[cfg(not(test))]
-#[panic_implementation]
+#[panic_handler]
 #[no_mangle]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // 6 = Red led, 7 = Green led

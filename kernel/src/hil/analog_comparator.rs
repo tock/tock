@@ -3,7 +3,7 @@
 // Author: Danilo Verhaert <verhaert@cs.stanford.edu>
 // Last modified August 9th, 2018
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 pub trait AnalogComparator {
     /// The chip-dependent type of an analog comparator channel.
@@ -27,5 +27,5 @@ pub trait AnalogComparator {
 pub trait Client {
     /// Fires when handle_interrupt is called, returning the channel on which
     /// the interrupt occurred.
-    fn fired(&self, usize);
+    fn fired(&self, _: usize);
 }

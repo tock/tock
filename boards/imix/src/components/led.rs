@@ -16,7 +16,7 @@
 
 use capsules::led;
 use kernel::component::Component;
-use sam4l;
+use kernel::static_init;
 
 pub struct LedComponent {}
 
@@ -31,11 +31,8 @@ impl Component for LedComponent {
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let led_pins = static_init!(
-            [(&'static sam4l::gpio::GPIOPin, led::ActivationMode); 2],
-            [
-                (&sam4l::gpio::PC[22], led::ActivationMode::ActiveHigh),
-                (&sam4l::gpio::PC[10], led::ActivationMode::ActiveHigh),
-            ]
+            [(&'static sam4l::gpio::GPIOPin, led::ActivationMode); 1],
+            [(&sam4l::gpio::PC[10], led::ActivationMode::ActiveHigh),]
         );
         let led = static_init!(
             led::LED<'static, sam4l::gpio::GPIOPin>,

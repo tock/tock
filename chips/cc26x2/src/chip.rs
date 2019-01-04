@@ -1,14 +1,14 @@
+use crate::gpio;
+use crate::i2c;
+use crate::peripheral_interrupts::NVIC_IRQ;
+use crate::rtc;
+use crate::uart;
 use cortexm4::{self, nvic};
 use enum_primitive::cast::FromPrimitive;
-use gpio;
-use i2c;
-use kernel;
-use peripheral_interrupts::NVIC_IRQ;
-use rtc;
-use uart;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
+    userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -16,6 +16,7 @@ impl Cc26X2 {
     pub unsafe fn new() -> Cc26X2 {
         Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The systick clocks with 48MHz by default
             systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
         }
@@ -24,6 +25,7 @@ impl Cc26X2 {
 
 impl kernel::Chip for Cc26X2 {
     type MPU = cortexm4::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
 
     fn mpu(&self) -> &Self::MPU {
@@ -33,6 +35,11 @@ impl kernel::Chip for Cc26X2 {
     fn systick(&self) -> &Self::SysTick {
         &self.systick
     }
+
+    fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
+        &self.userspace_kernel_boundary
+    }
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {

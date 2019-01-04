@@ -7,7 +7,7 @@
 //! Clients can choose if they want to receive. Incoming messages will be sent
 //! to all clients that have enabled receiving.
 //!
-//! `UartMux` provides shared access to a single UART bus for multiple users.
+//! `MuxUart` provides shared access to a single UART bus for multiple users.
 //! `UartDevice` provides access for a single client.
 //!
 //! Usage
@@ -16,8 +16,8 @@
 //! ```
 //! // Create a shared UART channel for the console and for kernel debug.
 //! let uart_mux = static_init!(
-//!     UartMux<'static>,
-//!     UartMux::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
+//!     MuxUart<'static>,
+//!     MuxUart::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
 //! );
 //! hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
 
@@ -49,7 +49,7 @@ use kernel::ReturnCode;
 const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 
-pub struct UartMux<'a> {
+pub struct MuxUart<'a> {
     uart: &'a hil::uart::UART,
     speed: u32,
     devices: List<'a, UartDevice<'a>>,
@@ -58,7 +58,7 @@ pub struct UartMux<'a> {
     completing_read: Cell<bool>,
 }
 
-impl<'a> hil::uart::Client for UartMux<'a> {
+impl<'a> hil::uart::Client for MuxUart<'a> {
     fn transmit_complete(&self, tx_buffer: &'static mut [u8], error: hil::uart::Error) {
         self.inflight.map(move |device| {
             self.inflight.clear();
@@ -140,9 +140,9 @@ impl<'a> hil::uart::Client for UartMux<'a> {
     }
 }
 
-impl<'a> UartMux<'a> {
-    pub fn new(uart: &'a hil::uart::UART, buffer: &'static mut [u8], speed: u32) -> UartMux<'a> {
-        UartMux {
+impl<'a> MuxUart<'a> {
+    pub fn new(uart: &'a hil::uart::UART, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
+        MuxUart {
             uart: uart,
             speed: speed,
             devices: List::new(),
@@ -221,7 +221,7 @@ enum UartDeviceReceiveState {
 
 pub struct UartDevice<'a> {
     state: Cell<UartDeviceReceiveState>,
-    mux: &'a UartMux<'a>,
+    mux: &'a MuxUart<'a>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
@@ -233,7 +233,7 @@ pub struct UartDevice<'a> {
 }
 
 impl<'a> UartDevice<'a> {
-    pub const fn new(mux: &'a UartMux<'a>, receiver: bool) -> UartDevice<'a> {
+    pub const fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
         UartDevice {
             state: Cell::new(UartDeviceReceiveState::Idle),
             mux: mux,

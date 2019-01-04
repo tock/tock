@@ -4,8 +4,6 @@
 use core::fmt::Write;
 use core::ptr::{read_volatile, write_volatile};
 
-use kernel;
-
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.

@@ -17,7 +17,7 @@
 
 use capsules::analog_comparator;
 use kernel::component::Component;
-use sam4l;
+use kernel::static_init;
 
 pub struct AcComponent {}
 

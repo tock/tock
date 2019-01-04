@@ -51,8 +51,9 @@ use kernel::hil;
 use kernel::ReturnCode;
 use kernel::{AppId, Callback, Driver, Grant};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60001;
+/// Syscall driver number.
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::HUMIDITY as usize;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum HumidityCommand {
@@ -91,7 +92,8 @@ impl HumiditySensor<'a> {
                 } else {
                     ReturnCode::EBUSY
                 }
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> ReturnCode {
@@ -106,7 +108,8 @@ impl HumiditySensor<'a> {
             .enter(app_id, |app, _| {
                 app.callback = callback;
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 

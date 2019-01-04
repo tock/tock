@@ -15,14 +15,13 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use capsules;
 use capsules::nonvolatile_storage_driver::NonvolatileStorage;
 use capsules::nonvolatile_to_pages::NonvolatileToPages;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil;
-use sam4l;
+use kernel::static_init;
 
 pub struct NonvolatileStorageComponent {
     board_kernel: &'static kernel::Kernel,

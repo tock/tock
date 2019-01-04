@@ -14,8 +14,9 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x60002;
+/// Syscall driver number.
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::AMBIENT_LIGHT as usize;
 
 /// Per-process metadata
 #[derive(Default)]
@@ -52,7 +53,8 @@ impl AmbientLight<'a> {
                     }
                     ReturnCode::SUCCESS
                 }
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
@@ -75,7 +77,8 @@ impl Driver for AmbientLight<'a> {
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

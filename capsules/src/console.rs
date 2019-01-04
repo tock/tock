@@ -40,7 +40,8 @@ use kernel::hil::uart::{self, Client, UART};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000001;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::CONSOLE as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -211,13 +212,15 @@ impl<U: UART> Driver for Console<'a, U> {
                 .enter(appid, |app, _| {
                     app.write_buffer = slice;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             2 => self
                 .apps
                 .enter(appid, |app, _| {
                     app.read_buffer = slice;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -383,8 +386,10 @@ impl<U: UART> Client for Console<'a, U> {
                                 }
                             }
                         });
-                    }).unwrap_or_default();
-            }).unwrap_or_default();
+                    })
+                    .unwrap_or_default();
+            })
+            .unwrap_or_default();
 
         // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
         self.rx_buffer.replace(buffer);

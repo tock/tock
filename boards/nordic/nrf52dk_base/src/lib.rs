@@ -2,28 +2,16 @@
 
 #![no_std]
 
-extern crate capsules;
-extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(
-    create_capability,
-    debug,
-    debug_verbose,
-    debug_gpio,
-    static_init
-)]
-extern crate kernel;
-extern crate nrf52;
-extern crate nrf5x;
+use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
-use kernel::Chip;
 use nrf5x::rtc::Rtc;
 
 /// Pins for SPI for the flash chip MX25R6435F
@@ -162,7 +150,10 @@ pub unsafe fn setup_board(
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -218,8 +209,8 @@ pub unsafe fn setup_board(
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &nrf52::uart::UARTE0,
             &mut capsules::virtual_uart::RX_BUF,
             115200
@@ -438,8 +429,7 @@ pub unsafe fn setup_board(
     }
     kernel::procs::load_processes(
         board_kernel,
-        &cortexm4::syscall::SysCall::new(),
-        chip.mpu(),
+        chip,
         &_sapps as *const u8,
         app_memory,
         process_pointers,

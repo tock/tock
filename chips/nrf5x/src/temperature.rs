@@ -8,9 +8,8 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: March 03, 2017
 
-use kernel;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
 const TEMP_BASE: StaticRef<TempRegisters> =

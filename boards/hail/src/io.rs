@@ -5,9 +5,8 @@ use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
-use sam4l;
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,
@@ -41,7 +40,7 @@ impl Write for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
-#[panic_implementation]
+#[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
     let led_green = &sam4l::gpio::PA[14];

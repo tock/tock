@@ -242,9 +242,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
                 // Places to save fields that we parse out of the header
                 // options.
                 let mut main_pointer: Option<&TbfHeaderV2Main> = None;
-                let mut wfr_pointer: Option<
-                    &'static [TbfHeaderV2WriteableFlashRegion],
-                > = None;
+                let mut wfr_pointer: Option<&'static [TbfHeaderV2WriteableFlashRegion]> = None;
                 let mut app_name_str = "";
 
                 // Loop through the header looking for known options.

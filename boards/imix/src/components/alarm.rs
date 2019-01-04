@@ -16,10 +16,10 @@
 
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
-use sam4l;
+use kernel::create_capability;
+use kernel::static_init;
 
 pub struct AlarmDriverComponent {
     board_kernel: &'static kernel::Kernel,

@@ -3,8 +3,8 @@
 use core::fmt;
 use core::ptr::NonNull;
 
-use process;
-use sched::Kernel;
+use crate::process;
+use crate::sched::Kernel;
 
 /// Userspace app identifier.
 #[derive(Clone, Copy)]

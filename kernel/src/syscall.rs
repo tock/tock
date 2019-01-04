@@ -2,7 +2,7 @@
 
 use core::fmt::Write;
 
-use process;
+use crate::process;
 
 /// The syscall number assignments.
 #[derive(Copy, Clone, Debug)]

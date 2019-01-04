@@ -28,6 +28,7 @@ The list of Tock capsules and a brief description.
 
 These implement a driver to setup and read various physical sensors.
 
+- **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
@@ -40,7 +41,7 @@ These drivers provide support for various ICs.
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
-- **[MCP23008](src/mcp23008.rs)**: I2C GPIO extender.
+- **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.
 - **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
@@ -75,7 +76,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[CRC](src/crc.rs)**: CRC calculation.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
-- **[I2C_MASTER](src/i2c_master_driver.rs)**: I2C master access only.
+- **[I2C_MASTER](src/i2c_master.rs)**: I2C master access only.
 - **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI](src/spi.rs)**: SPI master and slave.
@@ -89,6 +90,7 @@ These provide common and better abstractions for userspace.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
 - **[Button](src/button.rs)**: Detect button presses.
+- **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Console](src/console.rs)**: UART console support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
@@ -114,6 +116,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
 - **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
 - **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
+- **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
 - **[Virtual UART](src/virtual_uart.rs)**: Shared UART bus.
 
@@ -134,3 +137,5 @@ various elements of Tock.
 
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
+- **[Process Console](src/process_console.rs)**: Provide a UART console to
+  inspect the status of process and stop/start them.

@@ -5,10 +5,10 @@
 //! object can interact with its own corresponding location in the bound port
 //! table. In order to bind to a particular port as sending/receiving, one must
 //! obtain the corresponding sender/receiving binding from UdpPortBinding.
-use common::cells::TakeCell;
+use tock_cells::take_cell::TakeCell;
 use core::cell::Cell;
-use capabilities;
-use ReturnCode;
+//use capabilities;
+use crate::returncode::ReturnCode;
 //#![allow(dead_code)]
 const MAX_NUM_BOUND_PORTS: usize = 16;
 static mut port_table: [Option<u16>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];

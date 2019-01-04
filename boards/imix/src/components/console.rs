@@ -18,22 +18,23 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::console;
-use capsules::virtual_uart::{UartDevice, UartMux};
-use hil;
-use kernel;
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
+use kernel::hil;
+use kernel::static_init;
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
-    uart_mux: &'static UartMux<'static>,
+    uart_mux: &'static MuxUart<'static>,
     baud_rate: u32,
 }
 
 impl ConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        uart_mux: &'static UartMux,
+        uart_mux: &'static MuxUart,
         rate: u32,
     ) -> ConsoleComponent {
         ConsoleComponent {

@@ -1,6 +1,7 @@
 //! Interface for chips and boards.
 
-use driver::Driver;
+use crate::driver::Driver;
+use crate::syscall;
 
 pub mod mpu;
 crate mod systick;
@@ -17,12 +18,14 @@ pub trait Platform {
 /// Interface for individual MCUs.
 pub trait Chip {
     type MPU: mpu::MPU;
+    type UserspaceKernelBoundary: syscall::UserspaceKernelBoundary;
     type SysTick: systick::SysTick;
 
     fn service_pending_interrupts(&self);
     fn has_pending_interrupts(&self) -> bool;
     fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;
+    fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary;
     fn sleep(&self);
     unsafe fn atomic<F, R>(&self, f: F) -> R
     where

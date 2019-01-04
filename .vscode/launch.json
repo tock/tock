@@ -15,21 +15,6 @@
                 "monitor speed auto",
                 "b reset_handler"
             ]
-        },
-        {
-            "name": "nRF51-DK",
-            "type": "gdb",
-            "request": "attach",
-            "executable": "${workspaceRoot}/boards/nrf51dk/target/thumbv6m-none-eabi/release/nrf51dk",
-            "target": "localhost:2331",
-            "remote": true,
-            "cwd": "${workspaceRoot}",
-            "gdbpath": "arm-none-eabi-gdb",
-            "autorun": [
-                "monitor reset",
-                "monitor speed auto",
-                "b reset_handler"
-            ]
         }
     ]
 }

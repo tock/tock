@@ -1,6 +1,6 @@
 //! Interface for digital to analog converters.
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// Simple interface for using the DAC.
 pub trait DacChannel {

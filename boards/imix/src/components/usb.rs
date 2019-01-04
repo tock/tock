@@ -14,11 +14,10 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use capsules;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
-use sam4l;
+use kernel::create_capability;
+use kernel::static_init;
 
 pub struct UsbComponent {
     board_kernel: &'static kernel::Kernel,

@@ -52,9 +52,16 @@ kernel is installed on your board two options are supported: `program` and
     not alter the kernel, and applications can be re-programed without
     re-programming the kernel.
 
-3. **Load an Application**. For this introduction, we will program the blink
-app. Tockloader supports installing apps from a repository, so installing the
-blink app is simple:
+3. **Load an Application**. First, we need to remove any applications already
+on the board. Note that Tockloader by default will install any application in
+addition to whatever is already installed on the board.
+
+    ```bash
+    tockloader erase-apps
+    ```
+
+    For this introduction, we will program the blink app. Tockloader supports
+    installing apps from a repository, so installing the blink app is simple:
 
     ```bash
     tockloader install blink

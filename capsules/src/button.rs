@@ -55,7 +55,8 @@ use kernel::hil::gpio::{Client, InterruptMode};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000003;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::BUTTON as usize;
 
 /// This capsule keeps track for each app of which buttons it has a registered
 /// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
@@ -137,7 +138,8 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                 .enter(app_id, |cntr, _| {
                     cntr.0 = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
@@ -178,7 +180,8 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                                 .0
                                 .enable_interrupt(data, InterruptMode::EitherEdge);
                             ReturnCode::SUCCESS
-                        }).unwrap_or_else(|err| err.into())
+                        })
+                        .unwrap_or_else(|err| err.into())
                 } else {
                     ReturnCode::EINVAL /* impossible button */
                 }
@@ -194,7 +197,8 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                         .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS
-                        }).unwrap_or_else(|err| err.into());
+                        })
+                        .unwrap_or_else(|err| err.into());
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);

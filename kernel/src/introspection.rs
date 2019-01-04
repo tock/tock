@@ -12,20 +12,20 @@
 
 use core::cell::Cell;
 
-use callback::AppId;
-use capabilities::ProcessManagementCapability;
-use common::cells::NumericCellExt;
-use process;
-use sched::Kernel;
+use crate::callback::AppId;
+use crate::capabilities::ProcessManagementCapability;
+use crate::common::cells::NumericCellExt;
+use crate::process;
+use crate::sched::Kernel;
 
-/// This struct provides the introspection functions.
-pub struct Introspection {
+/// This struct provides the inspection functions.
+pub struct KernelInfo {
     kernel: &'static Kernel,
 }
 
-impl Introspection {
-    pub fn new(kernel: &'static Kernel) -> Introspection {
-        Introspection { kernel: kernel }
+impl KernelInfo {
+    pub fn new(kernel: &'static Kernel) -> KernelInfo {
+        KernelInfo { kernel: kernel }
     }
 
     /// Returns how many processes have been loaded on this platform. This is
@@ -49,7 +49,7 @@ impl Introspection {
             .process_each(|process| match process.get_state() {
                 process::State::Running => count.increment(),
                 process::State::Yielded => count.increment(),
-                process::State::Fault => {}
+                _ => {}
             });
         count.get()
     }
@@ -63,7 +63,7 @@ impl Introspection {
             .process_each(|process| match process.get_state() {
                 process::State::Running => {}
                 process::State::Yielded => {}
-                process::State::Fault => count.increment(),
+                _ => count.increment(),
             });
         count.get()
     }
@@ -120,5 +120,15 @@ impl Introspection {
         self.kernel.process_map_or(0, app.idx(), |process| {
             process.debug_timeslice_expiration_count()
         })
+    }
+
+    /// Returns the total number of times all processes have exceeded
+    /// their timeslices.
+    pub fn timeslice_expirations(&self, _capability: &ProcessManagementCapability) -> usize {
+        let count: Cell<usize> = Cell::new(0);
+        self.kernel.process_each(|proc| {
+            count.add(proc.debug_timeslice_expiration_count());
+        });
+        count.get()
     }
 }

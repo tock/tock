@@ -1,12 +1,12 @@
 //! Implementation of the PDCA DMA peripheral.
 
+use crate::pm;
 use core::cell::Cell;
 use core::{cmp, intrinsics};
 use kernel::common::cells::VolatileCell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
 #[repr(C)]
@@ -287,7 +287,8 @@ impl DMAChannel {
 
         let registers: &DMARegisters = &*self.registers;
 
-        let maxlen = buf.len() / match self.width.get() {
+        let maxlen = buf.len()
+            / match self.width.get() {
                 DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
                 DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
                 DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,

@@ -5,17 +5,10 @@
 
 #![no_std]
 #![no_main]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
-extern crate capsules;
 #[allow(unused_imports)]
-#[macro_use(debug, debug_verbose, debug_gpio, static_init)]
-extern crate kernel;
-extern crate cortexm4;
-extern crate nrf52;
-extern crate nrf52dk_base;
-extern crate nrf5x;
+use kernel::{debug, debug_gpio, debug_verbose, static_init};
 
 use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins};
 
@@ -148,7 +141,7 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
-        &UartPins::new(UART_RTS, UART_TXD, UART_RXD, UART_CTS),
+        &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
             SPI_MX25R6435F_CHIP_SELECT,

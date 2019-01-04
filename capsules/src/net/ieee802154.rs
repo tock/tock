@@ -2,9 +2,9 @@
 //! Supports the general MAC frame format, which encompasses data frames, beacon
 //! frames, MAC command frames, and the like.
 
-use net::stream::SResult;
-use net::stream::{decode_bytes_be, decode_u16, decode_u32, decode_u8};
-use net::stream::{encode_bytes, encode_bytes_be, encode_u16, encode_u32, encode_u8};
+use crate::net::stream::SResult;
+use crate::net::stream::{decode_bytes_be, decode_u16, decode_u32, decode_u8};
+use crate::net::stream::{encode_bytes, encode_bytes_be, encode_u16, encode_u32, encode_u8};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum MacAddress {

@@ -1,9 +1,6 @@
 #![feature(asm, const_fn, naked_functions)]
 #![no_std]
 
-extern crate cortexm;
-extern crate kernel;
-
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
 pub use cortexm::support;

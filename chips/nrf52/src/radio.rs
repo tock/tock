@@ -35,14 +35,12 @@
 
 use core::cell::Cell;
 use core::convert::TryFrom;
-use kernel;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::ReturnCode;
-use nrf5x;
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =

@@ -1,29 +1,30 @@
 //! Interrupt mapping and DMA channel setup.
 
-use acifc;
-use adc;
-use aes;
-use ast;
+use crate::acifc;
+use crate::adc;
+use crate::aes;
+use crate::ast;
+use crate::crccu;
+use crate::dac;
+use crate::deferred_call_tasks::Task;
+use crate::dma;
+use crate::flashcalw;
+use crate::gpio;
+use crate::i2c;
+use crate::nvic;
+use crate::pm;
+use crate::spi;
+use crate::trng;
+use crate::usart;
+use crate::usbc;
 use cortexm4;
-use crccu;
-use dac;
-use deferred_call_tasks::Task;
-use dma;
-use flashcalw;
-use gpio;
-use i2c;
 use kernel::common::deferred_call;
 use kernel::Chip;
-use nvic;
-use pm;
-use spi;
-use trng;
-use usart;
-use usbc;
 
 pub struct Sam4l {
-    pub mpu: cortexm4::mpu::MPU,
-    pub systick: cortexm4::systick::SysTick,
+    mpu: cortexm4::mpu::MPU,
+    userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    systick: cortexm4::systick::SysTick,
 }
 
 impl Sam4l {
@@ -62,6 +63,7 @@ impl Sam4l {
 
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             systick: cortexm4::systick::SysTick::new(),
         }
     }
@@ -69,6 +71,7 @@ impl Sam4l {
 
 impl Chip for Sam4l {
     type MPU = cortexm4::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&self) {
@@ -161,6 +164,10 @@ impl Chip for Sam4l {
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         &self.systick
+    }
+
+    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+        &self.userspace_kernel_boundary
     }
 
     fn sleep(&self) {

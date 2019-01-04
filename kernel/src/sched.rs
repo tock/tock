@@ -3,18 +3,18 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use callback::Callback;
-use capabilities;
-use common::cells::NumericCellExt;
-use grant::Grant;
-use ipc;
-use memop;
-use platform::mpu::MPU;
-use platform::systick::SysTick;
-use platform::{Chip, Platform};
-use process::{self, Task};
-use returncode::ReturnCode;
-use syscall::{ContextSwitchReason, Syscall};
+use crate::callback::Callback;
+use crate::capabilities;
+use crate::common::cells::NumericCellExt;
+use crate::grant::Grant;
+use crate::ipc;
+use crate::memop;
+use crate::platform::mpu::MPU;
+use crate::platform::systick::SysTick;
+use crate::platform::{Chip, Platform};
+use crate::process::{self, Task};
+use crate::returncode::ReturnCode;
+use crate::syscall::{ContextSwitchReason, Syscall};
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -90,6 +90,27 @@ impl Kernel {
             match process {
                 Some(p) => {
                     closure(*p);
+                }
+                None => {}
+            }
+        }
+    }
+
+    /// Run a closure on every valid process. This will iterate the
+    /// array of processes and call the closure on every process that
+    /// exists. Ths method is available outside the kernel crate but
+    /// requires a `ProcessManagementCapability` to use.
+    pub fn process_each_capability<F>(
+        &'static self,
+        _capability: &capabilities::ProcessManagementCapability,
+        closure: F,
+    ) where
+        F: Fn(usize, &process::ProcessType),
+    {
+        for (i, process) in self.processes.iter().enumerate() {
+            match process {
+                Some(p) => {
+                    closure(i, *p);
                 }
                 None => {}
             }
@@ -213,7 +234,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         process: &process::ProcessType,
-        ipc: Option<&::ipc::IPC>,
+        ipc: Option<&crate::ipc::IPC>,
     ) {
         let appid = process.appid();
         let systick = chip.systick();
@@ -222,10 +243,12 @@ impl Kernel {
         systick.enable(true);
 
         loop {
-            if chip.has_pending_interrupts()
-                || systick.overflowed()
-                || !systick.greater_than(MIN_QUANTA_THRESHOLD_US)
-            {
+            if chip.has_pending_interrupts() {
+                break;
+            }
+
+            if systick.overflowed() || !systick.greater_than(MIN_QUANTA_THRESHOLD_US) {
+                process.debug_timeslice_expired();
                 break;
             }
 
@@ -369,6 +392,18 @@ impl Kernel {
                 process::State::Fault => {
                     // We should never be scheduling a process in fault.
                     panic!("Attempted to schedule a faulty process");
+                }
+                process::State::StoppedRunning => {
+                    break;
+                    // Do nothing
+                }
+                process::State::StoppedYielded => {
+                    break;
+                    // Do nothing
+                }
+                process::State::StoppedFaulted => {
+                    break;
+                    // Do nothing
                 }
             }
         }

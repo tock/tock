@@ -23,7 +23,7 @@
 //! * Date: August 18, 2016
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{self, ReadWrite, WriteOnly};
+use kernel::common::registers::{self, register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 

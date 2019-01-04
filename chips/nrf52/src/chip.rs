@@ -1,18 +1,18 @@
-use adc;
+use crate::adc;
+use crate::deferred_call_tasks::DeferredCallTask;
+use crate::i2c;
+use crate::nvmc;
+use crate::radio;
+use crate::spi;
+use crate::uart;
 use cortexm4::{self, nvic};
-use deferred_call_tasks::DeferredCallTask;
-use i2c;
-use kernel;
 use kernel::common::deferred_call;
-use nrf5x;
+use kernel::debug;
 use nrf5x::peripheral_interrupts;
-use nvmc;
-use radio;
-use spi;
-use uart;
 
 pub struct NRF52 {
     mpu: cortexm4::mpu::MPU,
+    userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -20,6 +20,7 @@ impl NRF52 {
     pub unsafe fn new() -> NRF52 {
         NRF52 {
             mpu: cortexm4::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The NRF52's systick is uncalibrated, but is clocked from the
             // 64Mhz CPU clock.
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
@@ -29,6 +30,7 @@ impl NRF52 {
 
 impl kernel::Chip for NRF52 {
     type MPU = cortexm4::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
 
     fn mpu(&self) -> &Self::MPU {
@@ -37,6 +39,10 @@ impl kernel::Chip for NRF52 {
 
     fn systick(&self) -> &Self::SysTick {
         &self.systick
+    }
+
+    fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
+        &self.userspace_kernel_boundary
     }
 
     fn service_pending_interrupts(&self) {

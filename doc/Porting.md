@@ -144,9 +144,10 @@ that explains how to program the board:
 
 ### Loading Apps
 
-You can create a custom
-[Makefile-app](https://github.com/tock/tock/blob/master/boards/imix/Makefile-app)
-and include the commands needed to program an app and kernels on your board.
+Ideally, [Tockloader](https://github.com/tock/tockloader) will support loading
+apps on to your board (perhaps with some flags set to specific values). If that
+is not the case, please create an issue on the Tockloader repo so we can update
+the tool to support loading code onto your board.
 
 ### Common Pitfalls
 

@@ -5,9 +5,9 @@ use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, write_volatile, Unique};
 
-use callback::AppId;
-use process::Error;
-use sched::Kernel;
+use crate::callback::AppId;
+use crate::process::Error;
+use crate::sched::Kernel;
 
 pub struct Grant<T: Default> {
     crate kernel: &'static Kernel,

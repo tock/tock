@@ -45,10 +45,9 @@
 //! Anything that calls `manage_process` must have a reference to some object
 //! that provides the `ProcessManagementCapability` trait, which proves that it
 //! has the correct capability.
-
-/// The `ProcessManagementCapability` capability allows the holder to call
-/// various functions related to creating, restarting, and otherwise managing
-/// processes.
+/// The `ProcessManagementCapability` allows the holder to control
+/// process execution, such as related to creating, restarting, and
+/// otherwise managing processes.
 pub unsafe trait ProcessManagementCapability {}
 
 /// The `MainLoopCapability` capability allows the holder to start executing

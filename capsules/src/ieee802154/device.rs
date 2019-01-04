@@ -11,9 +11,9 @@
 //! example, a radio chip might be able to completely inline the frame security
 //! procedure in hardware, as opposed to requiring a software implementation.
 
-use ieee802154::framer::Frame;
+use crate::ieee802154::framer::Frame;
+use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use kernel::ReturnCode;
-use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 
 pub trait MacDevice<'a> {
     /// Sets the transmission client of this MAC device

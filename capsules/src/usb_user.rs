@@ -115,7 +115,8 @@ where
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -141,7 +142,8 @@ where
                                 ReturnCode::EINVAL
                             }
                         }
-                    }).unwrap_or_else(|err| err.into());
+                    })
+                    .unwrap_or_else(|err| err.into());
 
                 if result == ReturnCode::SUCCESS {
                     self.serve_waiting_apps();

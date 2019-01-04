@@ -1,6 +1,6 @@
 //! Implementation of a ring buffer.
 
-use common::queue;
+use crate::common::queue;
 
 pub struct RingBuffer<'a, T: 'a> {
     ring: &'a mut [T],

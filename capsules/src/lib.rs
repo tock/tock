@@ -1,14 +1,6 @@
-#![feature(const_fn)]
-#![feature(infer_outlives_requirements, in_band_lifetimes)]
-#![feature(tool_attributes)]
+#![feature(const_fn, in_band_lifetimes)]
 #![forbid(unsafe_code)]
 #![no_std]
-
-#[allow(unused_imports)]
-#[macro_use(debug)]
-extern crate kernel;
-#[macro_use]
-extern crate enum_primitive;
 
 pub mod test;
 
@@ -20,13 +12,16 @@ pub mod aes_ccm;
 pub mod alarm;
 pub mod ambient_light;
 pub mod analog_comparator;
+pub mod analog_sensor;
 pub mod app_flash_driver;
 pub mod ble_advertising_driver;
 pub mod button;
+pub mod buzzer_driver;
 pub mod console;
 pub mod crc;
 pub mod dac;
 pub mod debug_process_restart;
+pub mod driver;
 pub mod fm25cl;
 pub mod fxos8700cq;
 pub mod gpio;
@@ -47,6 +42,7 @@ pub mod nonvolatile_storage_driver;
 pub mod nonvolatile_to_pages;
 pub mod nrf51822_serialization;
 pub mod pca9544a;
+pub mod process_console;
 pub mod rf233;
 pub mod rf233_const;
 pub mod rng;
@@ -63,5 +59,6 @@ pub mod usbc_client;
 pub mod virtual_alarm;
 pub mod virtual_flash;
 pub mod virtual_i2c;
+pub mod virtual_pwm;
 pub mod virtual_spi;
 pub mod virtual_uart;

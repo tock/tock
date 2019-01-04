@@ -2,6 +2,7 @@
 name = "capsules"
 version = "0.1.0"
 dependencies = [
+ "enum_primitive 0.1.0",
  "kernel 0.1.0",
 ]
 
@@ -19,6 +20,10 @@ dependencies = [
  "cortexm 0.1.0",
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "enum_primitive"
+version = "0.1.0"
 
 [[package]]
 name = "hail"
@@ -44,6 +49,7 @@ version = "0.1.0"
 dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
+ "tock_rt0 0.1.0",
 ]
 
 [[package]]
@@ -53,4 +59,8 @@ version = "0.1.0"
 [[package]]
 name = "tock-registers"
 version = "0.2.0"
+
+[[package]]
+name = "tock_rt0"
+version = "0.1.0"
 

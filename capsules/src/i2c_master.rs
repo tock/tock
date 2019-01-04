@@ -1,9 +1,11 @@
+use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x80040006;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::I2C_MASTER as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -80,14 +82,15 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
                     // but has not granted memory
                     return ReturnCode::EINVAL;
                 }
-            }).expect("Appid does not map to app");
+            })
+            .expect("Appid does not map to app");
         ReturnCode::ENOSUPPORT
     }
 }
 
 use enum_primitive::cast::FromPrimitive;
 
-enum_from_primitive!{
+enum_from_primitive! {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum CMD {
     PING = 0,
@@ -115,7 +118,8 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                 .enter(appid, |app, _| {
                     app.slice = slice;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -154,7 +158,8 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                         let write_len = arg2;
                         self.operation(appid, app, CMD::WRITE, addr, write_len as u8, 0);
                         ReturnCode::SUCCESS
-                    }).unwrap_or_else(|err| err.into()),
+                    })
+                    .unwrap_or_else(|err| err.into()),
                 CMD::READ => self
                     .apps
                     .enter(appid, |app, _| {
@@ -162,7 +167,8 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                         let read_len = arg2;
                         self.operation(appid, app, CMD::READ, addr, 0, read_len as u8);
                         ReturnCode::SUCCESS
-                    }).unwrap_or_else(|err| err.into()),
+                    })
+                    .unwrap_or_else(|err| err.into()),
                 CMD::WRITE_READ => {
                     let addr = arg1 as u8;
                     let write_len = arg1 >> 8; // can extend to 24 bit write length
@@ -178,7 +184,8 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                                 read_len as u8,
                             );
                             ReturnCode::SUCCESS
-                        }).unwrap_or_else(|err| err.into())
+                        })
+                        .unwrap_or_else(|err| err.into())
                 }
             }
         } else {
