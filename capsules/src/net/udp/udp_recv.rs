@@ -4,7 +4,7 @@ use crate::net::ipv6::ipv6_recv::IP6RecvClient;
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
-use::kernel::udp_port_table::{UDPPortTable, UDPID};
+use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
 
 /// The UDP driver implements this client interface trait to receive
 /// packets passed up the network stack to the UDPReceiver, and then
@@ -27,15 +27,15 @@ pub trait UDPRecvClient {
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a UDPRecvClient>,
-    id: UDPID,
-    port_table: &'static UDPPortTable,
+    binding: UdpPortBinding,
+    port_table: &'static UdpPortTable,
 }
 
 impl<'a> UDPReceiver<'a> {
-    pub fn new(port_table: &'static UDPPortTable) -> UDPReceiver<'a> {
+    pub fn new(port_table: &'static UdpPortTable) -> UDPReceiver<'a> {
         UDPReceiver {
             client: OptionalCell::empty(),
-            id: port_table.add_new_client().unwrap(),
+            binding: port_table.create_binding().unwrap(),
             port_table: port_table,
         }
     }
@@ -47,6 +47,7 @@ impl<'a> UDPReceiver<'a> {
 
 impl<'a> IP6RecvClient for UDPReceiver<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
+        // TODO: add call to port_table.can_recv here
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
                 let len = udp_header.get_len() as usize;

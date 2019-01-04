@@ -11,7 +11,7 @@ use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
-use::kernel::udp_port_table::{UDPPortTable, UDPID};
+use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
 
 static mut curr_send_id: usize = 0;
 
@@ -70,8 +70,8 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a UDPSendClient>,
-    id: UDPID, // or shoudl this be a UDPID? should there be a port field?
-    port_table: &'static UDPPortTable,
+    binding: UdpPortBinding, // or shoudl this be a UdpPortBinding? should there be a port field?
+    port_table: &'static UdpPortTable,
 }
 
 // example in /Users/armin/src/rust
@@ -88,14 +88,22 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
         // Make sure that the UDPSendStruct is bound to the desired port.
-        match self.port_table.get_port_at_id(&self.id) {
-            Some(src_port) => self.send(dest, udp_header, buf),
-            _ => ReturnCode::FAIL,
-        }
+        // match self.port_table.get_port_at_id(&self.id) {
+        //     Some(src_port) => self.send(dest, udp_header, buf),
+        //     _ => ReturnCode::FAIL,
+        // }
+        self.port_table.bind(&self.binding, src_port);
+        let ret = match self.port_table.can_send(&self.binding.get_sender().unwrap(), src_port) {
+            ReturnCode::SUCCESS => self.send(dest, udp_header, buf),
+            _ => ReturnCode::FAIL
+        };
+        self.port_table.unbind(&self.binding);
+        ret
     }
 
     fn send(&self, dest: IPAddr, mut udp_header: UDPHeader, buf: &[u8]) -> ReturnCode {
-        // TODO: need to enforce port binding here?
+        // TODO: need to enforce port binding here? Up to what point do we
+        // enforce it? IP layer?
         let total_length = buf.len() + udp_header.get_hdr_size();
         udp_header.set_len(total_length as u16);
         let transport_header = TransportHeader::UDP(udp_header);
@@ -104,12 +112,12 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
-    pub fn new(ip_send_struct: &'a T, port_table: &'static UDPPortTable)
+    pub fn new(ip_send_struct: &'a T, port_table: &'static UdpPortTable)
         -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             ip_send_struct: ip_send_struct,
             client: OptionalCell::empty(),
-            id: port_table.add_new_client().unwrap(),
+            binding: port_table.create_binding().unwrap(),
             port_table: port_table,
         }
     }

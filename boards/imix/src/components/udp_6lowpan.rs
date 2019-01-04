@@ -31,7 +31,7 @@ use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
-use kernel::udp_port_table::{UDPPortTable, UDPID};
+use kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
 
 use kernel::component::Component;
 use kernel::create_capability;
@@ -59,7 +59,7 @@ pub struct UDPComponent {
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
     // TODO: consider putting bound_port_table in a TakeCell
-    bound_port_table: &'static UDPPortTable,
+    bound_port_table: &'static UdpPortTable,
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
@@ -84,7 +84,7 @@ impl UDPComponent {
             mux_mac: mux_mac,
             ctx_pfix_len: ctx_pfix_len,
             ctx_pfix: ctx_pfix,
-            bound_port_table: unsafe {static_init!(UDPPortTable, UDPPortTable::new())},
+            bound_port_table: unsafe {static_init!(UdpPortTable, UdpPortTable::new())},
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
