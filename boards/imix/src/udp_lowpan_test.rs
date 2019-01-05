@@ -70,6 +70,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: A,
     test_counter: Cell<usize>,
     udp_sender: &'a UDPSender<'a>,
+    port_table: &'static UdpPortTable,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -145,12 +146,14 @@ pub unsafe fn initialize_all(
     );
     radio_mac.set_transmit_client(ip6_sender);
 
+    let udp_port_table = unsafe {static_init!(UdpPortTable, UdpPortTable::new())};
+
     let udp_send_struct = static_init!(
         UDPSendStruct<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        UDPSendStruct::new(ip6_sender, unsafe {static_init!(UdpPortTable, UdpPortTable::new())})
+        UDPSendStruct::new(ip6_sender, udp_port_table)
     );
 
     let udp_lowpan_test = static_init!(
@@ -159,7 +162,8 @@ pub unsafe fn initialize_all(
             //sixlowpan_tx,
             //radio_mac,
             VirtualMuxAlarm::new(mux_alarm),
-            udp_send_struct
+            udp_send_struct,
+            udp_port_table,
         )
     );
     ip6_sender.set_client(udp_send_struct);
@@ -192,6 +196,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         alarm: A,
         //ip6_packet: &'static mut IP6Packet<'a>
         udp_sender: &'a UDPSender<'a>,
+        port_table: &'static UdpPortTable,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
@@ -199,6 +204,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             //radio: radio,
             test_counter: Cell::new(0),
             udp_sender: udp_sender,
+            port_table: port_table,
         }
     }
 
@@ -222,20 +228,50 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn num_tests(&self) -> usize {
-        2
+        2 // 3
     }
 
     fn run_test(&self, test_id: usize) {
         debug!("Running test {}:", test_id);
         match test_id {
             0 => self.ipv6_send_packet_test(),
-            1 => self.ipv6_send_packet_test(),
-            2 => self.port_table_test(),
+            //1 => self.ipv6_send_packet_test(),
+            1 => self.port_table_test(),
             _ => {}
         }
     }
 
-    fn port_table_test(&self) {}
+    fn port_table_test(&self) {
+        // Initialize bindings.
+        let binding1 = self.port_table.create_binding().unwrap();
+        let binding2 = self.port_table.create_binding().unwrap();
+        let binding3 = self.port_table.create_binding().unwrap();
+        debug!("Finished creating bindings");
+        // Attempt to bind to a port that has already been bound.
+        let ret1 = self.port_table.bind(&binding1, 80);
+        let ret2 = self.port_table.bind(&binding2, 80);
+        debug!("Done calling bind");
+        // Ensure that only the first binding was successfully bound.
+        assert_eq!(ret1, ReturnCode::SUCCESS);
+        assert_eq!(ret2, ReturnCode::FAIL);
+        debug!("After return code assertions for binding");
+        // Ensure that only the first binding is able to send
+        assert_eq!(self.port_table.can_send(&binding1.get_sender().unwrap(), 80),
+            ReturnCode::SUCCESS);
+        assert_eq!(self.port_table.can_send(&binding2.get_sender().unwrap(), 80),
+            ReturnCode::FAIL);
+        debug!("After can_send assertions");
+        self.port_table.unbind(&binding1);
+        // See if the third binding can successfully bind once the first is
+        // unbound.
+        let ret3 = self.port_table.bind(&binding3, 80);
+        assert_eq!(ret3, ReturnCode::SUCCESS);
+        assert_eq!(self.port_table.can_send(&binding3.get_sender().unwrap(),
+            80), ReturnCode::SUCCESS);
+        debug!("port_table_test passed");
+    }
+
+    // TODO: add a test that involves sending/receiving.
 
     fn ipv6_send_packet_test(&self) {
         unsafe {

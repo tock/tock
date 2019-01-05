@@ -410,6 +410,11 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
 
+    let udp_lowpan_test = udp_lowpan_test::initialize_all(
+        mux_mac,
+        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+    );
+
     let imix = Imix {
         pconsole,
         console,
@@ -448,6 +453,8 @@ pub unsafe fn reset_handler() {
     imix.console.initialize();
     imix.pconsole.initialize();
     imix.pconsole.start();
+
+    udp_lowpan_test.start();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),

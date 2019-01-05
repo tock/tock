@@ -230,6 +230,8 @@ impl UdpPortTable {
 
 
     // Disassociate the port from the given binding.
+    // TODO: what would a return value here convey? How can there possibly be
+    // failure?
     pub fn unbind(&self, binding: &UdpPortBinding,
         /*cap: &capabilities::UDPBindCapability*/) {
         self.udpid_to_port.map(|table| {
