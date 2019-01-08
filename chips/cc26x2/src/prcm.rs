@@ -14,26 +14,6 @@
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
-// The AON Power Management Control registers are required here to select the clock source for
-// wake up and power down control. If they are not initialized/deactivated properly when attempting
-// to power down and back up the radio module, the sleep and restart modes will fail. This is not
-// specifically stated in the techinical reference manual but can be found here via TI's web
-// resources: http://dev.ti.com/tirex/content/simplelink_cc13x2_sdk_1_60_00_29/docs/driverlib_cc13xx_cc26xx/cc13x2_cc26x2/register_descriptions/CPU_MMAP/AON_PMCTL.html
-#[repr(C)]
-struct AonPMCtlRegisters {
-    mcu_clk: ReadWrite<u32>,
-}
-
-register_bitfields! [
-    u32,
-    MCUClockControl [
-        PWR_DWN_SRC OFFSET(0) NUMBITS(2) [
-            NO_CLOCK = 0b00,
-            SCLK_LF = 0b01
-        ]
-    ]
-];
-
 #[repr(C)]
 struct PrcmRegisters {
     // leaving INFRCLKDIVR/INFRCLKDIVRS/INFRCLKDIVD unimplemented for now
@@ -49,8 +29,10 @@ struct PrcmRegisters {
 
     // RFC Clock Gate
     pub rfc_clk_gate: ReadWrite<u32, ClockGate::Register>,
+    // VIMS Clock Gate
+    pub vims_clk_gate: ReadWrite<u32, ClockGate::Register>,
 
-    _reserved2: [ReadOnly<u8>; 0xC],
+    _reserved2: [ReadOnly<u8>; 0x8],
 
     // TRNG, Crypto, and UDMA
     pub sec_dma_clk_run: ReadWrite<u32, SECDMAClockGate::Register>,
@@ -63,9 +45,9 @@ struct PrcmRegisters {
     pub gpio_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
 
     // GPT Clock Gate for run, sleep, and deep sleep modes
-    pub gpt_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
-    pub gpt_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
-    pub gpt_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
+    pub gpt_clk_gate_run: ReadWrite<u32, ClockGate4::Register>,
+    pub gpt_clk_gate_sleep: ReadWrite<u32, ClockGate4::Register>,
+    pub gpt_clk_gate_deep_sleep: ReadWrite<u32, ClockGate4::Register>,
 
     // I2C Clock Gate for run, sleep, and deep sleep modes
     pub i2c_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
@@ -77,10 +59,21 @@ struct PrcmRegisters {
     pub uart_clk_gate_sleep: ReadWrite<u32, ClockGate2::Register>,
     pub uart_clk_gate_deep_sleep: ReadWrite<u32, ClockGate2::Register>,
 
-    _reserved4: [ReadOnly<u8>; 0xB4],
+    // SSI Clock Gates for run, sleep, and deep sleep modes
+    pub ssi_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
+    pub ssi_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
+    pub ssi_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>,
+
+    // I2S Clock Gates for run, sleep, and deep sleep modes
+    pub i2s_clk_gate_run: ReadWrite<u32, ClockGate::Register>,
+    pub i2s_clk_gate_sleep: ReadWrite<u32, ClockGate::Register>,
+    pub i2s_clk_gate_deep_sleep: ReadWrite<u32, ClockGate::Register>, // 0x8Ch offset
+
+    //_reserved4: [ReadOnly<u8>; 0xB4],
+    _reserved4: [ReadOnly<u8>; 0x9C],
 
     // Power Domain Control 0
-    pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>,
+    pub pd_ctl0: ReadWrite<u32, PowerDomain0::Register>, // 0x12Ch offset
     pub pd_ctl0_rfc: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_serial: WriteOnly<u32, PowerDomainSingle::Register>,
     pub pd_ctl0_peripheral: WriteOnly<u32, PowerDomainSingle::Register>,
@@ -93,20 +86,41 @@ struct PrcmRegisters {
     pub pd_stat0_serial: ReadOnly<u32, PowerDomainSingle::Register>,
     pub pd_stat0_periph: ReadOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved7: [ReadOnly<u8>; 0x2C],
+    _reserved6: [ReadOnly<u8>; 0x2C],
 
     // Power Domain Control 1
     pub pd_ctl1: ReadWrite<u32, PowerDomain1::Register>,
 
-    _reserved8: [ReadOnly<u8>; 0x14],
+    _reserved7: [ReadOnly<u8>; 0x04],
+
+    pub pd_ctl1_cpu: WriteOnly<u32, PowerDomainSingle::Register>,
+    pub pd_ctl1_rfc: WriteOnly<u32, PowerDomainSingle::Register>,
+    pub pd_ctl1_vims: WriteOnly<u32, PowerDomainSingle::Register>,
+
+    _reserved8: [ReadOnly<u8>; 0x04],
 
     // Power Domain Status 1
     pub pd_stat1: ReadOnly<u32, PowerDomainStatus1::Register>,
+    pub pd_stat1_bus: ReadOnly<u32, PowerDomainSingle::Register>,
+    pub pd_stat1_rfc: ReadOnly<u32, PowerDomainSingle::Register>,
+    pub pd_stat1_cpu: ReadOnly<u32, PowerDomainSingle::Register>,
+    pub pd_stat1_vims: ReadOnly<u32, PowerDomainSingle::Register>,
 
-    _reserved9: [ReadOnly<u8>; 0x38],
+    _reserved9: [ReadOnly<u8>; 0x24],
+
+    _rfc_bits: ReadOnly<u32, AutoControl::Register>, // CPE auto check at boot for immediate start up tasks
 
     // RF
     pub rfc_mode_sel: ReadWrite<u32>,
+    pub rfc_mode_allowed: ReadOnly<u32>,
+
+    _reserved10: [ReadOnly<u8>; 0xB8],
+    // Enable/Disable interupt generation when OSC is qualified
+    pub osc_imsc: ReadWrite<u32, OscInterrupt::Register>,
+    // OSC raw interrupt status
+    pub osc_ris: ReadOnly<u32, OscInterrupt::Register>,
+    // OSC raw interupt clear
+    pub osc_icr: WriteOnly<u32, OscInterrupt::Register>,
 }
 
 register_bitfields![
@@ -131,15 +145,25 @@ register_bitfields![
         CRYPTO_CLK_EN   OFFSET(0) NUMBITS(1) []
     ],
     ClockGate [
-        // RESERVED (bits 1-31)
+        AM_EN       OFFSET(8) NUMBITS(1) [],
+        // RESERVED (bits 2-8, 10-31)
         CLK_EN      OFFSET(0) NUMBITS(1) []
     ],
-    // Clock gate type for when there are two peripherals (eg: UART0, UART1)
     ClockGate2 [
-        // RESERVED (bits 1-31)
-        CLK0_EN          OFFSET(0) NUMBITS(1) [],
-        CLK1_EN          OFFSET(1) NUMBITS(1) []
-
+        CLK_EN0      OFFSET(0) NUMBITS(1) [],
+        CLK_EN1      OFFSET(1) NUMBITS(1) [],
+        AM_EN0       OFFSET(8) NUMBITS(1) [],
+        AM_EN1       OFFSET(9) NUMBITS(1) []
+    ],
+    ClockGate4 [
+        CLK_EN0      OFFSET(0) NUMBITS(1) [],
+        CLK_EN1      OFFSET(1) NUMBITS(1) [],
+        CLK_EN2      OFFSET(2) NUMBITS(1) [],
+        CLK_EN3      OFFSET(3) NUMBITS(1) [],
+        AM_EN0       OFFSET(8) NUMBITS(1) [],
+        AM_EN1       OFFSET(9) NUMBITS(1) [],
+        AM_EN2       OFFSET(10) NUMBITS(1) [],
+        AM_EN3       OFFSET(11) NUMBITS(1) []
     ],
     PowerDomain0 [
         // RESERVED (bits 3-31)
@@ -152,29 +176,41 @@ register_bitfields![
         ON          OFFSET(0) NUMBITS(1) []
     ],
     PowerDomainStatus0 [
-        // RESERVED (bits 1-31)
+        // RESERVED (bits 3-31)
         PERIPH_ON   OFFSET(2) NUMBITS(1) [],
         SERIAL_ON   OFFSET(1) NUMBITS(1) [],
         RFC_ON      OFFSET(0) NUMBITS(1) []
     ],
     PowerDomain1 [
-        // RESERVED (bits 1-31)
-        VIMS_ON   OFFSET(2) NUMBITS(1) [],
-        RFC_ON   OFFSET(1) NUMBITS(1) [],
-        CPU_ON      OFFSET(0) NUMBITS(1) []
+        // RESERVED (bits 5-31)
+        VIMS_ON   OFFSET(3) NUMBITS(2) [],
+        RFC_ON   OFFSET(2) NUMBITS(1) [],
+        CPU_ON      OFFSET(1) NUMBITS(1) []
     ],
     PowerDomainStatus1 [
-        // RESERVED (bits 3-31)
-        VIMS_ON     OFFSET(2) NUMBITS(1) [],
-        RFC_ON      OFFSET(1) NUMBITS(1) [],
-        CPU_ON      OFFSET(0) NUMBITS(1) []
+        // RESERVED (bits 0 & 5-31)
+        BUS_ON      OFFSET(4) NUMBITS(1) [],
+        VIMS_ON     OFFSET(3) NUMBITS(1) [],
+        RFC_ON      OFFSET(2) NUMBITS(1) [],
+        CPU_ON      OFFSET(1) NUMBITS(1) []
+    ],
+    AutoControl [
+        Startup_Prefs OFFSET(0) NUMBITS(32) []
+    ],
+    OscInterrupt [
+        HF_SRC OFFSET(7) NUMBITS(1) [],
+        LF_SRC OFFSET(6) NUMBITS(1) [],
+        XOSC_DLF OFFSET(5) NUMBITS(1) [],
+        XOSC_LF OFFSET(4) NUMBITS(1) [],
+        RCOSC_DLF OFFSET(3) NUMBITS(1) [],
+        RCOSC_LF OFFSET(2) NUMBITS(1) [],
+        XOSC_HF OFFSET(1) NUMBITS(1) [],
+        RCOSC_HF OFFSET(0) NUMBITS(1) []
     ]
 ];
 
 const PRCM_BASE: StaticRef<PrcmRegisters> =
     unsafe { StaticRef::new(0x4008_2000 as *mut PrcmRegisters) };
-const AON_PMCTL_BASE: StaticRef<AonPMCtlRegisters> =
-    unsafe { StaticRef::new(0x4009_0010 as *mut AonPMCtlRegisters) };
 
 // In order to save changes to the PRCM, we need to
 // trigger the load register
@@ -237,6 +273,18 @@ impl From<u32> for PowerDomain {
     }
 }
 
+#[allow(non_camel_case_types)]
+pub enum OscInt {
+    HF_SRC,
+    LF_SRC,
+    XOSC_DLF,
+    XOSC_LF,
+    RCOSC_DLF,
+    RCOSC_LF,
+    XOSC_HF,
+    RCOSC_HF,
+}
+
 pub struct Power(());
 
 impl Power {
@@ -246,9 +294,11 @@ impl Power {
         match domain {
             PowerDomain::Peripherals => {
                 regs.pd_ctl0.modify(PowerDomain0::PERIPH_ON::SET);
+                while !Power::is_enabled(PowerDomain::Peripherals) {}
             }
             PowerDomain::Serial => {
                 regs.pd_ctl0.modify(PowerDomain0::SERIAL_ON::SET);
+                while !Power::is_enabled(PowerDomain::Serial) {}
             }
             PowerDomain::RFC => {
                 regs.pd_ctl0.modify(PowerDomain0::RFC_ON::SET);
@@ -260,7 +310,7 @@ impl Power {
                 while !Power::is_enabled(PowerDomain::CPU) {}
             }
             PowerDomain::VIMS => {
-                regs.pd_ctl1.modify(PowerDomain1::VIMS_ON::SET);
+                regs.pd_ctl1.modify(PowerDomain1::VIMS_ON.val(0x02));
                 while !Power::is_enabled(PowerDomain::VIMS) {}
             }
         }
@@ -295,8 +345,8 @@ impl Power {
             PowerDomain::Peripherals => regs.pd_stat0_periph.is_set(PowerDomainSingle::ON),
             PowerDomain::Serial => regs.pd_stat0_serial.is_set(PowerDomainSingle::ON),
             PowerDomain::RFC => {
-                regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
-                    && regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                regs.pd_stat1.is_set(PowerDomainStatus1::RFC_ON)
+                    && regs.pd_stat0.is_set(PowerDomainStatus0::RFC_ON)
             }
             PowerDomain::VIMS => regs.pd_stat1.is_set(PowerDomainStatus1::VIMS_ON),
             PowerDomain::CPU => regs.pd_stat1.is_set(PowerDomainStatus1::CPU_ON),
@@ -309,9 +359,10 @@ pub struct Clock(());
 impl Clock {
     pub fn enable_gpio() {
         let regs = PRCM_BASE;
-        regs.gpio_clk_gate_run.write(ClockGate::CLK_EN::SET);
-        regs.gpio_clk_gate_sleep.write(ClockGate::CLK_EN::SET);
-        regs.gpio_clk_gate_deep_sleep.write(ClockGate::CLK_EN::SET);
+        regs.gpio_clk_gate_run.modify(ClockGate::AM_EN::SET);
+        regs.gpio_clk_gate_run.modify(ClockGate::CLK_EN::SET);
+        regs.gpio_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
+        regs.gpio_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
 
         prcm_commit();
     }
@@ -320,10 +371,6 @@ impl Clock {
         let regs = PRCM_BASE;
         regs.sec_dma_clk_run
             .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
-        regs.sec_dma_clk_sleep
-            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
-        regs.sec_dma_clk_deep_sleep
-            .modify(SECDMAClockGate::TRNG_CLK_EN::SET);
 
         prcm_commit();
     }
@@ -331,57 +378,127 @@ impl Clock {
     /// Enables UART clocks for run, sleep and deep sleep mode.
     pub fn enable_uarts() {
         let regs = PRCM_BASE;
-        regs.uart_clk_gate_run
-            .modify(ClockGate2::CLK0_EN::SET + ClockGate2::CLK1_EN::SET);
+        regs.uart_clk_gate_run.modify(
+            ClockGate2::AM_EN0::SET
+                + ClockGate2::AM_EN1::SET
+                + ClockGate2::CLK_EN0::SET
+                + ClockGate2::CLK_EN1::SET,
+        );
         regs.uart_clk_gate_sleep
-            .modify(ClockGate2::CLK0_EN::SET + ClockGate2::CLK1_EN::SET);
+            .modify(ClockGate2::CLK_EN0::SET + ClockGate2::CLK_EN1::SET);
         regs.uart_clk_gate_deep_sleep
-            .modify(ClockGate2::CLK0_EN::SET + ClockGate2::CLK1_EN::SET);
+            .modify(ClockGate2::CLK_EN0::SET + ClockGate2::CLK_EN1::SET);
 
         prcm_commit();
     }
 
     pub fn disable_uarts() {
         let regs = PRCM_BASE;
-        regs.uart_clk_gate_run
-            .modify(ClockGate2::CLK0_EN::CLEAR + ClockGate2::CLK1_EN::CLEAR);
+        regs.uart_clk_gate_run.modify(
+            ClockGate2::AM_EN0::CLEAR
+                + ClockGate2::AM_EN1::CLEAR
+                + ClockGate2::CLK_EN0::CLEAR
+                + ClockGate2::CLK_EN1::CLEAR,
+        );
         regs.uart_clk_gate_sleep
-            .modify(ClockGate2::CLK0_EN::CLEAR + ClockGate2::CLK1_EN::CLEAR);
+            .modify(ClockGate2::CLK_EN0::CLEAR + ClockGate2::CLK_EN1::CLEAR);
         regs.uart_clk_gate_deep_sleep
-            .modify(ClockGate2::CLK0_EN::CLEAR + ClockGate2::CLK1_EN::CLEAR);
+            .modify(ClockGate2::CLK_EN0::CLEAR + ClockGate2::CLK_EN1::CLEAR);
 
         prcm_commit();
     }
 
     pub fn enable_rfc() {
         let regs = PRCM_BASE;
-        regs.rfc_clk_gate.write(ClockGate::CLK_EN::SET);
+        regs.rfc_clk_gate.modify(ClockGate::CLK_EN::SET);
 
         prcm_commit();
     }
 
     pub fn disable_rfc() {
         let regs = PRCM_BASE;
-        regs.rfc_clk_gate.write(ClockGate::CLK_EN::CLEAR);
+        regs.rfc_clk_gate.modify(ClockGate::CLK_EN::CLEAR);
 
         prcm_commit();
     }
 
-    pub fn enable_gpt() {
+    pub fn enable_vims() {
         let regs = PRCM_BASE;
-        regs.gpt_clk_gate_run.write(ClockGate::CLK_EN::SET);
-        regs.gpt_clk_gate_sleep.write(ClockGate::CLK_EN::SET);
-        regs.gpt_clk_gate_deep_sleep.write(ClockGate::CLK_EN::SET);
+        regs.vims_clk_gate.modify(ClockGate::CLK_EN::SET);
 
         prcm_commit();
     }
 
-    pub fn disable_gpt() {
+    pub fn disable_vims() {
         let regs = PRCM_BASE;
-        regs.gpt_clk_gate_run.write(ClockGate::CLK_EN::CLEAR);
-        regs.gpt_clk_gate_sleep.write(ClockGate::CLK_EN::CLEAR);
-        regs.gpt_clk_gate_deep_sleep.write(ClockGate::CLK_EN::CLEAR);
+        regs.vims_clk_gate.modify(ClockGate::CLK_EN::SET);
 
+        prcm_commit();
+    }
+
+    pub fn enable_gpt(num: usize) {
+        let regs = PRCM_BASE;
+
+        match num {
+            0 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN0::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN0::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN0::SET);
+            }
+            1 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN1::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN1::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN1::SET);
+            }
+            2 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN2::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN2::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN2::SET);
+            }
+            3 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN3::SET);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN3::SET);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN3::SET);
+            }
+            _ => return,
+        }
+        prcm_commit();
+    }
+
+    pub fn disable_gpt(num: usize) {
+        let regs = PRCM_BASE;
+
+        match num {
+            0 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN0::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN0::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN0::CLEAR);
+            }
+            1 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN1::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN1::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN1::CLEAR);
+            }
+            2 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN2::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN2::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN2::CLEAR);
+            }
+            3 => {
+                regs.gpt_clk_gate_run.modify(ClockGate4::CLK_EN3::CLEAR);
+                regs.gpt_clk_gate_sleep.modify(ClockGate4::CLK_EN3::CLEAR);
+                regs.gpt_clk_gate_deep_sleep
+                    .modify(ClockGate4::CLK_EN3::CLEAR);
+            }
+            _ => return,
+        }
         prcm_commit();
     }
 
@@ -395,13 +512,24 @@ impl Clock {
         prcm_commit();
     }
 
-    pub fn set_power_down_source(source: u32) {
-        let regs = AON_PMCTL_BASE;
-        regs.mcu_clk.set(source & 0x01);
-    }
-}
+    pub fn enable_i2s() {
+        let regs = PRCM_BASE;
+        regs.i2s_clk_gate_run
+            .modify(ClockGate::AM_EN::SET + ClockGate::CLK_EN::SET);
+        regs.i2s_clk_gate_sleep.modify(ClockGate::CLK_EN::SET);
+        regs.i2s_clk_gate_deep_sleep.modify(ClockGate::CLK_EN::SET);
 
-pub fn rf_mode_sel(mode: u32) {
-    let regs = PRCM_BASE;
-    regs.rfc_mode_sel.set(mode);
+        prcm_commit();
+    }
+
+    pub fn disable_i2s() {
+        let regs = PRCM_BASE;
+        regs.i2s_clk_gate_run
+            .modify(ClockGate::AM_EN::CLEAR + ClockGate::CLK_EN::CLEAR);
+        regs.i2s_clk_gate_sleep.modify(ClockGate::CLK_EN::CLEAR);
+        regs.i2s_clk_gate_deep_sleep
+            .modify(ClockGate::CLK_EN::CLEAR);
+
+        prcm_commit();
+    }
 }
