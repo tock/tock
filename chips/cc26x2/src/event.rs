@@ -107,8 +107,8 @@
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 
-use crate::memory_map::EVENT_BASE;
 use crate::event;
+use crate::memory_map::EVENT_BASE;
 
 pub const REG: StaticRef<Register> =
     unsafe { StaticRef::new((EVENT_BASE + 0x200) as *const Register) };

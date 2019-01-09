@@ -11,11 +11,11 @@ use kernel::common::registers::{FieldValue, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 
-use cortexm4::nvic;
 use crate::event;
 use crate::ioc;
 use crate::peripheral_interrupts;
 use crate::pwm;
+use cortexm4::nvic;
 
 pub const NUM_PINS: usize = 32;
 

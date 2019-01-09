@@ -1,5 +1,5 @@
-use kernel::common::registers::{register_bitfields, ReadWrite};
 use crate::gpio;
+use kernel::common::registers::{register_bitfields, ReadWrite};
 
 pub const MIN_ANALOG_CAPABLE: usize = 23 + 1;
 pub const MAX_ANALOG_CAPABLE: usize = 27;

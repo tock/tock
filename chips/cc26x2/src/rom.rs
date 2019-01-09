@@ -1,6 +1,6 @@
-use kernel::common::StaticRef;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::common::StaticRef;
 
 // Pretty much this whole file is extracted from
 //     ~/ti/simplelink_cc13x2_sdk_2_20_00_71/source/ti/devices/cc13x2_cc26x2_v1/driverlib/rom.h
