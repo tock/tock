@@ -18,13 +18,16 @@ impl Write for Writer {
         let uart = unsafe { &mut cc26x2::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart::Configure::configure(uart, uart::Parameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-                width: uart::Width::Eight,
-            });
+            uart::Configure::configure(
+                uart,
+                uart::Parameters {
+                    baud_rate: 115200,
+                    stop_bits: uart::StopBits::One,
+                    parity: uart::Parity::None,
+                    hw_flow_control: false,
+                    width: uart::Width::Eight,
+                },
+            );
         }
         for c in s.bytes() {
             uart.write(c as u32);

@@ -1,6 +1,6 @@
 //! UART driver, cc26x2 family
-use core::cell::Cell;
 use crate::prcm;
+use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -178,17 +178,13 @@ impl<'a> UART<'a> {
         self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
         // This logic below seems buggy; it infers interrupt state from
         // software rather than looking at hardware.
-        
+
         if self.receiving_word.get() {
             if self.rx_fifo_not_empty() {
                 let word = self.read();
                 self.receiving_word.set(false);
                 self.rx_client.map(move |client| {
-                    client.received_word(
-                        word,
-                        ReturnCode::SUCCESS,
-                        uart::Error::None,
-                    );
+                    client.received_word(word, ReturnCode::SUCCESS, uart::Error::None);
                 });
             }
         } else {
@@ -198,7 +194,7 @@ impl<'a> UART<'a> {
                     rx.buffer[rx.index] = byte;
                     rx.index += 1;
                 }
-                
+
                 if rx.index == rx.length {
                     self.rx_client.map(move |client| {
                         client.received_buffer(
@@ -213,7 +209,7 @@ impl<'a> UART<'a> {
                 }
             });
         }
-        
+
         // If there are bytes and no oustanding RX operation, then
         // read into the void. Note that testing for an operation is
         // necessary in case a preceding read completed before the FIFO
@@ -261,7 +257,6 @@ impl<'a> UART<'a> {
     pub fn tx_fifo_not_full(&self) -> bool {
         !self.registers.fr.is_set(Flags::TX_FIFO_FULL)
     }
-
 }
 
 impl<'a> uart::Uart<'a> for UART<'a> {}
@@ -307,8 +302,11 @@ impl<'a> uart::Transmit<'a> for UART<'a> {
         self.tx_client.set(client);
     }
 
-
-    fn transmit_buffer(&self, buffer: &'static mut [u8], len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         // if there is a weird input, don't try to do any transfers
         if len == 0 || len > buffer.len() {
             (ReturnCode::ESIZE, Some(buffer))
@@ -343,12 +341,15 @@ impl<'a> uart::Transmit<'a> for UART<'a> {
 }
 
 impl<'a> uart::Receive<'a> for UART<'a> {
-
     fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
         self.rx_client.set(client);
     }
-    
-    fn receive_buffer(&self, buffer: &'static mut [u8], len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+
+    fn receive_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if len == 0 || len > buffer.len() {
             (ReturnCode::ESIZE, Some(buffer))
         } else if self.rx.is_some() || self.receiving_word.get() {
@@ -371,7 +372,7 @@ impl<'a> uart::Receive<'a> for UART<'a> {
             ReturnCode::SUCCESS
         }
     }
-    
+
     fn receive_abort(&self) -> ReturnCode {
         ReturnCode::FAIL
     }

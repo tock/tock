@@ -156,7 +156,7 @@ register_bitfields! [u32,
 /// UARTE
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
-pub struct Uarte<'a>{
+pub struct Uarte<'a> {
     registers: StaticRef<UarteRegisters>,
     tx_client: OptionalCell<&'a uart::TransmitClient>,
     tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
@@ -425,12 +425,12 @@ impl<'a> Uarte<'a> {
         self.offset.set(0);
         self.tx_buffer.replace(buf);
         self.set_tx_dma_pointer_to_buffer();
-        
+
         let regs = &*self.registers;
         regs.txd_maxcnt
             .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
         regs.task_starttx.write(Task::ENABLE::SET);
-        
+
         self.enable_tx_interrupts();
     }
 }
@@ -438,13 +438,16 @@ impl<'a> Uarte<'a> {
 impl<'a> uart::UartData<'a> for Uarte<'a> {}
 impl<'a> uart::Uart<'a> for Uarte<'a> {}
 
-
 impl<'a> uart::Transmit<'a> for Uarte<'a> {
     fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
-    fn transmit_buffer(&self, tx_data: &'static mut [u8], tx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if tx_len == 0 || tx_len > tx_data.len() {
             (ReturnCode::ESIZE, Some(tx_data))
         } else if self.tx_buffer.is_some() {
@@ -462,11 +465,9 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
     fn transmit_abort(&self) -> ReturnCode {
         ReturnCode::FAIL
     }
-
 }
 
 impl<'a> uart::Configure for Uarte<'a> {
-
     fn configure(&self, params: uart::Parameters) -> ReturnCode {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
@@ -487,12 +488,15 @@ impl<'a> uart::Configure for Uarte<'a> {
 }
 
 impl<'a> uart::Receive<'a> for Uarte<'a> {
-
     fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
         self.rx_client.set(client);
     }
-    
-    fn receive_buffer(&self, rx_buf: &'static mut [u8], rx_len: usize) -> (ReturnCode, Option<&'static mut [u8]>) {
+
+    fn receive_buffer(
+        &self,
+        rx_buf: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         let regs = &*self.registers;
         if self.rx_buffer.is_some() {
             return (ReturnCode::EBUSY, Some(rx_buf));
@@ -519,7 +523,7 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
     fn receive_word(&self) -> ReturnCode {
         ReturnCode::FAIL
     }
-    
+
     fn receive_abort(&self) -> ReturnCode {
         // Trigger the STOPRX event to cancel the current receive call.
         if self.rx_buffer.is_none() {

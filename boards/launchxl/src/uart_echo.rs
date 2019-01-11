@@ -101,7 +101,9 @@ pub struct UartEcho<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart:
     rx_buf: MapCell<&'static mut [u8]>,
 }
 
-impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'static>> UartEcho<UTx, URx> {
+impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'static>>
+    UartEcho<UTx, URx>
+{
     pub fn new(
         uart_tx: &'static UTx,
         uart_rx: &'static URx,
@@ -128,15 +130,24 @@ impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'stati
     }
 }
 
-impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'static>> uart::TransmitClient for UartEcho<UTx, URx> {
+impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'static>>
+    uart::TransmitClient for UartEcho<UTx, URx>
+{
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _len: usize, _rcode: ReturnCode) {
         self.tx_buf.put(buffer);
     }
 }
 
-
-impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'static>> uart::ReceiveClient for UartEcho<UTx, URx> {
-    fn received_buffer(&self, buffer: &'static mut [u8], rx_len: usize, _rcode: ReturnCode,  _error: uart::Error) {
+impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'static>>
+    uart::ReceiveClient for UartEcho<UTx, URx>
+{
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        _rcode: ReturnCode,
+        _error: uart::Error,
+    ) {
         // copy into tx buf
         let mut added_carraige_returns = 0;
         for n in 0..rx_len {
@@ -152,8 +163,9 @@ impl<UTx: 'static + uart::Transmit<'static>, URx: 'static + uart::Receive<'stati
         self.uart_rx.receive_buffer(buffer, MAX_PAYLOAD);
 
         // output on uart
-        self.tx_buf
-            .take()
-            .map(|buf| self.uart_tx.transmit_buffer(buf, rx_len + added_carraige_returns));
+        self.tx_buf.take().map(|buf| {
+            self.uart_tx
+                .transmit_buffer(buf, rx_len + added_carraige_returns)
+        });
     }
 }
