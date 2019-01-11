@@ -186,6 +186,9 @@ impl<'a, A: hil::time::Alarm> SeggerRtt<'a, A> {
     }
 }
 
+impl<'a, A: hil::time::Alarm> uart::Uart<'a> for SeggerRtt<'a, A> {}
+impl<'a, A: hil::time::Alarm> uart::UartData<'a> for SeggerRtt<'a, A> {}
+
 impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
     fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.client.set(client);
@@ -246,3 +249,32 @@ impl<A: hil::time::Alarm> hil::time::Client for SeggerRtt<'a, A> {
         });
     }
 }
+
+// Dummy implementation so this can act as the underlying UART for a 
+// virtualized UART MUX. -pal 1/10/19
+impl<'a, A: hil::time::Alarm> uart::Configure for SeggerRtt<'a, A> {
+    fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+}
+
+// Dummy implementation so this can act as the underlying UART for a 
+// virtualized UART MUX.  -pal 1/10/19
+impl<'a, A: hil::time::Alarm> uart::Receive<'a> for SeggerRtt<'a, A> { 
+    fn set_receive_client(&self, _client: &'a uart::ReceiveClient) {}
+    fn receive_buffer(&self, 
+                      buffer: &'static mut[u8], 
+                      _len: usize
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::FAIL, Some(buffer))
+    }
+
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+  
+    fn receive_abort(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+}
+
