@@ -6,7 +6,7 @@ PLATFORM=hifive1
 # Need this to be different for now
 RUSTFLAGS_FOR_CARGO_LINKING ?= -C link-arg=-Tlayout.ld -C linker=riscv32-unknown-elf-ld
 
-TOOLCHAIN ?= /Users/bradjc/git/riscv-rust-toolchain/toolchain/bin/riscv32-unknown-elf
+TOOLCHAIN ?= /opt/riscv/bin/riscv32-unknown-linux-gnu
 
 include ../Makefile.common
 
