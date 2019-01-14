@@ -4,7 +4,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(panic_implementation, asm)]
+#![feature(panic_handler, asm)]
 
 extern crate capsules;
 #[allow(unused_imports)]
