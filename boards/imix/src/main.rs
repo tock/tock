@@ -15,7 +15,7 @@ use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::UartMux;
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -299,8 +299,8 @@ pub unsafe fn reset_handler() {
     // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &sam4l::usart::USART3,
             &mut capsules::virtual_uart::RX_BUF,
             115200

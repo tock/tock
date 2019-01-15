@@ -1,22 +1,4 @@
 [[package]]
-name = "capsules"
-version = "0.1.0"
-dependencies = [
- "enum_primitive 0.1.0",
- "kernel 0.1.0",
-]
-
-[[package]]
-name = "cc26x2"
-version = "0.1.0"
-dependencies = [
- "cortexm4 0.1.0",
- "enum_primitive 0.1.0",
- "kernel 0.1.0",
- "tock_rt0 0.1.0",
-]
-
-[[package]]
 name = "cortexm"
 version = "0.1.0"
 dependencies = [
@@ -44,14 +26,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "launchxl"
+name = "stm32f446re"
 version = "0.1.0"
 dependencies = [
- "capsules 0.1.0",
- "cc26x2 0.1.0",
  "cortexm4 0.1.0",
  "enum_primitive 0.1.0",
  "kernel 0.1.0",
+ "tock_rt0 0.1.0",
 ]
 
 [[package]]

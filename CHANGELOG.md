@@ -51,8 +51,8 @@ Since 1.2
 
     ```rust
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &sam4l::usart::USART0, // Choose the correct UART HW bus
             &mut capsules::virtual_uart::RX_BUF,
             115200

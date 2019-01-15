@@ -62,6 +62,7 @@ add_board imix
 add_board nordic/nrf52dk
 add_board nordic/nrf52840dk
 add_board launchxl
+add_board nucleo_f446re
 
 # Temporary redirect rule
 # https://www.netlify.com/docs/redirects/
