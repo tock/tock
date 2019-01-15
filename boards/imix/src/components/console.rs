@@ -27,7 +27,7 @@ use kernel::static_init;
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
-    uart_mux: &'static MuxUart<'static>
+    uart_mux: &'static MuxUart<'static>,
 }
 
 impl ConsoleComponent {

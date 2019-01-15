@@ -25,7 +25,7 @@ pub struct ProcessConsoleComponent {
 impl ProcessConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        uart_mux: &'static MuxUart
+        uart_mux: &'static MuxUart,
     ) -> ProcessConsoleComponent {
         ProcessConsoleComponent {
             board_kernel: board_kernel,

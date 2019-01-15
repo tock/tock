@@ -1025,30 +1025,14 @@ impl Stream<'a> {
 
     fn get_data_items(&self) -> u32 {
         match self.streamid {
-            StreamId::Stream0 => unsafe {
-                DMA1.registers.s0ndtr.get()
-            },
-            StreamId::Stream1 => unsafe {
-                DMA1.registers.s1ndtr.get()
-            },
-            StreamId::Stream2 => unsafe {
-                DMA1.registers.s2ndtr.get()
-            },
-            StreamId::Stream3 => unsafe {
-                DMA1.registers.s3ndtr.get()
-            },
-            StreamId::Stream4 => unsafe {
-                DMA1.registers.s4ndtr.get()
-            },
-            StreamId::Stream5 => unsafe {
-                DMA1.registers.s5ndtr.get()
-            },
-            StreamId::Stream6 => unsafe {
-                DMA1.registers.s6ndtr.get()
-            },
-            StreamId::Stream7 => unsafe {
-                DMA1.registers.s7ndtr.get()
-            },
+            StreamId::Stream0 => unsafe { DMA1.registers.s0ndtr.get() },
+            StreamId::Stream1 => unsafe { DMA1.registers.s1ndtr.get() },
+            StreamId::Stream2 => unsafe { DMA1.registers.s2ndtr.get() },
+            StreamId::Stream3 => unsafe { DMA1.registers.s3ndtr.get() },
+            StreamId::Stream4 => unsafe { DMA1.registers.s4ndtr.get() },
+            StreamId::Stream5 => unsafe { DMA1.registers.s5ndtr.get() },
+            StreamId::Stream6 => unsafe { DMA1.registers.s6ndtr.get() },
+            StreamId::Stream7 => unsafe { DMA1.registers.s7ndtr.get() },
         }
     }
 
