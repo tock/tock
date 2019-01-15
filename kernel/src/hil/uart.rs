@@ -100,7 +100,7 @@ pub trait Transmit<'a> {
     /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients
     /// that need to transfer 9-bit words should use `transmit_word`.
     ///
-    /// Calling `transmit_word` while there is an outstanding
+    /// Calling `transmit_buffer` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
     fn transmit_buffer(
         &self,
@@ -118,7 +118,7 @@ pub trait Transmit<'a> {
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already transmitting and has not made a
     ///           transmission callback yet.
-    ///  - FAIL: some other error.
+    ///  - FAIL: not supported, or some other error.
     /// If the `ReturnCode` is not SUCCESS, no callback will be made.
     /// Calling `transmit_word` while there is an outstanding
     /// `transmit_buffer` or `transmit_word` operation will return
@@ -169,7 +169,7 @@ pub trait Receive<'a> {
     /// Each byte in `rx_data` is a UART transfer word of 8 or fewer
     /// bits.  The width is determined by the UART
     /// configuration. Clients that need to transfer 9-bit words
-    /// should use `receive_word`.  Calling `receive_word` while
+    /// should use `receive_word`.  Calling `receive_buffer` while
     /// there is an outstanding `receive_buffer` or `receive_word`
     /// operation will return EBUSY.
     fn receive_buffer(
@@ -188,6 +188,7 @@ pub trait Receive<'a> {
     ///          hardware USART controller because it is set up for SPI.
     ///  - EBUSY: the UART is already receiving and has not made a
     ///           reception callback yet.
+    ///  - FAIL: not supported or some other error.
     /// Calling `receive_word` while there is an outstanding
     /// `receive_buffer` or `receive_word` operation will return
     /// EBUSY.
