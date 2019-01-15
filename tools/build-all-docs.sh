@@ -60,11 +60,7 @@ function build_all_docs {
     for BOARD in $*
     do
         echo "Now building for $BOARD"
-        add_board imix
-        add_board nordic/nrf52dk
-        add_board nordic/nrf52840dk
-        add_board launchxl
-        add_board nucleo_f446re
+        add_board $BOARD
     done
 }
 
