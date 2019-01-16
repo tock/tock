@@ -283,7 +283,8 @@ impl Usart<'a> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
     }
 
-    fn abort_tx(&self, _error: hil::uart::Error) {
+    // Unused because signals callback from function. -pal 1/15/19
+    fn _abort_tx(&self, _error: hil::uart::Error) {
         self.disable_tx();
         self.usart_tx_state.set(USARTStateTX::Idle);
 
@@ -306,7 +307,8 @@ impl Usart<'a> {
         });
     }
 
-    fn abort_rx(&self, error: hil::uart::Error) {
+    // Unused because signals callback from function. -pal 1/15/19
+    fn _abort_rx(&self, error: hil::uart::Error) {
         self.disable_rx();
         self.usart_rx_state.set(USARTStateRX::Idle);
 
