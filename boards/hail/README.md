@@ -33,8 +33,8 @@ any standard serial program (set to 115200 baud), Tock ships with the
 install tockloader, use pip:
 
 ```bash
-(Linux): sudo pip3 install --upgrade
-(MacOS): pip3 install --upgrade
+(Linux): sudo pip3 install --upgrade tockloader
+(MacOS): pip3 install --upgrade tockloader
 ```
 
 Tockloader can read attributes from connected serial devices, and will
@@ -123,7 +123,7 @@ Now try running `tockloader listen` &ndash; three apps running at once, cool!
 There are a few more advanced sample applications that are worth checking out:
 
   * [accel-leds](https://github.com/tock/libtock-c/tree/master/examples/accel-leds)
-    changes LED color based on the board's orientation
+    changes the LED color based on the board's orientation
   * [ble-env-sense](https://github.com/tock/libtock-c/tree/master/examples/services/ble-env-sense)
     shows how to integrate with the onboard Bluetooth to act as an environmental
     sensor
