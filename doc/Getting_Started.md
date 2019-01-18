@@ -1,7 +1,7 @@
 Tock Getting Started Guide
 ==========================
 
-This covers how to get the toolchain setup on your platform to start using and
+This covers how to install the toolchain on your platform to start using and
 developing Tock.
 
 ## Requirements
@@ -59,9 +59,9 @@ $ rustup install nightly-2018-11-30
 
 #### Tockloader
 
-`tockloader` programs the kernel and applications on to boards, and also has
-features that are generally useful to all Tock boards, such as easy to manage
-serial connections, and the ability to list, add, replace, and remove
+`tockloader` programs the kernel and applications onto boards, and also has
+features that are generally useful for all Tock boards, such as easy-to-manage
+serial connections, along with the ability to list, add, replace, and remove
 applications over JTAG (or USB if a bootloader is installed).
 
 1. [tockloader](https://github.com/tock/tockloader) (version >= 1.0)
@@ -127,7 +127,7 @@ the `blink` app, simply run:
 
     $ tockloader install blink
 
-This will fetch it from the TockOS app repository and load it to the board.
+This will fetch it from the TockOS app repository and load it onto the board.
 
 ### Optional Requirements
 
@@ -149,15 +149,15 @@ If you want to upload code through a [JLink JTAG
 debugger](https://www.segger.com/j-link-edu.html) (available on
 [Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)), you should install JLinkExe. We require a version greater than or equal to `5.0`.
 
-It is available [here](https://www.segger.com/downloads/jlink). You want to the
-"J-Link Software and Documentation Pack". There are various packages available
-depending on operating system.
+It is available [here](https://www.segger.com/downloads/jlink). You want to
+install the "J-Link Software and Documentation Pack". There are various
+packages available depending on operating system.
 
 ### Loading code onto a board
 
 This is generally done with `make program` and `make flash`, but is board
 specific. To learn how to program your specific hardware, please see
-the [board specific](../boards/README.md) READMEs.
+the [board-specific READMEs](../boards/README.md).
 
 
 ## Formatting Rust source code
@@ -173,6 +173,6 @@ from the root of the repository to format all rust code in the repository.
 
 Occasionally, Tock updates to a new nightly version of Rust. The build system
 automatically checks whether the versions of `rustc` and `rustup` are correct
-for the build requirements, and updates them when necessary. After initial
+for the build requirements, and updates them when necessary. After the
 installation of the initial four requirements, you shouldn't have to worry
 about keeping them up to date.
