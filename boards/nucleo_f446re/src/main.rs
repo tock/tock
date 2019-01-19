@@ -17,6 +17,10 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
+// Unit Tests for drivers.
+#[allow(dead_code)]
+mod virtual_uart_rx_test;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -301,6 +305,11 @@ pub unsafe fn reset_handler() {
         button: button,
         alarm: alarm,
     };
+
+    // // Optional kernel tests
+    // //
+    // // See comment in `boards/imix/src/main.rs`
+    // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
     debug!("Initialization complete. Entering main loop");
 
