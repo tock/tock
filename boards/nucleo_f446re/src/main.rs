@@ -188,6 +188,11 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
+    mux_uart.initialize();
+    // `mux_uart.initialize()` configures the underlying USART, so we need to
+    // tell `send_byte()` not to configure the USART again.
+    io::WRITER.set_initialized();
+
     hil::uart::Transmit::set_transmit_client(&stm32f446re::usart::USART2, mux_uart);
     hil::uart::Receive::set_receive_client(&stm32f446re::usart::USART2, mux_uart);
 
@@ -231,10 +236,6 @@ pub unsafe fn reset_handler() {
     );
     hil::uart::Transmit::set_transmit_client(console_uart, console);
     hil::uart::Receive::set_receive_client(console_uart, console);
-
-    // `console.initialize()` configures the underlying USART, so we need to
-    // tell `send_byte()` not to configure the USART again.
-    io::WRITER.set_initialized();
 
     // LEDs
 
