@@ -283,13 +283,12 @@ impl Usart<'a> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
     }
 
-    // Unused because signals callback from function. -pal 1/15/19
-    fn _abort_tx(&self, _error: hil::uart::Error) {
+    fn abort_tx(&self, rcode: ReturnCode) {
         self.disable_tx();
         self.usart_tx_state.set(USARTStateTX::Idle);
 
         // get buffer
-        let (buffer, len) = self.tx_dma.map_or((None, 0), |tx_dma| {
+        let (mut buffer, len) = self.tx_dma.map_or((None, 0), |tx_dma| {
             // `abort_transfer` also disables the stream
             tx_dma.abort_transfer()
         });
@@ -301,19 +300,18 @@ impl Usart<'a> {
 
         // alert client
         self.tx_client.map(|client| {
-            buffer.map(|buf| {
-                client.transmitted_buffer(buf, count as usize, ReturnCode::ECANCEL);
+            buffer.take().map(|buf| {
+                client.transmitted_buffer(buf, count as usize, rcode);
             });
         });
     }
 
-    // Unused because signals callback from function. -pal 1/15/19
-    fn _abort_rx(&self, error: hil::uart::Error) {
+    fn abort_rx(&self, rcode: ReturnCode, error: hil::uart::Error) {
         self.disable_rx();
         self.usart_rx_state.set(USARTStateRX::Idle);
 
         // get buffer
-        let (buffer, len) = self.rx_dma.map_or((None, 0), |rx_dma| {
+        let (mut buffer, len) = self.rx_dma.map_or((None, 0), |rx_dma| {
             // `abort_transfer` also disables the stream
             rx_dma.abort_transfer()
         });
@@ -325,8 +323,8 @@ impl Usart<'a> {
 
         // alert client
         self.rx_client.map(|client| {
-            buffer.map(|buf| {
-                client.received_buffer(buf, count, ReturnCode::ECANCEL, error);
+            buffer.take().map(|buf| {
+                client.received_buffer(buf, count, rcode, error);
             });
         });
     }
@@ -381,7 +379,12 @@ impl hil::uart::Transmit<'a> for Usart<'a> {
     }
 
     fn transmit_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        if self.usart_tx_state.get() != USARTStateTX::Idle {
+            self.abort_tx(ReturnCode::ECANCEL);
+            ReturnCode::EBUSY
+        } else {
+            ReturnCode::SUCCESS
+        }
     }
 }
 
@@ -391,6 +394,7 @@ impl hil::uart::Configure for Usart<'a> {
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
             || params.hw_flow_control != false
+            || params.width != hil::uart::Width::Eight
         {
             panic!(
                 "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
@@ -463,7 +467,8 @@ impl hil::uart::Receive<'a> for Usart<'a> {
     }
 
     fn receive_abort(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        self.abort_rx(ReturnCode::ECANCEL, hil::uart::Error::Aborted);
+        ReturnCode::EBUSY
     }
 }
 
