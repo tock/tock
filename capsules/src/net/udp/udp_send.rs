@@ -62,6 +62,8 @@ pub trait UDPSender<'a> {
     /// Returns any synchronous errors or success. Note that any asynchrounous
     /// errors are returned via the callback.
     fn send(&self, dest: IPAddr, udp_header: UDPHeader, buf: &[u8]) -> ReturnCode;
+
+    fn get_binding_ref(&self) -> &UdpPortBinding;
 }
 
 /// This is a specific instantiation of the `UDPSender` trait. Note
@@ -70,7 +72,7 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a UDPSendClient>,
-    binding: UdpPortBinding, // or shoudl this be a UdpPortBinding? should there be a port field?
+    binding: UdpPortBinding,
     port_table: &'static UdpPortTable,
 }
 
@@ -87,18 +89,13 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
-        // Make sure that the UDPSendStruct is bound to the desired port.
-        // match self.port_table.get_port_at_id(&self.id) {
-        //     Some(src_port) => self.send(dest, udp_header, buf),
-        //     _ => ReturnCode::FAIL,
-        // }
-        self.port_table.bind(&self.binding, src_port);
+        // TODO: add appropriate error handling here
         let ret = match self.port_table.can_send(&self.binding.get_sender().unwrap(), src_port) {
             ReturnCode::SUCCESS => self.send(dest, udp_header, buf),
             _ => ReturnCode::FAIL
         };
-        self.port_table.unbind(&self.binding);
         ret
+        //self.send(dest, udp_header, buf)
     }
 
     fn send(&self, dest: IPAddr, mut udp_header: UDPHeader, buf: &[u8]) -> ReturnCode {
@@ -108,6 +105,10 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         udp_header.set_len(total_length as u16);
         let transport_header = TransportHeader::UDP(udp_header);
         self.ip_send_struct.send_to(dest, transport_header, buf)
+    }
+
+    fn get_binding_ref(&self) -> &UdpPortBinding {
+        &self.binding
     }
 }
 

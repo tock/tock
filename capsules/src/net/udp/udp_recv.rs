@@ -4,6 +4,7 @@ use crate::net::ipv6::ipv6_recv::IP6RecvClient;
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
+use kernel::ReturnCode;
 use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
 
 /// The UDP driver implements this client interface trait to receive
@@ -48,6 +49,7 @@ impl<'a> UDPReceiver<'a> {
 impl<'a> IP6RecvClient for UDPReceiver<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
         // TODO: add call to port_table.can_recv here
+        // TODO: change from ret code to bool.
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
                 let len = udp_header.get_len() as usize;
@@ -56,6 +58,15 @@ impl<'a> IP6RecvClient for UDPReceiver<'a> {
                     debug!("[UDP_RECV] Error: UDP length too long");
                     return;
                 }
+                // let result = match self.port_table.can_recv(&self.binding.get_receiver().unwrap(),
+                //     udp_header.get_src_port()) {
+                //     ReturnCode::SUCCESS => true,
+                //     _ => false,
+                // };
+                // if !result {
+                //     debug!("[UDP_RECV] Error: UDP port not bound");
+                //     return;
+                // }
                 self.client.map(|client| {
                     client.receive(
                         ip_header.get_src_addr(),

@@ -234,9 +234,9 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     fn run_test(&self, test_id: usize) {
         debug!("Running test {}:", test_id);
         match test_id {
-            0 => self.ipv6_send_packet_test(),
-            //1 => self.ipv6_send_packet_test(),
-            1 => self.port_table_test(),
+            0 => self.port_table_test(),//self.ipv6_send_packet_test(),
+            1 => self.ipv6_send_packet_test(),
+            //1 => self.port_table_test(),
             _ => {}
         }
     }
@@ -286,11 +286,13 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     fn send_next(&self) {
         let src_port: u16 = 12321;
         let dst_port: u16 = 32123;
-
+        self.port_table.bind(self.udp_sender.get_binding_ref(), src_port);
+        debug!("before send_to");
         unsafe {
             self.udp_sender
                 .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
         };
+        debug!("send_next done");
     }
 }
 
