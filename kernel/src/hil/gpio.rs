@@ -1,8 +1,6 @@
-
-
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
 #[derive(Debug)]
-pub enum InputMode {
+pub enum Floating {
     PullUp,
     PullDown,
     PullNone,
@@ -21,7 +19,7 @@ pub enum InterruptMode {
 /// a special function. Determining which function it outside the scope of the HIL,
 /// and should instead use a chip-specific API.
 #[derive(Debug)]
-pub enum PinState {
+pub enum Configuration {
     Disabled,
     Input,
     Output,
@@ -30,34 +28,29 @@ pub enum PinState {
     Unknown,
 }
 
-pub trait PinCtl {
-    /// Configure whether the pin should have a pull-up or pull-down resistor or
-    /// neither.
-}
+pub trait Pin: Input + Output + Configure {}
+pub trait InterruptPin: Pin + Interrupt {}
 
-/// Interface for synchronous GPIO pins.
-pub trait Pin {
+pub trait Configure {
+    fn set_floating_mode(&self, _: Floating);
 
-    fn input_mode(&self) -> InputMode;
-    fn set_input_mode(&self, _: InputMode);
+    fn make_output(&self) -> Configuration;
+    fn disable_output(&self) -> Configuration;
+    fn make_input(&self) -> Configuration;
+    fn disable_input(&self) -> Configuration;
 
-    /// The current configuration state of the pin.
-    fn state(&self) -> PinState;
-
-    /// Configure the GPIO pin as an output pin.
-    fn make_output(&self) -> PinState;
-
-    /// Configure the GPIO pin as an input pin.
-    fn make_input(&self) -> PinState;
-
-    fn is_input(&self) -> bool;
-
-    fn is_output(&self) -> bool;
-
-    /// Disable the GPIO pin and put it into its lowest power
-    /// mode.
+    // Disable the pin and put it into its lowest power state.
+    // Re-enabling the pin requires reconfiguring it (state of
+    // its enabled configuration is not stored).
     fn disable(&self);
 
+    fn floating_mode(&self) -> Floating;
+    fn configuration(&self) -> Configuration;
+    fn is_input(&self) -> bool;
+    fn is_output(&self) -> bool;
+}
+
+pub trait Output {
     /// Set the GPIO pin high. If the pin is not an output or
     /// input/output, this call is ignored.
     fn set(&self);
@@ -70,15 +63,16 @@ pub trait Pin {
     /// input/output, this call is ignored. Return the new value
     /// of the pin.
     fn toggle(&self) -> bool;
+}
 
+pub trait Input {
     /// Get the current state of an input GPIO pin. For an output
     /// pin, return the output; for an input pin, return the input;
     /// for disabled or function pins the value is undefined.
     fn read(&self) -> bool;
 }
 
-pub trait Interrupt {
-
+pub trait Interrupt: Input {
     /// Set the client for interrupt events.
     fn set_client(&self, client: &'static Client);
     
@@ -91,7 +85,7 @@ pub trait Interrupt {
     fn disable_interrupt(&self);
 }
 
-/// Interface for users of synchronous GPIO. In order
+/// Interface for users of synchronous GPIO interrupts. In order
 /// to receive interrupts, the user must implement
 /// this `Client` interface.
 pub trait Client {
