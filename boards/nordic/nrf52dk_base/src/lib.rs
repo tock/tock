@@ -216,6 +216,7 @@ pub unsafe fn setup_board(
             115200
         )
     );
+    uart_mux.initialize();
     hil::uart::Transmit::set_transmit_client(&nrf52::uart::UARTE0, uart_mux);
     hil::uart::Receive::set_receive_client(&nrf52::uart::UARTE0, uart_mux);
 
