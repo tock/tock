@@ -23,9 +23,9 @@ pub trait Port {
     /// Configure a pin as an ouput GPIO.
     fn make_output(&self, pin: usize) -> ReturnCode;
 
-    /// Configure a pin as an input GPIO. Not all InputMode settings may
+    /// Configure a pin as an input GPIO. Not all FloatingMode settings may
     /// be supported by a given device.
-    fn make_input(&self, pin: usize, mode: hil::gpio::InputMode) -> ReturnCode;
+    fn make_input(&self, pin: usize, mode: hil::gpio::Floating) -> ReturnCode;
 
     /// Get the state (0 or 1) of an input pin. The value will be returned
     /// via a callback.

@@ -20,7 +20,7 @@ pub enum InterruptMode {
 /// and should instead use a chip-specific API.
 #[derive(Debug)]
 pub enum Configuration {
-    Disabled,
+    LowPower,
     Input,
     Output,
     InputOutput,
@@ -42,7 +42,7 @@ pub trait Configure {
     // Disable the pin and put it into its lowest power state.
     // Re-enabling the pin requires reconfiguring it (state of
     // its enabled configuration is not stored).
-    fn disable(&self);
+    fn low_power(&self);
 
     fn floating_mode(&self) -> Floating;
     fn configuration(&self) -> Configuration;
@@ -59,7 +59,8 @@ pub trait Output {
     /// input/output, this call is ignored.
     fn clear(&self);
 
-    /// Toggle the GPIO pin. If the pin is not an output or
+    /// Toggle the GPIO pin. If the pin was high, set it low. If
+    /// the pin was low, set it high. If the pin is not an output or
     /// input/output, this call is ignored. Return the new value
     /// of the pin.
     fn toggle(&self) -> bool;
@@ -79,10 +80,10 @@ pub trait Interrupt: Input {
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
     /// should be separately configured as an input, etc.
-    fn enable_interrupt(&self, mode: InterruptMode);
+    fn enable_interrupts(&self, mode: InterruptMode);
 
-    /// Disable the interrupt for the GPIO pin.
-    fn disable_interrupt(&self);
+    /// Disable interrupts for the GPIO pin.
+    fn disable_interrupts(&self);
 }
 
 /// Interface for users of synchronous GPIO interrupts. In order
