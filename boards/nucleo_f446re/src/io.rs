@@ -5,7 +5,8 @@ use cortexm4;
 
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
+use kernel::hil::uart;
+use kernel::hil::uart::Configure;
 
 use stm32f446re;
 use stm32f446re::gpio::PinId;
@@ -35,11 +36,12 @@ impl Write for Writer {
         if !self.initialized {
             self.initialized = true;
 
-            uart.configure(uart::UARTParameters {
+            uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,
+                width: uart::Width::Eight,
             });
         }
 

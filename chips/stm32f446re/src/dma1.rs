@@ -900,12 +900,12 @@ impl Stream<'a> {
         self.buffer.replace(buf);
     }
 
-    pub fn abort_transfer(&self) -> Option<&'static mut [u8]> {
+    pub fn abort_transfer(&self) -> (Option<&'static mut [u8]>, u32) {
         self.disable_interrupt();
 
         self.disable();
 
-        self.buffer.take()
+        (self.buffer.take(), self.get_data_items())
     }
 
     pub fn return_buffer(&self) -> Option<&'static mut [u8]> {
@@ -1021,6 +1021,19 @@ impl Stream<'a> {
                 },
             }
         });
+    }
+
+    fn get_data_items(&self) -> u32 {
+        match self.streamid {
+            StreamId::Stream0 => unsafe { DMA1.registers.s0ndtr.get() },
+            StreamId::Stream1 => unsafe { DMA1.registers.s1ndtr.get() },
+            StreamId::Stream2 => unsafe { DMA1.registers.s2ndtr.get() },
+            StreamId::Stream3 => unsafe { DMA1.registers.s3ndtr.get() },
+            StreamId::Stream4 => unsafe { DMA1.registers.s4ndtr.get() },
+            StreamId::Stream5 => unsafe { DMA1.registers.s5ndtr.get() },
+            StreamId::Stream6 => unsafe { DMA1.registers.s6ndtr.get() },
+            StreamId::Stream7 => unsafe { DMA1.registers.s7ndtr.get() },
+        }
     }
 
     fn set_data_items(&self, data_items: u32) {

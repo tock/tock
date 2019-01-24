@@ -18,9 +18,10 @@
 //! let uart_mux = static_init!(
 //!     MuxUart<'static>,
 //!     MuxUart::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
-//! );
-//! hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
-
+//! )
+//! hil::uart::UART::set_receive_client(&sam4l::usart::USART0, uart_mux);
+//! hil::uart::UART::set_transmit_client(&sam4l::usart::USART0, uart_mux);
+//!
 //! // Create a UartDevice for the console.
 //! let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
 //! console_uart.setup(); // This is important!
@@ -34,7 +35,8 @@
 //!         kernel::Grant::create()
 //!     )
 //! );
-//! hil::uart::UART::set_client(console_uart, console);
+//! hil::uart::UART::set_transmit_client(console_uart, console);
+//! hil::uart::UART::set_receive_client(console_uart, console);
 //! ```
 
 use core::cell::Cell;
@@ -42,7 +44,6 @@ use core::cmp;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
-use kernel::hil;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 
@@ -50,7 +51,7 @@ const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 
 pub struct MuxUart<'a> {
-    uart: &'a hil::uart::UART,
+    uart: &'a uart::Uart<'a>,
     speed: u32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
@@ -58,16 +59,24 @@ pub struct MuxUart<'a> {
     completing_read: Cell<bool>,
 }
 
-impl<'a> hil::uart::Client for MuxUart<'a> {
-    fn transmit_complete(&self, tx_buffer: &'static mut [u8], error: hil::uart::Error) {
+impl<'a> uart::TransmitClient for MuxUart<'a> {
+    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
         self.inflight.map(move |device| {
             self.inflight.clear();
-            device.transmit_complete(tx_buffer, error);
+            device.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
         self.do_next_op();
     }
+}
 
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: hil::uart::Error) {
+impl<'a> uart::ReceiveClient for MuxUart<'a> {
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        rcode: ReturnCode,
+        error: uart::Error,
+    ) {
         let mut next_read_len = RX_BUF_LEN;
         let mut read_pending = false;
         self.completing_read.set(true);
@@ -113,14 +122,19 @@ impl<'a> hil::uart::Client for MuxUart<'a> {
                     // more data.
                     if remaining == 0 {
                         device.state.set(UartDeviceReceiveState::Idle);
-                        device.receive_complete(rxbuf, position, error);
+                        device.received_buffer(rxbuf, position, rcode, error);
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
                         }
                     } else if state == UartDeviceReceiveState::Aborting {
                         device.state.set(UartDeviceReceiveState::Idle);
-                        device.receive_complete(rxbuf, position, hil::uart::Error::Aborted);
+                        device.received_buffer(
+                            rxbuf,
+                            position,
+                            ReturnCode::ECANCEL,
+                            uart::Error::Aborted,
+                        );
                         // Need to check if receive was called in callback
                         if device.state.get() == UartDeviceReceiveState::Receiving {
                             read_pending = true;
@@ -141,7 +155,7 @@ impl<'a> hil::uart::Client for MuxUart<'a> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a hil::uart::UART, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
+    pub fn new(uart: &'a uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
         MuxUart {
             uart: uart,
             speed: speed,
@@ -153,8 +167,9 @@ impl<'a> MuxUart<'a> {
     }
 
     pub fn initialize(&self) {
-        self.uart.configure(uart::UARTParameters {
+        self.uart.configure(uart::Parameters {
             baud_rate: self.speed,
+            width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
             hw_flow_control: false,
@@ -167,7 +182,24 @@ impl<'a> MuxUart<'a> {
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
                     node.operation.map(move |op| match op {
-                        Operation::Transmit { len } => self.uart.transmit(buf, *len),
+                        Operation::Transmit { len } => {
+                            let (rcode, rbuf) = self.uart.transmit_buffer(buf, *len);
+                            if rcode != ReturnCode::SUCCESS {
+                                node.tx_client.map(|client| {
+                                    node.transmitting.set(false);
+                                    client.transmitted_buffer(rbuf.unwrap(), 0, rcode);
+                                });
+                            }
+                        }
+                        Operation::TransmitWord { word } => {
+                            let rcode = self.uart.transmit_word(*word);
+                            if rcode != ReturnCode::SUCCESS {
+                                node.tx_client.map(|client| {
+                                    node.transmitting.set(false);
+                                    client.transmitted_word(rcode);
+                                });
+                            }
+                        }
                     });
                 });
                 node.operation.clear();
@@ -194,13 +226,13 @@ impl<'a> MuxUart<'a> {
                     // Do nothing, read completion will call start_receive when ready
                     false
                 } else {
-                    self.uart.abort_receive();
+                    self.uart.receive_abort();
                     true
                 }
             },
             |rxbuf| {
                 let len = cmp::min(rx_len, rxbuf.len());
-                self.uart.receive(rxbuf, len);
+                self.uart.receive_buffer(rxbuf, len);
                 false
             },
         )
@@ -210,6 +242,7 @@ impl<'a> MuxUart<'a> {
 #[derive(Copy, Clone, PartialEq)]
 enum Operation {
     Transmit { len: usize },
+    TransmitWord { word: u32 },
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -224,13 +257,17 @@ pub struct UartDevice<'a> {
     mux: &'a MuxUart<'a>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
     tx_buffer: TakeCell<'static, [u8]>,
+    transmitting: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
     next: ListLink<'a, UartDevice<'a>>,
-    client: OptionalCell<&'a hil::uart::Client>,
+    rx_client: OptionalCell<&'a uart::ReceiveClient>,
+    tx_client: OptionalCell<&'a uart::TransmitClient>,
 }
+
+impl uart::UartData<'a> for UartDevice<'a> {}
 
 impl<'a> UartDevice<'a> {
     pub const fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
@@ -239,12 +276,14 @@ impl<'a> UartDevice<'a> {
             mux: mux,
             receiver: receiver,
             tx_buffer: TakeCell::empty(),
+            transmitting: Cell::new(false),
             rx_buffer: TakeCell::empty(),
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             operation: OptionalCell::empty(),
             next: ListLink::empty(),
-            client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
         }
     }
 
@@ -254,22 +293,32 @@ impl<'a> UartDevice<'a> {
     }
 }
 
-impl<'a> hil::uart::Client for UartDevice<'a> {
-    fn transmit_complete(&self, tx_buffer: &'static mut [u8], error: hil::uart::Error) {
-        self.client.map(move |client| {
-            client.transmit_complete(tx_buffer, error);
+impl<'a> uart::TransmitClient for UartDevice<'a> {
+    fn transmitted_buffer(&self, tx_buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
+        self.tx_client.map(move |client| {
+            self.transmitting.set(false);
+            client.transmitted_buffer(tx_buffer, tx_len, rcode);
         });
     }
 
-    fn receive_complete(
+    fn transmitted_word(&self, rcode: ReturnCode) {
+        self.tx_client.map(move |client| {
+            self.transmitting.set(false);
+            client.transmitted_word(rcode);
+        });
+    }
+}
+impl<'a> uart::ReceiveClient for UartDevice<'a> {
+    fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-        error: hil::uart::Error,
+        rcode: ReturnCode,
+        error: uart::Error,
     ) {
-        self.client.map(move |client| {
+        self.rx_client.map(move |client| {
             self.state.set(UartDeviceReceiveState::Idle);
-            client.receive_complete(rx_buffer, rx_len, error);
+            client.received_buffer(rx_buffer, rx_len, rcode, error);
         });
     }
 }
@@ -280,38 +329,77 @@ impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
     }
 }
 
-impl<'a> hil::uart::UART for UartDevice<'a> {
-    fn set_client(&self, client: &'a hil::uart::Client) {
-        self.client.set(client);
+impl<'a> uart::Transmit<'a> for UartDevice<'a> {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+        self.tx_client.set(client);
     }
 
-    // Ideally this wouldn't be here, and if we ever create a "UartDevice" trait
-    // in the HIL then this could be removed.
-    fn configure(&self, params: hil::uart::UARTParameters) -> ReturnCode {
-        self.mux.uart.configure(params)
+    fn transmit_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
     }
 
     /// Transmit data.
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        self.tx_buffer.replace(tx_data);
-        self.operation.set(Operation::Transmit { len: tx_len });
-        self.mux.do_next_op();
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if self.transmitting.get() {
+            (ReturnCode::EBUSY, Some(tx_data))
+        } else {
+            self.tx_buffer.replace(tx_data);
+            self.transmitting.set(true);
+            self.operation.set(Operation::Transmit { len: tx_len });
+            self.mux.do_next_op();
+            (ReturnCode::SUCCESS, None)
+        }
+    }
+
+    fn transmit_word(&self, word: u32) -> ReturnCode {
+        if self.transmitting.get() {
+            ReturnCode::EBUSY
+        } else {
+            self.transmitting.set(true);
+            self.operation.set(Operation::TransmitWord { word: word });
+            self.mux.do_next_op();
+            ReturnCode::SUCCESS
+        }
+    }
+}
+
+impl<'a> uart::Receive<'a> for UartDevice<'a> {
+    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
+        self.rx_client.set(client);
     }
 
     /// Receive data until buffer is full.
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        self.rx_buffer.replace(rx_buffer);
-        self.rx_len.set(rx_len);
-        self.rx_position.set(0);
-        self.state.set(UartDeviceReceiveState::Idle);
-        self.mux.start_receive(rx_len);
-        self.state.set(UartDeviceReceiveState::Receiving);
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if self.rx_buffer.is_some() {
+            (ReturnCode::EBUSY, Some(rx_buffer))
+        } else {
+            self.rx_buffer.replace(rx_buffer);
+            self.rx_len.set(rx_len);
+            self.rx_position.set(0);
+            self.state.set(UartDeviceReceiveState::Idle);
+            self.mux.start_receive(rx_len);
+            self.state.set(UartDeviceReceiveState::Receiving);
+            (ReturnCode::SUCCESS, None)
+        }
     }
 
     // This virtualized device will abort its read: other devices
     // devices will continue with their reads.
-    fn abort_receive(&self) {
+    fn receive_abort(&self) -> ReturnCode {
         self.state.set(UartDeviceReceiveState::Aborting);
-        self.mux.uart.abort_receive();
+        self.mux.uart.receive_abort();
+        ReturnCode::EBUSY
+    }
+
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
     }
 }

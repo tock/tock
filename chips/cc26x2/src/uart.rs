@@ -1,12 +1,11 @@
 //! UART driver, cc26x2 family
 use crate::prcm;
+use core::cell::Cell;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::uart;
 use kernel::ReturnCode;
-
-use core::cmp;
 
 const MCU_CLOCK: u32 = 48_000_000;
 
@@ -99,15 +98,16 @@ struct Transaction {
     index: usize,
 }
 
-pub struct UART {
+pub struct UART<'a> {
     registers: &'static StaticRef<UartRegisters>,
-    tx_client: OptionalCell<&'static uart::Client>,
-    rx_client: OptionalCell<&'static uart::Client>,
+    tx_client: OptionalCell<&'a uart::TransmitClient>,
+    rx_client: OptionalCell<&'a uart::ReceiveClient>,
     tx: MapCell<Transaction>,
     rx: MapCell<Transaction>,
+    receiving_word: Cell<bool>,
 }
 
-impl UART {
+impl<'a> UART<'a> {
     const fn new(registers: &'static StaticRef<UartRegisters>) -> UART {
         UART {
             registers,
@@ -117,6 +117,8 @@ impl UART {
 
             tx: MapCell::empty(),
             rx: MapCell::empty(),
+
+            receiving_word: Cell::new(false),
         }
     }
 
@@ -126,39 +128,6 @@ impl UART {
     pub fn initialize(&self) {
         self.power_and_clock();
         self.enable_interrupts();
-    }
-
-    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
-        // These could probably be implemented, but are currently ignored, so
-        // throw an error.
-        if params.stop_bits != kernel::hil::uart::StopBits::One {
-            return ReturnCode::ENOSUPPORT;
-        }
-        if params.parity != kernel::hil::uart::Parity::None {
-            return ReturnCode::ENOSUPPORT;
-        }
-        if params.hw_flow_control != false {
-            return ReturnCode::ENOSUPPORT;
-        }
-
-        // Disable the UART before configuring
-        self.disable();
-
-        self.set_baud_rate(params.baud_rate);
-
-        // Set word length
-        self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
-
-        self.fifo_enable();
-
-        self.enable_interrupts();
-
-        // Enable UART, RX and TX
-        self.registers
-            .ctl
-            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
-
-        ReturnCode::SUCCESS
     }
 
     fn power_and_clock(&self) {
@@ -207,40 +176,58 @@ impl UART {
     pub fn handle_interrupt(&self) {
         // Clear interrupts
         self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
+        // This logic below seems buggy; it infers interrupt state from
+        // software rather than looking at hardware.
 
-        self.rx.take().map(|mut rx| {
-            while self.rx_fifo_not_empty() && rx.index < rx.length {
-                let byte = self.read_byte();
-                rx.buffer[rx.index] = byte;
-                rx.index += 1;
-            }
-
-            if rx.index == rx.length {
+        if self.receiving_word.get() {
+            if self.rx_fifo_not_empty() {
+                let word = self.read();
+                self.receiving_word.set(false);
                 self.rx_client.map(move |client| {
-                    client.receive_complete(
-                        rx.buffer,
-                        rx.index,
-                        kernel::hil::uart::Error::CommandComplete,
-                    );
+                    client.received_word(word, ReturnCode::SUCCESS, uart::Error::None);
                 });
-            } else {
-                self.rx.put(rx);
             }
-        });
-        // if there is no client, empty the buffer into the void
-        if self.rx_fifo_not_empty() {
-            self.read_byte();
+        } else {
+            self.rx.take().map(|mut rx| {
+                while self.rx_fifo_not_empty() && rx.index < rx.length {
+                    let byte = self.read() as u8;
+                    rx.buffer[rx.index] = byte;
+                    rx.index += 1;
+                }
+
+                if rx.index == rx.length {
+                    self.rx_client.map(move |client| {
+                        client.received_buffer(
+                            rx.buffer,
+                            rx.index,
+                            ReturnCode::SUCCESS,
+                            uart::Error::None,
+                        );
+                    });
+                } else {
+                    self.rx.put(rx);
+                }
+            });
+        }
+
+        // If there are bytes and no oustanding RX operation, then
+        // read into the void. Note that testing for an operation is
+        // necessary in case a preceding read completed before the FIFO
+        // was empty. This allows those bytes to be dropped if the complete()
+        // event does not issue a follow-up read.
+        if self.rx_fifo_not_empty() && self.rx.is_none() {
+            self.read();
         }
 
         self.tx.take().map(|mut tx| {
             // if a big buffer was given, this could be a very long call
             if self.tx_fifo_not_full() && tx.index < tx.length {
-                self.send_byte(tx.buffer[tx.index]);
+                self.write(tx.buffer[tx.index] as u32);
                 tx.index += 1;
             }
             if tx.index == tx.length {
                 self.tx_client.map(move |client| {
-                    client.transmit_complete(tx.buffer, kernel::hil::uart::Error::CommandComplete);
+                    client.transmitted_buffer(tx.buffer, tx.length, ReturnCode::SUCCESS);
                 });
             } else {
                 self.tx.put(tx);
@@ -248,17 +235,15 @@ impl UART {
         });
     }
 
-    // Pushes a byte into the TX FIFO.
-    #[inline]
-    pub fn send_byte(&self, c: u8) {
+    pub fn write(&self, c: u32) {
         // Put byte in data register
-        self.registers.dr.set(c as u32);
+        self.registers.dr.set(c);
     }
 
     // Pulls a byte out of the RX FIFO.
     #[inline]
-    pub fn read_byte(&self) -> u8 {
-        self.registers.dr.get() as u8
+    pub fn read(&self) -> u32 {
+        self.registers.dr.get()
     }
 
     /// Checks if there is space in the transmit fifo queue.
@@ -272,76 +257,123 @@ impl UART {
     pub fn tx_fifo_not_full(&self) -> bool {
         !self.registers.fr.is_set(Flags::TX_FIFO_FULL)
     }
+}
 
-    pub fn set_tx_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.tx_client.set(client);
-    }
+impl<'a> uart::Uart<'a> for UART<'a> {}
+impl<'a> uart::UartData<'a> for UART<'a> {}
 
-    pub fn set_rx_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.rx_client.set(client);
+impl<'a> uart::Configure for UART<'a> {
+    fn configure(&self, params: uart::Parameters) -> ReturnCode {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != uart::StopBits::One {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.parity != uart::Parity::None {
+            return ReturnCode::ENOSUPPORT;
+        }
+        if params.hw_flow_control != false {
+            return ReturnCode::ENOSUPPORT;
+        }
+
+        // Disable the UART before configuring
+        self.disable();
+
+        self.set_baud_rate(params.baud_rate);
+
+        // Set word length
+        self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
+
+        self.fifo_enable();
+
+        self.enable_interrupts();
+
+        // Enable UART, RX and TX
+        self.registers
+            .ctl
+            .write(Control::UART_ENABLE::SET + Control::RX_ENABLE::SET + Control::TX_ENABLE::SET);
+
+        ReturnCode::SUCCESS
     }
 }
 
-impl kernel::hil::uart::UART for UART {
-    fn set_client(&self, client: &'static kernel::hil::uart::Client) {
-        self.rx_client.set(client);
+impl<'a> uart::Transmit<'a> for UART<'a> {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
-    fn configure(&self, params: kernel::hil::uart::UARTParameters) -> ReturnCode {
-        self.configure(params)
-    }
-
-    fn transmit(&self, buffer: &'static mut [u8], len: usize) {
+    fn transmit_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         // if there is a weird input, don't try to do any transfers
-        if len == 0 {
-            self.tx_client.map(move |client| {
-                client.transmit_complete(buffer, kernel::hil::uart::Error::CommandComplete);
-            });
+        if len == 0 || len > buffer.len() {
+            (ReturnCode::ESIZE, Some(buffer))
+        } else if self.tx.is_some() {
+            (ReturnCode::EBUSY, Some(buffer))
         } else {
-            // if client set len too big, we will receive what we can
-            let tx_len = cmp::min(len, buffer.len());
-
             // we will send one byte, causing EOT interrupt
             if self.tx_fifo_not_full() {
-                self.send_byte(buffer[0]);
+                self.write(buffer[0] as u32);
             }
-
-            // Transaction will be continued in interrupt handler
+            // Transaction will be continued in interrupt bottom half
             self.tx.put(Transaction {
                 buffer: buffer,
-                length: tx_len,
+                length: len,
                 index: 1,
             });
+            (ReturnCode::SUCCESS, None)
         }
     }
 
-    fn receive(&self, buffer: &'static mut [u8], len: usize) {
-        if len == 0 {
-            self.rx_client.map(move |client| {
-                client.receive_complete(buffer, len, kernel::hil::uart::Error::CommandComplete);
-            });
-        } else {
-            // if client set len too big, we will receive what we can
-            let rx_len = cmp::min(len, buffer.len());
+    // Incorporating this into the state machine is tricky because
+    // it relies on implicit state from outstanding operations. I.e.,
+    // rather than see if a TX interrupt occurred it checks if the FIFO
+    // can accept data from a buffer. -pal 12/31/18
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
 
+    fn transmit_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+}
+
+impl<'a> uart::Receive<'a> for UART<'a> {
+    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
+        self.rx_client.set(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if len == 0 || len > buffer.len() {
+            (ReturnCode::ESIZE, Some(buffer))
+        } else if self.rx.is_some() || self.receiving_word.get() {
+            (ReturnCode::EBUSY, Some(buffer))
+        } else {
             self.rx.put(Transaction {
                 buffer: buffer,
-                length: rx_len,
+                length: len,
                 index: 0,
             });
+            (ReturnCode::SUCCESS, None)
         }
     }
 
-    fn abort_receive(&self) {
-        self.rx.take().map(|rx| {
-            self.rx_client.map(move |client| {
-                client.receive_complete(
-                    rx.buffer,
-                    rx.index,
-                    kernel::hil::uart::Error::CommandComplete,
-                );
-            });
-        });
+    fn receive_word(&self) -> ReturnCode {
+        if self.rx.is_some() || self.receiving_word.get() {
+            ReturnCode::EBUSY
+        } else {
+            self.receiving_word.set(true);
+            ReturnCode::SUCCESS
+        }
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        ReturnCode::FAIL
     }
 }

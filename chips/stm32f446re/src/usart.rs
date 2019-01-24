@@ -165,7 +165,8 @@ pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: UsartClock,
 
-    client: OptionalCell<&'a hil::uart::Client>,
+    tx_client: OptionalCell<&'a hil::uart::TransmitClient>,
+    rx_client: OptionalCell<&'a hil::uart::ReceiveClient>,
 
     tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
     rx_dma: OptionalCell<&'a dma1::Stream<'a>>,
@@ -192,7 +193,8 @@ impl Usart<'a> {
             registers: base_addr,
             clock: clock,
 
-            client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
 
             tx_dma: OptionalCell::empty(),
             rx_dma: OptionalCell::empty(),
@@ -236,12 +238,13 @@ impl Usart<'a> {
 
             // get buffer
             let buffer = self.tx_dma.map_or(None, |tx_dma| tx_dma.return_buffer());
+            let len = self.tx_len.get();
             self.tx_len.set(0);
 
             // alert client
-            self.client.map(|client| {
+            self.tx_client.map(|client| {
                 buffer.map(|buf| {
-                    client.transmit_complete(buf, hil::uart::Error::CommandComplete);
+                    client.transmitted_buffer(buf, len, ReturnCode::SUCCESS);
                 });
             });
         }
@@ -280,44 +283,48 @@ impl Usart<'a> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
     }
 
-    fn abort_tx(&self, error: hil::uart::Error) {
+    fn abort_tx(&self, rcode: ReturnCode) {
         self.disable_tx();
         self.usart_tx_state.set(USARTStateTX::Idle);
 
         // get buffer
-        let buffer = self.tx_dma.map_or(None, |tx_dma| {
+        let (mut buffer, len) = self.tx_dma.map_or((None, 0), |tx_dma| {
             // `abort_transfer` also disables the stream
-            let buf = tx_dma.abort_transfer();
-            buf
+            tx_dma.abort_transfer()
         });
+
+        // The number actually transmitted is the difference between
+        // the requested number and the number remaining in DMA transfer.
+        let count = self.tx_len.get() - len as usize;
         self.tx_len.set(0);
 
         // alert client
-        self.client.map(|client| {
-            buffer.map(|buf| {
-                client.transmit_complete(buf, error);
+        self.tx_client.map(|client| {
+            buffer.take().map(|buf| {
+                client.transmitted_buffer(buf, count as usize, rcode);
             });
         });
     }
 
-    fn abort_rx(&self, error: hil::uart::Error) {
+    fn abort_rx(&self, rcode: ReturnCode, error: hil::uart::Error) {
         self.disable_rx();
         self.usart_rx_state.set(USARTStateRX::Idle);
 
         // get buffer
-        let mut length = 0;
-        let buffer = self.rx_dma.map_or(None, |rx_dma| {
+        let (mut buffer, len) = self.rx_dma.map_or((None, 0), |rx_dma| {
             // `abort_transfer` also disables the stream
-            let buf = rx_dma.abort_transfer();
-            length = self.rx_len.get() - rx_dma.get_transfer_counter();
-            buf
+            rx_dma.abort_transfer()
         });
+
+        // The number actually received is the difference between
+        // the requested number and the number remaining in DMA transfer.
+        let count = self.rx_len.get() - len as usize;
         self.rx_len.set(0);
 
         // alert client
-        self.client.map(|client| {
-            buffer.map(|buf| {
-                client.receive_complete(buf, length, error);
+        self.rx_client.map(|client| {
+            buffer.take().map(|buf| {
+                client.received_buffer(buf, count, rcode, error);
             });
         });
     }
@@ -335,16 +342,59 @@ impl Usart<'a> {
     }
 }
 
-impl hil::uart::UART for Usart<'a> {
-    fn set_client(&self, client: &'static hil::uart::Client) {
-        self.client.set(client);
+impl hil::uart::Transmit<'a> for Usart<'a> {
+    fn set_transmit_client(&self, client: &'a hil::uart::TransmitClient) {
+        self.tx_client.set(client);
     }
 
-    fn configure(&self, params: hil::uart::UARTParameters) -> ReturnCode {
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        // In virtual_uart.rs, transmit is only called when inflight is None. So
+        // if the state machine is working correctly, transmit should never
+        // abort.
+
+        if self.usart_tx_state.get() != USARTStateTX::Idle {
+            // there is an ongoing transmission, quit it
+            return (ReturnCode::EBUSY, Some(tx_data));
+        }
+
+        // setup and enable dma stream
+        self.tx_dma.map(move |dma| {
+            self.tx_len.set(tx_len);
+            dma.do_transfer(tx_data, tx_len);
+        });
+
+        self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+
+        // enable dma tx on peripheral side
+        self.enable_tx();
+        (ReturnCode::SUCCESS, None)
+    }
+
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn transmit_abort(&self) -> ReturnCode {
+        if self.usart_tx_state.get() != USARTStateTX::Idle {
+            self.abort_tx(ReturnCode::ECANCEL);
+            ReturnCode::EBUSY
+        } else {
+            ReturnCode::SUCCESS
+        }
+    }
+}
+
+impl hil::uart::Configure for Usart<'a> {
+    fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
             || params.hw_flow_control != false
+            || params.width != hil::uart::Width::Eight
         {
             panic!(
                 "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
@@ -379,44 +429,29 @@ impl hil::uart::UART for Usart<'a> {
 
         ReturnCode::SUCCESS
     }
+}
 
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        // In virtual_uart.rs, transmit is only called when inflight is None. So
-        // if the state machine is working correctly, transmit should never
-        // abort.
-
-        if self.usart_tx_state.get() != USARTStateTX::Idle {
-            // there is an ongoing transmission, quit it
-            self.abort_tx(hil::uart::Error::RepeatCallError);
-        }
-
-        // setup and enable dma stream
-        self.tx_dma.map(move |dma| {
-            self.tx_len.set(tx_len);
-            dma.do_transfer(tx_data, tx_len);
-        });
-
-        self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
-
-        // enable dma tx on peripheral side
-        self.enable_tx();
+impl hil::uart::Receive<'a> for Usart<'a> {
+    fn set_receive_client(&self, client: &'a hil::uart::ReceiveClient) {
+        self.rx_client.set(client);
     }
 
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.usart_rx_state.get() != USARTStateRX::Idle {
-            // there is an ongoing reception, quit it
-            self.abort_rx(hil::uart::Error::RepeatCallError);
+            return (ReturnCode::EBUSY, Some(rx_buffer));
         }
 
-        // truncate rx_len if necessary
-        let mut length = rx_len;
         if rx_len > rx_buffer.len() {
-            length = rx_buffer.len();
+            return (ReturnCode::ESIZE, Some(rx_buffer));
         }
 
         // setup and enable dma stream
         self.rx_dma.map(move |dma| {
-            self.rx_len.set(length);
+            self.rx_len.set(rx_len);
             dma.do_transfer(rx_buffer, rx_len);
         });
 
@@ -424,12 +459,21 @@ impl hil::uart::UART for Usart<'a> {
 
         // enable dma rx on the peripheral side
         self.enable_rx();
+        (ReturnCode::SUCCESS, None)
     }
 
-    fn abort_receive(&self) {
-        self.abort_rx(hil::uart::Error::Aborted);
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        self.abort_rx(ReturnCode::ECANCEL, hil::uart::Error::Aborted);
+        ReturnCode::EBUSY
     }
 }
+
+impl hil::uart::UartData<'a> for Usart<'a> {}
+impl hil::uart::Uart<'a> for Usart<'a> {}
 
 impl dma1::StreamClient for Usart<'a> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
@@ -452,9 +496,14 @@ impl dma1::StreamClient for Usart<'a> {
                     self.rx_len.set(0);
 
                     // alert client
-                    self.client.map(|client| {
+                    self.rx_client.map(|client| {
                         buffer.map(|buf| {
-                            client.receive_complete(buf, length, hil::uart::Error::CommandComplete);
+                            client.received_buffer(
+                                buf,
+                                length,
+                                ReturnCode::SUCCESS,
+                                hil::uart::Error::None,
+                            );
                         });
                     });
                 }
