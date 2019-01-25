@@ -93,7 +93,7 @@ enum State {
 
 pub struct LPS25HB<'a> {
     i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a gpio::Pin,
+    interrupt_pin: &'a gpio::InterruptPin,
     callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -102,7 +102,7 @@ pub struct LPS25HB<'a> {
 impl LPS25HB<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
-        interrupt_pin: &'a gpio::Pin,
+        interrupt_pin: &'a gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> LPS25HB<'a> {
         // setup and return struct
@@ -129,7 +129,7 @@ impl LPS25HB<'a> {
     pub fn take_measurement(&self) {
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptMode::RisingEdge);
+            .enable_interrupt(0, gpio::InterruptEdge::RisingEdge);
 
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands

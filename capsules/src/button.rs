@@ -51,7 +51,7 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::gpio::{Client, InterruptMode};
+use kernel::hil::gpio::{Client, InterruptEdge};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -178,7 +178,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             cntr.1 |= 1 << data;
                             pins[data]
                                 .0
-                                .enable_interrupt(data, InterruptMode::EitherEdge);
+                                .enable_interrupt(data, InterruptEdge::EitherEdge);
                             ReturnCode::SUCCESS
                         })
                         .unwrap_or_else(|err| err.into())

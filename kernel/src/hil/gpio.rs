@@ -1,6 +1,6 @@
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
 #[derive(Debug)]
-pub enum Floating {
+pub enum FloatingState {
     PullUp,
     PullDown,
     PullNone,
@@ -8,7 +8,7 @@ pub enum Floating {
 
 /// Enum for selecting which edge to trigger interrupts on.
 #[derive(Debug)]
-pub enum InterruptMode {
+pub enum InterruptEdge {
     RisingEdge,
     FallingEdge,
     EitherEdge,
@@ -32,7 +32,7 @@ pub trait Pin: Input + Output + Configure {}
 pub trait InterruptPin: Pin + Interrupt {}
 
 pub trait Configure {
-    fn set_floating_mode(&self, _: Floating);
+    fn configuration(&self) -> Configuration;
 
     fn make_output(&self) -> Configuration;
     fn disable_output(&self) -> Configuration;
@@ -44,8 +44,9 @@ pub trait Configure {
     // its enabled configuration is not stored).
     fn low_power(&self);
 
-    fn floating_mode(&self) -> Floating;
-    fn configuration(&self) -> Configuration;
+    fn set_floating_state(&self, state: FloatingState);
+    fn floating_state(&self) -> FloatingState;
+
     fn is_input(&self) -> bool;
     fn is_output(&self) -> bool;
 }
@@ -80,7 +81,7 @@ pub trait Interrupt: Input {
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
     /// should be separately configured as an input, etc.
-    fn enable_interrupts(&self, mode: InterruptMode);
+    fn enable_interrupts(&self, mode: InterruptEdge);
 
     /// Disable interrupts for the GPIO pin.
     fn disable_interrupts(&self);
