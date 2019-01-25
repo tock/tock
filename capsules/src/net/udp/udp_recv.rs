@@ -28,16 +28,14 @@ pub trait UDPRecvClient {
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a UDPRecvClient>,
-    binding: UdpPortBinding,
-    port_table: &'static UdpPortTable,
+    //binding: UdpPortBinding,
 }
 
 impl<'a> UDPReceiver<'a> {
-    pub fn new(port_table: &'static UdpPortTable) -> UDPReceiver<'a> {
+    pub fn new() -> UDPReceiver<'a> {
         UDPReceiver {
             client: OptionalCell::empty(),
-            binding: port_table.create_binding().unwrap(),
-            port_table: port_table,
+            //binding: binding,
         }
     }
 

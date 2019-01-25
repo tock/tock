@@ -172,7 +172,7 @@ impl Component for UDPComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(ip_send, self.bound_port_table)
+            UDPSendStruct::new(ip_send)
         );
         ip_send.set_client(udp_send);
 
@@ -183,7 +183,7 @@ impl Component for UDPComponent {
         sixlowpan_state.set_rx_client(ip_receive);
 
         // TODO: use seperate bound_port_table for receiver? Is this necessary?
-        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new(self.bound_port_table));
+        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
         ip_receive.set_client(udp_recv);
 
         let udp_driver = static_init!(

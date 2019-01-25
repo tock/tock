@@ -11,7 +11,7 @@ use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
-use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
+use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding, UdpSenderBinding};
 
 static mut curr_send_id: usize = 0;
 
@@ -48,7 +48,8 @@ pub trait UDPSender<'a> {
     /// # Return Value
     /// Any synchronous errors are returned via the returned `ReturnCode`
     /// value; asynchronous errors are delivered via the callback.
-    fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &[u8]) -> ReturnCode;
+    fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &[u8],
+        binding: &UdpSenderBinding) -> ReturnCode;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
     /// and buffer, and sends it to the provided IP address
@@ -63,7 +64,7 @@ pub trait UDPSender<'a> {
     /// errors are returned via the callback.
     fn send(&self, dest: IPAddr, udp_header: UDPHeader, buf: &[u8]) -> ReturnCode;
 
-    fn get_binding_ref(&self) -> &UdpPortBinding;
+    //fn get_binding_ref(&self) -> &UdpSenderBinding;
 }
 
 /// This is a specific instantiation of the `UDPSender` trait. Note
@@ -72,8 +73,7 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a UDPSendClient>,
-    binding: UdpPortBinding,
-    port_table: &'static UdpPortTable,
+    //binding: UdpSenderBinding, // TODO: should this be a reference?
 }
 
 // example in /Users/armin/src/rust
@@ -85,16 +85,14 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.client.set(client);
     }
 
-    fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &[u8]) -> ReturnCode {
+    fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &[u8],
+        binding: &UdpSenderBinding) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
-        udp_header.set_src_port(src_port);
+        udp_header.set_src_port(/*src_port*/binding.get_port());
         // TODO: add appropriate error handling here
-        let ret = match self.port_table.can_send(&self.binding.get_sender().unwrap(), src_port) {
-            ReturnCode::SUCCESS => self.send(dest, udp_header, buf),
-            _ => ReturnCode::FAIL
-        };
-        ret
+        self.send(dest, udp_header, buf)
+ 
         //self.send(dest, udp_header, buf)
     }
 
@@ -107,19 +105,18 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.ip_send_struct.send_to(dest, transport_header, buf)
     }
 
-    fn get_binding_ref(&self) -> &UdpPortBinding {
-        &self.binding
-    }
+    // fn get_binding_ref(&self) -> &UdpSenderBinding {
+    //     &self.binding
+    // }
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
-    pub fn new(ip_send_struct: &'a T, port_table: &'static UdpPortTable)
+    pub fn new(ip_send_struct: &'a T, /*binding: UdpSenderBinding*/)
         -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             ip_send_struct: ip_send_struct,
             client: OptionalCell::empty(),
-            binding: port_table.create_binding().unwrap(),
-            port_table: port_table,
+            //binding: binding,
         }
     }
 }

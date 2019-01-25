@@ -246,8 +246,10 @@ impl<'a> UDPDriver<'a> {
                 .app_write
                 .as_ref()
                 .map_or(ReturnCode::ENOMEM, |payload| {
-                    self.sender
-                        .send_to(dst_addr, dst_port, src_port, payload.as_ref())
+                    //  TODO: comment back in!
+                    // self.sender
+                    //     .send_to(dst_addr, dst_port, src_port, payload.as_ref())
+                    ReturnCode::SUCCESS
                 });
             if result == ReturnCode::SUCCESS {
                 self.current_app.set(Some(appid));

@@ -41,7 +41,7 @@ use kernel::hil::time::Frequency;
 use kernel::static_init;
 use kernel::ReturnCode;
 
-use kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
+use kernel::udp_port_table::{UdpPortTable, UdpPortBinding, UdpPortSocket};
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -153,7 +153,7 @@ pub unsafe fn initialize_all(
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        UDPSendStruct::new(ip6_sender, udp_port_table)
+        UDPSendStruct::new(ip6_sender)
     );
 
     let udp_lowpan_test = static_init!(
@@ -243,31 +243,55 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
 
     fn port_table_test(&self) {
         // Initialize bindings.
-        let binding1 = self.port_table.create_binding().unwrap();
-        let binding2 = self.port_table.create_binding().unwrap();
-        let binding3 = self.port_table.create_binding().unwrap();
+        let socket1 = self.port_table.create_socket().unwrap();
+        let socket2 = self.port_table.create_socket().unwrap();
+        let socket3 = self.port_table.create_socket().unwrap();
         debug!("Finished creating bindings");
         // Attempt to bind to a port that has already been bound.
-        let ret1 = self.port_table.bind(&binding1, 80);
-        let ret2 = self.port_table.bind(&binding2, 80);
+        let ret1 = self.port_table.bind(socket1, 80);
+        let ret2 = self.port_table.bind(socket2, 80);
         debug!("Done calling bind");
         // Ensure that only the first binding was successfully bound.
-        assert_eq!(ret1, ReturnCode::SUCCESS);
-        assert_eq!(ret2, ReturnCode::FAIL);
+
+        match ret2 {
+            Ok(binding) => assert!(false),
+            Err(x) => assert!(true),
+        };
         debug!("After return code assertions for binding");
         // Ensure that only the first binding is able to send
-        assert_eq!(self.port_table.can_send(&binding1.get_sender().unwrap(), 80),
-            ReturnCode::SUCCESS);
-        assert_eq!(self.port_table.can_send(&binding2.get_sender().unwrap(), 80),
-            ReturnCode::FAIL);
-        debug!("After can_send assertions");
-        self.port_table.unbind(&binding1);
-        // See if the third binding can successfully bind once the first is
-        // unbound.
-        let ret3 = self.port_table.bind(&binding3, 80);
-        assert_eq!(ret3, ReturnCode::SUCCESS);
-        assert_eq!(self.port_table.can_send(&binding3.get_sender().unwrap(),
-            80), ReturnCode::SUCCESS);
+
+        let mut binding_socket: UdpPortSocket;
+        match ret1 {
+            Ok(binding) => {
+                let send_binding = binding.get_sender().unwrap();
+                // Make sure correct port is bound
+                assert_eq!(send_binding.get_port(), 80);
+                // Disallow getting sender twice
+                let err = binding.get_sender();
+                match err {
+                    Ok(_) => assert!(false),
+                    Err(_) => assert!(true),
+                    _ => assert!(false),
+                }
+                binding.put_sender(send_binding);
+                let send_binding2 = binding.get_sender().unwrap();
+                // Make sure correct port is bound
+                assert_eq!(send_binding2.get_port(), 80);
+                binding_socket = self.port_table.unbind(binding);
+                // TODO: what happens if we use a dangling send_binding after
+                // the original is unbound?
+                assert_eq!(send_binding2.get_port(), 80);
+                debug!("illegally re-using a binding");
+            },
+            Err(x) => {assert!(false);},
+        };
+        // // See if the third binding can successfully bind once the first is
+        // // unbound.
+        let ret3 = self.port_table.bind(socket3, 80);
+        match ret3 {
+            Ok(binding) => assert!(true),
+            Err(x) => assert!(false),
+        }
         debug!("port_table_test passed");
     }
 
@@ -284,15 +308,15 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn send_next(&self) {
-        let src_port: u16 = 12321;
-        let dst_port: u16 = 32123;
-        self.port_table.bind(self.udp_sender.get_binding_ref(), src_port);
-        debug!("before send_to");
-        unsafe {
-            self.udp_sender
-                .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
-        };
-        debug!("send_next done");
+        // let src_port: u16 = 12321;
+        // let dst_port: u16 = 32123;
+        // self.port_table.bind(self.udp_sender.get_binding_ref(), src_port);
+        // debug!("before send_to");
+        // unsafe {
+        //     self.udp_sender
+        //         .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
+        // };
+        // debug!("send_next done");
     }
 }
 

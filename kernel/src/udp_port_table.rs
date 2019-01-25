@@ -11,40 +11,58 @@ use core::cell::Cell;
 use crate::returncode::ReturnCode;
 //#![allow(dead_code)]
 const MAX_NUM_BOUND_PORTS: usize = 16;
-static mut port_table: [Option<u16>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
+// We need Option<Option<u16>> to distinguish between the case in which we have
+// a UdpPortSocket that is not bound to a port and an index where there is no
+// UdpPortSocket allocated.
+static mut port_table: [Option<Option<u16>>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
+
+// A UdpPortSocket provides a handle into the bound port table. When binding to
+// a port, the socket is consumed and stored inside a UdpPortBinding. When
+// undbinding, the socket is returned and can be used to bind to other ports.
+pub struct UdpPortSocket {
+    idx: usize,
+}
 
 // An opaque descriptor object that gives the holder of the object access to
 // a particular location (at index idx) of the bound port table.
 pub struct UdpPortBinding {
     receive_allocated: Cell<bool>,
     send_allocated: Cell<bool>,
-    idx: usize,
+    socket: UdpPortSocket,
+    port: u16,
 }
 
 // An opaque descriptor that allows the holder to obtain a binding on a port
 // for receiving UDP packets.
 pub struct UdpReceiverBinding {
-    idx: usize,
+    port: u16,
 }
 
 // An opaque descriptor that allows the holder to obtain a binding on a port
 // for sending UDP packets.
 pub struct UdpSenderBinding {
-    idx: usize,
+    port: u16,
 }
 
-
-
 pub struct UdpPortTable {
-    udpid_to_port: TakeCell<'static, [Option<u16>]>,
-    max_counter: Cell<usize>,
+    port_array: TakeCell<'static, [Option<Option<u16>>]>,
+    //max_counter: Cell<usize>,
+}
+
+impl UdpPortSocket {
+    pub fn new(idx: usize) -> UdpPortSocket {
+        UdpPortSocket {idx: idx}
+    }
 }
 
 impl UdpPortBinding {
-    pub fn new(idx: usize) -> UdpPortBinding {
-        UdpPortBinding {receive_allocated: Cell::new(false),
-                        send_allocated: Cell::new(false),
-                        idx: idx} // TODO: initialize to what?
+    pub fn new(socket: UdpPortSocket, port: u16) -> UdpPortBinding {
+        UdpPortBinding {
+            receive_allocated: Cell::new(false),
+            send_allocated: Cell::new(false),
+            socket: socket,
+            port: port,
+        } // TODO: initialize to what?
     }
 
     // TODO: should probably change error type to ReturnCode
@@ -54,13 +72,13 @@ impl UdpPortBinding {
            Err(())
         } else {
             self.receive_allocated.set(true);
-            Ok(UdpReceiverBinding { idx: self.idx })
+            Ok(UdpReceiverBinding { port: self.port })
         }
     }
 
     pub fn put_receiver(&self, recv_binding: UdpReceiverBinding)
         -> Result<(), ()> {
-        if recv_binding.idx == self.idx {
+        if recv_binding.port == self.port {
             self.receive_allocated.set(false);
             Ok(())
         } else {
@@ -73,12 +91,12 @@ impl UdpPortBinding {
             Err(())
         } else {
             self.send_allocated.set(true);
-            Ok(UdpSenderBinding {idx: self.idx })
+            Ok(UdpSenderBinding {port: self.port })
         }
     }
 
     pub fn put_sender(&self, send_binding: UdpSenderBinding) -> Result<(), ()> {
-        if send_binding.idx == self.idx {
+        if send_binding.port == self.port {
             self.send_allocated.set(false);
             Ok(())
         } else {
@@ -87,109 +105,83 @@ impl UdpPortBinding {
     }
 }
 
+impl UdpSenderBinding {
+    pub fn get_port(&self) -> u16 {
+        self.port
+    }
+}
+
+impl UdpReceiverBinding {
+    pub fn get_port(&self) -> u16 {
+        self.port
+    }
+}
+
 
 
 impl UdpPortTable {
-    // TODO: update constructor to accept a reference to the port_table.
     pub fn new() -> UdpPortTable {
         unsafe {
             UdpPortTable {
-                udpid_to_port: TakeCell::new(&mut port_table),
-                max_counter: Cell::new(0),
-            }
+                port_array: TakeCell::new(&mut port_table),            }
         }
     }
 
-    pub fn create_binding(&self) -> Result<UdpPortBinding, ReturnCode> {
-        let ret = self.max_counter.get();
-        if ret < MAX_NUM_BOUND_PORTS {
-            self.max_counter.set(ret + 1);
-            Ok(UdpPortBinding::new(ret))
-        } else {
-            Err(ReturnCode::FAIL)
-        }
-        // Code below doesn't work => would need a separate array for managing
-        // which indices are allocated already. This seems to imply that we have
-        // the bindings as valid only when they are "in use"
-        // self.udpid_to_port.map(|table| {
-        //     let mut result: Result<UdpPortBinding, ReturnCode> = Err(ReturnCode::FAIL);
-        //     for i in 0..MAX_NUM_BOUND_PORTS {
-        //         match table[i] {
-        //             None => {
-        //                 result = Ok(UdpPortBinding::new(i));
-        //                 break;
-        //             },
-        //             _ => (),
-        //         }
-        //     };
-        //     result
-        // }).unwrap()
+    pub fn create_socket(&self) -> Result<UdpPortSocket, ReturnCode> {
+        self.port_array.map(|table| {
+            let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
+            for i in 0..MAX_NUM_BOUND_PORTS {
+                match table[i] {
+                    None => {
+                        result = Ok(UdpPortSocket::new(i));
+                        table[i] = Some(None);
+                        break;
+                    },
+                    _ => (),
+                }
+            };
+            result
+        }).unwrap()
     }
 
-    // TODO: double check that this works
-    pub fn destroy_binding(&self, binding: UdpPortBinding) {
-        self.udpid_to_port.map(|table| {
-            table[binding.idx] = None;
+    pub fn destroy_socket(&self, socket: UdpPortSocket) {
+        self.port_array.map(|table| {
+            table[socket.idx] = None;
         });
     }
 
-    // TODO: should binding be a shared ref? (&), should ref to self be mutable?
-    pub fn bind(&self, binding: &UdpPortBinding, port: u16,
-                /*cap: &capabilities::UDPBindCapability*/) -> ReturnCode {
-        self.udpid_to_port.map(|table| {
+    // On success, a UdpPortBinding is returned. On failure, the same
+    // UdpPortSocket is returned.
+    pub fn bind(&self, socket: UdpPortSocket, port: u16,
+                /*cap: &capabilities::UDPBindCapability*/) ->
+        Result<UdpPortBinding, UdpPortSocket> {
+        self.port_array.map(|table| {
             let mut port_exists = false;
             for i in 0..MAX_NUM_BOUND_PORTS {
                 match table[i] {
-                    Some(port) => {port_exists = true;},
+                    Some(Some(port)) => {port_exists = true;},
                     _ => (),
                 }
             };
             if port_exists {
-                ReturnCode::FAIL
+                Err(socket)
             } else {
-                table[binding.idx] = Some(port);
-                ReturnCode::SUCCESS
+                table[socket.idx] = Some(Some(port));
+                Ok(UdpPortBinding::new(socket, port))
             }
         }).unwrap()
     }
 
-    // TODO: implement after testing basic features. Do we need to maintain
-    // a free list?
 
 
-
-    // Disassociate the port from the given binding.
-    // TODO: what would a return value here convey? How can there possibly be
-    // failure?
-    pub fn unbind(&self, binding: &UdpPortBinding,
-        /*cap: &capabilities::UDPBindCapability*/) {
-        self.udpid_to_port.map(|table| {
-            table[binding.idx] = None;
+    // Disassociate the port from the given binding. Return the socket that was
+    // contained within the binding object.
+    pub fn unbind(&self, binding: UdpPortBinding,
+        /*cap: &capabilities::UDPBindCapability*/) -> UdpPortSocket {
+        self.port_array.map(|table| {
+            table[binding.socket.idx] = None;
         });
-    }
-
-    // Returns SUCCESS if the table indicates that the sender binding
-    // corresponds to the given port.
-    pub fn can_send(&self, binding: &UdpSenderBinding, port: u16)
-        -> ReturnCode {
-        self.udpid_to_port.map(|table| {
-            match table[binding.idx] {
-                Some(port) => ReturnCode::SUCCESS,
-                _ => ReturnCode::FAIL,
-            }
-        }).unwrap()
-    }
-
-    // Returns SUCCESS if the table indicates that the receiver binding
-    // corresponds to the given port.
-    pub fn can_recv(&self, binding: &UdpReceiverBinding, port: u16)
-        -> ReturnCode {
-        self.udpid_to_port.map(|table| {
-            match table[binding.idx] {
-                Some(port) => ReturnCode::SUCCESS,
-                _ => ReturnCode::FAIL,
-            }
-        }).unwrap()
+        binding.socket
     }
 
 
