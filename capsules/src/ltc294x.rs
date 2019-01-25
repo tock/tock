@@ -157,7 +157,7 @@ impl LTC294X<'a> {
 
         self.interrupt_pin.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+            interrupt_pin.enable_interrupt(0, gpio::InterruptEdge::FallingEdge);
         });
     }
 

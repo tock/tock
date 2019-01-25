@@ -428,7 +428,7 @@ impl GPIOPin {
 
     pub fn handle_interrupt(&self) {
         self.client.map(|client| {
-            client.fired(self.client_data.get());
+            client.fired();
         });
     }
 
@@ -475,17 +475,17 @@ impl hil::Controller for GPIOPin {
 }
 
 impl gpio::Configure for GPIOPin {
-    fn set_floating_mode(&self, mode: gpio::Floating) {
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
         match mode {
-            gpio::Floating::PullUp => {
+            gpio::FloatingState::PullUp => {
                 self.disable_pull_down();
                 self.enable_pull_up();
             }
-            gpio::Floating::PullDown => {
+            gpio::FloatingState::PullDown => {
                 self.disable_pull_up();
                 self.enable_pull_down();
             }
-            gpio::Floating::PullNone => {
+            gpio::FloatingState::PullNone => {
                 self.disable_pull_up();
                 self.disable_pull_down();
             }
@@ -532,13 +532,12 @@ impl gpio::Output for GPIOPin {
 }
 
 impl gpio::Interrupt for GPIOPin {
-    fn enable_interrupts(&self, mode: gpio::InterruptMode) {
+    fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let mode_bits = match mode {
-            hil::gpio::InterruptMode::EitherEdge => 0b00,
-            hil::gpio::InterruptMode::RisingEdge => 0b01,
-            hil::gpio::InterruptMode::FallingEdge => 0b10,
+            hil::gpio::InterruptEdge::EitherEdge => 0b00,
+            hil::gpio::InterruptEdge::RisingEdge => 0b01,
+            hil::gpio::InterruptEdge::FallingEdge => 0b10,
         };
-        self.client_data.set(client_data);
         GPIOPin::set_interrupt_mode(self, mode_bits);
         GPIOPin::enable_interrupt(self);
     }

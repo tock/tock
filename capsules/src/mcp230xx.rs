@@ -20,7 +20,7 @@
 //! Usage
 //! -----
 //! This capsule can either be used inside of the kernel or as an input to
-//! the `gpio_async` capsule because it implements the `hil::gpio_async::Port`
+//! the `gpio_async` capsule because it implements the `gpio_async::Port`
 //! trait.
 //!
 //! Example usage:
@@ -64,6 +64,8 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
+use kernel::hil::gpio;
+use kernel::hil::gpio_async;
 use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
@@ -129,19 +131,19 @@ pub struct MCP230xx<'a> {
     bank_size: u8,       // How many GPIO pins per bank (likely 8)
     number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
     buffer: TakeCell<'static, [u8]>,
-    interrupt_pin_a: Option<&'static hil::gpio::Pin>,
-    interrupt_pin_b: Option<&'static hil::gpio::Pin>,
+    interrupt_pin_a: Option<&'static gpio::Pin>,
+    interrupt_pin_b: Option<&'static gpio::Pin>,
     interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled
     interrupts_mode: Cell<u32>,    // What interrupt mode the pin is in
     identifier: Cell<usize>,
-    client: OptionalCell<&'static hil::gpio_async::Client>,
+    client: OptionalCell<&'static gpio_async::Client>,
 }
 
 impl MCP230xx<'a> {
     pub fn new(
         i2c: &'a hil::i2c::I2CDevice,
-        interrupt_pin_a: Option<&'static hil::gpio::Pin>,
-        interrupt_pin_b: Option<&'static hil::gpio::Pin>,
+        interrupt_pin_a: Option<&'static gpio::Pin>,
+        interrupt_pin_b: Option<&'static gpio::Pin>,
         buffer: &'static mut [u8],
         bank_size: u8,
         number_of_banks: u8,
@@ -164,7 +166,7 @@ impl MCP230xx<'a> {
     /// Set the client of this MCP230xx when commands finish or interrupts
     /// occur. The `identifier` is simply passed back with the callback
     /// so that the upper layer can keep track of which device triggered.
-    pub fn set_client<C: hil::gpio_async::Client>(&self, client: &'static C) {
+    pub fn set_client<C: gpio_async::Client>(&self, client: &'static C) {
         self.client.set(client);
     }
 
@@ -176,7 +178,7 @@ impl MCP230xx<'a> {
             .interrupt_pin_a
             .map_or(ReturnCode::FAIL, |interrupt_pin| {
                 interrupt_pin.make_input();
-                interrupt_pin.enable_interrupt(0, hil::gpio::InterruptMode::RisingEdge);
+                interrupt_pin.enable_interrupt(0, gpio::InterruptEdge::RisingEdge);
                 ReturnCode::SUCCESS
             });
         if first != ReturnCode::SUCCESS {
@@ -185,7 +187,7 @@ impl MCP230xx<'a> {
         // Also do the other interrupt pin if it exists.
         self.interrupt_pin_b.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupt(1, hil::gpio::InterruptMode::RisingEdge);
+            interrupt_pin.enable_interrupt(1, gpio::InterruptEdge::RisingEdge);
         });
         ReturnCode::SUCCESS
     }
@@ -276,7 +278,7 @@ impl MCP230xx<'a> {
     fn enable_interrupt_pin(
         &self,
         pin_number: u8,
-        direction: hil::gpio::InterruptMode,
+        direction: gpio::InterruptEdge,
     ) -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
@@ -330,7 +332,7 @@ impl MCP230xx<'a> {
         &self,
         pin_number: u8,
         enabled: bool,
-        direction: hil::gpio::InterruptMode,
+        direction: gpio::InterruptEdge,
     ) {
         // Set the enabled bitmap.
         let mut current_enabled = self.interrupts_enabled.get();
@@ -369,12 +371,12 @@ impl MCP230xx<'a> {
         (self.interrupts_enabled.get() >> pin_number) & 0x01 == 0x01
     }
 
-    fn get_pin_interrupt_direction(&self, pin_number: u8) -> hil::gpio::InterruptMode {
+    fn get_pin_interrupt_direction(&self, pin_number: u8) -> gpio::InterruptEdge {
         let direction = self.interrupts_mode.get() >> (pin_number * 2) & 0x03;
         match direction {
-            0 => hil::gpio::InterruptMode::RisingEdge,
-            1 => hil::gpio::InterruptMode::FallingEdge,
-            _ => hil::gpio::InterruptMode::EitherEdge,
+            0 => gpio::InterruptEdge::RisingEdge,
+            1 => gpio::InterruptEdge::FallingEdge,
+            _ => gpio::InterruptEdge::EitherEdge,
         }
     }
 }
@@ -494,9 +496,9 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
                         // Check to see if this was an interrupt we want
                         // to report.
                         let fire_interrupt = match interrupt_direction {
-                            hil::gpio::InterruptMode::EitherEdge => true,
-                            hil::gpio::InterruptMode::RisingEdge => pin_status == 0x01,
-                            hil::gpio::InterruptMode::FallingEdge => pin_status == 0x00,
+                            gpio::InterruptEdge::EitherEdge => true,
+                            gpio::InterruptEdge::RisingEdge => pin_status == 0x01,
+                            gpio::InterruptEdge::FallingEdge => pin_status == 0x00,
                         };
                         if fire_interrupt {
                             // Signal this interrupt to the application.
@@ -528,7 +530,7 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
     }
 }
 
-impl hil::gpio::Client for MCP230xx<'a> {
+impl gpio::Client for MCP230xx<'a> {
     fn fired(&self, bank_number: usize) {
         self.buffer.take().map(|buffer| {
             self.i2c.enable();
@@ -543,7 +545,7 @@ impl hil::gpio::Client for MCP230xx<'a> {
     }
 }
 
-impl hil::gpio_async::Port for MCP230xx<'a> {
+impl gpio_async::Port for MCP230xx<'a> {
     fn disable(&self, pin: usize) -> ReturnCode {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)
@@ -556,17 +558,17 @@ impl hil::gpio_async::Port for MCP230xx<'a> {
         self.set_direction(pin as u8, Direction::Output)
     }
 
-    fn make_input(&self, pin: usize, mode: hil::gpio::InputMode) -> ReturnCode {
+    fn make_input(&self, pin: usize, mode: gpio::FloatingState) -> ReturnCode {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         match mode {
-            hil::gpio::InputMode::PullUp => self.configure_pullup(pin as u8, true),
-            hil::gpio::InputMode::PullDown => {
+            gpio::FloatingState::PullUp => self.configure_pullup(pin as u8, true),
+            gpio::FloatingState::PullDown => {
                 // No support for this
                 self.configure_pullup(pin as u8, false)
             }
-            hil::gpio::InputMode::PullNone => self.configure_pullup(pin as u8, false),
+            gpio::FloatingState::PullNone => self.configure_pullup(pin as u8, false),
         }
     }
 
@@ -601,7 +603,7 @@ impl hil::gpio_async::Port for MCP230xx<'a> {
     fn enable_interrupt(
         &self,
         pin: usize,
-        mode: hil::gpio::InterruptMode,
+        mode: gpio::InterruptEdge,
         identifier: usize,
     ) -> ReturnCode {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {

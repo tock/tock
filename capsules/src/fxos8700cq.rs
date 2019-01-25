@@ -22,7 +22,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::hil::gpio::{InterruptPin, InterruptEdge};
+use kernel::hil::gpio;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::ReturnCode;
 
@@ -176,7 +176,7 @@ enum State {
 
 pub struct Fxos8700cq<'a> {
     i2c: &'a I2CDevice,
-    interrupt_pin1: &'a InterruptPin,
+    interrupt_pin1: &'a gpio::InterruptPin,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
     callback: OptionalCell<&'static hil::sensors::NineDofClient>,
@@ -185,7 +185,7 @@ pub struct Fxos8700cq<'a> {
 impl Fxos8700cq<'a> {
     pub fn new(
         i2c: &'a I2CDevice,
-        interrupt_pin1: &'a InterruptPin,
+        interrupt_pin1: &'a gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> Fxos8700cq<'a> {
         Fxos8700cq {
@@ -224,8 +224,8 @@ impl Fxos8700cq<'a> {
     }
 }
 
-impl Client for Fxos8700cq<'a> {
-    fn fired(&self, _: usize) {
+impl gpio::Client for Fxos8700cq<'a> {
+    fn fired(&self) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin1.disable_interrupt();
 
@@ -244,7 +244,7 @@ impl I2CClient for Fxos8700cq<'a> {
             State::ReadAccelSetup => {
                 // Setup the interrupt so we know when the sample is ready
                 self.interrupt_pin1
-                    .enable_interrupt(0, InterruptEdge::FallingEdge);
+                    .enable_interrupt(0, gpio::InterruptEdge::FallingEdge);
 
                 // Enable the accelerometer.
                 buffer[0] = Registers::CtrlReg1 as u8;
