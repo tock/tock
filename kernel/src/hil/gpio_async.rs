@@ -25,7 +25,7 @@ pub trait Port {
 
     /// Configure a pin as an input GPIO. Not all FloatingMode settings may
     /// be supported by a given device.
-    fn make_input(&self, pin: usize, mode: hil::gpio::Floating) -> ReturnCode;
+    fn make_input(&self, pin: usize, mode: hil::gpio::FloatingState) -> ReturnCode;
 
     /// Get the state (0 or 1) of an input pin. The value will be returned
     /// via a callback.
@@ -46,7 +46,7 @@ pub trait Port {
     fn enable_interrupt(
         &self,
         pin: usize,
-        mode: hil::gpio::InterruptMode,
+        mode: hil::gpio::InterruptEdge,
         identifier: usize,
     ) -> ReturnCode;
 

@@ -47,7 +47,7 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::GPIO as usize;
 
-use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
+use kernel::hil::gpio::{Client, FloatingState, InterruptEdge, InterruptPin};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 pub struct GPIO<'a, G: Pin> {
@@ -68,15 +68,15 @@ impl<G: Pin + PinCtl> GPIO<'a, G> {
         pin.make_input();
         match config {
             0 => {
-                pin.set_input_mode(InputMode::PullNone);
+                pin.set_input_mode(FloatingState::PullNone);
                 ReturnCode::SUCCESS
             }
             1 => {
-                pin.set_input_mode(InputMode::PullUp);
+                pin.set_input_mode(FloatingState::PullUp);
                 ReturnCode::SUCCESS
             }
             2 => {
-                pin.set_input_mode(InputMode::PullDown);
+                pin.set_input_mode(FloatingState::PullDown);
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -87,17 +87,17 @@ impl<G: Pin + PinCtl> GPIO<'a, G> {
         let pins = self.pins.as_ref();
         match config {
             0 => {
-                pins[pin_num].enable_interrupt(pin_num, InterruptMode::EitherEdge);
+                pins[pin_num].enable_interrupt(pin_num, InterruptEdge::EitherEdge);
                 ReturnCode::SUCCESS
             }
 
             1 => {
-                pins[pin_num].enable_interrupt(pin_num, InterruptMode::RisingEdge);
+                pins[pin_num].enable_interrupt(pin_num, InterruptEdge::RisingEdge);
                 ReturnCode::SUCCESS
             }
 
             2 => {
-                pins[pin_num].enable_interrupt(pin_num, InterruptMode::FallingEdge);
+                pins[pin_num].enable_interrupt(pin_num, InterruptEdge::FallingEdge);
                 ReturnCode::SUCCESS
             }
 

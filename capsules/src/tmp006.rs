@@ -11,7 +11,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math::{get_errno, sqrtf32};
-use kernel::hil::gpio::{Client, InterruptMode, Pin};
+use kernel::hil::gpio::{Client, InterruptEdge, InterruptPin};
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
@@ -160,7 +160,7 @@ impl TMP006<'a> {
         // setup interrupts from the sensor
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, InterruptMode::FallingEdge);
+            .enable_interrupt(0, InterruptEdge::FallingEdge);
     }
 
     fn disable_interrupts(&self) {

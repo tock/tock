@@ -26,7 +26,7 @@
 
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil;
-use kernel::hil::gpio::{Client, InterruptMode};
+use kernel::hil::gpio::{Client, Pin, InterruptEdge};
 use kernel::Kernel;
 
 pub struct DebugProcessRestart<C: ProcessManagementCapability> {
@@ -35,9 +35,9 @@ pub struct DebugProcessRestart<C: ProcessManagementCapability> {
 }
 
 impl<'a, C: ProcessManagementCapability> DebugProcessRestart<C> {
-    pub fn new(kernel: &'static Kernel, pin: &'a hil::gpio::Pin, cap: C) -> DebugProcessRestart<C> {
+    pub fn new(kernel: &'static Kernel, pin: &'a Pin, cap: C) -> DebugProcessRestart<C> {
         pin.make_input();
-        pin.enable_interrupt(0, InterruptMode::RisingEdge);
+        pin.enable_interrupt(0, InterruptEdge::RisingEdge);
 
         DebugProcessRestart {
             kernel: kernel,

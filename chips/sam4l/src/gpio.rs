@@ -1,4 +1,4 @@
-//! Implementation of the GPIO controller.
+//! Implementation of the GPIO controller for the SAM4L.
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
