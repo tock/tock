@@ -50,8 +50,7 @@
 //!   of the button.
 
 use core::cell::Cell;
-use kernel::hil;
-use kernel::hil::gpio::{Client, InterruptEdge};
+use kernel::hil::gpio;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -81,16 +80,16 @@ pub enum ButtonState {
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a, G: hil::gpio::Pin> {
-    pins: &'a [(&'a G, GpioMode)],
+pub struct Button<'a> {
+    pins: &'a [(&'a gpio::InterruptPin, GpioMode)],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
+impl<'a> Button<'a> {
     pub fn new(
-        pins: &'a [(&'a G, GpioMode)],
+        pins: &'a [(&'a gpio::InterruptPin, GpioMode)],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
-    ) -> Button<'a, G> {
+    ) -> Button<'a> {
         for &(pin, _) in pins.iter() {
             pin.make_input();
         }
@@ -116,7 +115,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
     }
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
+impl<'a> Driver for Button<'a> {
     /// Set callbacks.
     ///
     /// ### `subscribe_num`
@@ -178,7 +177,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             cntr.1 |= 1 << data;
                             pins[data]
                                 .0
-                                .enable_interrupt(data, InterruptEdge::EitherEdge);
+                                .enable_interrupt(data, gpio::InterruptEdge::EitherEdge);
                             ReturnCode::SUCCESS
                         })
                         .unwrap_or_else(|err| err.into())
@@ -237,7 +236,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     }
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
+impl<'a> gpio::ClientWithValue for Button<'a> {
     fn fired(&self, pin_num: usize) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);

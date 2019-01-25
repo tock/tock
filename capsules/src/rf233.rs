@@ -202,8 +202,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     power_client_pending: Cell<bool>,
     reset_pin: &'a gpio::Pin,
     sleep_pin: &'a gpio::Pin,
-    irq_pin: &'a gpio::Pin,
-    irq_ctl: &'a gpio::PinCtl,
+    irq_pin: &'a gpio::InterruptPin,
     state: Cell<InternalState>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -474,9 +473,9 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::START_TURNING_OFF => {
                 self.irq_pin.make_input();
                 self.irq_pin.clear();
-                self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
+                self.irq_pin.set_input_mode(gpio::FloatingState::PullNone);
                 self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
+                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptEdge::RisingEdge);
 
                 self.state_transition_write(
                     RF233Register::TRX_CTRL_1,
@@ -1032,8 +1031,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
         spi: &'a S,
         reset: &'a gpio::Pin,
         sleep: &'a gpio::Pin,
-        irq: &'a gpio::Pin,
-        ctl: &'a gpio::PinCtl,
+        irq: &'a gpio::InterruptPin,
         channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
@@ -1041,7 +1039,6 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
             reset_pin: reset,
             sleep_pin: sleep,
             irq_pin: irq,
-            irq_ctl: ctl,
             radio_on: Cell::new(false),
             transmitting: Cell::new(false),
             receiving: Cell::new(false),

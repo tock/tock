@@ -96,3 +96,12 @@ pub trait Client {
     /// when the interrupt was configured.
     fn fired(&self);
 }
+
+/// Interfaces for users of GPIO interrupts who handle many interrupts
+/// with the same function. The value passed in the callback allows the
+/// callback to distinguish which interrupt fired. 
+pub trait ClientWithValue {
+    fn fired(&self, value: u32);
+}
+
+

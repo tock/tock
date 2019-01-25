@@ -11,7 +11,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math::{get_errno, sqrtf32};
-use kernel::hil::gpio::{Client, InterruptEdge, InterruptPin};
+use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
@@ -98,7 +98,7 @@ enum ProtocolState {
 
 pub struct TMP006<'a> {
     i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a Pin,
+    interrupt_pin: &'a gpio::InterruptPin,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
     callback: OptionalCell<Callback>,
@@ -110,7 +110,7 @@ impl TMP006<'a> {
     /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(
         i2c: &'a i2c::I2CDevice,
-        interrupt_pin: &'a Pin,
+        interrupt_pin: &'a gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> TMP006<'a> {
         // setup and return struct
@@ -160,7 +160,7 @@ impl TMP006<'a> {
         // setup interrupts from the sensor
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, InterruptEdge::FallingEdge);
+            .enable_interrupt(0, gpio::InterruptEdge::FallingEdge);
     }
 
     fn disable_interrupts(&self) {
@@ -256,7 +256,7 @@ impl i2c::I2CClient for TMP006<'a> {
     }
 }
 
-impl Client for TMP006<'a> {
+impl gpio::Client for TMP006<'a> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands

@@ -240,7 +240,7 @@ impl TSL2561<'a> {
         // Need pull up on interrupt pin
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+            .enable_interrupt(0, gpio::InterruptEdge::FallingEdge);
 
         self.buffer.take().map(|buf| {
             // Turn on i2c to send commands

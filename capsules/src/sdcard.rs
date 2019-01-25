@@ -1201,7 +1201,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// watches SD card detect pin for changes, sends callback on change
     pub fn detect_changes(&self) {
         self.detect_pin.get().map(|pin| {
-            pin.enable_interrupt(0, hil::gpio::InterruptMode::EitherEdge);
+            pin.enable_interrupt(0, hil::gpio::InterruptEdge::EitherEdge);
         });
     }
 

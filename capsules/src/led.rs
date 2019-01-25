@@ -48,7 +48,7 @@
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `SUCCESS` if the LED index was valid, `EINVAL` otherwise.
 
-use kernel::hil;
+use kernel::hil::gpio;
 use kernel::{AppId, Driver, ReturnCode};
 
 /// Syscall driver number.
@@ -64,12 +64,12 @@ pub enum ActivationMode {
 
 /// Holds the array of GPIO pins attached to the LEDs and implements a `Driver`
 /// interface to control them.
-pub struct LED<'a, G: hil::gpio::Pin> {
-    pins_init: &'a [(&'a G, ActivationMode)],
+pub struct LED<'a> {
+    pins_init: &'a [(&'a gpio::Pin, ActivationMode)],
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
-    pub fn new(pins_init: &'a [(&'a G, ActivationMode)]) -> LED<'a, G> {
+impl<'a> LED<'a> {
+    pub fn new(pins_init: &'a [(&'a gpio::Pin, ActivationMode)]) -> LED<'a> {
         // Make all pins output and off
         for &(pin, mode) in pins_init.as_ref().iter() {
             pin.make_output();
@@ -85,7 +85,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
     }
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
+impl<'a> Driver for LED<'a> {
     /// Control the LEDs.
     ///
     /// ### `command_num`
