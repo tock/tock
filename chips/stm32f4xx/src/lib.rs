@@ -1,4 +1,3 @@
-
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
 #![feature(asm, const_fn, try_from)]

@@ -890,7 +890,7 @@ impl Rcc {
     }
 
     // USART2 clock
- 
+
     fn is_enabled_usart2_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::USART2EN)
     }

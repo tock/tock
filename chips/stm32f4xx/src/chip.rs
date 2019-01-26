@@ -11,7 +11,7 @@ use crate::nvic;
 use crate::tim2;
 use crate::usart;
 
-pub struct Stm32f4xx{
+pub struct Stm32f4xx {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
@@ -75,7 +75,7 @@ impl Chip for Stm32f4xx {
             }
         }
     }
-    
+
     #[cfg(feature = "stm32f446re")]
     fn service_pending_interrupts(&self) {
         unsafe {
