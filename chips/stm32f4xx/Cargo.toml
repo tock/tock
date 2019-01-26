@@ -11,8 +11,6 @@ kernel = { path = "../../kernel" }
 tock_rt0 = { path = "../../libraries/tock-rt0" }
 
 [features]
-default = []
-
 stm32f429zi = []
 stm32f446re = []
 

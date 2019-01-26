@@ -952,6 +952,14 @@ dma1_peripheral! (
     USART3_RX (DMA1_Stream1, Stream1, Channel4, s1cr, s1par, s1m0ar, S1CR, PeripheralToMemory, usart::USART3.get_address_dr()),
 );
 
+#[cfg(feature = "stm32f446re")]
+dma1_peripheral! (
+    // USART2 TX, DMA1 Stream 6, Channel 4
+    USART2_TX (DMA1_Stream6, Stream6, Channel4, s6cr, s6par, s6m0ar, S6CR, MemoryToPeripheral, usart::USART2.get_address_dr()),
+    // USART2 RX, DMA1 Stream 5, Channel 4
+    USART2_RX (DMA1_Stream5, Stream5, Channel4, s5cr, s5par, s5m0ar, S5CR, PeripheralToMemory, usart::USART2.get_address_dr()),
+);
+
 
 impl Stream<'a> {
     const fn new(streamid: StreamId) -> Stream<'a> {

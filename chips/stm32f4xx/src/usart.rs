@@ -143,9 +143,13 @@ register_bitfields![u32,
     ]
 ];
 
-#[cfg(feature = "stm32f429x")]
+#[cfg(feature = "stm32f429zi")]
 const USART3_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004800 as *const UsartRegisters) };
+
+#[cfg(feature = "stm32f446re")]
+const USART2_BASE: StaticRef<UsartRegisters> =
+    unsafe { StaticRef::new(0x40004400 as *const UsartRegisters) };
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -182,9 +186,16 @@ pub struct Usart<'a> {
 pub struct TxDMA<'a>(pub &'a dma1::Stream<'a>);
 pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
 
+#[cfg(feature = "stm32f429zi")]
 pub static mut USART3: Usart = Usart::new(
     USART3_BASE,
     UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART3)),
+);
+
+#[cfg(feature = "stm32f446re")]
+pub static mut USART2: Usart = Usart::new(
+    USART2_BASE,
+    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART2)),
 );
 
 impl Usart<'a> {
@@ -432,8 +443,8 @@ impl hil::uart::UART for Usart<'a> {
     }
 }
 
-#[cfg(feature = "stm32f429zi")]
 impl dma1::StreamClient for Usart<'a> {
+    #[cfg(feature = "stm32f429zi")]
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
         match pid {
             dma1::Dma1Peripheral::USART3_TX => {
@@ -441,6 +452,37 @@ impl dma1::StreamClient for Usart<'a> {
                 self.enable_transmit_complete_interrupt();
             }
             dma1::Dma1Peripheral::USART3_RX => {
+                // In case of RX, we can call the client directly without having
+                // to trigger an interrupt.
+                if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
+                    self.disable_rx();
+                    self.usart_rx_state.set(USARTStateRX::Idle);
+
+                    // get buffer
+                    let buffer = self.rx_dma.map_or(None, |rx_dma| rx_dma.return_buffer());
+
+                    let length = self.rx_len.get();
+                    self.rx_len.set(0);
+
+                    // alert client
+                    self.client.map(|client| {
+                        buffer.map(|buf| {
+                            client.receive_complete(buf, length, hil::uart::Error::CommandComplete);
+                        });
+                    });
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "stm32f446re")]
+    fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
+        match pid {
+            dma1::Dma1Peripheral::USART2_TX => {
+                self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
+                self.enable_transmit_complete_interrupt();
+            }
+            dma1::Dma1Peripheral::USART2_RX => {
                 // In case of RX, we can call the client directly without having
                 // to trigger an interrupt.
                 if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {

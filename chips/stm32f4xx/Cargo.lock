@@ -26,6 +26,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "stm32f4xx"
+version = "0.1.0"
+dependencies = [
+ "cortexm4 0.1.0",
+ "enum_primitive 0.1.0",
+ "kernel 0.1.0",
+ "tock_rt0 0.1.0",
+]
+
+[[package]]
 name = "tock-cells"
 version = "0.1.0"
 

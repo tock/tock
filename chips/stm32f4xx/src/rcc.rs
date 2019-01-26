@@ -889,19 +889,30 @@ impl Rcc {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOAEN::CLEAR)
     }
 
+    // USART2 clock
+ 
+    fn is_enabled_usart2_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::USART2EN)
+    }
+
+    fn enable_usart2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART2EN::SET)
+    }
+
+    fn disable_usart2_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
+    }
+
     // USART3 clock
 
-    #[cfg(feature = "stm32f429zi")]
     fn is_enabled_usart3_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::USART3EN)
     }
 
-    #[cfg(feature = "stm32f429zi")]
     fn enable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::SET)
     }
 
-    #[cfg(feature = "stm32f429zi")]
     fn disable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
     }
@@ -941,9 +952,9 @@ pub enum HCLK1 {
 }
 
 /// Peripherals clocked by PCLK1
-#[cfg(feature = "stm32f429zi")]
 pub enum PCLK1 {
     TIM2,
+    USART2,
     USART3,
 }
 
@@ -952,7 +963,6 @@ pub enum PCLK2 {
     SYSCFG,
 }
 
-#[cfg(feature = "stm32f429zi")]
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {
@@ -969,6 +979,7 @@ impl ClockInterface for PeripheralClock {
             },
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::TIM2 => unsafe { RCC.is_enabled_tim2_clock() },
+                PCLK1::USART2 => unsafe { RCC.is_enabled_usart2_clock() },
                 PCLK1::USART3 => unsafe { RCC.is_enabled_usart3_clock() },
             },
             &PeripheralClock::APB2(ref v) => match v {
@@ -1011,6 +1022,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::TIM2 => unsafe {
                     RCC.enable_tim2_clock();
+                },
+                PCLK1::USART2 => unsafe {
+                    RCC.enable_usart2_clock();
                 },
                 PCLK1::USART3 => unsafe {
                     RCC.enable_usart3_clock();
@@ -1058,6 +1072,9 @@ impl ClockInterface for PeripheralClock {
             &PeripheralClock::APB1(ref v) => match v {
                 PCLK1::TIM2 => unsafe {
                     RCC.disable_tim2_clock();
+                },
+                PCLK1::USART2 => unsafe {
+                    RCC.disable_usart2_clock();
                 },
                 PCLK1::USART3 => unsafe {
                     RCC.disable_usart3_clock();
