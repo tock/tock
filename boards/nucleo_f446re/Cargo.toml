@@ -21,4 +21,4 @@ debug = true
 cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-stm32f446re = { path = "../../chips/stm32f446re" }
+stm32f4xx = { path = "../../chips/stm32f4xx", features = ["stm32f446re"] }
