@@ -41,11 +41,11 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF429ZI {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, stm32f429zi::gpio::Pin<'static>>,
-    button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
+    led: &'static capsules::led::LED<'static, stm32f4xx::gpio::Pin<'static>>,
+    button: &'static capsules::button::Button<'static, stm32f4xx::gpio::Pin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
+        VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
     >,
 }
 
@@ -68,9 +68,9 @@ impl Platform for NucleoF429ZI {
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma() {
-    use stm32f429zi::dma1::{Dma1Peripheral, DMA1};
-    use stm32f429zi::usart;
-    use stm32f429zi::usart::USART3;
+    use stm32f4xx::dma1::{Dma1Peripheral, DMA1};
+    use stm32f4xx::usart;
+    use stm32f4xx::usart::USART3;
 
     DMA1.enable_clock();
 
@@ -95,9 +95,9 @@ unsafe fn setup_dma() {
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use kernel::hil::gpio::Pin;
-    use stm32f429zi::exti::{LineId, EXTI};
-    use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
-    use stm32f429zi::syscfg::SYSCFG;
+    use stm32f4xx::exti::{LineId, EXTI};
+    use stm32f4xx::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
+    use stm32f4xx::syscfg::SYSCFG;
 
     SYSCFG.enable_clock();
 
@@ -137,20 +137,20 @@ unsafe fn set_pin_primary_functions() {
         EXTI.associate_line_gpiopin(LineId::Exti13, pin);
     });
     // EXTI13 interrupts is delivered at IRQn 40 (EXTI15_10)
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::EXTI15_10).enable();
+    cortexm4::nvic::Nvic::new(stm32f4xx::nvic::EXTI15_10).enable();
 }
 
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals() {
-    use stm32f429zi::tim2::TIM2;
+    use stm32f4xx::tim2::TIM2;
 
     // USART2 IRQn is 38
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
+    cortexm4::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
 
     // TIM2 IRQn is 28
     TIM2.enable_clock();
     TIM2.start();
-    cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
+    cortexm4::nvic::Nvic::new(stm32f4xx::nvic::TIM2).enable();
 }
 
 /// Reset Handler.
@@ -161,7 +161,7 @@ unsafe fn setup_peripherals() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    stm32f429zi::init();
+    stm32f4xx::init();
 
     // We use the default HSI 16Mhz clock
 
@@ -174,23 +174,23 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let chip = static_init!(
-        stm32f429zi::chip::Stm32f429zi,
-        stm32f429zi::chip::Stm32f429zi::new()
+        stm32f4xx::chip::Stm32f4xx,
+        stm32f4xx::chip::Stm32f4xx::new()
     );
 
     // UART
 
     // Create a shared UART channel for kernel debug.
-    stm32f429zi::usart::USART3.enable_clock();
+    stm32f4xx::usart::USART3.enable_clock();
     let mux_uart = static_init!(
         MuxUart<'static>,
         MuxUart::new(
-            &stm32f429zi::usart::USART3,
+            &stm32f4xx::usart::USART3,
             &mut capsules::virtual_uart::RX_BUF,
             115200
         )
     );
-    hil::uart::UART::set_client(&stm32f429zi::usart::USART3, mux_uart);
+    hil::uart::UART::set_client(&stm32f4xx::usart::USART3, mux_uart);
 
     // Create a virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(mux_uart, false));
@@ -243,29 +243,29 @@ pub unsafe fn reset_handler() {
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
         [(
-            &'static stm32f429zi::gpio::Pin,
+            &'static stm32f4xx::gpio::Pin,
             capsules::led::ActivationMode
         ); 1],
         [(
-            &stm32f429zi::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
+            &stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
         )]
     );
     let led = static_init!(
-        capsules::led::LED<'static, stm32f429zi::gpio::Pin<'static>>,
+        capsules::led::LED<'static, stm32f4xx::gpio::Pin<'static>>,
         capsules::led::LED::new(led_pins)
     );
 
     // BUTTONs
     let button_pins = static_init!(
-        [(&'static stm32f429zi::gpio::Pin, capsules::button::GpioMode); 1],
+        [(&'static stm32f4xx::gpio::Pin, capsules::button::GpioMode); 1],
         [(
-            &stm32f429zi::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+            &stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
             capsules::button::GpioMode::LowWhenPressed
         )]
     );
     let button = static_init!(
-        capsules::button::Button<'static, stm32f429zi::gpio::Pin>,
+        capsules::button::Button<'static, stm32f4xx::gpio::Pin>,
         capsules::button::Button::new(
             button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
@@ -277,17 +277,17 @@ pub unsafe fn reset_handler() {
 
     // ALARM
     let mux_alarm = static_init!(
-        MuxAlarm<'static, stm32f429zi::tim2::Tim2>,
-        MuxAlarm::new(&stm32f429zi::tim2::TIM2)
+        MuxAlarm<'static, stm32f4xx::tim2::Tim2>,
+        MuxAlarm::new(&stm32f4xx::tim2::TIM2)
     );
-    stm32f429zi::tim2::TIM2.set_client(mux_alarm);
+    stm32f4xx::tim2::TIM2.set_client(mux_alarm);
 
     let virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2>,
+        VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2>>,
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm,
             board_kernel.create_grant(&memory_allocation_capability)

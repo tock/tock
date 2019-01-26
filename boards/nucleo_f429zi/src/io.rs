@@ -7,8 +7,8 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, UART};
 
-use stm32f429zi;
-use stm32f429zi::gpio::PinId;
+use stm32f4xx;
+use stm32f4xx::gpio::PinId;
 
 use crate::PROCESSES;
 
@@ -22,7 +22,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Writer {
     /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
+    /// initialize USART3 causes STM32F429ZI to go into in in-deterministic state.
     pub fn set_initialized(&mut self) {
         self.initialized = true;
     }
@@ -30,7 +30,7 @@ impl Writer {
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut stm32f429zi::usart::USART3 };
+        let uart = unsafe { &mut stm32f4xx::usart::USART3 };
 
         if !self.initialized {
             self.initialized = true;
@@ -55,7 +55,7 @@ impl Write for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    // User LD2 is connected to PA05
+    // User LD2 is connected to PB07
     PinId::PB07.get_pin_mut().as_mut().map(|pb7| {
         let led = &mut led::LedHigh::new(pb7);
         let writer = &mut WRITER;

@@ -40,11 +40,11 @@ dependencies = [
  "capsules 0.1.0",
  "cortexm4 0.1.0",
  "kernel 0.1.0",
- "stm32f429zi 0.1.0",
+ "stm32f4xx 0.1.0",
 ]
 
 [[package]]
-name = "stm32f429zi"
+name = "stm32f4xx"
 version = "0.1.0"
 dependencies = [
  "cortexm4 0.1.0",

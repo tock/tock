@@ -944,8 +944,11 @@ macro_rules! dma1_peripheral {
 }
 
 /// List of peripherals managed by DMA1
+#[cfg(feature = "stm32f429zi")]
 dma1_peripheral! (
+    // USART3 TX, DMA1 Stream 3, Channel 4
     USART3_TX (DMA1_Stream3, Stream3, Channel4, s3cr, s3par, s3m0ar, S3CR, MemoryToPeripheral, usart::USART3.get_address_dr()),
+    // USART3 RX, DMA1 Stream 1, Channel 4
     USART3_RX (DMA1_Stream1, Stream1, Channel4, s1cr, s1par, s1m0ar, S1CR, PeripheralToMemory, usart::USART3.get_address_dr()),
 );
 

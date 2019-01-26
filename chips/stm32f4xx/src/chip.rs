@@ -11,15 +11,15 @@ use crate::nvic;
 use crate::tim2;
 use crate::usart;
 
-pub struct Stm32f429zi {
+pub struct Stm32f4xx{
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
 }
 
-impl Stm32f429zi {
-    pub unsafe fn new() -> Stm32f429zi {
-        Stm32f429zi {
+impl Stm32f4xx {
+    pub unsafe fn new() -> Stm32f4xx {
+        Stm32f4xx {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             systick: cortexm4::systick::SysTick::new(),
@@ -27,7 +27,8 @@ impl Stm32f429zi {
     }
 }
 
-impl Chip for Stm32f429zi {
+#[cfg(feature = "stm32f429zi")]
+impl Chip for Stm32f4xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;

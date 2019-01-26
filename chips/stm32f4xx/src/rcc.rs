@@ -891,14 +891,17 @@ impl Rcc {
 
     // USART3 clock
 
+    #[cfg(feature = "stm32f429zi")]
     fn is_enabled_usart3_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::USART3EN)
     }
 
+    #[cfg(feature = "stm32f429zi")]
     fn enable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::SET)
     }
 
+    #[cfg(feature = "stm32f429zi")]
     fn disable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
     }
@@ -938,6 +941,7 @@ pub enum HCLK1 {
 }
 
 /// Peripherals clocked by PCLK1
+#[cfg(feature = "stm32f429zi")]
 pub enum PCLK1 {
     TIM2,
     USART3,
@@ -948,6 +952,7 @@ pub enum PCLK2 {
     SYSCFG,
 }
 
+#[cfg(feature = "stm32f429zi")]
 impl ClockInterface for PeripheralClock {
     fn is_enabled(&self) -> bool {
         match self {

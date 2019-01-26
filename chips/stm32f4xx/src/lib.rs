@@ -1,8 +1,5 @@
-//! Peripheral implementations for the STM32F446RE MCU.
-//!
-//! <https://www.st.com/en/microcontrollers/stm32f446re.html>
 
-#![crate_name = "stm32f429zi"]
+#![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
 #![feature(asm, const_fn, try_from)]
 #![feature(in_band_lifetimes)]

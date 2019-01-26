@@ -143,6 +143,7 @@ register_bitfields![u32,
     ]
 ];
 
+#[cfg(feature = "stm32f429x")]
 const USART3_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004800 as *const UsartRegisters) };
 
@@ -431,6 +432,7 @@ impl hil::uart::UART for Usart<'a> {
     }
 }
 
+#[cfg(feature = "stm32f429zi")]
 impl dma1::StreamClient for Usart<'a> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
         match pid {
