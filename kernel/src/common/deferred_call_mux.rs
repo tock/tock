@@ -75,13 +75,14 @@ impl DeferredCallMuxBackendClient for DeferredCallMux {
         self.clients.map(|clients| {
             clients
                 .iter_mut()
+                .map(|opt| opt.as_mut())
                 .enumerate()
-                .filter_map(|(i, opt_c)| opt_c.map(|o| (i, o)))
+                .filter_map(|(i, opt_c)| opt_c.map(|content| (i, content)))
                 .filter(|(_i, (call_reqd, _))| *call_reqd)
-                .for_each(|(i, mut client)| {
+                .for_each(|(i, mut client): (usize, &mut (bool, &'static DeferredCallMuxClient))| {
                     client.0 = false;
                     client.1.call(DeferredCallHandle (i));
                 });
-        });
+         });
     }
 }
