@@ -304,7 +304,7 @@ impl Usart<'a> {
             // `abort_transfer` also disables the stream
             tx_dma.abort_transfer()
         });
-        
+
         // The number actually transmitted is the difference between
         // the requested number and the number remaining in DMA transfer.
         let count = self.tx_len.get() - len as usize;
