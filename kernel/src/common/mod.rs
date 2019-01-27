@@ -14,6 +14,7 @@ pub mod registers {
 }
 
 pub mod deferred_call;
+pub mod deferred_call_mux;
 pub mod list;
 pub mod math;
 pub mod peripherals;

@@ -10,6 +10,7 @@ use core::convert::TryFrom;
 #[derive(Copy, Clone)]
 pub enum DeferredCallTask {
     Nvmc = 0,
+    MuxBackend = 1,
 }
 
 impl TryFrom<usize> for DeferredCallTask {
@@ -18,6 +19,7 @@ impl TryFrom<usize> for DeferredCallTask {
     fn try_from(value: usize) -> Result<DeferredCallTask, ()> {
         match value {
             0 => Ok(DeferredCallTask::Nvmc),
+            1 => Ok(DeferredCallTask::MuxBackend),
             _ => Err(()),
         }
     }

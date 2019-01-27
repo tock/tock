@@ -14,6 +14,9 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
 
+use kernel::common::deferred_call_mux::*;
+use nrf52::deferred_call_mux::MUXBACKEND;
+
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
 pub struct SpiMX25R6435FPins {
@@ -405,6 +408,17 @@ pub unsafe fn setup_board(
     nrf52::clock::CLOCK.high_start();
     while !nrf52::clock::CLOCK.low_started() {}
     while !nrf52::clock::CLOCK.high_started() {}
+
+
+    let deferred_call_mux_clients = static_init!(
+        [Option<(bool, &'static DeferredCallMuxClient)>; 1],
+        [None]
+    );
+    let deferred_call_mux = static_init!(
+        DeferredCallMux,
+        DeferredCallMux::new(&MUXBACKEND, deferred_call_mux_clients)
+    );
+    MUXBACKEND.set_client(deferred_call_mux);
 
     let platform = Platform {
         button: button,
