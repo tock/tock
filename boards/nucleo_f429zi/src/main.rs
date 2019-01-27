@@ -17,6 +17,10 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
+// Unit Tests for drivers.
+#[allow(dead_code)]
+mod virtual_uart_rx_test;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -39,7 +43,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF429ZI {
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, stm32f4xx::gpio::Pin<'static>>,
     button: &'static capsules::button::Button<'static, stm32f4xx::gpio::Pin<'static>>,
@@ -113,7 +117,7 @@ unsafe fn set_pin_primary_functions() {
 
     PORT[PortId::D as usize].enable_clock();
 
-    // pd8 and pd9 (USART2) is connected to ST-LINK virtual COM port
+    // pd8 and pd9 (USART3) is connected to ST-LINK virtual COM port
     PinId::PD08.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART3_TX
@@ -144,7 +148,7 @@ unsafe fn set_pin_primary_functions() {
 unsafe fn setup_peripherals() {
     use stm32f4xx::tim2::TIM2;
 
-    // USART2 IRQn is 38
+    // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
 
     // TIM2 IRQn is 28
@@ -157,7 +161,7 @@ unsafe fn setup_peripherals() {
 ///
 /// This symbol is loaded into vector table by the STM32F446RE chip crate.
 /// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardwre, the address of this function is loaded and
+/// initializes all the hardware, the address of this function is loaded and
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
@@ -190,7 +194,13 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
-    hil::uart::UART::set_client(&stm32f4xx::usart::USART3, mux_uart);
+    mux_uart.initialize();
+    // `mux_uart.initialize()` configures the underlying USART, so we need to
+    // tell `send_byte()` not to configure the USART again.
+    io::WRITER.set_initialized();
+
+    hil::uart::Transmit::set_transmit_client(&stm32f4xx::usart::USART3, mux_uart);
+    hil::uart::Receive::set_receive_client(&stm32f4xx::usart::USART3, mux_uart);
 
     // Create a virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(mux_uart, false));
@@ -203,7 +213,7 @@ pub unsafe fn reset_handler() {
             &mut kernel::debug::INTERNAL_BUF,
         )
     );
-    hil::uart::UART::set_client(debugger_uart, debugger);
+    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,
@@ -222,21 +232,36 @@ pub unsafe fn reset_handler() {
     let console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
     console_uart.setup();
     let console = static_init!(
-        capsules::console::Console<UartDevice>,
+        capsules::console::Console,
         capsules::console::Console::new(
             console_uart,
-            115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    hil::uart::UART::set_client(console_uart, console);
-    console.initialize();
+    hil::uart::Transmit::set_transmit_client(console_uart, console);
+    hil::uart::Receive::set_receive_client(console_uart, console);
 
-    // `console.initialize()` configures the underlying USART, so we need to
-    // tell `send_byte()` not to configure the USART again.
-    io::WRITER.set_initialized();
+    // // Setup the process inspection console
+    // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
+    // process_console_uart.setup();
+    // pub struct ProcessConsoleCapability;
+    // unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
+    // let process_console = static_init!(
+    //     capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
+    //     capsules::process_console::ProcessConsole::new(
+    //         process_console_uart,
+    //         &mut capsules::process_console::WRITE_BUF,
+    //         &mut capsules::process_console::READ_BUF,
+    //         &mut capsules::process_console::COMMAND_BUF,
+    //         board_kernel,
+    //         ProcessConsoleCapability,
+    //     )
+    // );
+    // hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
+    // hil::uart::Receive::set_receive_client(process_console_uart, process_console);
+    // process_console.start();
 
     // LEDs
 
@@ -244,7 +269,7 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(&'static stm32f4xx::gpio::Pin, capsules::led::ActivationMode); 1],
         [(
-            &stm32f4xx::gpio::PinId::PB00.get_pin().as_ref().unwrap(),
+            &stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
         )]
     );
@@ -299,6 +324,11 @@ pub unsafe fn reset_handler() {
         button: button,
         alarm: alarm,
     };
+
+    // // Optional kernel tests
+    // //
+    // // See comment in `boards/imix/src/main.rs`
+    // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
     debug!("Initialization complete. Entering main loop");
 

@@ -5,7 +5,8 @@ use cortexm4;
 
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
+use kernel::hil::uart;
+use kernel::hil::uart::Configure;
 
 use stm32f4xx;
 use stm32f4xx::gpio::PinId;
@@ -22,7 +23,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Writer {
     /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART3 causes STM32F429ZI to go into in in-deterministic state.
+    /// initialize USART2 causes STM32F446RE to go into in in-deterministic state.
     pub fn set_initialized(&mut self) {
         self.initialized = true;
     }
@@ -35,11 +36,12 @@ impl Write for Writer {
         if !self.initialized {
             self.initialized = true;
 
-            uart.configure(uart::UARTParameters {
+            uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,
+                width: uart::Width::Eight,
             });
         }
 
