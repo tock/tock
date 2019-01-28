@@ -16,6 +16,8 @@ use nrf5x::rtc::Rtc;
 
 use kernel::common::deferred_call_mux::*;
 use nrf52::deferred_call_mux::MUXBACKEND;
+use kernel::common::cells::OptionalCell;
+use core::cell::Cell;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -411,8 +413,8 @@ pub unsafe fn setup_board(
 
 
     let deferred_call_mux_clients = static_init!(
-        [Option<(bool, &'static DeferredCallMuxClient)>; 1],
-        [None]
+        [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 1],
+        [(Cell::new(false), OptionalCell::empty())]
     );
     let deferred_call_mux = static_init!(
         DeferredCallMux,

@@ -1,4 +1,4 @@
-use crate::common::cells::TakeCell;
+use crate::common::cells::OptionalCell;
 use core::cell::Cell;
 
 pub trait DeferredCallMuxBackend {
@@ -18,71 +18,72 @@ pub trait DeferredCallMuxClient {
 pub struct DeferredCallHandle (usize);
 pub struct DeferredCallMux {
     backend: &'static DeferredCallMuxBackend,
-    clients: TakeCell<'static, [
-        Option<(bool, &'static DeferredCallMuxClient)>
-    ]>,
+    clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)],
     handle_counter: Cell<usize>,
 }
 impl DeferredCallMux {
     pub fn new(
         backend: &'static DeferredCallMuxBackend,
-        clients: &'static mut [Option<(bool, &'static DeferredCallMuxClient)>]
+        clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)]
     ) -> DeferredCallMux {
         DeferredCallMux {
             backend: backend,
-            clients: TakeCell::new(clients),
+            clients: clients,
             handle_counter: Cell::new(0),
         }
     }
 
     pub fn set(&self, handle: DeferredCallHandle) -> Result<bool, ()> {
         let DeferredCallHandle(client_pos) = handle;
+        let client = &self.clients[client_pos];
 
-        self.clients.map(|clients| {
-            if let Some(ref mut client) = clients[client_pos] {
-                if client.0 {
-                    // Already set
-                    Ok(false)
-                } else {
-                    client.0 = true;
-                    self.backend.set();
-                    Ok(true)
-                }
+        if let (call_set, true) = (&client.0, client.1.is_some()) {
+            if call_set.get() {
+                // Already set
+                Ok(false)
             } else {
-                Err(())
+                call_set.set(true);
+                self.backend.set();
+                Ok(true)
             }
-        }).unwrap_or(Err(()))
+        } else {
+            Err(())
+        }
     }
 
-    pub fn register(&self, client: &'static DeferredCallMuxClient) -> Result<DeferredCallHandle, ()> {
-        self.clients.map(|clients| {
-            let current_counter = self.handle_counter.get();
+    pub fn register(&self, mux_client: &'static DeferredCallMuxClient) -> Result<DeferredCallHandle, ()> {
+        let current_counter = self.handle_counter.get();
 
-            if current_counter < clients.len() {
-                clients[current_counter] = Some((false, client));
-                self.handle_counter.set(current_counter + 1);
+        if current_counter < self.clients.len() {
+            let client = &self.clients[current_counter];
+            client.0.set(false);
+            client.1.set(mux_client);
 
-                Ok(DeferredCallHandle (current_counter))
-            } else {
-                Err(())
-            }
-        }).unwrap_or(Err(()))
+            self.handle_counter.set(current_counter + 1);
+
+            Ok(DeferredCallHandle (current_counter))
+        } else {
+            Err(())
+        }
     }
 }
 
 impl DeferredCallMuxBackendClient for DeferredCallMux {
     fn call(&self) {
-        self.clients.map(|clients| {
-            clients
-                .iter_mut()
-                .map(|opt| opt.as_mut())
-                .enumerate()
-                .filter_map(|(i, opt_c)| opt_c.map(|content| (i, content)))
-                .filter(|(_i, (call_reqd, _))| *call_reqd)
-                .for_each(|(i, mut client): (usize, &mut (bool, &'static DeferredCallMuxClient))| {
-                    client.0 = false;
-                    client.1.call(DeferredCallHandle (i));
-                });
-         });
+        self.clients
+            .iter()
+            .map(|(ref call_reqd, ref oc): &(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)| -> (&Cell<bool>, &OptionalCell<&'static DeferredCallMuxClient>) { (call_reqd, oc) })
+            .enumerate()
+            .filter(|(_i, (call_reqd, _oc))| call_reqd.get())
+            .filter_map(
+                |(i, (call_reqd, oc)): (usize, (&Cell<bool>, &OptionalCell<&'static DeferredCallMuxClient>))| ->
+                    Option<(usize, &Cell<bool>, &'static DeferredCallMuxClient)> {
+                        oc.map(|c| (i, call_reqd, *c))
+                    }
+            )
+            .for_each(|(i, call_reqd, client)| {
+                call_reqd.set(false);
+                client.call(DeferredCallHandle (i));
+            });
     }
 }
