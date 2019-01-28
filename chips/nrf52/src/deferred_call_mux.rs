@@ -1,3 +1,10 @@
+//! Implementation of hardware-abstraction traits required for a
+//! [DeferredCallMux]
+//!
+//! See the documentation of the [DeferredCallMux] for more information.
+//!
+//! [DeferredCallMux]: kernel::common::deferred_call_mux::DeferredCallMux
+
 use kernel::common::cells::OptionalCell;
 
 use kernel::common::{deferred_call::DeferredCall, deferred_call_mux::*};
