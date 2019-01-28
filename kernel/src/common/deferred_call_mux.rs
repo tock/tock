@@ -24,7 +24,11 @@
 //!
 //! ```
 //! use nrf52::deferred_call_mux::MUXBACKEND;
-//! use kernel::common::deferred_call_mux::*;
+//! use kernel::common::deferred_call_mux::{
+//!     DeferredCallMux,
+//!     DeferredCallMuxClient,
+//!     DeferredCallMuxBackend
+//! };
 //!
 //! let deferred_call_mux_clients = static_init!(
 //!     [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 4],
@@ -47,7 +51,6 @@
 //! );
 //! ```
 
-
 use crate::common::cells::OptionalCell;
 use core::cell::Cell;
 
@@ -65,7 +68,6 @@ pub trait DeferredCallMuxBackendClient {
     /// Called once after a `set` on the backend
     fn call(&self);
 }
-
 
 /// Multiplexer over a hardware-independent
 /// [DeferredCallMuxBackend](crate::common::deferred_call_mux::DeferredCallMuxBackend)
@@ -86,7 +88,7 @@ impl DeferredCallMux {
     /// `[(Cell::new(false), OptionalCell::empty()); n]`
     pub fn new(
         backend: &'static DeferredCallMuxBackend,
-        clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)]
+        clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)],
     ) -> DeferredCallMux {
         DeferredCallMux {
             backend: backend,
@@ -124,7 +126,10 @@ impl DeferredCallMux {
     ///
     /// On success, a `Some(handle)` will be returned. This handle is later
     /// required to schedule a deferred call.
-    pub fn register(&self, mux_client: &'static DeferredCallMuxClient) -> Option<DeferredCallHandle> {
+    pub fn register(
+        &self,
+        mux_client: &'static DeferredCallMuxClient,
+    ) -> Option<DeferredCallHandle> {
         let current_counter = self.handle_counter.get();
 
         if current_counter < self.clients.len() {
@@ -134,7 +139,7 @@ impl DeferredCallMux {
 
             self.handle_counter.set(current_counter + 1);
 
-            Some(DeferredCallHandle (current_counter))
+            Some(DeferredCallHandle(current_counter))
         } else {
             None
         }
@@ -151,7 +156,7 @@ impl DeferredCallMuxBackendClient for DeferredCallMux {
             .filter_map(|(i, (call_reqd, oc))| oc.map(|c| (i, call_reqd, *c)))
             .for_each(|(i, call_reqd, client)| {
                 call_reqd.set(false);
-                client.call(DeferredCallHandle (i));
+                client.call(DeferredCallHandle(i));
             });
     }
 }
@@ -168,4 +173,4 @@ pub trait DeferredCallMuxClient {
 /// Unique identifier for a deferred call registered with a
 /// [DeferredCallMux](crate::common::deferred_call_mux::DeferredCallMux)
 #[derive(Copy, Clone, Debug)]
-pub struct DeferredCallHandle (usize);
+pub struct DeferredCallHandle(usize);
