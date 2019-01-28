@@ -40,6 +40,7 @@
 use core::cell::Cell;
 use core::cmp::{self, min};
 use core::fmt::{write, Arguments, Result, Write};
+use core::intrinsics;
 use core::panic::PanicInfo;
 use core::ptr;
 use core::slice;
@@ -58,18 +59,26 @@ use crate::ReturnCode;
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic<L: hil::led::Led, W: Write>(
-    leds: &mut [&mut L],
-    writer: &mut W,
+    leds: Option<&mut [&mut L]>,
+    writer: Option<&mut W>,
     panic_info: &PanicInfo,
     nop: &Fn(),
     processes: &'static [Option<&'static ProcessType>],
 ) -> ! {
     panic_begin(nop);
-    panic_banner(writer, panic_info);
-    // Flush debug buffer if needed
-    flush(writer);
-    panic_process_info(processes, writer);
-    panic_blink_forever(leds)
+
+    if let Some(w) = writer {
+        panic_banner(w, panic_info);
+        // Flush debug buffer if needed
+        flush(w);
+        panic_process_info(processes, w);
+    }
+
+    if let Some(l) = leds {
+        panic_blink_forever(l)
+    } else {
+        intrinsics::abort()
+    }
 }
 
 /// Generic panic entry.
