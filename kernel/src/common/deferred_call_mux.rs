@@ -13,8 +13,9 @@
 //! Usage
 //! -----
 //!
-//! This is an example for a Nrf52 chip. For the backend
-//! implementation, see `chips/nrf52/src/deferred_call_mux.rs`.
+//! This example assumes some deferred call mux backend implementation
+//! `MUXBACKEND`. For a backend implementation, see
+//! `chips/nrf52/src/deferred_call_mux.rs`.
 //!
 //! The `deferred_call_mux_clients` array size determines how many
 //! [DeferredCallHandle](crate::common::deferred_call_mux::DeferredCallHandle)s
@@ -23,29 +24,57 @@
 //! `deferred_call_mux.register(some_client)` will return `None`.
 //!
 //! ```
-//! use nrf52::deferred_call_mux::MUXBACKEND;
+//! # use core::cell::Cell;
+//! # use kernel::common::cells::OptionalCell;
+//! # use kernel::static_init;
 //! use kernel::common::deferred_call_mux::{
 //!     DeferredCallMux,
 //!     DeferredCallMuxClient,
 //!     DeferredCallMuxBackend
 //! };
+//! #
+//! # struct ExampleDeferredCallMuxBackend;
+//! # impl DeferredCallMuxBackend for ExampleDeferredCallMuxBackend {
+//! #     fn set(&self) { }
+//! #     fn set_client(
+//! #         &self,
+//! #         _c: &'static kernel::common::deferred_call_mux::DeferredCallMuxBackendClient,
+//! #     ) { }
+//! # }
+//! # static mut MUXBACKEND: ExampleDeferredCallMuxBackend =
+//! #   ExampleDeferredCallMuxBackend;
 //!
-//! let deferred_call_mux_clients = static_init!(
-//!     [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 4],
-//!     [(Cell::new(false), OptionalCell::empty()); 4]
-//! );
-//! let deferred_call_mux = static_init!(
+//! let deferred_call_mux_clients = unsafe { static_init!(
+//!     [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 1],
+//!     [(Cell::new(false), OptionalCell::empty())]
+//! ) };
+//! let deferred_call_mux = unsafe { static_init!(
 //!     DeferredCallMux,
 //!     DeferredCallMux::new(&MUXBACKEND, deferred_call_mux_clients)
-//! );
-//! MUXBACKEND.set_client(deferred_call_mux);
+//! ) };
+//! unsafe { MUXBACKEND.set_client(deferred_call_mux) };
 //!
+//! # struct SomeCapsule;
+//! # impl SomeCapsule {
+//! #     pub fn new(_mux: &'static DeferredCallMux) -> Self { SomeCapsule }
+//! #     pub fn set_deferred_call_handle(
+//! #         &self,
+//! #         _handle: kernel::common::deferred_call_mux::DeferredCallHandle,
+//! #     ) { }
+//! # }
+//! # impl DeferredCallMuxClient for SomeCapsule {
+//! #     fn call(
+//! #         &self,
+//! #         _handle: kernel::common::deferred_call_mux::DeferredCallHandle,
+//! #     ) { }
+//! # }
+//! #
 //! // Here you can register custom capsules, etc.
 //! // This could look like:
-//! let some_capsule = static_init!(
+//! let some_capsule = unsafe { static_init!(
 //!     SomeCapsule,
-//!     SomeCapulse::new(deferred_call_mux)
-//! );
+//!     SomeCapsule::new(deferred_call_mux)
+//! ) };
 //! some_capsule.set_deferred_call_handle(
 //!     deferred_call_mux.register(some_capsule).expect("no deferred call slot available")
 //! );
