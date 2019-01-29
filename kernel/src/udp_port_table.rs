@@ -65,7 +65,6 @@ impl UdpPortBinding {
         } // TODO: initialize to what?
     }
 
-    // TODO: should probably change error type to ReturnCode
     pub fn get_receiver(&self) -> Result<UdpReceiverBinding, ()> {
         // What if self.send_allocated?
         if self.receive_allocated.get() {
@@ -77,12 +76,12 @@ impl UdpPortBinding {
     }
 
     pub fn put_receiver(&self, recv_binding: UdpReceiverBinding)
-        -> Result<(), ()> {
+        -> Result<(), UdpReceiverBinding> {
         if recv_binding.port == self.port {
             self.receive_allocated.set(false);
             Ok(())
         } else {
-            Err(())
+            Err(recv_binding)
         }
     }
 
@@ -95,13 +94,18 @@ impl UdpPortBinding {
         }
     }
 
-    pub fn put_sender(&self, send_binding: UdpSenderBinding) -> Result<(), ()> {
+    pub fn put_sender(&self, send_binding: UdpSenderBinding)
+    -> Result<(), UdpSenderBinding> {
         if send_binding.port == self.port {
             self.send_allocated.set(false);
             Ok(())
         } else {
-            Err(())
+            Err(send_binding)
         }
+    }
+
+    pub fn bound(&self) -> bool {
+        self.send_allocated.get() || self.receive_allocated.get()
     }
 }
 
@@ -159,7 +163,11 @@ impl UdpPortTable {
             let mut port_exists = false;
             for i in 0..MAX_NUM_BOUND_PORTS {
                 match table[i] {
-                    Some(Some(port)) => {port_exists = true;},
+                    Some(Some(p)) => {
+                        if (p == port) {
+                            port_exists = true;
+                        }
+                    },
                     _ => (),
                 }
             };
@@ -177,11 +185,17 @@ impl UdpPortTable {
     // Disassociate the port from the given binding. Return the socket that was
     // contained within the binding object.
     pub fn unbind(&self, binding: UdpPortBinding,
-        /*cap: &capabilities::UDPBindCapability*/) -> UdpPortSocket {
+        /*cap: &capabilities::UDPBindCapability*/)
+    -> Result<UdpPortSocket, UdpPortBinding> {
+        // Need to make sure that the UdpPortBinding itself has no senders
+        // or receivers allocated
+        if binding.bound() {
+            return Err(binding);
+        }
         self.port_array.map(|table| {
             table[binding.socket.idx] = None;
         });
-        binding.socket
+        Ok(binding.socket)
     }
 
 

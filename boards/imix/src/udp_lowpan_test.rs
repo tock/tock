@@ -246,22 +246,15 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         let socket1 = self.port_table.create_socket().unwrap();
         let socket2 = self.port_table.create_socket().unwrap();
         let socket3 = self.port_table.create_socket().unwrap();
-        debug!("Finished creating bindings");
+        debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
         let ret1 = self.port_table.bind(socket1, 80);
-        let ret2 = self.port_table.bind(socket2, 80);
-        debug!("Done calling bind");
-        // Ensure that only the first binding was successfully bound.
-
-        match ret2 {
-            Ok(binding) => assert!(false),
-            Err(x) => assert!(true),
-        };
+        assert!(self.port_table.bind(socket2, 80).is_err());
         debug!("After return code assertions for binding");
         // Ensure that only the first binding is able to send
 
-        let mut binding_socket: UdpPortSocket;
-        match ret1 {
+
+        let binding_socket = match ret1 {
             Ok(binding) => {
                 let send_binding = binding.get_sender().unwrap();
                 // Make sure correct port is bound
@@ -273,25 +266,25 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
                     Err(_) => assert!(true),
                     _ => assert!(false),
                 }
-                binding.put_sender(send_binding);
+                assert!(binding.put_sender(send_binding).is_ok());
                 let send_binding2 = binding.get_sender().unwrap();
                 // Make sure correct port is bound
                 assert_eq!(send_binding2.get_port(), 80);
-                binding_socket = self.port_table.unbind(binding);
-                // TODO: what happens if we use a dangling send_binding after
-                // the original is unbound?
-                assert_eq!(send_binding2.get_port(), 80);
-                debug!("illegally re-using a binding");
+                // Cannot unbind until we call put_sender
+                let attempt = self.port_table.unbind(binding);
+                let binding = attempt.err().unwrap();
+                assert!(binding.put_sender(send_binding2).is_ok());
+                self.port_table.unbind(binding).ok()
             },
-            Err(x) => {assert!(false);},
+            Err(x) => {
+                assert!(false);
+                None
+            },
         };
         // // See if the third binding can successfully bind once the first is
         // // unbound.
-        let ret3 = self.port_table.bind(socket3, 80);
-        match ret3 {
-            Ok(binding) => assert!(true),
-            Err(x) => assert!(false),
-        }
+        assert!(self.port_table.bind(socket3, 80).is_ok());
+        assert!(self.port_table.bind(binding_socket.unwrap(), 20).is_ok());
         debug!("port_table_test passed");
     }
 
