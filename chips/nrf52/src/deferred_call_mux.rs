@@ -7,14 +7,14 @@
 
 use kernel::common::cells::OptionalCell;
 
-use kernel::common::{deferred_call::DeferredCall, deferred_call_mux::*};
 use crate::deferred_call_tasks::DeferredCallTask;
+use kernel::common::deferred_call::DeferredCall;
+use kernel::common::deferred_call_mux::{DeferredCallMuxBackend, DeferredCallMuxBackendClient};
 
 static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
     unsafe { DeferredCall::new(DeferredCallTask::MuxBackend) };
 
-pub static mut MUXBACKEND: Nrf52DeferredCallMuxBackend =
-    Nrf52DeferredCallMuxBackend::new();
+pub static mut MUXBACKEND: Nrf52DeferredCallMuxBackend = Nrf52DeferredCallMuxBackend::new();
 
 pub struct Nrf52DeferredCallMuxBackend {
     client: OptionalCell<&'static DeferredCallMuxBackendClient>,
