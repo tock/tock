@@ -301,7 +301,7 @@ impl Usart<'a> {
         // alert client
         self.tx_client.map(|client| {
             buffer.take().map(|buf| {
-                client.transmitted_buffer(buf, count as usize, rcode);
+                client.transmitted_buffer(buf, count, rcode);
             });
         });
     }
