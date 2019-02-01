@@ -84,7 +84,7 @@ pub trait Transmit<'a> {
     /// of `transmit`'s return tuple is SUCCESS, the `Option` will be
     /// `None` and the struct will issue a `transmitted_buffer`
     /// callback in the future. If the value of the `ReturnCode` is
-    /// not SUCCESS, then the `tx_data` argument is returned in the
+    /// not SUCCESS, then the `tx_buffer` argument is returned in the
     /// `Option`. Other valid `ReturnCode` values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
     ///          because it has not been initialized or in the case of a shared
@@ -94,7 +94,7 @@ pub trait Transmit<'a> {
     ///  - ESIZE : `tx_len` is larger than the passed slice.
     ///  - FAIL: some other error.
     ///
-    /// Each byte in `tx_data` is a UART transfer word of 8 or fewer
+    /// Each byte in `tx_buffer` is a UART transfer word of 8 or fewer
     /// bits.  The word width is determined by the UART configuration,
     /// truncating any more significant bits. E.g., 0x18f transmitted in
     /// 8N1 will be sent as 0x8f and in 7N1 will be sent as 0x0f. Clients
@@ -104,7 +104,7 @@ pub trait Transmit<'a> {
     /// `transmit_buffer` or `transmit_word` operation will return EBUSY.
     fn transmit_buffer(
         &self,
-        tx_data: &'static mut [u8],
+        tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 
@@ -158,7 +158,7 @@ pub trait Receive<'a> {
     /// `receive_buffer`'s return tuple is SUCCESS, the `Option` will
     /// be `None` and the struct will issue a `received_buffer`
     /// callback in the future. If the value of the `ReturnCode` is
-    /// not SUCCESS, then the `rx_data` argument is returned in the
+    /// not SUCCESS, then the `rx_buffer` argument is returned in the
     /// `Option`. Other valid return values are:
     ///  - EOFF: The underlying hardware is not available, perhaps because
     ///          because it has not been initialized or in the case of a shared
@@ -166,7 +166,7 @@ pub trait Receive<'a> {
     ///  - EBUSY: the UART is already receiving and has not made a
     ///           reception `complete` callback yet.
     ///  - ESIZE : `rx_len` is larger than the passed slice.
-    /// Each byte in `rx_data` is a UART transfer word of 8 or fewer
+    /// Each byte in `rx_buffer` is a UART transfer word of 8 or fewer
     /// bits.  The width is determined by the UART
     /// configuration. Clients that need to transfer 9-bit words
     /// should use `receive_word`.  Calling `receive_buffer` while
