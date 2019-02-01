@@ -912,19 +912,6 @@ impl Stream<'a> {
         self.buffer.take()
     }
 
-    pub fn get_transfer_counter(&self) -> usize {
-        match self.streamid {
-            StreamId::Stream0 => unsafe { DMA1.registers.s0ndtr.get() as usize },
-            StreamId::Stream1 => unsafe { DMA1.registers.s1ndtr.get() as usize },
-            StreamId::Stream2 => unsafe { DMA1.registers.s2ndtr.get() as usize },
-            StreamId::Stream3 => unsafe { DMA1.registers.s3ndtr.get() as usize },
-            StreamId::Stream4 => unsafe { DMA1.registers.s4ndtr.get() as usize },
-            StreamId::Stream5 => unsafe { DMA1.registers.s5ndtr.get() as usize },
-            StreamId::Stream6 => unsafe { DMA1.registers.s6ndtr.get() as usize },
-            StreamId::Stream7 => unsafe { DMA1.registers.s7ndtr.get() as usize },
-        }
-    }
-
     fn set_channel(&self) {
         self.peripheral.map(|pid| {
             match pid {
