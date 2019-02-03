@@ -7,6 +7,7 @@ use kernel::ClockInterface;
 use kernel::ReturnCode;
 
 use crate::dma1;
+use crate::dma1::{Dma1Peripheral};
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -145,6 +146,8 @@ register_bitfields![u32,
 
 const USART2_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40004400 as *const UsartRegisters) };
+const USART3_BASE: StaticRef<UsartRegisters> =
+    unsafe { StaticRef::new(0x40004800 as *const UsartRegisters) };
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -169,7 +172,9 @@ pub struct Usart<'a> {
     rx_client: OptionalCell<&'a hil::uart::ReceiveClient>,
 
     tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    tx_dma_pid: Dma1Peripheral,
     rx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    rx_dma_pid: Dma1Peripheral,
 
     tx_len: Cell<usize>,
     rx_len: Cell<usize>,
@@ -185,10 +190,24 @@ pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
 pub static mut USART2: Usart = Usart::new(
     USART2_BASE,
     UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART2)),
+    Dma1Peripheral::USART2_TX,
+    Dma1Peripheral::USART2_RX,
+);
+
+pub static mut USART3: Usart = Usart::new(
+    USART3_BASE,
+    UsartClock(rcc::PeripheralClock::APB1(rcc::PCLK1::USART3)),
+    Dma1Peripheral::USART3_TX,
+    Dma1Peripheral::USART3_RX,
 );
 
 impl Usart<'a> {
-    const fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock) -> Usart<'a> {
+    const fn new(
+        base_addr: StaticRef<UsartRegisters>,
+        clock: UsartClock,
+        tx_dma_pid: Dma1Peripheral,
+        rx_dma_pid: Dma1Peripheral,
+    ) -> Usart<'a> {
         Usart {
             registers: base_addr,
             clock: clock,
@@ -197,7 +216,9 @@ impl Usart<'a> {
             rx_client: OptionalCell::empty(),
 
             tx_dma: OptionalCell::empty(),
+            tx_dma_pid: tx_dma_pid,
             rx_dma: OptionalCell::empty(),
+            rx_dma_pid: rx_dma_pid,
 
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
@@ -477,36 +498,33 @@ impl hil::uart::Uart<'a> for Usart<'a> {}
 
 impl dma1::StreamClient for Usart<'a> {
     fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
-        match pid {
-            dma1::Dma1Peripheral::USART2_TX => {
-                self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
-                self.enable_transmit_complete_interrupt();
-            }
-            dma1::Dma1Peripheral::USART2_RX => {
-                // In case of RX, we can call the client directly without having
-                // to trigger an interrupt.
-                if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
-                    self.disable_rx();
-                    self.usart_rx_state.set(USARTStateRX::Idle);
+        if pid == self.tx_dma_pid {
+            self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
+            self.enable_transmit_complete_interrupt();
+        } else if pid == self.rx_dma_pid {
+            // In case of RX, we can call the client directly without having
+            // to trigger an interrupt.
+            if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
+                self.disable_rx();
+                self.usart_rx_state.set(USARTStateRX::Idle);
 
-                    // get buffer
-                    let buffer = self.rx_dma.map_or(None, |rx_dma| rx_dma.return_buffer());
+                // get buffer
+                let buffer = self.rx_dma.map_or(None, |rx_dma| rx_dma.return_buffer());
 
-                    let length = self.rx_len.get();
-                    self.rx_len.set(0);
+                let length = self.rx_len.get();
+                self.rx_len.set(0);
 
-                    // alert client
-                    self.rx_client.map(|client| {
-                        buffer.map(|buf| {
-                            client.received_buffer(
-                                buf,
-                                length,
-                                ReturnCode::SUCCESS,
-                                hil::uart::Error::None,
-                            );
-                        });
+                // alert client
+                self.rx_client.map(|client| {
+                    buffer.map(|buf| {
+                        client.received_buffer(
+                            buf,
+                            length,
+                            ReturnCode::SUCCESS,
+                            hil::uart::Error::None,
+                        );
                     });
-                }
+                });
             }
         }
     }

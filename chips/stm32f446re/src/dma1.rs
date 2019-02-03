@@ -777,10 +777,12 @@ enum TransferMode {
 
 /// List of peripherals managed by DMA1
 #[allow(non_camel_case_types, non_snake_case)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Dma1Peripheral {
     USART2_TX,
     USART2_RX,
+    USART3_TX,
+    USART3_RX,
 }
 
 impl Dma1Peripheral {
@@ -790,6 +792,8 @@ impl Dma1Peripheral {
         match self {
             Dma1Peripheral::USART2_TX => nvic::DMA1_Stream6,
             Dma1Peripheral::USART2_RX => nvic::DMA1_Stream5,
+            Dma1Peripheral::USART3_TX => nvic::DMA1_Stream3,
+            Dma1Peripheral::USART3_RX => nvic::DMA1_Stream1,
         }
     }
 
@@ -803,6 +807,8 @@ impl From<Dma1Peripheral> for StreamId {
         match pid {
             Dma1Peripheral::USART2_TX => StreamId::Stream6,
             Dma1Peripheral::USART2_RX => StreamId::Stream5,
+            Dma1Peripheral::USART3_TX => StreamId::Stream3,
+            Dma1Peripheral::USART3_RX => StreamId::Stream1,
         }
     }
 }
@@ -927,6 +933,18 @@ impl Stream<'a> {
                         .s5cr
                         .modify(S5CR::CHSEL.val(ChannelId::Channel4 as u32));
                 },
+                Dma1Peripheral::USART3_TX => unsafe {
+                    // USART2_TX Stream 3, Channel 4
+                    DMA1.registers
+                        .s3cr
+                        .modify(S3CR::CHSEL.val(ChannelId::Channel4 as u32));
+                },
+                Dma1Peripheral::USART3_RX => unsafe {
+                    // USART2_RX Stream 1, Channel 4
+                    DMA1.registers
+                        .s1cr
+                        .modify(S1CR::CHSEL.val(ChannelId::Channel4 as u32));
+                },
             }
         });
     }
@@ -946,6 +964,18 @@ impl Stream<'a> {
                         .s5cr
                         .modify(S5CR::DIR.val(Direction::PeripheralToMemory as u32));
                 },
+                Dma1Peripheral::USART3_TX => unsafe {
+                    // USART3_TX Stream 3
+                    DMA1.registers
+                        .s3cr
+                        .modify(S3CR::DIR.val(Direction::MemoryToPeripheral as u32));
+                },
+                Dma1Peripheral::USART3_RX => unsafe {
+                    // USART3_RX Stream 1
+                    DMA1.registers
+                        .s1cr
+                        .modify(S1CR::DIR.val(Direction::PeripheralToMemory as u32));
+                },
             }
         });
     }
@@ -960,6 +990,14 @@ impl Stream<'a> {
                 Dma1Peripheral::USART2_RX => unsafe {
                     // USART2_RX Stream 5
                     DMA1.registers.s5par.set(usart::USART2.get_address_dr());
+                },
+                Dma1Peripheral::USART3_TX => unsafe {
+                    // USART3_TX Stream 3
+                    DMA1.registers.s3par.set(usart::USART3.get_address_dr());
+                },
+                Dma1Peripheral::USART3_RX => unsafe {
+                    // USART3_RX Stream 1
+                    DMA1.registers.s1par.set(usart::USART3.get_address_dr());
                 },
             }
         });
@@ -976,6 +1014,14 @@ impl Stream<'a> {
                     // USART2_RX Stream 5
                     DMA1.registers.s5cr.modify(S5CR::PINC::CLEAR);
                 },
+                Dma1Peripheral::USART3_TX => unsafe {
+                    // USART3_TX Stream 3
+                    DMA1.registers.s3cr.modify(S3CR::PINC::CLEAR);
+                },
+                Dma1Peripheral::USART3_RX => unsafe {
+                    // USART3_RX Stream 1
+                    DMA1.registers.s1cr.modify(S1CR::PINC::CLEAR);
+                },
             }
         });
     }
@@ -991,6 +1037,14 @@ impl Stream<'a> {
                     // USART2_RX Stream 5
                     DMA1.registers.s5m0ar.set(buf_addr);
                 },
+                Dma1Peripheral::USART3_TX => unsafe {
+                    // USART3_TX Stream 3
+                    DMA1.registers.s3m0ar.set(buf_addr);
+                },
+                Dma1Peripheral::USART3_RX => unsafe {
+                    // USART3_RX Stream 1
+                    DMA1.registers.s1m0ar.set(buf_addr);
+                },
             }
         });
     }
@@ -1005,6 +1059,14 @@ impl Stream<'a> {
                 Dma1Peripheral::USART2_RX => unsafe {
                     // USART2_RX Stream 5
                     DMA1.registers.s5cr.modify(S5CR::MINC::SET);
+                },
+                Dma1Peripheral::USART3_TX => unsafe {
+                    // USART3_TX Stream 3
+                    DMA1.registers.s3cr.modify(S3CR::MINC::SET);
+                },
+                Dma1Peripheral::USART3_RX => unsafe {
+                    // USART3_RX Stream 1
+                    DMA1.registers.s1cr.modify(S1CR::MINC::SET);
                 },
             }
         });
@@ -1060,6 +1122,12 @@ impl Stream<'a> {
             Dma1Peripheral::USART2_RX => {
                 self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
             }
+            Dma1Peripheral::USART3_TX => {
+                self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
+            }
+            Dma1Peripheral::USART3_RX => {
+                self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
+            }
         });
     }
 
@@ -1106,6 +1174,12 @@ impl Stream<'a> {
                 self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
             }
             Dma1Peripheral::USART2_RX => {
+                self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
+            }
+            Dma1Peripheral::USART3_TX => {
+                self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
+            }
+            Dma1Peripheral::USART3_RX => {
                 self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
             }
         });
