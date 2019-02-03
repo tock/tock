@@ -42,7 +42,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
-struct NucleoF446RE {
+struct NucleoF429ZI {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
     led: &'static capsules::led::LED<'static, stm32f4xx::gpio::Pin<'static>>,
@@ -54,7 +54,7 @@ struct NucleoF446RE {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl Platform for NucleoF446RE {
+impl Platform for NucleoF429ZI {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&kernel::Driver>) -> R,
@@ -74,26 +74,26 @@ impl Platform for NucleoF446RE {
 unsafe fn setup_dma() {
     use stm32f4xx::dma1::{Dma1Peripheral, DMA1};
     use stm32f4xx::usart;
-    use stm32f4xx::usart::USART2;
+    use stm32f4xx::usart::USART3;
 
     DMA1.enable_clock();
 
-    let usart2_tx_stream = Dma1Peripheral::USART2_TX.get_stream();
-    let usart2_rx_stream = Dma1Peripheral::USART2_RX.get_stream();
+    let usart3_tx_stream = Dma1Peripheral::USART3_TX.get_stream();
+    let usart3_rx_stream = Dma1Peripheral::USART3_RX.get_stream();
 
-    USART2.set_dma(
-        usart::TxDMA(usart2_tx_stream),
-        usart::RxDMA(usart2_rx_stream),
+    USART3.set_dma(
+        usart::TxDMA(usart3_tx_stream),
+        usart::RxDMA(usart3_rx_stream),
     );
 
-    usart2_tx_stream.set_client(&USART2);
-    usart2_rx_stream.set_client(&USART2);
+    usart3_tx_stream.set_client(&USART3);
+    usart3_rx_stream.set_client(&USART3);
 
-    usart2_tx_stream.setup(Dma1Peripheral::USART2_TX);
-    usart2_rx_stream.setup(Dma1Peripheral::USART2_RX);
+    usart3_tx_stream.setup(Dma1Peripheral::USART3_TX);
+    usart3_rx_stream.setup(Dma1Peripheral::USART3_RX);
 
-    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART2_TX.get_stream_irqn()).enable();
-    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART2_RX.get_stream_irqn()).enable();
+    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_TX.get_stream_irqn()).enable();
+    cortexm4::nvic::Nvic::new(Dma1Peripheral::USART3_RX.get_stream_irqn()).enable();
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
@@ -105,23 +105,25 @@ unsafe fn set_pin_primary_functions() {
 
     SYSCFG.enable_clock();
 
-    PORT[PortId::A as usize].enable_clock();
+    PORT[PortId::B as usize].enable_clock();
 
-    // User LD2 is connected to PA05. Configure PA05 as `debug_gpio!(0, ...)`
-    PinId::PA05.get_pin().as_ref().map(|pin| {
+    // User LD2 is connected to PB07. Configure PB07 as `debug_gpio!(0, ...)`
+    PinId::PB07.get_pin().as_ref().map(|pin| {
         pin.make_output();
 
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
+    
+    PORT[PortId::D as usize].enable_clock();
 
-    // pa2 and pa3 (USART2) is connected to ST-LINK virtual COM port
-    PinId::PA02.get_pin().as_ref().map(|pin| {
+    // pd8 and pd9 (USART3) is connected to ST-LINK virtual COM port
+    PinId::PD08.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART2_TX
         pin.set_alternate_function(AlternateFunction::AF7);
     });
-    PinId::PA03.get_pin().as_ref().map(|pin| {
+    PinId::PD09.get_pin().as_ref().map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART2_RX
         pin.set_alternate_function(AlternateFunction::AF7);
@@ -146,8 +148,8 @@ unsafe fn set_pin_primary_functions() {
 unsafe fn setup_peripherals() {
     use stm32f4xx::tim2::TIM2;
 
-    // USART2 IRQn is 38
-    cortexm4::nvic::Nvic::new(stm32f4xx::nvic::USART2).enable();
+    // USART3 IRQn is 39
+    cortexm4::nvic::Nvic::new(stm32f4xx::nvic::USART3).enable();
 
     // TIM2 IRQn is 28
     TIM2.enable_clock();
@@ -183,11 +185,11 @@ pub unsafe fn reset_handler() {
     // UART
 
     // Create a shared UART channel for kernel debug.
-    stm32f4xx::usart::USART2.enable_clock();
+    stm32f4xx::usart::USART3.enable_clock();
     let mux_uart = static_init!(
         MuxUart<'static>,
         MuxUart::new(
-            &stm32f4xx::usart::USART2,
+            &stm32f4xx::usart::USART3,
             &mut capsules::virtual_uart::RX_BUF,
             115200
         )
@@ -197,8 +199,8 @@ pub unsafe fn reset_handler() {
     // tell `send_byte()` not to configure the USART again.
     io::WRITER.set_initialized();
 
-    hil::uart::Transmit::set_transmit_client(&stm32f4xx::usart::USART2, mux_uart);
-    hil::uart::Receive::set_receive_client(&stm32f4xx::usart::USART2, mux_uart);
+    hil::uart::Transmit::set_transmit_client(&stm32f4xx::usart::USART3, mux_uart);
+    hil::uart::Receive::set_receive_client(&stm32f4xx::usart::USART3, mux_uart);
 
     // Create a virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(mux_uart, false));
@@ -270,7 +272,7 @@ pub unsafe fn reset_handler() {
             capsules::led::ActivationMode
         ); 1],
         [(
-            &stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+            &stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
         )]
     );
@@ -318,7 +320,7 @@ pub unsafe fn reset_handler() {
     );
     virtual_alarm.set_client(alarm);
 
-    let nucleo_f446re = NucleoF446RE {
+    let nucleo_f429zi = NucleoF429ZI {
         console: console,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
         led: led,
@@ -351,9 +353,9 @@ pub unsafe fn reset_handler() {
     );
 
     board_kernel.kernel_loop(
-        &nucleo_f446re,
+        &nucleo_f429zi,
         chip,
-        Some(&nucleo_f446re.ipc),
+        Some(&nucleo_f429zi.ipc),
         &main_loop_capability,
     );
 }
