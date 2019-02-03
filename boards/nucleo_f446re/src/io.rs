@@ -8,8 +8,8 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f446re;
-use stm32f446re::gpio::PinId;
+use stm32f4xx;
+use stm32f4xx::gpio::PinId;
 
 use crate::PROCESSES;
 
@@ -31,7 +31,7 @@ impl Writer {
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut stm32f446re::usart::USART2 };
+        let uart = unsafe { &mut stm32f4xx::usart::USART2 };
 
         if !self.initialized {
             self.initialized = true;
