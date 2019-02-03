@@ -114,7 +114,7 @@ unsafe fn set_pin_primary_functions() {
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
     });
-    
+
     PORT[PortId::D as usize].enable_clock();
 
     // pd8 and pd9 (USART3) is connected to ST-LINK virtual COM port
@@ -267,10 +267,7 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
-        [(
-            &'static stm32f4xx::gpio::Pin,
-            capsules::led::ActivationMode
-        ); 1],
+        [(&'static stm32f4xx::gpio::Pin, capsules::led::ActivationMode); 1],
         [(
             &stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh

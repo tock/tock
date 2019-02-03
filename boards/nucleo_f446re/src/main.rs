@@ -265,10 +265,7 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
-        [(
-            &'static stm32f4xx::gpio::Pin,
-            capsules::led::ActivationMode
-        ); 1],
+        [(&'static stm32f4xx::gpio::Pin, capsules::led::ActivationMode); 1],
         [(
             &stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh

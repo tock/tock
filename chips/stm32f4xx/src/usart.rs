@@ -7,7 +7,7 @@ use kernel::ClockInterface;
 use kernel::ReturnCode;
 
 use crate::dma1;
-use crate::dma1::{Dma1Peripheral};
+use crate::dma1::Dma1Peripheral;
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter

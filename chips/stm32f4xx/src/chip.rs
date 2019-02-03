@@ -41,6 +41,12 @@ impl Chip for Stm32f4xx {
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
+                        nvic::DMA1_Stream1 => dma1::Dma1Peripheral::USART3_RX
+                            .get_stream()
+                            .handle_interrupt(),
+                        nvic::DMA1_Stream3 => dma1::Dma1Peripheral::USART3_TX
+                            .get_stream()
+                            .handle_interrupt(),
                         nvic::DMA1_Stream5 => dma1::Dma1Peripheral::USART2_RX
                             .get_stream()
                             .handle_interrupt(),
@@ -49,6 +55,7 @@ impl Chip for Stm32f4xx {
                             .handle_interrupt(),
 
                         nvic::USART2 => usart::USART2.handle_interrupt(),
+                        nvic::USART3 => usart::USART3.handle_interrupt(),
 
                         nvic::EXTI0 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI1 => exti::EXTI.handle_interrupt(),

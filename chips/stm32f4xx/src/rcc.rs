@@ -902,19 +902,19 @@ impl Rcc {
     fn disable_usart2_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
     }
-    
+
     // USART3 clock
 
     fn is_enabled_usart3_clock(&self) -> bool {
-        self.registers.apb1enr.is_set(APB1ENR::USART2EN)
+        self.registers.apb1enr.is_set(APB1ENR::USART3EN)
     }
 
     fn enable_usart3_clock(&self) {
-        self.registers.apb1enr.modify(APB1ENR::USART2EN::SET)
+        self.registers.apb1enr.modify(APB1ENR::USART3EN::SET)
     }
 
     fn disable_usart3_clock(&self) {
-        self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
+        self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
     }
 }
 
