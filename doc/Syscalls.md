@@ -359,3 +359,7 @@ will get routed to the console, and all other driver numbers will return
 ## Allocated Driver Numbers
 
 All documented drivers are in the [doc/syscalls](syscalls/README.md) folder.
+
+The `with_driver()` function takes an argument `driver_num` to identify the
+driver. `driver_num` whose highest bit is set is private and can be used by
+out-of-tree drivers.
