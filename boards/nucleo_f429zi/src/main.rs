@@ -17,10 +17,6 @@ use kernel::{create_capability, debug, static_init};
 /// Support routines for debugging I/O.
 pub mod io;
 
-// Unit Tests for drivers.
-#[allow(dead_code)]
-mod virtual_uart_rx_test;
-
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
