@@ -1,6 +1,6 @@
-//! Board file for Nucleo-F446RE development board
+//! Board file for Nucleo-F429ZI development board
 //!
-//! - <https://www.st.com/en/evaluation-tools/nucleo-f446re.html>
+//! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
 
 #![no_std]
 #![no_main]

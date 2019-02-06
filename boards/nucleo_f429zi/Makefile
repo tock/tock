@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the NUCLEO-446RE platform
+# Makefile for building the tock kernel for the NUCLEO-429ZI platform
 #
 TARGET=thumbv7em-none-eabi
 PLATFORM=nucleo_f429zi
