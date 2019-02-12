@@ -11,15 +11,15 @@ use crate::nvic;
 use crate::tim2;
 use crate::usart;
 
-pub struct Stm32f446re {
+pub struct Stm32f4xx {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
 }
 
-impl Stm32f446re {
-    pub unsafe fn new() -> Stm32f446re {
-        Stm32f446re {
+impl Stm32f4xx {
+    pub unsafe fn new() -> Stm32f4xx {
+        Stm32f4xx {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             systick: cortexm4::systick::SysTick::new(),
@@ -27,7 +27,7 @@ impl Stm32f446re {
     }
 }
 
-impl Chip for Stm32f446re {
+impl Chip for Stm32f4xx {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;
@@ -41,6 +41,12 @@ impl Chip for Stm32f446re {
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
+                        nvic::DMA1_Stream1 => dma1::Dma1Peripheral::USART3_RX
+                            .get_stream()
+                            .handle_interrupt(),
+                        nvic::DMA1_Stream3 => dma1::Dma1Peripheral::USART3_TX
+                            .get_stream()
+                            .handle_interrupt(),
                         nvic::DMA1_Stream5 => dma1::Dma1Peripheral::USART2_RX
                             .get_stream()
                             .handle_interrupt(),
@@ -49,6 +55,7 @@ impl Chip for Stm32f446re {
                             .handle_interrupt(),
 
                         nvic::USART2 => usart::USART2.handle_interrupt(),
+                        nvic::USART3 => usart::USART3.handle_interrupt(),
 
                         nvic::EXTI0 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI1 => exti::EXTI.handle_interrupt(),

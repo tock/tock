@@ -31,7 +31,7 @@ impl Writer {
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut stm32f4xx::usart::USART2 };
+        let uart = unsafe { &mut stm32f4xx::usart::USART3 };
 
         if !self.initialized {
             self.initialized = true;
@@ -57,9 +57,9 @@ impl Write for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
-    // User LD2 is connected to PA05
-    PinId::PA05.get_pin_mut().as_mut().map(|pa5| {
-        let led = &mut led::LedHigh::new(pa5);
+    // User LD2 is connected to PB07
+    PinId::PB07.get_pin_mut().as_mut().map(|pb7| {
+        let led = &mut led::LedHigh::new(pb7);
         let writer = &mut WRITER;
 
         debug::panic(

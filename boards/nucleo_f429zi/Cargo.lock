@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nucleo_f446re"
+name = "nucleo_f429zi"
 version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
