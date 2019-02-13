@@ -176,60 +176,61 @@ impl<'a> UART<'a> {
     pub fn handle_interrupt(&self) {
         // Clear interrupts
         self.registers.icr.write(Interrupts::ALL_INTERRUPTS::SET);
-        // This logic below seems buggy; it infers interrupt state from
-        // software rather than looking at hardware.
 
-        if self.receiving_word.get() {
-            if self.rx_fifo_not_empty() {
+        // Hardware RX FIFO is not empty
+        while self.rx_fifo_not_empty() {
+            // word read request was made
+            if self.receiving_word.get() {
                 let word = self.read();
                 self.receiving_word.set(false);
                 self.rx_client.map(move |client| {
                     client.received_word(word, ReturnCode::SUCCESS, uart::Error::None);
                 });
             }
-        } else {
-            self.rx.take().map(|mut rx| {
-                while self.rx_fifo_not_empty() && rx.index < rx.length {
-                    let byte = self.read() as u8;
-                    rx.buffer[rx.index] = byte;
-                    rx.index += 1;
-                }
+            // buffer read request was made
+            else if self.rx.is_some() {
+                self.rx.take().map(|mut rx| {
+                    // read in a byte
+                    if rx.index < rx.length {
+                        let byte = self.read() as u8;
+                        rx.buffer[rx.index] = byte;
+                        rx.index += 1;
+                    }
 
-                if rx.index == rx.length {
-                    self.rx_client.map(move |client| {
-                        client.received_buffer(
-                            rx.buffer,
-                            rx.index,
-                            ReturnCode::SUCCESS,
-                            uart::Error::None,
-                        );
-                    });
-                } else {
-                    self.rx.put(rx);
-                }
-            });
-        }
-
-        // If there are bytes and no oustanding RX operation, then
-        // read into the void. Note that testing for an operation is
-        // necessary in case a preceding read completed before the FIFO
-        // was empty. This allows those bytes to be dropped if the complete()
-        // event does not issue a follow-up read.
-        if self.rx_fifo_not_empty() && self.rx.is_none() {
-            self.read();
+                    if rx.index == rx.length {
+                        self.rx_client.map(move |client| {
+                            client.received_buffer(
+                                rx.buffer,
+                                rx.index,
+                                ReturnCode::SUCCESS,
+                                uart::Error::None,
+                            );
+                        });
+                    } else {
+                        self.rx.put(rx);
+                    }
+                });
+            }
+            // no current read request
+            else {
+                // read bytes into the void to avoid hardware RX buffer overflow
+                self.read();
+            }
         }
 
         self.tx.take().map(|mut tx| {
-            // if a big buffer was given, this could be a very long call
+            // send out one byte at a time, IRQ when TX FIFO empty will bring us back
             if self.tx_fifo_not_full() && tx.index < tx.length {
                 self.write(tx.buffer[tx.index] as u32);
                 tx.index += 1;
             }
+            // request is done
             if tx.index == tx.length {
                 self.tx_client.map(move |client| {
                     client.transmitted_buffer(tx.buffer, tx.length, ReturnCode::SUCCESS);
                 });
             } else {
+                // keep TX buffer as there is more left in request
                 self.tx.put(tx);
             }
         });
@@ -282,7 +283,13 @@ impl<'a> uart::Configure for UART<'a> {
         self.set_baud_rate(params.baud_rate);
 
         // Set word length
-        self.registers.lcrh.write(LineControl::WORD_LENGTH::Len8);
+        let word_width;
+        match params.width {
+            uart::Width::Six => word_width = LineControl::WORD_LENGTH::Len6,
+            uart::Width::Seven => word_width = LineControl::WORD_LENGTH::Len7,
+            uart::Width::Eight => word_width = LineControl::WORD_LENGTH::Len8,
+        }
+        self.registers.lcrh.write(word_width);
 
         self.fifo_enable();
 
@@ -327,11 +334,12 @@ impl<'a> uart::Transmit<'a> for UART<'a> {
         }
     }
 
-    // Incorporating this into the state machine is tricky because
-    // it relies on implicit state from outstanding operations. I.e.,
-    // rather than see if a TX interrupt occurred it checks if the FIFO
-    // can accept data from a buffer. -pal 12/31/18
-    fn transmit_word(&self, _word: u32) -> ReturnCode {
+    fn transmit_word(&self, word: u32) -> ReturnCode {
+        // if there's room in outgoing FIFO and no buffer transaction
+        if self.tx_fifo_not_full() && self.tx.is_none() {
+            self.write(word);
+            return ReturnCode::SUCCESS;
+        }
         ReturnCode::FAIL
     }
 
@@ -360,6 +368,7 @@ impl<'a> uart::Receive<'a> for UART<'a> {
                 length: len,
                 index: 0,
             });
+
             (ReturnCode::SUCCESS, None)
         }
     }
