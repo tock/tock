@@ -6,11 +6,13 @@
 use core::convert::Into;
 use core::convert::TryFrom;
 
+use kernel::common::deferred_call_mux::DEFERRED_CALL_MUX_TASK;
+
 /// A type of task to defer a call for
 #[derive(Copy, Clone)]
 pub enum DeferredCallTask {
     Nvmc = 0,
-    MuxBackend = 1,
+    DeferredCallMux = DEFERRED_CALL_MUX_TASK as isize,
 }
 
 impl TryFrom<usize> for DeferredCallTask {
@@ -19,7 +21,7 @@ impl TryFrom<usize> for DeferredCallTask {
     fn try_from(value: usize) -> Result<DeferredCallTask, ()> {
         match value {
             0 => Ok(DeferredCallTask::Nvmc),
-            1 => Ok(DeferredCallTask::MuxBackend),
+            DEFERRED_CALL_MUX_TASK => Ok(DeferredCallTask::DeferredCallMux),
             _ => Err(()),
         }
     }

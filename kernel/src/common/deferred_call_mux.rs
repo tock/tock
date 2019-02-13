@@ -13,10 +13,6 @@
 //! Usage
 //! -----
 //!
-//! This example assumes some deferred call mux backend implementation
-//! `MUXBACKEND`. For a backend implementation, see
-//! `chips/nrf52/src/deferred_call_mux.rs`.
-//!
 //! The `deferred_call_mux_clients` array size determines how many
 //! [DeferredCallHandle](crate::common::deferred_call_mux::DeferredCallHandle)s
 //! may be registered with the Mux.
@@ -30,19 +26,8 @@
 //! use kernel::common::deferred_call_mux::{
 //!     DeferredCallMux,
 //!     DeferredCallMuxClient,
-//!     DeferredCallMuxBackend
+//!     set_global_mux,
 //! };
-//! #
-//! # struct ExampleDeferredCallMuxBackend;
-//! # impl DeferredCallMuxBackend for ExampleDeferredCallMuxBackend {
-//! #     fn set(&self) { }
-//! #     fn set_client(
-//! #         &self,
-//! #         _c: &'static kernel::common::deferred_call_mux::DeferredCallMuxBackendClient,
-//! #     ) { }
-//! # }
-//! # static mut MUXBACKEND: ExampleDeferredCallMuxBackend =
-//! #   ExampleDeferredCallMuxBackend;
 //!
 //! let deferred_call_mux_clients = unsafe { static_init!(
 //!     [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 1],
@@ -50,9 +35,9 @@
 //! ) };
 //! let deferred_call_mux = unsafe { static_init!(
 //!     DeferredCallMux,
-//!     DeferredCallMux::new(&MUXBACKEND, deferred_call_mux_clients)
+//!     DeferredCallMux::new(deferred_call_mux_clients)
 //! ) };
-//! unsafe { MUXBACKEND.set_client(deferred_call_mux) };
+//! assert!(unsafe { set_global_mux(deferred_call_mux) }, true);
 //!
 //! # struct SomeCapsule;
 //! # impl SomeCapsule {
@@ -81,46 +66,60 @@
 //! ```
 
 use crate::common::cells::OptionalCell;
+use crate::common::deferred_call::DeferredCall;
 use core::cell::Cell;
 
-/// Hardware-independent abstraction over a deferred call implementation
+pub const DEFERRED_CALL_MUX_TASK: usize = 31; // highest bit in usize reserved for deferred call mux
+
+static mut DEFERRED_CALL_MUX: Option<&'static DeferredCallMux> = None;
+
+/// Sets a global `DeferredCallMux` instance
 ///
-/// An implementing struct needs to expose this interface in a safe manner.
-pub trait DeferredCallMuxBackend {
-    /// Set the `client`'s `call` to be scheduled.
-    fn set(&self);
-
-    fn set_client(&self, client: &'static DeferredCallMuxBackendClient);
+/// This is required before any deferred calls can be retrieved.
+/// It may be called only once. Returns `true` if the mux was successfully
+/// registered.
+pub unsafe fn set_global_mux(mux: &'static DeferredCallMux) -> bool {
+    // If the returned reference is identical to the mux argument,
+    // it is set in the option. Otherwise, a different mux is
+    // already registered and may not be replaced.
+    (*DEFERRED_CALL_MUX.get_or_insert(mux)) as *const _ == mux as *const _
 }
 
-pub trait DeferredCallMuxBackendClient {
-    /// Called once after a `set` on the backend
-    fn call(&self);
+/// Call the globally registered mux
+///
+/// Returns true if a Mux was registered and has been called.
+/// This function needs to be called by the underlying deferred
+/// call implementation in the `chip` crate.
+pub unsafe fn call_global_mux() -> bool {
+    DEFERRED_CALL_MUX.map(|mux| mux.call()).is_some()
 }
 
-/// Multiplexer over a hardware-independent
-/// [DeferredCallMuxBackend](crate::common::deferred_call_mux::DeferredCallMuxBackend)
+/// Multiplexer over [deferred calls](crate::common::deferred_call)
 ///
 /// This multiplexer has a fixed number of possible clients, which
 /// is determined by the `clients`-array passed in with the constructor.
 pub struct DeferredCallMux {
-    backend: &'static DeferredCallMuxBackend,
+    deferred_call: DeferredCall<usize>,
     clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)],
     handle_counter: Cell<usize>,
 }
+
 impl DeferredCallMux {
-    /// Construct a new deferred call multiplexer over a backend
+    /// Construct a new deferred call
+    ///
+    /// This needs to be registered with the `set_global_mux` function immediately
+    /// afterwards, and should not be changed anymore. Only the globally registered
+    /// Mux will receive calls from the underlying deferred call implementation.
     ///
     /// The `clients` array can be initialized with any value. The recommended
     /// values are (where n is the number of possible clients):
     ///
     /// `[(Cell::new(false), OptionalCell::empty()); n]`
-    pub fn new(
-        backend: &'static DeferredCallMuxBackend,
+    pub unsafe fn new(
         clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)],
     ) -> DeferredCallMux {
         DeferredCallMux {
-            backend: backend,
+            deferred_call: DeferredCall::new(DEFERRED_CALL_MUX_TASK),
             clients: clients,
             handle_counter: Cell::new(0),
         }
@@ -143,7 +142,7 @@ impl DeferredCallMux {
                 Some(false)
             } else {
                 call_set.set(true);
-                self.backend.set();
+                self.deferred_call.set();
                 Some(true)
             }
         } else {
@@ -173,10 +172,13 @@ impl DeferredCallMux {
             None
         }
     }
-}
 
-impl DeferredCallMuxBackendClient for DeferredCallMux {
-    fn call(&self) {
+    /// Call all registered and to-be-scheduled deferred calls
+    ///
+    /// This function needs to be called by the underlying deferred call implementation.
+    /// It may be called without holding the `DeferredCallMux` reference through
+    /// `call_global_mux`.
+    pub(self) fn call(&self) {
         self.clients
             .iter()
             .map(|(ref call_reqd, ref oc)| (call_reqd, oc))

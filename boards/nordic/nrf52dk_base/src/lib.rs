@@ -16,10 +16,7 @@ use nrf5x::rtc::Rtc;
 
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
-use kernel::common::deferred_call_mux::{
-    DeferredCallMux, DeferredCallMuxBackend, DeferredCallMuxClient,
-};
-use nrf52::deferred_call_mux::MUXBACKEND;
+use kernel::common::deferred_call_mux::{set_global_mux, DeferredCallMux, DeferredCallMuxClient};
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -419,9 +416,9 @@ pub unsafe fn setup_board(
     );
     let deferred_call_mux = static_init!(
         DeferredCallMux,
-        DeferredCallMux::new(&MUXBACKEND, deferred_call_mux_clients)
+        DeferredCallMux::new(deferred_call_mux_clients)
     );
-    MUXBACKEND.set_client(deferred_call_mux);
+    set_global_mux(deferred_call_mux);
 
     let platform = Platform {
         button: button,

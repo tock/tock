@@ -7,7 +7,6 @@ pub mod adc;
 pub mod chip;
 pub mod clock;
 pub mod crt1;
-pub mod deferred_call_mux;
 mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;

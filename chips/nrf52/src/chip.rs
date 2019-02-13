@@ -1,5 +1,4 @@
 use crate::adc;
-use crate::deferred_call_mux;
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::i2c;
 use crate::nvmc;
@@ -8,6 +7,7 @@ use crate::spi;
 use crate::uart;
 use cortexm4::{self, nvic};
 use kernel::common::deferred_call;
+use kernel::common::deferred_call_mux::call_global_mux;
 use kernel::debug;
 use nrf5x::peripheral_interrupts;
 
@@ -52,8 +52,8 @@ impl kernel::Chip for NRF52 {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {
                     match task {
                         DeferredCallTask::Nvmc => nvmc::NVMC.handle_interrupt(),
-                        DeferredCallTask::MuxBackend => {
-                            deferred_call_mux::MUXBACKEND.handle_interrupt()
+                        DeferredCallTask::DeferredCallMux => {
+                            call_global_mux();
                         }
                     }
                 } else if let Some(interrupt) = nvic::next_pending() {
