@@ -36,8 +36,6 @@ use crate::rf233_const::TRX_TRAC_MASK;
 use crate::rf233_const::XAH_CTRL_0;
 use crate::rf233_const::XAH_CTRL_1;
 
-const INTERRUPT_ID: usize = 0x2154;
-
 #[allow(non_camel_case_types, dead_code)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
@@ -475,7 +473,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 self.irq_pin.clear();
                 self.irq_pin.set_input_mode(gpio::FloatingState::PullNone);
                 self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptEdge::RisingEdge);
+                    .enable_interrupt(gpio::InterruptEdge::RisingEdge);
 
                 self.state_transition_write(
                     RF233Register::TRX_CTRL_1,
@@ -1019,10 +1017,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
 }
 
 impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
-    fn fired(&self, identifier: usize) {
-        if identifier == INTERRUPT_ID {
-            self.handle_interrupt();
-        }
+    fn fired(&self) {
+        self.handle_interrupt();
     }
 }
 

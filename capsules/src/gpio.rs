@@ -63,8 +63,8 @@ impl<'a> GPIO<'a> {
         }
     }
 
-    fn configure_input_pin(&self, pin_num: usize, config: usize) -> ReturnCode {
-        let pin = self.pins[pin_num];
+    fn configure_input_pin(&self, pin_num: u32, config: usize) -> ReturnCode {
+        let pin = self.pins[pin_num as usize];
         pin.make_input();
         match config {
             0 => {
@@ -83,21 +83,22 @@ impl<'a> GPIO<'a> {
         }
     }
 
-    fn configure_interrupt(&self, pin_num: usize, config: usize) -> ReturnCode {
+    fn configure_interrupt(&self, pin_num: u32, config: usize) -> ReturnCode {
         let pins = self.pins.as_ref();
+        let index = pin_num as usize;
         match config {
             0 => {
-                pins[pin_num].enable_interrupt(pin_num, gpio::InterruptEdge::EitherEdge);
+                pins[index].enable_interrupt(pin_num, gpio::InterruptEdge::EitherEdge);
                 ReturnCode::SUCCESS
             }
 
             1 => {
-                pins[pin_num].enable_interrupt(pin_num, gpio::InterruptEdge::RisingEdge);
+                pins[index].enable_interrupt(pin_num, gpio::InterruptEdge::RisingEdge);
                 ReturnCode::SUCCESS
             }
 
             2 => {
-                pins[pin_num].enable_interrupt(pin_num, gpio::InterruptEdge::FallingEdge);
+                pins[index].enable_interrupt(pin_num, gpio::InterruptEdge::FallingEdge);
                 ReturnCode::SUCCESS
             }
 
@@ -106,11 +107,11 @@ impl<'a> GPIO<'a> {
     }
 }
 
-impl<'a> gpio::Client for GPIO<'a> {
-    fn fired(&self, pin_num: usize) {
+impl<'a> gpio::ClientWithValue for GPIO<'a> {
+    fn fired(&self, pin_num: u32) {
         // read the value of the pin
         let pins = self.pins.as_ref();
-        let pin_state = pins[pin_num].read();
+        let pin_state = pins[pin_num as usize].read();
 
         // schedule callback with the pin number and value
         self.apps.each(|callback| {

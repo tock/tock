@@ -125,6 +125,10 @@ enum PinState {
     Low = 0x00,
 }
 
+struct MCP230xxInterrupt<'a> {
+    mcp: &'a MCP230xx<'a>
+}
+
 pub struct MCP230xx<'a> {
     i2c: &'a hil::i2c::I2CDevice,
     state: Cell<State>,
@@ -135,7 +139,6 @@ pub struct MCP230xx<'a> {
     interrupt_pin_b: Option<&'static gpio::Pin>,
     interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled
     interrupts_mode: Cell<u32>,    // What interrupt mode the pin is in
-    identifier: Cell<usize>,
     client: OptionalCell<&'static gpio_async::Client>,
 }
 
@@ -158,7 +161,6 @@ impl MCP230xx<'a> {
             interrupt_pin_b: interrupt_pin_b,
             interrupts_enabled: Cell::new(0),
             interrupts_mode: Cell::new(0),
-            identifier: Cell::new(0),
             client: OptionalCell::empty(),
         }
     }
@@ -506,7 +508,7 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
                                 // Return both the pin that interrupted and
                                 // the identifier that was passed for
                                 // enable_interrupt.
-                                client.fired(pin_number as usize, self.identifier.get());
+                                client.fired(pin_number as usize);
                             });
                             break;
                         }
@@ -531,8 +533,9 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
 }
 
 impl gpio::Client for MCP230xx<'a> {
-    fn fired(&self, bank_number: usize) {
+    fn fired(&self) {
         self.buffer.take().map(|buffer| {
+            let bank_number = self.bank_number.get();
             self.i2c.enable();
 
             // Need to read the IntF register which marks which pins
@@ -604,7 +607,6 @@ impl gpio_async::Port for MCP230xx<'a> {
         &self,
         pin: usize,
         mode: gpio::InterruptEdge,
-        identifier: usize,
     ) -> ReturnCode {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
@@ -612,7 +614,6 @@ impl gpio_async::Port for MCP230xx<'a> {
         let ret = self.enable_host_interrupt();
         match ret {
             ReturnCode::SUCCESS => {
-                self.identifier.set(identifier);
                 self.enable_interrupt_pin(pin as u8, mode)
             }
             _ => ret,

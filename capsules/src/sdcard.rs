@@ -1353,7 +1353,7 @@ impl<A: hil::time::Alarm> hil::time::Client for SDCard<'a, A> {
 
 /// Handle callbacks from the card detection pin
 impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
-    fn fired(&self, _: usize) {
+    fn fired(&self) {
         // check if there was an open transaction with the sd card
         if self.alarm_state.get() != AlarmState::Idle || self.state.get() != SpiState::Idle {
             // something was running when this occurred. Kill the transaction and

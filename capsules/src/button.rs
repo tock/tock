@@ -237,7 +237,7 @@ impl<'a> Driver for Button<'a> {
 }
 
 impl<'a> gpio::ClientWithValue for Button<'a> {
-    fn fired(&self, pin_num: usize) {
+    fn fired(&self, pin_num: u32) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);
         let interrupt_count = Cell::new(0);

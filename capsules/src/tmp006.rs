@@ -257,7 +257,7 @@ impl i2c::I2CClient for TMP006<'a> {
 }
 
 impl gpio::Client for TMP006<'a> {
-    fn fired(&self, _: usize) {
+    fn fired(&self) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
             self.i2c.enable();
