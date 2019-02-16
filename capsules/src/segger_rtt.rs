@@ -11,12 +11,12 @@
 //!	With the jlink tools, reciving RTT messages is a two step process. First,
 //!	open a JTAG connection with a command like:
 //!
-//!	    $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
+//!         $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
 //!
 //!	Then, use the `JLinkRTTClient` tool in a different terminal to print the
 //!	messages:
 //!
-//!	    $ JLinkRTTClient
+//!         $ JLinkRTTClient
 //!
 //! Notes
 //! -----
@@ -90,9 +90,11 @@
 //! console.initialize();
 //! ```
 
+use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
+use kernel::hil::uart;
 use kernel::ReturnCode;
 
 /// Buffer for transmitting to the host.
@@ -125,10 +127,10 @@ pub struct SeggerRttBuffer {
 
 impl SeggerRttMemory {
     pub fn new(
-        up_buffer_name: &'static [u8],
-        up_buffer: &'static [u8],
+        up_buffer_name: &'a [u8],
+        up_buffer: &'static mut [u8],
         down_buffer_name: &'static [u8],
-        down_buffer: &'static [u8],
+        down_buffer: &'static mut [u8],
     ) -> SeggerRttMemory {
         SeggerRttMemory {
             // Must be "SEGGER RTT".
@@ -157,17 +159,18 @@ impl SeggerRttMemory {
 
 pub struct SeggerRtt<'a, A: hil::time::Alarm> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
-    config: TakeCell<'static, SeggerRttMemory>,
+    config: TakeCell<'a, SeggerRttMemory>,
     up_buffer: TakeCell<'static, [u8]>,
     _down_buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static hil::uart::Client>,
+    client: OptionalCell<&'a uart::TransmitClient>,
     client_buffer: TakeCell<'static, [u8]>,
+    tx_len: Cell<usize>,
 }
 
-impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
+impl<'a, A: hil::time::Alarm> SeggerRtt<'a, A> {
     pub fn new(
         alarm: &'a A,
-        config: &'static mut SeggerRttMemory,
+        config: &'a mut SeggerRttMemory,
         up_buffer: &'static mut [u8],
         down_buffer: &'static mut [u8],
     ) -> SeggerRtt<'a, A> {
@@ -178,58 +181,100 @@ impl<A: hil::time::Alarm> SeggerRtt<'a, A> {
             _down_buffer: TakeCell::new(down_buffer),
             client: OptionalCell::empty(),
             client_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
         }
     }
 }
 
-impl<A: hil::time::Alarm> hil::uart::UART for SeggerRtt<'a, A> {
-    fn set_client(&self, client: &'static hil::uart::Client) {
+impl<'a, A: hil::time::Alarm> uart::Uart<'a> for SeggerRtt<'a, A> {}
+impl<'a, A: hil::time::Alarm> uart::UartData<'a> for SeggerRtt<'a, A> {}
+
+impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
+    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.client.set(client);
     }
 
-    fn configure(&self, _params: hil::uart::UARTParameters) -> ReturnCode {
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if self.up_buffer.is_some() && self.config.is_some() {
+            self.up_buffer.map(|buffer| {
+                self.config.map(move |config| {
+                    // Copy the incoming data into the buffer. Once we increment
+                    // the `write_position` the RTT listener will go ahead and read
+                    // the message from us.
+                    let mut index = config.up_buffer.write_position as usize;
+                    let buffer_len = config.up_buffer.length as usize;
+
+                    for i in 0..tx_len {
+                        buffer[(i + index) % buffer_len] = tx_data[i];
+                    }
+
+                    index = (index + tx_len) % buffer_len;
+                    config.up_buffer.write_position = index as u32;
+                    self.tx_len.set(tx_len);
+                    // Save the client buffer so we can pass it back with the callback.
+                    self.client_buffer.replace(tx_data);
+
+                    // Start a short timer so that we get a callback and
+                    // can issue the callback to the client.
+                    let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
+                })
+            });
+            (ReturnCode::SUCCESS, None)
+        } else {
+            (ReturnCode::EBUSY, Some(tx_data))
+        }
+    }
+
+    fn transmit_word(&self, _word: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn transmit_abort(&self) -> ReturnCode {
         ReturnCode::SUCCESS
     }
-
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        self.up_buffer.map(|buffer| {
-            self.config.map(|config| {
-                // Copy the incoming data into the buffer. Once we increment
-                // the `write_position` the RTT listener will go ahead and read
-                // the message from us.
-                let mut index = config.up_buffer.write_position as usize;
-                let buffer_len = config.up_buffer.length as usize;
-
-                for i in 0..tx_len {
-                    buffer[(i + index) % buffer_len] = tx_data[i];
-                }
-
-                index = (index + tx_len) % buffer_len;
-                config.up_buffer.write_position = index as u32;
-            });
-        });
-
-        // Save the client buffer so we can pass it back with the callback.
-        self.client_buffer.replace(tx_data);
-
-        // Start a short timer so that we get a callback and can issue the
-        // callback to the client.
-        let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
-    }
-
-    fn receive(&self, _rx_buf: &'static mut [u8], _rx_len: usize) {}
-
-    fn abort_receive(&self) {}
 }
 
 impl<A: hil::time::Alarm> hil::time::Client for SeggerRtt<'a, A> {
     fn fired(&self) {
         self.client.map(|client| {
             self.client_buffer.take().map(|buffer| {
-                client.transmit_complete(buffer, hil::uart::Error::CommandComplete);
+                client.transmitted_buffer(buffer, self.tx_len.get(), ReturnCode::SUCCESS);
             });
         });
+    }
+}
+
+// Dummy implementation so this can act as the underlying UART for a
+// virtualized UART MUX. -pal 1/10/19
+impl<'a, A: hil::time::Alarm> uart::Configure for SeggerRtt<'a, A> {
+    fn configure(&self, _parameters: uart::Parameters) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+}
+
+// Dummy implementation so this can act as the underlying UART for a
+// virtualized UART MUX.  -pal 1/10/19
+impl<'a, A: hil::time::Alarm> uart::Receive<'a> for SeggerRtt<'a, A> {
+    fn set_receive_client(&self, _client: &'a uart::ReceiveClient) {}
+    fn receive_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _len: usize,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::FAIL, Some(buffer))
+    }
+
+    fn receive_word(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn receive_abort(&self) -> ReturnCode {
+        ReturnCode::SUCCESS
     }
 }

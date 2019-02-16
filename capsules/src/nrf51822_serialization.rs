@@ -20,7 +20,7 @@ use core::cmp;
 
 use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil;
-use kernel::hil::uart::{self, Client, UARTReceiveAdvanced};
+use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
@@ -43,21 +43,21 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
-pub struct Nrf51822Serialization<'a, U: UARTReceiveAdvanced> {
-    uart: &'a U,
+pub struct Nrf51822Serialization<'a> {
+    uart: &'a uart::UartAdvanced<'a>,
     reset_pin: &'a hil::gpio::Pin,
     app: MapCell<App>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
+impl Nrf51822Serialization<'a> {
     pub fn new(
-        uart: &'a U,
+        uart: &'a uart::UartAdvanced<'a>,
         reset_pin: &'a hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-    ) -> Nrf51822Serialization<'a, U> {
+    ) -> Nrf51822Serialization<'a> {
         Nrf51822Serialization {
             uart: uart,
             reset_pin: reset_pin,
@@ -68,8 +68,9 @@ impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.configure(uart::UARTParameters {
+        self.uart.configure(uart::Parameters {
             baud_rate: 250000,
+            width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::Even,
             hw_flow_control: true,
@@ -87,7 +88,7 @@ impl<U: UARTReceiveAdvanced> Nrf51822Serialization<'a, U> {
     }
 }
 
-impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
+impl Driver for Nrf51822Serialization<'a> {
     /// Pass application space memory to this driver.
     ///
     /// ### `allow_num`
@@ -142,7 +143,8 @@ impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
 
                 // Start the receive now that we have a callback.
                 self.rx_buffer.take().map_or(ReturnCode::FAIL, |buffer| {
-                    self.uart.receive_automatic(buffer, 250);
+                    let len = buffer.len();
+                    self.uart.receive_automatic(buffer, len, 250);
                     ReturnCode::SUCCESS
                 })
             }
@@ -172,7 +174,7 @@ impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
                             for (i, c) in slice.as_ref().iter().enumerate() {
                                 buffer[i] = *c;
                             }
-                            self.uart.transmit(buffer, write_len);
+                            let (_err, _opt) = self.uart.transmit_buffer(buffer, write_len);
                             ReturnCode::SUCCESS
                         })
                     })
@@ -191,9 +193,9 @@ impl<U: UARTReceiveAdvanced> Driver for Nrf51822Serialization<'a, U> {
 }
 
 // Callbacks from the underlying UART driver.
-impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
+impl uart::TransmitClient for Nrf51822Serialization<'a> {
     // Called when the UART TX has finished.
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.tx_buffer.replace(buffer);
         // TODO(bradjc): Need to match this to the correct app!
         //               Can't just use 0!
@@ -205,8 +207,18 @@ impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
     }
 
+    fn transmitted_word(&self, _rcode: ReturnCode) {}
+}
+
+impl uart::ReceiveClient for Nrf51822Serialization<'a> {
     // Called when a buffer is received on the UART.
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, _error: uart::Error) {
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        _rcode: ReturnCode,
+        _error: uart::Error,
+    ) {
         self.rx_buffer.replace(buffer);
 
         self.app.map(|appst| {
@@ -231,8 +243,11 @@ impl<U: UARTReceiveAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // Restart the UART receive.
-        self.rx_buffer
-            .take()
-            .map(|buffer| self.uart.receive_automatic(buffer, 250));
+        self.rx_buffer.take().map(|buffer| {
+            let len = buffer.len();
+            self.uart.receive_automatic(buffer, len, 250);
+        });
     }
+
+    fn received_word(&self, _word: u32, _rcode: ReturnCode, _err: uart::Error) {}
 }

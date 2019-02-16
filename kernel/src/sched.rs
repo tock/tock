@@ -240,7 +240,7 @@ impl Kernel {
         let systick = chip.systick();
         systick.reset();
         systick.set_timer(KERNEL_TICK_DURATION_US);
-        systick.enable(true);
+        systick.enable(false);
 
         loop {
             if chip.has_pending_interrupts() {

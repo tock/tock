@@ -39,17 +39,13 @@
 //! # use kernel::ReturnCode;
 //! # struct PeripheralRegisters { control: VolatileCell<u32> };
 //! # struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
-//! impl hil::uart::UART for PeripheralHardware {
-//!     fn configure(&self, params: hil::uart::UARTParameters) -> ReturnCode {
+//! impl hil::uart::Configure for PeripheralHardware {
+//!     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
 //!         let peripheral = &PeripheralManager::new(self);
 //!         peripheral.registers.control.set(0x0);
 //!         //         ^^^^^^^^^-- This is type &PeripheralRegisters
 //!         ReturnCode::SUCCESS
 //!     }
-//!     # fn set_client(&self, _client: &'static hil::uart::Client) {}
-//!     # fn transmit(&self, _tx_data: &'static mut [u8], _tx_len: usize) {}
-//!     # fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {}
-//!     # fn abort_receive(&self) {}
 //! }
 //! # use kernel::common::peripherals::PeripheralManagement;
 //! # use kernel::NoClockControl;

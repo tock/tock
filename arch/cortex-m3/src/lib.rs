@@ -154,7 +154,7 @@ pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *con
 
 #[cfg(target_os = "none")]
 #[no_mangle]
-/// r0 is top of user stack, r1 Process GOT
+/// r0 is top of user stack, r1 is reference to `CortexMStoredState.regs`
 pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],

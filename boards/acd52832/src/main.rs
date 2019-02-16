@@ -5,7 +5,7 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -55,7 +55,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -307,10 +307,11 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(rtt, &mut capsules::virtual_uart::RX_BUF, 115200)
+        MuxUart<'static>,
+        MuxUart::new(rtt, &mut capsules::virtual_uart::RX_BUF, 115200)
     );
-    kernel::hil::uart::UART::set_client(rtt, uart_mux);
+    kernel::hil::uart::Transmit::set_transmit_client(rtt, uart_mux);
+    kernel::hil::uart::Receive::set_receive_client(rtt, uart_mux);
 
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
@@ -318,16 +319,16 @@ pub unsafe fn reset_handler() {
 
     // Create the console object for apps to printf()
     let console = static_init!(
-        capsules::console::Console<UartDevice>,
+        capsules::console::Console,
         capsules::console::Console::new(
             console_uart,
-            115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    kernel::hil::uart::UART::set_client(console_uart, console);
+    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
+    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
 
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
@@ -342,7 +343,7 @@ pub unsafe fn reset_handler() {
             &mut kernel::debug::INTERNAL_BUF,
         )
     );
-    hil::uart::UART::set_client(debugger_uart, debugger);
+    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
     // Create the wrapper which helps with rust ownership rules.
     let debug_wrapper = static_init!(

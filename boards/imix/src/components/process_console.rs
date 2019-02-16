@@ -11,7 +11,7 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::process_console;
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -19,20 +19,17 @@ use kernel::static_init;
 
 pub struct ProcessConsoleComponent {
     board_kernel: &'static kernel::Kernel,
-    uart_mux: &'static UartMux<'static>,
-    baud_rate: u32,
+    uart_mux: &'static MuxUart<'static>,
 }
 
 impl ProcessConsoleComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        uart_mux: &'static UartMux,
-        rate: u32,
+        uart_mux: &'static MuxUart,
     ) -> ProcessConsoleComponent {
         ProcessConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
-            baud_rate: rate,
         }
     }
 }
@@ -41,8 +38,7 @@ pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl Component for ProcessConsoleComponent {
-    type Output =
-        &'static process_console::ProcessConsole<'static, UartDevice<'static>, Capability>;
+    type Output = &'static process_console::ProcessConsole<'static, Capability>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         // Create virtual device for console.
@@ -50,10 +46,9 @@ impl Component for ProcessConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            process_console::ProcessConsole<UartDevice, Capability>,
+            process_console::ProcessConsole<'static, Capability>,
             process_console::ProcessConsole::new(
                 console_uart,
-                self.baud_rate,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
                 &mut process_console::COMMAND_BUF,
@@ -61,8 +56,8 @@ impl Component for ProcessConsoleComponent {
                 Capability,
             )
         );
-        hil::uart::UART::set_client(console_uart, console);
-        console.initialize();
+        hil::uart::Transmit::set_transmit_client(console_uart, console);
+        hil::uart::Receive::set_receive_client(console_uart, console);
 
         // Create virtual device for kernel debug.
         let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
@@ -75,7 +70,7 @@ impl Component for ProcessConsoleComponent {
                 &mut kernel::debug::INTERNAL_BUF,
             )
         );
-        hil::uart::UART::set_client(debugger_uart, debugger);
+        hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
         let debug_wrapper = static_init!(
             kernel::debug::DebugWriterWrapper,

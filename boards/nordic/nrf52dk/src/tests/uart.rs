@@ -1,4 +1,4 @@
-use kernel::hil::uart::UART;
+use kernel::hil::uart::Transmit;
 use kernel::static_init;
 use nrf52::uart::UARTE0;
 
@@ -35,20 +35,20 @@ pub unsafe fn run() {
 
 #[allow(unused)]
 unsafe fn transmit_entire_buffer(buf: &'static mut [u8]) {
-    &UARTE0.transmit(buf, BUFFER_SIZE_2048);
+    &UARTE0.transmit_buffer(buf, BUFFER_SIZE_2048);
 }
 
 #[allow(unused)]
 unsafe fn should_not_transmit(buf: &'static mut [u8]) {
-    &UARTE0.transmit(buf, 0);
+    &UARTE0.transmit_buffer(buf, 0);
 }
 
 #[allow(unused)]
 unsafe fn transmit_512(buf: &'static mut [u8]) {
-    &UARTE0.transmit(buf, 512);
+    &UARTE0.transmit_buffer(buf, 512);
 }
 
 #[allow(unused)]
 unsafe fn transmit_254(buf: &'static mut [u8]) {
-    &UARTE0.transmit(buf, 254);
+    &UARTE0.transmit_buffer(buf, 254);
 }

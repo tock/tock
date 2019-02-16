@@ -20,13 +20,13 @@ use kernel::hil;
 use kernel::static_init;
 
 pub struct Nrf51822Component {
-    uart: &'static sam4l::usart::USART,
+    uart: &'static sam4l::usart::USART<'static>,
     reset_pin: &'static sam4l::gpio::GPIOPin,
 }
 
 impl Nrf51822Component {
     pub fn new(
-        uart: &'static sam4l::usart::USART,
+        uart: &'static sam4l::usart::USART<'static>,
         reset_pin: &'static sam4l::gpio::GPIOPin,
     ) -> Nrf51822Component {
         Nrf51822Component {
@@ -37,13 +37,12 @@ impl Nrf51822Component {
 }
 
 impl Component for Nrf51822Component {
-    type Output =
-        &'static nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>;
+    type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
         let nrf_serialization = static_init!(
-            nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
+            nrf51822_serialization::Nrf51822Serialization<'static>,
             nrf51822_serialization::Nrf51822Serialization::new(
                 self.uart,
                 self.reset_pin,
@@ -51,7 +50,8 @@ impl Component for Nrf51822Component {
                 &mut nrf51822_serialization::READ_BUF
             )
         );
-        hil::uart::UART::set_client(self.uart, nrf_serialization);
+        hil::uart::Transmit::set_transmit_client(self.uart, nrf_serialization);
+        hil::uart::Receive::set_receive_client(self.uart, nrf_serialization);
         nrf_serialization
     }
 }
