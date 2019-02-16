@@ -20,9 +20,7 @@ use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-// n.b. This is a fairly "C"-like interface presently. Ideally it should move
-// over to the Tock register interface eventually, but this code does work as
-// written. Do not follow this as an example when implementing new code.
+
 use crate::rf233_const::CSMA_SEED_1;
 use crate::rf233_const::IRQ_MASK;
 use crate::rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
