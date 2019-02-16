@@ -46,7 +46,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<C> {
 }
 
 impl<'a, C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<C> {
-    fn fired(&self, _pin_num: usize) {
+    fn fired(&self) {
         self.kernel.hardfault_all_apps(&self.capability);
     }
 }

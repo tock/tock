@@ -1,6 +1,5 @@
 //! Implementation of the GPIO controller for the SAM4L.
 
-use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::cells::OptionalCell;
@@ -295,7 +294,6 @@ pub static mut PC: Port = Port {
 pub struct GPIOPin {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
-    client_data: Cell<usize>,
     client: OptionalCell<&'static hil::gpio::Client>,
 }
 
@@ -308,7 +306,6 @@ impl GPIOPin {
                 )
             },
             pin_mask: 1 << ((pin as u32) % 32),
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
     }
@@ -447,9 +444,10 @@ impl GPIOPin {
         (port.pvr.get() & self.pin_mask) > 0
     }
 
-    pub fn toggle(&self) {
+    pub fn toggle(&self) -> bool {
         let port: &GpioRegisters = &*self.port;
         port.ovr.toggle.set(self.pin_mask);
+        self.read()
     }
 
     pub fn set(&self) {
@@ -509,6 +507,51 @@ impl gpio::Configure for GPIOPin {
         self.enable_schmidtt_trigger();
         gpio::Configuration::Input
     }
+    
+    fn disable_output(&self) -> gpio::Configuration {
+        let port: &GpioRegisters = &*self.port;
+        port.oder.clear.set(self.pin_mask);
+        self.configuration()
+    }
+
+    fn disable_input(&self) -> gpio::Configuration {
+        self.configuration()
+    }
+
+    fn is_input(&self) -> bool {
+        let port: &GpioRegisters = &*self.port;
+        port.gper.val.get() & self.pin_mask != 0
+    }
+
+    fn is_output(&self) -> bool {
+        let port: &GpioRegisters = &*self.port;
+        port.oder.val.get() & self.pin_mask != 0
+    }
+
+    fn floating_state(&self) -> gpio::FloatingState {
+        let port: &GpioRegisters = &*self.port;
+        let down = (port.pder.val.get() & self.pin_mask) != 0;
+        let up = (port.puer.val.get() &self.pin_mask) != 0;
+        if down {
+           gpio::FloatingState::PullDown
+        } else if up {
+           gpio::FloatingState::PullUp
+        } else {
+           gpio::FloatingState::PullNone 
+        }
+    }
+    
+    fn configuration(&self) -> gpio::Configuration {
+        let input = self.is_input();
+        let output = self.is_output();
+        let config = (input, output);
+        match config {
+            (false, false) => gpio::Configuration::Unknown,
+            (false, true)  => gpio::Configuration::Output,
+            (true, false)  => gpio::Configuration::Input,
+            (true, true)   => gpio::Configuration::InputOutput,
+        } 
+    } 
 }
 
 impl gpio::Input for GPIOPin {
@@ -518,8 +561,8 @@ impl gpio::Input for GPIOPin {
 }
 
 impl gpio::Output for GPIOPin {
-    fn toggle(&self) {
-        GPIOPin::toggle(self);
+    fn toggle(&self) -> bool {
+        GPIOPin::toggle(self)
     }
 
     fn set(&self) {

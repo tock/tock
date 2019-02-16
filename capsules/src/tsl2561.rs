@@ -422,7 +422,7 @@ impl i2c::I2CClient for TSL2561<'a> {
 }
 
 impl gpio::Client for TSL2561<'a> {
-    fn fired(&self, _: usize) {
+    fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
             self.i2c.enable();

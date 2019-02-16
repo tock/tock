@@ -394,7 +394,7 @@ impl i2c::I2CClient for LTC294X<'a> {
 }
 
 impl gpio::Client for LTC294X<'a> {
-    fn fired(&self, _: usize) {
+    fn fired(&self) {
         self.client.map(|client| {
             client.interrupt();
         });
