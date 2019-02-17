@@ -110,6 +110,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                 operand: r0,
                 arg0: r1,
             }),
+            5 => Some(kernel::syscall::Syscall::ALLOW_READ {
+                driver_number: r0,
+                subdriver_number: r1,
+                allow_address: r2 as *mut u8,
+                allow_size: r3,
+            }),
             _ => None,
         }
     }

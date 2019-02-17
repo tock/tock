@@ -39,7 +39,7 @@
 //! understand its function and how it interacts with `subscribe`.
 
 use crate::callback::{AppId, Callback};
-use crate::mem::{AppSlice, Shared};
+use crate::mem::{AppSlice, AppReadSlice, Shared};
 use crate::returncode::ReturnCode;
 
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
@@ -111,4 +111,21 @@ pub trait Driver {
     ) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
+    
+    /// `allow_read` lets an application give the driver read-only access to a buffer in the
+    /// application's memory. Unlike allow(), this buffer can be in flash.
+    /// This returns `ENOSUPPORT` if not used.
+    ///
+    /// The buffer is __shared__ between the application and driver, meaning the
+    /// driver should not change the buffer while the driver has a reference to it.
+    #[allow(unused_variables)]
+    fn allow_read(
+        &self,
+        app: AppId,
+        minor_num: usize,
+        slice: Option<AppReadSlice<Shared, u8>>,
+    ) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+
 }

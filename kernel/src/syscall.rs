@@ -47,6 +47,17 @@ pub enum Syscall {
     ///
     /// SVC_NUM = 4
     MEMOP { operand: usize, arg0: usize },
+
+    /// Share a read-only memory buffer with the kernel.
+    ///
+    /// SVC_NUM = 5
+    ALLOW_READ {
+        driver_number: usize,
+        subdriver_number: usize,
+        allow_address: *mut u8,
+        allow_size: usize,
+    },
+
 }
 
 /// Why the process stopped executing and execution returned to the kernel.

@@ -9,7 +9,7 @@ use crate::callback::AppId;
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::MapCell;
 use crate::common::{Queue, RingBuffer};
-use crate::mem::{AppSlice, Shared};
+use crate::mem::{AppSlice, AppReadSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
 use crate::returncode::ReturnCode;
@@ -169,6 +169,20 @@ pub trait ProcessType {
         buf_start_addr: *const u8,
         size: usize,
     ) -> Result<Option<AppSlice<Shared, u8>>, ReturnCode>;
+
+    /// Creates a read-only `AppReadSlice` from the given offset and size
+    /// in process memory.
+    ///
+    /// ## Returns
+    ///
+    /// If the buffer is null (a zero-valued offset), return None, signaling the capsule to delete
+    /// the entry.  If the buffer is within the process's accessible memory, returns an AppSlice
+    /// wrapping that buffer. Otherwise, returns an error `ReturnCode`.
+    fn allow_read(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppReadSlice<Shared, u8>>, ReturnCode>;
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
@@ -775,7 +789,32 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             Err(ReturnCode::EINVAL)
         }
     }
+    
+    fn allow_read(
+        &self,
+        buf_start_addr: *const u8,
+        size: usize,
+    ) -> Result<Option<AppReadSlice<Shared, u8>>, ReturnCode> {
+        if buf_start_addr == ptr::null_mut() {
+            // A null buffer means pass in `None` to the capsule
+            Ok(None)
+        } else if self.in_app_owned_read_memory(buf_start_addr, size) {
+            // Valid slice, we need to adjust the app's watermark
+            // in_app_owned_memory eliminates this offset actually wrapping
+            let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+            let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
+            self.allow_high_water_mark.set(new_water_mark);
+            Ok(Some(AppReadSlice::new(
+                buf_start_addr as *mut u8,
+                size,
+                self.appid(),
+            )))
+        } else {
+            Err(ReturnCode::EINVAL)
+        }
+    }
 
+    
     unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
         self.mpu_config.and_then(|mut config| {
             let new_break = self.kernel_memory_break.get().offset(-(size as isize));
@@ -1282,17 +1321,37 @@ impl<C: 'static + Chip> Process<'a, C> {
         self.current_stack_pointer.get() as *const usize
     }
 
-    /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the memory bounds currently exposed to the processes (i.e.
-    /// ending at `app_break`. If this method returns true, the buffer
-    /// is guaranteed to be accessible to the process and to not overlap with
-    /// the grant region.
+    /// Checks if a read/write buffer represented by the passed in
+    /// base pointer and size are within the memory bounds currently
+    /// exposed to the processes (i.e.  ending at `app_break`. If this
+    /// method returns true, the buffer is guaranteed to be accessible
+    /// to the process and to not overlap with the grant region. If
+    /// a read-only check is needed, `in_app_owned_read_memory` should be
+    /// used.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
         let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
 
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.mem_start()
             && buf_end_addr <= self.app_break.get()
+    }
+
+    /// Checks if the buffer represented by the passed in base pointer
+    /// and size are within the memory bounds currently exposed to the
+    /// process, including both RAM and flash. If this method returns
+    /// true, the read-only buffer is guaranteed to be accessible to
+    /// the process and to not overlap with the grant region. If a read-write
+    /// check is needed, `is_app_owned_memory` should be used.
+    fn in_app_owned_read_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        if self.in_app_owned_memory(buf_start_addr, size) {
+            true
+        } else {
+            let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+            
+            buf_end_addr >= buf_start_addr
+                && buf_start_addr >= self.flash_start()
+                && buf_end_addr <= self.flash_end()
+        }
     }
 
     /// Reset all `grant_ptr`s to NULL.
