@@ -51,6 +51,7 @@ pub enum Syscall {
     /// Share a read-only memory buffer with the kernel.
     ///
     /// SVC_NUM = 5
+#[allow(non_camel_case_types)]
     ALLOW_READ {
         driver_number: usize,
         subdriver_number: usize,

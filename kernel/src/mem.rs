@@ -139,8 +139,8 @@ pub struct AppReadPtr<L, T> {
 }
 
 impl<L, T> AppReadPtr<L, T> {
-    unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
-        AppPtr {
+    unsafe fn new(ptr: *mut T, appid: AppId) -> AppReadPtr<L, T> {
+        AppReadPtr {
             ptr: Unique::new_unchecked(ptr),
             process: appid,
             _phantom: PhantomData,
@@ -170,7 +170,7 @@ impl<L, T> Drop for AppReadPtr<L, T> {
 ///
 /// This is the type created after an app calls the `allow_read` syscall.
 pub struct AppReadSlice<L, T> {
-    ptr: AppPtr<L, T>,
+    ptr: AppReadPtr<L, T>,
     len: usize,
 }
 
@@ -178,7 +178,7 @@ impl<L, T> AppReadSlice<L, T> {
     crate fn new(ptr: *mut T, len: usize, appid: AppId) -> AppReadSlice<L, T> {
         unsafe {
             AppReadSlice {
-                ptr: AppPtr::new(ptr, appid),
+                ptr: AppReadPtr::new(ptr, appid),
                 len: len,
             }
         }
@@ -193,23 +193,6 @@ impl<L, T> AppReadSlice<L, T> {
     /// app's memory region.
     pub fn ptr(&self) -> *const T {
         self.ptr.ptr.as_ptr()
-    }
-
-    /// Provide access to one app's AppReadSlice to another app.
-    /// This is used for IPC.
-    crate unsafe fn expose_to(&self, appid: AppId) -> bool {
-        if appid.idx() != self.ptr.process.idx() {
-            self.ptr
-                .process
-                .kernel
-                .process_map_or(false, appid.idx(), |process| {
-                    process
-                        .add_mpu_region(self.ptr() as *const u8, self.len(), self.len())
-                        .is_some()
-                })
-        } else {
-            false
-        }
     }
 
     pub fn iter(&self) -> slice::Iter<T> {
