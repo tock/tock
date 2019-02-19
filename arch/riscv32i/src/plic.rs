@@ -6,14 +6,15 @@ use kernel::common::StaticRef;
 #[repr(C)]
 struct PlicRegisters {
     /// Interrupt Priority Register
-    priority: [ReadWrite<u32, priority::Register>; 255],
-    _reserved0: [u8; 3076],
+    _reserved0: u32,
+    priority: [ReadWrite<u32, priority::Register>; 51],
+    _reserved1: [u8; 3888],
     /// Interrupt Pending Register
-    pending: [ReadWrite<u32>; 8],
-    _reserved1: [u8; 4064],
+    pending: [ReadWrite<u32>; 2],
+    _reserved2: [u8; 4088],
     /// Interrupt Enable Register
-    enable: [ReadWrite<u32>; 8],
-    _reserved2: [u8; 2088928],
+    enable: [ReadWrite<u32>; 2],
+    _reserved3: [u8; 2088952],
     /// Priority Threshold Register
     threshold: ReadWrite<u32, priority::Register>,
     /// Claim/Complete Register
