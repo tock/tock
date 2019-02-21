@@ -11,10 +11,18 @@ use core::cell::Cell;
 use crate::returncode::ReturnCode;
 //#![allow(dead_code)]
 const MAX_NUM_BOUND_PORTS: usize = 16;
-// We need Option<Option<u16>> to distinguish between the case in which we have
+
+#[derive(Clone, Copy)]
+pub enum PortEntry {
+    Port(u16),
+    Unbound,
+}
+
+// We need Option<PortEntry> to distinguish between the case in which we have
 // a UdpPortSocket that is not bound to a port and an index where there is no
 // UdpPortSocket allocated.
-static mut port_table: [Option<Option<u16>>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
+static mut port_table: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
+
 
 // A UdpPortSocket provides a handle into the bound port table. When binding to
 // a port, the socket is consumed and stored inside a UdpPortBinding. When
@@ -45,7 +53,7 @@ pub struct UdpSenderBinding {
 }
 
 pub struct UdpPortTable {
-    port_array: TakeCell<'static, [Option<Option<u16>>]>,
+    port_array: TakeCell<'static, [Option<PortEntry>]>,
     //max_counter: Cell<usize>,
 }
 
@@ -138,7 +146,7 @@ impl UdpPortTable {
                 match table[i] {
                     None => {
                         result = Ok(UdpPortSocket::new(i));
-                        table[i] = Some(None);
+                        table[i] = Some(PortEntry::Unbound);
                         break;
                     },
                     _ => (),
@@ -163,7 +171,7 @@ impl UdpPortTable {
             let mut port_exists = false;
             for i in 0..MAX_NUM_BOUND_PORTS {
                 match table[i] {
-                    Some(Some(p)) => {
+                    Some(PortEntry::Port(p)) => {
                         if (p == port) {
                             port_exists = true;
                         }
@@ -174,7 +182,7 @@ impl UdpPortTable {
             if port_exists {
                 Err(socket)
             } else {
-                table[socket.idx] = Some(Some(port));
+                table[socket.idx] = Some(PortEntry::Port(port));
                 Ok(UdpPortBinding::new(socket, port))
             }
         }).unwrap()
