@@ -28,8 +28,8 @@ struct UartRegisters {
     dmactl: ReadWrite<u32>,
 }
 
-pub static mut UART0: UART = UART::new(&UART0_BASE);
-pub static mut UART1: UART = UART::new(&UART1_BASE);
+pub static mut UART0: UART = UART::new(&UART0_REG);
+pub static mut UART1: UART = UART::new(&UART1_REG);
 
 register_bitfields![
     u32,
@@ -81,11 +81,13 @@ register_bitfields![
     ]
 ];
 
-const UART0_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40001000 as *const UartRegisters) };
+use crate::memory_map::{UART0_BASE, UART1_BASE};
 
-const UART1_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x4000B000 as *const UartRegisters) };
+const UART0_REG: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(UART0_BASE as *const UartRegisters) };
+
+const UART1_REG: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(UART1_BASE as *const UartRegisters) };
 
 /// Stores an ongoing TX transaction
 struct Transaction {
@@ -283,12 +285,11 @@ impl<'a> uart::Configure for UART<'a> {
         self.set_baud_rate(params.baud_rate);
 
         // Set word length
-        let word_width;
-        match params.width {
-            uart::Width::Six => word_width = LineControl::WORD_LENGTH::Len6,
-            uart::Width::Seven => word_width = LineControl::WORD_LENGTH::Len7,
-            uart::Width::Eight => word_width = LineControl::WORD_LENGTH::Len8,
-        }
+        let word_width = match params.width {
+            uart::Width::Six => LineControl::WORD_LENGTH::Len6,
+            uart::Width::Seven => LineControl::WORD_LENGTH::Len7,
+            uart::Width::Eight => LineControl::WORD_LENGTH::Len8,
+        };
         self.registers.lcrh.write(word_width);
 
         self.fifo_enable();
