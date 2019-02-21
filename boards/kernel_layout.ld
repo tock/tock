@@ -79,7 +79,7 @@ SECTIONS
         /* .gnu.linkonce hold C++ elements with vague linkage
                 https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
         *(.text .text.* .gnu.linkonce.t.*)
-        *(.rodata .rodata* .gnu.linkonce.r.*)
+        *(.rodata .rodata.* .gnu.linkonce.r.*)
 
         /* C++ exception unwinding information */
         *(.ARM.extab* .gnu.linkonce.armextab.*)
