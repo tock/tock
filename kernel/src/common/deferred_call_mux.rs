@@ -69,8 +69,11 @@
 use crate::common::cells::OptionalCell;
 use crate::common::deferred_call::DeferredCall;
 use core::cell::Cell;
+use core::mem::size_of;
 
-pub const DEFERRED_CALL_MUX_TASK: usize = 31; // highest bit in usize reserved for deferred call mux
+/// Deferred calls are set by enabling a bit in a usize value. For the [DeferredCallMux],
+/// the highest bit in a usize is reserved. This value therefore is architecture dependent.
+pub const DEFERRED_CALL_MUX_TASK: usize = size_of::<usize>() * 8 - 1;
 
 static mut DEFERRED_CALL_MUX: Option<&'static DeferredCallMux> = None;
 
