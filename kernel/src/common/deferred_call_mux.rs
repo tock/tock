@@ -26,12 +26,13 @@
 //! use kernel::common::deferred_call_mux::{
 //!     DeferredCallMux,
 //!     DeferredCallMuxClient,
+//!     DeferredCallMuxClientState,
 //!     set_global_mux,
 //! };
 //!
 //! let deferred_call_mux_clients = unsafe { static_init!(
-//!     [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 1],
-//!     [(Cell::new(false), OptionalCell::empty())]
+//!     [DeferredCallMuxClientState; 2],
+//!     Default::default()
 //! ) };
 //! let deferred_call_mux = unsafe { static_init!(
 //!     DeferredCallMux,
@@ -73,7 +74,7 @@ pub const DEFERRED_CALL_MUX_TASK: usize = 31; // highest bit in usize reserved f
 
 static mut DEFERRED_CALL_MUX: Option<&'static DeferredCallMux> = None;
 
-/// Sets a global `DeferredCallMux` instance
+/// Sets a global [DeferredCallMux] instance
 ///
 /// This is required before any deferred calls can be retrieved.
 /// It may be called only once. Returns `true` if the mux was successfully
@@ -94,13 +95,27 @@ pub unsafe fn call_global_mux() -> bool {
     DEFERRED_CALL_MUX.map(|mux| mux.call()).is_some()
 }
 
+/// Internal per-client state tracking for the [DeferredCallMux]
+pub struct DeferredCallMuxClientState {
+    scheduled: Cell<bool>,
+    client: OptionalCell<&'static DeferredCallMuxClient>,
+}
+impl Default for DeferredCallMuxClientState {
+    fn default() -> DeferredCallMuxClientState {
+        DeferredCallMuxClientState {
+            scheduled: Cell::new(false),
+            client: OptionalCell::empty(),
+        }
+    }
+}
+
 /// Multiplexer over [deferred calls](crate::common::deferred_call)
 ///
 /// This multiplexer has a fixed number of possible clients, which
 /// is determined by the `clients`-array passed in with the constructor.
 pub struct DeferredCallMux {
     deferred_call: DeferredCall<usize>,
-    clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)],
+    client_states: &'static [DeferredCallMuxClientState],
     handle_counter: Cell<usize>,
 }
 
@@ -111,16 +126,12 @@ impl DeferredCallMux {
     /// afterwards, and should not be changed anymore. Only the globally registered
     /// Mux will receive calls from the underlying deferred call implementation.
     ///
-    /// The `clients` array can be initialized with any value. The recommended
-    /// values are (where n is the number of possible clients):
-    ///
-    /// `[(Cell::new(false), OptionalCell::empty()); n]`
-    pub unsafe fn new(
-        clients: &'static [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>)],
-    ) -> DeferredCallMux {
+    /// The `clients` array can be initialized using the implementation of [Default]
+    /// for the [DeferredCallMuxClientState].
+    pub unsafe fn new(client_states: &'static [DeferredCallMuxClientState]) -> DeferredCallMux {
         DeferredCallMux {
             deferred_call: DeferredCall::new(DEFERRED_CALL_MUX_TASK),
-            clients: clients,
+            client_states,
             handle_counter: Cell::new(0),
         }
     }
@@ -134,9 +145,9 @@ impl DeferredCallMux {
     /// `Some(false)`.
     pub fn set(&self, handle: DeferredCallHandle) -> Option<bool> {
         let DeferredCallHandle(client_pos) = handle;
-        let client = &self.clients[client_pos];
+        let client_state = &self.client_states[client_pos];
 
-        if let (call_set, true) = (&client.0, client.1.is_some()) {
+        if let (call_set, true) = (&client_state.scheduled, client_state.client.is_some()) {
             if call_set.get() {
                 // Already set
                 Some(false)
@@ -160,10 +171,10 @@ impl DeferredCallMux {
     ) -> Option<DeferredCallHandle> {
         let current_counter = self.handle_counter.get();
 
-        if current_counter < self.clients.len() {
-            let client = &self.clients[current_counter];
-            client.0.set(false);
-            client.1.set(mux_client);
+        if current_counter < self.client_states.len() {
+            let client_state = &self.client_states[current_counter];
+            client_state.scheduled.set(false);
+            client_state.client.set(mux_client);
 
             self.handle_counter.set(current_counter + 1);
 
@@ -179,12 +190,15 @@ impl DeferredCallMux {
     /// It may be called without holding the `DeferredCallMux` reference through
     /// `call_global_mux`.
     pub(self) fn call(&self) {
-        self.clients
+        self.client_states
             .iter()
-            .map(|(ref call_reqd, ref oc)| (call_reqd, oc))
             .enumerate()
-            .filter(|(_i, (call_reqd, _oc))| call_reqd.get())
-            .filter_map(|(i, (call_reqd, oc))| oc.map(|c| (i, call_reqd, *c)))
+            .filter(|(_i, client_state)| client_state.scheduled.get())
+            .filter_map(|(i, client_state)| {
+                client_state
+                    .client
+                    .map(|c| (i, &client_state.scheduled, *c))
+            })
             .for_each(|(i, call_reqd, client)| {
                 call_reqd.set(false);
                 client.call(DeferredCallHandle(i));

@@ -14,9 +14,9 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
 
-use core::cell::Cell;
-use kernel::common::cells::OptionalCell;
-use kernel::common::deferred_call_mux::{set_global_mux, DeferredCallMux, DeferredCallMuxClient};
+use kernel::common::deferred_call_mux::{
+    set_global_mux, DeferredCallMux, DeferredCallMuxClientState,
+};
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -410,10 +410,8 @@ pub unsafe fn setup_board(
     while !nrf52::clock::CLOCK.low_started() {}
     while !nrf52::clock::CLOCK.high_started() {}
 
-    let deferred_call_mux_clients = static_init!(
-        [(Cell<bool>, OptionalCell<&'static DeferredCallMuxClient>); 1],
-        [(Cell::new(false), OptionalCell::empty())]
-    );
+    let deferred_call_mux_clients =
+        static_init!([DeferredCallMuxClientState; 1], Default::default());
     let deferred_call_mux = static_init!(
         DeferredCallMux,
         DeferredCallMux::new(deferred_call_mux_clients)
