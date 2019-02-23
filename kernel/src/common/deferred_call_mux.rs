@@ -85,7 +85,7 @@ static mut DEFERRED_CALL_MUX: Option<&'static DeferredCallMux> = None;
 pub unsafe fn set_global_mux(mux: &'static DeferredCallMux) -> bool {
     // If the returned reference is identical to the mux argument,
     // it is set in the option. Otherwise, a different mux is
-    // already registered and may not be replaced.
+    // already registered and will not be replaced.
     (*DEFERRED_CALL_MUX.get_or_insert(mux)) as *const _ == mux as *const _
 }
 
