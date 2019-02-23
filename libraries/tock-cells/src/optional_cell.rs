@@ -1,10 +1,11 @@
-//! OptionalCell convenience type
+//! `OptionalCell` convenience type
 
 use core::cell::Cell;
 use core::marker::Copy;
 
 /// `OptionalCell` is a `Cell` that wraps an `Option`. This is helper type
 /// that makes keeping types that can be `None` a little cleaner.
+#[derive(Default)]
 pub struct OptionalCell<T: Copy> {
     value: Cell<Option<T>>,
 }
