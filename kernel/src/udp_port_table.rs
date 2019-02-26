@@ -7,6 +7,7 @@
 //! obtain the corresponding sender/receiving binding from UdpPortBinding.
 use tock_cells::take_cell::TakeCell;
 use core::cell::Cell;
+use crate::net_permissions::AddrRange; // testing
 //use capabilities;
 use crate::returncode::ReturnCode;
 //#![allow(dead_code)]
@@ -29,7 +30,9 @@ static mut port_table: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM
 // undbinding, the socket is returned and can be used to bind to other ports.
 pub struct UdpPortSocket {
     idx: usize,
+    table_ref: &'static UdpPortTable,
 }
+
 
 // An opaque descriptor object that gives the holder of the object access to
 // a particular location (at index idx) of the bound port table.
@@ -38,6 +41,7 @@ pub struct UdpPortBinding {
     send_allocated: Cell<bool>,
     socket: UdpPortSocket,
     port: u16,
+    table_ref: &'static UdpPortTable,
 }
 
 // An opaque descriptor that allows the holder to obtain a binding on a port
@@ -58,18 +62,20 @@ pub struct UdpPortTable {
 }
 
 impl UdpPortSocket {
-    pub fn new(idx: usize) -> UdpPortSocket {
-        UdpPortSocket {idx: idx}
+    pub fn new(idx: usize, table_ref: &'static UdpPortTable) -> UdpPortSocket {
+        UdpPortSocket {idx: idx, table_ref: table_ref}
     }
 }
 
 impl UdpPortBinding {
-    pub fn new(socket: UdpPortSocket, port: u16) -> UdpPortBinding {
+    pub fn new(socket: UdpPortSocket, port: u16,
+        table_ref: &'static UdpPortTable) -> UdpPortBinding {
         UdpPortBinding {
             receive_allocated: Cell::new(false),
             send_allocated: Cell::new(false),
             socket: socket,
             port: port,
+            table_ref: table_ref,
         } // TODO: initialize to what?
     }
 
@@ -135,17 +141,18 @@ impl UdpPortTable {
     pub fn new() -> UdpPortTable {
         unsafe {
             UdpPortTable {
-                port_array: TakeCell::new(&mut port_table),            }
+                port_array: TakeCell::new(&mut port_table),            
+            }
         }
     }
 
-    pub fn create_socket(&self) -> Result<UdpPortSocket, ReturnCode> {
+    pub fn create_socket(&'static self) -> Result<UdpPortSocket, ReturnCode> {
         self.port_array.map(|table| {
             let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
             for i in 0..MAX_NUM_BOUND_PORTS {
                 match table[i] {
                     None => {
-                        result = Ok(UdpPortSocket::new(i));
+                        result = Ok(UdpPortSocket::new(i, &self));
                         table[i] = Some(PortEntry::Unbound);
                         break;
                     },
@@ -156,7 +163,7 @@ impl UdpPortTable {
         }).unwrap()
     }
 
-    pub fn destroy_socket(&self, socket: UdpPortSocket) {
+    pub fn destroy_socket(&'static self, socket: UdpPortSocket) {
         self.port_array.map(|table| {
             table[socket.idx] = None;
         });
@@ -164,7 +171,7 @@ impl UdpPortTable {
 
     // On success, a UdpPortBinding is returned. On failure, the same
     // UdpPortSocket is returned.
-    pub fn bind(&self, socket: UdpPortSocket, port: u16,
+    pub fn bind(&'static self, socket: UdpPortSocket, port: u16,
                 /*cap: &capabilities::UDPBindCapability*/) ->
         Result<UdpPortBinding, UdpPortSocket> {
         self.port_array.map(|table| {
@@ -183,7 +190,7 @@ impl UdpPortTable {
                 Err(socket)
             } else {
                 table[socket.idx] = Some(PortEntry::Port(port));
-                Ok(UdpPortBinding::new(socket, port))
+                Ok(UdpPortBinding::new(socket, port, &self))
             }
         }).unwrap()
     }
@@ -192,7 +199,7 @@ impl UdpPortTable {
 
     // Disassociate the port from the given binding. Return the socket that was
     // contained within the binding object.
-    pub fn unbind(&self, binding: UdpPortBinding,
+    pub fn unbind(&'static self, binding: UdpPortBinding,
         /*cap: &capabilities::UDPBindCapability*/)
     -> Result<UdpPortSocket, UdpPortBinding> {
         // Need to make sure that the UdpPortBinding itself has no senders
