@@ -67,6 +67,8 @@ impl UdpPortSocket {
     }
 }
 
+// Drop trait of binding should call drop trait of socket.
+
 impl UdpPortBinding {
     pub fn new(socket: UdpPortSocket, port: u16,
         table_ref: &'static UdpPortTable) -> UdpPortBinding {
