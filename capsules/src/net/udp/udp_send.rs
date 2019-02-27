@@ -49,7 +49,8 @@ pub trait UDPSender<'a> {
     /// Any synchronous errors are returned via the returned `ReturnCode`
     /// value; asynchronous errors are delivered via the callback.
     fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &[u8],
-        binding: &UdpSenderBinding) -> ReturnCode;
+        //binding: &UdpSenderBinding
+        ) -> ReturnCode;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
     /// and buffer, and sends it to the provided IP address
@@ -86,13 +87,14 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     }
 
     fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &[u8],
-        binding: &UdpSenderBinding) -> ReturnCode {
+        //binding: &UdpSenderBinding
+        ) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
-        udp_header.set_src_port(/*src_port*/binding.get_port());
+        udp_header.set_src_port(src_port/*binding.get_port()*/);
         // TODO: add appropriate error handling here
         self.send(dest, udp_header, buf)
- 
+
         //self.send(dest, udp_header, buf)
     }
 
