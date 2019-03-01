@@ -1,10 +1,4 @@
-use crate::gpio;
-use crate::i2c;
-use crate::peripheral_interrupts::NVIC_IRQ;
-use crate::rtc;
-use crate::uart;
 use cortexm4::{self, nvic};
-use enum_primitive::cast::FromPrimitive;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -42,20 +36,10 @@ impl kernel::Chip for Cc26X2 {
         &self.userspace_kernel_boundary
     }
 
-    fn service_pending_interrupts(&self) {
+    fn service_pending_interrupts<P: kernel::Platform>(&self, platform: &mut P) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
-                let irq = NVIC_IRQ::from_u32(interrupt)
-                    .expect("Pending IRQ flag not enumerated in NVIQ_IRQ");
-                match irq {
-                    NVIC_IRQ::GPIO => gpio::PORT.handle_interrupt(),
-                    NVIC_IRQ::AON_RTC => rtc::RTC.handle_interrupt(),
-                    NVIC_IRQ::UART0 => uart::UART0.handle_interrupt(),
-                    NVIC_IRQ::I2C0 => i2c::I2C0.handle_interrupt(),
-                    // We need to ignore JTAG events since some debuggers emit these
-                    NVIC_IRQ::AON_PROG => (),
-                    _ => panic!("Unhandled interrupt {:?}", irq),
-                }
+                platform.handle_irq(interrupt as usize);
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();
                 n.enable();

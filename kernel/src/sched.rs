@@ -202,14 +202,14 @@ impl Kernel {
     /// Main loop.
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
-        platform: &P,
+        platform: &mut P,
         chip: &C,
         ipc: Option<&ipc::IPC>,
         _capability: &capabilities::MainLoopCapability,
     ) {
         loop {
             unsafe {
-                chip.service_pending_interrupts();
+                chip.service_pending_interrupts(platform);
 
                 for p in self.processes.iter() {
                     p.map(|process| {

@@ -13,6 +13,8 @@ pub trait Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&Driver>) -> R;
+
+    fn handle_irq(&mut self, irq_num: usize);
 }
 
 /// Interface for individual MCUs.
@@ -21,7 +23,7 @@ pub trait Chip {
     type UserspaceKernelBoundary: syscall::UserspaceKernelBoundary;
     type SysTick: systick::SysTick;
 
-    fn service_pending_interrupts(&self);
+    fn service_pending_interrupts<P: Platform>(&self, platform: &mut P);
     fn has_pending_interrupts(&self) -> bool;
     fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;

@@ -7,13 +7,15 @@ extern crate cc26x2;
 extern crate cortexm4;
 extern crate enum_primitive;
 
+use capsules::virtual_uart::{MuxUart, UartDevice};
+use cc26x2::aon;
+use cc26x2::peripheral_interrupts::NVIC_IRQ;
+use cc26x2::prcm;
+use cc26x2::pwm;
+use enum_primitive::cast::FromPrimitive;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use capsules::virtual_uart::{MuxUart, UartDevice};
-use cc26x2::aon;
-use cc26x2::prcm;
-use cc26x2::pwm;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -63,7 +65,6 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
-    ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Platform {
@@ -79,8 +80,22 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
+        }
+    }
+
+    fn handle_irq(&mut self, irq_num: usize) {
+        let irq = NVIC_IRQ::from_u32(irq_num as u32)
+            .expect("Pending IRQ flag not enumerated in NVIQ_IRQ");
+
+        match irq {
+            NVIC_IRQ::GPIO => unsafe { cc26x2::gpio::PORT.handle_interrupt() },
+            NVIC_IRQ::AON_RTC => unsafe { cc26x2::rtc::RTC.handle_interrupt() },
+            NVIC_IRQ::UART0 => unsafe { cc26x2::uart::UART0.handle_interrupt() },
+            NVIC_IRQ::I2C0 => unsafe { cc26x2::i2c::I2C0.handle_interrupt() },
+            // We need to ignore JTAG events since some debuggers emit these
+            NVIC_IRQ::AON_PROG => (),
+            _ => panic!("Unhandled interrupt {:?}", irq),
         }
     }
 }
@@ -373,7 +388,7 @@ pub unsafe fn reset_handler() {
 
     let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
 
-    let launchxl = Platform {
+    let mut launchxl = Platform {
         console,
         gpio,
         led,
@@ -381,7 +396,6 @@ pub unsafe fn reset_handler() {
         alarm,
         rng,
         i2c_master,
-        ipc,
     };
 
     let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
@@ -401,5 +415,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, chip, Some(&launchxl.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&mut launchxl, chip, Some(&ipc), &main_loop_capability);
 }
