@@ -129,7 +129,7 @@ pub trait LTC294XClient {
 /// Implementation of a driver for the LTC294X coulomb counters.
 pub struct LTC294X<'a> {
     i2c: &'a i2c::I2CDevice,
-    interrupt_pin: Option<&'a gpio::Pin>,
+    interrupt_pin: Option<&'a gpio::InterruptPin>,
     model: Cell<ChipModel>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -139,7 +139,7 @@ pub struct LTC294X<'a> {
 impl LTC294X<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
-        interrupt_pin: Option<&'a gpio::Pin>,
+        interrupt_pin: Option<&'a gpio::InterruptPin>,
         buffer: &'static mut [u8],
     ) -> LTC294X<'a> {
         LTC294X {
@@ -157,7 +157,7 @@ impl LTC294X<'a> {
 
         self.interrupt_pin.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupt(0, gpio::InterruptEdge::FallingEdge);
+            interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
         });
     }
 

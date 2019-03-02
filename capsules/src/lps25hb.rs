@@ -129,7 +129,7 @@ impl LPS25HB<'a> {
     pub fn take_measurement(&self) {
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptEdge::RisingEdge);
+            .enable_interrupts(gpio::InterruptEdge::RisingEdge);
 
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -192,7 +192,7 @@ impl i2c::I2CClient for LPS25HB<'a> {
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
                 self.i2c.write(buffer, 2);
-                self.interrupt_pin.disable_interrupt();
+                self.interrupt_pin.disable_interrupts();
                 self.state.set(State::Done);
             }
             State::Done => {

@@ -21,6 +21,7 @@ use capsules::gpio;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil;
 use kernel::static_init;
 
 pub struct GpioComponent {
@@ -36,13 +37,13 @@ impl GpioComponent {
 }
 
 impl Component for GpioComponent {
-    type Output = &'static gpio::GPIO<'static, sam4l::gpio::GPIOPin>;
+    type Output = &'static gpio::GPIO<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let gpio_pins = static_init!(
-            [&'static sam4l::gpio::GPIOPin; 7],
+            [&'static hil::gpio::InterruptPin; 7],
             [
                 &sam4l::gpio::PC[31], // P2
                 &sam4l::gpio::PC[30], // P3
@@ -53,13 +54,28 @@ impl Component for GpioComponent {
                 &sam4l::gpio::PA[20], // P8
             ]
         );
-
-        let gpio = static_init!(
-            gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-            gpio::GPIO::new(gpio_pins, self.board_kernel.create_grant(&grant_cap))
+        
+        let gpio_values = static_init!(
+            [hil::gpio::InterruptWithValue; 7],
+            [
+                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptWithValue::new(),
+            ]
         );
-        for pin in gpio_pins.iter() {
-            pin.set_client(gpio);
+        let gpio = static_init!(
+            gpio::GPIO<'static>,
+            gpio::GPIO::new(&gpio_pins[..], self.board_kernel.create_grant(&grant_cap))
+        );
+
+        for i in 0..7 {
+            gpio_pins[i].set_client(&gpio_values[i]);
+            gpio_values[i].set_value(i as u32);
+            gpio_values[i].set_client(gpio);
         }
 
         gpio

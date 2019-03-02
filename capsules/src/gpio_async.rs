@@ -66,7 +66,7 @@ impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
             2 => hil::gpio::InterruptEdge::FallingEdge,
             _ => return ReturnCode::EINVAL,
         };
-        ports[port].enable_interrupt(pin, mode, port)
+        ports[port].enable_interrupt(pin, mode)
     }
 }
 

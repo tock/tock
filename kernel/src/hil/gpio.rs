@@ -1,3 +1,6 @@
+use crate::common::cells::OptionalCell;
+use core::cell::Cell;
+
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
 #[derive(Debug)]
 pub enum FloatingState {
@@ -85,6 +88,9 @@ pub trait Interrupt: Input {
 
     /// Disable interrupts for the GPIO pin.
     fn disable_interrupts(&self);
+ 
+    /// Return whether this interrupt is pending
+    fn is_pending(&self) -> bool;
 }
 
 /// Interface for users of synchronous GPIO interrupts. In order
@@ -104,4 +110,34 @@ pub trait ClientWithValue {
     fn fired(&self, value: u32);
 }
 
+pub struct InterruptWithValue {
+    value: Cell<u32>,
+    client: OptionalCell<&'static ClientWithValue>,
+}
 
+impl InterruptWithValue {
+    pub fn new() -> InterruptWithValue {
+        InterruptWithValue {
+            value: Cell::new(0),
+            client: OptionalCell::empty(),
+        }
+    }
+
+   pub fn set_value(&self, value: u32) {
+        self.value.set(value);
+   }
+
+   pub fn value(&self) -> u32 {
+        self.value.get()
+   }
+
+   pub fn set_client(&self, client: &'static ClientWithValue) {
+        self.client.replace(client);
+   }
+}
+
+impl Client for InterruptWithValue {
+    fn fired(&self) {
+        self.client.map(|c| c.fired(self.value()));
+    }
+}

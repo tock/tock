@@ -158,16 +158,12 @@ impl Port {
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
         // are enabled in Interrupt Enabled Register (IER).
         let mut fired = port.ifr.val.get() & port.ier.val.get();
-
-        // About to handle all the interrupts, so just clear them now to get
-        // over with it.
-        port.ifr.clear.set(!0);
-
         loop {
             let pin = fired.trailing_zeros() as usize;
             if pin < self.pins.len() {
                 fired &= !(1 << pin);
                 self.pins[pin].handle_interrupt();
+                port.ifr.clear.set(1 << pin);
             } else {
                 break;
             }
@@ -350,6 +346,11 @@ impl GPIOPin {
         port.gper.clear.set(self.pin_mask);
     }
 
+    pub fn is_pending(&self) -> bool {
+        let port: &GpioRegisters = &*self.port;
+        (port.ifr.val.get() & self.pin_mask) != 0
+    }
+
     pub fn enable_output(&self) {
         let port: &GpioRegisters = &*self.port;
         port.oder.set.set(self.pin_mask);
@@ -472,6 +473,9 @@ impl hil::Controller for GPIOPin {
     }
 }
 
+impl gpio::Pin for GPIOPin {}
+impl gpio::InterruptPin for GPIOPin {}
+
 impl gpio::Configure for GPIOPin {
     fn set_floating_state(&self, mode: gpio::FloatingState) {
         match mode {
@@ -591,5 +595,9 @@ impl gpio::Interrupt for GPIOPin {
 
     fn set_client(&self, client: &'static gpio::Client) {
         GPIOPin::set_client(self, client);
+    }
+
+    fn is_pending(&self) -> bool {
+        GPIOPin::is_pending(self)
     }
 }

@@ -125,18 +125,14 @@ enum PinState {
     Low = 0x00,
 }
 
-struct MCP230xxInterrupt<'a> {
-    mcp: &'a MCP230xx<'a>
-}
-
 pub struct MCP230xx<'a> {
     i2c: &'a hil::i2c::I2CDevice,
     state: Cell<State>,
     bank_size: u8,       // How many GPIO pins per bank (likely 8)
     number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
     buffer: TakeCell<'static, [u8]>,
-    interrupt_pin_a: Option<&'static gpio::Pin>,
-    interrupt_pin_b: Option<&'static gpio::Pin>,
+    interrupt_pin_a: Option<&'static gpio::InterruptPin>,
+    interrupt_pin_b: Option<&'static gpio::InterruptPin>,
     interrupts_enabled: Cell<u32>, // Whether the pin interrupt is enabled
     interrupts_mode: Cell<u32>,    // What interrupt mode the pin is in
     client: OptionalCell<&'static gpio_async::Client>,
@@ -145,8 +141,8 @@ pub struct MCP230xx<'a> {
 impl MCP230xx<'a> {
     pub fn new(
         i2c: &'a hil::i2c::I2CDevice,
-        interrupt_pin_a: Option<&'static gpio::Pin>,
-        interrupt_pin_b: Option<&'static gpio::Pin>,
+        interrupt_pin_a: Option<&'static gpio::InterruptPin>,
+        interrupt_pin_b: Option<&'static gpio::InterruptPin>,
         buffer: &'static mut [u8],
         bank_size: u8,
         number_of_banks: u8,
@@ -180,7 +176,7 @@ impl MCP230xx<'a> {
             .interrupt_pin_a
             .map_or(ReturnCode::FAIL, |interrupt_pin| {
                 interrupt_pin.make_input();
-                interrupt_pin.enable_interrupt(0, gpio::InterruptEdge::RisingEdge);
+                interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
                 ReturnCode::SUCCESS
             });
         if first != ReturnCode::SUCCESS {
@@ -189,7 +185,7 @@ impl MCP230xx<'a> {
         // Also do the other interrupt pin if it exists.
         self.interrupt_pin_b.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupt(1, gpio::InterruptEdge::RisingEdge);
+            interrupt_pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
         });
         ReturnCode::SUCCESS
     }
@@ -508,7 +504,7 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
                                 // Return both the pin that interrupted and
                                 // the identifier that was passed for
                                 // enable_interrupt.
-                                client.fired(pin_number as usize);
+                                client.fired(pin_number as usize, 0);
                             });
                             break;
                         }
@@ -532,10 +528,13 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
     }
 }
 
-impl gpio::Client for MCP230xx<'a> {
-    fn fired(&self) {
+impl gpio::ClientWithValue for MCP230xx<'a> {
+    fn fired(&self, value: u32) {
+        if value != 0 && value != 1 {
+            return; // Error, value specifies which pin A=0, B=1
+        }
         self.buffer.take().map(|buffer| {
-            let bank_number = self.bank_number.get();
+            let bank_number = value; 
             self.i2c.enable();
 
             // Need to read the IntF register which marks which pins
@@ -625,5 +624,9 @@ impl gpio_async::Port for MCP230xx<'a> {
             return ReturnCode::EINVAL;
         }
         self.disable_interrupt_pin(pin as u8)
+    }
+
+    fn is_pending(&self, pin: usize) -> bool {
+        false
     }
 }
