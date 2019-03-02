@@ -190,7 +190,7 @@ impl<'a, A: hil::time::Alarm> uart::Uart<'a> for SeggerRtt<'a, A> {}
 impl<'a, A: hil::time::Alarm> uart::UartData<'a> for SeggerRtt<'a, A> {}
 
 impl<'a, A: hil::time::Alarm> uart::Transmit<'a> for SeggerRtt<'a, A> {
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+     fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
         self.client.set(client);
     }
 

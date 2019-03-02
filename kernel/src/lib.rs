@@ -20,6 +20,7 @@ pub mod component;
 #[macro_use]
 pub mod debug;
 pub mod hil;
+pub mod ikc;
 pub mod introspection;
 pub mod ipc;
 pub mod syscall;
