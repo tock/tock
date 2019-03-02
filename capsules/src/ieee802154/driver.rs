@@ -794,7 +794,7 @@ impl Driver for RadioDriver<'a> {
 
 impl device::TxClient for RadioDriver<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        debug!("[DRIVER] Replacing kernel_tx with {:?}",spi_buf.as_ptr());
+        debug!("[DRIVER] Replacing kernel_tx with {:?}", spi_buf.as_ptr());
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {

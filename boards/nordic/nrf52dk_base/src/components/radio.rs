@@ -24,7 +24,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioData;
-use kernel::hil::symmetric_encryption::{AES128CCM};
+use kernel::hil::symmetric_encryption::AES128CCM;
 
 // Save some deep nesting
 
@@ -61,7 +61,6 @@ static mut RADIO_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE]
 const CRYPT_SIZE: usize = 1;
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
-
 impl Component for RadioComponent {
     type Output = (
         &'static capsules::ieee802154::RadioDriver<'static>,
@@ -77,8 +76,10 @@ impl Component for RadioComponent {
         );
 
         // Keeps the radio on permanently; pass-through layer
-        let awake_mac: &AwakeMac<nrf52::nrf_radio::Radio> =
-            static_init!(AwakeMac<'static, nrf52::nrf_radio::Radio>, AwakeMac::new(self.radio));
+        let awake_mac: &AwakeMac<nrf52::nrf_radio::Radio> = static_init!(
+            AwakeMac<'static, nrf52::nrf_radio::Radio>,
+            AwakeMac::new(self.radio)
+        );
         self.radio.set_transmit_client(awake_mac);
         self.radio.set_receive_client(awake_mac, &mut RADIO_RX_BUF);
 
@@ -122,7 +123,7 @@ impl Component for RadioComponent {
 
         radio_mac.set_transmit_client(radio_driver);
         radio_mac.set_receive_client(radio_driver);
-        
+
         radio_mac.set_pan(self.pan_id);
         radio_mac.set_address(self.short_addr);
 

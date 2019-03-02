@@ -290,7 +290,7 @@ impl TimerAlarm {
     }
 
     pub fn handle_interrupt(&self) {
-        debug!("Value:{:?}",self.value());
+        debug!("Value:{:?}", self.value());
         self.clear_alarm();
         self.client.map(|client| {
             client.fired();

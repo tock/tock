@@ -6,8 +6,8 @@ use kernel;
 use kernel::common::deferred_call;
 use nrf5x;
 use nrf5x::peripheral_interrupts;
-use nvmc;
 use nrf_radio;
+use nvmc;
 use spi;
 use uart;
 

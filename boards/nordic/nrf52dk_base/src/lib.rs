@@ -16,7 +16,6 @@ extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;
 
-
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{UartDevice, UartMux};
@@ -118,7 +117,6 @@ impl kernel::Platform for Platform {
         }
     }
 }
-
 
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
@@ -269,11 +267,8 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    let (radio_driver, _) = RadioComponent::new(
-                                    board_kernel, 
-                                    &nrf52::nrf_radio::RADIO, 
-                                    PAN_ID, 
-                                    SRC_MAC).finalize();
+    let (radio_driver, _) =
+        RadioComponent::new(board_kernel, &nrf52::nrf_radio::RADIO, PAN_ID, SRC_MAC).finalize();
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,

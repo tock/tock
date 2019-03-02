@@ -7,8 +7,8 @@
 //! for address recognition. This must be committed to hardware with a call to
 //! config_commit. Please see the relevant TRD for more details.
 
-use returncode::ReturnCode;
 use core::convert::TryFrom;
+use returncode::ReturnCode;
 
 pub trait TxClient {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
@@ -116,7 +116,7 @@ pub trait RadioData {
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum RadioChannel {
-    DataChannel11 =  5,
+    DataChannel11 = 5,
     DataChannel12 = 10,
     DataChannel13 = 15,
     DataChannel14 = 20,
@@ -131,7 +131,7 @@ pub enum RadioChannel {
     DataChannel23 = 65,
     DataChannel24 = 70,
     DataChannel25 = 75,
-    DataChannel26 = 80
+    DataChannel26 = 80,
 }
 
 impl RadioChannel {
@@ -152,7 +152,7 @@ impl RadioChannel {
             RadioChannel::DataChannel23 => 23,
             RadioChannel::DataChannel24 => 24,
             RadioChannel::DataChannel25 => 25,
-            RadioChannel::DataChannel26 => 26
+            RadioChannel::DataChannel26 => 26,
         }
     }
 }
@@ -182,5 +182,3 @@ impl TryFrom<u8> for RadioChannel {
         }
     }
 }
-
-

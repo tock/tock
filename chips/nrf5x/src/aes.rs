@@ -347,17 +347,15 @@ impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'a> {
 
 impl kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, _client: &'a kernel::hil::symmetric_encryption::CCMClient){
-
-    }
+    fn set_client(&'a self, _client: &'a kernel::hil::symmetric_encryption::CCMClient) {}
 
     /// Set the key to be used for CCM encryption
-    fn set_key(&self, _key: &[u8]) -> ReturnCode{
+    fn set_key(&self, _key: &[u8]) -> ReturnCode {
         ReturnCode::SUCCESS
     }
 
     /// Set the nonce (length NONCE_LENGTH) to be used for CCM encryption
-    fn set_nonce(&self, _nonce: &[u8]) -> ReturnCode{
+    fn set_nonce(&self, _nonce: &[u8]) -> ReturnCode {
         ReturnCode::SUCCESS
     }
 
@@ -371,7 +369,7 @@ impl kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
         _mic_len: usize,
         _confidential: bool,
         _encrypting: bool,
-    ) -> (ReturnCode, Option<&'static mut [u8]>){
-        (ReturnCode::SUCCESS,None)
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::SUCCESS, None)
     }
 }

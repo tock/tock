@@ -36,7 +36,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::common::cells::{TakeCell,OptionalCell};
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio;
@@ -45,12 +45,11 @@ use kernel::hil::time::Alarm;
 use kernel::ReturnCode;
 
 use nrf5x;
-use ppi;
 use nrf5x::constants::TxPower;
+use ppi;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
-
 
 pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
 
@@ -64,14 +63,13 @@ pub const IEEE802154_MIN_BE: u8 = 3;
 
 pub const IEEE802154_MAX_BE: u8 = 5;
 
-pub const RAM_S0_BYTES: usize = 1; 
+pub const RAM_S0_BYTES: usize = 1;
 
-pub const RAM_LEN_BITS: usize = 8; 
+pub const RAM_LEN_BITS: usize = 8;
 
-pub const RAM_S1_BITS: usize = 0; 
+pub const RAM_S1_BITS: usize = 0;
 
 pub const PREBUF_LEN_BYTES: usize = 2;
-
 
 #[repr(C)]
 struct RadioRegisters {
@@ -270,10 +268,10 @@ struct RadioRegisters {
     dacnf: ReadWrite<u32, DeviceAddressMatch::Register>,
     /// MAC header Search Pattern Configuration
     /// - Address: 0x644 - 0x648
-    mhrmatchconf: ReadWrite<u32,MACHeaderSearch::Register>,
+    mhrmatchconf: ReadWrite<u32, MACHeaderSearch::Register>,
     /// MAC Header Search Pattern Mask
     /// - Address: 0x648 - 0x64C
-    mhrmatchmas: ReadWrite<u32,MACHeaderMask::Register>,
+    mhrmatchmas: ReadWrite<u32, MACHeaderMask::Register>,
     /// Reserved
     _reserved15: [u32; 1],
     /// Radio mode configuration register
@@ -439,7 +437,7 @@ register_bitfields! [u32,
             LONGRANGE = 3
         ],
         CRCINC OFFSET(26) NUMBITS(1) [
-            EXCLUDE = 0, 
+            EXCLUDE = 0,
             INCLUDE = 1
         ]
     ],
@@ -617,7 +615,6 @@ register_bitfields! [u32,
     ]
 ];
 
-
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
@@ -661,11 +658,12 @@ impl Radio {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
 
-        if self.transmitting.get(){
-            self.tx_buf.replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
-        }
-        else {
-            self.rx_buf.replace(self.set_dma_ptr(self.rx_buf.take().unwrap()));
+        if self.transmitting.get() {
+            self.tx_buf
+                .replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
+        } else {
+            self.rx_buf
+                .replace(self.set_dma_ptr(self.rx_buf.take().unwrap()));
         }
 
         regs.task_rxen.write(Task::ENABLE::SET);
@@ -700,7 +698,7 @@ impl Radio {
         regs.txpower.set(self.tx_power.get() as u32);
     }
 
-    fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8]{
+    fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
         let regs = &*self.registers;
         regs.packetptr.set(buffer.as_ptr() as u32);
         buffer
@@ -717,7 +715,7 @@ impl Radio {
             regs.event_end.write(Event::READY::CLEAR);
             if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
                 if self.cca_count.get() > 0 {
-                    unsafe{
+                    unsafe {
                         ppi::PPI.disable(ppi::Channel::CH21::SET);
                     }
                 }
@@ -736,34 +734,39 @@ impl Radio {
 
         //   IF we receive the go ahead (channel is clear)
         // THEN start the transmit part of the radio
-        if regs.event_ccaidle.is_set(Event::READY){
+        if regs.event_ccaidle.is_set(Event::READY) {
             regs.event_ccaidle.write(Event::READY::CLEAR);
             regs.task_txen.write(Task::ENABLE::SET)
         }
 
-        if regs.event_ccabusy.is_set(Event::READY){
+        if regs.event_ccabusy.is_set(Event::READY) {
             regs.event_ccabusy.write(Event::READY::CLEAR);
-            //need to back off for a period of time outlined 
+            //need to back off for a period of time outlined
             //in the IEEE 802.15.4 standard (see Figure 69 in
-            //section 7.5.1.4 The CSMA-CA algorithm of the 
+            //section 7.5.1.4 The CSMA-CA algorithm of the
             //standard).
-            if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {            
-                self.cca_count.set(self.cca_count.get()+1);
-                self.cca_be.set(self.cca_be.get()+1);
-                let backoff_periods = self.random_nonce() & ((1<<self.cca_be.get())-1); 
-                debug!("Channel Busy (Count:{:?})...Backing off for {:?} periods.\r",self.cca_count.get(),backoff_periods);
-                unsafe{                                
+            if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {
+                self.cca_count.set(self.cca_count.get() + 1);
+                self.cca_be.set(self.cca_be.get() + 1);
+                let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
+                debug!(
+                    "Channel Busy (Count:{:?})...Backing off for {:?} periods.\r",
+                    self.cca_count.get(),
+                    backoff_periods
+                );
+                unsafe {
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0.set_alarm(backoff_periods*(IEEE802154_BACKOFF_PERIOD as u32));
-                }        
-            }
-            else{
+                    nrf5x::timer::TIMER0
+                        .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
+                }
+            } else {
                 debug!("Max Polling Attempts Reached.\r");
                 self.transmitting.set(false);
                 //if we are transmitting, the CRCstatus check is always going to be an error
                 let result = ReturnCode::EBUSY;
                 //TODO: Acked is flagged as false until I get around to fixing it.
-                self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
+                self.tx_client
+                    .map(|client| client.send_done(self.tx_buf.take().unwrap(), false, result));
             }
 
             regs.event_ready.write(Event::READY::CLEAR);
@@ -791,7 +794,8 @@ impl Radio {
                     //if we are transmitting, the CRCstatus check is always going to be an error
                     let result = ReturnCode::SUCCESS;
                     //TODO: Acked is flagged as false until I get around to fixing it.
-                    self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
+                    self.tx_client
+                        .map(|client| client.send_done(self.tx_buf.take().unwrap(), false, result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
@@ -800,7 +804,7 @@ impl Radio {
                     debug!("RX Finished\r");
                     self.rx_client.map(|client| {
                         let rbuf = self.rx_buf.take().unwrap();
-                        debug!("[PHY] {:?}",rbuf[1..10].as_ref());
+                        debug!("[PHY] {:?}", rbuf[1..10].as_ref());
 
                         let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
@@ -866,7 +870,6 @@ impl Radio {
 
         self.ieee802154_set_tx_power();
 
-
         self.ieee802154_set_channel_freq(self.channel.get());
 
         self.set_tx_address();
@@ -886,24 +889,22 @@ impl Radio {
 
     fn ieee802154_set_rampup_mode(&self) {
         let regs = &*self.registers;
-        regs.modecnf0.write(
-            RadioModeConfig::RU::FAST
-                + RadioModeConfig::DTX::CENTER
-        );
+        regs.modecnf0
+            .write(RadioModeConfig::RU::FAST + RadioModeConfig::DTX::CENTER);
     }
 
-    fn ieee802154_set_cca_config(&self){
+    fn ieee802154_set_cca_config(&self) {
         let regs = &*self.registers;
         regs.ccactrl.write(
             CCAControl::CCAMODE.val(nrf5x::constants::IEEE802154_CCA_MODE)
                 + CCAControl::CCAEDTHRESH.val(nrf5x::constants::IEEE802154_CCA_ED_THRESH)
                 + CCAControl::CCACORRTHRESH.val(nrf5x::constants::IEEE802154_CCA_CORR_THRESH)
-                + CCAControl::CCACORRCNT.val(nrf5x::constants::IEEE802154_CCA_CORR_CNT)
+                + CCAControl::CCACORRCNT.val(nrf5x::constants::IEEE802154_CCA_CORR_CNT),
         );
     }
 
     // Packet configuration
-    // Settings taken from OpenThread nrf_radio_init() in 
+    // Settings taken from OpenThread nrf_radio_init() in
     // openthread/third_party/NordicSemiconductor/drivers/radio/nrf_802154_core.c
     //
     fn ieee802154_set_packet_config(&self) {
@@ -944,9 +945,7 @@ impl Radio {
         self.set_tx_power();
     }
 
-    pub fn startup(
-        &self,
-    ) -> ReturnCode{
+    pub fn startup(&self) -> ReturnCode {
         self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
     }
@@ -974,29 +973,27 @@ impl kernel::hil::radio::RadioConfig for Radio {
         _spi_buf: &'static mut [u8],
         _reg_write: &'static mut [u8],
         _reg_read: &'static mut [u8],
-    ) -> ReturnCode{
+    ) -> ReturnCode {
         self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
     }
 
-
-
-    fn reset(&self) -> ReturnCode{
+    fn reset(&self) -> ReturnCode {
         self.radio_on();
         ReturnCode::SUCCESS
     }
-    fn start(&self) -> ReturnCode{
+    fn start(&self) -> ReturnCode {
         self.reset();
         ReturnCode::SUCCESS
     }
-    fn stop(&self) -> ReturnCode{
+    fn stop(&self) -> ReturnCode {
         self.radio_off();
         ReturnCode::SUCCESS
     }
-    fn is_on(&self) -> bool{
+    fn is_on(&self) -> bool {
         true
     }
-    fn busy(&self) -> bool{
+    fn busy(&self) -> bool {
         false
     }
 
@@ -1011,14 +1008,12 @@ impl kernel::hil::radio::RadioConfig for Radio {
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
-    fn config_commit(&self){
+    fn config_commit(&self) {
         self.radio_off();
         self.radio_initialize(self.channel.get());
     }
 
-    fn set_config_client(&self, _client: &'static radio::ConfigClient){
-
-    }
+    fn set_config_client(&self, _client: &'static radio::ConfigClient) {}
 
     //#################################################
     /// Accessors
@@ -1062,7 +1057,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
     }
 
     fn set_channel(&self, chan: u8) -> ReturnCode {
-        match radio::RadioChannel::try_from(chan){
+        match radio::RadioChannel::try_from(chan) {
             Err(_) => ReturnCode::ENOSUPPORT,
             Ok(res) => {
                 self.channel.set(res);
@@ -1091,10 +1086,9 @@ impl kernel::hil::radio::RadioData for Radio {
         self.rx_buf.replace(buffer);
     }
 
-    fn set_receive_buffer(&self, buffer: &'static mut [u8]){
+    fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
         self.rx_buf.replace(buffer);
     }
-
 
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
         self.tx_client.set(client);
@@ -1104,7 +1098,7 @@ impl kernel::hil::radio::RadioData for Radio {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>){
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.tx_buf.is_some() || self.transmitting.get() {
             return (ReturnCode::EBUSY, Some(buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
@@ -1114,7 +1108,7 @@ impl kernel::hil::radio::RadioData for Radio {
 
         buf[RAM_S0_BYTES] = frame_len as u8;
 
-        debug!("[PHY] {:?}",buf[1..10].as_ref());
+        debug!("[PHY] {:?}", buf[1..10].as_ref());
         self.tx_buf.replace(buf);
 
         self.transmitting.set(true);
@@ -1126,7 +1120,6 @@ impl kernel::hil::radio::RadioData for Radio {
         self.radio_initialize(self.channel.get());
 
         //self.enable_interrupts();
-        (ReturnCode::SUCCESS,None)
+        (ReturnCode::SUCCESS, None)
     }
 }
-
