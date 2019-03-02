@@ -68,15 +68,15 @@ impl<'a> GPIO<'a> {
         pin.make_input();
         match config {
             0 => {
-                pin.set_input_mode(gpio::FloatingState::PullNone);
+                pin.set_floating_state(gpio::FloatingState::PullNone);
                 ReturnCode::SUCCESS
             }
             1 => {
-                pin.set_input_mode(gpio::FloatingState::PullUp);
+                pin.set_floating_state(gpio::FloatingState::PullUp);
                 ReturnCode::SUCCESS
             }
             2 => {
-                pin.set_input_mode(gpio::FloatingState::PullDown);
+                pin.set_floating_state(gpio::FloatingState::PullDown);
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -88,17 +88,17 @@ impl<'a> GPIO<'a> {
         let index = pin_num as usize;
         match config {
             0 => {
-                pins[index].enable_interrupt(pin_num, gpio::InterruptEdge::EitherEdge);
+                pins[index].enable_interrupts(gpio::InterruptEdge::EitherEdge);
                 ReturnCode::SUCCESS
             }
 
             1 => {
-                pins[index].enable_interrupt(pin_num, gpio::InterruptEdge::RisingEdge);
+                pins[index].enable_interrupts(gpio::InterruptEdge::RisingEdge);
                 ReturnCode::SUCCESS
             }
 
             2 => {
-                pins[index].enable_interrupt(pin_num, gpio::InterruptEdge::FallingEdge);
+                pins[index].enable_interrupts(gpio::InterruptEdge::FallingEdge);
                 ReturnCode::SUCCESS
             }
 
@@ -115,7 +115,7 @@ impl<'a> gpio::ClientWithValue for GPIO<'a> {
 
         // schedule callback with the pin number and value
         self.apps.each(|callback| {
-            callback.map(|mut cb| cb.schedule(pin_num, pin_state as usize, 0));
+            callback.map(|mut cb| cb.schedule(pin_num as usize, pin_state as usize, 0));
         });
     }
 }
@@ -234,7 +234,7 @@ impl<'a> Driver for GPIO<'a> {
                 if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    self.configure_input_pin(pin, pin_config)
+                    self.configure_input_pin(pin as u32, pin_config)
                 }
             }
 
@@ -257,7 +257,7 @@ impl<'a> Driver for GPIO<'a> {
                 if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    self.configure_interrupt(pin, irq_config)
+                    self.configure_interrupt(pin as u32, irq_config)
                 }
             }
 
@@ -267,8 +267,8 @@ impl<'a> Driver for GPIO<'a> {
                 if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[pin].disable_interrupt();
-                    pins[pin].disable();
+                    pins[pin].disable_interrupts();
+                    pins[pin].low_power();
                     ReturnCode::SUCCESS
                 }
             }
@@ -278,7 +278,7 @@ impl<'a> Driver for GPIO<'a> {
                 if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[pin].disable();
+                    pins[pin].low_power();
                     ReturnCode::SUCCESS
                 }
             }

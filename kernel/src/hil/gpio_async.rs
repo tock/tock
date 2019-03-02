@@ -46,12 +46,12 @@ pub trait Port {
     fn enable_interrupt(
         &self,
         pin: usize,
-        mode: hil::gpio::InterruptEdge,
-        identifier: usize,
-    ) -> ReturnCode;
+        mode: hil::gpio::InterruptEdge) -> ReturnCode;
 
     /// Disable an interrupt on a GPIO input pin.
     fn disable_interrupt(&self, pin: usize) -> ReturnCode;
+
+    fn is_pending(&self, pin: usize) -> bool;
 }
 
 /// The gpio_async Client interface is used to both receive callbacks

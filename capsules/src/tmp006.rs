@@ -160,13 +160,13 @@ impl TMP006<'a> {
         // setup interrupts from the sensor
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptEdge::FallingEdge);
+            .enable_interrupts(gpio::InterruptEdge::FallingEdge);
     }
 
     fn disable_interrupts(&self) {
         // disable interrupts from the sensor
-        self.interrupt_pin.disable_interrupt();
-        self.interrupt_pin.disable();
+        self.interrupt_pin.disable_interrupts();
+        self.interrupt_pin.low_power();
     }
 }
 

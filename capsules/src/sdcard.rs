@@ -69,7 +69,7 @@ pub struct SDCard<'a, A: hil::time::Alarm> {
     is_initialized: Cell<bool>,
     card_type: Cell<SDCardType>,
 
-    detect_pin: Cell<Option<&'static hil::gpio::Pin>>,
+    detect_pin: Cell<Option<&'static hil::gpio::InterruptPin>>,
 
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
@@ -204,7 +204,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     pub fn new(
         spi: &'a hil::spi::SpiMasterDevice,
         alarm: &'a A,
-        detect_pin: Option<&'static hil::gpio::Pin>,
+        detect_pin: Option<&'static hil::gpio::InterruptPin>,
         txbuffer: &'static mut [u8; 515],
         rxbuffer: &'static mut [u8; 515],
     ) -> SDCard<'a, A> {
@@ -1201,7 +1201,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// watches SD card detect pin for changes, sends callback on change
     pub fn detect_changes(&self) {
         self.detect_pin.get().map(|pin| {
-            pin.enable_interrupt(0, hil::gpio::InterruptEdge::EitherEdge);
+            pin.enable_interrupts(hil::gpio::InterruptEdge::EitherEdge);
         });
     }
 
@@ -1370,7 +1370,7 @@ impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
 
         // disable additional interrupts
         self.detect_pin.get().map(|pin| {
-            pin.disable_interrupt();
+            pin.disable_interrupts();
         });
 
         // run a timer for 500 ms in order to let the sd card settle
