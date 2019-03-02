@@ -232,6 +232,7 @@ pub unsafe fn reset_handler() {
     }
 
     // UART
+    cc26x2::uart::UART0.initialize();
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -242,14 +243,13 @@ pub unsafe fn reset_handler() {
             115200
         )
     );
+    uart_mux.initialize();
     hil::uart::Receive::set_receive_client(&cc26x2::uart::UART0, uart_mux);
     hil::uart::Transmit::set_transmit_client(&cc26x2::uart::UART0, uart_mux);
 
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
-
-    cc26x2::uart::UART0.initialize();
 
     let console = static_init!(
         capsules::console::Console<'static>,
