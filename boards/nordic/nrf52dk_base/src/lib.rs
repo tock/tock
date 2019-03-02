@@ -21,15 +21,11 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{UartDevice, UartMux};
 
-use capsules::ieee802154::device::MacDevice;
-use capsules::ieee802154::mac::{AwakeMac, Mac};
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
-use nrf5x::rtc::Rtc;
 
 mod components;
 use components::radio::RadioComponent;
@@ -81,8 +77,6 @@ impl UartPins {
     }
 }
 
-static mut RADIO_RX_BUF: [u8; kernel::hil::radio::MAX_BUF_SIZE] = [0x00; kernel::hil::radio::MAX_BUF_SIZE];
-
 /// Supported drivers by the platform
 pub struct Platform {
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
@@ -125,16 +119,9 @@ impl kernel::Platform for Platform {
     }
 }
 
-// This buffer is used as an intermediate buffer for AES CCM encryption
-    // An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
-const CRYPT_SIZE: usize = 1;
-static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 // Constants related to the configuration of the 15.4 network stack
-const RADIO_CHANNEL: u8 = 26;
 const SRC_MAC: u16 = 0xf00f;
-//const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
-//const SRC_MAC_ADDR: MacAddress = MacAddress::Short(SRC_MAC);
 const PAN_ID: u16 = 0xABCD;
 /// Generic function for starting an nrf52dk board.
 #[inline]
@@ -229,11 +216,6 @@ pub unsafe fn setup_board(
     );
     virtual_alarm1.set_client(alarm);
 
-    let radio_virtual_alarm = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
         UartMux<'static>,
@@ -287,7 +269,7 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    let (radio_driver, mux_mac) = RadioComponent::new(
+    let (radio_driver, _) = RadioComponent::new(
                                     board_kernel, 
                                     &nrf52::nrf_radio::RADIO, 
                                     PAN_ID, 

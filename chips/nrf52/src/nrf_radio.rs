@@ -37,7 +37,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::cells::{TakeCell,OptionalCell};
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioChannel;
@@ -45,7 +45,6 @@ use kernel::hil::time::Alarm;
 use kernel::ReturnCode;
 
 use nrf5x;
-use nrf5x::timer;
 use ppi;
 use nrf5x::constants::TxPower;
 
@@ -619,9 +618,6 @@ register_bitfields! [u32,
 ];
 
 
-static mut PAYLOAD: [u8; IEEE802154_PAYLOAD_LENGTH+PREBUF_LEN_BYTES] =
-    [0x00; IEEE802154_PAYLOAD_LENGTH+PREBUF_LEN_BYTES];
-
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
@@ -637,7 +633,6 @@ pub struct Radio {
     random_nonce: Cell<u32>,
     channel: Cell<kernel::hil::radio::RadioChannel>,
     transmitting: Cell<bool>,
-    kernel_tx: TakeCell<'static, [u8]>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -659,21 +654,13 @@ impl Radio {
             random_nonce: Cell::new(0xDEADBEEF),
             channel: Cell::new(radio::RadioChannel::DataChannel11),
             transmitting: Cell::new(false),
-            kernel_tx: TakeCell::empty(),
         }
-    }
-
-    fn tx(&self) {
-        let regs = &*self.registers;
-        regs.event_ready.write(Event::READY::CLEAR);
-
-        regs.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
-        
+
         if self.transmitting.get(){
             self.tx_buf.replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
         }
@@ -715,9 +702,7 @@ impl Radio {
 
     fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8]{
         let regs = &*self.registers;
-        unsafe {
-            regs.packetptr.set(buffer.as_ptr() as u32);
-        }
+        regs.packetptr.set(buffer.as_ptr() as u32);
         buffer
     }
 
@@ -726,22 +711,22 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
         self.disable_all_interrupts();
-        
+
         if regs.event_ready.is_set(Event::READY) {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
             if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
-                if(self.cca_count.get() > 0){
+                if self.cca_count.get() > 0 {
                     unsafe{
                         ppi::PPI.disable(ppi::Channel::CH21::SET);
                     }
                 }
                 debug!("Starting CCA.\r");
                 regs.task_ccastart.write(Task::ENABLE::SET);
-            } else { 
+            } else {
                 debug!("Starting Receive.\r");
                 regs.task_start.write(Task::ENABLE::SET);
-            }   
+            }
         }
 
         if regs.event_framestart.is_set(Event::READY) {
@@ -753,23 +738,7 @@ impl Radio {
         // THEN start the transmit part of the radio
         if regs.event_ccaidle.is_set(Event::READY){
             regs.event_ccaidle.write(Event::READY::CLEAR);
-            /*if (self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS){            
-                self.cca_count.set(self.cca_count.get()+1);
-                self.cca_be.set(self.cca_be.get()+1);
-                let backoff_periods = self.random_nonce() & ((1<<self.cca_be.get())-1); 
-                debug!("Channel Busy (Count:{:?})...Backing off for {:?} periods.\r",self.cca_count.get(),backoff_periods);
-                unsafe{                                
-                    ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0.set_alarm(backoff_periods*(IEEE802154_BACKOFF_PERIOD as u32));
-                }        
-                regs.event_ready.write(Event::READY::CLEAR);
-                regs.task_disable.write(Task::ENABLE::SET);
-                self.enable_interrupts();
-            }
-            else{*/
-            //debug!("Channel Ready. Transmitting from:\r");
             regs.task_txen.write(Task::ENABLE::SET)
-            //}
         }
 
         if regs.event_ccabusy.is_set(Event::READY){
@@ -794,9 +763,7 @@ impl Radio {
                 //if we are transmitting, the CRCstatus check is always going to be an error
                 let result = ReturnCode::EBUSY;
                 //TODO: Acked is flagged as false until I get around to fixing it.
-                unsafe{
-                    self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
-                }
+                self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
             }
 
             regs.event_ready.write(Event::READY::CLEAR);
@@ -824,31 +791,27 @@ impl Radio {
                     //if we are transmitting, the CRCstatus check is always going to be an error
                     let result = ReturnCode::SUCCESS;
                     //TODO: Acked is flagged as false until I get around to fixing it.
-                    unsafe{
-                        self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
-                    }
+                    self.tx_client.map(|client| client.send_done(self.tx_buf.take().unwrap(),false,result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
                     debug!("RX Finished\r");
-                    unsafe {
-                        self.rx_client.map(|client| {
-                            let rbuf = self.rx_buf.take().unwrap();
-                            debug!("[PHY] {:?}",rbuf[1..10].as_ref());
+                    self.rx_client.map(|client| {
+                        let rbuf = self.rx_buf.take().unwrap();
+                        debug!("[PHY] {:?}",rbuf[1..10].as_ref());
 
-                            let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
-                            // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                            // And because the length field is directly read from the packet
-                            // We need to add 2 to length to get the total length
+                        let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
+                        // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                        // And because the length field is directly read from the packet
+                        // We need to add 2 to length to get the total length
 
-                            // TODO: Check if the length is still valid
-                            // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                            // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
-                            client.receive(rbuf, frame_len, true, result)
-                        });
-                    }
+                        // TODO: Check if the length is still valid
+                        // TODO: CRC_valid is autoflagged to true until I feel like fixing it
+                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
+                        client.receive(rbuf, frame_len, true, result)
+                    });
                 }
                 // Radio state - Disabled
                 _ => (),
@@ -887,22 +850,7 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
-    /*
-    fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
-        // set payload
-        unsafe{
-            debug!("{:?}\t{:?}\t{:?}",PAYLOAD.as_ptr(),buf.as_ptr(),buf.len());
-        }
-        for (i, c) in buf.as_ref().iter().enumerate() {
-            unsafe {
-                PAYLOAD[i] = *c;
-            }
-        }
-        buf
-    }
-    */
-
-    fn radio_initialize(&self, channel: RadioChannel) {
+    fn radio_initialize(&self, _channel: RadioChannel) {
         debug!("Initializating Radio\r");
 
         self.radio_on();
@@ -923,8 +871,6 @@ impl Radio {
 
         self.set_tx_address();
         self.set_rx_address();
-
-        //self.set_dma_ptr();
 
         self.rx();
     }
@@ -1025,9 +971,9 @@ impl kernel::hil::radio::Radio for Radio {}
 impl kernel::hil::radio::RadioConfig for Radio {
     fn initialize(
         &self,
-        spi_buf: &'static mut [u8],
-        reg_write: &'static mut [u8],
-        reg_read: &'static mut [u8],
+        _spi_buf: &'static mut [u8],
+        _reg_write: &'static mut [u8],
+        _reg_read: &'static mut [u8],
     ) -> ReturnCode{
         self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
@@ -1069,8 +1015,8 @@ impl kernel::hil::radio::RadioConfig for Radio {
         self.radio_off();
         self.radio_initialize(self.channel.get());
     }
-    
-    fn set_config_client(&self, client: &'static radio::ConfigClient){
+
+    fn set_config_client(&self, _client: &'static radio::ConfigClient){
 
     }
 
@@ -1159,16 +1105,6 @@ impl kernel::hil::radio::RadioData for Radio {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> (ReturnCode, Option<&'static mut [u8]>){
-        //self.kernel_tx.replace(self.replace_radio_buffer(buf));
-        /*
-        unsafe{
-            PAYLOAD[RAM_S0_BYTES] = frame_len as u8;
-            debug!("[PHY] {:?}",PAYLOAD[1..10].as_ref());
-        }
-        */
-        /*!self.is_on() {
-            return (ReturnCode::EOFF, Some(buf));
-        } else if */
         if self.tx_buf.is_some() || self.transmitting.get() {
             return (ReturnCode::EBUSY, Some(buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
