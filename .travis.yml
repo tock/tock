@@ -26,9 +26,9 @@ os:
   - linux
 
 # If you change this, you must also change Getting_Started.md, Makefile.common,
-# and Vagrantfile.
+# .vscode/settings.json, and tools/netlify-build.sh.
 rust:
-  - nightly-2018-08-16
+  - nightly-2018-11-30
 
 before_script:
   - npm install -g markdown-toc

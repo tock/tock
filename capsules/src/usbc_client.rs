@@ -2,23 +2,24 @@
 //!
 //! It responds to standard device requests and can be enumerated.
 
+use crate::usb::ConfigurationDescriptor;
+use crate::usb::Descriptor;
+use crate::usb::DescriptorType;
+use crate::usb::DeviceDescriptor;
+use crate::usb::EndpointAddress;
+use crate::usb::EndpointDescriptor;
+use crate::usb::InterfaceDescriptor;
+use crate::usb::LanguagesDescriptor;
+use crate::usb::SetupData;
+use crate::usb::StandardDeviceRequest;
+use crate::usb::StringDescriptor;
+use crate::usb::TransferDirection;
+use crate::usb::TransferType;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::VolatileCell;
+use kernel::debug;
 use kernel::hil;
-use usb::ConfigurationDescriptor;
-use usb::Descriptor;
-use usb::DescriptorType;
-use usb::DeviceDescriptor;
-use usb::EndpointAddress;
-use usb::EndpointDescriptor;
-use usb::InterfaceDescriptor;
-use usb::LanguagesDescriptor;
-use usb::SetupData;
-use usb::StandardDeviceRequest;
-use usb::StringDescriptor;
-use usb::TransferDirection;
-use usb::TransferType;
 
 const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;

@@ -16,15 +16,16 @@
 // over 6LoWPAN, and should be separated from the generic IPv6 sending
 // interface.
 
+use crate::ieee802154::device::{MacDevice, TxClient};
+use crate::net::ieee802154::MacAddress;
+use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
+use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
-use ieee802154::device::{MacDevice, TxClient};
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::debug;
 use kernel::hil::time::{self, Frequency};
 use kernel::ReturnCode;
-use net::ieee802154::MacAddress;
-use net::ipv6::ip_utils::IPAddr;
-use net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
-use net::sixlowpan::sixlowpan_state::TxState;
 
 /// This trait must be implemented by upper layers in order to receive
 /// the `send_done` callback when a transmission has completed. The upper
@@ -206,7 +207,8 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
                     (send_complete_return, send)
                 }
                 None => (ReturnCode::EBUSY, false),
-            }).unwrap_or((ReturnCode::ENOMEM, false));
+            })
+            .unwrap_or((ReturnCode::ENOMEM, false));
         if call_send_complete {
             self.send_completed(ret);
             return ReturnCode::SUCCESS;
@@ -231,7 +233,9 @@ impl<A: time::Alarm> time::Client for IP6SendStruct<'a, A> {
 impl<A: time::Alarm> TxClient for IP6SendStruct<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
-        debug!("Send result: {:?}, acked: {}", result, acked);
+        if result != ReturnCode::SUCCESS {
+            debug!("Send Failed: {:?}, acked: {}", result, acked);
+        }
         // Below code adds delay between fragments. Despite some efforts
         // to fix this bug, I find that without it the receiving imix cannot
         // receive more than 2 fragments in a single packet without hanging

@@ -25,6 +25,7 @@ use kernel::component::Component;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioData;
 use kernel::hil::symmetric_encryption::AES128CCM;
+use kernel::{create_capability, static_init};
 
 // Save some deep nesting
 

@@ -3,8 +3,7 @@
 # This nix expression creates an environment with necessary packages installed:
 #
 #  * `tockloader`
-#  * arm-none-eabi toolchain
-#  * rustup
+#  * rust
 #
 # To use:
 #
@@ -21,25 +20,31 @@ let
 
     tockloader = buildPythonPackage rec {
       pname = "tockloader";
-      version = "1.1.0";
+      version = "1.3.1";
       name = "${pname}-${version}";
 
       propagatedBuildInputs = [ argcomplete colorama crcmod pyserial pytoml ];
 
       src = fetchPypi {
         inherit pname version;
-        sha256 = "0j15hrz45ay396n94m5i5pca5lrym1qjnj06b2lq9r67ks136333";
+        sha256 = "1gralnhvl82xr7rkrmxj0c1rxn1y9dlbmkkrklcdjahragbknivn";
       };
     };
   });
+  moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
+  nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
+  rust_date = "2018-12-01";
+  rust_channel = "nightly";
+  rust_targets = [ "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi" ];
+  rust_build = nixpkgs.rustChannelOfTargets rust_channel rust_date rust_targets;
 in
   with pkgs;
   stdenv.mkDerivation {
     name = "tock-dev";
     buildInputs = [
-      rustup
-      gcc-arm-embedded
       python3Full
       pythonPackages.tockloader
+      rust_build
       ];
+     LD_LIBRARY_PATH="${stdenv.cc.cc.lib}/lib64:$LD_LIBRARY_PATH";
   }

@@ -1,15 +1,15 @@
 //! Implementation of the power manager (PM) peripheral.
 
-use bpm;
-use bscif;
+use crate::bpm;
+use crate::bscif;
+use crate::flashcalw;
+use crate::gpio;
+use crate::scif;
 use core::cell::Cell;
 use core::sync::atomic::Ordering;
-use flashcalw;
-use gpio;
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ClockInterface;
-use scif;
 
 /// §10.7 PM::UserInterface from SAM4L Datasheet.
 #[repr(C)]

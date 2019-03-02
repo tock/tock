@@ -2,24 +2,12 @@
 
 #![no_std]
 
-extern crate capsules;
-extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(
-    create_capability,
-    debug,
-    debug_verbose,
-    debug_gpio,
-    static_init
-)]
-extern crate kernel;
-extern crate nrf52;
-extern crate nrf5x;
+use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::{UartDevice, UartMux};
-
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -27,7 +15,8 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 
 mod components;
-use components::radio::RadioComponent;
+
+use self::components::radio::RadioComponent;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -80,7 +69,7 @@ impl UartPins {
 pub struct Platform {
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::RngDriver<'static>,
@@ -164,7 +153,10 @@ pub unsafe fn setup_board(
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -216,14 +208,16 @@ pub unsafe fn setup_board(
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &nrf52::uart::UARTE0,
             &mut capsules::virtual_uart::RX_BUF,
             115200
         )
     );
-    hil::uart::UART::set_client(&nrf52::uart::UARTE0, uart_mux);
+    uart_mux.initialize();
+    hil::uart::Transmit::set_transmit_client(&nrf52::uart::UARTE0, uart_mux);
+    hil::uart::Receive::set_receive_client(&nrf52::uart::UARTE0, uart_mux);
 
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
@@ -236,17 +230,16 @@ pub unsafe fn setup_board(
         nrf5x::pinmux::Pinmux::new(uart_pins.rts as u32),
     );
     let console = static_init!(
-        capsules::console::Console<UartDevice>,
+        capsules::console::Console<'static>,
         capsules::console::Console::new(
             console_uart,
-            115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    kernel::hil::uart::UART::set_client(console_uart, console);
-    console.initialize();
+    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
+    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
 
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
@@ -259,7 +252,7 @@ pub unsafe fn setup_board(
             &mut kernel::debug::INTERNAL_BUF,
         )
     );
-    hil::uart::UART::set_client(debugger_uart, debugger);
+    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,

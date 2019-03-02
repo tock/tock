@@ -1,12 +1,11 @@
-use cc26x2;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
+use kernel::hil::uart;
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,
@@ -19,15 +18,19 @@ impl Write for Writer {
         let uart = unsafe { &mut cc26x2::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::UARTParameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-            });
+            uart::Configure::configure(
+                uart,
+                uart::Parameters {
+                    baud_rate: 115200,
+                    stop_bits: uart::StopBits::One,
+                    parity: uart::Parity::None,
+                    hw_flow_control: false,
+                    width: uart::Width::Eight,
+                },
+            );
         }
         for c in s.bytes() {
-            uart.send_byte(c);
+            uart.write(c as u32);
             while !uart.tx_fifo_not_full() {}
         }
         Ok(())
@@ -35,7 +38,7 @@ impl Write for Writer {
 }
 
 #[cfg(not(test))]
-#[panic_implementation]
+#[panic_handler]
 #[no_mangle]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // 6 = Red led, 7 = Green led

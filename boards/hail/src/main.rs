@@ -5,20 +5,12 @@
 
 #![no_std]
 #![no_main]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
-
-extern crate capsules;
-#[allow(unused_imports)]
-#[macro_use(create_capability, debug, debug_gpio, static_init)]
-extern crate kernel;
-extern crate cortexm4;
-extern crate sam4l;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::{UartDevice, UartMux};
+use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -26,6 +18,8 @@ use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
+#[allow(unused_imports)]
+use kernel::{create_capability, debug, debug_gpio, static_init};
 
 /// Support routines for debugging I/O.
 ///
@@ -51,10 +45,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None,
-];
+static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -64,7 +55,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
+    console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -75,10 +66,7 @@ struct Hail {
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<
-        'static,
-        sam4l::usart::USART,
-    >,
+    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -226,29 +214,32 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
-        UartMux<'static>,
-        UartMux::new(
+        MuxUart<'static>,
+        MuxUart::new(
             &sam4l::usart::USART0,
             &mut capsules::virtual_uart::RX_BUF,
             115200
         )
     );
-    hil::uart::UART::set_client(&sam4l::usart::USART0, uart_mux);
+    uart_mux.initialize();
+
+    hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART0, uart_mux);
+    hil::uart::Receive::set_receive_client(&sam4l::usart::USART0, uart_mux);
 
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
     let console = static_init!(
-        capsules::console::Console<UartDevice>,
+        capsules::console::Console<'static>,
         capsules::console::Console::new(
             console_uart,
-            115200,
             &mut capsules::console::WRITE_BUF,
             &mut capsules::console::READ_BUF,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    hil::uart::UART::set_client(console_uart, console);
+    hil::uart::Transmit::set_transmit_client(console_uart, console);
+    hil::uart::Receive::set_receive_client(console_uart, console);
 
     // Setup the process inspection console
     let process_console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
@@ -256,10 +247,9 @@ pub unsafe fn reset_handler() {
     pub struct ProcessConsoleCapability;
     unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
     let process_console = static_init!(
-        capsules::process_console::ProcessConsole<UartDevice, ProcessConsoleCapability>,
+        capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
         capsules::process_console::ProcessConsole::new(
             process_console_uart,
-            115200,
             &mut capsules::process_console::WRITE_BUF,
             &mut capsules::process_console::READ_BUF,
             &mut capsules::process_console::COMMAND_BUF,
@@ -267,15 +257,15 @@ pub unsafe fn reset_handler() {
             ProcessConsoleCapability,
         )
     );
-    hil::uart::UART::set_client(process_console_uart, process_console);
-    process_console.initialize();
+    hil::uart::Transmit::set_transmit_client(process_console_uart, process_console);
+    hil::uart::Receive::set_receive_client(process_console_uart, process_console);
 
     // Initialize USART3 for Uart
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(
-        capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
+        capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
         capsules::nrf51822_serialization::Nrf51822Serialization::new(
             &sam4l::usart::USART3,
             &sam4l::gpio::PA[17],
@@ -283,7 +273,8 @@ pub unsafe fn reset_handler() {
             &mut capsules::nrf51822_serialization::READ_BUF
         )
     );
-    hil::uart::UART::set_client(&sam4l::usart::USART3, nrf_serialization);
+    hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART3, nrf_serialization);
+    hil::uart::Receive::set_receive_client(&sam4l::usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
@@ -515,7 +506,10 @@ pub unsafe fn reset_handler() {
     ); // D7
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins)
+        capsules::gpio::GPIO::new(
+            gpio_pins,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
@@ -578,8 +572,6 @@ pub unsafe fn reset_handler() {
         dac: dac,
     };
 
-    hail.console.initialize();
-
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
     debugger_uart.setup();
@@ -591,7 +583,7 @@ pub unsafe fn reset_handler() {
             &mut kernel::debug::INTERNAL_BUF,
         )
     );
-    hil::uart::UART::set_client(debugger_uart, debugger);
+    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
     let debug_wrapper = static_init!(
         kernel::debug::DebugWriterWrapper,

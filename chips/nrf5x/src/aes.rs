@@ -31,10 +31,9 @@
 //! * Date: April 21, 2017
 
 use core::cell::Cell;
-use kernel;
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
-use kernel::common::registers::{ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::symmetric_encryption;
 use kernel::ReturnCode;

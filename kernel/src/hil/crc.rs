@@ -1,6 +1,6 @@
 //! Interface for CRC computation.
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// CRC algorithms
 ///
@@ -26,7 +26,7 @@ pub enum CrcAlg {
 
 pub trait CRC {
     /// Initiate a CRC calculation
-    fn compute(&self, data: &[u8], CrcAlg) -> ReturnCode;
+    fn compute(&self, data: &[u8], _: CrcAlg) -> ReturnCode;
 
     /// Disable the CRC unit until compute() is next called
     fn disable(&self);
@@ -34,5 +34,5 @@ pub trait CRC {
 
 pub trait Client {
     /// Receive the successful result of a CRC calculation
-    fn receive_result(&self, u32);
+    fn receive_result(&self, _: u32);
 }

@@ -6,7 +6,7 @@ use core::ptr;
 /// and writes. This is particularly useful for accessing microcontroller
 /// registers.
 // Source: https://github.com/hackndev/zinc/tree/master/volatile_cell
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 #[repr(C)]
 pub struct VolatileCell<T> {
     value: T,
@@ -14,7 +14,7 @@ pub struct VolatileCell<T> {
 
 impl<T> VolatileCell<T> {
     pub const fn new(value: T) -> Self {
-        VolatileCell { value: value }
+        VolatileCell { value }
     }
 
     #[inline]
@@ -25,11 +25,5 @@ impl<T> VolatileCell<T> {
     #[inline]
     pub fn set(&self, value: T) {
         unsafe { ptr::write_volatile(&self.value as *const T as *mut T, value) }
-    }
-}
-
-impl<T: Default> Default for VolatileCell<T> {
-    fn default() -> Self {
-        VolatileCell::new(Default::default())
     }
 }

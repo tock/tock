@@ -76,14 +76,14 @@
 // Date: Nov 21 2017
 //
 
+use crate::ieee802154::mac::Mac;
+use crate::net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 use core::cell::Cell;
-use ieee802154::mac::Mac;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
 use kernel::hil::time::{self, Alarm, Frequency, Time};
 use kernel::ReturnCode;
-use net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 
 // Time the radio will remain awake listening for packets before sleeping.
 // Observing the RF233, receive callbacks for preambles are generated only after
@@ -396,7 +396,7 @@ impl<R: radio::Radio, A: Alarm> Mac for XMac<'a, R, A> {
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
-        //self.radio.set_receive_buffer(buffer);
+        self.radio.set_receive_buffer(buffer);
     }
 
     fn transmit(

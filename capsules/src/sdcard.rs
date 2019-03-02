@@ -45,7 +45,7 @@ use kernel::hil::time::Frequency;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SD_CARD as usize;
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
@@ -1333,7 +1333,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
 impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(
         &self,
-        mut write_buffer: &'static mut [u8],
+        write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) {
@@ -1444,6 +1444,7 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
     fn read_done(&self, data: &'static mut [u8], len: usize) {
         self.kernel_buf.replace(data);
         self.app.map(|app| {
+            #[allow(unused_mut)]
             let mut read_len: usize = 0;
             self.kernel_buf.map(|data| {
                 app.read_buffer.as_mut().map(move |read_buffer| {

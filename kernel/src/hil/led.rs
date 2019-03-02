@@ -4,7 +4,7 @@
 //!  Date: July 31, 2015
 //!
 
-use hil::gpio;
+use crate::hil::gpio;
 
 pub trait Led {
     fn init(&mut self);

@@ -9,7 +9,7 @@ buttons.
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
+First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 JTAG is the preferred method to program. The development kit has an
 integrated JTAG debugger, you simply need to [install JTAG
@@ -41,7 +41,7 @@ Because the nRF52DK has integrated JTAG support, you can debug it
 directly using gdb. In this setup, gdb connects to a process that
 gives access to the device over JTAG. </br>
 
-There already exist prepared scripts to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/tock/tock/tree/master/boards/nrf52dk/jtag). </br>
+There already exist prepared scripts to support debugging in [the jtag folder](https://github.com/tock/tock/tree/master/boards/nordic/nrf52dk/jtag). </br>
 Open two separate terminals go to the jtag directory by: </br>
 
 ```bash

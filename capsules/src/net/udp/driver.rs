@@ -6,15 +6,15 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded).
 
+use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::stream::encode_u16;
+use crate::net::stream::encode_u8;
+use crate::net::stream::SResult;
+use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
+use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-use net::ipv6::ip_utils::IPAddr;
-use net::stream::encode_u16;
-use net::stream::encode_u8;
-use net::stream::SResult;
-use net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
-use net::udp::udp_send::{UDPSendClient, UDPSender};
+use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
@@ -124,16 +124,14 @@ impl<'a> UDPDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_ref()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_ref())
-                    })
-            }).unwrap_or_else(|err| err.into())
+                app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_ref())
+                })
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's config buffer.
@@ -144,16 +142,14 @@ impl<'a> UDPDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_mut())
-                    })
-            }).unwrap_or_else(|err| err.into())
+                app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_mut())
+                })
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform an action using an app's RX config buffer.
@@ -167,10 +163,10 @@ impl<'a> UDPDriver<'a> {
         self.apps
             .enter(appid, |app, _| {
                 app.app_rx_cfg
-                    .take()
                     .as_ref()
                     .map_or(ReturnCode::EINVAL, |cfg| closure(cfg.as_ref()))
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's RX config buffer.
@@ -183,16 +179,14 @@ impl<'a> UDPDriver<'a> {
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_rx_cfg
-                    .take()
-                    .as_mut()
-                    .map_or(ReturnCode::EINVAL, |cfg| {
-                        if cfg.len() != len {
-                            return ReturnCode::EINVAL;
-                        }
-                        closure(cfg.as_mut())
-                    })
-            }).unwrap_or_else(|err| err.into())
+                app.app_rx_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_mut())
+                })
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
@@ -290,7 +284,8 @@ impl<'a> UDPDriver<'a> {
                     self.perform_tx_async(appid);
                     ReturnCode::SUCCESS
                 }
-            }).unwrap_or(ReturnCode::SUCCESS)
+            })
+            .unwrap_or(ReturnCode::SUCCESS)
     }
 
     #[inline]

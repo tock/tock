@@ -1,11 +1,10 @@
+use crate::gpio;
+use crate::i2c;
+use crate::peripheral_interrupts::NVIC_IRQ;
+use crate::rtc;
+use crate::uart;
 use cortexm4::{self, nvic};
 use enum_primitive::cast::FromPrimitive;
-use gpio;
-use i2c;
-use kernel;
-use peripheral_interrupts::NVIC_IRQ;
-use rtc;
-use uart;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,
@@ -14,12 +13,14 @@ pub struct Cc26X2 {
 }
 
 impl Cc26X2 {
-    pub unsafe fn new() -> Cc26X2 {
+    // internal HFREQ is 40_000_000 Hz
+    // but if you are using an external HFREQ to derive systick, you will want to input value here (in Hz)
+    pub unsafe fn new(hfreq: u32) -> Cc26X2 {
         Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The systick clocks with 48MHz by default
-            systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
+            systick: cortexm4::systick::SysTick::new_with_calibration(hfreq),
         }
     }
 }

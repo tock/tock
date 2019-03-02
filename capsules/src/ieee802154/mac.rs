@@ -9,10 +9,11 @@
 //! the underlying kernel::hil::radio::Radio powered at all times and passing
 //! through each frame for transmission.
 
+use crate::net::ieee802154::{Header, MacAddress};
 use kernel::common::cells::OptionalCell;
+use kernel::debug;
 use kernel::hil::radio;
 use kernel::ReturnCode;
-use net::ieee802154::{Header, MacAddress};
 
 pub trait Mac {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
@@ -175,7 +176,7 @@ impl<R: radio::Radio> radio::RxClient for AwakeMac<'a, R> {
         }
 
         if addr_match {
-            debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
+            //debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
             });

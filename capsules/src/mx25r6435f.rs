@@ -49,6 +49,7 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
+use kernel::debug;
 use kernel::hil;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;

@@ -10,7 +10,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::common::cells::VolatileCell;
-use kernel::common::registers::{ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use nrf5x::pinmux::Pinmux;
@@ -199,29 +199,6 @@ impl hil::i2c::I2CMaster for TWIM {
         self.buf.replace(buffer);
     }
 }
-
-impl hil::i2c::I2CSlave for TWIM {
-    fn enable(&self) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn disable(&self) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn set_address(&self, _addr: u8) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn write_receive(&self, _data: &'static mut [u8], _max_len: u8) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn read_send(&self, _data: &'static mut [u8], _max_len: u8) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-    fn listen(&self) {
-        panic!("I2C slave not implemented for nRF52");
-    }
-}
-
-impl hil::i2c::I2CMasterSlave for TWIM {}
 
 /// I2C master instace 0.
 pub static mut TWIM0: TWIM = TWIM::new(INSTANCES[0]);

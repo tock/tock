@@ -1,25 +1,25 @@
 //! Interrupt mapping and DMA channel setup.
 
-use acifc;
-use adc;
-use aes;
-use ast;
+use crate::acifc;
+use crate::adc;
+use crate::aes;
+use crate::ast;
+use crate::crccu;
+use crate::dac;
+use crate::deferred_call_tasks::Task;
+use crate::dma;
+use crate::flashcalw;
+use crate::gpio;
+use crate::i2c;
+use crate::nvic;
+use crate::pm;
+use crate::spi;
+use crate::trng;
+use crate::usart;
+use crate::usbc;
 use cortexm4;
-use crccu;
-use dac;
-use deferred_call_tasks::Task;
-use dma;
-use flashcalw;
-use gpio;
-use i2c;
 use kernel::common::deferred_call;
 use kernel::Chip;
-use nvic;
-use pm;
-use spi;
-use trng;
-use usart;
-use usbc;
 
 pub struct Sam4l {
     mpu: cortexm4::mpu::MPU,

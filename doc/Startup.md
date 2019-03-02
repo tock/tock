@@ -65,10 +65,14 @@ interrupt_function_t interrupt_table[] = {
         NMI_Handler,
 ```
 
-At the time of this writing (December 2017), the `sam4l` defines its vector
-table in `lib.rs` as a series of `.vectors` sections that are concatenated
-during linking into one table; the `nrf51` and `nrf52` chips define their vector
-table in their respective `crt1.rs` files.
+At the time of this writing (November 2018), typical chips (like the `sam4l` and
+`nrf52`) use the same handler for all interrupts, and look something like:
+
+```rust
+#[link_section = ".vectors"]
+#[used] // Ensures that the symbol is kept until the final binary
+pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
+```
 
 ## Reset Handler
 

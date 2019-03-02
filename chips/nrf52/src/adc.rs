@@ -1,7 +1,7 @@
 //! ADC driver for the nRF52. Uses the SAADC peripheral.
 
 use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
@@ -29,7 +29,7 @@ struct AdcRegisters {
     events_calibratedone: ReadWrite<u32, EVENT::Register>,
     /// The ADC has stopped
     events_stopped: ReadWrite<u32, EVENT::Register>,
-    /// Last result is equal or above CH[X].LIMIT
+    /// Last result is equal or above `CH[X].LIMIT`
     events_ch: [AdcEventChRegisters; 8],
     _reserved1: [u8; 424],
     /// Enable or disable interrupt

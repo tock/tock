@@ -1,15 +1,26 @@
+//! This tests an underlying 32-bit entropy generator and the library
+//! transformations between 8-bit and 32-bit entropy. To run this test,
+//! add this line to the imix boot sequence:
+//! ```
+//!     rng_test::run_entropy32();
+//! ```
+//! This test takes a 32-bit entropy generator, puts its output into a
+//! 32-8 conversion to be an 8-bit generator, puts that output into an
+//! 8-to-32 conversion to be a 32-bit generator again, and makes this final
+//! 32-bit entropy source be the tested RNG. This therefore tests not only
+//! the underlying entropy source but also the conversion library.
+//!
+//! The expected output is a series of random numbers that should be
+//! different on each invocation. Rigorous entropy tests are outside
+//! the scope of this test.
+
 use capsules::rng;
 use capsules::test::rng::TestRng;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng::Rng;
+use kernel::static_init;
 use sam4l::trng::TRNG;
 
-/// This tests a platform with an underlying 32-bit entropy generator
-/// by taking that generator, putting into a 32-8 conversion to be an
-/// 8-bit generator, putting that into an 8-to-32 conversion to be a
-/// 32-bit generator again, and making that 32-bit entropy source be
-/// the tested RNG. This therefore tests not only the underlying entropy
-/// source but also the conversion library.
 pub unsafe fn run_entropy32() {
     let t = static_init_test_entropy32();
     t.run();

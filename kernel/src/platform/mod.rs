@@ -1,7 +1,7 @@
 //! Interface for chips and boards.
 
-use driver::Driver;
-use syscall;
+use crate::driver::Driver;
+use crate::syscall;
 
 pub mod mpu;
 crate mod systick;

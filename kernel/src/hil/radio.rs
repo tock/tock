@@ -7,8 +7,8 @@
 //! for address recognition. This must be committed to hardware with a call to
 //! config_commit. Please see the relevant TRD for more details.
 
+use crate::returncode::ReturnCode;
 use core::convert::TryFrom;
-use returncode::ReturnCode;
 
 pub trait TxClient {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);

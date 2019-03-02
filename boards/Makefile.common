@@ -13,7 +13,7 @@ CARGO ?= cargo
 # lld uses the page size to align program sections. It defaults to 4096 and this
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
-RUSTFLAGS_FOR_CARGO_LINKING := -C link-arg=-Tlayout.ld -C linker=rust-lld \
+RUSTFLAGS_FOR_CARGO_LINKING ?= -C link-arg=-Tlayout.ld -C linker=rust-lld \
 -Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
 -C link-arg=-zmax-page-size=512 #\
 #-Z trace-macros
@@ -51,7 +51,7 @@ Q=@
 VERBOSE =
 endif
 
-export TOCK_KERNEL_VERSION := $(shell git describe --always || echo notgit)
+export TOCK_KERNEL_VERSION := $(shell git describe --always 2> /dev/null || echo "1.3+")
 
 
 # Validate that rustup is new enough

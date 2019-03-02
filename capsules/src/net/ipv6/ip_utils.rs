@@ -2,10 +2,10 @@
 //! of the IP stack. Note that this file also contains the definition for the
 //! [IPAddr](struct.IPAddr.html] struct and associated helper functions.
 
-use net::icmpv6::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
-use net::ieee802154::MacAddress;
-use net::ipv6::ipv6::IP6Header;
-use net::udp::udp::UDPHeader;
+use crate::net::icmpv6::icmpv6::{ICMP6Header, ICMP6HeaderOptions};
+use crate::net::ieee802154::MacAddress;
+use crate::net::ipv6::ipv6::IP6Header;
+use crate::net::udp::udp::UDPHeader;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum MacAddr {

@@ -1,6 +1,6 @@
 //! Generic interface for nonvolatile memory.
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 
 /// Simple interface for reading and writing nonvolatile memory. It is expected
 /// that drivers for nonvolatile memory would implement this trait.

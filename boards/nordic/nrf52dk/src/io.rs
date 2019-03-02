@@ -3,11 +3,9 @@ use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
-use nrf52;
-use nrf5x;
+use kernel::hil::uart::{self, Configure};
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,
@@ -20,11 +18,12 @@ impl Write for Writer {
         let uart = unsafe { &mut nrf52::uart::UARTE0 };
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::UARTParameters {
+            uart.configure(uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,
+                width: uart::Width::Eight,
             });
         }
         for c in s.bytes() {
@@ -39,7 +38,7 @@ impl Write for Writer {
 
 #[cfg(not(test))]
 #[no_mangle]
-#[panic_implementation]
+#[panic_handler]
 /// Panic handler
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52 DK LEDs (see back of board)

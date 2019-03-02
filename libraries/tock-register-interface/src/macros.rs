@@ -11,7 +11,7 @@ macro_rules! register_bitmasks {
         ]
     } => {
         $(#[$outer])*
-        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
+        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
     };
     {
         // BITFIELD_NAME OFFSET
@@ -22,7 +22,7 @@ macro_rules! register_bitmasks {
         ]
     } => {
         $(#[$outer])*
-        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
+        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
     };
 
     {
@@ -33,7 +33,7 @@ macro_rules! register_bitmasks {
         ]
     } => {
         $(#[$outer])*
-        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits, []); )*
+        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits, []); )*
     };
 
     {
@@ -45,7 +45,7 @@ macro_rules! register_bitmasks {
         ]
     } => {
         $(#[$outer])*
-        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits,
+        $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits,
                               $values); )*
     };
     {
@@ -131,7 +131,7 @@ macro_rules! register_bitfields {
 
                 use $crate::registers::Field;
 
-                register_bitmasks!( $valtype, Register, $fields );
+                $crate::register_bitmasks!( $valtype, Register, $fields );
             }
         )*
     }

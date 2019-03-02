@@ -34,7 +34,6 @@
 //! ```
 
 use core::cell::Cell;
-use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::hil::time;
@@ -246,7 +245,8 @@ impl<A: time::Alarm> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeTempMeasurementInit);
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|| {
+            })
+            .unwrap_or_else(|| {
                 if self.on_deck.get() != OnDeck::Nothing {
                     ReturnCode::EBUSY
                 } else {
@@ -273,7 +273,8 @@ impl<A: time::Alarm> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
                 self.i2c.write(buffer, 1);
                 self.state.set(State::TakeRhMeasurementInit);
                 ReturnCode::SUCCESS
-            }).unwrap_or_else(|| {
+            })
+            .unwrap_or_else(|| {
                 if self.on_deck.get() != OnDeck::Nothing {
                     ReturnCode::EBUSY
                 } else {

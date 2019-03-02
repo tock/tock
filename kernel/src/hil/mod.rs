@@ -12,6 +12,7 @@ pub mod gpio_async;
 pub mod i2c;
 pub mod led;
 pub mod nonvolatile_storage;
+pub mod pwm;
 pub mod radio;
 pub mod rng;
 pub mod sensors;
@@ -26,5 +27,5 @@ pub mod watchdog;
 pub trait Controller {
     type Config;
 
-    fn configure(&self, Self::Config);
+    fn configure(&self, _: Self::Config);
 }

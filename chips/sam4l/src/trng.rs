@@ -1,12 +1,12 @@
 //! Implementation of the SAM4L TRNG. It provides an implementation of
 //! the Entropy32 trait.
 
+use crate::pm;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
 use kernel::ReturnCode;
-use pm;
 
 #[repr(C)]
 struct TrngRegisters {

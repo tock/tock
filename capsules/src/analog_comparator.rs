@@ -32,7 +32,7 @@
 // Last modified August 9th, 2018
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::ANALOG_COMPARATOR as usize;
 
 use core::cell::Cell;

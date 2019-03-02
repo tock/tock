@@ -11,30 +11,30 @@
 
 #![allow(unused_parens)]
 
+use crate::rf233_const::{
+    ExternalState, InteruptFlags, RF233BusCommand, RF233Register, RF233TrxCmd,
+};
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-use rf233_const::{ExternalState, InteruptFlags, RF233BusCommand, RF233Register, RF233TrxCmd};
-// n.b. This is a fairly "C"-like interface presently. Ideally it should move
-// over to the Tock register interface eventually, but this code does work as
-// written. Do not follow this as an example when implementing new code.
-use rf233_const::CSMA_SEED_1;
-use rf233_const::IRQ_MASK;
-use rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
-use rf233_const::PHY_RSSI_RX_CRC_VALID;
-use rf233_const::PHY_TX_PWR;
-use rf233_const::SHORT_ADDR_0;
-use rf233_const::SHORT_ADDR_1;
-use rf233_const::TRX_CTRL_1;
-use rf233_const::TRX_CTRL_2;
-use rf233_const::TRX_RPC;
-use rf233_const::TRX_TRAC_CHANNEL_ACCESS_FAILURE;
-use rf233_const::TRX_TRAC_MASK;
-use rf233_const::XAH_CTRL_0;
-use rf233_const::XAH_CTRL_1;
+
+use crate::rf233_const::CSMA_SEED_1;
+use crate::rf233_const::IRQ_MASK;
+use crate::rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
+use crate::rf233_const::PHY_RSSI_RX_CRC_VALID;
+use crate::rf233_const::PHY_TX_PWR;
+use crate::rf233_const::SHORT_ADDR_0;
+use crate::rf233_const::SHORT_ADDR_1;
+use crate::rf233_const::TRX_CTRL_1;
+use crate::rf233_const::TRX_CTRL_2;
+use crate::rf233_const::TRX_RPC;
+use crate::rf233_const::TRX_TRAC_CHANNEL_ACCESS_FAILURE;
+use crate::rf233_const::TRX_TRAC_MASK;
+use crate::rf233_const::XAH_CTRL_0;
+use crate::rf233_const::XAH_CTRL_1;
 
 const INTERRUPT_ID: usize = 0x2154;
 
@@ -1254,9 +1254,9 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
         self.cfg_client.set(client);
     }
 
-    fn set_power_client(&self, client: &'static radio::PowerClient) {
+    /*fn set_power_client(&self, client: &'static radio::PowerClient) {
         self.power_client.set(client);
-    }
+    }*/
 
     fn set_address(&self, addr: u16) {
         self.addr.set(addr);

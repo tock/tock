@@ -71,7 +71,7 @@ use kernel::hil::crc::CrcAlg;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CRC as usize;
 
 /// An opaque value maintaining state for one application's request
@@ -183,7 +183,8 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
                 .enter(appid, |app, _| {
                     app.buffer = slice;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -218,7 +219,8 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
                 .enter(app_id, |app, _| {
                     app.callback = callback;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into()),
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -303,7 +305,8 @@ impl<C: hil::crc::CRC> Driver for Crc<'a, C> {
                                     ReturnCode::EINVAL
                                 }
                             }
-                        }).unwrap_or_else(|err| err.into())
+                        })
+                        .unwrap_or_else(|err| err.into())
                 } else {
                     ReturnCode::EINVAL
                 };
@@ -329,7 +332,8 @@ impl<C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                     }
                     app.waiting = None;
                     ReturnCode::SUCCESS
-                }).unwrap_or_else(|err| err.into());
+                })
+                .unwrap_or_else(|err| err.into());
             self.serve_waiting_apps();
         });
     }

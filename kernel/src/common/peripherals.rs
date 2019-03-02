@@ -39,17 +39,13 @@
 //! # use kernel::ReturnCode;
 //! # struct PeripheralRegisters { control: VolatileCell<u32> };
 //! # struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
-//! impl hil::uart::UART for PeripheralHardware {
-//!     fn configure(&self, params: hil::uart::UARTParameters) -> ReturnCode {
+//! impl hil::uart::Configure for PeripheralHardware {
+//!     fn configure(&self, params: hil::uart::Parameters) -> ReturnCode {
 //!         let peripheral = &PeripheralManager::new(self);
 //!         peripheral.registers.control.set(0x0);
 //!         //         ^^^^^^^^^-- This is type &PeripheralRegisters
 //!         ReturnCode::SUCCESS
 //!     }
-//!     # fn set_client(&self, _client: &'static hil::uart::Client) {}
-//!     # fn transmit(&self, _tx_data: &'static mut [u8], _tx_len: usize) {}
-//!     # fn receive(&self, _rx_buffer: &'static mut [u8], _rx_len: usize) {}
-//!     # fn abort_receive(&self) {}
 //! }
 //! # use kernel::common::peripherals::PeripheralManagement;
 //! # use kernel::NoClockControl;
@@ -145,7 +141,7 @@
 //! }
 //! ```
 
-use ClockInterface;
+use crate::ClockInterface;
 
 /// A structure encapsulating a peripheral should implement this trait.
 pub trait PeripheralManagement<C>
@@ -166,13 +162,13 @@ where
     ///
     /// Responsible for ensure the periphal can be safely accessed, e.g. that
     /// its clock is powered on.
-    fn before_peripheral_access(&self, &C, &Self::RegisterType);
+    fn before_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 
     /// Called after periphal access.
     ///
     /// Currently used primarily for power management to check whether the
     /// peripheral can be powered off.
-    fn after_peripheral_access(&self, &C, &Self::RegisterType);
+    fn after_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 }
 
 /// Structures encapsulating periphal hardware (those implementing the

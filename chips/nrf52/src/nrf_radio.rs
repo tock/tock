@@ -37,16 +37,16 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioChannel;
 use kernel::hil::time::Alarm;
 use kernel::ReturnCode;
 
+use crate::ppi;
 use nrf5x;
 use nrf5x::constants::TxPower;
-use ppi;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -719,16 +719,13 @@ impl Radio {
                         ppi::PPI.disable(ppi::Channel::CH21::SET);
                     }
                 }
-                debug!("Starting CCA.\r");
                 regs.task_ccastart.write(Task::ENABLE::SET);
             } else {
-                debug!("Starting Receive.\r");
                 regs.task_start.write(Task::ENABLE::SET);
             }
         }
 
         if regs.event_framestart.is_set(Event::READY) {
-            debug!("Frame Received.\r");
             regs.event_framestart.write(Event::READY::CLEAR);
         }
 
@@ -749,18 +746,12 @@ impl Radio {
                 self.cca_count.set(self.cca_count.get() + 1);
                 self.cca_be.set(self.cca_be.get() + 1);
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                debug!(
-                    "Channel Busy (Count:{:?})...Backing off for {:?} periods.\r",
-                    self.cca_count.get(),
-                    backoff_periods
-                );
                 unsafe {
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
                     nrf5x::timer::TIMER0
                         .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
                 }
             } else {
-                debug!("Max Polling Attempts Reached.\r");
                 self.transmitting.set(false);
                 //if we are transmitting, the CRCstatus check is always going to be an error
                 let result = ReturnCode::EBUSY;
@@ -789,7 +780,6 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    debug!("TX Finished\r");
                     self.transmitting.set(false);
                     //if we are transmitting, the CRCstatus check is always going to be an error
                     let result = ReturnCode::SUCCESS;
@@ -801,10 +791,8 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    debug!("RX Finished\r");
                     self.rx_client.map(|client| {
                         let rbuf = self.rx_buf.take().unwrap();
-                        debug!("[PHY] {:?}", rbuf[1..10].as_ref());
 
                         let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
@@ -855,8 +843,6 @@ impl Radio {
     }
 
     fn radio_initialize(&self, _channel: RadioChannel) {
-        debug!("Initializating Radio\r");
-
         self.radio_on();
 
         self.ieee802154_set_channel_rate();
@@ -1108,7 +1094,6 @@ impl kernel::hil::radio::RadioData for Radio {
 
         buf[RAM_S0_BYTES] = frame_len as u8;
 
-        debug!("[PHY] {:?}", buf[1..10].as_ref());
         self.tx_buf.replace(buf);
 
         self.transmitting.set(true);

@@ -3,10 +3,10 @@ use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
+use kernel::hil::uart::{self, Configure};
 use sam4l;
 
-use PROCESSES;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,
@@ -20,8 +20,9 @@ impl Write for Writer {
         let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::UARTParameters {
+            uart.configure(uart::Parameters {
                 baud_rate: 115200,
+                width: uart::Width::Eight,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,
@@ -40,9 +41,9 @@ impl Write for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[no_mangle]
-#[panic_implementation]
+#[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
-    let led = &mut led::LedLow::new(&mut sam4l::gpio::PC[10]);
+    let led = &mut led::LedLow::new(&mut sam4l::gpio::PC[22]);
     let writer = &mut WRITER;
     debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
 }

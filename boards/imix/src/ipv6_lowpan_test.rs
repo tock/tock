@@ -29,18 +29,15 @@
 //! ...
 //! // Radio initialization code
 //! ...
-//! let lowpan_frag_test = ipv6_lowpan_test::initialize_all(radio_mac as &'static MacDevice,
-//!                                                          mux_alarm as &'static
-//!                                                             MuxAlarm<'static,
-//!                                                                 sam4l::ast::Ast>);
-//! radio_mac.set_transmit_client(lowpan_frag_test);
+//! let lowpan_frag_test = ipv6_lowpan_test::initialize_all(
+//!    mux_mac,
+//!    mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+//! );
 //! ...
 //! // Imix initialization
 //! ...
 //! lowpan_frag_test.start(); // If flashing the transmitting Imix
 
-use capsules;
-extern crate sam4l;
 use capsules::ieee802154::device::{MacDevice, TxClient};
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
@@ -53,9 +50,11 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use core::ptr;
+use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::static_init;
 use kernel::ReturnCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
@@ -76,7 +75,7 @@ pub const SRC_MAC_ADDR: MacAddress =
     MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
 //pub const DST_MAC_ADDR: MacAddress =
 //    MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
-pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(0xbbbb);
+pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(57326);
 //TODO: No longer pass MAC addresses to 6lowpan code, so these values arent used rn
 pub const IP6_HDR_SIZE: usize = 40;
 pub const UDP_HDR_SIZE: usize = 8;
@@ -126,6 +125,7 @@ enum DAC {
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
+static mut SUCCESS_COUNT: usize = 0;
 // Below was IP6_DGRAM before change to typed buffers
 //static mut IP6_DGRAM: [u8; IP6_HDR_SIZE + PAYLOAD_LEN] = [0; IP6_HDR_SIZE + PAYLOAD_LEN];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE]; //Becomes payload of UDP
@@ -143,12 +143,17 @@ pub struct LowpanTest<'a, A: time::Alarm> {
 }
 
 pub unsafe fn initialize_all(
-    radio_mac: &'static MacDevice,
+    mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
+    let radio_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+    );
+    mux_mac.add_user(radio_mac);
     let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
 
     let sixlowpan = static_init!(
@@ -216,6 +221,7 @@ pub unsafe fn initialize_all(
     //Now, other places in code should have access to initialized IP6Packet.
     //Note that this code is inherently unsafe and we make no effort to prevent
     //race conditions, as this is merely test code
+    radio_mac.set_transmit_client(lowpan_frag_test);
     lowpan_frag_test
 }
 
@@ -235,7 +241,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 1000;
+        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 5000;
         let next = self.alarm.now().wrapping_add(delta);
         self.alarm.set_alarm(next);
     }
@@ -298,7 +304,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
 
     fn run_check_test(&self, test_id: usize, buf: &[u8], len: usize) {
         debug!("Running test {}:", test_id);
-        match test_id {
+        let success = match test_id {
             // Change TF compression
             0 => ipv6_check_receive_packet(TF::Inline, 255, SAC::Inline, DAC::Inline, buf, len),
             1 => ipv6_check_receive_packet(TF::Traffic, 255, SAC::Inline, DAC::Inline, buf, len),
@@ -371,7 +377,28 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::CtxIID, DAC::McastCtx, buf, len)
             }
 
-            _ => debug!("Finished tests"),
+            _ => {
+                debug!("Finished tests");
+                false
+            }
+        };
+        if success {
+            unsafe {
+                SUCCESS_COUNT += 1;
+            }
+        }
+        if test_id == self.num_tests() - 1 {
+            unsafe {
+                if SUCCESS_COUNT == self.num_tests() {
+                    debug!("All Tests completed successfully!");
+                } else {
+                    debug!(
+                        "Successfully completed {:?}/{:?} tests",
+                        SUCCESS_COUNT,
+                        self.num_tests()
+                    );
+                }
+            }
         }
     }
     fn ipv6_send_packet_test(&self, tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
@@ -395,14 +422,11 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
                     {
                         Ok((is_done, frame)) => {
                             //TODO: Fix ordering so that debug output does not indicate extra frame sent
-                            debug!("Sent frame!");
                             if is_done {
-                                debug!("Sent packet!");
                                 self.schedule_next();
                             } else {
                                 // TODO: Handle err (not just debug statement)
                                 let (retcode, _opt) = self.radio.transmit(frame);
-                                debug!("Retcode from radio transmit is: {:?}", retcode);
                                 match retcode {
                                     ReturnCode::SUCCESS => {}
                                     _ => debug!("Error in radio transmit"),
@@ -438,7 +462,10 @@ impl<'a, A: time::Alarm> SixlowpanRxClient for LowpanTest<'a, A> {
 static mut ARRAY: [u8; 100] = [0x0; 100]; //used in introducing delay between frames
 impl<'a, A: time::Alarm> TxClient for LowpanTest<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: ReturnCode) {
-        debug!("sendDone return code is: {:?}", result);
+        match result {
+            ReturnCode::SUCCESS => {}
+            _ => debug!("sendDone indicates error"),
+        }
         unsafe {
             //This unsafe block introduces a delay between frames to prevent
             // a race condition on the receiver
@@ -448,7 +475,7 @@ impl<'a, A: time::Alarm> TxClient for LowpanTest<'a, A> {
                 ARRAY[i % 100] = (i % 100) as u8;
                 i = i + 1;
                 if i % 1000000 == 0 {
-                    debug!("Delay, step {:?}", i / 1000000);
+                    i = i + 2;
                 }
             }
         }
@@ -463,9 +490,8 @@ fn ipv6_check_receive_packet(
     dac: DAC,
     recv_packet: &[u8],
     len: usize,
-) {
+) -> bool {
     ipv6_prepare_packet(tf, hop_limit, sac, dac);
-    debug!("Checking received packet of length: {}", len);
     let mut test_success = true;
     unsafe {
         // First, need to check header fields match:
@@ -579,14 +605,16 @@ fn ipv6_check_receive_packet(
                 //break; //Comment this in to help prevent debug buffer overflows
             }
         }
-        debug!("Payload match is: {}", payload_success);
-        debug!("Complete Test success is: {}", test_success);
+        if !payload_success {
+            debug!("Packet payload did not match.");
+        }
+        debug!("Individual Test success is: {}", test_success);
+        test_success
     }
 }
 
 //TODO: Change this function to modify IP6Packet struct instead of raw buffer
 fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
-    debug!("Entering prepare packet");
     {
         let payload = unsafe { &mut UDP_DGRAM[0..] };
         for i in 0..(PAYLOAD_LEN - UDP_HDR_SIZE) {

@@ -79,7 +79,7 @@ SECTIONS
         /* .gnu.linkonce hold C++ elements with vague linkage
                 https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
         *(.text .text.* .gnu.linkonce.t.*)
-        *(.rodata .rodata* .gnu.linkonce.r.*)
+        *(.rodata .rodata.* .gnu.linkonce.r.*)
 
         /* C++ exception unwinding information */
         *(.ARM.extab* .gnu.linkonce.armextab.*)
@@ -194,6 +194,10 @@ SECTIONS
         /* Optional .app sections a convenience mechanism to bundle tock
            kernel and apps into a single image */
         KEEP (*(.app.*))
+
+        /* Required for objcopy mechanism to bundle tock kernel and apps
+           into a single image to work */
+	LONG(0)
     } > prog
 
 

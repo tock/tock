@@ -1,6 +1,7 @@
 use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 
-enum_from_primitive!{
+enum_from_primitive! {
 #[derive(Debug, PartialEq)]
 // syscall driver numbers
 pub enum NUM {

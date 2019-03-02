@@ -4,13 +4,13 @@
 //! frames. Also provides a minimal list-based interface for managing keys and
 //! known link neighbors, which is needed for 802.15.4 security.
 
+use crate::ieee802154::{device, framer};
+use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
+use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use core::cell::Cell;
 use core::cmp::min;
-use ieee802154::{device, framer};
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-use net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
-use net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -347,7 +347,8 @@ impl RadioDriver<'a> {
                         }
                         closure(cfg.as_ref())
                     })
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Utility function to perform a write to an app's config buffer.
@@ -367,7 +368,8 @@ impl RadioDriver<'a> {
                         }
                         closure(cfg.as_mut())
                     })
-            }).unwrap_or_else(|err| err.into())
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// If the driver is currently idle and there are pending transmissions,
@@ -486,7 +488,8 @@ impl RadioDriver<'a> {
                     self.perform_tx_async(appid);
                     ReturnCode::SUCCESS
                 }
-            }).unwrap_or(ReturnCode::SUCCESS)
+            })
+            .unwrap_or(ReturnCode::SUCCESS)
     }
 }
 
@@ -500,7 +503,8 @@ impl framer::DeviceProcedure for RadioDriver<'a> {
                 .find(|neighbor| match addr {
                     MacAddress::Short(addr) => addr == neighbor.short_addr,
                     MacAddress::Long(addr) => addr == neighbor.long_addr,
-                }).map(|neighbor| neighbor.long_addr)
+                })
+                .map(|neighbor| neighbor.long_addr)
         })
     }
 }
@@ -794,7 +798,6 @@ impl Driver for RadioDriver<'a> {
 
 impl device::TxClient for RadioDriver<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        debug!("[DRIVER] Replacing kernel_tx with {:?}", spi_buf.as_ptr());
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
@@ -832,7 +835,6 @@ impl device::RxClient for RadioDriver<'a> {
                 // Copy the entire frame over to userland, preceded by two
                 // bytes: the data offset and the data length.
                 rbuf[..len].copy_from_slice(&buf[..len]);
-                //debug!("[Driver] {:?}",rbuf[0..9].as_ref());
                 rbuf[0] = data_offset as u8;
                 rbuf[1] = data_len as u8;
 

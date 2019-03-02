@@ -19,7 +19,7 @@ pub enum InterruptMode {
 pub trait PinCtl {
     /// Configure whether the pin should have a pull-up or pull-down resistor or
     /// neither.
-    fn set_input_mode(&self, InputMode);
+    fn set_input_mode(&self, _: InputMode);
 }
 
 /// Interface for synchronous GPIO pins.

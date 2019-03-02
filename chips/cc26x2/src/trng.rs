@@ -3,12 +3,12 @@
 //! Generates a random number using hardware entropy.
 //!
 
+use crate::prcm;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy;
 use kernel::ReturnCode;
-use prcm;
 
 #[repr(C)]
 struct RngRegisters {

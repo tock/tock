@@ -23,7 +23,7 @@
 //! -------
 //!
 //! ```no_run
-//! # #[macro_use] extern crate kernel;
+//! # use kernel::{debug, debug_gpio, debug_verbose};
 //! # fn main() {
 //! # let i = 42;
 //! debug!("Yes the code gets here with value {}", i);
@@ -45,10 +45,11 @@ use core::ptr;
 use core::slice;
 use core::str;
 
-use common::cells::NumericCellExt;
-use common::cells::{MapCell, TakeCell};
-use hil;
-use process::ProcessType;
+use crate::common::cells::NumericCellExt;
+use crate::common::cells::{MapCell, TakeCell};
+use crate::hil;
+use crate::process::ProcessType;
+use crate::ReturnCode;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -205,7 +206,7 @@ pub struct DebugWriterWrapper {
 /// the UART provider and this debug module.
 pub struct DebugWriter {
     // What provides the actual writing mechanism.
-    uart: &'static hil::uart::UART,
+    uart: &'static hil::uart::Transmit<'static>,
     // The buffer that is passed to the writing mechanism.
     output_buffer: TakeCell<'static, [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
@@ -247,7 +248,7 @@ impl DebugWriterWrapper {
 
 impl DebugWriter {
     pub fn new(
-        uart: &'static hil::uart::UART,
+        uart: &'static hil::uart::Transmit,
         out_buffer: &'static mut [u8],
         internal_buffer: &'static mut [u8],
     ) -> DebugWriter {
@@ -326,12 +327,18 @@ impl DebugWriter {
                 }
             });
 
-            // Set the outgoing length
-            let out_len = real_end - start;
-            self.active_len.set(out_len);
-
             // Transmit the data in the output buffer.
-            self.uart.transmit(out_buffer, out_len);
+            let out_len = real_end - start;
+            let (rval, opt) = self.uart.transmit_buffer(out_buffer, out_len);
+            match rval {
+                ReturnCode::SUCCESS => {
+                    // Set the outgoing length
+                    self.active_len.set(out_len);
+                }
+                _ => {
+                    self.output_buffer.replace(opt.unwrap());
+                }
+            }
         });
     }
 
@@ -342,22 +349,28 @@ impl DebugWriter {
     }
 }
 
-impl hil::uart::Client for DebugWriter {
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: hil::uart::Error) {
+impl hil::uart::TransmitClient for DebugWriter {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], tx_len: usize, _rcode: ReturnCode) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 
-        let written_length = self.active_len.get();
-        self.active_len.set(0);
+        // Mark how many bytes outstanding so we don't overwrite buffer
+        // in transmit calls.
+        let goal_length = self.active_len.get();
+        let remainder = goal_length - tx_len;
+        self.active_len.set(remainder);
+
         let len = self
             .internal_buffer
             .map_or(0, |internal_buffer| internal_buffer.len());
         let head = self.head.get();
         let mut tail = self.tail.get();
 
+        //panic!("Tail: {}, head: {}, tx_len: {}, rcode: {:?}", tail, head, tx_len, _rcode);
+
         // Increment the tail with how many bytes were written to the output
         // mechanism, and wrap if needed.
-        tail += written_length;
+        tail += tx_len;
         if tail > len {
             tail = tail - len;
         }
@@ -373,14 +386,7 @@ impl hil::uart::Client for DebugWriter {
             self.publish_str();
         }
     }
-
-    fn receive_complete(
-        &self,
-        _buffer: &'static mut [u8],
-        _rx_len: usize,
-        _error: hil::uart::Error,
-    ) {
-    }
+    fn transmitted_word(&self, _rcode: ReturnCode) {}
 }
 
 /// Pass through functions.

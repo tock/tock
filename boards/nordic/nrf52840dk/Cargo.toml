@@ -3,6 +3,7 @@ name = "nrf52840dk"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
+edition = "2018"
 
 [profile.dev]
 panic = "abort"

@@ -23,7 +23,7 @@ pub static mut BUFFER2: [u8; 256] = [0; 256];
 pub static mut BUFFER3: [u8; 256] = [0; 256];
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::I2C_MASTER_SLAVE as usize;
 
 #[derive(Default)]

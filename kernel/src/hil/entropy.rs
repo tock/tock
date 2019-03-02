@@ -83,7 +83,7 @@
 //! }
 //! ```
 
-use returncode::ReturnCode;
+use crate::returncode::ReturnCode;
 /// Denotes whether the [Client](trait.Client.html) wants to be notified when
 /// `More` randomness is available or if they are `Done`
 #[derive(Debug, Eq, PartialEq)]
@@ -123,7 +123,7 @@ pub trait Entropy32<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&'a self, &'a Client32);
+    fn set_client(&'a self, _: &'a Client32);
 }
 
 /// An [Entropy32](trait.Entropy32.html) client
@@ -180,7 +180,7 @@ pub trait Entropy8<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&'a self, &'a Client8);
+    fn set_client(&'a self, _: &'a Client8);
 }
 
 /// An [Entropy8](trait.Entropy8.html) client
