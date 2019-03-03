@@ -67,13 +67,7 @@
 //! ```
 
 use crate::common::cells::OptionalCell;
-use crate::common::deferred_call::DeferredCall;
 use core::cell::Cell;
-use core::mem::size_of;
-
-/// Deferred calls are set by enabling a bit in a usize value. For the [DeferredCallMux],
-/// the highest bit in a usize is reserved. This value therefore is architecture dependent.
-pub const DEFERRED_CALL_MUX_TASK: usize = size_of::<usize>() * 8 - 1;
 
 static mut DEFERRED_CALL_MUX: Option<&'static DeferredCallMux> = None;
 
@@ -91,11 +85,20 @@ pub unsafe fn set_global_mux(mux: &'static DeferredCallMux) -> bool {
 
 /// Call the globally registered mux
 ///
-/// Returns true if a Mux was registered and has been called.
+/// Returns `true` if a Mux was registered and has been called.
 /// This function needs to be called by the underlying deferred
 /// call implementation in the `chip` crate.
 pub unsafe fn call_global_mux() -> bool {
     DEFERRED_CALL_MUX.map(|mux| mux.call()).is_some()
+}
+
+/// Check if one or more dynamic deferred calls are pending in the
+/// globally registered mux
+///
+/// Returns `None` if no global mux has been registered, or `Some(true)`
+/// if the registered mux has one or more pending deferred calls.
+pub unsafe fn global_mux_calls_pending() -> Option<bool> {
+    DEFERRED_CALL_MUX.map(|mux| mux.has_pending())
 }
 
 /// Internal per-client state tracking for the [DeferredCallMux]
@@ -117,9 +120,9 @@ impl Default for DeferredCallMuxClientState {
 /// This multiplexer has a fixed number of possible clients, which
 /// is determined by the `clients`-array passed in with the constructor.
 pub struct DeferredCallMux {
-    deferred_call: DeferredCall<usize>,
     client_states: &'static [DeferredCallMuxClientState],
     handle_counter: Cell<usize>,
+    call_pending: Cell<bool>,
 }
 
 impl DeferredCallMux {
@@ -133,9 +136,9 @@ impl DeferredCallMux {
     /// for the [DeferredCallMuxClientState].
     pub unsafe fn new(client_states: &'static [DeferredCallMuxClientState]) -> DeferredCallMux {
         DeferredCallMux {
-            deferred_call: DeferredCall::new(DEFERRED_CALL_MUX_TASK),
             client_states,
             handle_counter: Cell::new(0),
+            call_pending: Cell::new(false),
         }
     }
 
@@ -156,7 +159,7 @@ impl DeferredCallMux {
                 Some(false)
             } else {
                 call_set.set(true);
-                self.deferred_call.set();
+                self.call_pending.set(true);
                 Some(true)
             }
         } else {
@@ -187,25 +190,37 @@ impl DeferredCallMux {
         }
     }
 
+    /// Check if one or more deferred calls are pending
+    ///
+    /// Returns `true` if one or more deferred calls are pending.
+    pub fn has_pending(&self) -> bool {
+        self.call_pending.get()
+    }
+
     /// Call all registered and to-be-scheduled deferred calls
     ///
     /// This function needs to be called by the underlying deferred call implementation.
     /// It may be called without holding the `DeferredCallMux` reference through
     /// `call_global_mux`.
     pub(self) fn call(&self) {
-        self.client_states
-            .iter()
-            .enumerate()
-            .filter(|(_i, client_state)| client_state.scheduled.get())
-            .filter_map(|(i, client_state)| {
-                client_state
-                    .client
-                    .map(|c| (i, &client_state.scheduled, *c))
-            })
-            .for_each(|(i, call_reqd, client)| {
-                call_reqd.set(false);
-                client.call(DeferredCallHandle(i));
-            });
+        if self.call_pending.get() {
+            // Reset call_pending here, as it may be set again in the deferred calls
+            self.call_pending.set(false);
+
+            self.client_states
+                .iter()
+                .enumerate()
+                .filter(|(_i, client_state)| client_state.scheduled.get())
+                .filter_map(|(i, client_state)| {
+                    client_state
+                        .client
+                        .map(|c| (i, &client_state.scheduled, *c))
+                })
+                .for_each(|(i, call_reqd, client)| {
+                    call_reqd.set(false);
+                    client.call(DeferredCallHandle(i));
+                });
+        }
     }
 }
 
