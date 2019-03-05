@@ -1,5 +1,4 @@
-#![feature(const_fn, try_from)]
-#![feature(in_band_lifetimes)]
+#![feature(const_fn, in_band_lifetimes)]
 #![no_std]
 
 pub mod aes;

@@ -5,7 +5,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(in_band_lifetimes, uniform_paths)]
+#![feature(in_band_lifetimes)]
 #![deny(missing_docs)]
 
 mod components;

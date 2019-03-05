@@ -17,7 +17,7 @@ use kernel::{AppId, Callback, Driver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::TMP006 as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Tmp006 as usize;
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
 
