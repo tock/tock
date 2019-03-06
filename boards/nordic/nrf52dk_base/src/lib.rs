@@ -362,6 +362,8 @@ pub unsafe fn setup_board(
         let nv_to_page = static_init!(
             capsules::nonvolatile_to_pages::NonvolatileToPages<
                 'static,
+                'static,
+                'static,
                 capsules::mx25r6435f::MX25R6435F<
                     'static,
                     capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,

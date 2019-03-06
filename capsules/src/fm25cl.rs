@@ -92,7 +92,7 @@ pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice> {
     state: Cell<State>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>,
+    client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient<'static>>,
     client_custom: OptionalCell<&'static FM25CLClient>,
     client_buffer: TakeCell<'static, [u8]>, // Store buffer and state for passing back to client
     client_write_address: Cell<u16>,
@@ -289,8 +289,13 @@ impl<S: hil::spi::SpiMasterDevice> FM25CLCustom for FM25CL<'a, S> {
 
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
-impl<S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage for FM25CL<'a, S> {
-    fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
+impl<S: hil::spi::SpiMasterDevice> hil::nonvolatile_storage::NonvolatileStorage<'static, 'static>
+    for FM25CL<'a, S>
+{
+    fn set_client(
+        &self,
+        client: &'static hil::nonvolatile_storage::NonvolatileStorageClient<'static>,
+    ) {
         self.client.set(client);
     }
 
