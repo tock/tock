@@ -483,6 +483,9 @@ impl<'a> Driver for UDPDriver<'a> {
                 })
             }
             3 => {
+                // TODO: modify this case to deal with port table
+                // delete bound_port option and make calls to UdpPortTable
+                // ideally userspace code will not change at all.
                 self.do_with_app(appid, |app| {
                     // Move UDPEndpoint into udp.rs?
                     let mut requested_addr_opt = app.app_rx_cfg.as_ref().and_then(|cfg| {
