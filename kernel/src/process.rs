@@ -704,7 +704,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
-                mpu::Permissions::ReadWriteExecute,
+                mpu::Permissions::ReadWriteOnly,
                 &mut config,
             );
 
@@ -739,7 +739,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                     new_break,
                     self.kernel_memory_break.get(),
-                    mpu::Permissions::ReadWriteExecute,
+                    mpu::Permissions::ReadWriteOnly,
                     &mut config,
                 ) {
                     Err(Error::OutOfMemory)
@@ -784,7 +784,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
                 new_break,
-                mpu::Permissions::ReadWriteExecute,
+                mpu::Permissions::ReadWriteOnly,
                 &mut config,
             ) {
                 None
@@ -1147,7 +1147,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 min_total_memory_size,
                 initial_app_memory_size,
                 initial_kernel_memory_size,
-                mpu::Permissions::ReadWriteExecute,
+                mpu::Permissions::ReadWriteOnly,
                 &mut mpu_config,
             ) {
                 Some((memory_start, memory_size)) => (memory_start, memory_size),
