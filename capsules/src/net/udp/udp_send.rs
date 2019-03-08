@@ -24,14 +24,14 @@ pub trait UdpSendMuxClient {
 
 // implements IP6SendClient
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
-    last_sender: OptionalCell<&'a UDPSendStruct>, // Reference to last UdpSendStruct to send
-    sender_list: List<'a, UDPSendStruct<'a>>, //Get rid of UDPSender trait?
+    last_sender: OptionalCell<&'a UDPSendStruct<'a, T>>, // Reference to last UdpSendStruct to send
+    sender_list: List<'a, UDPSendStruct<'a, T>>, //Get rid of UDPSender trait?
     ip_sender: &'a T,
 }
 
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
-        self.last_sender.client.map(|client| client.send_done(result));
+        self.last_sender.map(|last_sender| last_sender.client.map(|client| client.send_done(result)));
     }
 }
 
@@ -94,8 +94,16 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a UDPSendClient>,
+    next: ListLink<'a, UDPSendStruct<'a, T>>,
     //binding: UdpSenderBinding, // TODO: should this be a reference?
 }
+
+impl<'a, T:IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>>
+    for UDPSendStruct<'a, T> {
+    fn next(&'a self) -> &'a ListLink<'a, UDPSendStruct<'a, T>> {
+        &self.next
+    }
+} 
 
 // example in /Users/armin/src/rust
 
@@ -138,6 +146,7 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
         UDPSendStruct {
             ip_send_struct: ip_send_struct,
             client: OptionalCell::empty(),
+            next: ListLink::empty(),
             //binding: binding,
         }
     }
