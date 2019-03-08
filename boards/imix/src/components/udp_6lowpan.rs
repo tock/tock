@@ -18,6 +18,7 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
+use capsules;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
@@ -30,13 +31,11 @@ use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
+use kernel;
 use kernel::capabilities;
-use kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
-
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::radio;
-use kernel::static_init;
+use sam4l;
 
 const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps
 
@@ -47,26 +46,20 @@ const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by u
 //   3. UDP_DGRAM: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd
 
 const UDP_HDR_SIZE: usize = 8;
-
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-
 
 pub struct UDPComponent {
     board_kernel: &'static kernel::Kernel,
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
-    // TODO: consider putting bound_port_table in a TakeCell
-    bound_port_table: &'static UdpPortTable,
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
-
-
 
 impl UDPComponent {
     pub fn new(
@@ -84,7 +77,6 @@ impl UDPComponent {
             mux_mac: mux_mac,
             ctx_pfix_len: ctx_pfix_len,
             ctx_pfix: ctx_pfix,
-            bound_port_table: unsafe {static_init!(UdpPortTable, UdpPortTable::new())},
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
@@ -159,9 +151,9 @@ impl Component for UDPComponent {
         );
         ipsender_virtual_alarm.set_client(ip_send);
 
-        // Set src IP of the sender to be the address configured via the sam4l.
-        // Userland apps can change this if they so choose.
-        ip_send.set_addr(self.interface_list[2]);
+        // Initially, set src IP of the sender to be the first IP in the Interface
+        // list. Userland apps can change this if they so choose.
+        ip_send.set_addr(self.interface_list[0]);
         udp_mac.set_transmit_client(ip_send);
 
         let udp_send = static_init!(
@@ -174,7 +166,18 @@ impl Component for UDPComponent {
             >,
             UDPSendStruct::new(ip_send)
         );
-        ip_send.set_client(udp_send);
+
+        let udp_mux = static_init!(
+            MuxUdpSender<
+                    'static,
+                    capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+                >,
+            >,
+            MuxUdpSender::new()
+        );
+        udp_mux.add_client(udp_send);
 
         let ip_receive = static_init!(
             capsules::net::ipv6::ipv6_recv::IP6RecvStruct<'static>,
@@ -182,7 +185,6 @@ impl Component for UDPComponent {
         );
         sixlowpan_state.set_rx_client(ip_receive);
 
-        // TODO: use seperate bound_port_table for receiver? Is this necessary?
         let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
         ip_receive.set_client(udp_recv);
 

@@ -17,11 +17,6 @@ use kernel::common::{List, ListLink, ListNode};
 static mut curr_send_id: usize = 0;
 
 
-// Should be implemented by UDPSenders
-pub trait UdpSendMuxClient {
-
-}
-
 // implements IP6SendClient
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     last_sender: OptionalCell<&'a UDPSendStruct<'a, T>>, // Reference to last UdpSendStruct to send
@@ -29,6 +24,23 @@ pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     ip_sender: &'a T,
 }
 
+impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
+    pub fn new(ip6_sender: &IP6Sender) { // similar to UdpSendStruct new()
+
+    }
+
+    pub fn send_to() { //similar to UdpSendStruct send_to()
+
+    }
+
+    pub fn add_client(sender: &UDPSendStruct) { //add udp_sender to the linked list
+
+    }
+}
+
+/// This function implements the `IP6SendClient` trait for the `UDPSendStruct`,
+/// and is necessary to receive callbacks from the lower (IP) layer. When
+/// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
         self.last_sender.map(|last_sender| last_sender.client.map(|client| client.send_done(result)));
@@ -92,7 +104,7 @@ pub trait UDPSender<'a> {
 /// that this struct contains a reference to an `IP6Sender` which it
 /// forwards packets to (and receives callbacks from).
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
-    ip_send_struct: &'a T,
+    udp_mux_sender: &'a MuxUdpSender<'a, T>,
     client: OptionalCell<&'a UDPSendClient>,
     next: ListLink<'a, UDPSendStruct<'a, T>>,
     //binding: UdpSenderBinding, // TODO: should this be a reference?
@@ -103,9 +115,7 @@ impl<'a, T:IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>>
     fn next(&'a self) -> &'a ListLink<'a, UDPSendStruct<'a, T>> {
         &self.next
     }
-} 
-
-// example in /Users/armin/src/rust
+}
 
 /// Below is the implementation of the `UDPSender` traits for the
 /// `UDPSendStruct`.
@@ -132,7 +142,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         let total_length = buf.len() + udp_header.get_hdr_size();
         udp_header.set_len(total_length as u16);
         let transport_header = TransportHeader::UDP(udp_header);
-        self.ip_send_struct.send_to(dest, transport_header, buf)
+        self.udp_mux_sender.send_to(dest, transport_header, buf)
     }
 
     // fn get_binding_ref(&self) -> &UdpSenderBinding {
@@ -141,22 +151,13 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
-    pub fn new(ip_send_struct: &'a T, /*binding: UdpSenderBinding*/)
+    pub fn new(udp_mux_sender: &'a T, /*binding: UdpSenderBinding*/)
         -> UDPSendStruct<'a, T> {
         UDPSendStruct {
-            ip_send_struct: ip_send_struct,
+            udp_mux_sender: udp_mux_sender,
             client: OptionalCell::empty(),
             next: ListLink::empty(),
             //binding: binding,
         }
-    }
-}
-
-/// This function implements the `IP6SendClient` trait for the `UDPSendStruct`,
-/// and is necessary to receive callbacks from the lower (IP) layer. When
-/// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
-impl<T: IP6Sender<'a>> IP6SendClient for UDPSendStruct<'a, T> {
-    fn send_done(&self, result: ReturnCode) {
-        self.client.map(|client| client.send_done(result));
     }
 }
