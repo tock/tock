@@ -12,8 +12,28 @@ use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
 use::kernel::udp_port_table::{UdpPortTable, UdpPortBinding, UdpSenderBinding};
+use kernel::common::{List, ListLink, ListNode};
 
 static mut curr_send_id: usize = 0;
+
+
+// Should be implemented by UDPSenders
+pub trait UdpSendMuxClient {
+
+}
+
+// implements IP6SendClient
+pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
+    last_sender: OptionalCell<&'a UDPSendStruct>, // Reference to last UdpSendStruct to send
+    sender_list: List<'a, UDPSendStruct<'a>>, //Get rid of UDPSender trait?
+    ip_sender: &'a T,
+}
+
+impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
+    fn send_done(&self, result: ReturnCode) {
+        self.last_sender.client.map(|client| client.send_done(result));
+    }
+}
 
 /// The `send_done` function in this trait is invoked after the UDPSender
 /// has completed sending the requested packet. Note that the
