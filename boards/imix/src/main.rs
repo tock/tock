@@ -460,6 +460,8 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
+    let permissions = components::permissions::PermissionsComponent::new().finalize();
+    permissions.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -477,3 +479,4 @@ pub unsafe fn reset_handler() {
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
+
