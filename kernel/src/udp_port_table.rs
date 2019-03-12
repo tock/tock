@@ -33,13 +33,6 @@ pub struct UdpPortSocket {
     table_ref: &'static UdpPortTable,
 }
 
-// impl Drop for UdpPortSocket {
-//     fn drop(&mut self) {
-//         self.table_ref.destroy_socket(UdpPortSocket::new(self.idx,
-//             self.table_ref));
-//     }
-// }
-
 // An opaque descriptor object that gives the holder of the object access to
 // a particular location (at index idx) of the bound port table.
 pub struct UdpPortBinding {
@@ -48,17 +41,6 @@ pub struct UdpPortBinding {
     socket: UdpPortSocket,
     port: u16,
     table_ref: &'static UdpPortTable,
-}
-
-// TODO: how to clean up sender/receiver bindings?
-impl Drop for UdpPortBinding {
-    // Problem: drop takes a mutable reference, but unbind takes in an
-    // owned type.
-    fn drop(&mut self) {
-        // TODO: drop parent object as well?
-        // self.table_ref.unbind(UdpPortBinding::new);
-        // TODO: 
-    }
 }
 
 // An opaque descriptor that allows the holder to obtain a binding on a port
@@ -85,7 +67,6 @@ impl UdpPortSocket {
     }
 }
 
-// Drop trait of binding should call drop trait of socket.
 
 impl UdpPortBinding {
     pub fn new(socket: UdpPortSocket, port: u16,

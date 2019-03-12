@@ -21,19 +21,27 @@ static mut curr_send_id: usize = 0;
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     last_sender: OptionalCell<&'a UDPSendStruct<'a, T>>, // Reference to last UdpSendStruct to send
     sender_list: List<'a, UDPSendStruct<'a, T>>, //Get rid of UDPSender trait?
-    ip_sender: &'a T,
+    ip_sender: &'a IP6Sender<'a>,
 }
 
 impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
-    pub fn new(ip6_sender: &IP6Sender) { // similar to UdpSendStruct new()
+    pub fn new(ip6_sender: &'a IP6Sender<'a>) -> MuxUdpSender<'a, T> { // similar to UdpSendStruct new()
+        MuxUdpSender {
+            last_sender: OptionalCell::empty(),
+            sender_list: List::new(),
+            ip_sender: ip6_sender,
+
+        }
+    }
+
+    pub fn send_to(&self, dst: IPAddr, transport_header: TransportHeader,
+        payload: &[u8]) -> ReturnCode { 
+        ReturnCode::FAIL
+    //similar to UdpSendStruct send_to()
 
     }
 
-    pub fn send_to() { //similar to UdpSendStruct send_to()
-
-    }
-
-    pub fn add_client(sender: &UDPSendStruct) { //add udp_sender to the linked list
+    pub fn add_client(&self, sender: &'a UDPSendStruct<'a, T>) { //add udp_sender to the linked list
 
     }
 }
@@ -151,7 +159,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
-    pub fn new(udp_mux_sender: &'a T, /*binding: UdpSenderBinding*/)
+    pub fn new(udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpSenderBinding*/)
         -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,

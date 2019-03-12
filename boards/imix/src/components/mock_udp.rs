@@ -14,7 +14,7 @@ use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
-use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender, MuxUdpSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
@@ -149,6 +149,18 @@ impl Component for MockUDPComponent {
         ip_send.set_addr(self.interface_list[2]);
         udp_mac.set_transmit_client(ip_send);
 
+        // TODO: probably eventually change 'udp_mux' to 'udp_send_mux'
+        let udp_mux = static_init!(
+            MuxUdpSender<
+                    'static,
+                    capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+                >,
+            >,
+            MuxUdpSender::new(ip_send)
+        );
+
         let udp_send = static_init!(
             UDPSendStruct<
                 'static,
@@ -157,9 +169,10 @@ impl Component for MockUDPComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(ip_send)
+            UDPSendStruct::new(udp_mux)
         );
-        ip_send.set_client(udp_send);
+
+        ip_send.set_client(udp_mux);
         /*
         let ip_receive = static_init!(
             capsules::net::ipv6::ipv6_recv::IP6RecvStruct<'static>,

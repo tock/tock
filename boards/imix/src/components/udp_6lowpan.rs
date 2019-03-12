@@ -28,8 +28,9 @@ use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
-use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender, MuxUdpSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::{create_capability, static_init};
 
 use kernel;
 use kernel::capabilities;
@@ -156,17 +157,6 @@ impl Component for UDPComponent {
         ip_send.set_addr(self.interface_list[0]);
         udp_mac.set_transmit_client(ip_send);
 
-        let udp_send = static_init!(
-            UDPSendStruct<
-                'static,
-                capsules::net::ipv6::ipv6_send::IP6SendStruct<
-                    'static,
-                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-                >,
-            >,
-            UDPSendStruct::new(ip_send)
-        );
-
         let udp_mux = static_init!(
             MuxUdpSender<
                     'static,
@@ -175,8 +165,20 @@ impl Component for UDPComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            MuxUdpSender::new()
+            MuxUdpSender::new(ip_send)
         );
+
+        let udp_send = static_init!(
+            UDPSendStruct<
+                'static,
+                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+                >,
+            >,
+            UDPSendStruct::new(udp_mux)
+        );
+
         udp_mux.add_client(udp_send);
 
         let ip_receive = static_init!(

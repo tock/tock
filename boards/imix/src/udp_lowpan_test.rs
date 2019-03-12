@@ -31,7 +31,7 @@ use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender};
+use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender, MuxUdpSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
@@ -148,12 +148,23 @@ pub unsafe fn initialize_all(
 
     let udp_port_table = unsafe {static_init!(UdpPortTable, UdpPortTable::new())};
 
+    let udp_mux = static_init!(
+        MuxUdpSender<
+                'static,
+                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                'static,
+                VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+            >,
+        >,
+        MuxUdpSender::new(ip6_sender)
+    );
+
     let udp_send_struct = static_init!(
         UDPSendStruct<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        UDPSendStruct::new(ip6_sender)
+        UDPSendStruct::new(udp_mux)
     );
 
     let udp_lowpan_test = static_init!(
@@ -166,7 +177,7 @@ pub unsafe fn initialize_all(
             udp_port_table,
         )
     );
-    ip6_sender.set_client(udp_send_struct);
+    ip6_sender.set_client(udp_mux);
     udp_send_struct.set_client(udp_lowpan_test);
     udp_lowpan_test.alarm.set_client(udp_lowpan_test);
     ipsender_virtual_alarm.set_client(ip6_sender);
