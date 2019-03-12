@@ -113,6 +113,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 struct Imix {
+    permissions: &'static capsules::permissions::Permissions<>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
@@ -163,29 +164,31 @@ impl kernel::Platform for Imix {
     where
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
-        match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
-            capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
-            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            _ => f(None),
-        }
+        if self.permissions.check(driver_num) {
+            match driver_num {
+                capsules::console::DRIVER_NUM => f(Some(self.console)),
+                capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+                capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+                capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+                capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+                capsules::led::DRIVER_NUM => f(Some(self.led)),
+                capsules::button::DRIVER_NUM => f(Some(self.button)),
+                capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+                capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+                capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+                capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+                capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+                capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+                capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+                capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+                capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+                capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+                capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+                capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+                kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+                _ => f(None),
+            }
+        } else { f(None) }
     }
 }
 
@@ -410,7 +413,10 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
 
+    let permissions = components::permissions::PermissionsComponent::new().finalize();
+
     let imix = Imix {
+        permissions,
         pconsole,
         console,
         alarm,
@@ -446,6 +452,7 @@ pub unsafe fn reset_handler() {
     rf233.start();
 
     imix.pconsole.start();
+    imix.permissions.start();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
@@ -460,8 +467,6 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
-    let permissions = components::permissions::PermissionsComponent::new().finalize();
-    permissions.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

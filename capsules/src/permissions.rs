@@ -20,6 +20,13 @@ impl<> Permissions<> {
         }
     }
 
+    pub fn check (&self, driver_num: usize) -> bool {
+        if driver_num == 2 {
+            debug!("Permission denied: LED\n");
+            false
+        } else { true }
+    }
+
     pub fn start(&self) {
         debug!("Hello from the preferences capsule!");
     }

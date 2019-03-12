@@ -291,21 +291,25 @@ impl Kernel {
                                     callback_ptr,
                                     appdata,
                                 }) => {
-                                    let callback_ptr = NonNull::new(callback_ptr);
-                                    let callback = callback_ptr
-                                        .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
+                                    if /*driver_number == 0x2*/ true {
+                                        // platform.permissions.check();
+                                    // } else {
+                                        let callback_ptr = NonNull::new(callback_ptr);
+                                        let callback = callback_ptr
+                                            .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
 
-                                    let res =
-                                        platform.with_driver(
-                                            driver_number,
-                                            |driver| match driver {
-                                                Some(d) => {
-                                                    d.subscribe(subdriver_number, callback, appid)
-                                                }
-                                                None => ReturnCode::ENODEVICE,
-                                            },
-                                        );
-                                    process.set_syscall_return_value(res.into());
+                                        let res =
+                                            platform.with_driver(
+                                                driver_number,
+                                                |driver| match driver {
+                                                    Some(d) => {
+                                                        d.subscribe(subdriver_number, callback, appid)
+                                                    }
+                                                    None => ReturnCode::ENODEVICE,
+                                                },
+                                            );
+                                        process.set_syscall_return_value(res.into());
+                                    }
                                 }
                                 Some(Syscall::COMMAND {
                                     driver_number,
@@ -313,17 +317,21 @@ impl Kernel {
                                     arg0,
                                     arg1,
                                 }) => {
-                                    let res =
-                                        platform.with_driver(
-                                            driver_number,
-                                            |driver| match driver {
-                                                Some(d) => {
-                                                    d.command(subdriver_number, arg0, arg1, appid)
-                                                }
-                                                None => ReturnCode::ENODEVICE,
-                                            },
-                                        );
-                                    process.set_syscall_return_value(res.into());
+                                    if /*driver_number == 0x2*/ true {
+                                        // platform.permissions.check();
+                                    // } else {
+                                        let res =
+                                            platform.with_driver(
+                                                driver_number,
+                                                |driver| match driver {
+                                                    Some(d) => {
+                                                        d.command(subdriver_number, arg0, arg1, appid)
+                                                    }
+                                                    None => ReturnCode::ENODEVICE,
+                                                },
+                                            );
+                                        process.set_syscall_return_value(res.into());
+                                    }
                                 }
                                 Some(Syscall::ALLOW {
                                     driver_number,
@@ -331,20 +339,24 @@ impl Kernel {
                                     allow_address,
                                     allow_size,
                                 }) => {
-                                    let res = platform.with_driver(driver_number, |driver| {
-                                        match driver {
-                                            Some(d) => {
-                                                match process.allow(allow_address, allow_size) {
-                                                    Ok(oslice) => {
-                                                        d.allow(appid, subdriver_number, oslice)
+                                    if /*driver_number == 0x2*/ true {
+                                        // platform.permissions.check();
+                                    // } else {
+                                        let res = platform.with_driver(driver_number, |driver| {
+                                            match driver {
+                                                Some(d) => {
+                                                    match process.allow(allow_address, allow_size) {
+                                                        Ok(oslice) => {
+                                                            d.allow(appid, subdriver_number, oslice)
+                                                        }
+                                                        Err(err) => err, /* memory not valid */
                                                     }
-                                                    Err(err) => err, /* memory not valid */
                                                 }
+                                                None => ReturnCode::ENODEVICE,
                                             }
-                                            None => ReturnCode::ENODEVICE,
-                                        }
-                                    });
-                                    process.set_syscall_return_value(res.into());
+                                        });
+                                        process.set_syscall_return_value(res.into());
+                                    }
                                 }
                                 _ => {}
                             }

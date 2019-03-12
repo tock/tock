@@ -1,0 +1,41 @@
+//! Sample capsule for Tock tutorial. It handles an alarm to
+//! sample the humidity sensor
+
+#![forbid(unsafe_code)]
+#![allow(dead_code, unused_imports, unused_variables)]
+
+// // unused but in the book tutorial??
+// #![no_std]
+// extern crate kernel;
+// #[macro_use(debug)]
+#[allow(unused_imports)]
+
+use kernel::hil::sensors::{HumidityDriver, HumidityClient};
+use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::debug;
+
+pub struct Tutorial<'a, A: Alarm + 'a> {
+    alarm: &'a A,
+    humidity: &'a HumidityDriver,
+}
+
+impl<'a, A: Alarm> Tutorial<'a, A> {
+    pub fn new(alarm: &'a A, humidity: &'a HumidityDriver) -> Tutorial<'a, A> {
+        Tutorial {
+            alarm: alarm,
+            humidity: humidity,
+        }
+    }
+
+    pub fn start(&self) {
+        debug!("Hello from the no-yes-led kernel!");
+    }
+}
+
+impl<'a, A: Alarm> time::Client for Tutorial<'a, A> {
+    fn fired(&self) {}
+}
+
+impl<'a, A: Alarm> HumidityClient for Tutorial<'a, A> {
+    fn callback(&self, humidity: usize) {}
+}

@@ -1,0 +1,43 @@
+#[allow(dead_code)]
+
+use capsules::tutorial::Tutorial;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::component::Component;
+use kernel::static_init;
+
+pub struct TutorialComponent {
+    alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    si7021: &'static capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+}
+
+impl TutorialComponent {
+    pub fn new(
+        alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        si: &'static capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    ) -> TutorialComponent {
+        TutorialComponent {
+            alarm_mux: alarm,
+            si7021: si,
+        }
+    }
+}
+
+impl Component for TutorialComponent {
+    type Output = &'static Tutorial<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
+
+    unsafe fn finalize(&mut self) -> Self::Output {
+        let alarm = static_init!(
+            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            VirtualMuxAlarm::new(self.alarm_mux)
+        );
+
+        let tutorial = static_init!(
+            Tutorial<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+            Tutorial::new(alarm, self.si7021)
+        );
+
+        kernel::hil::sensors::HumidityDriver::set_client(self.si7021, tutorial);
+        alarm.set_client(tutorial);
+        tutorial
+    }
+}
