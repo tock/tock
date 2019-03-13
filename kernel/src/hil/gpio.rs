@@ -1,4 +1,6 @@
 use crate::common::cells::OptionalCell;
+use crate::ReturnCode;
+
 use core::cell::Cell;
 
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
@@ -33,6 +35,7 @@ pub enum Configuration {
 
 pub trait Pin: Input + Output + Configure {}
 pub trait InterruptPin: Pin + Interrupt {}
+pub trait InterruptValuePin: Pin + InterruptWithValue {}
 
 pub trait Configure {
     fn configuration(&self) -> Configuration;
@@ -103,6 +106,38 @@ pub trait Client {
     fn fired(&self);
 }
 
+pub trait InterruptWithValue: Input {
+    /// Set the client for interrupt events.
+    fn set_client(&self, client: &'static ClientWithValue);
+    
+    /// Set the underlying interrupt source.
+    fn set_source(&'static self, source: &'static InterruptPin);
+
+    /// Enable an interrupt on the GPIO pin. This does not
+    /// configure the pin except to enable an interrupt: it
+    /// should be separately configured as an input, etc.
+    /// Returns:
+    ///    SUCCESS - the interrupt was set up properly
+    ///    FAIL    - the interrupt was not set up properly; this is due to
+    ///              not having an underlying interrupt source yet, i.e.
+    ///              the struct is not yet fully initialized. 
+    fn enable_interrupts(&self, mode: InterruptEdge) -> ReturnCode;
+
+    /// Disable interrupts for the GPIO pin.
+    fn disable_interrupts(&self);
+ 
+    /// Return whether this interrupt is pending
+    fn is_pending(&self) -> bool;
+
+    /// Set the value that will be passed to clients on an
+    /// interrupt.
+    fn set_value(&self, value: u32);
+
+    /// Return the value that is passed to clients on an 
+    /// interrupt.
+    fn value(&self) -> u32; 
+}
+
 /// Interfaces for users of GPIO interrupts who handle many interrupts
 /// with the same function. The value passed in the callback allows the
 /// callback to distinguish which interrupt fired. 
@@ -110,33 +145,123 @@ pub trait ClientWithValue {
     fn fired(&self, value: u32);
 }
 
-pub struct InterruptWithValue {
+pub struct InterruptValueWrapper {
     value: Cell<u32>,
     client: OptionalCell<&'static ClientWithValue>,
+    source: OptionalCell<&'static InterruptPin>,
 }
 
-impl InterruptWithValue {
-    pub fn new() -> InterruptWithValue {
-        InterruptWithValue {
+impl InterruptValueWrapper {
+    pub fn new() -> InterruptValueWrapper {
+        InterruptValueWrapper {
             value: Cell::new(0),
             client: OptionalCell::empty(),
+            source: OptionalCell::empty(),
         }
     }
-
-   pub fn set_value(&self, value: u32) {
-        self.value.set(value);
-   }
-
-   pub fn value(&self) -> u32 {
-        self.value.get()
-   }
-
-   pub fn set_client(&self, client: &'static ClientWithValue) {
-        self.client.replace(client);
-   }
 }
 
-impl Client for InterruptWithValue {
+impl InterruptWithValue for InterruptValueWrapper {
+    fn set_value(&self, value: u32) {
+        self.value.set(value);
+    }
+
+    fn value(&self) -> u32 {
+        self.value.get()
+    }
+
+    fn set_client(&self, client: &'static ClientWithValue) {
+        self.client.replace(client);
+    }
+
+    fn is_pending(&self) -> bool {
+       self.source.map_or(false, |s| s.is_pending())
+    }
+
+    fn enable_interrupts(&self, edge: InterruptEdge) -> ReturnCode {
+        self.source.map_or(ReturnCode::FAIL, |s| {
+            s.enable_interrupts(edge);
+            ReturnCode::SUCCESS
+        })
+    }
+
+    fn disable_interrupts(&self) {
+        self.source.map(|s| s.disable_interrupts());
+    }
+
+    fn set_source(&'static self, source: &'static InterruptPin) {
+        source.set_client(self);
+        self.source.replace(source);
+    }
+}
+
+impl Input for InterruptValueWrapper {
+    fn read(&self) -> bool {
+        self.source.map_or(false, |s| s.read())
+    }
+}
+
+impl Configure for InterruptValueWrapper {
+    fn configuration(&self) -> Configuration {
+        self.source.map_or(Configuration::Unknown, |s| s.configuration())
+    }
+
+    fn make_output(&self) -> Configuration {
+        self.source.map_or(Configuration::Unknown, |s| s.make_output())
+    }
+
+    fn disable_output(&self) -> Configuration {
+        self.source.map_or(Configuration::Unknown, |s| s.disable_output())
+    }
+
+    fn make_input(&self) -> Configuration {
+        self.source.map_or(Configuration::Unknown, |s| s.make_input())
+    }
+
+    fn disable_input(&self) -> Configuration {
+        self.source.map_or(Configuration::Unknown, |s| s.disable_input())
+    }
+
+    fn low_power(&self)  {
+        self.source.map(|s| s.low_power());
+    }
+
+    fn set_floating_state(&self, state: FloatingState) {
+        self.source.map(|s| s.set_floating_state(state));
+    }
+
+    fn floating_state(&self) -> FloatingState {
+        self.source.map_or(FloatingState::PullNone, |s| s.floating_state())
+    }
+
+    fn is_input(&self) -> bool {
+        self.source.map_or(false, |s| s.is_input())
+    }
+
+    fn is_output(&self) -> bool {
+        self.source.map_or(false, |s| s.is_input())
+    }
+}
+
+
+impl Output for InterruptValueWrapper {
+    fn set(&self) {
+        self.source.map(|s| s.is_input());
+    }
+
+    fn clear(&self) {
+        self.source.map(|s| s.clear());
+    }
+
+    fn toggle(&self) -> bool {
+        self.source.map_or(false, |s| s.toggle())
+    }
+}
+
+impl InterruptValuePin for InterruptValueWrapper {}
+impl Pin for InterruptValueWrapper {}
+
+impl Client for InterruptValueWrapper {
     fn fired(&self) {
         self.client.map(|c| c.fired(self.value()));
     }

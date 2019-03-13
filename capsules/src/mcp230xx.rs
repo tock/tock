@@ -626,7 +626,7 @@ impl gpio_async::Port for MCP230xx<'a> {
         self.disable_interrupt_pin(pin as u8)
     }
 
-    fn is_pending(&self, pin: usize) -> bool {
+    fn is_pending(&self, _pin: usize) -> bool {
         false
     }
 }

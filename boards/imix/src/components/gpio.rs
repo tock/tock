@@ -22,6 +22,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::gpio::InterruptWithValue;
 use kernel::static_init;
 
 pub struct GpioComponent {
@@ -56,28 +57,45 @@ impl Component for GpioComponent {
         );
         
         let gpio_values = static_init!(
-            [hil::gpio::InterruptWithValue; 7],
+            [hil::gpio::InterruptValueWrapper; 7],
             [
-                hil::gpio::InterruptWithValue::new(),
-                hil::gpio::InterruptWithValue::new(),
-                hil::gpio::InterruptWithValue::new(),
-                hil::gpio::InterruptWithValue::new(),
-                hil::gpio::InterruptWithValue::new(),
-                hil::gpio::InterruptWithValue::new(),
-                hil::gpio::InterruptWithValue::new(),
+                hil::gpio::InterruptValueWrapper::new(),
+                hil::gpio::InterruptValueWrapper::new(),
+                hil::gpio::InterruptValueWrapper::new(),
+                hil::gpio::InterruptValueWrapper::new(),
+                hil::gpio::InterruptValueWrapper::new(),
+                hil::gpio::InterruptValueWrapper::new(),
+                hil::gpio::InterruptValueWrapper::new(),
             ]
-        );
-        let gpio = static_init!(
-            gpio::GPIO<'static>,
-            gpio::GPIO::new(&gpio_pins[..], self.board_kernel.create_grant(&grant_cap))
         );
 
         for i in 0..7 {
             gpio_pins[i].set_client(&gpio_values[i]);
+            gpio_values[i].set_source(gpio_pins[i]);
             gpio_values[i].set_value(i as u32);
-            gpio_values[i].set_client(gpio);
         }
 
+        let gpio_refs = static_init!(
+            [&'static hil::gpio::InterruptValuePin; 7],
+            [
+                &gpio_values[0],
+                &gpio_values[1],
+                &gpio_values[2],
+                &gpio_values[3],
+                &gpio_values[4],
+                &gpio_values[5],
+                &gpio_values[6],
+            ]
+        );
+
+        let gpio = static_init!(
+            gpio::GPIO<'static>,
+            gpio::GPIO::new(&gpio_refs[..], self.board_kernel.create_grant(&grant_cap))
+        );
+
+        for i in 0..7 {
+            gpio_values[i].set_client(gpio);
+        }
         gpio
     }
 }
