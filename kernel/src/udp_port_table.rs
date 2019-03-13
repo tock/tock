@@ -142,7 +142,7 @@ impl UdpPortTable {
     pub fn new() -> UdpPortTable {
         unsafe {
             UdpPortTable {
-                port_array: TakeCell::new(&mut port_table),            
+                port_array: TakeCell::new(&mut port_table),
             }
         }
     }

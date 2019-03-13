@@ -77,7 +77,7 @@ pub trait IP6Sender<'a> {
     /// `dst` - IPv6 address to send the packet to
     /// `transport_header` - The `TransportHeader` for the packet being sent
     /// `payload` - The transport payload for the packet being sent
-    fn send_to(&self, dst: IPAddr, transport_header: TransportHeader, payload: &[u8])
+    fn send_to(&self, dst: IPAddr, transport_header: TransportHeader, payload: &'static [u8])
         -> ReturnCode;
 }
 
