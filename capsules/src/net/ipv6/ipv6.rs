@@ -301,6 +301,7 @@ impl IP6Header {
 /// This defines the currently supported `TransportHeader` types. The contents
 /// of each header is encapsulated by the enum type. Note that this definition
 /// of `TransportHeader`s means that recursive headers are not supported.
+#[derive(Copy, Clone)] // TODO: is this ok?
 pub enum TransportHeader {
     UDP(UDPHeader),
     TCP(TCPHeader),

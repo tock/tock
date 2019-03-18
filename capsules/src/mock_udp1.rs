@@ -15,6 +15,9 @@ pub const DST_ADDR: IPAddr =     IPAddr([
 pub const SRC_PORT: u16 = 15123;
 pub const DST_PORT: u16 = 16123;
 pub const PAYLOAD_LEN: usize = 192;
+const UDP_HDR_SIZE: usize = 8;
+static UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
 
 pub struct MockUdp1<'a> {
     id: u16,
@@ -31,13 +34,14 @@ impl<'a> MockUdp1<'a> {
     }
 
     pub fn send(&self, value: u16) {
-        let mut udp_payload: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN];
         // Performs little-endian conversion.
-        udp_payload[0] = (value >> 8) as u8;
-        udp_payload[1] = (value & 0x00ff) as u8;
+
+        // UDP_DGRAM[0] = (value >> 8) as u8;
+        // UDP_DGRAM[1] = (value & 0x00ff) as u8;
         let tmp = self.udp_sender
-            .send_to(DST_ADDR, DST_PORT, SRC_PORT, &udp_payload);
+            .send_to(DST_ADDR, DST_PORT, SRC_PORT, &UDP_DGRAM);
         debug!("mock_udp1 retval: {:?}", tmp);
+
     }
 }
 

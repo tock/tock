@@ -71,7 +71,8 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
             //send next packet in queue
             let next_sender = self.sender_list.head().unwrap();
             let success = match next_sender.tx_buffer.take() {
-                Some(buf) => self.ip_sender.send_to(next_sender.next_dest, next_sender.next_th.unwrap(), buf),
+                Some(buf) => self.ip_sender.send_to(next_sender.next_dest.get(),
+                    next_sender.next_th.take().unwrap(), buf),
                 None => {
                     debug!("No buffer available to take.");
                     ReturnCode::FAIL
@@ -117,7 +118,7 @@ pub trait UDPSender<'a> {
     /// # Return Value
     /// Any synchronous errors are returned via the returned `ReturnCode`
     /// value; asynchronous errors are delivered via the callback.
-    fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &'static [u8],
+    fn send_to(&'a self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &'static [u8],
         //binding: &UdpSenderBinding
         ) -> ReturnCode;
 
@@ -132,7 +133,7 @@ pub trait UDPSender<'a> {
     /// # Return Value
     /// Returns any synchronous errors or success. Note that any asynchrounous
     /// errors are returned via the callback.
-    fn send(&self, dest: IPAddr, udp_header: UDPHeader, buf: &'static [u8]) -> ReturnCode;
+    fn send(&'a self, dest: IPAddr, udp_header: UDPHeader, buf: &'static [u8]) -> ReturnCode;
 
     //fn get_binding_ref(&self) -> &UdpSenderBinding;
 }
@@ -145,8 +146,8 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     client: OptionalCell<&'a UDPSendClient>,
     next: ListLink<'a, UDPSendStruct<'a, T>>,
     tx_buffer: OptionalCell<&'static [u8]>,
-    next_dest: IPAddr,
-    next_th: Option<TransportHeader>,
+    next_dest: Cell<IPAddr>,
+    next_th: OptionalCell<TransportHeader>,
     //binding: UdpSenderBinding, // TODO: should this be a reference?
 }
 
@@ -164,7 +165,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.client.set(client);
     }
 
-    fn send_to(&self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &'static [u8],
+    fn send_to(&'a self, dest: IPAddr, dst_port: u16, src_port: u16, buf: &'static [u8],
         //binding: &UdpSenderBinding
         ) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
@@ -176,15 +177,15 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         //self.send(dest, udp_header, buf)
     }
 
-    fn send(&self, dest: IPAddr, mut udp_header: UDPHeader, buf: &'static [u8]) -> ReturnCode {
+    fn send(&'a self, dest: IPAddr, mut udp_header: UDPHeader, buf: &'static [u8]) -> ReturnCode {
         // TODO: need to enforce port binding here? Up to what point do we
         // enforce it? IP layer?
         let total_length = buf.len() + udp_header.get_hdr_size();
         udp_header.set_len(total_length as u16);
         let transport_header = TransportHeader::UDP(udp_header);
         self.tx_buffer.replace(buf);
-        self.next_dest = dest;
-        self.next_th.replace(transport_header);
+        self.next_dest.replace(dest);
+        self.next_th.replace(transport_header); // th = transport header
         self.udp_mux_sender.send_to(dest, transport_header, &self)
     }
 
@@ -201,8 +202,8 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
             client: OptionalCell::empty(),
             next: ListLink::empty(),
             tx_buffer: OptionalCell::empty(),
-            next_dest: IPAddr::new(),
-            next_th: None,
+            next_dest: Cell::new(IPAddr::new()),
+            next_th: OptionalCell::empty(),
             //binding: binding,
         }
     }
