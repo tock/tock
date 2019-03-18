@@ -11,7 +11,7 @@ use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::ReturnCode;
-use kernel::udp_port_table::{UdpPortTable, UdpPortBinding, UdpSenderBinding};
+use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
 use core::cell::Cell;

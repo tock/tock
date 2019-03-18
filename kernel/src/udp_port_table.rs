@@ -10,7 +10,6 @@ use core::cell::Cell;
 use crate::net_permissions::AddrRange; // testing
 //use capabilities;
 use crate::returncode::ReturnCode;
-use crate::common::{List, ListLink, ListNode};
 
 //#![allow(dead_code)]
 const MAX_NUM_BOUND_PORTS: usize = 16;
@@ -30,11 +29,8 @@ static mut port_table: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM
 // A UdpPortSocket provides a handle into the bound port table. When binding to
 // a port, the socket is consumed and stored inside a UdpPortBinding. When
 // undbinding, the socket is returned and can be used to bind to other ports.
-pub struct UdpPortSocket<'a> {
+pub struct UdpPortSocket {
     idx: usize,
-    table_ref: &'static UdpPortTable,
-    next: ListLink<'a, UdpPortSocket<'a>>,
-
 }
 
 // An opaque descriptor object that gives the holder of the object access to
@@ -49,21 +45,14 @@ pub struct UdpPortSocket<'a> {
 
 pub struct UdpPortTable {
     port_array: TakeCell<'static, [Option<PortEntry>]>,
-    socket_list: List<'static, UdpPortSocket<'static>>,
-
 }
 
-impl UdpPortSocket<'a> {
-    pub fn new(idx: usize, table_ref: &'static UdpPortTable) -> UdpPortSocket {
-        UdpPortSocket {idx: idx, table_ref: table_ref, next: ListLink::empty()}
+impl UdpPortSocket {
+    pub fn new(idx: usize) -> UdpPortSocket {
+        UdpPortSocket {idx: idx}
     }
 }
 
-impl<'a> ListNode<'a, UdpPortSocket<'a>> for UdpPortSocket<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, UdpPortSocket<'a>> {
-        &self.next
-    }
-}
 
 // impl UdpPortBinding {
 //     pub fn new(socket: UdpPortSocket, port: u16,
@@ -128,7 +117,6 @@ impl<'a> ListNode<'a, UdpPortSocket<'a>> for UdpPortSocket<'a> {
 pub struct UdpReceiverBinding {
     idx: usize,
     port: u16,
-    table_ref: &'static UdpPortTable,
 }
 
 // An opaque descriptor that allows the holder to obtain a binding on a port
@@ -136,13 +124,12 @@ pub struct UdpReceiverBinding {
 pub struct UdpSenderBinding {
     idx: usize,
     port: u16,
-    table_ref: &'static UdpPortTable,
 }
 
 impl UdpSenderBinding {
-    pub fn new(idx: usize, port: u16, table_ref: &'static UdpPortTable)
+    pub fn new(idx: usize, port: u16)
         -> UdpSenderBinding {
-        UdpSenderBinding {idx: idx, port: port, table_ref: table_ref}
+        UdpSenderBinding {idx: idx, port: port}
 
     }
 
@@ -152,9 +139,9 @@ impl UdpSenderBinding {
 }
 
 impl UdpReceiverBinding {
-    pub fn new(idx: usize, port: u16, table_ref: &'static UdpPortTable)
+    pub fn new(idx: usize, port: u16)
         -> UdpReceiverBinding {
-        UdpReceiverBinding {idx: idx, port: port, table_ref: table_ref}
+        UdpReceiverBinding {idx: idx, port: port}
 
     }
 
@@ -170,7 +157,6 @@ impl UdpPortTable {
         unsafe {
             UdpPortTable {
                 port_array: TakeCell::new(&mut port_table),
-                socket_list: List::new(),
             }
         }
     }
@@ -181,7 +167,7 @@ impl UdpPortTable {
             for i in 0..MAX_NUM_BOUND_PORTS {
                 match table[i] {
                     None => {
-                        result = Ok(UdpPortSocket::new(i, &self));
+                        result = Ok(UdpPortSocket::new(i));
                         table[i] = Some(PortEntry::Unbound);
                         break;
                     },
@@ -219,10 +205,9 @@ impl UdpPortTable {
                 Err(socket)
             } else {
                 table[socket.idx] = Some(PortEntry::Port(port));
-                let binding_pair = (UdpSenderBinding::new(socket.idx, port,
-                    &self), UdpReceiverBinding::new(socket.idx, port, &self));
+                let binding_pair = (UdpSenderBinding::new(socket.idx, port),
+                    UdpReceiverBinding::new(socket.idx, port));
                 // Add socket to the linked list.
-                self.socket_list.push_tail(socket);
                 Ok(binding_pair)
             }
         }).unwrap()
@@ -245,14 +230,14 @@ impl UdpPortTable {
         if sender_binding.idx != receiver_binding.idx {
             return Err((sender_binding, receiver_binding));
         }
-        let idx = self.sender_binding.idx;
+        let idx = sender_binding.idx;
         self.port_array.map(|table| {
             table[idx] = None;
         });
         // Search the list and return the appropriate socket
         // TODO: bottom line is not correct -- just want to see if it compiles.
         // TODO: handle what happens if it doesn't exist in the list
-        Ok(self.socket_list.pop_head().unwrap())
+        Ok(UdpPortSocket::new(idx))
     }
 
 

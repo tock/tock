@@ -18,7 +18,7 @@ use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender, MuxUdpSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
-use kernel::udp_port_table::{UdpPortTable, UdpPortBinding};
+use kernel::udp_port_table::{UdpPortTable};
 
 use kernel::component::Component;
 use kernel::create_capability;
