@@ -131,6 +131,7 @@ impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
         );
         self.init_packet(dst, transport_header, payload);
         let ret = self.send_next_fragment();
+        //debug!("ip6_send ret: {:?}", ret);
         ret
     }
 }
@@ -194,6 +195,7 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
                                 return (send_complete_return, send);
                             } else {
                                 let (err, _frame_option) = self.radio.transmit(frame);
+                                debug!("err: {:?}", err);
                                 return (err, send);
                             }
                         }

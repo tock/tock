@@ -399,6 +399,7 @@ pub unsafe fn reset_handler() {
             IPAddr::generate_from_mac(src_mac_from_serial_num),
         ]
     );
+
     let mock_udp = MockUDPComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
@@ -422,6 +423,10 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
     */
+    /*let udp_lowpan_test = udp_lowpan_test::initialize_all(
+        mux_mac,
+        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
+    );*/
 
     let imix = Imix {
         pconsole,
@@ -462,6 +467,8 @@ pub unsafe fn reset_handler() {
     imix.pconsole.initialize();
     imix.pconsole.start();
 
+    mock_udp.start();
+
 
 
     // Optional kernel tests. Note that these might conflict
@@ -478,6 +485,9 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
+    //udp_lowpan_test.start();
+
+    //mock_udp.send(27);
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -492,6 +502,5 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    mock_udp.send(27);
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

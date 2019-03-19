@@ -59,7 +59,7 @@ const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
 const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
 
 pub const TEST_DELAY_MS: u32 = 10000;
-pub const TEST_LOOP: bool = false;
+pub const TEST_LOOP: bool = true;
 static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
 
 pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
@@ -245,7 +245,8 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     fn run_test(&self, test_id: usize) {
         debug!("Running test {}:", test_id);
         match test_id {
-            0 => self.port_table_test(),//self.ipv6_send_packet_test(),
+            //0 => self.port_table_test(),//self.ipv6_send_packet_test(),
+            0 => self.ipv6_send_packet_test(),//self.ipv6_send_packet_test(),
             1 => self.ipv6_send_packet_test(),
             //1 => self.port_table_test(),
             _ => {}
@@ -299,7 +300,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         assert!(self.port_table.bind(binding_socket.unwrap(), 20).is_ok());
         debug!("port_table_test passed");
         */
-        debug!("Unimplemented")
+        debug!("Unimplemented");
 
     }
 
@@ -316,15 +317,15 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn send_next(&self) {
-        // let src_port: u16 = 12321;
-        // let dst_port: u16 = 32123;
+        let src_port: u16 = 12321;
+        let dst_port: u16 = 32123;
         // self.port_table.bind(self.udp_sender.get_binding_ref(), src_port);
-        // debug!("before send_to");
-        // unsafe {
-        //     self.udp_sender
-        //         .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
-        // };
-        // debug!("send_next done");
+        debug!("before send_to");
+        unsafe {
+            self.udp_sender
+                .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
+        };
+        debug!("send_next done");
     }
 }
 

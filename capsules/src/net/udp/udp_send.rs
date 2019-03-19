@@ -39,7 +39,8 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
             ) -> ReturnCode {
         // TO DO: Enforce port binding here ()
         // Add this sender to the tail of the sender_list
-        let list_empty = self.sender_list.head().is_some();
+        let list_empty = self.sender_list.head().is_none();
+        //debug!("list empty: {:?}", list_empty);
         self.add_client(caller);
         let mut ret = ReturnCode::SUCCESS;
         if list_empty {

@@ -38,6 +38,7 @@ use crate::rf233_const::TRX_TRAC_MASK;
 use crate::rf233_const::XAH_CTRL_0;
 use crate::rf233_const::XAH_CTRL_1;
 
+use kernel::debug;
 const INTERRUPT_ID: usize = 0x2154;
 
 #[allow(non_camel_case_types, dead_code)]
@@ -1358,11 +1359,12 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
         let frame_len = frame_len + radio::MFR_SIZE;
 
         if !self.radio_on.get() {
+            debug!("Radio off.");
             return (ReturnCode::EOFF, Some(spi_buf));
         } else if self.tx_buf.is_some() || self.transmitting.get() {
             return (ReturnCode::EBUSY, Some(spi_buf));
         } else if radio::PSDU_OFFSET + frame_len >= spi_buf.len() {
-            // Not enough room for CRC
+            // Not enough room for CRg
             return (ReturnCode::ESIZE, Some(spi_buf));
         }
 

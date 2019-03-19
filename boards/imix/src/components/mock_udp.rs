@@ -78,7 +78,8 @@ impl MockUDPComponent {
 }
 
 impl Component for MockUDPComponent {
-    type Output = &'static capsules::mock_udp1::MockUdp1<'static>;
+    type Output = &'static capsules::mock_udp1::MockUdp1<'static,
+        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let ipsender_virtual_alarm = static_init!(
@@ -183,13 +184,23 @@ impl Component for MockUDPComponent {
         let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
         ip_receive.set_client(udp_recv);
         */
+
+        let mockudp_virtual_alarm = static_init!(
+            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            VirtualMuxAlarm::new(self.alarm_mux)
+        );
+
+        ipsender_virtual_alarm.set_client(ip_send);
+
         let mock_udp = static_init!(
-            capsules::mock_udp1::MockUdp1<'static>,
+            capsules::mock_udp1::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
             capsules::mock_udp1::MockUdp1::new(
                 5,
+                mockudp_virtual_alarm,
                 udp_send,
             )
         );
+        mockudp_virtual_alarm.set_client(mock_udp);
         udp_send.set_client(mock_udp);
         //udp_recv.set_client(mock_udp);
         mock_udp
