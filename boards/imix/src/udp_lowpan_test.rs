@@ -254,54 +254,55 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn port_table_test(&self) {
-        /*
+
         // Initialize bindings.
         let socket1 = self.port_table.create_socket().unwrap();
         let socket2 = self.port_table.create_socket().unwrap();
         let socket3 = self.port_table.create_socket().unwrap();
         debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let ret1 = self.port_table.bind(socket1, 80);
+        let (send_bind, recv_bind) =
+            self.port_table.bind(socket1, 80).ok().unwrap();
+        // TODO: socket "memory-leak"?
         assert!(self.port_table.bind(socket2, 80).is_err());
-        debug!("After return code assertions for binding");
-        // Ensure that only the first binding is able to send
+        // debug!("After return code assertions for binding");
+        // // Ensure that only the first binding is able to send
+        assert_eq!(send_bind.get_port(), 80);
+        assert_eq!(recv_bind.get_port(), 80);
+        let new_sock1 = self.port_table.unbind(send_bind, recv_bind);
 
-
-        let binding_socket = match ret1 {
-            Ok(binding) => {
-                let send_binding = binding.get_sender().unwrap();
-                // Make sure correct port is bound
-                assert_eq!(send_binding.get_port(), 80);
-                // Disallow getting sender twice
-                let err = binding.get_sender();
-                match err {
-                    Ok(_) => assert!(false),
-                    Err(_) => assert!(true),
-                    _ => assert!(false),
-                }
-                assert!(binding.put_sender(send_binding).is_ok());
-                let send_binding2 = binding.get_sender().unwrap();
-                // Make sure correct port is bound
-                assert_eq!(send_binding2.get_port(), 80);
-                // Cannot unbind until we call put_sender
-                let attempt = self.port_table.unbind(binding);
-                let binding = attempt.err().unwrap();
-                assert!(binding.put_sender(send_binding2).is_ok());
-                self.port_table.unbind(binding).ok()
-            },
-            Err(x) => {
-                assert!(false);
-                None
-            },
-        };
-        // // See if the third binding can successfully bind once the first is
-        // // unbound.
-        assert!(self.port_table.bind(socket3, 80).is_ok());
-        assert!(self.port_table.bind(binding_socket.unwrap(), 20).is_ok());
+        // let binding_socket = match ret1 {
+        //     Ok(binding) => {
+        //         let send_binding = binding.get_sender().unwrap();
+        //         // Make sure correct port is bound
+        //         assert_eq!(send_binding.get_port(), 80);
+        //         // Disallow getting sender twice
+        //         let err = binding.get_sender();
+        //         match err {
+        //             Ok(_) => assert!(false),
+        //             Err(_) => assert!(true),
+        //             _ => assert!(false),
+        //         }
+        //         assert!(binding.put_sender(send_binding).is_ok());
+        //         let send_binding2 = binding.get_sender().unwrap();
+        //         // Make sure correct port is bound
+        //         assert_eq!(send_binding2.get_port(), 80);
+        //         // Cannot unbind until we call put_sender
+        //         let attempt = self.port_table.unbind(binding);
+        //         let binding = attempt.err().unwrap();
+        //         assert!(binding.put_sender(send_binding2).is_ok());
+        //         self.port_table.unbind(binding).ok()
+        //     },
+        //     Err(x) => {
+        //         assert!(false);
+        //         None
+        //     },
+        // };
+        // // // See if the third binding can successfully bind once the first is
+        // // // unbound.
+        // assert!(self.port_table.bind(socket3, 80).is_ok());
+        // assert!(self.port_table.bind(binding_socket.unwrap(), 20).is_ok());
         debug!("port_table_test passed");
-        */
-        debug!("Unimplemented");
-
     }
 
     // TODO: add a test that involves sending/receiving.

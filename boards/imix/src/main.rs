@@ -48,6 +48,7 @@ use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponen
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_6lowpan::{UDPComponent};
 use components::mock_udp::{MockUDPComponent};
+use components::mock_udp2::{MockUDPComponent2};
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -400,7 +401,18 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let mock_udp = MockUDPComponent::new(
+    let mock_udp1 = MockUDPComponent::new(
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        src_mac_from_serial_num,
+        local_ip_ifaces,
+        mux_alarm,
+    )
+    .finalize();
+
+    let mock_udp2 = MockUDPComponent2::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -467,7 +479,8 @@ pub unsafe fn reset_handler() {
     imix.pconsole.initialize();
     imix.pconsole.start();
 
-    mock_udp.start();
+    mock_udp1.start();
+    mock_udp2.start();
 
 
 

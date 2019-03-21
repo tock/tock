@@ -40,7 +40,7 @@ static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 
-pub struct MockUDPComponent {
+pub struct MockUDPComponent2 {
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
@@ -54,7 +54,7 @@ pub struct MockUDPComponent {
 
 
 
-impl MockUDPComponent {
+impl MockUDPComponent2 {
     pub fn new(
         mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
         ctx_pfix_len: u8,
@@ -63,8 +63,8 @@ impl MockUDPComponent {
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    ) -> MockUDPComponent {
-        MockUDPComponent {
+    ) -> MockUDPComponent2 {
+        MockUDPComponent2 {
             mux_mac: mux_mac,
             ctx_pfix_len: ctx_pfix_len,
             ctx_pfix: ctx_pfix,
@@ -77,8 +77,8 @@ impl MockUDPComponent {
     }
 }
 
-impl Component for MockUDPComponent {
-    type Output = &'static capsules::mock_udp1::MockUdp1<'static,
+impl Component for MockUDPComponent2 {
+    type Output = &'static capsules::mock_udp2::MockUdp2<'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
@@ -193,8 +193,8 @@ impl Component for MockUDPComponent {
         ipsender_virtual_alarm.set_client(ip_send);
 
         let mock_udp = static_init!(
-            capsules::mock_udp1::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            capsules::mock_udp1::MockUdp1::new(
+            capsules::mock_udp2::MockUdp2<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+            capsules::mock_udp2::MockUdp2::new(
                 5,
                 mockudp_virtual_alarm,
                 udp_send,

@@ -18,6 +18,7 @@ pub mod si7021;
 pub mod spi;
 pub mod udp_6lowpan;
 pub mod mock_udp;
+pub mod mock_udp2;
 pub mod usb;
 
 pub use self::adc::AdcComponent;
@@ -41,4 +42,5 @@ pub use self::spi::SpiComponent;
 pub use self::spi::SpiSyscallComponent;
 pub use self::udp_6lowpan::UDPComponent;
 pub use self::mock_udp::MockUDPComponent;
+pub use self::mock_udp2::MockUDPComponent2;
 pub use self::usb::UsbComponent;
