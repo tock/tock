@@ -1,8 +1,8 @@
 use crate::adc;
+use crate::ble_radio;
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::i2c;
 use crate::nrf_radio;
-use crate::ble_radio;
 use crate::nvmc;
 use crate::spi;
 use crate::uart;
@@ -65,7 +65,7 @@ impl kernel::Chip for NRF52 {
                                 (true, true) => debug_assert!(
                                     false,
                                     "NRF and BLE Radios cannot\
-                                    be enabled at the same time!"
+                                     be enabled at the same time!"
                                 ),
                             }
                         }

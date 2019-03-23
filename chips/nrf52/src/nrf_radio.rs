@@ -654,8 +654,10 @@ impl Radio {
         }
     }
 
-    pub fn is_enabled(&self) -> bool{
-        self.registers.mode.matches_all(Mode::MODE::IEEE802154_250KBIT)
+    pub fn is_enabled(&self) -> bool {
+        self.registers
+            .mode
+            .matches_all(Mode::MODE::IEEE802154_250KBIT)
     }
 
     fn rx(&self) {

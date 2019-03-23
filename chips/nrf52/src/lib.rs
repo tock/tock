@@ -4,6 +4,7 @@
 #![crate_type = "rlib"]
 
 pub mod adc;
+pub mod ble_radio;
 pub mod chip;
 pub mod clock;
 pub mod crt1;
@@ -11,7 +12,6 @@ mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;
 pub mod nrf_radio;
-pub mod ble_radio;
 pub mod nvmc;
 pub mod ppi;
 pub mod pwm;

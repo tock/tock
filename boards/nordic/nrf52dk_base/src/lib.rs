@@ -18,8 +18,8 @@ use nrf5x::rtc::Rtc;
 
 mod components;
 
-use self::components::radio::RadioComponent;
 use self::components::ble::BLEComponent;
+use self::components::radio::RadioComponent;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -398,8 +398,8 @@ pub unsafe fn setup_board(
     while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        ble_radio:ble_radio,
-        ieee802154_radio:ieee802154_radio,
+        ble_radio: ble_radio,
+        ieee802154_radio: ieee802154_radio,
         button: button,
         console: console,
         led: led,

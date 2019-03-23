@@ -1,5 +1,5 @@
-pub mod radio;
 pub mod ble;
+pub mod radio;
 
-pub use self::radio::RadioComponent;
 pub use self::ble::BLEComponent;
+pub use self::radio::RadioComponent;

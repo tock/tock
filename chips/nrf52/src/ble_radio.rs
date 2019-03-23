@@ -547,7 +547,7 @@ impl Radio {
         }
     }
 
-    pub fn is_enabled(&self) -> bool{
+    pub fn is_enabled(&self) -> bool {
         self.registers.mode.matches_all(Mode::MODE::BLE_1MBIT)
     }
 
