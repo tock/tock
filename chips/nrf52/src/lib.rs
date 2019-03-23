@@ -11,6 +11,7 @@ mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;
 pub mod nrf_radio;
+pub mod ble_radio;
 pub mod nvmc;
 pub mod ppi;
 pub mod pwm;

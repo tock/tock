@@ -1,5 +1,5 @@
 [package]
-name = "nrf52840dk"
+name = "bt840"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"

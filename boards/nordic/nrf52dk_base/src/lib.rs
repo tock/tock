@@ -14,9 +14,12 @@ use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 
+use nrf5x::rtc::Rtc;
+
 mod components;
 
 use self::components::radio::RadioComponent;
+use self::components::ble::BLEComponent;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -67,7 +70,12 @@ impl UartPins {
 
 /// Supported drivers by the platform
 pub struct Platform {
-    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
+    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+        'static,
+        nrf52::ble_radio::Radio,
+        VirtualMuxAlarm<'static, Rtc>,
+    >,
+    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
@@ -96,7 +104,8 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
@@ -260,8 +269,11 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    let (radio_driver, _) =
+    let (ieee802154_radio, _) =
         RadioComponent::new(board_kernel, &nrf52::nrf_radio::RADIO, PAN_ID, SRC_MAC).finalize();
+
+    let (ble_radio, _) =
+        BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
@@ -386,8 +398,9 @@ pub unsafe fn setup_board(
     while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
+        ble_radio:ble_radio,
+        ieee802154_radio:ieee802154_radio,
         button: button,
-        radio_driver: radio_driver,
         console: console,
         led: led,
         gpio: gpio,

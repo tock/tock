@@ -5,7 +5,6 @@
 
 #![no_std]
 #![no_main]
-#![feature(panic_implementation)]
 #![deny(missing_docs)]
 
 extern crate capsules;
@@ -20,7 +19,7 @@ extern crate nrf5x;
 use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: usize = 17;
+const LED1_PIN: usize = 13;
 const LED2_PIN: usize = 14;
 const LED3_PIN: usize = 15;
 const LED4_PIN: usize = 16;
@@ -148,7 +147,7 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led_pins,
-        &UartPins::new(UART_RTS, UART_TXD, UART_RXD, UART_CTS),
+        &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
             SPI_MX25R6435F_CHIP_SELECT,

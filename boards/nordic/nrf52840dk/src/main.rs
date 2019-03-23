@@ -26,9 +26,9 @@ const BUTTON4_PIN: usize = 25;
 const BUTTON_RST_PIN: usize = 18;
 
 const UART_RTS: usize = 5;
-const UART_TXD: usize = 26;
+const UART_TXD: usize = 6;
 const UART_CTS: usize = 7;
-const UART_RXD: usize = 27;
+const UART_RXD: usize = 8;
 
 const SPI_MOSI: usize = 20;
 const SPI_MISO: usize = 21;

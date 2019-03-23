@@ -35,41 +35,16 @@
 
 use core::cell::Cell;
 use core::convert::TryFrom;
-use kernel;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::radio;
-use kernel::hil::radio::RadioChannel;
-use kernel::hil::time::Alarm;
+use kernel::hil::ble_advertising;
+use kernel::hil::ble_advertising::RadioChannel;
 use kernel::ReturnCode;
-
-use crate::ppi;
-use nrf5x;
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
-
-pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
-
-pub const IEEE802154_BACKOFF_PERIOD: usize = 320; //microseconds = 20 symbols
-
-pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
-
-pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 4;
-
-pub const IEEE802154_MIN_BE: u8 = 3;
-
-pub const IEEE802154_MAX_BE: u8 = 5;
-
-pub const RAM_S0_BYTES: usize = 1;
-
-pub const RAM_LEN_BITS: usize = 8;
-
-pub const RAM_S1_BITS: usize = 0;
-
-pub const PREBUF_LEN_BYTES: usize = 2;
 
 #[repr(C)]
 struct RadioRegisters {
@@ -101,15 +76,7 @@ struct RadioRegisters {
     /// - Address: 0x020 - 0x024
     task_bcstop: WriteOnly<u32, Task::Register>,
     /// Reserved
-    _reserved1: [u32; 2],
-    /// Stop the bit counter
-    /// - Address: 0x02c - 0x030
-    task_ccastart: WriteOnly<u32, Task::Register>,
-    /// Stop the bit counter
-    /// - Address: 0x030 - 0x034
-    task_ccastop: WriteOnly<u32, Task::Register>,
-    /// Reserved
-    _reserved2: [u32; 51],
+    _reserved1: [u32; 55],
     /// Radio has ramped up and is ready to be started
     /// - Address: 0x100 - 0x104
     event_ready: ReadWrite<u32, Event::Register>,
@@ -135,36 +102,25 @@ struct RadioRegisters {
     /// - Address: 0x11c - 0x120
     event_rssiend: ReadWrite<u32, Event::Register>,
     /// Reserved
-    _reserved3: [u32; 2],
+    _reserved2: [u32; 2],
     /// Bit counter reached bit count value
     /// - Address: 0x128 - 0x12c
     event_bcmatch: ReadWrite<u32, Event::Register>,
     /// Reserved
-    _reserved4: [u32; 1],
+    _reserved3: [u32; 1],
     /// Packet received with CRC ok
     /// - Address: 0x130 - 0x134
     event_crcok: ReadWrite<u32, Event::Register>,
     /// Packet received with CRC error
     /// - Address: 0x134 - 0x138
     crcerror: ReadWrite<u32, Event::Register>,
-    /// IEEE 802.15.4 length field received
-    /// - Address: 0x138 - 0x13c
-    event_framestart: ReadWrite<u32, Event::Register>,
     /// Reserved
-    _reserved5: [u32; 2],
-    /// Wireless medium in idle - clear to send
-    /// - Address: 0x144-0x148
-    event_ccaidle: ReadWrite<u32, Event::Register>,
-    /// Wireless medium busy - do not send
-    /// - Address: 0x148-0x14c
-    event_ccabusy: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved6: [u32; 45],
+    _reserved4: [u32; 50],
     /// Shortcut register
     /// - Address: 0x200 - 0x204
     shorts: ReadWrite<u32, Shortcut::Register>,
     /// Reserved
-    _reserved7: [u32; 64],
+    _reserved5: [u32; 64],
     /// Enable interrupt
     /// - Address: 0x304 - 0x308
     intenset: ReadWrite<u32, Interrupt::Register>,
@@ -172,12 +128,12 @@ struct RadioRegisters {
     /// - Address: 0x308 - 0x30c
     intenclr: ReadWrite<u32, Interrupt::Register>,
     /// Reserved
-    _reserved8: [u32; 61],
+    _reserved6: [u32; 61],
     /// CRC status
     /// - Address: 0x400 - 0x404
     crcstatus: ReadOnly<u32, Event::Register>,
     /// Reserved
-    _reserved9: [u32; 1],
+    _reserved7: [u32; 1],
     /// Received address
     /// - Address: 0x408 - 0x40c
     rxmatch: ReadOnly<u32, ReceiveMatch::Register>,
@@ -188,7 +144,7 @@ struct RadioRegisters {
     /// - Address: 0x410 - 0x414
     dai: ReadOnly<u32, DeviceAddressIndex::Register>,
     /// Reserved
-    _reserved10: [u32; 60],
+    _reserved8: [u32; 60],
     /// Packet pointer
     /// - Address: 0x504 - 0x508
     packetptr: ReadWrite<u32, PacketPointer::Register>,
@@ -235,7 +191,7 @@ struct RadioRegisters {
     /// - Address: 0x53c - 0x540
     crcinit: ReadWrite<u32, CrcInitialValue::Register>,
     /// Reserved
-    _reserved11: [u32; 1],
+    _reserved9: [u32; 1],
     /// Interframe spacing in microseconds
     /// - Address: 0x544 - 0x548
     tifs: ReadWrite<u32, InterFrameSpacing::Register>,
@@ -243,7 +199,7 @@ struct RadioRegisters {
     /// - Address: 0x548 - 0x54c
     rssisample: ReadWrite<u32, RssiSample::Register>,
     /// Reserved
-    _reserved12: [u32; 1],
+    _reserved10: [u32; 1],
     /// Current radio state
     /// - Address: 0x550 - 0x554
     state: ReadOnly<u32, State::Register>,
@@ -251,12 +207,12 @@ struct RadioRegisters {
     /// - Address: 0x554 - 0x558
     datawhiteiv: ReadWrite<u32, DataWhiteIv::Register>,
     /// Reserved
-    _reserved13: [u32; 2],
+    _reserved11: [u32; 2],
     /// Bit counter compare
     /// - Address: 0x560 - 0x564
     bcc: ReadWrite<u32, BitCounterCompare::Register>,
     /// Reserved
-    _reserved14: [u32; 39],
+    _reserved12: [u32; 39],
     /// Device address base segments
     /// - Address: 0x600 - 0x620
     dab: [ReadWrite<u32, DeviceAddressBase::Register>; 8],
@@ -266,24 +222,13 @@ struct RadioRegisters {
     /// Device address match configuration
     /// - Address: 0x640 - 0x644
     dacnf: ReadWrite<u32, DeviceAddressMatch::Register>,
-    /// MAC header Search Pattern Configuration
-    /// - Address: 0x644 - 0x648
-    mhrmatchconf: ReadWrite<u32, MACHeaderSearch::Register>,
-    /// MAC Header Search Pattern Mask
-    /// - Address: 0x648 - 0x64C
-    mhrmatchmas: ReadWrite<u32, MACHeaderMask::Register>,
     /// Reserved
-    _reserved15: [u32; 1],
+    _reserved13: [u32; 3],
     /// Radio mode configuration register
     /// - Address: 0x650 - 0x654
     modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
     /// Reserved
-    _reserved16: [u32; 6],
-    /// Clear Channel Assesment (CCA) control register
-    /// - Address: 0x66C - 0x670
-    ccactrl: ReadWrite<u32, CCAControl::Register>,
-    /// Reserved
-    _reserved17: [u32; 611],
+    _reserved14: [u32; 618],
     /// Peripheral power control
     /// - Address: 0xFFC - 0x1000
     power: ReadWrite<u32, Task::Register>,
@@ -342,13 +287,7 @@ register_bitfields! [u32,
         /// CRCOK event
         CRCOK OFFSET(12) NUMBITS(1),
         /// CRCERROR event
-        CRCERROR OFFSET(13) NUMBITS(1),
-        /// CCAIDLE event
-        FRAMESTART OFFSET(14) NUMBITS(1),
-        /// CCAIDLE event
-        CCAIDLE OFFSET(17) NUMBITS(1),
-        /// CCABUSY event
-        CCABUSY OFFSET(18) NUMBITS(1)
+        CRCERROR OFFSET(13) NUMBITS(1)
     ],
     /// Receive match register
     ReceiveMatch [
@@ -409,11 +348,7 @@ register_bitfields! [u32,
             NRF_1MBIT = 0,
             NRF_2MBIT = 1,
             NRF_250KBIT = 2,
-            BLE_1MBIT = 3,
-            BLE_2MBIT = 4,
-            BLE_LR125KBIT = 5,
-            BLE_LR500KBIT = 6,
-            IEEE802154_250KBIT = 15
+            BLE_1MBIT = 3
         ]
     ],
     /// Packet configuration register 0
@@ -430,15 +365,9 @@ register_bitfields! [u32,
             INCLUDE = 1
         ],
         /// Length of preamble on air. Decision point: TASKS_START task
-        PLEN OFFSET(24) NUMBITS(2) [
+        PLEN OFFSET(24) NUMBITS(1) [
             EIGHT = 0,
-            SIXTEEN = 1,
-            THIRTYTWOZEROS = 2,
-            LONGRANGE = 3
-        ],
-        CRCINC OFFSET(26) NUMBITS(1) [
-            EXCLUDE = 0,
-            INCLUDE = 1
+            SIXTEEN = 1
         ]
     ],
     /// Packet configuration register 1
@@ -507,10 +436,9 @@ register_bitfields! [u32,
             THREE = 3
         ],
         /// Include or exclude packet field from CRC calculation
-        SKIPADDR OFFSET(8) NUMBITS(2) [
+        SKIPADDR OFFSET(8) NUMBITS(1) [
             INCLUDE = 0,
-            EXCLUDE = 1,
-            IEEE802154 = 2
+            EXCLUDE = 1
         ]
     ],
     /// CRC polynomial register
@@ -578,24 +506,6 @@ register_bitfields! [u32,
         /// TxAdd for device address 0-7
         TXADD OFFSET(8) NUMBITS(8)
     ],
-    MACHeaderSearch [
-        CONFIG OFFSET(0) NUMBITS(32)
-    ],
-    MACHeaderMask [
-        PATTERN OFFSET(0) NUMBITS(32)
-    ],
-    CCAControl [
-        CCAMODE OFFSET(0) NUMBITS(3) [
-            ED_MODE = 0,
-            CARRIER_MODE = 1,
-            CARRIER_AND_ED_MODE = 2,
-            CARRIER_OR_ED_MODE = 3,
-            ED_MODE_TEST_1 = 4
-        ],
-        CCAEDTHRESH OFFSET(8) NUMBITS(8) [],
-        CCACORRTHRESH OFFSET(16) NUMBITS(8) [],
-        CCACORRCNT OFFSET(24) NUMBITS(8) []
-    ],
     /// Radio mode configuration register
     RadioModeConfig [
         /// Radio ramp-up time
@@ -615,21 +525,14 @@ register_bitfields! [u32,
     ]
 ];
 
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: OptionalCell<&'static radio::RxClient>,
-    tx_client: OptionalCell<&'static radio::TxClient>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
-    addr: Cell<u16>,
-    addr_long: Cell<[u8; 8]>,
-    pan: Cell<u16>,
-    cca_count: Cell<u8>,
-    cca_be: Cell<u8>,
-    random_nonce: Cell<u32>,
-    channel: Cell<kernel::hil::radio::RadioChannel>,
-    transmitting: Cell<bool>,
+    rx_client: OptionalCell<&'static ble_advertising::RxClient>,
+    tx_client: OptionalCell<&'static ble_advertising::TxClient>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -641,38 +544,23 @@ impl Radio {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
-            addr: Cell::new(0),
-            addr_long: Cell::new([0x00; 8]),
-            pan: Cell::new(0),
-            cca_count: Cell::new(0),
-            cca_be: Cell::new(0),
-            random_nonce: Cell::new(0xDEADBEEF),
-            channel: Cell::new(radio::RadioChannel::DataChannel11),
-            transmitting: Cell::new(false),
         }
     }
 
     pub fn is_enabled(&self) -> bool{
-        self.registers.mode.matches_all(Mode::MODE::IEEE802154_250KBIT)
+        self.registers.mode.matches_all(Mode::MODE::BLE_1MBIT)
+    }
+
+    fn tx(&self) {
+        let regs = &*self.registers;
+        regs.event_ready.write(Event::READY::CLEAR);
+        regs.task_txen.write(Task::ENABLE::SET);
     }
 
     fn rx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
-
-        if self.transmitting.get() {
-            self.tx_buf
-                .replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
-        } else {
-            self.rx_buf
-                .replace(self.set_dma_ptr(self.rx_buf.take().unwrap()));
-        }
-
         regs.task_rxen.write(Task::ENABLE::SET);
-
-        self.enable_interrupts();
     }
 
     fn set_rx_address(&self) {
@@ -702,13 +590,13 @@ impl Radio {
         regs.txpower.set(self.tx_power.get() as u32);
     }
 
-    fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
+    fn set_dma_ptr(&self) {
         let regs = &*self.registers;
-        regs.packetptr.set(buffer.as_ptr() as u32);
-        buffer
+        unsafe {
+            regs.packetptr.set(PAYLOAD.as_ptr() as u32);
+        }
     }
 
-    // TODO: Theres an additional step for 802154 rx/tx handling
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
@@ -717,56 +605,14 @@ impl Radio {
         if regs.event_ready.is_set(Event::READY) {
             regs.event_ready.write(Event::READY::CLEAR);
             regs.event_end.write(Event::READY::CLEAR);
-            if self.transmitting.get() && regs.state.get() == nrf5x::constants::RADIO_STATE_RXIDLE {
-                if self.cca_count.get() > 0 {
-                    unsafe {
-                        ppi::PPI.disable(ppi::Channel::CH21::SET);
-                    }
-                }
-                regs.task_ccastart.write(Task::ENABLE::SET);
-            } else {
-                regs.task_start.write(Task::ENABLE::SET);
-            }
+            regs.task_start.write(Task::ENABLE::SET);
         }
 
-        if regs.event_framestart.is_set(Event::READY) {
-            regs.event_framestart.write(Event::READY::CLEAR);
+        if regs.event_address.is_set(Event::READY) {
+            regs.event_address.write(Event::READY::CLEAR);
         }
-
-        //   IF we receive the go ahead (channel is clear)
-        // THEN start the transmit part of the radio
-        if regs.event_ccaidle.is_set(Event::READY) {
-            regs.event_ccaidle.write(Event::READY::CLEAR);
-            regs.task_txen.write(Task::ENABLE::SET)
-        }
-
-        if regs.event_ccabusy.is_set(Event::READY) {
-            regs.event_ccabusy.write(Event::READY::CLEAR);
-            //need to back off for a period of time outlined
-            //in the IEEE 802.15.4 standard (see Figure 69 in
-            //section 7.5.1.4 The CSMA-CA algorithm of the
-            //standard).
-            if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {
-                self.cca_count.set(self.cca_count.get() + 1);
-                self.cca_be.set(self.cca_be.get() + 1);
-                let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                unsafe {
-                    ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0
-                        .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
-                }
-            } else {
-                self.transmitting.set(false);
-                //if we are transmitting, the CRCstatus check is always going to be an error
-                let result = ReturnCode::EBUSY;
-                //TODO: Acked is flagged as false until I get around to fixing it.
-                self.tx_client
-                    .map(|client| client.send_done(self.tx_buf.take().unwrap(), false, result));
-            }
-
-            regs.event_ready.write(Event::READY::CLEAR);
-            regs.task_disable.write(Task::ENABLE::SET);
-            self.enable_interrupts();
+        if regs.event_payload.is_set(Event::READY) {
+            regs.event_payload.write(Event::READY::CLEAR);
         }
 
         // tx or rx finished!
@@ -784,37 +630,26 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    self.transmitting.set(false);
-                    //if we are transmitting, the CRCstatus check is always going to be an error
-                    let result = ReturnCode::SUCCESS;
-                    //TODO: Acked is flagged as false until I get around to fixing it.
-                    self.tx_client
-                        .map(|client| client.send_done(self.tx_buf.take().unwrap(), false, result));
+                    self.radio_off();
+                    self.tx_client.map(|client| client.transmit_event(result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    self.rx_client.map(|client| {
-                        let rbuf = self.rx_buf.take().unwrap();
-
-                        let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
-                        // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                        // And because the length field is directly read from the packet
-                        // We need to add 2 to length to get the total length
-
-                        // TODO: Check if the length is still valid
-                        // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
-                        client.receive(rbuf, frame_len, true, result)
-                    });
+                    self.radio_off();
+                    unsafe {
+                        self.rx_client.map(|client| {
+                            // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                            // And because the length field is directly read from the packet
+                            // We need to add 2 to length to get the total length
+                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 2, result)
+                        });
+                    }
                 }
                 // Radio state - Disabled
                 _ => (),
             }
-            self.radio_off();
-            self.radio_initialize(self.channel.get());
-            self.rx();
         }
         self.enable_interrupts();
     }
@@ -823,10 +658,9 @@ impl Radio {
         let regs = &*self.registers;
         regs.intenset.write(
             Interrupt::READY::SET
-                + Interrupt::CCAIDLE::SET
-                + Interrupt::CCABUSY::SET
-                + Interrupt::END::SET
-                + Interrupt::FRAMESTART::SET,
+                + Interrupt::ADDRESS::SET
+                + Interrupt::PAYLOAD::SET
+                + Interrupt::END::SET,
         );
     }
 
@@ -846,58 +680,64 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
-    fn radio_initialize(&self, _channel: RadioChannel) {
+    fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
+        // set payload
+        for (i, c) in buf.as_ref().iter().enumerate() {
+            unsafe {
+                PAYLOAD[i] = *c;
+            }
+        }
+        buf
+    }
+
+    fn ble_initialize(&self, channel: RadioChannel) {
         self.radio_on();
 
-        self.ieee802154_set_channel_rate();
+        self.ble_set_tx_power();
 
-        self.ieee802154_set_packet_config();
+        self.ble_set_channel_rate();
 
-        self.ieee802154_set_rampup_mode();
-
-        self.ieee802154_set_crc_config();
-        self.ieee802154_set_cca_config();
-
-        self.ieee802154_set_tx_power();
-
-        self.ieee802154_set_channel_freq(self.channel.get());
+        self.ble_set_channel_freq(channel);
+        self.ble_set_data_whitening(channel);
 
         self.set_tx_address();
         self.set_rx_address();
 
-        self.rx();
+        self.ble_set_packet_config();
+        self.ble_set_advertising_access_address();
+
+        self.ble_set_crc_config();
+
+        self.set_dma_ptr();
     }
 
-    // IEEE802.15.4 SPECIFICATION Section 6.20.12.5 of the NRF52840 Datasheet
-    fn ieee802154_set_crc_config(&self) {
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
+    fn ble_set_crc_config(&self) {
         let regs = &*self.registers;
         regs.crccnf
-            .write(CrcConfiguration::LEN::TWO + CrcConfiguration::SKIPADDR::IEEE802154);
-        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_IEEE802154);
-        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_IEEE802154);
+            .write(CrcConfiguration::LEN::THREE + CrcConfiguration::SKIPADDR::EXCLUDE);
+        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
+        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
 
-    fn ieee802154_set_rampup_mode(&self) {
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1.2 Access Address
+    // Set access address to 0x8E89BED6
+    fn ble_set_advertising_access_address(&self) {
         let regs = &*self.registers;
-        regs.modecnf0
-            .write(RadioModeConfig::RU::FAST + RadioModeConfig::DTX::CENTER);
-    }
-
-    fn ieee802154_set_cca_config(&self) {
-        let regs = &*self.registers;
-        regs.ccactrl.write(
-            CCAControl::CCAMODE.val(nrf5x::constants::IEEE802154_CCA_MODE)
-                + CCAControl::CCAEDTHRESH.val(nrf5x::constants::IEEE802154_CCA_ED_THRESH)
-                + CCAControl::CCACORRTHRESH.val(nrf5x::constants::IEEE802154_CCA_CORR_THRESH)
-                + CCAControl::CCACORRCNT.val(nrf5x::constants::IEEE802154_CCA_CORR_CNT),
-        );
+        regs.prefix0.set(0x0000008e);
+        regs.base0.set(0x89bed600);
     }
 
     // Packet configuration
-    // Settings taken from OpenThread nrf_radio_init() in
-    // openthread/third_party/NordicSemiconductor/drivers/radio/nrf_802154_core.c
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.1 Packet Format
     //
-    fn ieee802154_set_packet_config(&self) {
+    // LSB                                                      MSB
+    // +----------+   +----------------+   +---------------+   +------------+
+    // | Preamble | - | Access Address | - | PDU           | - | CRC        |
+    // | (1 byte) |   | (4 bytes)      |   | (2-255 bytes) |   | (3 bytes)  |
+    // +----------+   +----------------+   +---------------+   +------------+
+    //
+    fn ble_set_packet_config(&self) {
         let regs = &*self.registers;
 
         // sets the header of PDU TYPE to 1 byte
@@ -907,208 +747,95 @@ impl Radio {
                 + PacketConfiguration0::S0LEN.val(1)
                 + PacketConfiguration0::S1LEN::CLEAR
                 + PacketConfiguration0::S1INCL::CLEAR
-                + PacketConfiguration0::PLEN::THIRTYTWOZEROS
-                + PacketConfiguration0::CRCINC::INCLUDE,
+                + PacketConfiguration0::PLEN::EIGHT,
         );
 
         regs.pcnf1.write(
-            //PacketConfiguration1::WHITEEN::ENABLED
-            PacketConfiguration1::ENDIAN::LITTLE
-                //+ PacketConfiguration1::BALEN.val(3)
+            PacketConfiguration1::WHITEEN::ENABLED
+                + PacketConfiguration1::ENDIAN::LITTLE
+                + PacketConfiguration1::BALEN.val(3)
                 + PacketConfiguration1::STATLEN::CLEAR
-                + PacketConfiguration1::MAXLEN.val(nrf5x::constants::RADIO_PAYLOAD_LENGTH as u32),
+                + PacketConfiguration1::MAXLEN.val(255),
         );
     }
 
-    fn ieee802154_set_channel_rate(&self) {
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part A], 4.6 REFERENCE SIGNAL DEFINITION
+    // Bit Rate = 1 Mb/s ±1 ppm
+    fn ble_set_channel_rate(&self) {
         let regs = &*self.registers;
-        regs.mode.write(Mode::MODE::IEEE802154_250KBIT);
+        regs.mode.write(Mode::MODE::BLE_1MBIT);
     }
 
-    fn ieee802154_set_channel_freq(&self, channel: RadioChannel) {
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.2 Data Whitening
+    // Configure channel index to the LFSR and the hardware solves the rest
+    fn ble_set_data_whitening(&self, channel: RadioChannel) {
+        let regs = &*self.registers;
+        regs.datawhiteiv.set(channel.get_channel_index());
+    }
+
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 1.4.1
+    // RF Channels:     0 - 39
+    // Data:            0 - 36
+    // Advertising:     37, 38, 39
+    fn ble_set_channel_freq(&self, channel: RadioChannel) {
         let regs = &*self.registers;
         regs.frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
-    fn ieee802154_set_tx_power(&self) {
-        self.set_tx_power();
-    }
-
-    pub fn startup(&self) -> ReturnCode {
-        self.radio_initialize(self.channel.get());
-        ReturnCode::SUCCESS
-    }
-
-    // Returns a new pseudo-random number and updates the randomness state.
+    // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3 TRANSMITTER CHARACTERISTICS
+    // Minimum Output Power : -20dBm
+    // Maximum Output Power : +10dBm
     //
-    // Uses the [Xorshift](https://en.wikipedia.org/wiki/Xorshift) algorithm to
-    // produce pseudo-random numbers. Uses the `random_nonce` field to keep
-    // state.
-    fn random_nonce(&self) -> u32 {
-        let mut next_nonce = ::core::num::Wrapping(self.random_nonce.get());
-        next_nonce ^= next_nonce << 13;
-        next_nonce ^= next_nonce >> 17;
-        next_nonce ^= next_nonce << 5;
-        self.random_nonce.set(next_nonce.0);
-        self.random_nonce.get()
+    // no check is required because the BleConfig::set_tx_power() method ensures that only
+    // valid tranmitting power is configured!
+    fn ble_set_tx_power(&self) {
+        self.set_tx_power();
     }
 }
 
-impl kernel::hil::radio::Radio for Radio {}
-
-impl kernel::hil::radio::RadioConfig for Radio {
-    fn initialize(
+impl ble_advertising::BleAdvertisementDriver for Radio {
+    fn transmit_advertisement(
         &self,
-        _spi_buf: &'static mut [u8],
-        _reg_write: &'static mut [u8],
-        _reg_read: &'static mut [u8],
-    ) -> ReturnCode {
-        self.radio_initialize(self.channel.get());
-        ReturnCode::SUCCESS
+        buf: &'static mut [u8],
+        _len: usize,
+        channel: RadioChannel,
+    ) -> &'static mut [u8] {
+        let res = self.replace_radio_buffer(buf);
+        self.ble_initialize(channel);
+        self.tx();
+        self.enable_interrupts();
+        res
     }
 
-    fn reset(&self) -> ReturnCode {
-        self.radio_on();
-        ReturnCode::SUCCESS
-    }
-    fn start(&self) -> ReturnCode {
-        self.reset();
-        ReturnCode::SUCCESS
-    }
-    fn stop(&self) -> ReturnCode {
-        self.radio_off();
-        ReturnCode::SUCCESS
-    }
-    fn is_on(&self) -> bool {
-        true
-    }
-    fn busy(&self) -> bool {
-        false
+    fn receive_advertisement(&self, channel: RadioChannel) {
+        self.ble_initialize(channel);
+        self.rx();
+        self.enable_interrupts();
     }
 
-    //#################################################
-    ///These methods are holdovers from when the radio HIL was mostly to an external
-    ///module over an interface
-    //#################################################
-
-    //fn set_power_client(&self, client: &'static radio::PowerClient){
-
-    //}
-    /// Commit the config calls to hardware, changing the address,
-    /// PAN ID, TX power, and channel to the specified values, issues
-    /// a callback to the config client when done.
-    fn config_commit(&self) {
-        self.radio_off();
-        self.radio_initialize(self.channel.get());
+    fn set_receive_client(&self, client: &'static ble_advertising::RxClient) {
+        self.rx_client.set(client);
     }
 
-    fn set_config_client(&self, _client: &'static radio::ConfigClient) {}
-
-    //#################################################
-    /// Accessors
-    //#################################################
-
-    fn get_address(&self) -> u16 {
-        self.addr.get()
+    fn set_transmit_client(&self, client: &'static ble_advertising::TxClient) {
+        self.tx_client.set(client);
     }
+}
 
-    fn get_address_long(&self) -> [u8; 8] {
-        self.addr_long.get()
-    }
-
-    /// The 16-bit PAN ID
-    fn get_pan(&self) -> u16 {
-        self.pan.get()
-    }
-    /// The transmit power, in dBm
-    fn get_tx_power(&self) -> i8 {
-        self.tx_power.get() as i8
-    }
-    /// The 802.15.4 channel
-    fn get_channel(&self) -> u8 {
-        self.channel.get().get_channel_index()
-    }
-
-    //#################################################
-    /// Mutators
-    //#################################################
-
-    fn set_address(&self, addr: u16) {
-        self.addr.set(addr);
-    }
-
-    fn set_address_long(&self, addr: [u8; 8]) {
-        self.addr_long.set(addr);
-    }
-
-    fn set_pan(&self, id: u16) {
-        self.pan.set(id);
-    }
-
-    fn set_channel(&self, chan: u8) -> ReturnCode {
-        match radio::RadioChannel::try_from(chan) {
-            Err(_) => ReturnCode::ENOSUPPORT,
-            Ok(res) => {
-                self.channel.set(res);
-                ReturnCode::SUCCESS
-            }
-        }
-    }
-
-    fn set_tx_power(&self, tx_power: i8) -> ReturnCode {
+impl ble_advertising::BleConfig for Radio {
+    // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
+    // underlying chip must validate if the current `tx_power` is supported as well
+    fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
         // Convert u8 to TxPower
-        match nrf5x::constants::TxPower::try_from(tx_power as u8) {
+        match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
-            Err(_) => ReturnCode::ENOSUPPORT,
+            Err(_) => kernel::ReturnCode::ENOSUPPORT,
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);
-                ReturnCode::SUCCESS
+                kernel::ReturnCode::SUCCESS
             }
         }
-    }
-}
-
-impl kernel::hil::radio::RadioData for Radio {
-    fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
-        self.rx_client.set(client);
-        self.rx_buf.replace(buffer);
-    }
-
-    fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
-        self.rx_buf.replace(buffer);
-    }
-
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
-        self.tx_client.set(client);
-    }
-
-    fn transmit(
-        &self,
-        buf: &'static mut [u8],
-        frame_len: usize,
-    ) -> (ReturnCode, Option<&'static mut [u8]>) {
-        if self.tx_buf.is_some() || self.transmitting.get() {
-            return (ReturnCode::EBUSY, Some(buf));
-        } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
-            // Not enough room for CRC
-            return (ReturnCode::ESIZE, Some(buf));
-        }
-
-        buf[RAM_S0_BYTES] = frame_len as u8;
-
-        self.tx_buf.replace(buf);
-
-        self.transmitting.set(true);
-
-        self.cca_count.set(0);
-        self.cca_be.set(IEEE802154_MIN_BE);
-
-        self.radio_off();
-        self.radio_initialize(self.channel.get());
-
-        //self.enable_interrupts();
-        (ReturnCode::SUCCESS, None)
     }
 }

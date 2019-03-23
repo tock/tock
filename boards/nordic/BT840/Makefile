@@ -2,7 +2,7 @@
 
 TOCK_ARCH=cortex-m4
 TARGET=thumbv7em-none-eabi
-PLATFORM=nrf52840dk
+PLATFORM=bt840
 
 include ../../Makefile.common
 
