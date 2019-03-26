@@ -13,6 +13,13 @@ pub trait Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&Driver>) -> R;
+
+    fn with_driver_permissions<F, R>(&self, _permissions: u64, driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&Driver>) -> R,
+    {
+        self.with_driver(driver_num, f)
+    }
 }
 
 /// Interface for individual MCUs.

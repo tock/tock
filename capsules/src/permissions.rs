@@ -1,15 +1,6 @@
-//! Basic capsule that is the beginning of a hardware permissions capsule
+//! Simple capsule that checks if a permission is set to true or false
 
 #![forbid(unsafe_code)]
-#![allow(dead_code, unused_imports, unused_variables)]
-
-// // unused but in the book tutorial??
-// #![no_std]
-// extern crate kernel;
-// #[macro_use(debug)]
-#[allow(unused_imports)]
-
-use kernel::debug;
 
 pub struct Permissions<> {
 }
@@ -20,14 +11,11 @@ impl<> Permissions<> {
         }
     }
 
-    pub fn check (&self, driver_num: usize) -> bool {
-        if driver_num == 2 {
-            debug!("Permission denied: LED\n");
-            false
-        } else { true }
+    pub fn start(&self) {
     }
 
-    pub fn start(&self) {
-        debug!("Hello from the preferences capsule!");
+    pub fn check (&self, permissions: u64, driver_num: usize) -> bool {
+        let bit = crate::driver::get_permission_bit(driver_num);
+        permissions & (1 << bit) == (1 << bit)
     }
 }

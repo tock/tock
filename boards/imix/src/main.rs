@@ -160,35 +160,42 @@ static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
 impl kernel::Platform for Imix {
+    fn with_driver_permissions<F, R>(&self, permissions: u64, driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&kernel::Driver>) -> R,
+    {
+        if self.permissions.check(permissions, driver_num) {
+            self.with_driver(driver_num, f)
+        } else { f(None) }
+    }
+
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
-        if self.permissions.check(driver_num) {
-            match driver_num {
-                capsules::console::DRIVER_NUM => f(Some(self.console)),
-                capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-                capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-                capsules::spi::DRIVER_NUM => f(Some(self.spi)),
-                capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-                capsules::led::DRIVER_NUM => f(Some(self.led)),
-                capsules::button::DRIVER_NUM => f(Some(self.button)),
-                capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-                capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-                capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-                capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-                capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-                capsules::crc::DRIVER_NUM => f(Some(self.crc)),
-                capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
-                capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
-                capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
-                capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
-                capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
-                capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-                kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-                _ => f(None),
-            }
-        } else { f(None) }
+        match driver_num {
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            _ => f(None),
+        }
     }
 }
 

@@ -20,6 +20,12 @@ crate struct TbfHeaderV2Base {
     checksum: u32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+crate struct TbfHeaderV2Perm {
+    permissions: u64,
+}
+
 /// Types in TLV structures for each optional block of the header.
 #[repr(u16)]
 #[derive(Clone, Copy, Debug)]
@@ -66,6 +72,7 @@ crate struct TbfHeaderV2WriteableFlashRegion {
 #[derive(Clone, Copy, Debug)]
 crate struct TbfHeaderV2 {
     base: &'static TbfHeaderV2Base,
+    perm: &'static TbfHeaderV2Perm,
     main: Option<&'static TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<&'static [TbfHeaderV2WriteableFlashRegion]>,
@@ -101,6 +108,14 @@ impl TbfHeader {
                 hd.base.flags & 0x00000001 == 1
             }
             TbfHeader::Padding(_) => false,
+        }
+    }
+
+    /// Return whether the application has access to the LED or not.
+    crate fn get_permissions(&self) -> u64 {
+        match *self {
+            TbfHeader::TbfHeaderV2(hd) => hd.perm.permissions,
+            TbfHeader::Padding(_) => 0,
         }
     }
 
@@ -189,7 +204,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
     match version {
         2 => {
             let tbf_header_base = &*(address as *const TbfHeaderV2Base);
-
+            let tbf_header_perm = &*(((address as usize) + (mem::size_of::<TbfHeaderV2Base>())) as *const TbfHeaderV2Perm);
             // Some sanity checking. Make sure the header isn't longer than the
             // total app. Make sure the total app fits inside a reasonable size
             // of flash.
@@ -220,11 +235,12 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
             }
 
             if checksum != tbf_header_base.checksum {
+                debug!("Checksum mismatch in kernel!");
                 return None;
             }
 
-            // Skip the base of the header.
-            let mut offset = mem::size_of::<TbfHeaderV2Base>() as isize;
+            // Skip the base and permissions of the header.
+            let mut offset = (mem::size_of::<TbfHeaderV2Base>() + mem::size_of::<TbfHeaderV2Perm>()) as isize;
             let mut remaining_length = tbf_header_base.header_size as usize - offset as usize;
 
             // Check if this is a real app or just padding. Padding apps are
@@ -314,6 +330,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
 
                 let tbf_header = TbfHeaderV2 {
                     base: tbf_header_base,
+                    perm: tbf_header_perm,
                     main: main_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: wfr_pointer,

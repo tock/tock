@@ -15,6 +15,8 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
+use crate::tbfheader;
+use crate::debug;
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -291,25 +293,28 @@ impl Kernel {
                                     callback_ptr,
                                     appdata,
                                 }) => {
-                                    if /*driver_number == 0x2*/ true {
-                                        // platform.permissions.check();
-                                    // } else {
-                                        let callback_ptr = NonNull::new(callback_ptr);
-                                        let callback = callback_ptr
-                                            .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
+                                    let callback_ptr = NonNull::new(callback_ptr);
+                                    let callback = callback_ptr
+                                        .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
+                                    let permissions: u64 =
+                                        if let Some(header) = tbfheader::parse_and_validate_tbf_header(process.flash_start()) {
+                                            let permissions = header.get_permissions();
+                                            debug!("perm -->{}<--", permissions);
+                                            permissions
+                                        } else { debug!("error parsing!"); 0 };
 
-                                        let res =
-                                            platform.with_driver(
-                                                driver_number,
-                                                |driver| match driver {
-                                                    Some(d) => {
-                                                        d.subscribe(subdriver_number, callback, appid)
-                                                    }
-                                                    None => ReturnCode::ENODEVICE,
-                                                },
-                                            );
-                                        process.set_syscall_return_value(res.into());
-                                    }
+                                    let res =
+                                        platform.with_driver_permissions(
+                                            permissions,
+                                            driver_number,
+                                            |driver| match driver {
+                                                Some(d) => {
+                                                    d.subscribe(subdriver_number, callback, appid)
+                                                }
+                                                None => ReturnCode::ENODEVICE,
+                                            },
+                                        );
+                                    process.set_syscall_return_value(res.into());
                                 }
                                 Some(Syscall::COMMAND {
                                     driver_number,
@@ -317,21 +322,25 @@ impl Kernel {
                                     arg0,
                                     arg1,
                                 }) => {
-                                    if /*driver_number == 0x2*/ true {
-                                        // platform.permissions.check();
-                                    // } else {
-                                        let res =
-                                            platform.with_driver(
-                                                driver_number,
-                                                |driver| match driver {
-                                                    Some(d) => {
-                                                        d.command(subdriver_number, arg0, arg1, appid)
-                                                    }
-                                                    None => ReturnCode::ENODEVICE,
-                                                },
-                                            );
-                                        process.set_syscall_return_value(res.into());
-                                    }
+                                    let permissions: u64 =
+                                        if let Some(header) = tbfheader::parse_and_validate_tbf_header(process.flash_start()) {
+                                            let permissions = header.get_permissions();
+                                            debug!("perm -->{}<--", permissions);
+                                            permissions
+                                        } else { debug!("error parsing!"); 0 };
+
+                                    let res =
+                                        platform.with_driver_permissions(
+                                            permissions,
+                                            driver_number,
+                                            |driver| match driver {
+                                                Some(d) => {
+                                                    d.command(subdriver_number, arg0, arg1, appid)
+                                                }
+                                                None => ReturnCode::ENODEVICE,
+                                            },
+                                        );
+                                    process.set_syscall_return_value(res.into());
                                 }
                                 Some(Syscall::ALLOW {
                                     driver_number,
@@ -339,24 +348,30 @@ impl Kernel {
                                     allow_address,
                                     allow_size,
                                 }) => {
-                                    if /*driver_number == 0x2*/ true {
-                                        // platform.permissions.check();
-                                    // } else {
-                                        let res = platform.with_driver(driver_number, |driver| {
-                                            match driver {
-                                                Some(d) => {
-                                                    match process.allow(allow_address, allow_size) {
-                                                        Ok(oslice) => {
-                                                            d.allow(appid, subdriver_number, oslice)
-                                                        }
-                                                        Err(err) => err, /* memory not valid */
+                                    let permissions: u64 =
+                                        if let Some(header) = tbfheader::parse_and_validate_tbf_header(process.flash_start()) {
+                                            let permissions = header.get_permissions();
+                                            debug!("perm -->{}<--", permissions);
+                                            permissions
+                                        } else { debug!("error parsing!"); 0 };
+
+                                    let res = platform.with_driver_permissions(
+                                        permissions,
+                                        driver_number,
+                                        |driver| {
+                                        match driver {
+                                            Some(d) => {
+                                                match process.allow(allow_address, allow_size) {
+                                                    Ok(oslice) => {
+                                                        d.allow(appid, subdriver_number, oslice)
                                                     }
+                                                    Err(err) => err, /* memory not valid */
                                                 }
-                                                None => ReturnCode::ENODEVICE,
                                             }
-                                        });
-                                        process.set_syscall_return_value(res.into());
-                                    }
+                                            None => ReturnCode::ENODEVICE,
+                                        }
+                                    });
+                                    process.set_syscall_return_value(res.into());
                                 }
                                 _ => {}
                             }
