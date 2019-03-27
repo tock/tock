@@ -279,7 +279,7 @@ struct RadioRegisters {
     modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
     /// Reserved
     _reserved16: [u32; 6],
-    /// Clear Channel Assesment (CCA) control register
+    /// Clear Channel Assessment (CCA) control register
     /// - Address: 0x66C - 0x670
     ccactrl: ReadWrite<u32, CCAControl::Register>,
     /// Reserved
@@ -994,9 +994,9 @@ impl kernel::hil::radio::RadioConfig for Radio {
     ///module over an interface
     //#################################################
 
-    //fn set_power_client(&self, client: &'static radio::PowerClient){
+    fn set_power_client(&self, _client: &'static radio::PowerClient){
 
-    //}
+    }
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.

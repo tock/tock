@@ -81,7 +81,7 @@ pub trait RadioConfig {
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    //fn set_power_client(&self, client: &'static PowerClient);
+    fn set_power_client(&self, client: &'static PowerClient);
 
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues

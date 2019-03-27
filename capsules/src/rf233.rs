@@ -1254,9 +1254,9 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
         self.cfg_client.set(client);
     }
 
-    /*fn set_power_client(&self, client: &'static radio::PowerClient) {
+    fn set_power_client(&self, client: &'static radio::PowerClient) {
         self.power_client.set(client);
-    }*/
+    }
 
     fn set_address(&self, addr: u16) {
         self.addr.set(addr);

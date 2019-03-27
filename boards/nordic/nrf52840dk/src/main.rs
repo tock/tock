@@ -50,7 +50,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 const NUM_PROCS: usize = 8;
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 245760] = [0; 245760];
+static mut APP_MEMORY: [u8; 0x3A980] = [0; 0x3A980];
 
 static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
