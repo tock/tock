@@ -994,9 +994,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
     ///module over an interface
     //#################################################
 
-    fn set_power_client(&self, _client: &'static radio::PowerClient){
-
-    }
+    fn set_power_client(&self, _client: &'static radio::PowerClient) {}
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
