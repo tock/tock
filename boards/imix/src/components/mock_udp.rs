@@ -143,7 +143,6 @@ impl Component for MockUDPComponent {
                 self.src_mac_addr
             )
         );
-        ipsender_virtual_alarm.set_client(ip_send);
 
         // Set src IP of the sender to be the address configured via the sam4l.
         // Userland apps can change this if they so choose.
@@ -173,7 +172,6 @@ impl Component for MockUDPComponent {
             UDPSendStruct::new(udp_mux)
         );
 
-        ip_send.set_client(udp_mux);
         /*
         let ip_receive = static_init!(
             capsules::net::ipv6::ipv6_recv::IP6RecvStruct<'static>,
@@ -185,24 +183,19 @@ impl Component for MockUDPComponent {
         ip_receive.set_client(udp_recv);
         */
 
-        let mockudp_virtual_alarm = static_init!(
-            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-            VirtualMuxAlarm::new(self.alarm_mux)
-        );
-
-        ipsender_virtual_alarm.set_client(ip_send);
-
         let mock_udp = static_init!(
             capsules::mock_udp1::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
             capsules::mock_udp1::MockUdp1::new(
                 5,
-                mockudp_virtual_alarm,
+                VirtualMuxAlarm::new(self.alarm_mux),
                 udp_send,
                 self.bound_port_table,
             )
         );
-        mockudp_virtual_alarm.set_client(mock_udp);
+        ip_send.set_client(udp_mux);
         udp_send.set_client(mock_udp);
+        mock_udp.alarm.set_client(mock_udp);
+        ipsender_virtual_alarm.set_client(ip_send);
         //udp_recv.set_client(mock_udp);
         mock_udp
     }

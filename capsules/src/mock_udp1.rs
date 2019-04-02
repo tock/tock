@@ -26,7 +26,7 @@ static UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_S
 
 pub struct MockUdp1<'a, A: Alarm + 'a> {
     id: u16,
-    alarm: &'a A,
+    pub alarm: A,
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
     // TODO: How long should socket/binding live?
@@ -37,7 +37,7 @@ pub struct MockUdp1<'a, A: Alarm + 'a> {
 
 impl<'a, A: Alarm> MockUdp1<'a, A> {
     pub fn new(id: u16,
-               alarm: &'a A,
+               alarm: A,
                udp_sender: &'a UDPSender<'a>,
                port_table: &'static UdpPortTable)
             -> MockUdp1<'a, A> {
@@ -53,8 +53,6 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
 
     pub fn start(&self) {
         debug!("Start called in mock_udp1");
-        self.alarm.set_alarm(self.alarm.now().
-                             wrapping_add(<A::Frequency>::frequency()));
         let socket = self.port_table.create_socket();
         if socket.is_ok() {
             debug!("Socket successfully created in mock_udp1");
@@ -68,9 +66,12 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             debug!("Binding successfully created in mock_udp1");
         } else {
             debug!("Binding error in mock_udp1");
+            return;
         }
         // self.socket.replace(socket);
         // self.binding.replace(binding);
+        self.alarm.set_alarm(self.alarm.now().
+                             wrapping_add(<A::Frequency>::frequency()*10));
     }
 
     pub fn send(&self, value: u16) {
@@ -78,23 +79,23 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
 
         // UDP_DGRAM[0] = (value >> 8) as u8;
         // UDP_DGRAM[1] = (value & 0x00ff) as u8;
-        //debug!("in send in mock");
         let tmp = self.udp_sender
             .send_to(DST_ADDR, DST_PORT, SRC_PORT, &UDP_DGRAM);
+        debug!("Initial send result: {:?}", tmp);
     }
 }
 
 impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
     fn fired(&self) {
-        //debug!("timer fired....");
-        // self.send(17);
-        debug!("2: timer fired....");
-        // self.start();
+        self.send(17);
+        self.alarm.set_alarm(self.alarm.now().
+                             wrapping_add(<A::Frequency>::frequency()));
     }
 }
 
 impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
     fn send_done(&self, result: ReturnCode) {
         debug!("Done sending. Result: {:?}", result);
+        debug!("");
     }
 }

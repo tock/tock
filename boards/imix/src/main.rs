@@ -26,7 +26,7 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, static_init};
+use kernel::{create_capability, debug, static_init};
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -412,7 +412,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
 
-    let mock_udp2 = MockUDPComponent2::new(
+    /*let mock_udp2 = MockUDPComponent2::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -421,7 +421,7 @@ pub unsafe fn reset_handler() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize();
+    .finalize();*/
     /*
     let udp_driver = UDPComponent::new(
         board_kernel,
@@ -479,8 +479,7 @@ pub unsafe fn reset_handler() {
     imix.pconsole.initialize();
     imix.pconsole.start();
 
-    mock_udp1.start();
-    mock_udp2.start();
+    //mock_udp2.start();
 
 
 
@@ -498,6 +497,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
+    mock_udp1.start();
     //udp_lowpan_test.start();
 
     //mock_udp.send(27);
