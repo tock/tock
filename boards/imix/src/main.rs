@@ -113,7 +113,7 @@ static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 struct Imix {
-    permissions: &'static capsules::permissions::Permissions<>,
+    permissions: &'static capsules::permissions::Permissions,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
         components::process_console::Capability,
@@ -166,7 +166,9 @@ impl kernel::Platform for Imix {
     {
         if self.permissions.check(permissions, driver_num) {
             self.with_driver(driver_num, f)
-        } else { f(None) }
+        } else {
+            f(None)
+        }
     }
 
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -491,4 +493,3 @@ pub unsafe fn reset_handler() {
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
-

@@ -111,7 +111,7 @@ impl TbfHeader {
         }
     }
 
-    /// Return whether the application has access to the LED or not.
+    /// Return all granted permissions as u64 bit map
     crate fn get_permissions(&self) -> u64 {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.perm.permissions,
@@ -201,10 +201,14 @@ impl TbfHeader {
 crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader> {
     let version = *(address as *const u16);
 
+    // TODO: make permissions be it's own "Version 3" so as to not break
+    // backwards compatability
     match version {
         2 => {
             let tbf_header_base = &*(address as *const TbfHeaderV2Base);
-            let tbf_header_perm = &*(((address as usize) + (mem::size_of::<TbfHeaderV2Base>())) as *const TbfHeaderV2Perm);
+            let tbf_header_perm = &*(((address as usize) + (mem::size_of::<TbfHeaderV2Base>()))
+                as *const TbfHeaderV2Perm);
+
             // Some sanity checking. Make sure the header isn't longer than the
             // total app. Make sure the total app fits inside a reasonable size
             // of flash.
@@ -235,12 +239,12 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
             }
 
             if checksum != tbf_header_base.checksum {
-                debug!("Checksum mismatch in kernel!");
                 return None;
             }
 
             // Skip the base and permissions of the header.
-            let mut offset = (mem::size_of::<TbfHeaderV2Base>() + mem::size_of::<TbfHeaderV2Perm>()) as isize;
+            let mut offset =
+                (mem::size_of::<TbfHeaderV2Base>() + mem::size_of::<TbfHeaderV2Perm>()) as isize;
             let mut remaining_length = tbf_header_base.header_size as usize - offset as usize;
 
             // Check if this is a real app or just padding. Padding apps are
