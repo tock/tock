@@ -15,7 +15,6 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
-use crate::tbfheader;
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -295,17 +294,9 @@ impl Kernel {
                                     let callback_ptr = NonNull::new(callback_ptr);
                                     let callback = callback_ptr
                                         .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
-                                    let permissions: u64 = if let Some(header) =
-                                        tbfheader::parse_and_validate_tbf_header(
-                                            process.flash_start(),
-                                        ) {
-                                        header.get_permissions()
-                                    } else {
-                                        0
-                                    };
 
                                     let res = platform.with_driver_permissions(
-                                        permissions,
+                                        process.get_permissions(),
                                         driver_number,
                                         |driver| match driver {
                                             Some(d) => {
@@ -322,17 +313,8 @@ impl Kernel {
                                     arg0,
                                     arg1,
                                 }) => {
-                                    let permissions: u64 = if let Some(header) =
-                                        tbfheader::parse_and_validate_tbf_header(
-                                            process.flash_start(),
-                                        ) {
-                                        header.get_permissions()
-                                    } else {
-                                        0
-                                    };
-
                                     let res = platform.with_driver_permissions(
-                                        permissions,
+                                        process.get_permissions(),
                                         driver_number,
                                         |driver| match driver {
                                             Some(d) => {
@@ -349,17 +331,8 @@ impl Kernel {
                                     allow_address,
                                     allow_size,
                                 }) => {
-                                    let permissions: u64 = if let Some(header) =
-                                        tbfheader::parse_and_validate_tbf_header(
-                                            process.flash_start(),
-                                        ) {
-                                        header.get_permissions()
-                                    } else {
-                                        0
-                                    };
-
                                     let res = platform.with_driver_permissions(
-                                        permissions,
+                                        process.get_permissions(),
                                         driver_number,
                                         |driver| {
                                             match driver {

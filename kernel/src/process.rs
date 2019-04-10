@@ -92,6 +92,8 @@ pub trait ProcessType {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
+    fn get_permissions(&self) -> u64;
+
     /// Returns the current state the process is in. Common states are "running"
     /// or "yielded".
     fn get_state(&self) -> State;
@@ -499,6 +501,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         }
 
         ret
+    }
+
+    fn get_permissions(&self) -> u64 {
+        self.header.get_permissions()
     }
 
     fn get_state(&self) -> State {

@@ -461,7 +461,6 @@ pub unsafe fn reset_handler() {
     rf233.start();
 
     imix.pconsole.start();
-    imix.permissions.start();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
