@@ -1,5 +1,6 @@
 #![feature(const_fn, in_band_lifetimes)]
 #![no_std]
+#![allow(unused_doc_comments)]
 
 pub mod aes;
 pub mod constants;
