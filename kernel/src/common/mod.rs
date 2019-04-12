@@ -13,6 +13,7 @@ pub mod registers {
     pub use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
 }
 
+pub mod chunked_process;
 pub mod deferred_call;
 pub mod list;
 pub mod math;
