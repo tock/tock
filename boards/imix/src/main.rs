@@ -268,6 +268,10 @@ unsafe fn set_pin_primary_functions() {
 /// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
+    cortexm4::scb::set_sleepdeep();
+    loop {
+        cortexm4::support::wfi();
+    }
     sam4l::init();
 
     sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
