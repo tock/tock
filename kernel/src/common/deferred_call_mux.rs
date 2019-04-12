@@ -92,6 +92,16 @@ pub unsafe fn call_global_mux() -> bool {
     DEFERRED_CALL_MUX.map(|mux| mux.call()).is_some()
 }
 
+/// Call the globally registered mux while the supplied predicate
+/// returns `true`.
+///
+/// Returns `true` if a Mux was registered and has been called.
+/// This function needs to be called by the underlying deferred
+/// call implementation in the `chip` crate.
+pub unsafe fn call_global_mux_while<F: Fn() -> bool>(f: F) -> bool {
+    DEFERRED_CALL_MUX.map(move |mux| mux.call_while(f)).is_some()
+}
+
 /// Check if one or more dynamic deferred calls are pending in the
 /// globally registered mux
 ///
@@ -199,10 +209,18 @@ impl DeferredCallMux {
 
     /// Call all registered and to-be-scheduled deferred calls
     ///
-    /// This function needs to be called by the underlying deferred call implementation.
     /// It may be called without holding the `DeferredCallMux` reference through
     /// `call_global_mux`.
     pub(self) fn call(&self) {
+        self.call_while(|| true)
+    }
+
+    /// Call all registered and to-be-scheduled deferred calls while the supplied
+    /// predicate returns `true`.
+    ///
+    /// It may be called without holding the `DeferredCallMux` reference through
+    /// `call_global_mux_while`.
+    pub(self) fn call_while<F: Fn() -> bool>(&self, f: F) {
         if self.call_pending.get() {
             // Reset call_pending here, as it may be set again in the deferred calls
             self.call_pending.set(false);
@@ -216,6 +234,7 @@ impl DeferredCallMux {
                         .client
                         .map(|c| (i, &client_state.scheduled, *c))
                 })
+                .take_while(|_| f())
                 .for_each(|(i, call_reqd, client)| {
                     call_reqd.set(false);
                     client.call(DeferredCallHandle(i));

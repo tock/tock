@@ -211,8 +211,7 @@ impl Kernel {
         loop {
             unsafe {
                 chip.service_pending_interrupts();
-                // TODO: Abort the deferred calls if a chip interrupt happened
-                deferred_call_mux::call_global_mux();
+                deferred_call_mux::call_global_mux_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
                     p.map(|process| {
