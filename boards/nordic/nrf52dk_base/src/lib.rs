@@ -14,9 +14,7 @@ use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
 
-use kernel::common::deferred_call_mux::{
-    set_global_mux, DeferredCallMux, DeferredCallMuxClientState,
-};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -410,13 +408,13 @@ pub unsafe fn setup_board(
     while !nrf52::clock::CLOCK.low_started() {}
     while !nrf52::clock::CLOCK.high_started() {}
 
-    let deferred_call_mux_clients =
-        static_init!([DeferredCallMuxClientState; 1], Default::default());
-    let deferred_call_mux = static_init!(
-        DeferredCallMux,
-        DeferredCallMux::new(deferred_call_mux_clients)
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 1], Default::default());
+    let dynamic_deferred_call = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
-    set_global_mux(deferred_call_mux);
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_call);
 
     let platform = Platform {
         button: button,
