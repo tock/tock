@@ -160,7 +160,7 @@ static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
 impl kernel::Platform for Imix {
-    fn with_driver_permissions<F, R>(&self, permissions: u64, driver_num: usize, f: F) -> R
+    fn with_driver_permissions<F, R>(&self, permissions: &[u8], driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {

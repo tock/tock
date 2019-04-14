@@ -2,6 +2,10 @@
 
 use core::{mem, slice, str};
 
+/// number of permission u8s to parse
+const NUM_DRIVERS: usize = 30;
+const PERM_LENGTH: usize = (NUM_DRIVERS + 7) / 8;
+
 /// Takes a value and rounds it up to be aligned % 4
 macro_rules! align4 {
     ($e:expr) => {
@@ -23,7 +27,7 @@ crate struct TbfHeaderV2Base {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 crate struct TbfHeaderV2Perm {
-    permissions: u64,
+    permissions: [u8; PERM_LENGTH],
 }
 
 /// Types in TLV structures for each optional block of the header.
@@ -34,7 +38,8 @@ crate enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
-    Unused = 5,
+    TbfHeaderPerm = 5,
+    Unused = 6,
 }
 
 /// The TLV header (T and L).
@@ -72,10 +77,10 @@ crate struct TbfHeaderV2WriteableFlashRegion {
 #[derive(Clone, Copy, Debug)]
 crate struct TbfHeaderV2 {
     base: &'static TbfHeaderV2Base,
-    perm: &'static TbfHeaderV2Perm,
     main: Option<&'static TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<&'static [TbfHeaderV2WriteableFlashRegion]>,
+    perm: Option<&'static TbfHeaderV2Perm>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -112,10 +117,16 @@ impl TbfHeader {
     }
 
     /// Return all granted permissions as u64 bit map
-    crate fn get_permissions(&self) -> u64 {
+    crate fn get_permissions(&self) -> &[u8] {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.perm.permissions,
-            TbfHeader::Padding(_) => 0,
+            TbfHeader::TbfHeaderV2(hd_opt) => {
+                if let Some(perm) = hd_opt.perm {
+                    &perm.permissions
+                } else {
+                    &[0; PERM_LENGTH]
+                }
+            }
+            TbfHeader::Padding(_) => &[0; PERM_LENGTH],
         }
     }
 
@@ -206,8 +217,6 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
     match version {
         2 => {
             let tbf_header_base = &*(address as *const TbfHeaderV2Base);
-            let tbf_header_perm = &*(((address as usize) + (mem::size_of::<TbfHeaderV2Base>()))
-                as *const TbfHeaderV2Perm);
 
             // Some sanity checking. Make sure the header isn't longer than the
             // total app. Make sure the total app fits inside a reasonable size
@@ -243,8 +252,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
             }
 
             // Skip the base and permissions of the header.
-            let mut offset =
-                (mem::size_of::<TbfHeaderV2Base>() + mem::size_of::<TbfHeaderV2Perm>()) as isize;
+            let mut offset = mem::size_of::<TbfHeaderV2Base>() as isize;
             let mut remaining_length = tbf_header_base.header_size as usize - offset as usize;
 
             // Check if this is a real app or just padding. Padding apps are
@@ -263,6 +271,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
                 // options.
                 let mut main_pointer: Option<&TbfHeaderV2Main> = None;
                 let mut wfr_pointer: Option<&'static [TbfHeaderV2WriteableFlashRegion]> = None;
+                let mut perm_pointer: Option<&TbfHeaderV2Perm> = None;
                 let mut app_name_str = "";
 
                 // Loop through the header looking for known options.
@@ -289,6 +298,18 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
                                     let tbf_main =
                                         &*(address.offset(offset) as *const TbfHeaderV2Main);
                                     main_pointer = Some(tbf_main);
+                                }
+                            }
+                            TbfHeaderTypes::TbfHeaderPerm =>
+                            /* Permissions */
+                            {
+                                if remaining_length >= mem::size_of::<TbfHeaderV2Perm>()
+                                    && tbf_tlv_header.length as usize
+                                        == mem::size_of::<TbfHeaderV2Perm>()
+                                {
+                                    let tbf_perm =
+                                        &*(address.offset(offset) as *const TbfHeaderV2Perm);
+                                    perm_pointer = Some(tbf_perm);
                                 }
                             }
                             TbfHeaderTypes::TbfHeaderWriteableFlashRegions =>
@@ -334,10 +355,10 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
 
                 let tbf_header = TbfHeaderV2 {
                     base: tbf_header_base,
-                    perm: tbf_header_perm,
                     main: main_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: wfr_pointer,
+                    perm: perm_pointer,
                 };
 
                 Some(TbfHeader::TbfHeaderV2(tbf_header))

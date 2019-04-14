@@ -92,7 +92,7 @@ pub trait ProcessType {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
-    fn get_permissions(&self) -> u64;
+    fn get_permissions(&self) -> &[u8];
 
     /// Returns the current state the process is in. Common states are "running"
     /// or "yielded".
@@ -503,7 +503,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         ret
     }
 
-    fn get_permissions(&self) -> u64 {
+    fn get_permissions(&self) -> &[u8] {
         self.header.get_permissions()
     }
 
@@ -1088,6 +1088,7 @@ impl<C: 'static + Chip> Process<'a, C> {
         index: usize,
     ) -> (Option<&'static ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
+            debug!("TbfHeader: {:?}", tbf_header);
             let app_flash_size = tbf_header.get_total_size() as usize;
 
             // If this isn't an app (i.e. it is padding) or it is an app but it

@@ -18,7 +18,7 @@ pub trait Platform {
     // Generally, a board can implement with_driver_permissions() by passing
     // `permissions` and a driver num to the `permissions` capsule, which will
     // verify that the process is allowed access to that specific driver
-    fn with_driver_permissions<F, R>(&self, _permissions: u64, driver_num: usize, f: F) -> R
+    fn with_driver_permissions<F, R>(&self, _permissions: &[u8], driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&Driver>) -> R,
     {
