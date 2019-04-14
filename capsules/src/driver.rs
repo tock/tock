@@ -7,7 +7,6 @@ enum_from_primitive! {
 // when adding a driver, make sure to:
 //   - add the driver to `get_permissions_bit()` below
 //   - add the driver to `self.permission_bits` in tockloader/tockloader/tbfh.py
-//   - increment `NUM_DRIVERS` in tock/kernel/src/tbfheader.rs
 //   - increment `NUM_DRIVERS` in elf2tab/header.rs
 pub enum NUM {
     ADC = 0x00000005,
