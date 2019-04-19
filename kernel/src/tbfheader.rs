@@ -70,7 +70,7 @@ crate struct TbfHeaderV2 {
     main: Option<&'static TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<&'static [TbfHeaderV2WriteableFlashRegion]>,
-    perm: Option<&'static [u8]>,
+    perm: Option<&'static [u32]>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -107,7 +107,7 @@ impl TbfHeader {
     }
 
     /// Return all granted permissions as u64 bit map
-    crate fn get_permissions(&self) -> &[u8] {
+    crate fn get_permissions(&self) -> &[u32] {
         match *self {
             TbfHeader::TbfHeaderV2(hd_opt) => {
                 if let Some(perm) = hd_opt.perm {
@@ -259,7 +259,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
                 // options.
                 let mut main_pointer: Option<&TbfHeaderV2Main> = None;
                 let mut wfr_pointer: Option<&'static [TbfHeaderV2WriteableFlashRegion]> = None;
-                let mut perm_pointer: Option<&'static [u8]> = None;
+                let mut perm_pointer: Option<&'static [u32]> = None;
                 let mut app_name_str = "";
 
                 // Loop through the header looking for known options.
@@ -293,7 +293,7 @@ crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfH
                             {
                                 if remaining_length >= tbf_tlv_header.length as usize {
                                     let tbf_perm = slice::from_raw_parts(
-                                        &*(address.offset(offset) as *const u8),
+                                        &*(address.offset(offset) as *const u32),
                                         tbf_tlv_header.length as usize,
                                     );
                                     perm_pointer = Some(tbf_perm);
