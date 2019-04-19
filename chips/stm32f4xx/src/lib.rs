@@ -4,9 +4,9 @@
 
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, try_from)]
-#![feature(in_band_lifetimes)]
+#![feature(asm, const_fn, in_band_lifetimes)]
 #![no_std]
+#![allow(unused_doc_comments)]
 
 mod deferred_call_tasks;
 

@@ -16,7 +16,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::AMBIENT_LIGHT as usize;
+pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 
 /// Per-process metadata
 #[derive(Default)]

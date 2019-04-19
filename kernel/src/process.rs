@@ -1015,46 +1015,55 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             None => writer.write_fmt(format_args!(" Last Syscall: None")),
         };
 
-        let _ = writer.write_fmt(format_args!("\
-\r\n\
-\r\n ╔═══════════╤══════════════════════════════════════════╗\
-\r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
-\r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
-\r\n             │ ▼ Grant      {:6} | {:6}{}\
-  \r\n  {:#010X} ┼───────────────────────────────────────────\
-\r\n             │ Unused\
-  \r\n  {:#010X} ┼───────────────────────────────────────────\
-\r\n             │ ▲ Heap       {:6} | {:6}{}     S\
-  \r\n  {:#010X} ┼─────────────────────────────────────────── R\
-\r\n             │ Data         {:6} | {:6}               A\
-  \r\n  {:#010X} ┼─────────────────────────────────────────── M\
-\r\n             │ ▼ Stack      {:6} | {:6}{}\
-  \r\n  {:#010X} ┼───────────────────────────────────────────\
-\r\n             │ Unused\
-  \r\n  {:#010X} ┴───────────────────────────────────────────\
-\r\n             .....\
-  \r\n  {:#010X} ┬─────────────────────────────────────────── F\
-\r\n             │ App Flash    {:6}                        L\
-  \r\n  {:#010X} ┼─────────────────────────────────────────── A\
-\r\n             │ Protected    {:6}                        S\
-  \r\n  {:#010X} ┴─────────────────────────────────────────── H\
-\r\n",
-  sram_end,
-  sram_grant_size, sram_grant_allocated, sram_grant_error_str,
-  sram_grant_start,
-  sram_heap_end,
-  sram_heap_size, sram_heap_allocated, sram_heap_error_str,
-  sram_heap_start,
-  sram_data_size, sram_data_allocated,
-  sram_stack_start,
-  sram_stack_size, sram_stack_allocated, sram_stack_error_str,
-  sram_stack_bottom,
-  sram_start,
-  flash_end,
-  flash_app_size,
-  flash_app_start,
-  flash_protected_size,
-  flash_start));
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n\
+             \r\n ╔═══════════╤══════════════════════════════════════════╗\
+             \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
+             \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
+             \r\n             │ ▼ Grant      {:6} | {:6}{}\
+             \r\n  {:#010X} ┼───────────────────────────────────────────\
+             \r\n             │ Unused\
+             \r\n  {:#010X} ┼───────────────────────────────────────────\
+             \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
+             \r\n  {:#010X} ┼─────────────────────────────────────────── R\
+             \r\n             │ Data         {:6} | {:6}               A\
+             \r\n  {:#010X} ┼─────────────────────────────────────────── M\
+             \r\n             │ ▼ Stack      {:6} | {:6}{}\
+             \r\n  {:#010X} ┼───────────────────────────────────────────\
+             \r\n             │ Unused\
+             \r\n  {:#010X} ┴───────────────────────────────────────────\
+             \r\n             .....\
+             \r\n  {:#010X} ┬─────────────────────────────────────────── F\
+             \r\n             │ App Flash    {:6}                        L\
+             \r\n  {:#010X} ┼─────────────────────────────────────────── A\
+             \r\n             │ Protected    {:6}                        S\
+             \r\n  {:#010X} ┴─────────────────────────────────────────── H\
+             \r\n",
+            sram_end,
+            sram_grant_size,
+            sram_grant_allocated,
+            sram_grant_error_str,
+            sram_grant_start,
+            sram_heap_end,
+            sram_heap_size,
+            sram_heap_allocated,
+            sram_heap_error_str,
+            sram_heap_start,
+            sram_data_size,
+            sram_data_allocated,
+            sram_stack_start,
+            sram_stack_size,
+            sram_stack_allocated,
+            sram_stack_error_str,
+            sram_stack_bottom,
+            sram_start,
+            flash_end,
+            flash_app_size,
+            flash_app_start,
+            flash_protected_size,
+            flash_start
+        ));
 
         self.chip.userspace_kernel_boundary().process_detail_fmt(
             self.sp(),

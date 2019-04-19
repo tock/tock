@@ -367,7 +367,7 @@ impl Port {
 }
 
 const GPIO_NVIC: nvic::Nvic =
-    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::GPIO as u32) };
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NvicIrq::Gpio as u32) };
 
 pub static mut PORT: Port = Port {
     nvic: &GPIO_NVIC,

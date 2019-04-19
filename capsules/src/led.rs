@@ -53,7 +53,7 @@ use kernel::{AppId, Driver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::LED as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 
 /// Whether the LEDs are active high or active low on this platform.
 #[derive(Clone, Copy)]

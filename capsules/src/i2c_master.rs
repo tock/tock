@@ -5,7 +5,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::I2C_MASTER as usize;
+pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -44,7 +44,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
         &self,
         app_id: AppId,
         app: &mut App,
-        command: CMD,
+        command: Cmd,
         addr: u8,
         wlen: u8,
         rlen: u8,
@@ -67,10 +67,10 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
                         app.slice = Some(app_buffer);
 
                         match command {
-                            CMD::PING => return ReturnCode::EINVAL,
-                            CMD::WRITE => self.i2c.write(addr, buffer, wlen),
-                            CMD::READ => self.i2c.read(addr, buffer, rlen),
-                            CMD::WRITE_READ => self.i2c.write_read(addr, buffer, wlen, rlen),
+                            Cmd::Ping => return ReturnCode::EINVAL,
+                            Cmd::Write => self.i2c.write(addr, buffer, wlen),
+                            Cmd::Read => self.i2c.read(addr, buffer, rlen),
+                            Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
                         }
                         return ReturnCode::SUCCESS;
                     });
@@ -92,11 +92,11 @@ use enum_primitive::cast::FromPrimitive;
 
 enum_from_primitive! {
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum CMD {
-    PING = 0,
-    WRITE = 1,
-    READ = 2,
-    WRITE_READ = 3,
+pub enum Cmd {
+    Ping = 0,
+    Write = 1,
+    Read = 2,
+    WriteRead = 3,
 }
 }
 
@@ -148,28 +148,28 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
 
     /// Initiate transfers
     fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: AppId) -> ReturnCode {
-        if let Some(cmd) = CMD::from_usize(cmd_num) {
+        if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
-                CMD::PING => ReturnCode::SUCCESS,
-                CMD::WRITE => self
+                Cmd::Ping => ReturnCode::SUCCESS,
+                Cmd::Write => self
                     .apps
                     .enter(appid, |app, _| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
-                        self.operation(appid, app, CMD::WRITE, addr, write_len as u8, 0);
+                        self.operation(appid, app, Cmd::Write, addr, write_len as u8, 0);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| err.into()),
-                CMD::READ => self
+                Cmd::Read => self
                     .apps
                     .enter(appid, |app, _| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
-                        self.operation(appid, app, CMD::READ, addr, 0, read_len as u8);
+                        self.operation(appid, app, Cmd::Read, addr, 0, read_len as u8);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| err.into()),
-                CMD::WRITE_READ => {
+                Cmd::WriteRead => {
                     let addr = arg1 as u8;
                     let write_len = arg1 >> 8; // can extend to 24 bit write length
                     let read_len = arg2; // can extend to 32 bit read length
@@ -178,7 +178,7 @@ impl<I: i2c::I2CMaster> Driver for I2CMasterDriver<I> {
                             self.operation(
                                 appid,
                                 app,
-                                CMD::WRITE_READ,
+                                Cmd::WriteRead,
                                 addr,
                                 write_len as u8,
                                 read_len as u8,

@@ -7,7 +7,7 @@
 //! Most `unsafe` code is in this kernel crate.
 
 #![feature(core_intrinsics, ptr_internals, const_fn)]
-#![feature(try_from, panic_info_message)]
+#![feature(panic_info_message)]
 #![feature(in_band_lifetimes, crate_visibility_modifier)]
 #![feature(associated_type_defaults)]
 #![warn(unreachable_pub)]
