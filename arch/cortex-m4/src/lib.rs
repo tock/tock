@@ -6,6 +6,7 @@
 #![no_std]
 
 pub mod mpu;
+pub mod dwt;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m4.
