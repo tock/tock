@@ -63,7 +63,7 @@ ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(M
   DUMMY := $(shell rustup update)
 endif
 
-LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools-preview.*(installed)' -q; echo $$?)
+LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
 ifeq ($(LLVM_TOOLS_INSTALLED),1)
   $(shell rustup component add llvm-tools-preview)
 endif
