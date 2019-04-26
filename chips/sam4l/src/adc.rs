@@ -493,7 +493,7 @@ impl Adc {
 
             // First, enable the clocks
             // Both the ADCIFE clock and GCLK10 are needed
-            let mut clock_divisor;
+            let mut clock_divisor: i32;
 
             // turn on ADCIFE bus clock. Already set to the same frequency
             // as the CPU clock
@@ -521,7 +521,7 @@ impl Adc {
                     max_freq = 113600 / 32;
                 }
                 let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
-                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
+                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) as i32;
                 clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
                 self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
             } else {
@@ -537,19 +537,15 @@ impl Adc {
                 // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
                 let cpu_frequency = pm::get_system_frequency();
                 let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
-                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
-                if clock_divisor > 2 {
-                    clock_divisor -= 2;
-                } else {
-                    clock_divisor = 0;
-                }
+                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) as i32;
+                clock_divisor -= 2;
                 clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
                 self.adc_clk_freq
                     .set(cpu_frequency / (1 << (clock_divisor + 2)));
             }
 
             // configure the ADC
-            let mut cfg_val = Configuration::PRESCAL.val(clock_divisor)
+            let mut cfg_val = Configuration::PRESCAL.val(clock_divisor as u32)
                 + Configuration::SPEED::ksps300
                 + Configuration::REFSEL::VccX0p5;
 
