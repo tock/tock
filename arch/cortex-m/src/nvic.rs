@@ -52,13 +52,14 @@ pub unsafe fn disable_all() {
 pub unsafe fn next_pending() -> Option<u32> {
     let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
 
-    for (block, ispr) in nvic.ispr.iter().enumerate() {
-        let ispr = ispr.get();
+    for (block, (ispr, iser)) in nvic.ispr.iter().zip(nvic.iser.iter()).enumerate() {
+        // only consider interrupts that are both pending and enabled
+        let pending_and_enabled = ispr.get() & iser.get();
 
         // If there are any high bits there is a pending interrupt
-        if ispr != 0 {
+        if pending_and_enabled != 0 {
             // trailing_zeros == index of first high bit
-            let bit = ispr.trailing_zeros();
+            let bit = pending_and_enabled.trailing_zeros();
             return Some(block as u32 * 32 + bit);
         }
     }
@@ -68,7 +69,9 @@ pub unsafe fn next_pending() -> Option<u32> {
 pub unsafe fn has_pending() -> bool {
     let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
 
-    nvic.ispr.iter().fold(0, |i, ispr| ispr.get() | i) != 0
+    let iterator = nvic.ispr.iter().zip(nvic.iser.iter());
+    // check if there are any pending bits for interrupts which are also enabled
+    iterator.fold(0, |i, (ispr, iser)| (ispr.get() & iser.get()) | i) != 0
 }
 
 /// An opaque wrapper for a single NVIC interrupt.
