@@ -24,7 +24,21 @@ macro_rules! enum_from_primitive_impl {
         impl FromPrimitive for $name {
             $crate::enum_from_primitive_impl_ty! { from_i64, i64, $name, $( $variant )* }
             $crate::enum_from_primitive_impl_ty! { from_u64, u64, $name, $( $variant )* }
+        }
+        impl ToPrimitive for $name {
+            $crate::enum_to_primitive_impl_ty! { to_i64, i64, $name }
+            $crate::enum_to_primitive_impl_ty! { to_u64, u64, $name }
+        }
+    };
+}
 
+#[macro_export]
+macro_rules! enum_to_primitive_impl_ty {
+    ($meth:ident, $ty:ty, $name:ident) => {
+        #[allow(non_upper_case_globals, unused)]
+        fn $meth(&self) -> Option<$ty> {
+            let copy: $name = unsafe { ::core::mem::transmute_copy(self) };
+            Some(copy as $ty)
         }
     };
 }

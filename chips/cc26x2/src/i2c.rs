@@ -6,7 +6,9 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::i2c;
 
+use crate::peripheral_interrupts;
 use crate::prcm;
+use cortexm4::nvic;
 
 /// A wrapper module for interal register types.
 ///
@@ -121,21 +123,27 @@ enum TransferMode {
     TransmitThenReceive(usize),
 }
 
-const I2C0REGISTERS: StaticRef<I2CMasterRegisters> =
-    unsafe { StaticRef::new(0x4000_2800 as *const _) };
+use crate::memory_map::I2C0_BASE;
 
-pub static mut I2C0: I2CMaster = I2CMaster::new(I2C0REGISTERS);
+const I2C0_REG: StaticRef<I2CMasterRegisters> = unsafe { StaticRef::new(I2C0_BASE as *const _) };
+
+const I2C0_NVIC: nvic::Nvic =
+    unsafe { nvic::Nvic::new(peripheral_interrupts::NVIC_IRQ::I2C0 as u32) };
+
+pub static mut I2C0: I2CMaster = I2CMaster::new(I2C0_REG, &I2C0_NVIC);
 
 pub struct I2CMaster<'a> {
     registers: StaticRef<I2CMasterRegisters>,
+    nvic: &'a nvic::Nvic,
     client: OptionalCell<&'a i2c::I2CHwMasterClient>,
     transfer: MapCell<Transfer>,
 }
 
 impl<'a> I2CMaster<'a> {
-    const fn new(registers: StaticRef<I2CMasterRegisters>) -> I2CMaster<'a> {
+    const fn new(registers: StaticRef<I2CMasterRegisters>, nvic: &'a nvic::Nvic) -> I2CMaster<'a> {
         I2CMaster {
-            registers: registers,
+            registers,
+            nvic,
             client: OptionalCell::empty(),
             transfer: MapCell::empty(),
         }
@@ -176,7 +184,7 @@ impl<'a> I2CMaster<'a> {
         );
     }
 
-    pub fn handle_interrupt(&self) {
+    pub fn handle_events(&self) {
         self.registers.micr.write(Interrupt::IM::SET);
         if let Some(mut transfer) = self.transfer.take() {
             let status = self.registers.mstat_ctrl.stat();
@@ -246,6 +254,8 @@ impl<'a> I2CMaster<'a> {
                 }
             }
         }
+        self.nvic.clear_pending();
+        self.nvic.enable();
     }
 
     // TODO(alevy): I think we should change this method of setting up power and pins, but I'm

@@ -56,28 +56,45 @@ pub unsafe extern "C" fn generic_isr() {}
 
 #[cfg(target_os = "none")]
 #[naked]
-/// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
+    stash_process_state();
+    set_privileged_thread();
+    disable_specific_nvic();
+}
+
+#[naked]
+pub unsafe extern "C" fn stash_process_state() {
     asm!(
         "
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
-    bne _ggeneric_isr_no_stacking
-
+    bne 1f
     /* We need the most recent kernel's version of r1, which points */
     /* to the Process struct's stored registers field. The kernel's r1 */
     /* lives in the second word of the hardware stacked registers on MSP */
     mov r1, sp
     ldr r1, [r1, #4]
     stmia r1, {r4-r11}
+  1:
+    "
+    : : : : "volatile" );
+}
 
+#[naked]
+pub unsafe extern "C" fn set_privileged_thread() {
+    asm!("
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
-
     movw LR, #0xFFF9
-    movt LR, #0xFFFF
-  _ggeneric_isr_no_stacking:
+    movt LR, #0xFFFF"
+    : : : : "volatile");
+}
+
+#[naked]
+pub unsafe extern "C" fn disable_specific_nvic() {
+    asm!(
+        "
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff

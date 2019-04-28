@@ -88,7 +88,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
     }
 }
 
-use enum_primitive::cast::FromPrimitive;
+use enum_primitive::cast::{FromPrimitive, ToPrimitive};
 
 enum_from_primitive! {
 #[derive(Debug, PartialEq, Clone, Copy)]

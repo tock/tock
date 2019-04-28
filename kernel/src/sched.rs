@@ -202,26 +202,26 @@ impl Kernel {
     /// Main loop.
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
-        platform: &P,
+        platform: &mut P,
         chip: &C,
         ipc: Option<&ipc::IPC>,
         _capability: &capabilities::MainLoopCapability,
     ) {
         loop {
             unsafe {
-                chip.service_pending_interrupts();
+                platform.service_pending_events();
 
                 for p in self.processes.iter() {
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
-                    if chip.has_pending_interrupts() {
+                    if platform.has_pending_events() {
                         break;
                     }
                 }
 
                 chip.atomic(|| {
-                    if !chip.has_pending_interrupts() && self.processes_blocked() {
+                    if !platform.has_pending_events() && self.processes_blocked() {
                         chip.sleep();
                     }
                 });
@@ -231,7 +231,7 @@ impl Kernel {
 
     unsafe fn do_process<P: Platform, C: Chip>(
         &self,
-        platform: &P,
+        platform: &mut P,
         chip: &C,
         process: &process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
@@ -243,7 +243,7 @@ impl Kernel {
         systick.enable(false);
 
         loop {
-            if chip.has_pending_interrupts() {
+            if platform.has_pending_events() {
                 break;
             }
 

@@ -1,9 +1,10 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, asm)]
+#![feature(lang_items, asm, naked_functions)]
 
 extern crate capsules;
 extern crate cc26x2;
+extern crate cortexm;
 extern crate cortexm4;
 extern crate enum_primitive;
 
@@ -14,6 +15,10 @@ use capsules::virtual_uart::{MuxUart, UartDevice};
 use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::pwm;
+use cc26x2::uart;
+
+use cortexm::events;
+
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -25,6 +30,7 @@ use kernel::hil::rng::Rng;
 
 #[macro_use]
 pub mod io;
+mod event_priority;
 
 #[allow(dead_code)]
 mod ccfg_test;
@@ -63,7 +69,6 @@ pub struct Platform {
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
-    ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Platform {
@@ -79,8 +84,29 @@ impl kernel::Platform for Platform {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
+        }
+    }
+
+    fn has_pending_events(&mut self) -> bool {
+        events::has_event()
+    }
+
+    fn service_pending_events(&mut self) {
+        let pending_event: Option<event_priority::EVENT_PRIORITY> = events::next_pending();
+        while let Some(event) = pending_event {
+            events::clear_event_flag(event);
+            unsafe {
+                match event {
+                    event_priority::EVENT_PRIORITY::GPIO => cc26x2::gpio::PORT.handle_events(),
+                    event_priority::EVENT_PRIORITY::AON_RTC => cc26x2::rtc::RTC.handle_events(),
+                    event_priority::EVENT_PRIORITY::I2C0 => cc26x2::i2c::I2C0.handle_events(),
+                    event_priority::EVENT_PRIORITY::UART0 => uart::UART0.handle_interrupt(),
+                    event_priority::EVENT_PRIORITY::UART1 => uart::UART0.handle_interrupt(),
+                    event_priority::EVENT_PRIORITY::AON_PROG => (),
+                    _ => panic!("unhandled event {:?} ", event),
+                }
+            }
         }
     }
 }
@@ -373,7 +399,7 @@ pub unsafe fn reset_handler() {
 
     let ipc = kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability);
 
-    let launchxl = Platform {
+    let mut launchxl = Platform {
         console,
         gpio,
         led,
@@ -381,7 +407,6 @@ pub unsafe fn reset_handler() {
         alarm,
         rng,
         i2c_master,
-        ipc,
     };
 
     let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
@@ -401,5 +426,5 @@ pub unsafe fn reset_handler() {
         &process_management_capability,
     );
 
-    board_kernel.kernel_loop(&launchxl, chip, Some(&launchxl.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&mut launchxl, chip, Some(&ipc), &main_loop_capability);
 }

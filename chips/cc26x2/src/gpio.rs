@@ -346,7 +346,7 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    pub fn handle_interrupt(&self) {
+    pub fn handle_events(&self) {
         let regs = GPIO_BASE;
         let mut evflags = regs.evflags.get();
         // Clear all interrupts by setting their bits to 1 in evflags
