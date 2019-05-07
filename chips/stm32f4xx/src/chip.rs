@@ -8,6 +8,7 @@ use crate::deferred_call_tasks::Task;
 use crate::dma1;
 use crate::exti;
 use crate::nvic;
+use crate::spi;
 use crate::tim2;
 use crate::usart;
 
@@ -44,6 +45,9 @@ impl Chip for Stm32f4xx {
                         nvic::DMA1_Stream1 => dma1::Dma1Peripheral::USART3_RX
                             .get_stream()
                             .handle_interrupt(),
+                        nvic::DMA1_Stream2 => dma1::Dma1Peripheral::SPI3_RX
+                            .get_stream()
+                            .handle_interrupt(),
                         nvic::DMA1_Stream3 => dma1::Dma1Peripheral::USART3_TX
                             .get_stream()
                             .handle_interrupt(),
@@ -53,9 +57,14 @@ impl Chip for Stm32f4xx {
                         nvic::DMA1_Stream6 => dma1::Dma1Peripheral::USART2_TX
                             .get_stream()
                             .handle_interrupt(),
+                        nvic::DMA1_Stream7 => dma1::Dma1Peripheral::SPI3_TX
+                            .get_stream()
+                            .handle_interrupt(),
 
                         nvic::USART2 => usart::USART2.handle_interrupt(),
                         nvic::USART3 => usart::USART3.handle_interrupt(),
+
+                        nvic::SPI3 => spi::SPI3.handle_interrupt(),
 
                         nvic::EXTI0 => exti::EXTI.handle_interrupt(),
                         nvic::EXTI1 => exti::EXTI.handle_interrupt(),
