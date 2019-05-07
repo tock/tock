@@ -933,13 +933,13 @@ impl Stream<'a> {
                         .modify(S5CR::CHSEL.val(ChannelId::Channel4 as u32));
                 },
                 Dma1Peripheral::USART3_TX => unsafe {
-                    // USART2_TX Stream 3, Channel 4
+                    // USART3_TX Stream 3, Channel 4
                     DMA1.registers
                         .s3cr
                         .modify(S3CR::CHSEL.val(ChannelId::Channel4 as u32));
                 },
                 Dma1Peripheral::USART3_RX => unsafe {
-                    // USART2_RX Stream 1, Channel 4
+                    // USART3_RX Stream 1, Channel 4
                     DMA1.registers
                         .s1cr
                         .modify(S1CR::CHSEL.val(ChannelId::Channel4 as u32));
