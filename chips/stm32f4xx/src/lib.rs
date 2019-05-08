@@ -19,6 +19,7 @@ pub mod dma1;
 pub mod exti;
 pub mod gpio;
 pub mod rcc;
+pub mod spi;
 pub mod syscfg;
 pub mod tim2;
 pub mod usart;
