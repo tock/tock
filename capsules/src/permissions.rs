@@ -7,12 +7,11 @@ impl Permissions {
         Permissions {}
     }
 
-    // checks to see if the corresponding permission bit is flipped to 1 or 0
+    // checks to see if the corresponding permission is allowed
     pub fn check(&self, permissions: &[u32], driver_num: usize) -> bool {
-        if permissions.iter().find(|&&n| n == driver_num as u32) == None {
-            false // driver not found
-        } else {
-            true
+        match permissions.binary_search(&(driver_num as u32)) {
+            Ok(_)  => true,
+            Err(_) => false,
         }
     }
 }

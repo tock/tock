@@ -3,8 +3,6 @@ use enum_primitive::enum_from_primitive;
 
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
-// when adding a driver, make sure to update the
-// driver list in tockloader/tockloader/tbfh.py
 pub enum NUM {
     ADC = 0x00000005,
     ALARM = 0x00000000,
