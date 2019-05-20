@@ -45,7 +45,7 @@
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::GPIO as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
 use kernel::hil::gpio;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};

@@ -55,7 +55,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::BUTTON as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 
 /// This capsule keeps track for each app of which buttons it has a registered
 /// interrupt for. `SubscribeMap` is a bit array where bits are set to one if

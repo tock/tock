@@ -5,6 +5,7 @@ use kernel::ClockInterface;
 
 use crate::nvic;
 use crate::rcc;
+use crate::spi;
 use crate::usart;
 
 /// DMA controller
@@ -782,6 +783,8 @@ pub enum Dma1Peripheral {
     USART2_RX,
     USART3_TX,
     USART3_RX,
+    SPI3_TX,
+    SPI3_RX,
 }
 
 impl Dma1Peripheral {
@@ -789,9 +792,11 @@ impl Dma1Peripheral {
     // to enable interrupt on the NVIC.
     pub fn get_stream_irqn(&self) -> u32 {
         match self {
+            Dma1Peripheral::SPI3_TX => nvic::DMA1_Stream7,
             Dma1Peripheral::USART2_TX => nvic::DMA1_Stream6,
             Dma1Peripheral::USART2_RX => nvic::DMA1_Stream5,
             Dma1Peripheral::USART3_TX => nvic::DMA1_Stream3,
+            Dma1Peripheral::SPI3_RX => nvic::DMA1_Stream2,
             Dma1Peripheral::USART3_RX => nvic::DMA1_Stream1,
         }
     }
@@ -804,9 +809,11 @@ impl Dma1Peripheral {
 impl From<Dma1Peripheral> for StreamId {
     fn from(pid: Dma1Peripheral) -> StreamId {
         match pid {
+            Dma1Peripheral::SPI3_TX => StreamId::Stream7,
             Dma1Peripheral::USART2_TX => StreamId::Stream6,
             Dma1Peripheral::USART2_RX => StreamId::Stream5,
             Dma1Peripheral::USART3_TX => StreamId::Stream3,
+            Dma1Peripheral::SPI3_RX => StreamId::Stream2,
             Dma1Peripheral::USART3_RX => StreamId::Stream1,
         }
     }
@@ -920,6 +927,12 @@ impl Stream<'a> {
     fn set_channel(&self) {
         self.peripheral.map(|pid| {
             match pid {
+                Dma1Peripheral::SPI3_TX => unsafe {
+                    // SPI3_RX Stream 7, Channel 0
+                    DMA1.registers
+                        .s7cr
+                        .modify(S7CR::CHSEL.val(ChannelId::Channel0 as u32));
+                },
                 Dma1Peripheral::USART2_TX => unsafe {
                     // USART2_TX Stream 6, Channel 4
                     DMA1.registers
@@ -933,13 +946,19 @@ impl Stream<'a> {
                         .modify(S5CR::CHSEL.val(ChannelId::Channel4 as u32));
                 },
                 Dma1Peripheral::USART3_TX => unsafe {
-                    // USART2_TX Stream 3, Channel 4
+                    // USART3_TX Stream 3, Channel 4
                     DMA1.registers
                         .s3cr
                         .modify(S3CR::CHSEL.val(ChannelId::Channel4 as u32));
                 },
+                Dma1Peripheral::SPI3_RX => unsafe {
+                    // SPI3_RX Stream 2, Channel 0
+                    DMA1.registers
+                        .s2cr
+                        .modify(S2CR::CHSEL.val(ChannelId::Channel0 as u32));
+                },
                 Dma1Peripheral::USART3_RX => unsafe {
-                    // USART2_RX Stream 1, Channel 4
+                    // USART3_RX Stream 1, Channel 4
                     DMA1.registers
                         .s1cr
                         .modify(S1CR::CHSEL.val(ChannelId::Channel4 as u32));
@@ -951,6 +970,12 @@ impl Stream<'a> {
     fn set_direction(&self) {
         self.peripheral.map(|pid| {
             match pid {
+                Dma1Peripheral::SPI3_TX => unsafe {
+                    // SPI3_TX Stream 7
+                    DMA1.registers
+                        .s7cr
+                        .modify(S7CR::DIR.val(Direction::MemoryToPeripheral as u32));
+                },
                 Dma1Peripheral::USART2_TX => unsafe {
                     // USART2_TX Stream 6
                     DMA1.registers
@@ -969,6 +994,12 @@ impl Stream<'a> {
                         .s3cr
                         .modify(S3CR::DIR.val(Direction::MemoryToPeripheral as u32));
                 },
+                Dma1Peripheral::SPI3_RX => unsafe {
+                    // SPI3_RX Stream 2
+                    DMA1.registers
+                        .s2cr
+                        .modify(S2CR::DIR.val(Direction::PeripheralToMemory as u32));
+                },
                 Dma1Peripheral::USART3_RX => unsafe {
                     // USART3_RX Stream 1
                     DMA1.registers
@@ -982,6 +1013,10 @@ impl Stream<'a> {
     fn set_peripheral_address(&self) {
         self.peripheral.map(|pid| {
             match pid {
+                Dma1Peripheral::SPI3_TX => unsafe {
+                    // SPI3_TX Stream 7
+                    DMA1.registers.s7par.set(spi::SPI3.get_address_dr());
+                },
                 Dma1Peripheral::USART2_TX => unsafe {
                     // USART2_TX Stream 6
                     DMA1.registers.s6par.set(usart::USART2.get_address_dr());
@@ -994,6 +1029,10 @@ impl Stream<'a> {
                     // USART3_TX Stream 3
                     DMA1.registers.s3par.set(usart::USART3.get_address_dr());
                 },
+                Dma1Peripheral::SPI3_RX => unsafe {
+                    // SPI3_RX Stream 2
+                    DMA1.registers.s2par.set(spi::SPI3.get_address_dr());
+                },
                 Dma1Peripheral::USART3_RX => unsafe {
                     // USART3_RX Stream 1
                     DMA1.registers.s1par.set(usart::USART3.get_address_dr());
@@ -1005,6 +1044,10 @@ impl Stream<'a> {
     fn set_peripheral_address_increment(&self) {
         self.peripheral.map(|pid| {
             match pid {
+                Dma1Peripheral::SPI3_TX => unsafe {
+                    // SPI3_TX Stream 7
+                    DMA1.registers.s7cr.modify(S7CR::PINC::CLEAR);
+                },
                 Dma1Peripheral::USART2_TX => unsafe {
                     // USART2_TX Stream 6
                     DMA1.registers.s6cr.modify(S6CR::PINC::CLEAR);
@@ -1017,6 +1060,10 @@ impl Stream<'a> {
                     // USART3_TX Stream 3
                     DMA1.registers.s3cr.modify(S3CR::PINC::CLEAR);
                 },
+                Dma1Peripheral::SPI3_RX => unsafe {
+                    // SPI3_RX Stream 2
+                    DMA1.registers.s2cr.modify(S2CR::PINC::CLEAR);
+                },
                 Dma1Peripheral::USART3_RX => unsafe {
                     // USART3_RX Stream 1
                     DMA1.registers.s1cr.modify(S1CR::PINC::CLEAR);
@@ -1028,6 +1075,10 @@ impl Stream<'a> {
     fn set_memory_address(&self, buf_addr: u32) {
         self.peripheral.map(|pid| {
             match pid {
+                Dma1Peripheral::SPI3_TX => unsafe {
+                    // SPI3_TX Stream 7
+                    DMA1.registers.s7m0ar.set(buf_addr);
+                },
                 Dma1Peripheral::USART2_TX => unsafe {
                     // USART2_TX Stream 6
                     DMA1.registers.s6m0ar.set(buf_addr);
@@ -1040,6 +1091,10 @@ impl Stream<'a> {
                     // USART3_TX Stream 3
                     DMA1.registers.s3m0ar.set(buf_addr);
                 },
+                Dma1Peripheral::SPI3_RX => unsafe {
+                    // SPI3_RX Stream 2
+                    DMA1.registers.s2m0ar.set(buf_addr);
+                },
                 Dma1Peripheral::USART3_RX => unsafe {
                     // USART3_RX Stream 1
                     DMA1.registers.s1m0ar.set(buf_addr);
@@ -1051,6 +1106,10 @@ impl Stream<'a> {
     fn set_memory_address_increment(&self) {
         self.peripheral.map(|pid| {
             match pid {
+                Dma1Peripheral::SPI3_TX => unsafe {
+                    // SPI3_TX Stream 7
+                    DMA1.registers.s7cr.modify(S7CR::MINC::SET);
+                },
                 Dma1Peripheral::USART2_TX => unsafe {
                     // USART2_TX Stream 6
                     DMA1.registers.s6cr.modify(S6CR::MINC::SET);
@@ -1062,6 +1121,10 @@ impl Stream<'a> {
                 Dma1Peripheral::USART3_TX => unsafe {
                     // USART3_TX Stream 3
                     DMA1.registers.s3cr.modify(S3CR::MINC::SET);
+                },
+                Dma1Peripheral::SPI3_RX => unsafe {
+                    // SPI3_RX Stream 2
+                    DMA1.registers.s2cr.modify(S2CR::MINC::SET);
                 },
                 Dma1Peripheral::USART3_RX => unsafe {
                     // USART3_RX Stream 1
@@ -1115,6 +1178,9 @@ impl Stream<'a> {
 
     fn set_data_width_for_peripheral(&self) {
         self.peripheral.map(|pid| match pid {
+            Dma1Peripheral::SPI3_TX => {
+                self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
+            }
             Dma1Peripheral::USART2_TX => {
                 self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
             }
@@ -1122,6 +1188,9 @@ impl Stream<'a> {
                 self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
             }
             Dma1Peripheral::USART3_TX => {
+                self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
+            }
+            Dma1Peripheral::SPI3_RX => {
                 self.stream_set_data_width(Msize(Size::Byte), Psize(Size::Byte))
             }
             Dma1Peripheral::USART3_RX => {
@@ -1169,6 +1238,9 @@ impl Stream<'a> {
 
     fn set_transfer_mode_for_peripheral(&self) {
         self.peripheral.map(|pid| match pid {
+            Dma1Peripheral::SPI3_TX => {
+                self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
+            }
             Dma1Peripheral::USART2_TX => {
                 self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
             }
@@ -1176,6 +1248,9 @@ impl Stream<'a> {
                 self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
             }
             Dma1Peripheral::USART3_TX => {
+                self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
+            }
+            Dma1Peripheral::SPI3_RX => {
                 self.stream_set_transfer_mode(TransferMode::Fifo(FifoSize::Full));
             }
             Dma1Peripheral::USART3_RX => {

@@ -53,7 +53,7 @@ use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::TEMPERATURE as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
 
 #[derive(Default)]
 pub struct App {

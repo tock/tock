@@ -618,19 +618,6 @@ impl PowerManager {
                 frequency,
                 startup_mode,
             } => {
-                match self.system_clock_source.get() {
-                    // If the PLL is running (it uses OSC0 as a reference clock),
-                    // temporarily change the system clock to RCSYS to avoid buggy behavior
-                    SystemClockSource::PllExternalOscillatorAt48MHz { .. } => {
-                        select_main_clock(MainClock::RCSYS);
-                    }
-                    // Some peripherals (uart,spi) show buggy behavior if the system clock
-                    // is directly switched from OSC0 to DFLL - no explanation in documentation
-                    SystemClockSource::DfllRc32kAt48MHz => {
-                        select_main_clock(MainClock::RCSYS);
-                    }
-                    _ => {}
-                }
                 // Configure and turn on OSC0
                 configure_external_oscillator(frequency, startup_mode);
                 // Set Flash wait state to 0 for <= 24MHz in PS2
@@ -679,15 +666,6 @@ impl PowerManager {
                     scif::disable_rcfast();
                 }
 
-                // Some peripherals (uart,spi) show buggy behavior if the system clock
-                // is directly switched from RCFAST to DFLL - no explanation in documentation
-                match self.system_clock_source.get() {
-                    SystemClockSource::DfllRc32kAt48MHz => {
-                        select_main_clock(MainClock::RCSYS);
-                    }
-                    _ => {}
-                }
-
                 // Configure and turn on RCFAST at specified frequency
                 configure_rcfast(frequency);
                 // Set Flash wait state to 0 for <= 24MHz in PS2
@@ -697,13 +675,6 @@ impl PowerManager {
             }
 
             SystemClockSource::RC1M => {
-                match self.system_clock_source.get() {
-                    SystemClockSource::DfllRc32kAt48MHz => {
-                        select_main_clock(MainClock::RCSYS);
-                    }
-                    _ => {}
-                }
-
                 // Configure and turn on RC1M
                 configure_1mhz_rc();
                 // Set Flash wait state to 0 for <= 24MHz in PS2
