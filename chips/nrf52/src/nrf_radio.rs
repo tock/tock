@@ -36,10 +36,10 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::debug;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
+use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::radio::RadioChannel;
 use kernel::hil::time::Alarm;
@@ -807,17 +807,18 @@ impl Radio {
                     self.rx_client.map(|client| {
                         let rbuf = self.rx_buf.take().unwrap();
 
-                        let (data_offset, (header, mac_payload_offset)) = Header::decode(&rbuf[radio::PSDU_OFFSET..], false);
+                        let (data_offset, (header, mac_payload_offset)) =
+                            Header::decode(&rbuf[radio::PSDU_OFFSET..], false);
 
-                        debug!("{}",header.ack_requested);
+                        debug!("{}", header.ack_requested);
                         let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
-                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES                       
-                        client.receive(rbuf, frame_len, regs.crcstatus.get()==1, result)
-                    });                    
+                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
+                        client.receive(rbuf, frame_len, regs.crcstatus.get() == 1, result)
+                    });
                 }
                 // Radio state - Disabled
                 _ => (),
