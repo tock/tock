@@ -14,9 +14,9 @@ CARGO ?= cargo
 # puts a gap between before the .relocate section. `zmax-page-size=512` tells
 # lld the actual page size so it doesn't have to be conservative.
 RUSTFLAGS_FOR_CARGO_LINKING ?= -C link-arg=-Tlayout.ld -C linker=rust-lld \
--Z linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
--C link-arg=-zmax-page-size=512 #\
-#-Z trace-macros
+
+-C linker-flavor=ld.lld -C relocation-model=dynamic-no-pic \
+-C link-arg=-zmax-page-size=512
 
 # Disallow warnings for continuous integration builds. Disallowing them here
 # ensures that warnings during testing won't prevent compilation from succeeding.
@@ -64,7 +64,7 @@ ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(M
   DUMMY := $(shell rustup update)
 endif
 
-LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools-preview.*(installed)' -q; echo $$?)
+LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
 ifeq ($(LLVM_TOOLS_INSTALLED),1)
   $(shell rustup component add llvm-tools-preview)
 endif
@@ -85,7 +85,12 @@ endif
 SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
-OBJDUMP_FLAGS += --disassemble-all --source --arch-name=thumb --section-headers
+OBJDUMP_FLAGS += --disassemble-all --source --section-headers
+
+# Need an extra flag for OBJDUMP if we are on a thumb platform.
+ifneq (,$(findstring thumb,$(TARGET)))
+  OBJDUMP += --arch-name=thumb
+endif
 
 # Dump configuration for verbose builds
 ifneq ($(V),)

@@ -191,7 +191,6 @@ pub fn i2c_li_test() {
     static mut DATA: [u8; 255] = [0; 255];
 
     unsafe {
-        use sam4l;
         sam4l::gpio::PA[16].enable_output();
         sam4l::gpio::PA[16].set();
     }

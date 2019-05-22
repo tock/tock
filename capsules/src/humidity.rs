@@ -53,7 +53,7 @@ use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::HUMIDITY as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Humidity as usize;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum HumidityCommand {

@@ -72,7 +72,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::CRC as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]

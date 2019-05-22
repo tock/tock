@@ -6,6 +6,7 @@ use core::ptr::NonNull;
 use crate::callback::Callback;
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
+use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
@@ -210,18 +211,24 @@ impl Kernel {
         loop {
             unsafe {
                 chip.service_pending_interrupts();
+                DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
-                    if chip.has_pending_interrupts() {
+                    if chip.has_pending_interrupts()
+                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                    {
                         break;
                     }
                 }
 
                 chip.atomic(|| {
-                    if !chip.has_pending_interrupts() && self.processes_blocked() {
+                    if !chip.has_pending_interrupts()
+                        && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                        && self.processes_blocked()
+                    {
                         chip.sleep();
                     }
                 });

@@ -312,6 +312,14 @@ On the next `switch_to_user` call, the application will resume execution based
 on the process stack pointer, which points to the instruction after the system
 call that switched execution to the kernel.
 
+Syscalls may clobber userspace memory, as the kernel may write to buffers
+previously given to it using Allow. The kernel will not clobber any userspace
+registers except for the return value register (`r0`). However, Yield must be
+treated as clobbering more registers, as it can call a callback in userspace
+before returning. This callback can clobber r0-r3, r12, and lr. See [this
+comment](https://github.com/tock/libtock-c/blob/f5004277ec88c2afe8f473a06b74aa2faba70d68/libtock/tock.c#L49)
+in the libtock-c syscall code for more information about Yield.
+
 
 ## How System Calls Connect to Drivers
 

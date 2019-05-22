@@ -24,7 +24,7 @@ use kernel::{AppId, Callback, Driver, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::LPS25HB as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Lps25hb as usize;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 5] = [0; 5];

@@ -6,7 +6,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::ALARM as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
 #[derive(Copy, Clone, Debug)]
 enum Expiration {

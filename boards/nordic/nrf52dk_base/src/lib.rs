@@ -20,6 +20,7 @@ mod components;
 
 use self::components::ble::BLEComponent;
 use self::components::radio::RadioComponent;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -396,6 +397,14 @@ pub unsafe fn setup_board(
     nrf52::clock::CLOCK.high_start();
     while !nrf52::clock::CLOCK.low_started() {}
     while !nrf52::clock::CLOCK.high_started() {}
+
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 1], Default::default());
+    let dynamic_deferred_call = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_call);
 
     let platform = Platform {
         ble_radio: ble_radio,

@@ -26,10 +26,10 @@ pub struct HARD_API {
     _reserved_location_4: unsafe extern "C" fn(u32),
     _reserved_location_5: unsafe extern "C" fn(u32),
     pub hf_source_safe_switch: unsafe extern "C" fn(),
-    pub select_comp_a_input: unsafe extern "C" fn(COMPA_IN),
-    pub select_comp_a_ref: unsafe extern "C" fn(COMPA_REF),
-    pub select_adc_comp_b_input: unsafe extern "C" fn(ADC_COMPB_IN),
-    pub select_dac_vref: unsafe extern "C" fn(DAC_REF),
+    pub select_comp_a_input: unsafe extern "C" fn(CompaIn),
+    pub select_comp_a_ref: unsafe extern "C" fn(CompaRef),
+    pub select_adc_comp_b_input: unsafe extern "C" fn(AdcCompbIn),
+    pub select_dac_vref: unsafe extern "C" fn(DacRef),
 }
 
 const ROM_HAPI_TABLE_ADDR: usize = 0x1000_0048;
@@ -42,16 +42,16 @@ pub const HAPI: StaticRef<HARD_API> =
 // The define values can not be changed!
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
-pub enum COMPA_IN {
-    NC = 0x00,
-    AUXIO7 = 0x09,
-    AUXIO6 = 0x0A,
-    AUXIO5 = 0x0B,
-    AUXIO4 = 0x0C,
-    AUXIO3 = 0x0D,
-    AUXIO2 = 0x0E,
-    AUXIO1 = 0x0F,
-    AUXIO0 = 0x10,
+pub enum CompaIn {
+    Nc = 0x00,
+    Auxio7 = 0x09,
+    Auxio6 = 0x0A,
+    Auxio5 = 0x0B,
+    Auxio4 = 0x0C,
+    Auxio3 = 0x0D,
+    Auxio2 = 0x0E,
+    Auxio1 = 0x0F,
+    Auxio0 = 0x10,
 }
 }
 
@@ -59,20 +59,20 @@ pub enum COMPA_IN {
 // The define values can not be changed!
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
-pub enum COMPA_REF {
-    NC = 0x00,
-    DCOUPL = 0x01,
-    VSS = 0x02,
-    VDDS = 0x03,
-    ADCVREFP = 0x04,
-    AUXIO7 = 0x09,
-    AUXIO6 = 0x0A,
-    AUXIO5 = 0x0B,
-    AUXIO4 = 0x0C,
-    AUXIO3 = 0x0D,
-    AUXIO2 = 0x0E,
-    AUXIO1 = 0x0F,
-    AUXIO0 = 0x10,
+pub enum CompaRef {
+    Nc = 0x00,
+    Dcoupl = 0x01,
+    Vss = 0x02,
+    Vdds = 0x03,
+    Adcvrefp = 0x04,
+    Auxio7 = 0x09,
+    Auxio6 = 0x0A,
+    Auxio5 = 0x0B,
+    Auxio4 = 0x0C,
+    Auxio3 = 0x0D,
+    Auxio2 = 0x0E,
+    Auxio1 = 0x0F,
+    Auxio0 = 0x10,
 }
 }
 
@@ -80,19 +80,19 @@ pub enum COMPA_REF {
 // The define values can not be changed!
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
-pub enum ADC_COMPB_IN {
-    NC = 0x00,
-    DCOUPL = 0x03,
-    VSS = 0x04,
-    VDDS = 0x05,
-    AUXIO7 = 0x09,
-    AUXIO6 = 0x0A,
-    AUXIO5 = 0x0B,
-    AUXIO4 = 0x0C,
-    AUXIO3 = 0x0D,
-    AUXIO2 = 0x0E,
-    AUXIO1 = 0x0F,
-    AUXIO0 = 0x10,
+pub enum AdcCompbIn {
+    Nc = 0x00,
+    Dcoupl = 0x03,
+    Vss = 0x04,
+    Vdds = 0x05,
+    Auxio7 = 0x09,
+    Auxio6 = 0x0A,
+    Auxio5 = 0x0B,
+    Auxio4 = 0x0C,
+    Auxio3 = 0x0D,
+    Auxio2 = 0x0E,
+    Auxio1 = 0x0F,
+    Auxio0 = 0x10,
 }
 }
 
@@ -100,10 +100,10 @@ pub enum ADC_COMPB_IN {
 // The define values can not be changed!
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
-pub enum DAC_REF {
-    NC = 0x00,
-    DCOUPL = 0x01,
-    VSS = 0x02,
-    VDDS = 0x03,
+pub enum DacRef {
+    Nc = 0x00,
+    Dcoupl = 0x01,
+    Vss = 0x02,
+    Vdds = 0x03,
 }
 }

@@ -692,7 +692,6 @@ impl DMAClient for SpiHw {
             .set(self.transfers_in_progress.get() - 1);
 
         if self.transfers_in_progress.get() == 0 {
-            self.disable();
             let txbuf = self.dma_write.map_or(None, |dma| {
                 let buf = dma.abort_transfer();
                 dma.disable();
@@ -721,6 +720,9 @@ impl DMAClient for SpiHw {
                         cb.read_write_done(txbuf, rxbuf, len);
                     });
                 }
+            }
+            if self.transfers_in_progress.get() == 0 {
+                self.disable();
             }
         }
     }
