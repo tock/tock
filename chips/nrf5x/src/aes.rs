@@ -343,7 +343,7 @@ impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'a> {
         ()
     }
 }
-
+//TODO: replace this placeholder with a proper implementation of the AES system
 impl kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
     fn set_client(&'a self, _client: &'a kernel::hil::symmetric_encryption::CCMClient) {}

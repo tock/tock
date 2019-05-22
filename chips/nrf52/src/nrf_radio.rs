@@ -36,6 +36,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
+use kernel::debug;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -47,6 +48,12 @@ use kernel::ReturnCode;
 use crate::ppi;
 use nrf5x;
 use nrf5x::constants::TxPower;
+
+//extern crate::net;
+use capsules;
+use capsules::net::ieee802154::{
+    FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
+};
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -279,7 +286,7 @@ struct RadioRegisters {
     modecnf0: ReadWrite<u32, RadioModeConfig::Register>,
     /// Reserved
     _reserved16: [u32; 6],
-    /// Clear Channel Assessment (CCA) control register
+    /// Clear Channel Assesment (CCA) control register
     /// - Address: 0x66C - 0x670
     ccactrl: ReadWrite<u32, CCAControl::Register>,
     /// Reserved
@@ -800,16 +807,17 @@ impl Radio {
                     self.rx_client.map(|client| {
                         let rbuf = self.rx_buf.take().unwrap();
 
+                        let (data_offset, (header, mac_payload_offset)) = Header::decode(&rbuf[radio::PSDU_OFFSET..], false);
+
+                        debug!("{}",header.ack_requested);
                         let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
-                        // TODO: Check if the length is still valid
-                        // TODO: CRC_valid is autoflagged to true until I feel like fixing it
-                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
-                        client.receive(rbuf, frame_len, true, result)
-                    });
+                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES                       
+                        client.receive(rbuf, frame_len, regs.crcstatus.get()==1, result)
+                    });                    
                 }
                 // Radio state - Disabled
                 _ => (),
@@ -994,7 +1002,9 @@ impl kernel::hil::radio::RadioConfig for Radio {
     ///module over an interface
     //#################################################
 
-    fn set_power_client(&self, _client: &'static radio::PowerClient) {}
+    //fn set_power_client(&self, client: &'static radio::PowerClient){
+
+    //}
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.

@@ -455,7 +455,6 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                     }
                 } else {
                     // No security needed, can yield the frame immediately
-                    //debug!("[FRAMER] {:?} {:?} {:?}\r",frame_len,radio::PSDU_OFFSET + data_offset,mic_len);
                     self.rx_client.map(|client| {
                         client.receive(&buf, header, radio::PSDU_OFFSET + data_offset, data_len);
                     });

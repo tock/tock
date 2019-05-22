@@ -623,7 +623,7 @@ impl<R: radio::Radio, A: Alarm> radio::RxClient for XMac<'a, R, A> {
             self.rx_pending.set(false);
             self.call_rx_client(buf, frame_len, crc_valid, result);
         } else {
-            //self.radio.set_receive_buffer(buf);
+            self.radio.set_receive_buffer(buf);
         }
 
         // If we should go to sleep (i.e. not waiting up for any additional data

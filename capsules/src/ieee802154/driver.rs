@@ -842,7 +842,6 @@ impl device::RxClient for RadioDriver<'a> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                //debug!("{:?}\t{:?}\r",rbuf.len(), data_offset + data_len);
                 app.rx_callback
                     .take()
                     .map(|mut cb| cb.schedule(pans, dst_addr, src_addr));

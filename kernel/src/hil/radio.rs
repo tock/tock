@@ -114,6 +114,8 @@ pub trait RadioData {
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 }
 
+// IEEEStd 802.15.4-2011 Section 8.1.2.2
+// Frequency is 2405 + 5 * (k - 11) MHz, where k = 11, 12, ... , 26.
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum RadioChannel {
     DataChannel11 = 5,
