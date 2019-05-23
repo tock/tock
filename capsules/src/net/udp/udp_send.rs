@@ -42,12 +42,16 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         // TO DO: Enforce port binding here ()
         // Add this sender to the tail of the sender_list
         let list_empty = self.sender_list.head().is_none();
-        //debug!("list empty: {:?}", list_empty);
+        debug!("list empty: {:?}", list_empty);
         self.add_client(caller);
         let mut ret = ReturnCode::SUCCESS;
         if list_empty {
             ret = match caller.tx_buffer.take() {
-                Some(buf) => self.ip_sender.send_to(dest, transport_header, buf),
+                Some(buf) => {
+                    let ret = self.ip_sender.send_to(dest, transport_header, buf);
+                    caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
+                    ret
+                }
                 None => {
                     debug!("No buffer available to take.");
                     ReturnCode::FAIL
@@ -72,26 +76,33 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
         last_sender.map(|last_sender| {
             last_sender
                 .client
-                .map(|client| client.send_done(result, last_sender.tx_buffer.take().unwrap()))
+                .map(|client| match last_sender.tx_buffer.take() {
+                    Some(buf) => client.send_done(result, buf),
+                    None => debug!("missing buffer in send done."),
+                })
         });
 
-        if (self.sender_list.head().is_some()) {
-            //send next packet in queue
-            let next_sender = self.sender_list.head().unwrap();
-            let success = match next_sender.tx_buffer.take() {
-                Some(buf) => self.ip_sender.send_to(
-                    next_sender.next_dest.get(),
-                    next_sender.next_th.take().unwrap(),
-                    buf,
-                ),
-                None => {
-                    debug!("No buffer available to take.");
-                    ReturnCode::FAIL
+        let success = match self.sender_list.head() {
+            Some(next_sender) => {
+                //send next packet in queue
+                match next_sender.tx_buffer.take() {
+                    Some(buf) => match next_sender.next_th.take() {
+                        Some(th) => self.ip_sender.send_to(next_sender.next_dest.get(), th, buf),
+                        None => {
+                            debug!("Missing transport header.");
+                            ReturnCode::FAIL
+                        }
+                    },
+                    None => {
+                        debug!("No buffer available to take.");
+                        ReturnCode::FAIL
+                    }
                 }
-            };
-            if success != ReturnCode::SUCCESS {
-                debug!("Error in udp_send send_done() callback.");
             }
+            None => ReturnCode::FAIL,
+        };
+        if success != ReturnCode::SUCCESS {
+            debug!("Error in udp_send send_done() callback.");
         }
     }
 }
@@ -205,8 +216,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     ) -> ReturnCode {
         // TODO: need to enforce port binding here? Up to what point do we
         // enforce it? IP layer?
-        let total_length = buf.len() + udp_header.get_hdr_size();
-        udp_header.set_len(total_length as u16);
+        udp_header.set_len((buf.len() + udp_header.get_hdr_size()) as u16);
         let transport_header = TransportHeader::UDP(udp_header);
         self.tx_buffer.replace(buf);
         self.next_dest.replace(dest);

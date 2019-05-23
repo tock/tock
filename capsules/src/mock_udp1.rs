@@ -84,11 +84,15 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
     }
 
     pub fn send(&self, value: u16) {
-        let mut dgram = self.udp_dgram.take().unwrap();
-        dgram[0] = (value >> 8) as u8;
-        dgram[1] = (value & 0x00ff) as u8;
-        let tmp = self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
-        debug!("Initial send result: {:?}", tmp);
+        match self.udp_dgram.take() {
+            Some(dgram) => {
+                dgram[0] = (value >> 8) as u8;
+                dgram[1] = (value & 0x00ff) as u8;
+                let tmp = self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
+                debug!("Initial send result: {:?}", tmp);
+            }
+            None => debug!("udp_dgram not present."),
+        }
     }
 }
 
@@ -113,15 +117,18 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
             }
         }
         self.send(self.id);
-        self.alarm
-            .set_alarm(self.alarm.now().wrapping_add(<A::Frequency>::frequency()));
     }
 }
 
 impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
     fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
-        self.udp_dgram.replace(dgram);
         debug!("Done sending. Result: {:?}", result);
+        self.udp_dgram.replace(dgram);
         debug!("");
+        self.alarm.set_alarm(
+            self.alarm
+                .now()
+                .wrapping_add(<A::Frequency>::frequency() * 5),
+        );
     }
 }

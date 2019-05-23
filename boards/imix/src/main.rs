@@ -24,9 +24,9 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
+use kernel::udp_port_table::UdpPortTable;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, static_init};
-use kernel::udp_port_table::UdpPortTable;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -38,6 +38,7 @@ use components::fxos8700::NineDofComponent;
 use components::gpio::GpioComponent;
 use components::isl29035::AmbientLightComponent;
 use components::led::LedComponent;
+use components::mock_udp::MockUDPComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
@@ -46,9 +47,8 @@ use components::rf233::RF233Component;
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
-use components::udp_mux::{UDPMuxComponent};
-use components::udp_driver::{UDPDriverComponent};
-use components::mock_udp::{MockUDPComponent};
+use components::udp_driver::UDPDriverComponent;
+use components::udp_mux::UDPMuxComponent;
 //use components::mock_udp2::{MockUDPComponent2};
 use components::usb::UsbComponent;
 
@@ -170,7 +170,6 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
 const UDP_HDR_SIZE: usize = 8;
 //static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -388,8 +387,7 @@ pub unsafe fn reset_handler() {
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16
-            ).finalize();
+        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
@@ -431,16 +429,10 @@ pub unsafe fn reset_handler() {
         udp_port_table,
         local_ip_ifaces,
         PAYLOAD_LEN,
-     )
-     .finalize();
-
-    let mock_udp1 = MockUDPComponent::new(
-        udp_mux,
-        udp_port_table,
-        mux_alarm,
     )
     .finalize();
 
+    let mock_udp1 = MockUDPComponent::new(udp_mux, udp_port_table, mux_alarm).finalize();
 
     /*let udp_lowpan_test = udp_lowpan_test::initialize_all(
         mux_mac,
@@ -485,7 +477,6 @@ pub unsafe fn reset_handler() {
     imix.console.initialize();
     imix.pconsole.initialize();
     imix.pconsole.start();
-
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
