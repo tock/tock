@@ -48,6 +48,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         if list_empty {
             ret = match caller.tx_buffer.take() {
                 Some(buf) => {
+                    debug!("calling send_to");
                     let ret = self.ip_sender.send_to(dest, transport_header, buf);
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
@@ -61,7 +62,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         ret
     }
 
-    pub fn add_client(&self, sender: &'a UDPSendStruct<'a, T>) {
+    fn add_client(&self, sender: &'a UDPSendStruct<'a, T>) {
         //add udp_sender to the tail of linked list
         self.sender_list.push_tail(sender);
     }

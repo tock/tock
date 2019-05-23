@@ -131,7 +131,7 @@ impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
         );
         self.init_packet(dst, transport_header, payload);
         let ret = self.send_next_fragment();
-        //debug!("ip6_send ret: {:?}", ret);
+        debug!("ip6_send ret: {:?}", ret);
         ret
     }
 }

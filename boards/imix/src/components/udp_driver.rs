@@ -91,8 +91,6 @@ impl Component for UDPDriverComponent {
             UDPSendStruct::new(self.udp_mux)
         );
 
-        self.udp_mux.add_client(udp_send);
-
         let udp_driver = static_init!(
             capsules::net::udp::UDPDriver<'static>,
             capsules::net::udp::UDPDriver::new(
