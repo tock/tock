@@ -131,7 +131,6 @@ impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
         );
         self.init_packet(dst, transport_header, payload);
         let ret = self.send_next_fragment();
-        debug!("ip6_send ret: {:?}", ret);
         ret
     }
 }
@@ -210,7 +209,6 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
                 None => (ReturnCode::EBUSY, false),
             })
             .unwrap_or((ReturnCode::ENOMEM, false));
-        debug!("send_complete?: {:?}", call_send_complete);
         if call_send_complete {
             self.send_completed(ret);
             return ReturnCode::SUCCESS;

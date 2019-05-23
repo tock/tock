@@ -265,7 +265,7 @@ impl<'a> UDPDriver<'a> {
                     self.kernel_buffer
                         .take()
                         .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
-                            kernel_buffer.copy_from_slice(payload.as_ref());
+                            kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                             self.sender
                                 .send_to(dst_addr, dst_port, src_port, kernel_buffer)
                         })
@@ -555,9 +555,7 @@ impl<'a> Driver for UDPDriver<'a> {
                             });
                         }
                         // Check bound ports in the kernel.
-                        debug!("checking addr bound: {:?}", requested_addr.port);
                         if self.port_table.is_bound(requested_addr.port) {
-                            debug!("it was bound!");
                             addr_already_bound = true;
                         }
                         // Also check the bound port table here.

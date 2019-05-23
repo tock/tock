@@ -88,8 +88,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             Some(dgram) => {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
-                //let tmp = self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
-                //debug!("Initial send result: {:?}", tmp);
+                let tmp = self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
             }
             None => debug!("udp_dgram not present."),
         }

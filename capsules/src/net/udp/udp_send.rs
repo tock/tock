@@ -42,13 +42,11 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         // TO DO: Enforce port binding here ()
         // Add this sender to the tail of the sender_list
         let list_empty = self.sender_list.head().is_none();
-        debug!("list empty: {:?}", list_empty);
         self.add_client(caller);
         let mut ret = ReturnCode::SUCCESS;
         if list_empty {
             ret = match caller.tx_buffer.take() {
                 Some(buf) => {
-                    debug!("calling send_to");
                     let ret = self.ip_sender.send_to(dest, transport_header, buf);
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
@@ -73,7 +71,6 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
-        debug!("send done called in muxudp");
         let last_sender = self.sender_list.pop_head();
         last_sender.map(|last_sender| {
             last_sender
