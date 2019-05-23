@@ -31,7 +31,7 @@ use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender, MuxUdpSender};
+use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
@@ -41,7 +41,7 @@ use kernel::hil::time::Frequency;
 use kernel::static_init;
 use kernel::ReturnCode;
 
-use kernel::udp_port_table::{UdpPortTable, UdpPortSocket};
+use kernel::udp_port_table::UdpPortTable;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -146,12 +146,12 @@ pub unsafe fn initialize_all(
     );
     radio_mac.set_transmit_client(ip6_sender);
 
-    let udp_port_table = unsafe {static_init!(UdpPortTable, UdpPortTable::new())};
+    let udp_port_table = unsafe { static_init!(UdpPortTable, UdpPortTable::new()) };
 
     let udp_mux = static_init!(
         MuxUdpSender<
-                'static,
-                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+            'static,
+            capsules::net::ipv6::ipv6_send::IP6SendStruct<
                 'static,
                 VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
             >,
@@ -186,7 +186,7 @@ pub unsafe fn initialize_all(
 }
 
 impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
         match result {
             ReturnCode::SUCCESS => {
                 debug!("Packet Sent!");
@@ -246,7 +246,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         debug!("Running test {}:", test_id);
         match test_id {
             //0 => self.port_table_test(),//self.ipv6_send_packet_test(),
-            0 => self.ipv6_send_packet_test(),//self.ipv6_send_packet_test(),
+            0 => self.ipv6_send_packet_test(), //self.ipv6_send_packet_test(),
             1 => self.ipv6_send_packet_test(),
             //1 => self.port_table_test(),
             _ => {}
@@ -254,22 +254,20 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn port_table_test(&self) {
-
         // Initialize bindings.
         let socket1 = self.port_table.create_socket().unwrap();
         let socket2 = self.port_table.create_socket().unwrap();
-        let socket3 = self.port_table.create_socket().unwrap();
+        let _socket3 = self.port_table.create_socket().unwrap();
         debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let (send_bind, recv_bind) =
-            self.port_table.bind(socket1, 80).ok().unwrap();
+        let (send_bind, recv_bind) = self.port_table.bind(socket1, 80).ok().unwrap();
         // TODO: socket "memory-leak"?
         assert!(self.port_table.bind(socket2, 80).is_err());
         // debug!("After return code assertions for binding");
         // // Ensure that only the first binding is able to send
         assert_eq!(send_bind.get_port(), 80);
         assert_eq!(recv_bind.get_port(), 80);
-        let new_sock1 = self.port_table.unbind(send_bind, recv_bind);
+        let _new_sock1 = self.port_table.unbind(send_bind, recv_bind);
 
         // let binding_socket = match ret1 {
         //     Ok(binding) => {
@@ -324,7 +322,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         debug!("before send_to");
         unsafe {
             self.udp_sender
-                .send_to(DST_ADDR, src_port, dst_port, &UDP_PAYLOAD)
+                .send_to(DST_ADDR, src_port, dst_port, &mut UDP_PAYLOAD)
         };
         debug!("send_next done");
     }

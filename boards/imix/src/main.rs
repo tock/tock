@@ -12,7 +12,6 @@ mod components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::mock_udp1::MockUdp1;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -27,6 +26,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, static_init};
+use kernel::udp_port_table::UdpPortTable;
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -46,9 +46,10 @@ use components::rf233::RF233Component;
 use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
-use components::udp_6lowpan::{UDPComponent};
+use components::udp_mux::{UDPMuxComponent};
+use components::udp_driver::{UDPDriverComponent};
 use components::mock_udp::{MockUDPComponent};
-use components::mock_udp2::{MockUDPComponent2};
+//use components::mock_udp2::{MockUDPComponent2};
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -139,7 +140,7 @@ struct Imix {
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
-    //udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<
         'static,
@@ -165,6 +166,12 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
+// TODO: Centralize payload length setting here.
+const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
+const UDP_HDR_SIZE: usize = 8;
+//static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
+
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
@@ -186,7 +193,7 @@ impl kernel::Platform for Imix {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
-            //capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
@@ -381,7 +388,8 @@ pub unsafe fn reset_handler() {
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize();
+        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16
+            ).finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
@@ -401,40 +409,39 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let mock_udp1 = MockUDPComponent::new(
+    let udp_port_table = static_init!(UdpPortTable, UdpPortTable::new());
+
+    let (udp_mux, udp_recv) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
         src_mac_from_serial_num,
         local_ip_ifaces,
+        mux_alarm,
+        PAYLOAD_LEN,
+    )
+    .finalize();
+
+    // UDP driver initialization happens here
+    let udp_driver = UDPDriverComponent::new(
+        board_kernel,
+        udp_mux,
+        udp_recv,
+        udp_port_table,
+        local_ip_ifaces,
+        PAYLOAD_LEN,
+     )
+     .finalize();
+
+    let mock_udp1 = MockUDPComponent::new(
+        udp_mux,
+        udp_port_table,
         mux_alarm,
     )
     .finalize();
 
-    /*let mock_udp2 = MockUDPComponent2::new(
-        mux_mac,
-        DEFAULT_CTX_PREFIX_LEN,
-        DEFAULT_CTX_PREFIX,
-        DST_MAC_ADDR,
-        src_mac_from_serial_num,
-        local_ip_ifaces,
-        mux_alarm,
-    )
-    .finalize();*/
-    /*
-    let udp_driver = UDPComponent::new(
-        board_kernel,
-        mux_mac,
-        DEFAULT_CTX_PREFIX_LEN,
-        DEFAULT_CTX_PREFIX,
-        DST_MAC_ADDR,
-        src_mac_from_serial_num,
-        local_ip_ifaces,
-        mux_alarm,
-    )
-    .finalize();
-    */
+
     /*let udp_lowpan_test = udp_lowpan_test::initialize_all(
         mux_mac,
         mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
@@ -458,7 +465,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &grant_cap),
         ninedof,
         radio_driver,
-        //udp_driver,
+        udp_driver,
         usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage: nonvolatile_storage,
@@ -479,9 +486,6 @@ pub unsafe fn reset_handler() {
     imix.pconsole.initialize();
     imix.pconsole.start();
 
-    //mock_udp2.start();
-
-
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),
@@ -496,11 +500,10 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
-
     mock_udp1.start();
+
     //udp_lowpan_test.start();
 
-    //mock_udp.send(27);
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

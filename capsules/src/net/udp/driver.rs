@@ -7,15 +7,21 @@
 //! hard-coded).
 
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ipv6_send::IP6SendStruct;
+use crate::net::ipv6::ipv6_send::IP6Sender;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
-use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
+use crate::net::udp::udp_send::{MuxUdpSender, UDPSendClient, UDPSender};
+use crate::net::util::host_slice_to_u16;
+use crate::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use core::{cmp, mem};
+use kernel::common::cells::TakeCell;
+use kernel::hil::time::Alarm;
+use kernel::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;
 
@@ -84,6 +90,11 @@ pub struct UDPDriver<'a> {
 
     /// Maximum length payload that an app can transmit via this driver
     max_tx_pyld_len: usize,
+
+    // UDP bound port table (manages kernel bindings)
+    port_table: &'static UdpPortTable,
+
+    kernel_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> UDPDriver<'a> {
@@ -93,6 +104,8 @@ impl<'a> UDPDriver<'a> {
         grant: Grant<App>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
+        port_table: &'static UdpPortTable,
+        kernel_buffer: &'static mut [u8],
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -101,6 +114,8 @@ impl<'a> UDPDriver<'a> {
             current_app: Cell::new(None),
             interface_list: interface_list,
             max_tx_pyld_len: max_tx_pyld_len,
+            port_table: port_table,
+            kernel_buffer: TakeCell::new(kernel_buffer),
         }
     }
 
@@ -241,15 +256,19 @@ impl<'a> UDPDriver<'a> {
             let dst_port = addr_ports[1].port;
             let src_port = addr_ports[0].port;
 
-            // Send UDP payload. Payload will be copied into IP6Packet in kernel mem.
+            // Send UDP payload. Copy payload into packet buffer held by this driver, then queue
+            // it on the udp_mux.
             let result = app
                 .app_write
                 .as_ref()
                 .map_or(ReturnCode::ENOMEM, |payload| {
-                    //  TODO: comment back in!
-                    // self.sender
-                    //     .send_to(dst_addr, dst_port, src_port, payload.as_ref())
-                    ReturnCode::SUCCESS
+                    self.kernel_buffer
+                        .take()
+                        .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
+                            kernel_buffer.copy_from_slice(payload.as_ref());
+                            self.sender
+                                .send_to(dst_addr, dst_port, src_port, kernel_buffer)
+                        })
                 });
             if result == ReturnCode::SUCCESS {
                 self.current_app.set(Some(appid));
@@ -306,7 +325,7 @@ impl<'a> UDPDriver<'a> {
 
             let pair = UDPEndpoint {
                 addr: addr,
-                port: ((p[0] as u16) << 8) + (p[1] as u16),
+                port: host_slice_to_u16(p),
             };
             Some(pair)
         }
@@ -483,9 +502,6 @@ impl<'a> Driver for UDPDriver<'a> {
                 })
             }
             3 => {
-                // TODO: modify this case to deal with port table
-                // delete bound_port option and make calls to UdpPortTable
-                // ideally userspace code will not change at all.
                 self.do_with_app(appid, |app| {
                     // Move UDPEndpoint into udp.rs?
                     let mut requested_addr_opt = app.app_rx_cfg.as_ref().and_then(|cfg| {
@@ -521,6 +537,9 @@ impl<'a> Driver for UDPDriver<'a> {
                             return ReturnCode::EINVAL;
                         }
                         let mut addr_already_bound = false;
+                        // This checks the bound ports in the other grants.
+                        // This code needs to be replicated in the bound port
+                        // table when checking the userspace apps.
                         for app in self.apps.iter() {
                             app.enter(|other_app, _| {
                                 if other_app.bound_port.is_some() {
@@ -534,6 +553,13 @@ impl<'a> Driver for UDPDriver<'a> {
                                 }
                             });
                         }
+                        // Check bound ports in the kernel.
+                        debug!("checking addr bound: {:?}", requested_addr.port);
+                        if self.port_table.is_bound(requested_addr.port) {
+                            debug!("it was bound!");
+                            addr_already_bound = true;
+                        }
+                        // Also check the bound port table here.
                         if addr_already_bound {
                             return ReturnCode::EBUSY;
                         } else {
@@ -556,7 +582,9 @@ impl<'a> Driver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
+        // Replace the returned kernel buffer. Now we can send the next msg.
+        self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
@@ -615,5 +643,24 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                 });
             }
         });
+    }
+}
+
+impl<'a> PortQuery for UDPDriver<'a> {
+    // Returns true if |port| is bound (on any iface), false otherwise.
+    fn is_bound(&self, port: u16) -> bool {
+        let mut port_bound = false;
+        for app in self.apps.iter() {
+            app.enter(|other_app, _| {
+                if other_app.bound_port.is_some() {
+                    let other_addr_opt = other_app.bound_port.clone();
+                    let other_addr = other_addr_opt.unwrap();
+                    if other_addr.port == port {
+                        port_bound = true;
+                    }
+                }
+            });
+        }
+        port_bound
     }
 }
