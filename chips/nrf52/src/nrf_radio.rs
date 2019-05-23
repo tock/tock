@@ -39,9 +39,8 @@ use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::radio::RadioChannel;
+use kernel::hil::radio::{PowerClient, RadioChannel};
 use kernel::hil::time::Alarm;
 use kernel::ReturnCode;
 
@@ -50,10 +49,11 @@ use nrf5x;
 use nrf5x::constants::TxPower;
 
 //extern crate::net;
-use capsules;
-use capsules::net::ieee802154::{
-    FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
-};
+//use capsules;
+//use capsules::net::ieee802154::{
+//    FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
+//};
+//use capsules::net::ieee802154::Header;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -807,16 +807,11 @@ impl Radio {
                     self.rx_client.map(|client| {
                         let rbuf = self.rx_buf.take().unwrap();
 
-                        let (data_offset, (header, mac_payload_offset)) =
-                            Header::decode(&rbuf[radio::PSDU_OFFSET..], false);
-
-                        debug!("{}", header.ack_requested);
                         let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
-                        // (PAYLOAD[RAM_S0_BYTES] as usize) + PREBUF_LEN_BYTES
                         client.receive(rbuf, frame_len, regs.crcstatus.get() == 1, result)
                     });
                 }
@@ -977,6 +972,10 @@ impl kernel::hil::radio::RadioConfig for Radio {
     ) -> ReturnCode {
         self.radio_initialize(self.channel.get());
         ReturnCode::SUCCESS
+    }
+
+    fn set_power_client(&self, _client: &'static PowerClient) {
+        //
     }
 
     fn reset(&self) -> ReturnCode {
