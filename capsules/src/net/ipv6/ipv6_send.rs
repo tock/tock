@@ -210,6 +210,7 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
                 None => (ReturnCode::EBUSY, false),
             })
             .unwrap_or((ReturnCode::ENOMEM, false));
+        debug!("send_complete?: {:?}", call_send_complete);
         if call_send_complete {
             self.send_completed(ret);
             return ReturnCode::SUCCESS;
@@ -218,7 +219,9 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
     }
 
     fn send_completed(&self, result: ReturnCode) {
-        self.client.map(move |client| client.send_done(result));
+        self.client.map(move |client| {
+            client.send_done(result);
+        });
     }
 }
 

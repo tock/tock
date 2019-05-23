@@ -27,17 +27,17 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules;
-use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_recv::IP6Receiver;
+use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_recv::UDPReceiver;
-use capsules::net::udp::udp_send::{MuxUdpSender};
+use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::static_init;
 
@@ -98,12 +98,13 @@ impl UDPMuxComponent {
 }
 
 impl Component for UDPMuxComponent {
-    type Output = (&'static MuxUdpSender<
-                   'static,
-                   IP6SendStruct<
-                   'static,
-                   VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-                   >,>, &'static UDPReceiver<'static>);
+    type Output = (
+        &'static MuxUdpSender<
+            'static,
+            IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        >,
+        &'static UDPReceiver<'static>,
+    );
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let ipsender_virtual_alarm = static_init!(
@@ -184,14 +185,15 @@ impl Component for UDPMuxComponent {
 
         let udp_mux = static_init!(
             MuxUdpSender<
-                    'static,
-                    capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                'static,
+                capsules::net::ipv6::ipv6_send::IP6SendStruct<
                     'static,
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
             MuxUdpSender::new(ip_send)
         );
+        ip_send.set_client(udp_mux);
         (udp_mux, udp_recv)
     }
 }

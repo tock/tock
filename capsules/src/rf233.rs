@@ -801,6 +801,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
                     self.tx_client.map(|c| {
+                        debug!("send done called in radio");
                         c.send_done(buf.unwrap(), ack, return_code);
                     });
                 } else {
@@ -1375,6 +1376,7 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
         self.transmitting.set(true);
 
         if !self.receiving.get() && state == InternalState::READY {
+            debug!("radio tx");
             self.state_transition_read(
                 RF233Register::TRX_STATUS,
                 InternalState::TX_STATUS_PRECHECK1,

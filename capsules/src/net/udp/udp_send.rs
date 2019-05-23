@@ -73,6 +73,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
+        debug!("send done called in muxudp");
         let last_sender = self.sender_list.pop_head();
         last_sender.map(|last_sender| {
             last_sender
@@ -100,7 +101,7 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                     }
                 }
             }
-            None => ReturnCode::FAIL,
+            None => ReturnCode::SUCCESS, //No more packets queued.
         };
         if success != ReturnCode::SUCCESS {
             debug!("Error in udp_send send_done() callback.");

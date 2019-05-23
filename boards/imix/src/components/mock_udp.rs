@@ -6,19 +6,18 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::udp::udp_send::{UDPSendStruct, UDPSender, MuxUdpSender};
+use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-use kernel::udp_port_table::{UdpPortTable};
+use kernel::udp_port_table::UdpPortTable;
 
 use kernel::component::Component;
 use kernel::static_init;
 
-const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
+const PAYLOAD_LEN: usize = 100; //The max size UDP message that can be sent by userspace apps or capsules
 const UDP_HDR_SIZE: usize = 8;
 
 static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-
 
 pub struct MockUDPComponent {
     // TODO: consider putting bound_port_table in a TakeCell
@@ -29,8 +28,6 @@ pub struct MockUDPComponent {
     bound_port_table: &'static UdpPortTable,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
-
-
 
 impl MockUDPComponent {
     pub fn new(
@@ -50,11 +47,12 @@ impl MockUDPComponent {
 }
 
 impl Component for MockUDPComponent {
-    type Output = &'static capsules::mock_udp1::MockUdp1<'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
+    type Output = &'static capsules::mock_udp1::MockUdp1<
+        'static,
+        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    >;
 
     unsafe fn finalize(&mut self) -> Self::Output {
-
         let udp_send = static_init!(
             UDPSendStruct<
                 'static,
