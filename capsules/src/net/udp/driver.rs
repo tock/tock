@@ -519,7 +519,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                     if requested_addr_opt.is_some() {
-                        let requested_addr = requested_addr_opt.unwrap();
+                        let requested_addr = requested_addr_opt.expect("missing address.");
                         // If zero address, close any already bound socket
                         if requested_addr.is_zero() {
                             app.rx_callback = None;
@@ -544,7 +544,8 @@ impl<'a> Driver for UDPDriver<'a> {
                             app.enter(|other_app, _| {
                                 if other_app.bound_port.is_some() {
                                     let other_addr_opt = other_app.bound_port.clone();
-                                    let other_addr = other_addr_opt.unwrap();
+                                    let other_addr =
+                                        other_addr_opt.expect("Missing other address.");
                                     if other_addr.port == requested_addr.port {
                                         if other_addr.addr == requested_addr.addr {
                                             addr_already_bound = true;
@@ -654,7 +655,7 @@ impl<'a> PortQuery for UDPDriver<'a> {
             app.enter(|other_app, _| {
                 if other_app.bound_port.is_some() {
                     let other_addr_opt = other_app.bound_port.clone();
-                    let other_addr = other_addr_opt.unwrap();
+                    let other_addr = other_addr_opt.expect("Missing other_addr");
                     if other_addr.port == port {
                         port_bound = true;
                     }
