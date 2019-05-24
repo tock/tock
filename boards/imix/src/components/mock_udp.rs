@@ -14,8 +14,8 @@ use kernel::udp_port_table::UdpPortTable;
 use kernel::component::Component;
 use kernel::static_init;
 
-const PAYLOAD_LEN: usize = 100; //The max size UDP message that can be sent by userspace apps or capsules
 const UDP_HDR_SIZE: usize = 8;
+const PAYLOAD_LEN: usize = super::udp_mux::PAYLOAD_LEN;
 
 static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 

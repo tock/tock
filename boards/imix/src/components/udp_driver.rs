@@ -35,8 +35,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use sam4l;
 
-const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
 const UDP_HDR_SIZE: usize = 8;
+const PAYLOAD_LEN: usize = super::udp_mux::PAYLOAD_LEN;
 
 static mut DRIVER_BUF: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
@@ -49,7 +49,6 @@ pub struct UDPDriverComponent {
     udp_recv: &'static UDPReceiver<'static>,
     port_table: &'static UdpPortTable,
     interface_list: &'static [IPAddr],
-    payload_len: usize,
 }
 
 impl UDPDriverComponent {
@@ -62,7 +61,6 @@ impl UDPDriverComponent {
         udp_recv: &'static UDPReceiver<'static>,
         port_table: &'static UdpPortTable,
         interface_list: &'static [IPAddr],
-        payload_len: usize,
     ) -> UDPDriverComponent {
         UDPDriverComponent {
             board_kernel: board_kernel,
@@ -70,7 +68,6 @@ impl UDPDriverComponent {
             udp_recv: udp_recv,
             port_table: port_table,
             interface_list: interface_list,
-            payload_len: payload_len,
         }
     }
 }
@@ -98,7 +95,7 @@ impl Component for UDPDriverComponent {
                 self.udp_recv,
                 self.board_kernel.create_grant(&grant_cap),
                 self.interface_list,
-                self.payload_len,
+                PAYLOAD_LEN,
                 self.port_table,
                 &mut DRIVER_BUF,
             )

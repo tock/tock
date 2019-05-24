@@ -166,11 +166,6 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
-// TODO: Centralize payload length setting here.
-const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
-
-//static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
@@ -417,7 +412,6 @@ pub unsafe fn reset_handler() {
         src_mac_from_serial_num,
         local_ip_ifaces,
         mux_alarm,
-        PAYLOAD_LEN,
     )
     .finalize();
 
@@ -428,7 +422,6 @@ pub unsafe fn reset_handler() {
         udp_recv,
         udp_port_table,
         local_ip_ifaces,
-        PAYLOAD_LEN,
     )
     .finalize();
 
