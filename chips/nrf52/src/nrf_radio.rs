@@ -672,11 +672,18 @@ impl Radio {
         regs.event_ready.write(Event::READY::CLEAR);
 
         if self.transmitting.get() {
-            self.tx_buf
-                .replace(self.set_dma_ptr(self.tx_buf.take().unwrap()));
+            let tbuf = self
+                .tx_buf
+                .take()
+                .expect("Radio TX Buffer produced an invalid result when setting the DMA pointer.");
+
+            self.tx_buf.replace(self.set_dma_ptr(tbuf));
         } else {
-            self.rx_buf
-                .replace(self.set_dma_ptr(self.rx_buf.take().unwrap()));
+            let rbuf = self
+                .rx_buf
+                .take()
+                .expect("Radio RX Buffer produced an invalid result when setting the DMA pointer.");
+            self.rx_buf.replace(self.set_dma_ptr(rbuf));
         }
 
         regs.task_rxen.write(Task::ENABLE::SET);
@@ -765,12 +772,14 @@ impl Radio {
                         .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
                 }
             } else {
+                let tbuf = self.tx_buf.take().expect("TX Buffer produced error when sending it back to the requestor after the channel was busy.");
+
                 self.transmitting.set(false);
                 //if we are transmitting, the CRCstatus check is always going to be an error
                 let result = ReturnCode::EBUSY;
                 //TODO: Acked is flagged as false until I get around to fixing it.
                 self.tx_client
-                    .map(|client| client.send_done(self.tx_buf.take().unwrap(), false, result));
+                    .map(|client| client.send_done(tbuf, false, result));
             }
 
             regs.event_ready.write(Event::READY::CLEAR);
@@ -793,19 +802,22 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
+                    let tbuf = self.tx_buf.take().expect("TX Buffer produced error when sending it back to the requestor after successful transmission.");
                     self.transmitting.set(false);
                     //if we are transmitting, the CRCstatus check is always going to be an error
                     let result = ReturnCode::SUCCESS;
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     self.tx_client
-                        .map(|client| client.send_done(self.tx_buf.take().unwrap(), false, result));
+                        .map(|client| client.send_done(tbuf, false, result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
                     self.rx_client.map(|client| {
-                        let rbuf = self.rx_buf.take().unwrap();
+                        let rbuf = self.rx_buf.take().expect(
+                            "RX Buffer produced error when sending received packet to requestor",
+                        );
 
                         let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
                         // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
