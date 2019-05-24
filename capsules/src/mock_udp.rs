@@ -52,20 +52,20 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
     }
 
     pub fn start(&self) {
-        debug!("Start called in mock_udp1");
+        debug!("Start called in mock_udp");
         //let socket = self.port_table.create_socket();
         //if socket.is_ok() {
-        //    debug!("Socket successfully created in mock_udp1");
+        //    debug!("Socket successfully created in mock_udp");
         //} else {
-        //    debug!("Socket error in mock_udp1");
+        //    debug!("Socket error in mock_udp");
         //    return;
         //}
         //let socket = socket.ok().unwrap();
         //let binding = self.port_table.bind(socket, 80);
         //if binding.is_ok() {
-        //    debug!("Binding successfully created in mock_udp1");
+        //    debug!("Binding successfully created in mock_udp");
         //} else {
-        //    debug!("Binding error in mock_udp1");
+        //    debug!("Binding error in mock_udp");
         //    return;
         //}
 
@@ -98,17 +98,17 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
             self.first.set(false);
             let socket = self.port_table.create_socket();
             if socket.is_ok() {
-                debug!("Socket successfully created in mock_udp1");
+                debug!("Socket successfully created in mock_udp");
             } else {
-                debug!("Socket error in mock_udp1");
+                debug!("Socket error in mock_udp");
                 return;
             }
             let socket = socket.ok().unwrap();
             let binding = self.port_table.bind(socket, 80);
             if binding.is_ok() {
-                debug!("Binding successfully created in mock_udp1");
+                debug!("Binding successfully created in mock_udp");
             } else {
-                debug!("Binding error in mock_udp1");
+                debug!("Binding error in mock_udp");
                 return;
             }
         }

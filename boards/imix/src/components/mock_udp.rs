@@ -47,7 +47,7 @@ impl MockUDPComponent {
 }
 
 impl Component for MockUDPComponent {
-    type Output = &'static capsules::mock_udp1::MockUdp1<
+    type Output = &'static capsules::mock_udp::MockUdp1<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >;
@@ -65,8 +65,8 @@ impl Component for MockUDPComponent {
         );
 
         let mock_udp = static_init!(
-            capsules::mock_udp1::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            capsules::mock_udp1::MockUdp1::new(
+            capsules::mock_udp::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+            capsules::mock_udp::MockUdp1::new(
                 5,
                 VirtualMuxAlarm::new(self.alarm_mux),
                 udp_send,

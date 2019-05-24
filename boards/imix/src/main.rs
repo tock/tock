@@ -49,7 +49,6 @@ use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponen
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use components::udp_driver::UDPDriverComponent;
 use components::udp_mux::UDPMuxComponent;
-//use components::mock_udp2::{MockUDPComponent2};
 use components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -425,7 +424,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
 
-    let mock_udp1 = MockUDPComponent::new(udp_mux, udp_port_table, mux_alarm).finalize();
+    let mock_udp = MockUDPComponent::new(udp_mux, udp_port_table, mux_alarm).finalize();
 
     /*let udp_lowpan_test = udp_lowpan_test::initialize_all(
         mux_mac,
@@ -484,7 +483,7 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
-    mock_udp1.start();
+    mock_udp.start();
 
     //udp_lowpan_test.start();
 
