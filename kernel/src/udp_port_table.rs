@@ -5,13 +5,12 @@
 //! object can interact with its own corresponding location in the bound port
 //! table. In order to bind to a particular port as sending/receiving, one must
 //! obtain the corresponding sender/receiving binding from UdpPortBinding.
-use tock_cells::take_cell::TakeCell;
-use tock_cells::optional_cell::OptionalCell;
-use core::cell::Cell;
-use crate::net_permissions::{AddrRange, PortRange}; // testing
-use crate::capabilities;
+//use crate::capabilities;
+//use crate::create_capability;
+//use crate::net_permissions::{AddrRange, PortRange}; // testing
 use crate::returncode::ReturnCode;
-use crate::create_capability;
+use tock_cells::optional_cell::OptionalCell;
+use tock_cells::take_cell::TakeCell;
 
 //#![allow(dead_code)]
 const MAX_NUM_BOUND_PORTS: usize = 16;
@@ -25,7 +24,7 @@ pub enum PortEntry {
 // We need Option<PortEntry> to distinguish between the case in which we have
 // a UdpPortSocket that is not bound to a port and an index where there is no
 // UdpPortSocket allocated.
-static mut port_table: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
+static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 
 pub trait PortQuery {
     fn is_bound(&self, port: u16) -> bool;
@@ -45,7 +44,7 @@ pub struct UdpPortTable {
 
 impl UdpPortSocket {
     fn new(idx: usize) -> UdpPortSocket {
-        UdpPortSocket {idx: idx}
+        UdpPortSocket { idx: idx }
     }
 }
 
@@ -64,10 +63,11 @@ pub struct UdpSenderBinding {
 }
 
 impl UdpSenderBinding {
-    fn new(idx: usize, port: u16)
-        -> UdpSenderBinding {
-        UdpSenderBinding {idx: idx, port: port}
-
+    fn new(idx: usize, port: u16) -> UdpSenderBinding {
+        UdpSenderBinding {
+            idx: idx,
+            port: port,
+        }
     }
 
     pub fn get_port(&self) -> u16 {
@@ -76,10 +76,11 @@ impl UdpSenderBinding {
 }
 
 impl UdpReceiverBinding {
-    fn new(idx: usize, port: u16)
-        -> UdpReceiverBinding {
-        UdpReceiverBinding {idx: idx, port: port}
-
+    fn new(idx: usize, port: u16) -> UdpReceiverBinding {
+        UdpReceiverBinding {
+            idx: idx,
+            port: port,
+        }
     }
 
     pub fn get_port(&self) -> u16 {
@@ -87,14 +88,12 @@ impl UdpReceiverBinding {
     }
 }
 
-
-
 impl UdpPortTable {
     // Mark new as unsafe so that the port table is only generated in trusted
     // code.
     pub unsafe fn new() -> UdpPortTable {
         UdpPortTable {
-            port_array: TakeCell::new(&mut port_table),
+            port_array: TakeCell::new(&mut PORT_TABLE),
             user_ports: OptionalCell::empty(),
         }
     }
@@ -104,20 +103,22 @@ impl UdpPortTable {
     }
 
     pub fn create_socket(&self) -> Result<UdpPortSocket, ReturnCode> {
-        self.port_array.map(|table| {
-            let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
-            for i in 0..MAX_NUM_BOUND_PORTS {
-                match table[i] {
-                    None => {
-                        result = Ok(UdpPortSocket::new(i));
-                        table[i] = Some(PortEntry::Unbound);
-                        break;
-                    },
-                    _ => (),
+        self.port_array
+            .map(|table| {
+                let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
+                for i in 0..MAX_NUM_BOUND_PORTS {
+                    match table[i] {
+                        None => {
+                            result = Ok(UdpPortSocket::new(i));
+                            table[i] = Some(PortEntry::Unbound);
+                            break;
+                        }
+                        _ => (),
+                    }
                 }
-            };
-            result
-        }).unwrap()
+                result
+            })
+            .unwrap()
     }
 
     pub fn destroy_socket(&self, socket: UdpPortSocket) {
@@ -138,58 +139,67 @@ impl UdpPortTable {
         // seperately handle error case of user_ports not existing.
         // Currently, if user_ports doesnt exist we just pretend that
         // the requested port is already bound.
-        let user_bound = self.user_ports.map_or(true, |port_query| {
-            port_query.is_bound(port)
-        });
+        let user_bound = self
+            .user_ports
+            .map_or(true, |port_query| port_query.is_bound(port));
         if self.user_ports.is_none() {
             debug!("I am gone.");
         }
         if user_bound {
             return true;
         };
-        self.port_array.map(|table| {
-            let mut port_exists = false;
-            for i in 0..MAX_NUM_BOUND_PORTS {
-                match table[i] {
-                    Some(PortEntry::Port(p)) => {
-                        if (p == port) {
-                            port_exists = true;
-                            break;
+        self.port_array
+            .map(|table| {
+                let mut port_exists = false;
+                for i in 0..MAX_NUM_BOUND_PORTS {
+                    match table[i] {
+                        Some(PortEntry::Port(p)) => {
+                            if p == port {
+                                port_exists = true;
+                                break;
+                            }
                         }
-                    },
-                    _ => (),
+                        _ => (),
+                    }
                 }
-            };
-            port_exists
-        }).unwrap()
+                port_exists
+            })
+            .unwrap()
     }
 
     // On success, a UdpPortBinding is returned. On failure, the same
     // UdpPortSocket is returned.
-    pub fn bind(&self, socket: UdpPortSocket, port: u16, /*cap: &UdpCapability*/) ->
-        Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
+    pub fn bind(
+        &self,
+        socket: UdpPortSocket,
+        port: u16, /*cap: &UdpCapability*/
+    ) -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
         debug!("Checking binding on: {:?}", port);
         if self.is_bound(port) {
             Err(socket)
         } else {
-            self.port_array.map(|table| {
-                table[socket.idx] = Some(PortEntry::Port(port));
-                let binding_pair = (UdpSenderBinding::new(socket.idx, port),
-                    UdpReceiverBinding::new(socket.idx, port));
-                // Add socket to the linked list.
-                Ok(binding_pair)
-            }).unwrap()
+            self.port_array
+                .map(|table| {
+                    table[socket.idx] = Some(PortEntry::Port(port));
+                    let binding_pair = (
+                        UdpSenderBinding::new(socket.idx, port),
+                        UdpReceiverBinding::new(socket.idx, port),
+                    );
+                    // Add socket to the linked list.
+                    Ok(binding_pair)
+                })
+                .unwrap()
         }
     }
 
-
-
     // Disassociate the port from the given binding. Return the socket that was
     // contained within the binding object.
-    pub fn unbind(&self, sender_binding: UdpSenderBinding,
+    pub fn unbind(
+        &self,
+        sender_binding: UdpSenderBinding,
         receiver_binding: UdpReceiverBinding,
-        /*cap: &capabilities::UDPBindCapability*/)
-    -> Result<UdpPortSocket, (UdpSenderBinding, UdpReceiverBinding)> {
+        /*cap: &capabilities::UDPBindCapability*/
+    ) -> Result<UdpPortSocket, (UdpSenderBinding, UdpReceiverBinding)> {
         // Verfify that the indices match up
         if sender_binding.idx != receiver_binding.idx {
             return Err((sender_binding, receiver_binding));
@@ -201,6 +211,4 @@ impl UdpPortTable {
         // Search the list and return the appropriate socket
         Ok(UdpPortSocket::new(idx))
     }
-
-
 }

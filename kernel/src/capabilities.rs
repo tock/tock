@@ -67,14 +67,16 @@ pub unsafe trait UDPBindCapability {}
 pub unsafe trait NetworkSendCapability {}
 
 pub unsafe trait UDPSendCapability {
-    fn can_send(self, port: u16, ip: u32, data: [u8; 128]) -> // don't need data
-    // returns a UDP port handle! (cert)
-    // no-one else can use this port handle -- how do we maintain this state?
-    // send-to vs. send-from (want both)
-        Result<u8, &'static str>;
-    fn send_using_cap<F>(self, port: u16, ip: u32, data: [u8; 128],
-        send_fn: F) -> Result<u8, &'static str>
-        where F: Fn(u16, u32, [u8; 128]) -> u8;
+    fn can_send(self, port: u16, ip: u32, data: [u8; 128]) -> Result<u8, &'static str>;
+    fn send_using_cap<F>(
+        self,
+        port: u16,
+        ip: u32,
+        data: [u8; 128],
+        send_fn: F,
+    ) -> Result<u8, &'static str>
+    where
+        F: Fn(u16, u32, [u8; 128]) -> u8;
 }
 
 pub unsafe trait IPSendCapability {}
@@ -85,8 +87,7 @@ pub struct UDPSendCapRange {
 }
 
 unsafe impl UDPSendCapability for UDPSendCapRange {
-    fn can_send(self, port: u16, ip: u32, data: [u8; 128]) ->
-        Result<u8, &'static str> {
+    fn can_send(self, port: u16, _ip: u32, _data: [u8; 128]) -> Result<u8, &'static str> {
         if self.port_lower_bound <= port && self.port_upper_bound >= port {
             Ok(128)
         } else {
@@ -94,9 +95,16 @@ unsafe impl UDPSendCapability for UDPSendCapRange {
         }
     }
 
-    fn send_using_cap<F>(self, port: u16, ip: u32, data: [u8; 128],
-        send_fn: F) -> Result<u8, &'static str>
-        where F: Fn(u16, u32, [u8; 128]) -> u8 {
+    fn send_using_cap<F>(
+        self,
+        port: u16,
+        ip: u32,
+        data: [u8; 128],
+        send_fn: F,
+    ) -> Result<u8, &'static str>
+    where
+        F: Fn(u16, u32, [u8; 128]) -> u8,
+    {
         if self.port_lower_bound <= port && self.port_upper_bound >= port {
             Ok(send_fn(port, ip, data))
         } else {

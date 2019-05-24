@@ -34,6 +34,7 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
@@ -71,6 +72,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     test_counter: Cell<usize>,
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
+    dgram: TakeCell<'static, [u8]>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -146,7 +148,7 @@ pub unsafe fn initialize_all(
     );
     radio_mac.set_transmit_client(ip6_sender);
 
-    let udp_port_table = unsafe { static_init!(UdpPortTable, UdpPortTable::new()) };
+    let udp_port_table = static_init!(UdpPortTable, UdpPortTable::new());
 
     let udp_mux = static_init!(
         MuxUdpSender<
@@ -175,6 +177,7 @@ pub unsafe fn initialize_all(
             VirtualMuxAlarm::new(mux_alarm),
             udp_send_struct,
             udp_port_table,
+            &mut UDP_PAYLOAD,
         )
     );
     ip6_sender.set_client(udp_mux);
@@ -187,6 +190,7 @@ pub unsafe fn initialize_all(
 
 impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
     fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
+        self.dgram.replace(dgram);
         match result {
             ReturnCode::SUCCESS => {
                 debug!("Packet Sent!");
@@ -208,6 +212,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         //ip6_packet: &'static mut IP6Packet<'a>
         udp_sender: &'a UDPSender<'a>,
         port_table: &'static UdpPortTable,
+        dgram: &'static mut [u8],
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
@@ -216,6 +221,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             test_counter: Cell::new(0),
             udp_sender: udp_sender,
             port_table: port_table,
+            dgram: TakeCell::new(dgram),
         }
     }
 
@@ -320,10 +326,12 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         let dst_port: u16 = 32123;
         // self.port_table.bind(self.udp_sender.get_binding_ref(), src_port);
         debug!("before send_to");
-        unsafe {
-            self.udp_sender
-                .send_to(DST_ADDR, src_port, dst_port, &mut UDP_PAYLOAD)
-        };
+        match self.dgram.take() {
+            Some(dgram) => {
+                self.udp_sender.send_to(DST_ADDR, src_port, dst_port, dgram);
+            }
+            None => debug!("UDP_LOWPAN_TEST: DGRAM Missing - Err"),
+        }
         debug!("send_next done");
     }
 }

@@ -168,7 +168,7 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
 // TODO: Centralize payload length setting here.
 const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
-const UDP_HDR_SIZE: usize = 8;
+
 //static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 impl kernel::Platform for Imix {

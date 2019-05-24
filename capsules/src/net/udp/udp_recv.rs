@@ -4,8 +4,6 @@ use crate::net::ipv6::ipv6_recv::IP6RecvClient;
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
-use kernel::ReturnCode;
-use::kernel::udp_port_table::{UdpPortTable};
 
 /// The UDP driver implements this client interface trait to receive
 /// packets passed up the network stack to the UDPReceiver, and then

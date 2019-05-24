@@ -2,13 +2,11 @@
 // Author: Armin + Hudson
 
 use crate::net::ipv6::ip_utils::IPAddr;
-use crate::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
-use crate::net::udp::udp::UDPHeader;
-use crate::net::udp::udp_send::{UDPSendClient, UDPSendStruct, UDPSender};
+use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::cells::TakeCell;
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::udp_port_table::{UdpPortSocket, UdpPortTable, UdpSenderBinding};
+use kernel::udp_port_table::UdpPortTable;
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([
@@ -20,7 +18,6 @@ pub const DST_ADDR: IPAddr = IPAddr([
 pub const SRC_PORT: u16 = 15123;
 pub const DST_PORT: u16 = 16123;
 pub const PAYLOAD_LEN: usize = 192;
-const UDP_HDR_SIZE: usize = 8;
 
 pub struct MockUdp1<'a, A: Alarm + 'a> {
     id: u16,
@@ -88,7 +85,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             Some(dgram) => {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
-                let tmp = self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
+                self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
             }
             None => debug!("udp_dgram not present."),
         }
@@ -121,7 +118,7 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
 
 impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
     fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
-        debug!("Done sending. Result: {:?}", result);
+        debug!("Mock UDP done sending. Result: {:?}", result);
         self.udp_dgram.replace(dgram);
         debug!("");
         self.alarm.set_alarm(

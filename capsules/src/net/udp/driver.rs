@@ -7,19 +7,15 @@
 //! hard-coded).
 
 use crate::net::ipv6::ip_utils::IPAddr;
-use crate::net::ipv6::ipv6_send::IP6SendStruct;
-use crate::net::ipv6::ipv6_send::IP6Sender;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
-use crate::net::udp::udp_send::{MuxUdpSender, UDPSendClient, UDPSender};
+use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
-use crate::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::common::cells::TakeCell;
-use kernel::hil::time::Alarm;
 use kernel::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 /// Syscall number

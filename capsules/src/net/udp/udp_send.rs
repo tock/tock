@@ -13,12 +13,8 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
 use kernel::ReturnCode;
 
-static mut curr_send_id: usize = 0;
-
-// implements IP6SendClient
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
     ip_sender: &'a IP6Sender<'a>,
