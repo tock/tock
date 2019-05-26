@@ -263,6 +263,7 @@ impl<'a> UDPDriver<'a> {
                         .take()
                         .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
                             kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
+                            kernel_buffer.slice(0..payload.len());
                             self.sender
                                 .send_to(dst_addr, dst_port, src_port, kernel_buffer)
                         })
