@@ -219,7 +219,7 @@ impl<A: time::Alarm> LowpanICMPTest<'a, A> {
 
     fn send_next(&self) {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
-        unsafe { self.icmp_sender.send(DST_ADDR, icmp_hdr, &ICMP_PAYLOAD) };
+        unsafe { self.icmp_sender.send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD) };
     }
 }
 

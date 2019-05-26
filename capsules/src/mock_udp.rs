@@ -1,6 +1,7 @@
 // Capsule used for testing in-kernel port binding using the PortTable interface
 // Author: Armin + Hudson
 
+use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
@@ -25,7 +26,7 @@ pub struct MockUdp1<'a, A: Alarm + 'a> {
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
     first: Cell<bool>,
-    udp_dgram: TakeCell<'static, [u8]>,
+    udp_dgram: TakeCell<'static, Buffer<'static, u8>>,
     // TODO: How long should socket/binding live?
     // socket: &'a TakeCell<UdpPortSocket>,
     // binding: &'a TakeCell<UdpSenderBinding>,
@@ -37,7 +38,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
         alarm: A,
         udp_sender: &'a UDPSender<'a>,
         port_table: &'static UdpPortTable,
-        udp_dgram: &'static mut [u8],
+        udp_dgram: &'static mut Buffer<'static, u8>,
     ) -> MockUdp1<'a, A> {
         MockUdp1 {
             id: id,
@@ -85,6 +86,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             Some(dgram) => {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
+                dgram.slice(0..2);
                 self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
             }
             None => debug!("udp_dgram not present."),
@@ -117,8 +119,9 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
 }
 
 impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
+    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
+        dgram.reset();
         self.udp_dgram.replace(dgram);
         debug!("");
         self.alarm.set_alarm(

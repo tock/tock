@@ -7,6 +7,7 @@
 //!
 //! - Author: Conor McAvity <cmcavity@stanford.edu>
 
+use crate::net::buffer::Buffer;
 use crate::net::icmpv6::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
@@ -45,7 +46,7 @@ pub trait ICMP6Sender<'a> {
     /// This function returns a code reporting either success or any
     /// synchronous errors. Note that any asynchronous errors are returned
     /// via the callback.
-    fn send(&self, dest: IPAddr, icmp_header: ICMP6Header, buf: &'static [u8]) -> ReturnCode;
+    fn send(&self, dest: IPAddr, icmp_header: ICMP6Header, buf: &'static mut [u8]) -> ReturnCode;
 }
 
 /// A struct that implements the `ICMP6Sender` trait.
@@ -68,11 +69,17 @@ impl<T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
         self.client.set(client);
     }
 
-    fn send(&self, dest: IPAddr, mut icmp_header: ICMP6Header, buf: &'static [u8]) -> ReturnCode {
+    fn send(
+        &self,
+        dest: IPAddr,
+        mut icmp_header: ICMP6Header,
+        buf: &'static mut [u8],
+    ) -> ReturnCode {
         let total_len = buf.len() + icmp_header.get_hdr_size();
         icmp_header.set_len(total_len as u16);
         let transport_header = TransportHeader::ICMP(icmp_header);
-        self.ip_send_struct.send_to(dest, transport_header, buf)
+        self.ip_send_struct
+            .send_to(dest, transport_header, &mut Buffer::new(buf))
     }
 }
 

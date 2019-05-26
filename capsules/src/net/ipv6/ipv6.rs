@@ -64,6 +64,7 @@
 // a major problem in general, it makes handling encapsulated IPv6 packets
 // (as required by 6LoWPAN) difficult.
 
+use crate::net::buffer::Buffer;
 use crate::net::icmpv6::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, ip6_nh, IPAddr};
 use crate::net::stream::SResult;
@@ -344,11 +345,18 @@ impl IPPayload<'a> {
     /// `(u8, u16)` - Returns a tuple of the `ip6_nh` type of the
     /// `transport_header` and the total length of the `IPPayload`
     /// (when serialized)
-    pub fn set_payload(&mut self, transport_header: TransportHeader, payload: &[u8]) -> (u8, u16) {
+    pub fn set_payload(
+        &mut self,
+        transport_header: TransportHeader,
+        payload: &mut Buffer<'static, u8>,
+    ) -> (u8, u16) {
         if self.payload.len() < payload.len() {
             // TODO: Error
         }
-        self.payload[..payload.len()].copy_from_slice(&payload);
+        for i in 0..payload.len() {
+            self.payload[i] = payload[i];
+        }
+        //self.payload[..payload.len()].copy_from_slice(payload.as_ptr());
         match transport_header {
             TransportHeader::UDP(mut udp_header) => {
                 let length = (payload.len() + udp_header.get_hdr_size()) as u16;
@@ -493,7 +501,11 @@ impl IP6Packet<'a> {
     /// `transport_header` - The `TransportHeader` to be set as the next header
     /// `payload` - The transport payload to be copied into the `IPPayload`
     /// transport payload
-    pub fn set_payload(&mut self, transport_header: TransportHeader, payload: &[u8]) {
+    pub fn set_payload(
+        &mut self,
+        transport_header: TransportHeader,
+        payload: &mut Buffer<'static, u8>,
+    ) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);
         self.header.set_payload_len(payload_len);

@@ -97,7 +97,10 @@ impl Component for UDPDriverComponent {
                 self.interface_list,
                 PAYLOAD_LEN,
                 self.port_table,
-                &mut DRIVER_BUF,
+                static_init!(
+                    capsules::net::buffer::Buffer<'static, u8>,
+                    capsules::net::buffer::Buffer::new(&mut DRIVER_BUF)
+                ),
             )
         );
         udp_send.set_client(udp_driver);

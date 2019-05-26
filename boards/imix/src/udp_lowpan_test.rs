@@ -24,6 +24,7 @@
 //! udp_lowpan_test.start();
 
 use capsules::ieee802154::device::MacDevice;
+use capsules::net::buffer::Buffer;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
 use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
@@ -72,7 +73,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     test_counter: Cell<usize>,
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
-    dgram: TakeCell<'static, [u8]>,
+    dgram: TakeCell<'static, Buffer<'static, u8>>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -189,7 +190,8 @@ pub unsafe fn initialize_all(
 }
 
 impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
+    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>) {
+        dgram.reset();
         self.dgram.replace(dgram);
         match result {
             ReturnCode::SUCCESS => {
@@ -221,7 +223,12 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             test_counter: Cell::new(0),
             udp_sender: udp_sender,
             port_table: port_table,
-            dgram: TakeCell::new(dgram),
+            dgram: TakeCell::new(unsafe {
+                static_init!(
+                    capsules::net::buffer::Buffer<'static, u8>,
+                    capsules::net::buffer::Buffer::new(dgram)
+                )
+            }),
         }
     }
 

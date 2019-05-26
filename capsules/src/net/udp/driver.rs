@@ -6,6 +6,7 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded).
 
+use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
@@ -90,7 +91,7 @@ pub struct UDPDriver<'a> {
     // UDP bound port table (manages kernel bindings)
     port_table: &'static UdpPortTable,
 
-    kernel_buffer: TakeCell<'static, [u8]>,
+    kernel_buffer: TakeCell<'static, Buffer<'static, u8>>,
 }
 
 impl<'a> UDPDriver<'a> {
@@ -101,7 +102,7 @@ impl<'a> UDPDriver<'a> {
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortTable,
-        kernel_buffer: &'static mut [u8],
+        kernel_buffer: &'static mut Buffer<'static, u8>,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -577,8 +578,9 @@ impl<'a> Driver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]) {
+    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
+        dgram.reset();
         self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {

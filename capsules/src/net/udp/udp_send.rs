@@ -5,6 +5,7 @@
 //! upper layer to allow them to receive the `send_done` callback once
 //! transmission has completed.
 
+use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
@@ -106,7 +107,7 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
 /// has completed sending the requested packet. Note that the
 /// `UDPSender::set_client` method must be called to set the client.
 pub trait UDPSendClient {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut [u8]);
+    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>);
 }
 
 /// This trait represents the bulk of the UDP functionality. The two
@@ -140,7 +141,7 @@ pub trait UDPSender<'a> {
         dest: IPAddr,
         dst_port: u16,
         src_port: u16,
-        buf: &'static mut [u8],
+        buf: &'static mut Buffer<'static, u8>,
         //binding: &UdpSenderBinding
     ) -> ReturnCode;
 
@@ -155,7 +156,12 @@ pub trait UDPSender<'a> {
     /// # Return Value
     /// Returns any synchronous errors or success. Note that any asynchrounous
     /// errors are returned via the callback.
-    fn send(&'a self, dest: IPAddr, udp_header: UDPHeader, buf: &'static mut [u8]) -> ReturnCode;
+    fn send(
+        &'a self,
+        dest: IPAddr,
+        udp_header: UDPHeader,
+        buf: &'static mut Buffer<'static, u8>,
+    ) -> ReturnCode;
 
     //fn get_binding_ref(&self) -> &UdpSenderBinding;
 }
@@ -167,7 +173,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     udp_mux_sender: &'a MuxUdpSender<'a, T>,
     client: OptionalCell<&'a UDPSendClient>,
     next: ListLink<'a, UDPSendStruct<'a, T>>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: TakeCell<'static, Buffer<'static, u8>>,
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
     //binding: UdpSenderBinding, // TODO: should this be a reference?
@@ -191,7 +197,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dest: IPAddr,
         dst_port: u16,
         src_port: u16,
-        buf: &'static mut [u8],
+        buf: &'static mut Buffer<'static, u8>,
         //binding: &UdpSenderBinding
     ) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
@@ -207,7 +213,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         &'a self,
         dest: IPAddr,
         mut udp_header: UDPHeader,
-        buf: &'static mut [u8],
+        buf: &'static mut Buffer<'static, u8>,
     ) -> ReturnCode {
         // TODO: need to enforce port binding here? Up to what point do we
         // enforce it? IP layer?

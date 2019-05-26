@@ -17,6 +17,7 @@
 // interface.
 
 use crate::ieee802154::device::{MacDevice, TxClient};
+use crate::net::buffer::Buffer;
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
@@ -77,8 +78,12 @@ pub trait IP6Sender<'a> {
     /// `dst` - IPv6 address to send the packet to
     /// `transport_header` - The `TransportHeader` for the packet being sent
     /// `payload` - The transport payload for the packet being sent
-    fn send_to(&self, dst: IPAddr, transport_header: TransportHeader, payload: &[u8])
-        -> ReturnCode;
+    fn send_to(
+        &self,
+        dst: IPAddr,
+        transport_header: TransportHeader,
+        payload: &mut Buffer<'static, u8>,
+    ) -> ReturnCode;
 }
 
 /// This struct is a specific implementation of the `IP6Sender` trait. This
@@ -121,7 +126,7 @@ impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &[u8],
+        payload: &mut Buffer<'static, u8>,
     ) -> ReturnCode {
         self.sixlowpan.init(
             self.src_mac_addr,
@@ -159,7 +164,12 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
         }
     }
 
-    fn init_packet(&self, dst_addr: IPAddr, transport_header: TransportHeader, payload: &[u8]) {
+    fn init_packet(
+        &self,
+        dst_addr: IPAddr,
+        transport_header: TransportHeader,
+        payload: &mut Buffer<'static, u8>,
+    ) {
         self.ip6_packet.map(|ip6_packet| {
             ip6_packet.header = IP6Header::default();
             ip6_packet.header.src_addr = self.src_addr.get();
