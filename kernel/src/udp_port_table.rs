@@ -5,9 +5,6 @@
 //! object can interact with its own corresponding location in the bound port
 //! table. In order to bind to a particular port as sending/receiving, one must
 //! obtain the corresponding sender/receiving binding from UdpPortBinding.
-//use crate::capabilities;
-//use crate::create_capability;
-//use crate::net_permissions::{AddrRange, PortRange}; // testing
 use crate::returncode::ReturnCode;
 use tock_cells::optional_cell::OptionalCell;
 use tock_cells::take_cell::TakeCell;
@@ -15,7 +12,10 @@ use tock_cells::take_cell::TakeCell;
 //#![allow(dead_code)]
 const MAX_NUM_BOUND_PORTS: usize = 16;
 
-#[derive(Clone, Copy)] // TODO: must we derive these traits?
+/// The PortEntry struct is stored in the table and conveys what port is bound
+/// at the given index if one is bound. If no port is bound, the value stored
+/// at location is Unbound.
+#[derive(Clone, Copy)]
 pub enum PortEntry {
     Port(u16),
     Unbound,
@@ -26,17 +26,24 @@ pub enum PortEntry {
 // UdpPortSocket allocated.
 static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 
+
+/// The PortQuery trait enables the UdpPortTable to query the userspace bound
+/// ports in the UDP driver. The UDP driver struct implements this trait.
 pub trait PortQuery {
     fn is_bound(&self, port: u16) -> bool;
 }
 
-// A UdpPortSocket provides a handle into the bound port table. When binding to
-// a port, the socket is consumed and stored inside a UdpPortBinding. When
-// undbinding, the socket is returned and can be used to bind to other ports.
+/// A UdpPortSocket provides a handle into the bound port table. When binding to
+/// a port, the socket is consumed and stored inside a UdpPortBinding. When
+/// undbinding, the socket is returned and can be used to bind to other ports.
 pub struct UdpPortSocket {
     idx: usize,
 }
 
+
+/// The UdpPortTable maintains a reference the port_array, which manages what
+/// ports are bound at any given moment, and user_ports, which provides a
+/// handle to userspace port bindings in the UDP driver.
 pub struct UdpPortTable {
     port_array: TakeCell<'static, [Option<PortEntry>]>,
     user_ports: OptionalCell<&'static PortQuery>,
@@ -48,15 +55,15 @@ impl UdpPortSocket {
     }
 }
 
-// An opaque descriptor that allows the holder to obtain a binding on a port
-// for receiving UDP packets.
+/// An opaque descriptor that allows the holder to obtain a binding on a port
+/// for receiving UDP packets.
 pub struct UdpReceiverBinding {
     idx: usize,
     port: u16,
 }
 
-// An opaque descriptor that allows the holder to obtain a binding on a port
-// for sending UDP packets.
+/// An opaque descriptor that allows the holder to obtain a binding on a port
+/// for sending UDP packets.
 pub struct UdpSenderBinding {
     idx: usize,
     port: u16,
@@ -169,12 +176,8 @@ impl UdpPortTable {
 
     // On success, a UdpPortBinding is returned. On failure, the same
     // UdpPortSocket is returned.
-    pub fn bind(
-        &self,
-        socket: UdpPortSocket,
-        port: u16, /*cap: &UdpCapability*/
-    ) -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
-        debug!("Checking binding on: {:?}", port);
+    pub fn bind(&self, socket: UdpPortSocket, port: u16)
+        -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
         if self.is_bound(port) {
             Err(socket)
         } else {
@@ -192,8 +195,8 @@ impl UdpPortTable {
         }
     }
 
-    // Disassociate the port from the given binding. Return the socket that was
-    // contained within the binding object.
+    /// Disassociate the port from the given binding. Return the socket that was
+    /// contained within the binding object.
     pub fn unbind(
         &self,
         sender_binding: UdpSenderBinding,
