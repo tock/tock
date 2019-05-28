@@ -33,13 +33,21 @@ pub enum Configuration {
     Unknown,
 }
 
+/// The Pin trait allows a pin to be used as either input
+/// or output and to be configured.
 pub trait Pin: Input + Output + Configure {}
+
+/// The InterruptPin trait allows a pin to be used as either
+/// input or output and also to source interrupts.
 pub trait InterruptPin: Pin + Interrupt {}
+
+/// The InterruptValuePin trait allows a pin to be used as 
+/// either input or output and also to source interrupts which
+/// pass a value.
 pub trait InterruptValuePin: Pin + InterruptWithValue {}
 
 pub trait Configure {
     fn configuration(&self) -> Configuration;
-
     fn make_output(&self) -> Configuration;
     fn disable_output(&self) -> Configuration;
     fn make_input(&self) -> Configuration;
@@ -83,7 +91,7 @@ pub trait Input {
 pub trait Interrupt: Input {
     /// Set the client for interrupt events.
     fn set_client(&self, client: &'static Client);
-    
+
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
     /// should be separately configured as an input, etc.
@@ -91,7 +99,7 @@ pub trait Interrupt: Input {
 
     /// Disable interrupts for the GPIO pin.
     fn disable_interrupts(&self);
- 
+
     /// Return whether this interrupt is pending
     fn is_pending(&self) -> bool;
 }
@@ -106,10 +114,15 @@ pub trait Client {
     fn fired(&self);
 }
 
+/// Interface that wraps an interrupt to pass a value when it
+/// triggers. The standard use case for this trait is when several
+/// interrupts call the same callback function and it needs to
+/// distinguish which one is calling it by giving each one a unique
+/// value.
 pub trait InterruptWithValue: Input {
     /// Set the client for interrupt events.
     fn set_client(&self, client: &'static ClientWithValue);
-    
+
     /// Set the underlying interrupt source.
     fn set_source(&'static self, source: &'static InterruptPin);
 
@@ -120,12 +133,12 @@ pub trait InterruptWithValue: Input {
     ///    SUCCESS - the interrupt was set up properly
     ///    FAIL    - the interrupt was not set up properly; this is due to
     ///              not having an underlying interrupt source yet, i.e.
-    ///              the struct is not yet fully initialized. 
+    ///              the struct is not yet fully initialized.
     fn enable_interrupts(&self, mode: InterruptEdge) -> ReturnCode;
 
     /// Disable interrupts for the GPIO pin.
     fn disable_interrupts(&self);
- 
+
     /// Return whether this interrupt is pending
     fn is_pending(&self) -> bool;
 
@@ -133,18 +146,22 @@ pub trait InterruptWithValue: Input {
     /// interrupt.
     fn set_value(&self, value: u32);
 
-    /// Return the value that is passed to clients on an 
+    /// Return the value that is passed to clients on an
     /// interrupt.
-    fn value(&self) -> u32; 
+    fn value(&self) -> u32;
 }
 
 /// Interfaces for users of GPIO interrupts who handle many interrupts
 /// with the same function. The value passed in the callback allows the
-/// callback to distinguish which interrupt fired. 
+/// callback to distinguish which interrupt fired.
 pub trait ClientWithValue {
     fn fired(&self, value: u32);
 }
 
+
+/// Standard implementation of InterruptWithValue: handles an
+/// `gpio::Client::fired` and passes it up as a 
+/// `gpio::ClientWithValue::fired`.
 pub struct InterruptValueWrapper {
     value: Cell<u32>,
     client: OptionalCell<&'static ClientWithValue>,
@@ -175,7 +192,7 @@ impl InterruptWithValue for InterruptValueWrapper {
     }
 
     fn is_pending(&self) -> bool {
-       self.source.map_or(false, |s| s.is_pending())
+        self.source.map_or(false, |s| s.is_pending())
     }
 
     fn enable_interrupts(&self, edge: InterruptEdge) -> ReturnCode {
@@ -203,26 +220,31 @@ impl Input for InterruptValueWrapper {
 
 impl Configure for InterruptValueWrapper {
     fn configuration(&self) -> Configuration {
-        self.source.map_or(Configuration::Unknown, |s| s.configuration())
+        self.source
+            .map_or(Configuration::Unknown, |s| s.configuration())
     }
 
     fn make_output(&self) -> Configuration {
-        self.source.map_or(Configuration::Unknown, |s| s.make_output())
+        self.source
+            .map_or(Configuration::Unknown, |s| s.make_output())
     }
 
     fn disable_output(&self) -> Configuration {
-        self.source.map_or(Configuration::Unknown, |s| s.disable_output())
+        self.source
+            .map_or(Configuration::Unknown, |s| s.disable_output())
     }
 
     fn make_input(&self) -> Configuration {
-        self.source.map_or(Configuration::Unknown, |s| s.make_input())
+        self.source
+            .map_or(Configuration::Unknown, |s| s.make_input())
     }
 
     fn disable_input(&self) -> Configuration {
-        self.source.map_or(Configuration::Unknown, |s| s.disable_input())
+        self.source
+            .map_or(Configuration::Unknown, |s| s.disable_input())
     }
 
-    fn low_power(&self)  {
+    fn low_power(&self) {
         self.source.map(|s| s.low_power());
     }
 
@@ -231,7 +253,8 @@ impl Configure for InterruptValueWrapper {
     }
 
     fn floating_state(&self) -> FloatingState {
-        self.source.map_or(FloatingState::PullNone, |s| s.floating_state())
+        self.source
+            .map_or(FloatingState::PullNone, |s| s.floating_state())
     }
 
     fn is_input(&self) -> bool {
@@ -242,7 +265,6 @@ impl Configure for InterruptValueWrapper {
         self.source.map_or(false, |s| s.is_input())
     }
 }
-
 
 impl Output for InterruptValueWrapper {
     fn set(&self) {
