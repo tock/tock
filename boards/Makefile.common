@@ -84,7 +84,12 @@ endif
 SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
-OBJDUMP_FLAGS += --disassemble-all --source --arch-name=thumb --section-headers
+OBJDUMP_FLAGS += --disassemble-all --source --section-headers
+
+# Need an extra flag for OBJDUMP if we are on a thumb platform.
+ifneq (,$(findstring thumb,$(TARGET)))
+  OBJDUMP += --arch-name=thumb
+endif
 
 # Dump configuration for verbose builds
 ifneq ($(V),)
