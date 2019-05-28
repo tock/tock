@@ -37,7 +37,6 @@ impl ButtonComponent {
     }
 }
 
-
 impl Component for ButtonComponent {
     type Output = &'static button::Button<'static>;
     unsafe fn finalize(&mut self) -> Self::Output {
@@ -52,7 +51,7 @@ impl Component for ButtonComponent {
             [kernel::hil::gpio::InterruptValueWrapper; ButtonComponent::NUM_PINS],
             [gpio::InterruptValueWrapper::new()]
         );
- 
+
         // Button expects a configured InterruptValuePin so configure it here.
         for i in 0..ButtonComponent::NUM_PINS {
             let pin = button_pins[i];
@@ -62,13 +61,19 @@ impl Component for ButtonComponent {
         }
 
         let config_values = static_init!(
-            [(&'static kernel::hil::gpio::InterruptValuePin, button::GpioMode); ButtonComponent::NUM_PINS],
+            [(
+                &'static kernel::hil::gpio::InterruptValuePin,
+                button::GpioMode
+            ); ButtonComponent::NUM_PINS],
             [(&values[0], button::GpioMode::LowWhenPressed)]
         );
 
         let button = static_init!(
             button::Button<'static>,
-            button::Button::new(&config_values[..], self.board_kernel.create_grant(&grant_cap))
+            button::Button::new(
+                &config_values[..],
+                self.board_kernel.create_grant(&grant_cap)
+            )
         );
 
         for i in 0..ButtonComponent::NUM_PINS {

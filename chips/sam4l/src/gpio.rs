@@ -511,7 +511,7 @@ impl gpio::Configure for GPIOPin {
         self.enable_schmidtt_trigger();
         gpio::Configuration::Input
     }
-    
+
     fn disable_output(&self) -> gpio::Configuration {
         let port: &GpioRegisters = &*self.port;
         port.oder.clear.set(self.pin_mask);
@@ -535,27 +535,27 @@ impl gpio::Configure for GPIOPin {
     fn floating_state(&self) -> gpio::FloatingState {
         let port: &GpioRegisters = &*self.port;
         let down = (port.pder.val.get() & self.pin_mask) != 0;
-        let up = (port.puer.val.get() &self.pin_mask) != 0;
+        let up = (port.puer.val.get() & self.pin_mask) != 0;
         if down {
-           gpio::FloatingState::PullDown
+            gpio::FloatingState::PullDown
         } else if up {
-           gpio::FloatingState::PullUp
+            gpio::FloatingState::PullUp
         } else {
-           gpio::FloatingState::PullNone 
+            gpio::FloatingState::PullNone
         }
     }
-    
+
     fn configuration(&self) -> gpio::Configuration {
         let input = self.is_input();
         let output = self.is_output();
         let config = (input, output);
         match config {
             (false, false) => gpio::Configuration::Unknown,
-            (false, true)  => gpio::Configuration::Output,
-            (true, false)  => gpio::Configuration::Input,
-            (true, true)   => gpio::Configuration::InputOutput,
-        } 
-    } 
+            (false, true) => gpio::Configuration::Output,
+            (true, false) => gpio::Configuration::Input,
+            (true, true) => gpio::Configuration::InputOutput,
+        }
+    }
 }
 
 impl gpio::Input for GPIOPin {

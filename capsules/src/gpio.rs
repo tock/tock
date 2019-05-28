@@ -56,9 +56,12 @@ pub struct GPIO<'a> {
 }
 
 impl<'a> GPIO<'a> {
-    pub fn new(pins: &'a [&'a gpio::InterruptValuePin], grant: Grant<Option<Callback>>) -> GPIO<'a> {
+    pub fn new(
+        pins: &'a [&'a gpio::InterruptValuePin],
+        grant: Grant<Option<Callback>>,
+    ) -> GPIO<'a> {
         for (i, pin) in pins.iter().enumerate() {
-             pin.set_value(i as u32);
+            pin.set_value(i as u32);
         }
         GPIO {
             pins: pins,

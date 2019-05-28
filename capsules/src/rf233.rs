@@ -471,7 +471,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::START_TURNING_OFF => {
                 self.irq_pin.make_input();
                 self.irq_pin.clear();
-                self.irq_pin.set_floating_state(gpio::FloatingState::PullNone);
+                self.irq_pin
+                    .set_floating_state(gpio::FloatingState::PullNone);
                 self.irq_pin
                     .enable_interrupts(gpio::InterruptEdge::RisingEdge);
 

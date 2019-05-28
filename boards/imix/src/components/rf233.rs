@@ -56,13 +56,7 @@ impl Component for RF233Component {
     unsafe fn finalize(&mut self) -> Self::Output {
         let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
             RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-            RF233::new(
-                self.spi,
-                self.reset,
-                self.sleep,
-                self.irq,
-                self.channel
-            )
+            RF233::new(self.spi, self.reset, self.sleep, self.irq, self.channel)
         );
         self.ctl.set_client(rf233);
         self.spi.set_client(rf233);
