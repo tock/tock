@@ -25,7 +25,6 @@ pub mod ipc;
 pub mod syscall;
 #[macro_use]
 pub mod udp_port_table;
-pub mod net_permissions;
 
 mod callback;
 mod driver;
