@@ -87,7 +87,12 @@ impl Component for UDPDriverComponent {
             >,
             UDPSendStruct::new(self.udp_mux)
         );
+        // TODO: make a macro for this
+        struct driver_cap;
+        unsafe impl capabilities::UdpDriverSendCapability for driver_cap {}
+        static driver_send_cap: driver_cap = driver_cap;
 
+        //        static driver_send_cap: capabilities::UdpDriverSendCapability = create_capability!(capabilities::UdpDriverSendCapability);
         let udp_driver = static_init!(
             capsules::net::udp::UDPDriver<'static>,
             capsules::net::udp::UDPDriver::new(
@@ -101,8 +106,10 @@ impl Component for UDPDriverComponent {
                     capsules::net::buffer::Buffer<'static, u8>,
                     capsules::net::buffer::Buffer::new(&mut DRIVER_BUF)
                 ),
+                &driver_send_cap
             )
         );
+        //);
         udp_send.set_client(udp_driver);
         self.udp_recv.set_client(udp_driver);
         self.port_table.set_user_ports(udp_driver);

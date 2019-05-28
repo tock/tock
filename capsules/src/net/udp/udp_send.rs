@@ -11,6 +11,7 @@ use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
 use core::cell::Cell;
+use kernel::capabilities::UdpDriverSendCapability;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
@@ -165,6 +166,7 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         src_port: u16,
         buf: &'static mut Buffer<'static, u8>,
+        driver_send_cap: &UdpDriverSendCapability,
     ) -> ReturnCode;
     // TODO: Require capability to call above function
 
@@ -238,6 +240,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dst_port: u16,
         src_port: u16,
         buf: &'static mut Buffer<'static, u8>,
+        _driver_send_cap: &UdpDriverSendCapability,
     ) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);

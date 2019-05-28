@@ -57,3 +57,8 @@ pub unsafe trait MainLoopCapability {}
 /// The `MemoryAllocationCapability` capability allows the holder to allocate
 /// memory, for example by creating grants.
 pub unsafe trait MemoryAllocationCapability {}
+
+/// The `UdpDriverSendCapability` capability allows the holder to send
+/// using the `driver_send_to()` function in udp_send.rs, which does
+/// not require being bound to a single port.
+pub unsafe trait UdpDriverSendCapability {}

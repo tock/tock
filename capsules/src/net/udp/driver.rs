@@ -16,6 +16,7 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
+use kernel::capabilities::UdpDriverSendCapability;
 use kernel::common::cells::TakeCell;
 use kernel::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
@@ -88,10 +89,12 @@ pub struct UDPDriver<'a> {
     /// Maximum length payload that an app can transmit via this driver
     max_tx_pyld_len: usize,
 
-    // UDP bound port table (manages kernel bindings)
+    /// UDP bound port table (manages kernel bindings)
     port_table: &'static UdpPortTable,
 
     kernel_buffer: TakeCell<'static, Buffer<'static, u8>>,
+
+    driver_send_cap: &'static UdpDriverSendCapability,
 }
 
 impl<'a> UDPDriver<'a> {
@@ -103,6 +106,7 @@ impl<'a> UDPDriver<'a> {
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortTable,
         kernel_buffer: &'static mut Buffer<'static, u8>,
+        driver_send_cap: &'static UdpDriverSendCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -113,6 +117,7 @@ impl<'a> UDPDriver<'a> {
             max_tx_pyld_len: max_tx_pyld_len,
             port_table: port_table,
             kernel_buffer: TakeCell::new(kernel_buffer),
+            driver_send_cap: driver_send_cap,
         }
     }
 
@@ -264,8 +269,13 @@ impl<'a> UDPDriver<'a> {
                         .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
                             kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                             kernel_buffer.slice(0..payload.len());
-                            self.sender
-                                .driver_send_to(dst_addr, dst_port, src_port, kernel_buffer)
+                            self.sender.driver_send_to(
+                                dst_addr,
+                                dst_port,
+                                src_port,
+                                kernel_buffer,
+                                self.driver_send_cap,
+                            )
                         })
                 });
             if result == ReturnCode::SUCCESS {
