@@ -41,7 +41,7 @@ pub trait Pin: Input + Output + Configure {}
 /// input or output and also to source interrupts.
 pub trait InterruptPin: Pin + Interrupt {}
 
-/// The InterruptValuePin trait allows a pin to be used as 
+/// The InterruptValuePin trait allows a pin to be used as
 /// either input or output and also to source interrupts which
 /// pass a value.
 pub trait InterruptValuePin: Pin + InterruptWithValue {}
@@ -158,9 +158,8 @@ pub trait ClientWithValue {
     fn fired(&self, value: u32);
 }
 
-
 /// Standard implementation of InterruptWithValue: handles an
-/// `gpio::Client::fired` and passes it up as a 
+/// `gpio::Client::fired` and passes it up as a
 /// `gpio::ClientWithValue::fired`.
 pub struct InterruptValueWrapper {
     value: Cell<u32>,
