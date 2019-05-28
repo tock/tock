@@ -5,9 +5,9 @@ use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::udp_port_table::UdpPortTable;
+use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([
@@ -27,9 +27,7 @@ pub struct MockUdp1<'a, A: Alarm + 'a> {
     port_table: &'static UdpPortTable,
     first: Cell<bool>,
     udp_dgram: TakeCell<'static, Buffer<'static, u8>>,
-    // TODO: How long should socket/binding live?
-    // socket: &'a TakeCell<UdpPortSocket>,
-    // binding: &'a TakeCell<UdpSenderBinding>,
+    binding: MapCell<UdpSenderBinding>,
 }
 
 impl<'a, A: Alarm> MockUdp1<'a, A> {
@@ -47,33 +45,12 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             port_table: port_table,
             first: Cell::new(true),
             udp_dgram: TakeCell::new(udp_dgram),
-            // socket: TakeCell::empty(),
-            // binding: TakeCell::empty(),
+            binding: MapCell::empty(),
         }
     }
 
     pub fn start(&self) {
-        debug!("Start called in mock_udp");
-        //let socket = self.port_table.create_socket();
-        //if socket.is_ok() {
-        //    debug!("Socket successfully created in mock_udp");
-        //} else {
-        //    debug!("Socket error in mock_udp");
-        //    return;
-        //}
-        //let socket = socket.ok().unwrap();
-        //let binding = self.port_table.bind(socket, 80);
-        //if binding.is_ok() {
-        //    debug!("Binding successfully created in mock_udp");
-        //} else {
-        //    debug!("Binding error in mock_udp");
-        //    return;
-        //}
-
-        // Performs endian conversion.
-        //self.udp_dgram[0] = (self.id >> 8) as u8;
-        //self.udp_dgram[1] = (self.id & 0x00ff) as u8;
-
+        // Set alarm bc if you try to send immediately there are initialization issues
         self.alarm.set_alarm(
             self.alarm
                 .now()
@@ -87,7 +64,13 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
                 dgram.slice(0..2);
-                self.udp_sender.send_to(DST_ADDR, DST_PORT, SRC_PORT, dgram);
+                let binding = self.binding.take().expect("couldnt get binding");
+                //match self.binding.map_or(ReturnCode::FAIL, |binding| {
+                match self.udp_sender.send_to(DST_ADDR, DST_PORT, dgram, &binding) {
+                    ReturnCode::SUCCESS => {}
+                    _ => debug!("Mock UDP Send Failed."),
+                }
+                self.binding.replace(binding);
             }
             None => debug!("udp_dgram not present."),
         }
@@ -99,19 +82,24 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
         if self.first.get() {
             self.first.set(false);
             let socket = self.port_table.create_socket();
-            if socket.is_ok() {
-                debug!("Socket successfully created in mock_udp");
-            } else {
-                debug!("Socket error in mock_udp");
-                return;
-            }
-            let socket = socket.ok().unwrap();
-            let binding = self.port_table.bind(socket, 80);
-            if binding.is_ok() {
-                debug!("Binding successfully created in mock_udp");
-            } else {
-                debug!("Binding error in mock_udp");
-                return;
+            match socket {
+                Ok(sock) => {
+                    debug!("Socket successfully created in mock_udp");
+                    match self.port_table.bind(sock, 80) {
+                        Ok((send_bind, _rcv_bind)) => {
+                            debug!("Binding successfully created in mock_udp");
+                            self.binding.replace(send_bind);
+                        }
+                        Err(sock) => {
+                            debug!("Binding error in mock_udp");
+                            self.port_table.destroy_socket(sock);
+                        }
+                    }
+                }
+                Err(_return_code) => {
+                    debug!("Socket error in mock_udp");
+                    return;
+                }
             }
         }
         self.send(self.id);

@@ -35,7 +35,7 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::{MapCell, TakeCell};
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
@@ -43,7 +43,7 @@ use kernel::hil::time::Frequency;
 use kernel::static_init;
 use kernel::ReturnCode;
 
-use kernel::udp_port_table::UdpPortTable;
+use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -74,6 +74,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
     dgram: TakeCell<'static, Buffer<'static, u8>>,
+    send_bind: MapCell<UdpSenderBinding>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -229,10 +230,32 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
                     capsules::net::buffer::Buffer::new(dgram)
                 )
             }),
+            send_bind: MapCell::empty(),
         }
     }
 
     pub fn start(&self) {
+        let socket = self.port_table.create_socket();
+        let src_port = 12345;
+        match socket {
+            Ok(sock) => {
+                debug!("Socket successfully created in udp_lowpan_test");
+                match self.port_table.bind(sock, src_port) {
+                    Ok((send_bind, _rcv_bind)) => {
+                        debug!("Binding successfully created in udp_lowpan_test");
+                        self.send_bind.replace(send_bind);
+                    }
+                    Err(sock) => {
+                        debug!("Binding error in udp_lowpan_test");
+                        self.port_table.destroy_socket(sock);
+                    }
+                }
+            }
+            Err(_return_code) => {
+                debug!("Socket error in udp_lowpan_test");
+                return;
+            }
+        }
         self.schedule_next();
     }
 
@@ -329,16 +352,17 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn send_next(&self) {
-        let src_port: u16 = 12321;
         let dst_port: u16 = 32123;
-        // self.port_table.bind(self.udp_sender.get_binding_ref(), src_port);
+        let send_bind = self.send_bind.take().expect("missing bind");
         debug!("before send_to");
         match self.dgram.take() {
             Some(dgram) => {
-                self.udp_sender.send_to(DST_ADDR, src_port, dst_port, dgram);
+                self.udp_sender
+                    .send_to(DST_ADDR, dst_port, dgram, &send_bind);
             }
             None => debug!("UDP_LOWPAN_TEST: DGRAM Missing - Err"),
         }
+        self.send_bind.replace(send_bind);
         debug!("send_next done");
     }
 }

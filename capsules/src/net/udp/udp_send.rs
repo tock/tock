@@ -14,6 +14,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
+use kernel::udp_port_table::UdpSenderBinding;
 use kernel::ReturnCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
@@ -124,8 +125,30 @@ pub trait UDPSender<'a> {
     fn set_client(&self, client: &'a UDPSendClient);
 
     /// This function constructs a `UDPHeader` and sends the payload to the
-    /// provided destination IP address over the provided source and
-    /// destination ports.
+    /// provided destination IP address and
+    /// destination port from the src port contained in the UdpSenderBinding.
+    ///
+    /// # Arguments
+    /// `dest` - IPv6 address to send the UDP packet to
+    /// `dst_port` - Destination port to send the packet to
+    /// `buf` - UDP payload
+    /// `binding` - type that specifies what port the sender is bound to.
+    ///
+    /// # Return Value
+    /// Any synchronous errors are returned via the returned `ReturnCode`
+    /// value; asynchronous errors are delivered via the callback.
+    fn send_to(
+        &'a self,
+        dest: IPAddr,
+        dst_port: u16,
+        //src_port: u16,
+        buf: &'static mut Buffer<'static, u8>,
+        binding: &UdpSenderBinding,
+    ) -> ReturnCode;
+
+    /// This function is identical to `send_to()` except that it takes in
+    /// an explicit src_port instead of a binding. This allows it to be used
+    /// by the userspace driver, above which apps are bound to multiple ports
     ///
     /// # Arguments
     /// `dest` - IPv6 address to send the UDP packet to
@@ -136,14 +159,14 @@ pub trait UDPSender<'a> {
     /// # Return Value
     /// Any synchronous errors are returned via the returned `ReturnCode`
     /// value; asynchronous errors are delivered via the callback.
-    fn send_to(
+    fn driver_send_to(
         &'a self,
         dest: IPAddr,
         dst_port: u16,
         src_port: u16,
         buf: &'static mut Buffer<'static, u8>,
-        //binding: &UdpSenderBinding
     ) -> ReturnCode;
+    // TODO: Require capability to call above function
 
     /// This function constructs an IP packet from the completed `UDPHeader`
     /// and buffer, and sends it to the provided IP address
@@ -196,18 +219,32 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         &'a self,
         dest: IPAddr,
         dst_port: u16,
-        src_port: u16,
+        //src_port: u16,
         buf: &'static mut Buffer<'static, u8>,
-        //binding: &UdpSenderBinding
+        binding: &UdpSenderBinding,
     ) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
-        udp_header.set_src_port(src_port /*binding.get_port()*/);
-        // TODO: add appropriate error handling here
+        if binding.get_port() == 0 {
+            return ReturnCode::EINVAL;
+        }
+        udp_header.set_src_port(binding.get_port());
         self.send(dest, udp_header, buf)
-
-        //self.send(dest, udp_header, buf)
     }
+
+    fn driver_send_to(
+        &'a self,
+        dest: IPAddr,
+        dst_port: u16,
+        src_port: u16,
+        buf: &'static mut Buffer<'static, u8>,
+    ) -> ReturnCode {
+        let mut udp_header = UDPHeader::new();
+        udp_header.set_dst_port(dst_port);
+        udp_header.set_src_port(src_port);
+        self.send(dest, udp_header, buf)
+    }
+    // TODO: Require capability to call above function
 
     fn send(
         &'a self,

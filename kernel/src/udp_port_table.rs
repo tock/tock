@@ -26,7 +26,6 @@ pub enum PortEntry {
 // UdpPortSocket allocated.
 static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 
-
 /// The PortQuery trait enables the UdpPortTable to query the userspace bound
 /// ports in the UDP driver. The UDP driver struct implements this trait.
 pub trait PortQuery {
@@ -39,7 +38,6 @@ pub trait PortQuery {
 pub struct UdpPortSocket {
     idx: usize,
 }
-
 
 /// The UdpPortTable maintains a reference the port_array, which manages what
 /// ports are bound at any given moment, and user_ports, which provides a
@@ -125,7 +123,7 @@ impl UdpPortTable {
                 }
                 result
             })
-            .unwrap()
+            .expect("failed to create socket")
     }
 
     pub fn destroy_socket(&self, socket: UdpPortSocket) {
@@ -176,8 +174,11 @@ impl UdpPortTable {
 
     // On success, a UdpPortBinding is returned. On failure, the same
     // UdpPortSocket is returned.
-    pub fn bind(&self, socket: UdpPortSocket, port: u16)
-        -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
+    pub fn bind(
+        &self,
+        socket: UdpPortSocket,
+        port: u16,
+    ) -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
         if self.is_bound(port) {
             Err(socket)
         } else {
