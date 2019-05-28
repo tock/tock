@@ -17,7 +17,7 @@ use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverSendCapability;
-use kernel::common::cells::TakeCell;
+use kernel::common::cells::MapCell;
 use kernel::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 /// Syscall number
@@ -92,7 +92,7 @@ pub struct UDPDriver<'a> {
     /// UDP bound port table (manages kernel bindings)
     port_table: &'static UdpPortTable,
 
-    kernel_buffer: TakeCell<'static, Buffer<'static, u8>>,
+    kernel_buffer: MapCell<Buffer<'static, u8>>,
 
     driver_send_cap: &'static UdpDriverSendCapability,
 }
@@ -105,7 +105,7 @@ impl<'a> UDPDriver<'a> {
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortTable,
-        kernel_buffer: &'static mut Buffer<'static, u8>,
+        kernel_buffer: Buffer<'static, u8>,
         driver_send_cap: &'static UdpDriverSendCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
@@ -116,7 +116,7 @@ impl<'a> UDPDriver<'a> {
             interface_list: interface_list,
             max_tx_pyld_len: max_tx_pyld_len,
             port_table: port_table,
-            kernel_buffer: TakeCell::new(kernel_buffer),
+            kernel_buffer: MapCell::new(kernel_buffer),
             driver_send_cap: driver_send_cap,
         }
     }
@@ -266,7 +266,7 @@ impl<'a> UDPDriver<'a> {
                 .map_or(ReturnCode::ENOMEM, |payload| {
                     self.kernel_buffer
                         .take()
-                        .map_or(ReturnCode::ENOMEM, |kernel_buffer| {
+                        .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
                             kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                             kernel_buffer.slice(0..payload.len());
                             self.sender.driver_send_to(
@@ -589,7 +589,7 @@ impl<'a> Driver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>) {
+    fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

@@ -79,7 +79,7 @@ impl<T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
         icmp_header.set_len(total_len as u16);
         let transport_header = TransportHeader::ICMP(icmp_header);
         self.ip_send_struct
-            .send_to(dest, transport_header, &mut Buffer::new(buf))
+            .send_to(dest, transport_header, &Buffer::new(buf))
     }
 }
 

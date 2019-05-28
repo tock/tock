@@ -71,10 +71,7 @@ impl Component for MockUDPComponent {
                 VirtualMuxAlarm::new(self.alarm_mux),
                 udp_send,
                 self.bound_port_table,
-                static_init!(
-                    capsules::net::buffer::Buffer<'static, u8>,
-                    capsules::net::buffer::Buffer::new(&mut UDP_PAYLOAD)
-                ),
+                capsules::net::buffer::Buffer::new(&mut UDP_PAYLOAD),
             )
         );
         udp_send.set_client(mock_udp);

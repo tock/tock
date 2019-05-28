@@ -5,7 +5,7 @@ use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::MapCell;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
 use kernel::{debug, ReturnCode};
@@ -26,7 +26,7 @@ pub struct MockUdp1<'a, A: Alarm + 'a> {
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
     first: Cell<bool>,
-    udp_dgram: TakeCell<'static, Buffer<'static, u8>>,
+    udp_dgram: MapCell<Buffer<'static, u8>>,
     binding: MapCell<UdpSenderBinding>,
 }
 
@@ -36,7 +36,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
         alarm: A,
         udp_sender: &'a UDPSender<'a>,
         port_table: &'static UdpPortTable,
-        udp_dgram: &'static mut Buffer<'static, u8>,
+        udp_dgram: Buffer<'static, u8>,
     ) -> MockUdp1<'a, A> {
         MockUdp1 {
             id: id,
@@ -44,7 +44,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             udp_sender: udp_sender,
             port_table: port_table,
             first: Cell::new(true),
-            udp_dgram: TakeCell::new(udp_dgram),
+            udp_dgram: MapCell::new(udp_dgram),
             binding: MapCell::empty(),
         }
     }
@@ -60,7 +60,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
 
     pub fn send(&self, value: u16) {
         match self.udp_dgram.take() {
-            Some(dgram) => {
+            Some(mut dgram) => {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
                 dgram.slice(0..2);
@@ -107,7 +107,7 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
 }
 
 impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>) {
+    fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
         self.udp_dgram.replace(dgram);

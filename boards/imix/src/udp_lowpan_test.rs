@@ -35,7 +35,7 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::common::cells::{MapCell, TakeCell};
+use kernel::common::cells::MapCell;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
@@ -73,7 +73,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     test_counter: Cell<usize>,
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
-    dgram: TakeCell<'static, Buffer<'static, u8>>,
+    dgram: MapCell<Buffer<'static, u8>>,
     send_bind: MapCell<UdpSenderBinding>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
@@ -191,7 +191,7 @@ pub unsafe fn initialize_all(
 }
 
 impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
-    fn send_done(&self, result: ReturnCode, dgram: &'static mut Buffer<'static, u8>) {
+    fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
         dgram.reset();
         self.dgram.replace(dgram);
         match result {
@@ -224,12 +224,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             test_counter: Cell::new(0),
             udp_sender: udp_sender,
             port_table: port_table,
-            dgram: TakeCell::new(unsafe {
-                static_init!(
-                    capsules::net::buffer::Buffer<'static, u8>,
-                    capsules::net::buffer::Buffer::new(dgram)
-                )
-            }),
+            dgram: MapCell::new(Buffer::new(dgram)),
             send_bind: MapCell::empty(),
         }
     }

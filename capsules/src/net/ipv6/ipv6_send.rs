@@ -82,7 +82,7 @@ pub trait IP6Sender<'a> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &mut Buffer<'static, u8>,
+        payload: &Buffer<'static, u8>,
     ) -> ReturnCode;
 }
 
@@ -126,7 +126,7 @@ impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &mut Buffer<'static, u8>,
+        payload: &Buffer<'static, u8>,
     ) -> ReturnCode {
         self.sixlowpan.init(
             self.src_mac_addr,
@@ -168,7 +168,7 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
         &self,
         dst_addr: IPAddr,
         transport_header: TransportHeader,
-        payload: &mut Buffer<'static, u8>,
+        payload: &Buffer<'static, u8>,
     ) {
         self.ip6_packet.map(|ip6_packet| {
             ip6_packet.header = IP6Header::default();

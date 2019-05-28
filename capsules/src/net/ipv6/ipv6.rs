@@ -348,7 +348,7 @@ impl IPPayload<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &mut Buffer<'static, u8>,
+        payload: &Buffer<'static, u8>,
     ) -> (u8, u16) {
         if self.payload.len() < payload.len() {
             // TODO: Error
@@ -504,7 +504,7 @@ impl IP6Packet<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &mut Buffer<'static, u8>,
+        payload: &Buffer<'static, u8>,
     ) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);
