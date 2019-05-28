@@ -34,7 +34,11 @@ pub struct DebugProcessRestart<C: ProcessManagementCapability> {
 }
 
 impl<'a, C: ProcessManagementCapability> DebugProcessRestart<C> {
-    pub fn new(kernel: &'static Kernel, pin: &'a gpio::InterruptPin, cap: C) -> DebugProcessRestart<C> {
+    pub fn new(
+        kernel: &'static Kernel,
+        pin: &'a gpio::InterruptPin,
+        cap: C,
+    ) -> DebugProcessRestart<C> {
         pin.make_input();
         pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
 

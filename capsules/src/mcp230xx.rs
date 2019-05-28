@@ -273,11 +273,7 @@ impl MCP230xx<'a> {
         })
     }
 
-    fn enable_interrupt_pin(
-        &self,
-        pin_number: u8,
-        direction: gpio::InterruptEdge,
-    ) -> ReturnCode {
+    fn enable_interrupt_pin(&self, pin_number: u8, direction: gpio::InterruptEdge) -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
@@ -534,7 +530,7 @@ impl gpio::ClientWithValue for MCP230xx<'a> {
             return; // Error, value specifies which pin A=0, B=1
         }
         self.buffer.take().map(|buffer| {
-            let bank_number = value; 
+            let bank_number = value;
             self.i2c.enable();
 
             // Need to read the IntF register which marks which pins
@@ -602,19 +598,13 @@ impl gpio_async::Port for MCP230xx<'a> {
         self.set_pin(pin as u8, PinState::Low)
     }
 
-    fn enable_interrupt(
-        &self,
-        pin: usize,
-        mode: gpio::InterruptEdge,
-    ) -> ReturnCode {
+    fn enable_interrupt(&self, pin: usize, mode: gpio::InterruptEdge) -> ReturnCode {
         if pin > ((self.number_of_banks * self.bank_size) - 1) as usize {
             return ReturnCode::EINVAL;
         }
         let ret = self.enable_host_interrupt();
         match ret {
-            ReturnCode::SUCCESS => {
-                self.enable_interrupt_pin(pin as u8, mode)
-            }
+            ReturnCode::SUCCESS => self.enable_interrupt_pin(pin as u8, mode),
             _ => ret,
         }
     }

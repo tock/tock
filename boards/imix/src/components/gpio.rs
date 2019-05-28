@@ -55,7 +55,7 @@ impl Component for GpioComponent {
                 &sam4l::gpio::PA[20], // P8
             ]
         );
-        
+
         let gpio_values = static_init!(
             [hil::gpio::InterruptValueWrapper; 7],
             [
