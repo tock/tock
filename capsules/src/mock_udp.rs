@@ -7,7 +7,7 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
+use kernel::udp_port_table::UdpPortTable;
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([
@@ -27,7 +27,6 @@ pub struct MockUdp1<'a, A: Alarm + 'a> {
     port_table: &'static UdpPortTable,
     first: Cell<bool>,
     udp_dgram: MapCell<Buffer<'static, u8>>,
-    binding: MapCell<UdpSenderBinding>,
 }
 
 impl<'a, A: Alarm> MockUdp1<'a, A> {
@@ -45,7 +44,6 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             port_table: port_table,
             first: Cell::new(true),
             udp_dgram: MapCell::new(udp_dgram),
-            binding: MapCell::empty(),
         }
     }
 
@@ -64,13 +62,10 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                 dgram[0] = (value >> 8) as u8;
                 dgram[1] = (value & 0x00ff) as u8;
                 dgram.slice(0..2);
-                let binding = self.binding.take().expect("couldnt get binding");
-                //match self.binding.map_or(ReturnCode::FAIL, |binding| {
-                match self.udp_sender.send_to(DST_ADDR, DST_PORT, dgram, &binding) {
+                match self.udp_sender.send_to(DST_ADDR, DST_PORT, dgram) {
                     ReturnCode::SUCCESS => {}
                     _ => debug!("Mock UDP Send Failed."),
                 }
-                self.binding.replace(binding);
             }
             None => debug!("udp_dgram not present."),
         }
@@ -88,7 +83,7 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
                     match self.port_table.bind(sock, 80) {
                         Ok((send_bind, _rcv_bind)) => {
                             debug!("Binding successfully created in mock_udp");
-                            self.binding.replace(send_bind);
+                            self.udp_sender.set_binding(send_bind);
                         }
                         Err(sock) => {
                             debug!("Binding error in mock_udp");

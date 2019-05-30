@@ -43,7 +43,7 @@ use kernel::hil::time::Frequency;
 use kernel::static_init;
 use kernel::ReturnCode;
 
-use kernel::udp_port_table::{UdpPortTable, UdpSenderBinding};
+use kernel::udp_port_table::UdpPortTable;
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -74,7 +74,6 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
     dgram: MapCell<Buffer<'static, u8>>,
-    send_bind: MapCell<UdpSenderBinding>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -225,7 +224,6 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             udp_sender: udp_sender,
             port_table: port_table,
             dgram: MapCell::new(Buffer::new(dgram)),
-            send_bind: MapCell::empty(),
         }
     }
 
@@ -238,7 +236,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
                 match self.port_table.bind(sock, src_port) {
                     Ok((send_bind, _rcv_bind)) => {
                         debug!("Binding successfully created in udp_lowpan_test");
-                        self.send_bind.replace(send_bind);
+                        self.udp_sender.set_binding(send_bind);
                     }
                     Err(sock) => {
                         debug!("Binding error in udp_lowpan_test");
@@ -348,16 +346,13 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
 
     fn send_next(&self) {
         let dst_port: u16 = 32123;
-        let send_bind = self.send_bind.take().expect("missing bind");
         debug!("before send_to");
         match self.dgram.take() {
             Some(dgram) => {
-                self.udp_sender
-                    .send_to(DST_ADDR, dst_port, dgram, &send_bind);
+                self.udp_sender.send_to(DST_ADDR, dst_port, dgram);
             }
             None => debug!("UDP_LOWPAN_TEST: DGRAM Missing - Err"),
         }
-        self.send_bind.replace(send_bind);
         debug!("send_next done");
     }
 }

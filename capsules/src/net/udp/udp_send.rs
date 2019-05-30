@@ -36,7 +36,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         &self,
         dest: IPAddr,
         transport_header: TransportHeader,
-        caller: &'a UDPSendStruct<'a, T>, //binding: &UdpSenderBinding
+        caller: &'a UDPSendStruct<'a, T>,
     ) -> ReturnCode {
         // TO DO: Enforce port binding here ()
         // Add this sender to the tail of the sender_list
@@ -60,7 +60,6 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
     }
 
     fn add_client(&self, sender: &'a UDPSendStruct<'a, T>) {
-        //add udp_sender to the tail of linked list
         self.sender_list.push_tail(sender);
     }
 }
@@ -146,7 +145,6 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         //src_port: u16,
         buf: Buffer<'static, u8>,
-        binding: &UdpSenderBinding,
     ) -> ReturnCode;
 
     /// This function is identical to `send_to()` except that it takes in
@@ -185,7 +183,9 @@ pub trait UDPSender<'a> {
     /// errors are returned via the callback.
     fn send(&'a self, dest: IPAddr, udp_header: UDPHeader, buf: Buffer<'static, u8>) -> ReturnCode;
 
-    //fn get_binding_ref(&self) -> &UdpSenderBinding;
+    fn get_binding(&self) -> Option<UdpSenderBinding>;
+
+    fn set_binding(&self, binding: UdpSenderBinding) -> Option<UdpSenderBinding>;
 }
 
 /// This is a specific instantiation of the `UDPSender` trait. Note
@@ -198,7 +198,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     tx_buffer: MapCell<Buffer<'static, u8>>,
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
-    //binding: UdpSenderBinding, // TODO: should this be a reference?
+    binding: MapCell<UdpSenderBinding>,
 }
 
 impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
@@ -214,21 +214,21 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.client.set(client);
     }
 
-    fn send_to(
-        &'a self,
-        dest: IPAddr,
-        dst_port: u16,
-        //src_port: u16,
-        buf: Buffer<'static, u8>,
-        binding: &UdpSenderBinding,
-    ) -> ReturnCode {
+    fn send_to(&'a self, dest: IPAddr, dst_port: u16, buf: Buffer<'static, u8>) -> ReturnCode {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
-        if binding.get_port() == 0 {
-            return ReturnCode::EINVAL;
+        match self.binding.take() {
+            Some(binding) => {
+                if binding.get_port() == 0 {
+                    ReturnCode::EINVAL
+                } else {
+                    udp_header.set_src_port(binding.get_port());
+                    self.binding.replace(binding);
+                    self.send(dest, udp_header, buf)
+                }
+            }
+            None => ReturnCode::EINVAL,
         }
-        udp_header.set_src_port(binding.get_port());
-        self.send(dest, udp_header, buf)
     }
 
     fn driver_send_to(
@@ -262,9 +262,13 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.udp_mux_sender.send_to(dest, transport_header, &self)
     }
 
-    // fn get_binding_ref(&self) -> &UdpSenderBinding {
-    //     &self.binding
-    // }
+    fn get_binding(&self) -> Option<UdpSenderBinding> {
+        self.binding.take()
+    }
+
+    fn set_binding(&self, binding: UdpSenderBinding) -> Option<UdpSenderBinding> {
+        self.binding.replace(binding)
+    }
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
@@ -278,7 +282,7 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
             tx_buffer: MapCell::empty(),
             next_dest: Cell::new(IPAddr::new()),
             next_th: OptionalCell::empty(),
-            //binding: binding,
+            binding: MapCell::empty(),
         }
     }
 }
