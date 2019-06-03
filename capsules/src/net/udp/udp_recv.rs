@@ -5,24 +5,33 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::IP6Header;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;
 use crate::net::udp::udp::UDPHeader;
-use kernel::common::cells::OptionalCell;
+use crate::net::udp::driver::UDPDriver;
+use kernel::common::cells::{OptionalCell, MapCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::udp_port_table::UdpPortTable;
+use kernel::udp_port_table::{UdpReceiverBinding, PortQuery};
 
 pub struct MuxUdpReceiver<'a> {
     rcvr_list: List<'a, UDPReceiver<'a>>,
+    driver: MapCell<&'static UDPDriver<'static>>, // Maybe have this as an option?
+
 }
 
 impl<'a> MuxUdpReceiver<'a> {
     pub fn new() -> MuxUdpReceiver<'a> {
         MuxUdpReceiver {
             rcvr_list: List::new(),
+            driver: MapCell::empty(),
+
         }
     }
 
     pub fn add_client(&self, rcvr: &'a UDPReceiver<'a>) {
         self.rcvr_list.push_tail(rcvr);
+    }
+
+    pub fn set_driver(&self, driver_ref: &'static UDPDriver) {
+        self.driver.replace(driver_ref);
     }
 }
 
@@ -33,15 +42,16 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
                 let len = udp_header.get_len() as usize;
+                let dst_port = udp_header.get_dst_port();
                 if len > payload.len() {
                     debug!("[UDP_RECV] Error: Received UDP length too long");
                     return;
                 }
-                for rcvr in rcvr_list.iter() {
+                for rcvr in self.rcvr_list.iter() {
                     match rcvr.binding.take() {
                         Some(binding) => {
-                            if binding.get_port() == udp_header.get_dst_port() {
-                                rcvr.map(|client| {
+                            if binding.get_port() == dst_port {
+                                rcvr.client.map(|client| {
                                     client.receive(
                                         ip_header.get_src_addr(),
                                         ip_header.get_dst_addr(),
@@ -50,10 +60,26 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
                                         &payload[offset..],
                                     );
                                 });
+                                rcvr.binding.replace(binding);
                                 break;
                             }
                         }
-                        None => {}
+                        None => {
+                            match self.driver.take() {
+                                Some(driver) => {
+                                    if driver.is_bound(dst_port) {
+                                        driver.receive(
+                                            ip_header.get_src_addr(),
+                                            ip_header.get_dst_addr(),
+                                            udp_header.get_src_port(),
+                                            udp_header.get_dst_port(),
+                                            &payload[offset..],);
+                                    }
+                                    self.driver.replace(driver);
+                                }
+                                None => {}
+                            }
+                        }
                     }
                 }
             }
@@ -83,18 +109,43 @@ pub trait UDPRecvClient {
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a UDPRecvClient>,
-    binding: MapCell<UdpPortBinding>,
+    binding: MapCell<UdpReceiverBinding>,
+    next: ListLink<'a, UDPReceiver<'a>>,
+
+
 }
+
+impl<'a> ListNode<'a, UDPReceiver<'a>> for UDPReceiver<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, UDPReceiver<'a>> {
+        &self.next
+    }
+}
+
+impl<'a> IP6RecvClient for UDPReceiver<'a> {
+    fn receive(&self, header: IP6Header, payload: &[u8]) {
+        // TODO: fill in.
+    }
+}
+
 
 impl<'a> UDPReceiver<'a> {
     pub fn new() -> UDPReceiver<'a> {
         UDPReceiver {
             client: OptionalCell::empty(),
             binding: MapCell::empty(),
+            next: ListLink::empty(),
         }
     }
 
     pub fn set_client(&self, client: &'a UDPRecvClient) {
         self.client.set(client);
+    }
+
+    fn get_binding(&self) -> Option<UdpReceiverBinding> {
+        self.binding.take()
+    }
+
+    fn set_binding(&self, binding: UdpReceiverBinding) -> Option<UdpReceiverBinding> {
+        self.binding.replace(binding)
     }
 }
