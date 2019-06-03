@@ -5,7 +5,7 @@ use core::fmt::Write;
 use crate::process;
 
 /// The syscall number assignments.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Syscall {
     /// Return to the kernel to allow other processes to execute or to wait for
     /// interrupts and callbacks.
@@ -52,8 +52,8 @@ pub enum Syscall {
 /// Why the process stopped executing and execution returned to the kernel.
 #[derive(PartialEq)]
 pub enum ContextSwitchReason {
-    /// Process called a syscall.
-    SyscallFired,
+    /// Process called a syscall. Also returns the syscall and relevant values.
+    SyscallFired { syscall: Syscall },
     /// Process triggered the hardfault handler.
     Fault,
     /// Process exceeded its timeslice.
@@ -71,42 +71,54 @@ pub trait UserspaceKernelBoundary {
     /// registers that aren't stored on the stack.
     type StoredState: Default + Copy;
 
-    /// Get the syscall that the process called with the appropriate arguments.
-    unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<Syscall>;
-
     /// Set the return value the process should see when it begins executing
-    /// again after the syscall.
-    unsafe fn set_syscall_return_value(&self, stack_pointer: *const usize, return_value: isize);
-
-    /// Remove the last stack frame from the process and return the new stack
-    /// pointer location.
+    /// again after the syscall. This will only be called after a process has
+    /// called a syscall.
     ///
-    /// This function assumes that `stack_pointer` is valid and at the end of
-    /// the process stack, that there is at least one stack frame on the
-    /// stack, and that that frame is the syscall.
-    unsafe fn pop_syscall_stack_frame(
+    /// To help implementations, both the current stack pointer of the process
+    /// and the saved state for the process are provided. The `return_value` is
+    /// the value that should be passed to the process so that when it resumes
+    /// executing it knows the return value of the syscall it called.
+    unsafe fn set_syscall_return_value(
         &self,
         stack_pointer: *const usize,
         state: &mut Self::StoredState,
-    ) -> *mut usize;
+        return_value: isize,
+    );
 
-    /// Add a stack frame with the new function call. This function
-    /// is what should be executed when the process is resumed.
+    /// Set the function that the process should execute when it is resumed.
+    /// This has two major uses: 1) sets up the initial function call to
+    /// `_start` when the process is started for the very first time; 2) tells
+    /// the process to execute a callback function after calling `yield()`.
     ///
-    /// `remaining_stack_memory` is the number of bytes below the
-    /// `stack_pointer` that is allocated for the process. This value is checked
-    /// by the implementer to ensure that there is room for this stack frame
-    /// without overflowing the stack.
+    /// ### Arguments
     ///
-    /// Returns `Ok` with the new stack pointer after adding the stack frame if
-    /// there was room for the stack frame, and an error with where the stack
-    /// would have ended up if the function call had been added otherwise.
-    unsafe fn push_function_call(
+    /// - `stack_pointer` is the address of the stack pointer for the current
+    ///   app.
+    /// - `remaining_stack_memory` is the number of bytes below the
+    ///   `stack_pointer` that is allocated for the process. This value is
+    ///   checked by the implementer to ensure that there is room for this stack
+    ///   frame without overflowing the stack.
+    /// - `state` is the stored state for this process.
+    /// - `callback` is the function that should be executed when the process
+    ///   resumes.
+    /// - `first_function` is true if this is the first time this process is
+    ///   being run. This allows a `UserspaceKernelBoundary` implementation to
+    ///   assume there are no stack frames on the process's stack.
+    ///
+    /// ### Return
+    ///
+    /// Returns `Ok` or `Err` with the current address of the stack pointer for
+    /// the process. One reason for returning `Err` is that adding the function
+    /// call requires adding to the stack, and there is insufficient room on the
+    /// stack to add the function call.
+    unsafe fn set_process_function(
         &self,
         stack_pointer: *const usize,
         remaining_stack_memory: usize,
+        state: &mut Self::StoredState,
         callback: process::FunctionCall,
-        state: &Self::StoredState,
+        first_function: bool,
     ) -> Result<*mut usize, *mut usize>;
 
     /// Context switch to a specific process.
@@ -131,4 +143,51 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut Write,
     );
+}
+
+/// Helper function for converting raw values passed back from an application
+/// into a `Syscall` type in Tock.
+///
+/// Different architectures may have different mechanisms for passing
+/// information about what syscall an app called, but they will have have to
+/// convert the series of raw values into a more useful Rust type. While
+/// implementations are free to do this themselves, this provides a generic
+/// helper function which should help reduce duplicated code.
+///
+/// The mappings between raw `syscall_number` values and the associated syscall
+/// type are specified and fixed by Tock. After that, this function only
+/// converts raw values to more meaningful types based on the syscall.
+pub fn arguments_to_syscall(
+    syscall_number: u8,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<Syscall> {
+    match syscall_number {
+        0 => Some(Syscall::YIELD),
+        1 => Some(Syscall::SUBSCRIBE {
+            driver_number: r0,
+            subdriver_number: r1,
+            callback_ptr: r2 as *mut (),
+            appdata: r3,
+        }),
+        2 => Some(Syscall::COMMAND {
+            driver_number: r0,
+            subdriver_number: r1,
+            arg0: r2,
+            arg1: r3,
+        }),
+        3 => Some(Syscall::ALLOW {
+            driver_number: r0,
+            subdriver_number: r1,
+            allow_address: r2 as *mut u8,
+            allow_size: r3,
+        }),
+        4 => Some(Syscall::MEMOP {
+            operand: r0,
+            arg0: r1,
+        }),
+        _ => None,
+    }
 }
