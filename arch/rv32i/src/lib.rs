@@ -75,29 +75,8 @@ global_asm!(
 ///
 /// This moves the data segment from flash to RAM and zeros out the BSS section.
 pub unsafe fn init_memory() {
-    // Relocate data segment.
-    // Assumes data starts right after text segment as specified by the linker
-    // file.
-    let mut pdest = &mut _srelocate as *mut u32;
-    let pend = &mut _erelocate as *mut u32;
-    let mut psrc = &_etext as *const u32;
-
-    if psrc != pdest {
-        while (pdest as *const u32) < pend {
-            *pdest = *psrc;
-            pdest = pdest.offset(1);
-            psrc = psrc.offset(1);
-        }
-    }
-
-    // Clear the zero segment (BSS)
-    let pzero = &_ezero as *const u32;
-    pdest = &mut _szero as *mut u32;
-
-    while (pdest as *const u32) < pzero {
-        *pdest = 0;
-        pdest = pdest.offset(1);
-    }
+    tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
+    tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 }
 
 /// Tell the MCU what address the trap handler is located at.
