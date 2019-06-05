@@ -22,13 +22,40 @@ const KERNEL_TICK_DURATION_US: u32 = 10000;
 /// Skip re-scheduling a process if its quanta is nearly exhausted
 const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
+pub struct Processes {
+    pub process_array: &'static mut [Option<&'static process::ProcessType>],
+    pub current: Cell<usize>,
+}
+pub struct ProcessIterator<'a>(&'a Processes);
+
+impl<'a> Iterator for ProcessIterator<'a> {
+    type Item = Option<&'static process::ProcessType>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let ProcessIterator(processes) = *self;
+        processes.current.increment();
+        if processes.current.get() >= processes.process_array.len() {
+            processes.current.set(0);
+        }
+
+        Some(processes.process_array[processes.current.get()])
+    }
+}
+
+impl<'a> IntoIterator for &'a Processes {
+    type Item = Option<&'static process::ProcessType>;
+    type IntoIter = ProcessIterator<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        ProcessIterator(&self)
+    }
+}
+
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// How many "to-do" items exist at any given time. These include
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static process::ProcessType>],
+    processes: &'static Processes,
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
@@ -41,7 +68,7 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static process::ProcessType>]) -> Kernel {
+    pub fn new(processes: &'static Processes) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
@@ -75,10 +102,10 @@ impl Kernel {
     where
         F: FnOnce(&process::ProcessType) -> R,
     {
-        if process_index > self.processes.len() {
+        if process_index > self.processes.process_array.len() {
             return default;
         }
-        self.processes[process_index].map_or(default, |process| closure(process))
+        self.processes.process_array[process_index].map_or(default, |process| closure(process))
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -87,7 +114,7 @@ impl Kernel {
     where
         F: Fn(&process::ProcessType),
     {
-        for process in self.processes.iter() {
+        for process in self.processes.process_array.iter() {
             match process {
                 Some(p) => {
                     closure(*p);
@@ -108,7 +135,7 @@ impl Kernel {
     ) where
         F: Fn(usize, &process::ProcessType),
     {
-        for (i, process) in self.processes.iter().enumerate() {
+        for (i, process) in self.processes.process_array.iter().enumerate() {
             match process {
                 Some(p) => {
                     closure(i, *p);
@@ -126,7 +153,7 @@ impl Kernel {
     where
         F: Fn(&process::ProcessType) -> ReturnCode,
     {
-        for process in self.processes.iter() {
+        for process in self.processes.process_array.iter() {
             match process {
                 Some(p) => {
                     let ret = closure(*p);
@@ -142,7 +169,7 @@ impl Kernel {
 
     /// Return how many processes this board supports.
     crate fn number_of_process_slots(&self) -> usize {
-        self.processes.len()
+        self.processes.process_array.len()
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
@@ -193,7 +220,7 @@ impl Kernel {
     /// function, since capsules should not be able to arbitrarily restart all
     /// apps.
     pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
-        for p in self.processes.iter() {
+        for p in self.processes.process_array.iter() {
             p.map(|process| {
                 process.set_fault_state();
             });
@@ -213,7 +240,7 @@ impl Kernel {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
-                for p in self.processes.iter() {
+                for p in self.processes {
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
@@ -222,16 +249,20 @@ impl Kernel {
                     {
                         break;
                     }
+                    // Q:: as of now the for loop above will enver terminate as the iterator will never return None.
+                    // I can hange the implementation so the for loop terminates after each process has been executed once but
+                    // am not sure it is the best approach as I do not understand why you would not check the condition below
+                    // inside the for loop above.
+                    chip.atomic(|| {
+                        if !chip.has_pending_interrupts()
+                            && !DynamicDeferredCall::global_instance_calls_pending()
+                                .unwrap_or(false)
+                            && self.processes_blocked()
+                        {
+                            chip.sleep();
+                        }
+                    });
                 }
-
-                chip.atomic(|| {
-                    if !chip.has_pending_interrupts()
-                        && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                        && self.processes_blocked()
-                    {
-                        chip.sleep();
-                    }
-                });
             };
         }
     }

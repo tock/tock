@@ -32,7 +32,7 @@ mod memop;
 mod platform;
 mod process;
 mod returncode;
-mod sched;
+pub mod sched;
 mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};

@@ -33,14 +33,14 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
-    procs: &'static mut [Option<&'static ProcessType>],
+    procs: &mut crate::sched::Processes,
     fault_response: FaultResponse,
     _capability: &ProcessManagementCapability,
 ) {
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
-    for i in 0..procs.len() {
+    for i in 0..procs.process_array.len() {
         unsafe {
             let (process, flash_offset, memory_offset) = Process::create(
                 kernel,
@@ -61,7 +61,7 @@ pub fn load_processes<C: Chip>(
                     break;
                 }
             } else {
-                procs[i] = process;
+                procs.process_array[i] = process;
             }
 
             apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);

@@ -8,6 +8,8 @@
 #![feature(in_band_lifetimes)]
 #![deny(missing_docs)]
 
+use core::cell::Cell;
+
 mod components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
@@ -105,7 +107,10 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: kernel::sched::Processes = kernel::sched::Processes {
+    process_array: &mut [None; NUM_PROCS],
+    current: Cell::new(0),
+};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
