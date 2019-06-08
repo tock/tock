@@ -135,3 +135,17 @@ impl kernel::Chip for E310x {
         rv32i::support::atomic(f)
     }
 }
+
+/// Trap handler for board/chip specific code.
+///
+/// For the e310 this gets called when an interrupt occurs while the chip is
+/// in kernel mode. All we need to do is check which interrupt occurred and
+/// disable it.
+#[export_name = "_start_trap_rust"]
+pub extern "C" fn start_trap_rust() {}
+
+/// Function that gets called if an interrupt occurs while an app was running.
+/// mcause is passed in, and this function should correctly handle disabling the
+/// interrupt that fired so that it does not trigger again.
+#[export_name = "_disable_interrupt_trap_handler"]
+pub extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {}
