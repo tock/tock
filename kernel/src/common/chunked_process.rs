@@ -39,28 +39,28 @@ pub trait ChunkedProcessClient<'a, T, R, E> {
         acc: R,
         chunk: &'a mut [T],
         length: usize,
-    ) -> Result<R, E>;
+    ) -> Result<(), (&'a mut [T], E)>;
     fn write_chunk(
         &self,
         current_pos: usize,
         acc: R,
         chunk: &'a mut [T],
         length: usize,
-    ) -> Result<R, E>;
+    ) -> Result<(), (&'a mut [T], E)>;
     fn read_write_chunk(
         &self,
         current_pos: usize,
         acc: R,
         chunk: &'a mut [T],
         length: usize,
-    ) -> Result<R, E>;
+    ) -> Result<(), (&'a mut [T], E)>;
 }
 
 /// Process a large amount of data (e.g. [AppSlice](crate::AppSlice)) in chunks
 /// supporting asynchronous and callback-style programming
 ///
 /// This struct takes something that can be mutably borrowed and
-/// for every n-bytes, calls a function.
+/// for every n-bytes calls a function.
 /// Depending on the mode, the buffer passed to this function may
 /// contain the data of the current chunk, and/or can can be overwritten
 /// with new data.
@@ -169,6 +169,9 @@ where
             .expect("next_chunk called without progress");
 
         if current >= self.start.get() + self.length.get() {
+            // We're done, clear the current progress to allow destroying the
+            // ChunkedProcess struct
+            self.current_progress.clear();
             Some((self.mode.get(), Ok(acc)))
         } else {
             let buffer = self.buffer.take().expect("buffer not available");
@@ -194,15 +197,27 @@ where
                 remaining = buffer.len();
             }
 
-            self.client.map(move |c| match mode {
-                ChunkedProcessMode::Read => c.read_chunk(current, acc, buffer, remaining),
-                ChunkedProcessMode::Write => c.write_chunk(current, acc, buffer, remaining),
-                ChunkedProcessMode::ReadWrite => {
-                    c.read_write_chunk(current, acc, buffer, remaining)
-                }
-            });
+            let chunk_res = self
+                .client
+                .map(move |c| match mode {
+                    ChunkedProcessMode::Read => c.read_chunk(current, acc, buffer, remaining),
+                    ChunkedProcessMode::Write => c.write_chunk(current, acc, buffer, remaining),
+                    ChunkedProcessMode::ReadWrite => {
+                        c.read_write_chunk(current, acc, buffer, remaining)
+                    }
+                })
+                .unwrap();
 
-            None
+            match chunk_res {
+                Err((buf, err)) => {
+                    // If the chunk callback encountered an error, we need
+                    // to re-own the buffer so that the chunked progress can be destroyed
+                    self.current_progress.clear();
+                    self.buffer.replace(buf);
+                    Some((self.mode.get(), Err(err)))
+                }
+                Ok(()) => None,
+            }
         }
     }
 
