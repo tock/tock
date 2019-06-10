@@ -239,6 +239,7 @@ pub unsafe fn setup_board(
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+    console.set_self_reference(console);
     kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
     kernel::hil::uart::Receive::set_receive_client(console_uart, console);
 

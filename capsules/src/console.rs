@@ -35,7 +35,8 @@
 //! written.
 
 use core::cmp;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::common::chunked_process::{ChunkedProcess, ChunkedProcessClient, ChunkedProcessMode};
 use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
@@ -43,13 +44,107 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::CONSOLE as usize;
 
+// ============================================================================
+// I'm guessing this could be helpful for all kinds of apps and should be moved
+// somewhere else
+use core::mem;
+enum AppOperationState {
+    None,
+    BufferSet(AppSlice<Shared, u8>),
+    Pending(usize, usize, AppSlice<Shared, u8>),
+    InProgress,
+}
+impl AppOperationState {
+    fn new() -> AppOperationState {
+        AppOperationState::None
+    }
+
+    fn set_buffer(&mut self, buf: Option<AppSlice<Shared, u8>>) -> bool {
+        let prev = mem::replace(self, AppOperationState::None);
+
+        if let AppOperationState::None = prev {
+            if let Some(b) = buf {
+                mem::replace(self, AppOperationState::BufferSet(b));
+            } else {
+                mem::replace(self, AppOperationState::None);
+            }
+            true
+        } else if let AppOperationState::BufferSet(_) = prev {
+            if let Some(b) = buf {
+                mem::replace(self, AppOperationState::BufferSet(b));
+            } else {
+                mem::replace(self, AppOperationState::None);
+            }
+            true
+        } else {
+            // Either pending or in progress, don't remove buffer
+            mem::replace(self, prev);
+            false
+        }
+    }
+
+    fn buffer_len(&self) -> Option<usize> {
+        match self {
+            &AppOperationState::BufferSet(ref buf) => Some(buf.len()),
+            &AppOperationState::Pending(_, _, ref buf) => Some(buf.len()),
+            _ => None,
+        }
+    }
+
+    fn process_pending(&mut self) -> Option<(usize, usize, AppSlice<Shared, u8>)> {
+        let prev = mem::replace(self, AppOperationState::InProgress);
+
+        if let AppOperationState::Pending(start, len, buf) = prev {
+            Some((start, len, buf))
+        } else {
+            // No operation pending, either none set or in progress
+            // Revert back to old state
+            mem::replace(self, prev);
+            None
+        }
+    }
+
+    fn has_pending(&self) -> bool {
+        if let &AppOperationState::Pending(_, _, _) = &self {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_pending(&mut self, start: usize, len: usize) -> bool {
+        let prev = mem::replace(self, AppOperationState::None);
+
+        if let AppOperationState::BufferSet(buf) = prev {
+            mem::replace(self, AppOperationState::Pending(start, len, buf));
+            true
+        } else {
+            // Either no buffer set, already pending or in progress
+            mem::replace(self, prev);
+            false
+        }
+    }
+
+    fn operation_finished(&mut self, buf: AppSlice<Shared, u8>) {
+        let prev = mem::replace(self, AppOperationState::BufferSet(buf));
+
+        match prev {
+            AppOperationState::InProgress => (),
+            _ => panic!("Operation finished called with no operation in progress"),
+        }
+    }
+}
+impl Default for AppOperationState {
+    fn default() -> AppOperationState {
+        AppOperationState::new()
+    }
+}
+// ============================================================================
+
 #[derive(Default)]
 pub struct App {
     write_callback: Option<Callback>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
-    write_len: usize,
-    write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
-    pending_write: bool,
+    write: AppOperationState,
 
     read_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
@@ -59,11 +154,18 @@ pub struct App {
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
+// TODO: Remove static lifetime on ChunkedProcess
 pub struct Console<'a> {
     uart: &'a uart::UartData<'a>,
     apps: Grant<App>,
-    tx_in_progress: OptionalCell<AppId>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    process: MapCell<
+        Result<
+            &'static mut [u8],
+            ChunkedProcess<'static, 'static, AppSlice<Shared, u8>, u8, AppId, (AppId, ReturnCode)>,
+        >,
+    >,
+    chunked_process_client: OptionalCell<&'static Console<'static>>,
+    current_write_operation: OptionalCell<AppId>,
     rx_in_progress: OptionalCell<AppId>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -78,73 +180,156 @@ impl Console<'a> {
         Console {
             uart: uart,
             apps: grant,
-            tx_in_progress: OptionalCell::empty(),
-            tx_buffer: TakeCell::new(tx_buffer),
+
+            process: MapCell::new(Ok(tx_buffer)),
+            chunked_process_client: OptionalCell::empty(),
+            current_write_operation: OptionalCell::empty(),
+
             rx_in_progress: OptionalCell::empty(),
             rx_buffer: TakeCell::new(rx_buffer),
         }
     }
 
-    /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
-        match app.write_buffer.take() {
-            Some(slice) => {
-                app.write_len = cmp::min(len, slice.len());
-                app.write_remaining = app.write_len;
-                self.send(app_id, app, slice);
-                ReturnCode::SUCCESS
-            }
-            None => ReturnCode::EBUSY,
-        }
+    pub fn set_self_reference(&self, self_ref: &'static Console<'static>) {
+        self.chunked_process_client.set(self_ref);
     }
 
-    /// Internal helper function for continuing a previously set up transaction
-    /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
-        if app.write_remaining > 0 {
-            app.write_buffer
-                .take()
-                .map_or(Err(ReturnCode::ERESERVE), |slice| {
-                    self.send(app_id, app, slice);
-                    Ok(true)
-                })
-        } else {
-            Ok(false)
-        }
-    }
-
-    /// Internal helper function for sending data for an existing transaction.
-    /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
-        if self.tx_in_progress.is_none() {
-            self.tx_in_progress.set(app_id);
-            self.tx_buffer.take().map(|buffer| {
-                let mut transaction_len = app.write_remaining;
-                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
-                    .iter()
-                    .enumerate()
-                {
-                    if buffer.len() <= i {
-                        break;
-                    }
-                    buffer[i] = *c;
-                }
-
-                // Check if everything we wanted to print
-                // fit in the buffer.
-                if app.write_remaining > buffer.len() {
-                    transaction_len = buffer.len();
-                    app.write_remaining -= buffer.len();
-                    app.write_buffer = Some(slice);
+    /// If there is some send-operation of any app, this will set the
+    /// app's operation state to pending and return false.
+    /// Otherwise, this tries to start the write operation immediately.
+    fn try_send(&self, app: &mut App, app_id: AppId, len: usize) -> (bool, ReturnCode) {
+        // Do some basic checks. Are the buffers set? Is the length okay?
+        let checks = app
+            .write
+            .buffer_len()
+            .map_or(Err(ReturnCode::ERESERVE), |blen| {
+                if blen < len {
+                    Err(ReturnCode::EINVAL)
                 } else {
-                    app.write_remaining = 0;
+                    Ok(())
                 }
-
-                let (_err, _opt) = self.uart.transmit_buffer(buffer, transaction_len);
             });
+
+        if let Err(e) = checks {
+            return (false, e);
+        }
+
+        // First, try to set this operation as pending
+        if app.write.set_pending(0, len) {
+            self.try_pending_send(app, app_id)
         } else {
-            app.pending_write = true;
-            app.write_buffer = Some(slice);
+            // There'a already a pending write operation
+            (false, ReturnCode::EBUSY)
+        }
+    }
+
+    fn try_pending_send(&self, app: &mut App, app_id: AppId) -> (bool, ReturnCode) {
+        if app.write.has_pending() {
+            // App has pending operation
+            // Try to take ownership over the global operation buffer
+
+            // The process MapCell is only there for swapping the Result-variants
+            let process = self.process.take().expect("process mapcell taken");
+
+            let (new_process, ret) = process
+                .map(|buf: &'static mut [u8]| {
+                    // We've got ownership over the buffer (no operation was currently
+                    // going on)
+                    let (_start, len, appbuf) = app
+                        .write
+                        .process_pending()
+                        .expect("App not in pending state");
+                    (
+                        Err(self.start_operation(
+                            ChunkedProcessMode::Read,
+                            buf,
+                            app_id,
+                            appbuf,
+                            len,
+                        )),
+                        (true, ReturnCode::SUCCESS),
+                    )
+                })
+                .unwrap_or_else(|operation| {
+                    // There's already an operation going on
+                    // Put the value back
+                    // Return false as the operation wasn't immediately started,
+                    // but SUCCESS as it is pending
+                    (Err(operation), (false, ReturnCode::SUCCESS))
+                });
+
+            self.process.put(new_process);
+
+            ret
+        } else {
+            // No pending write operation for this app
+            (false, ReturnCode::ERESERVE)
+        }
+    }
+
+    // This method could later be reused for RX as well
+    fn start_operation(
+        &self,
+        mode: ChunkedProcessMode,
+        buf: &'static mut [u8],
+        app_id: AppId,
+        app_buffer: AppSlice<Shared, u8>,
+        len: usize,
+    ) -> ChunkedProcess<'static, 'static, AppSlice<Shared, u8>, u8, AppId, (AppId, ReturnCode)>
+    {
+        let chunked_process = ChunkedProcess::new(app_buffer, buf);
+        self.chunked_process_client
+            .map(|client| chunked_process.set_client(*client))
+            .expect("can't set process client");
+
+        chunked_process
+            .run(mode, 0, len, app_id)
+            .expect("chunked process run error");
+        chunked_process
+    }
+
+    fn finished_send(&self, _mode: ChunkedProcessMode, res: Result<AppId, (AppId, ReturnCode)>) {
+        // Destroy the chunked process instance and place back the raw buffer
+        // TODO: Sane error handling here please
+        let (slice, buf) = self
+            .process
+            .take()
+            .expect("process is taken")
+            .err()
+            .expect("chunked process is not set")
+            .destroy()
+            .expect("chunked process error");
+        self.process.put(Ok(buf));
+
+        match res {
+            Err((appid, retcode)) => {
+                self.apps
+                    .enter(appid, move |app, _| {
+                        app.write.operation_finished(slice);
+                        app.write_callback
+                            .map(|mut cb| cb.schedule(From::from(retcode), 0, 0));
+                    })
+                    .unwrap_or_else(|_e| ());
+            }
+            Ok(appid) => {
+                self.apps
+                    .enter(appid, move |app, _| {
+                        app.write.operation_finished(slice);
+                        app.write_callback
+                            .map(|mut cb| cb.schedule(From::from(ReturnCode::SUCCESS), 0, 0));
+                    })
+                    .unwrap_or_else(|_e| ());
+            }
+        }
+
+        for cntr in self.apps.iter() {
+            let app_id = cntr.appid();
+
+            let operation_started = cntr.enter(|app, _| self.try_pending_send(app, app_id).0);
+
+            if operation_started {
+                break;
+            };
         }
     }
 
@@ -198,8 +383,12 @@ impl Driver for Console<'a> {
             1 => self
                 .apps
                 .enter(appid, |app, _| {
-                    app.write_buffer = slice;
-                    ReturnCode::SUCCESS
+                    if app.write.set_buffer(slice) {
+                        ReturnCode::SUCCESS
+                    } else {
+                        // Either in progress or pending
+                        ReturnCode::EBUSY
+                    }
                 })
                 .unwrap_or_else(|err| err.into()),
             2 => self
@@ -258,7 +447,7 @@ impl Driver for Console<'a> {
             1 /* putstr */ => {
                 let len = arg1;
                 self.apps.enter(appid, |app, _| {
-                    self.send_new(appid, app, len)
+                    self.try_send(app, appid, len).1
                 }).unwrap_or_else(|err| err.into())
             },
             2 /* getnstr */ => {
@@ -278,65 +467,25 @@ impl Driver for Console<'a> {
 
 impl uart::TransmitClient for Console<'a> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
-        // Either print more from the AppSlice or send a callback to the
-        // application.
-        self.tx_buffer.replace(buffer);
-        self.tx_in_progress.take().map(|appid| {
-            self.apps.enter(appid, |app, _| {
-                match self.send_continue(appid, app) {
-                    Ok(more_to_send) => {
-                        if !more_to_send {
-                            // Go ahead and signal the application
-                            let written = app.write_len;
-                            app.write_len = 0;
-                            app.write_callback.map(|mut cb| {
-                                cb.schedule(written, 0, 0);
-                            });
-                        }
-                    }
-                    Err(return_code) => {
-                        // XXX This shouldn't ever happen?
-                        app.write_len = 0;
-                        app.write_remaining = 0;
-                        app.pending_write = false;
-                        let r0 = isize::from(return_code) as usize;
-                        app.write_callback.map(|mut cb| {
-                            cb.schedule(r0, 0, 0);
-                        });
-                    }
-                }
-            })
-        });
+        // Clear the temporary current operation values
+        let app_id = self
+            .current_write_operation
+            .take()
+            .expect("current operation app id not saved before send");
 
-        // If we are not printing more from the current AppSlice,
-        // see if any other applications have pending messages.
-        if self.tx_in_progress.is_none() {
-            for cntr in self.apps.iter() {
-                let started_tx = cntr.enter(|app, _| {
-                    if app.pending_write {
-                        app.pending_write = false;
-                        match self.send_continue(app.appid(), app) {
-                            Ok(more_to_send) => more_to_send,
-                            Err(return_code) => {
-                                // XXX This shouldn't ever happen?
-                                app.write_len = 0;
-                                app.write_remaining = 0;
-                                app.pending_write = false;
-                                let r0 = isize::from(return_code) as usize;
-                                app.write_callback.map(|mut cb| {
-                                    cb.schedule(r0, 0, 0);
-                                });
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    }
-                });
-                if started_tx {
-                    break;
-                }
-            }
+        let finished = self
+            .process
+            .map(move |process| {
+                process
+                    .as_ref()
+                    .err()
+                    .expect("no chunked process in callback")
+                    .chunk_done(buffer, Ok(app_id))
+            })
+            .expect("process is None");
+
+        if let Some((mode, res)) = finished {
+            self.finished_send(mode, res);
         }
     }
 }
@@ -384,5 +533,51 @@ impl uart::ReceiveClient for Console<'a> {
 
         // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
         self.rx_buffer.replace(buffer);
+    }
+}
+
+impl ChunkedProcessClient<'static, u8, AppId, (AppId, ReturnCode)> for Console<'a> {
+    fn read_chunk(
+        &self,
+        _current_pos: usize,
+        appid: AppId,
+        chunk: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (&'static mut [u8], (AppId, ReturnCode))> {
+        // We're reading from the chunk, so this is actually a write operation
+
+        // We need to store the current AppId temporarily because this isn't returned
+        // from the underlying Uart implementation. This is required for the accumulator value.
+        // If there was a value here before replace, multiple write operations were
+        // running simultaneously (this should NEVER happen)
+        assert!(self.current_write_operation.replace(appid).is_none());
+
+        let (err, opt) = self.uart.transmit_buffer(chunk, len);
+
+        if let Some(buf) = opt {
+            Err((buf, (appid, err)))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn write_chunk(
+        &self,
+        _current_pos: usize,
+        _appid: AppId,
+        _chunk: &'static mut [u8],
+        _len: usize,
+    ) -> Result<(), (&'static mut [u8], (AppId, ReturnCode))> {
+        unimplemented!();
+    }
+
+    fn read_write_chunk(
+        &self,
+        _current_pos: usize,
+        _appid: AppId,
+        _chunk: &'static mut [u8],
+        _len: usize,
+    ) -> Result<(), (&'static mut [u8], (AppId, ReturnCode))> {
+        unimplemented!();
     }
 }

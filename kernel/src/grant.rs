@@ -31,6 +31,10 @@ impl<T> AppliedGrant<T> {
         let mut root = unsafe { Owned::new(self.grant, self.appid) };
         fun(&mut root, &mut allocator)
     }
+
+    pub fn appid(&self) -> AppId {
+        self.appid
+    }
 }
 
 pub struct Allocator {
