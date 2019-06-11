@@ -35,8 +35,10 @@ impl<'a> MuxUdpReceiver<'a> {
 
 impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
+        debug!("rcvd packet in udp layer");
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
+                debug!("decoded udp hdr");
                 let len = udp_header.get_len() as usize;
                 let dst_port = udp_header.get_dst_port();
                 if len > payload.len() {
@@ -44,9 +46,12 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
                     return;
                 }
                 for rcvr in self.rcvr_list.iter() {
+                    debug!("itr thru rcvr list");
                     match rcvr.binding.take() {
                         Some(binding) => {
+                            debug!("matching on a binding");
                             if binding.get_port() == dst_port {
+                                debug!("port match found");
                                 rcvr.client.map(|client| {
                                     client.receive(
                                         ip_header.get_src_addr(),

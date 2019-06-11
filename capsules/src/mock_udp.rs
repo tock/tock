@@ -18,7 +18,7 @@ pub const DST_ADDR: IPAddr = IPAddr([
     // 0x0f,
 ]);
 pub const SRC_PORT: u16 = 15123;
-pub const DST_PORT: u16 = 16123;
+pub const DST_PORT: u16 = 81;
 pub const PAYLOAD_LEN: usize = 192;
 
 pub struct MockUdp1<'a, A: Alarm + 'a> {

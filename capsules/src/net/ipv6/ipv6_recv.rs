@@ -62,6 +62,7 @@ impl<'a> IP6RecvStruct<'a> {
 impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
     fn receive(&self, buf: &[u8], len: usize, result: ReturnCode) {
         // TODO: Drop here?
+        debug!("received packet ipv6 layer");
         if len > buf.len() || result != ReturnCode::SUCCESS {
             return;
         }
@@ -79,6 +80,7 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
                     .map(|client| client.receive(ip6_header, &buf[offset..len]));
             }
             None => {
+                debug!("failed to decode ipv6 header");
                 // TODO: Report the error somewhere...
             }
         }

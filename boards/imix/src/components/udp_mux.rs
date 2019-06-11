@@ -148,6 +148,12 @@ impl Component for UDPMuxComponent {
         };
         let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
+        // In current design, all udp senders share same IP sender, and the IP sender
+        // holds the destination mac address. This means all UDP senders must send to
+        // the same mac address...this works fine under the assumption
+        // of all packets being routed via a single gateway router, but doesn't work
+        // if multiple senders want to send to different addresses on a local network.
+        // This will be fixed once we have an ipv6_nd cache mapping IP addresses to dst macs
         let ip_send = static_init!(
             capsules::net::ipv6::ipv6_send::IP6SendStruct<
                 'static,

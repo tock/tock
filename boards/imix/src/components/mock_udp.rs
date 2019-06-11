@@ -69,6 +69,7 @@ impl Component for MockUDPComponent {
         );
 
         let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
+        self.udp_recv_mux.add_client(udp_recv);
 
         let mock_udp = static_init!(
             capsules::mock_udp::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
