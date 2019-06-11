@@ -147,6 +147,11 @@ lst: target/$(TARGET)/release/$(PLATFORM).lst
 .PHONY: release
 release: target/$(TARGET)/release/$(PLATFORM).bin
 
+# Helper rule for showing the TARGET used by this board. Useful when building
+# the documentation for all boards.
+.PHONY: show-target
+show-target:
+  $(info $(TARGET))
 
 # Support rules
 
