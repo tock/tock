@@ -75,6 +75,18 @@ SECTIONS
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
 
+        /* RISC-V
+         * There is no vector table in RISCV, so .vectors and .irqs will be
+         * empty. Instead, the _start function needs to be first in the binary
+         * for it to correctly be executed. We also need to include the trap
+         * handler assembly function.
+         *
+         * These are expected to just be empty on other platforms so they
+         * shouldn't have any effect.
+         */
+        KEEP(*(.riscv.start));
+        KEEP(*(.riscv.trap));
+
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage
                 https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
@@ -197,7 +209,7 @@ SECTIONS
 
         /* Required for objcopy mechanism to bundle tock kernel and apps
            into a single image to work */
-	LONG(0)
+        LONG(0)
     } > prog
 
 
@@ -218,6 +230,25 @@ SECTIONS
     {
         . = ALIGN(4);
         _srelocate = .;
+
+        /* The Global Pointer is used by the RISC-V architecture to provide
+         * "gp-relative" addressing. The global pointer is set to the gp
+         * register once on boot, and the linker can then take advantage of this
+         * when emitting instructions by using offsets relative to this known
+         * value. Since RISC-V has only 12 bit immediates, this can help reduce
+         * code size.
+         *
+         * The standard is to set the global pointer to 0x800 past the beginning
+         * of the data section in RAM. This allows instructions to use 12 bit
+         * immediates to access the first 4KB of data memory. In theory the GP
+         * can be set to any value, but it should be placed near actual data for
+         * the compiler to actually be able to use it.
+         *
+         * Per convention, the variable _must_ be called __global_pointer$ for
+         * the linker to actually take advantage of it.
+         */
+        PROVIDE(__global_pointer$ = . + 0x800);
+
         *(.ramfunc .ramfunc.*);
         *(.data .data.*);
 
@@ -261,6 +292,13 @@ SECTIONS
         . = ALIGN(MPU_MIN_ALIGN);
         *(.app_memory)
     } > ram
+
+    /* Discard RISC-V relevant .eh_frame, we are not doing unwind on panic
+       so it is not needed. */
+    /DISCARD/ :
+    {
+      *(.eh_frame);
+    }
 }
 
 ASSERT((_etext-_stext) + (_erelocate-_srelocate) < LENGTH(rom), "
