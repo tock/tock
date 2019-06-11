@@ -74,12 +74,14 @@ impl Component for MockUDPComponent {
         let mock_udp = static_init!(
             capsules::mock_udp::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
             capsules::mock_udp::MockUdp1::new(
-                5,
+                1, //id
                 VirtualMuxAlarm::new(self.alarm_mux),
                 udp_send,
                 udp_recv,
                 self.bound_port_table,
                 capsules::net::buffer::Buffer::new(&mut UDP_PAYLOAD),
+                1, //src_port
+                2, //dst_port
             )
         );
         udp_send.set_client(mock_udp);
