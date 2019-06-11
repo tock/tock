@@ -4,25 +4,23 @@
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::IP6Header;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;
-use crate::net::udp::udp::UDPHeader;
 use crate::net::udp::driver::UDPDriver;
-use kernel::common::cells::{OptionalCell, MapCell};
+use crate::net::udp::udp::UDPHeader;
+use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::udp_port_table::{UdpReceiverBinding, PortQuery};
+use kernel::udp_port_table::{PortQuery, UdpReceiverBinding};
 
 pub struct MuxUdpReceiver<'a> {
     rcvr_list: List<'a, UDPReceiver<'a>>,
-    driver: MapCell<&'static UDPDriver<'static>>, // Maybe have this as an option?
-
+    driver: OptionalCell<&'static UDPDriver<'static>>,
 }
 
 impl<'a> MuxUdpReceiver<'a> {
     pub fn new() -> MuxUdpReceiver<'a> {
         MuxUdpReceiver {
             rcvr_list: List::new(),
-            driver: MapCell::empty(),
-
+            driver: OptionalCell::empty(),
         }
     }
 
@@ -37,8 +35,6 @@ impl<'a> MuxUdpReceiver<'a> {
 
 impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
-        // TODO: add call to port_table.can_recv here
-        // TODO: change from ret code to bool.
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
                 let len = udp_header.get_len() as usize;
@@ -64,22 +60,23 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
                                 break;
                             }
                         }
-                        None => {
-                            match self.driver.take() {
-                                Some(driver) => {
-                                    if driver.is_bound(dst_port) {
-                                        driver.receive(
-                                            ip_header.get_src_addr(),
-                                            ip_header.get_dst_addr(),
-                                            udp_header.get_src_port(),
-                                            udp_header.get_dst_port(),
-                                            &payload[offset..],);
-                                    }
-                                    self.driver.replace(driver);
+                        // The UDPReceiver used by the driver will not have a binding
+                        None => match self.driver.take() {
+                            Some(driver) => {
+                                if driver.is_bound(dst_port) {
+                                    driver.receive(
+                                        ip_header.get_src_addr(),
+                                        ip_header.get_dst_addr(),
+                                        udp_header.get_src_port(),
+                                        udp_header.get_dst_port(),
+                                        &payload[offset..],
+                                    );
+                                    break;
                                 }
-                                None => {}
+                                self.driver.replace(driver);
                             }
-                        }
+                            None => {}
+                        },
                     }
                 }
             }
@@ -111,8 +108,6 @@ pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a UDPRecvClient>,
     binding: MapCell<UdpReceiverBinding>,
     next: ListLink<'a, UDPReceiver<'a>>,
-
-
 }
 
 impl<'a> ListNode<'a, UDPReceiver<'a>> for UDPReceiver<'a> {
@@ -120,13 +115,6 @@ impl<'a> ListNode<'a, UDPReceiver<'a>> for UDPReceiver<'a> {
         &self.next
     }
 }
-
-impl<'a> IP6RecvClient for UDPReceiver<'a> {
-    fn receive(&self, header: IP6Header, payload: &[u8]) {
-        // TODO: fill in.
-    }
-}
-
 
 impl<'a> UDPReceiver<'a> {
     pub fn new() -> UDPReceiver<'a> {
@@ -141,11 +129,11 @@ impl<'a> UDPReceiver<'a> {
         self.client.set(client);
     }
 
-    fn get_binding(&self) -> Option<UdpReceiverBinding> {
+    pub fn get_binding(&self) -> Option<UdpReceiverBinding> {
         self.binding.take()
     }
 
-    fn set_binding(&self, binding: UdpReceiverBinding) -> Option<UdpReceiverBinding> {
+    pub fn set_binding(&self, binding: UdpReceiverBinding) -> Option<UdpReceiverBinding> {
         self.binding.replace(binding)
     }
 }

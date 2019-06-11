@@ -3,6 +3,7 @@
 
 use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
@@ -24,6 +25,7 @@ pub struct MockUdp1<'a, A: Alarm + 'a> {
     id: u16,
     pub alarm: A,
     udp_sender: &'a UDPSender<'a>,
+    udp_receiver: &'a UDPReceiver<'a>,
     port_table: &'static UdpPortTable,
     first: Cell<bool>,
     udp_dgram: MapCell<Buffer<'static, u8>>,
@@ -34,6 +36,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
         id: u16,
         alarm: A,
         udp_sender: &'a UDPSender<'a>,
+        udp_receiver: &'a UDPReceiver<'a>,
         port_table: &'static UdpPortTable,
         udp_dgram: Buffer<'static, u8>,
     ) -> MockUdp1<'a, A> {
@@ -41,6 +44,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             id: id,
             alarm: alarm,
             udp_sender: udp_sender,
+            udp_receiver: udp_receiver,
             port_table: port_table,
             first: Cell::new(true),
             udp_dgram: MapCell::new(udp_dgram),
@@ -80,10 +84,11 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
             match socket {
                 Ok(sock) => {
                     debug!("Socket successfully created in mock_udp");
-                    match self.port_table.bind(sock, 80) {
-                        Ok((send_bind, _rcv_bind)) => {
+                    match self.port_table.bind(sock, 81) {
+                        Ok((send_bind, rcv_bind)) => {
                             debug!("Binding successfully created in mock_udp");
                             self.udp_sender.set_binding(send_bind);
+                            self.udp_receiver.set_binding(rcv_bind);
                         }
                         Err(sock) => {
                             debug!("Binding error in mock_udp");
@@ -111,6 +116,22 @@ impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
             self.alarm
                 .now()
                 .wrapping_add(<A::Frequency>::frequency() * 5),
+        );
+    }
+}
+
+impl<'a, A: Alarm> UDPRecvClient for MockUdp1<'a, A> {
+    fn receive(
+        &self,
+        src_addr: IPAddr,
+        _dst_addr: IPAddr,
+        src_port: u16,
+        _dst_port: u16,
+        payload: &[u8],
+    ) {
+        debug!(
+            "[MOCK_UDP] Received packet from {:?}:{:?}, contents: {:?}",
+            src_addr, src_port, payload
         );
     }
 }

@@ -36,7 +36,7 @@ use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_recv::UDPReceiver;
+use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::static_init;
@@ -100,7 +100,7 @@ impl Component for UDPMuxComponent {
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        &'static UDPReceiver<'static>,
+        &'static MuxUdpReceiver<'static>,
     );
 
     unsafe fn finalize(&mut self) -> Self::Output {
@@ -177,10 +177,10 @@ impl Component for UDPMuxComponent {
             capsules::net::ipv6::ipv6_recv::IP6RecvStruct::new()
         );
         sixlowpan_state.set_rx_client(ip_receive);
-        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
-        ip_receive.set_client(udp_recv);
+        let udp_recv_mux = static_init!(MuxUdpReceiver<'static>, MuxUdpReceiver::new());
+        ip_receive.set_client(udp_recv_mux);
 
-        let udp_mux = static_init!(
+        let udp_send_mux = static_init!(
             MuxUdpSender<
                 'static,
                 capsules::net::ipv6::ipv6_send::IP6SendStruct<
@@ -190,7 +190,7 @@ impl Component for UDPMuxComponent {
             >,
             MuxUdpSender::new(ip_send)
         );
-        ip_send.set_client(udp_mux);
-        (udp_mux, udp_recv)
+        ip_send.set_client(udp_send_mux);
+        (udp_send_mux, udp_recv_mux)
     }
 }

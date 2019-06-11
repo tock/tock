@@ -137,8 +137,6 @@ impl UdpPortTable {
         // First, check the user bindings.
         if self.user_ports.is_none() {
             debug!("empty user ports.");
-        } else {
-            debug!("not empty user ports.");
         }
         // TODO: Change is_bound to return ReturnCode or Result so we can
         // seperately handle error case of user_ports not existing.

@@ -6,6 +6,7 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
@@ -21,25 +22,28 @@ static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP
 
 pub struct MockUDPComponent {
     // TODO: consider putting bound_port_table in a TakeCell
-    udp_mux: &'static MuxUdpSender<
+    udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
+    udp_recv_mux: &'static MuxUdpReceiver<'static>,
     bound_port_table: &'static UdpPortTable,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
 }
 
 impl MockUDPComponent {
     pub fn new(
-        udp_mux: &'static MuxUdpSender<
+        udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
+        udp_recv_mux: &'static MuxUdpReceiver<'static>,
         bound_port_table: &'static UdpPortTable,
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
     ) -> MockUDPComponent {
         MockUDPComponent {
-            udp_mux: udp_mux,
+            udp_send_mux: udp_send_mux,
+            udp_recv_mux: udp_recv_mux,
             bound_port_table: bound_port_table,
             alarm_mux: alarm,
         }
@@ -61,8 +65,10 @@ impl Component for MockUDPComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(self.udp_mux)
+            UDPSendStruct::new(self.udp_send_mux)
         );
+
+        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
 
         let mock_udp = static_init!(
             capsules::mock_udp::MockUdp1<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
@@ -70,11 +76,13 @@ impl Component for MockUDPComponent {
                 5,
                 VirtualMuxAlarm::new(self.alarm_mux),
                 udp_send,
+                udp_recv,
                 self.bound_port_table,
                 capsules::net::buffer::Buffer::new(&mut UDP_PAYLOAD),
             )
         );
         udp_send.set_client(mock_udp);
+        udp_recv.set_client(mock_udp);
         mock_udp.alarm.set_client(mock_udp);
         mock_udp
     }

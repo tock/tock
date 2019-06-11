@@ -7,8 +7,8 @@
 //! ```rust
 //!    let udp_driver = UDPDriverComponent::new(
 //!        board_kernel,
-//!        udp_mux,
-//!        udp_recv,
+//!        udp_send_mux,
+//!        udp_recv_mux,
 //!        udp_port_table,
 //!        local_ip_ifaces,
 //!        PAYLOAD_LEN,
@@ -17,14 +17,15 @@
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
-// Last Modified: 5/21/2019
+// Author: Armin Namavari <arminn@stanford.edu>
+// Last Modified: 6/4/2019
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::udp::udp_recv::UDPReceiver;
+use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::udp_port_table::UdpPortTable;
@@ -42,11 +43,11 @@ static mut DRIVER_BUF: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_
 
 pub struct UDPDriverComponent {
     board_kernel: &'static kernel::Kernel,
-    udp_mux: &'static MuxUdpSender<
+    udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
-    udp_recv: &'static UDPReceiver<'static>,
+    udp_recv_mux: &'static MuxUdpReceiver<'static>,
     port_table: &'static UdpPortTable,
     interface_list: &'static [IPAddr],
 }
@@ -54,18 +55,18 @@ pub struct UDPDriverComponent {
 impl UDPDriverComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        udp_mux: &'static MuxUdpSender<
+        udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        udp_recv: &'static UDPReceiver<'static>,
+        udp_recv_mux: &'static MuxUdpReceiver<'static>,
         port_table: &'static UdpPortTable,
         interface_list: &'static [IPAddr],
     ) -> UDPDriverComponent {
         UDPDriverComponent {
             board_kernel: board_kernel,
-            udp_mux: udp_mux,
-            udp_recv: udp_recv,
+            udp_send_mux: udp_send_mux,
+            udp_recv_mux: udp_recv_mux,
             port_table: port_table,
             interface_list: interface_list,
         }
@@ -85,7 +86,7 @@ impl Component for UDPDriverComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(self.udp_mux)
+            UDPSendStruct::new(self.udp_send_mux)
         );
         // TODO: make a macro for this
         struct DriverCap;
@@ -97,7 +98,6 @@ impl Component for UDPDriverComponent {
             capsules::net::udp::UDPDriver<'static>,
             capsules::net::udp::UDPDriver::new(
                 udp_send,
-                self.udp_recv,
                 self.board_kernel.create_grant(&grant_cap),
                 self.interface_list,
                 PAYLOAD_LEN,
@@ -108,8 +108,9 @@ impl Component for UDPDriverComponent {
         );
         //);
         udp_send.set_client(udp_driver);
-        self.udp_recv.set_client(udp_driver);
         self.port_table.set_user_ports(udp_driver);
+
+        self.udp_recv_mux.set_driver(udp_driver);
 
         udp_driver
     }

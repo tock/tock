@@ -11,7 +11,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
-use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
+use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
@@ -75,9 +75,6 @@ pub struct UDPDriver<'a> {
     /// UDP sender
     sender: &'a UDPSender<'a>,
 
-    /// UDP receiver
-    receiver: &'a UDPReceiver<'a>,
-
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
@@ -100,7 +97,6 @@ pub struct UDPDriver<'a> {
 impl<'a> UDPDriver<'a> {
     pub fn new(
         sender: &'a UDPSender<'a>,
-        receiver: &'a UDPReceiver<'a>,
         grant: Grant<App>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
@@ -110,7 +106,6 @@ impl<'a> UDPDriver<'a> {
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
-            receiver: receiver,
             apps: grant,
             current_app: Cell::new(None),
             interface_list: interface_list,

@@ -402,7 +402,7 @@ pub unsafe fn reset_handler() {
 
     let udp_port_table = static_init!(UdpPortTable, UdpPortTable::new());
 
-    let (udp_mux, udp_recv) = UDPMuxComponent::new(
+    let (udp_send_mux, udp_recv_mux) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
@@ -416,14 +416,15 @@ pub unsafe fn reset_handler() {
     // UDP driver initialization happens here
     let udp_driver = UDPDriverComponent::new(
         board_kernel,
-        udp_mux,
-        udp_recv,
+        udp_send_mux,
+        udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
     )
     .finalize();
 
-    let mock_udp = MockUDPComponent::new(udp_mux, udp_port_table, mux_alarm).finalize();
+    let mock_udp =
+        MockUDPComponent::new(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm).finalize();
 
     /*let udp_lowpan_test = udp_lowpan_test::initialize_all(
         mux_mac,
@@ -482,6 +483,7 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
+    debug!("src mac: {:?}", src_mac_from_serial_num);
     mock_udp.start();
 
     //udp_lowpan_test.start();
