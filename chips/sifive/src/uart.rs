@@ -58,6 +58,7 @@ register_bitfields![u32,
 
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
+    clock_frequency: u32,
     tx_client: OptionalCell<&'a hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a hil::uart::ReceiveClient>,
     stop_bits: Cell<hil::uart::StopBits>,
@@ -72,9 +73,10 @@ pub struct UartParams {
 }
 
 impl Uart<'a> {
-    pub const fn new(base: StaticRef<UartRegisters>) -> Uart<'a> {
+    pub const fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
             registers: base,
+            clock_frequency: clock_frequency,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             stop_bits: Cell::new(hil::uart::StopBits::One),
@@ -93,15 +95,10 @@ impl Uart<'a> {
     fn set_baud_rate(&self, baud_rate: u32) {
         let regs = self.registers;
 
-        // Assume that the clock is running at 384 MHz.
-        // let clock_speed = 384_000_000 as u32;
-
-        let clock_speed = 18_000_000 as u32;
-
         //            f_clk
         // f_baud = ---------
         //           div + 1
-        let divisor = (clock_speed / baud_rate) - 1;
+        let divisor = (self.clock_frequency / baud_rate) - 1;
 
         regs.div.write(div::div.val(divisor));
     }

@@ -23,26 +23,21 @@ impl NullSysCall {
 impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
     type StoredState = RvStoredState;
 
-    unsafe fn get_syscall(&self, _stack_pointer: *const usize) -> Option<kernel::syscall::Syscall> {
-        None
-    }
-
-    unsafe fn set_syscall_return_value(&self, _stack_pointer: *const usize, _return_value: isize) {}
-
-    unsafe fn pop_syscall_stack_frame(
+    unsafe fn set_syscall_return_value(
         &self,
-        stack_pointer: *const usize,
+        _stack_pointer: *const usize,
         _state: &mut RvStoredState,
-    ) -> *mut usize {
-        stack_pointer as *mut usize
+        _return_value: isize,
+    ) {
     }
 
-    unsafe fn push_function_call(
+    unsafe fn set_process_function(
         &self,
         stack_pointer: *const usize,
         _remaining_stack_memory: usize,
+        _state: &mut RvStoredState,
         _callback: kernel::procs::FunctionCall,
-        _state: &RvStoredState,
+        _first_function: bool,
     ) -> Result<*mut usize, *mut usize> {
         Err(stack_pointer as *mut usize)
     }
@@ -140,3 +135,17 @@ impl kernel::Chip for E310x {
         rv32i::support::atomic(f)
     }
 }
+
+/// Trap handler for board/chip specific code.
+///
+/// For the e310 this gets called when an interrupt occurs while the chip is
+/// in kernel mode. All we need to do is check which interrupt occurred and
+/// disable it.
+#[export_name = "_start_trap_rust"]
+pub extern "C" fn start_trap_rust() {}
+
+/// Function that gets called if an interrupt occurs while an app was running.
+/// mcause is passed in, and this function should correctly handle disabling the
+/// interrupt that fired so that it does not trigger again.
+#[export_name = "_disable_interrupt_trap_handler"]
+pub extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {}

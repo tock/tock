@@ -85,6 +85,7 @@ SECTIONS
          * shouldn't have any effect.
          */
         KEEP(*(.riscv.start));
+        . = ALIGN(64);
         KEEP(*(.riscv.trap));
 
         /* .text and .rodata hold most program code and immutable constants */

@@ -203,19 +203,12 @@ pub trait ProcessType {
 
     // functions for processes that are architecture specific
 
-    /// Get the syscall that the process called.
-    unsafe fn get_syscall(&self) -> Option<Syscall>;
-
     /// Set the return value the process should see when it begins executing
     /// again after the syscall.
     unsafe fn set_syscall_return_value(&self, return_value: isize);
 
-    /// Remove the last stack frame from the process.
-    unsafe fn pop_syscall_stack_frame(&self);
-
-    /// Replace the last stack frame with the new function call. This function
-    /// is what should be executed when the process is resumed.
-    unsafe fn push_function_call(&self, callback: FunctionCall);
+    /// Set the function that is to be executed when the process is resumed.
+    unsafe fn set_process_function(&self, callback: FunctionCall);
 
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
@@ -292,6 +285,12 @@ pub enum State {
 
     /// The process has caused a fault.
     Fault,
+
+    /// The process has never actually been executed. This of course happens
+    /// when the board first boots and the kernel has not switched to any
+    /// processes yet. It can also happen if an process is terminated and all
+    /// of its state is reset as if it has not been executed yet.
+    Unstarted,
 }
 
 /// The reaction the kernel should take when an app encounters a fault.
@@ -567,7 +566,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     app_flash_address.offset(self.header.get_init_function_offset() as isize)
                         as usize
                 };
-                self.state.set(State::Yielded);
+                self.state.set(State::Unstarted);
 
                 // Need to reset the grant region.
                 unsafe {
@@ -806,36 +805,15 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.process_name
     }
 
-    unsafe fn get_syscall(&self) -> Option<Syscall> {
-        let last_syscall = self.chip.userspace_kernel_boundary().get_syscall(self.sp());
-
-        // Record this for debugging purposes.
-        self.debug.map(|debug| {
-            debug.syscall_count += 1;
-            debug.last_syscall = last_syscall;
-        });
-
-        last_syscall
-    }
-
     unsafe fn set_syscall_return_value(&self, return_value: isize) {
+        let mut stored_state = self.stored_state.get();
         self.chip
             .userspace_kernel_boundary()
-            .set_syscall_return_value(self.sp(), return_value);
-    }
-
-    unsafe fn pop_syscall_stack_frame(&self) {
-        let mut stored_state = self.stored_state.get();
-        let new_stack_pointer = self
-            .chip
-            .userspace_kernel_boundary()
-            .pop_syscall_stack_frame(self.sp(), &mut stored_state);
-        self.current_stack_pointer
-            .set(new_stack_pointer as *const u8);
+            .set_syscall_return_value(self.sp(), &mut stored_state, return_value);
         self.stored_state.set(stored_state);
     }
 
-    unsafe fn push_function_call(&self, callback: FunctionCall) {
+    unsafe fn set_process_function(&self, callback: FunctionCall) {
         // First we need to get how much memory is available for this app's
         // stack. Since the stack is at the bottom of the process's memory
         // region, this is straightforward.
@@ -845,12 +823,18 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         // stack. Architecture-specific code handles actually doing the push
         // since we don't know the details of exactly what the stack frames look
         // like.
-        let stored_state = self.stored_state.get();
-        match self.chip.userspace_kernel_boundary().push_function_call(
+        let mut stored_state = self.stored_state.get();
+
+        // Check to see if this will be the first function call for this
+        // process.
+        let first_function = self.state.get() == State::Unstarted;
+
+        match self.chip.userspace_kernel_boundary().set_process_function(
             self.sp(),
             remaining_stack_bytes,
+            &mut stored_state,
             callback,
-            &stored_state,
+            first_function,
         ) {
             Ok(stack_bottom) => {
                 // If we got an `Ok` with the new stack pointer we are all
@@ -872,11 +856,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             }
 
             Err(bad_stack_bottom) => {
-                // If we got an Error, then there was no room to add this
-                // stack frame. This process has essentially faulted, so we
-                // mark it as such. We also update the debugging metadata so
-                // that if the process fault message prints then it should
-                // be easier to debug that the process exceeded its stack.
+                // If we got an Error, then there was not enough room on the
+                // stack to allow the process to execute this function given the
+                // details of the particular architecture this is running on.
+                // This process has essentially faulted, so we mark it as such.
+                // We also update the debugging metadata so that if the process
+                // fault message prints then it should be easier to debug that
+                // the process exceeded its stack.
                 self.debug.map(|debug| {
                     let bad_stack_bottom = bad_stack_bottom as *const u8;
                     if bad_stack_bottom < debug.min_stack_pointer {
@@ -1229,7 +1215,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.flash = slice::from_raw_parts(app_flash_address, app_flash_size);
 
             process.stored_state = Cell::new(Default::default());
-            process.state = Cell::new(State::Yielded);
+            process.state = Cell::new(State::Unstarted);
             process.fault_response = fault_response;
 
             process.mpu_config = MapCell::new(mpu_config);
