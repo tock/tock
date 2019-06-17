@@ -10,6 +10,8 @@ pub mod plic;
 pub mod support;
 pub mod syscall;
 
+extern crate riscvregs;
+
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
     // start).
@@ -81,25 +83,24 @@ pub unsafe fn init_memory() {
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 }
 
-/// Tell the MCU what address the trap handler is located at. The trap handler
-/// is called on exceptions and for interrupts.
+pub enum PermissionMode {
+    Machine = 0x1,
+    Supervisor = 0x10,
+    User = 0x100
+}
+
+/// Tell the MCU what address the trap handler is located at.
 ///
-/// This is a generic implementation. There may be board specific versions as
-/// some platforms have added more bits to the `mtvec` register.
-pub unsafe fn configure_trap_handler() {
-    asm!("
-        // The csrw instruction writes a Control and Status Register (CSR)
-        // with a new value.
-        //
-        // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
-        // address of the trap handler. We do not care about its old value, so
-        // we don't bother reading it.
-        csrw 0x305, $0        // Write the mtvec CSR.
-    "
-    :
-    : "r"(&_start_trap)
-    :
-    : "volatile");
+/// The trap handler is called on exceptions and for interrupts.
+pub unsafe fn configure_trap_handler(mode: PermissionMode) {
+    match mode {
+        PermissionMode::Machine =>
+            riscvregs::register::mtvec::write(&_start_trap as *const _ as usize, riscvregs::register::mtvec::TrapMode::Direct),
+        PermissionMode::Supervisor =>
+            riscvregs::register::stvec::write(&_start_trap as *const _ as usize, riscvregs::register::stvec::TrapMode::Direct),
+        PermissionMode::User => () // TODO implement in riscvregs crate
+            //riscvregs::register::utvec::write(&_start_trap as *const _ as usize, riscvregs::register::utvec::TrapMode::Direct),
+    }
 }
 
 /// This is the trap handler function. This code is called on all traps,

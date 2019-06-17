@@ -23,3 +23,4 @@ capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 e310x = { path = "../../chips/e310x" }
 sifive = { path = "../../chips/sifive" }
+riscvregs = { git = "https://github.com/DieracDelta/riscvregs.git", rev = "2c35ea8"}
