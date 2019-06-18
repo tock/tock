@@ -7,4 +7,4 @@ edition = "2018"
 [dependencies]
 kernel = { path = "../../kernel" }
 tock_rt0 = { path = "../../libraries/tock-rt0" }
-riscvregs = { git = "https://github.com/DieracDelta/riscvregs.git", rev = "47c6341" }
+riscvregs = { git = "https://github.com/DieracDelta/riscvregs.git", rev = "c03eb6c" }
