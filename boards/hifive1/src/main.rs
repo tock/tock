@@ -34,7 +34,9 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. However, since this board does not support
 /// userspace this can just be empty.
-struct HiFive1 {modes : u32}
+struct HiFive1 {
+    modes: u32,
+}
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl Platform for HiFive1 {
@@ -89,7 +91,7 @@ pub unsafe fn reset_handler() {
     chip.enable_plic_interrupts();
     // enable interrupts globally
     riscvregs::register::mie::set_msoft();
-     //we don't use timer interrupts anywhere; not needed
+    //we don't use timer interrupts anywhere; not needed
     riscvregs::register::mie::set_mtimer();
     // this should be uncommented and masked; unclear why board hangs
     //riscvregs::register::mie::set_mext();
@@ -120,7 +122,9 @@ pub unsafe fn reset_handler() {
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
     hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
 
-    let hifive1 = HiFive1 {modes: rv32i::PermissionMode::Machine as u32};
+    let hifive1 = HiFive1 {
+        modes: rv32i::PermissionMode::Machine as u32,
+    };
 
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
@@ -147,8 +151,14 @@ pub unsafe fn reset_handler() {
     debug!("hello world 1");
     debug!("hello world 2");
     debug!("hello world 3");
-    debug!("the value in MIE is {:x}\n", riscvregs::register::mie::read().bits());
-    debug!("the value in Mstatus is {:x}\n", riscvregs::register::mstatus::read().bits());
+    debug!(
+        "the value in MIE is {:x}\n",
+        riscvregs::register::mie::read().bits()
+    );
+    debug!(
+        "the value in Mstatus is {:x}\n",
+        riscvregs::register::mstatus::read().bits()
+    );
 
     board_kernel.kernel_loop(&hifive1, chip, None, &main_loop_cap);
 }

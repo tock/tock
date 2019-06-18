@@ -1,6 +1,6 @@
 //! Platform Level Interrupt Control
 
-use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
 #[repr(C)]
@@ -10,7 +10,7 @@ struct PlicRegisters {
     priority: [ReadWrite<u32, priority::Register>; (0x0C00_00D0 - 0x0C00_0004) / 0x4],
     _reserved1: [u32; (0x0C00_1000 - 0x0C00_00D0) / 0x4],
     /// Interrupt Pending Register
-    pending: [ReadOnly<u32>; (0x0C00_1008 -0x0C00_1000) / 0x4],
+    pending: [ReadOnly<u32>; (0x0C00_1008 - 0x0C00_1000) / 0x4],
     _reserved2: [u32; (0x0C00_2000 - 0x0C00_1008) / 0x4],
     /// Interrupt Enable Register
     enable: [ReadWrite<u32>; 2],
@@ -37,7 +37,7 @@ pub unsafe fn clear_all_pending() {
         let id_wrapper = next_pending();
         match id_wrapper {
             None => break,
-            Some(id) => complete(id)
+            Some(id) => complete(id),
         }
     }
 }

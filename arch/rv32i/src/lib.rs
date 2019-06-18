@@ -7,9 +7,9 @@
 pub mod clic;
 pub mod machine_timer;
 pub mod plic;
+pub mod pmp;
 pub mod support;
 pub mod syscall;
-pub mod pmp;
 
 pub extern crate riscvregs;
 
@@ -87,7 +87,7 @@ pub unsafe fn init_memory() {
 pub enum PermissionMode {
     Machine = 0x1,
     Supervisor = 0x10,
-    User = 0x100
+    User = 0x100,
 }
 
 /// Tell the MCU what address the trap handler is located at.

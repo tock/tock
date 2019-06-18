@@ -28,7 +28,7 @@ impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
         _stack_pointer: *const usize,
         _state: &mut RvStoredState,
         _return_value: isize,
-        ) {
+    ) {
     }
 
     unsafe fn set_process_function(
@@ -38,7 +38,7 @@ impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
         _state: &mut RvStoredState,
         _callback: kernel::procs::FunctionCall,
         _first_function: bool,
-        ) -> Result<*mut usize, *mut usize> {
+    ) -> Result<*mut usize, *mut usize> {
         Err(stack_pointer as *mut usize)
     }
 
@@ -46,11 +46,11 @@ impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
         &self,
         stack_pointer: *const usize,
         _state: &mut RvStoredState,
-        ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
+    ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
         (
             stack_pointer as *mut usize,
             kernel::syscall::ContextSwitchReason::Fault,
-            )
+        )
     }
 
     unsafe fn fault_fmt(&self, _writer: &mut Write) {}
@@ -60,7 +60,7 @@ impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
         _stack_pointer: *const usize,
         _state: &RvStoredState,
         _writer: &mut Write,
-        ) {
+    ) {
     }
 }
 
@@ -129,15 +129,14 @@ impl kernel::Chip for E310x {
     }
 
     unsafe fn atomic<F, R>(&self, f: F) -> R
-        where
-            F: FnOnce() -> R,
-        {
-            rv32i::support::atomic(f)
-        }
+    where
+        F: FnOnce() -> R,
+    {
+        rv32i::support::atomic(f)
+    }
 }
 
-
-pub unsafe fn handle_trap(){
+pub unsafe fn handle_trap() {
     let cause = rv32i::riscvregs::register::mcause::read();
     // if most sig bit is set, is interrupt
     if cause.is_interrupt() {
@@ -180,48 +179,77 @@ pub unsafe fn handle_trap(){
         debug!("exception: ");
         match rv32i::riscvregs::register::mcause::Exception::from(cause.code()) {
             rv32i::riscvregs::register::mcause::Exception::InstructionMisaligned => {
-                panic!("misaligned instruction {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "misaligned instruction {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::InstructionFault => {
-                panic!("instruction fault {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "instruction fault {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::IllegalInstruction => {
-                panic!("illegal instruction {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "illegal instruction {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::Breakpoint => {
                 debug!("breakpoint\n");
-            },
+            }
             rv32i::riscvregs::register::mcause::Exception::LoadMisaligned => {
-                panic!("misaligned load {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "misaligned load {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::LoadFault => {
-                panic!("load fault {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "load fault {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::StoreMisaligned => {
-                panic!("misaligned store {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "misaligned store {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::StoreFault => {
-                panic!("store fault {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "store fault {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             // should never happen
-            rv32i::riscvregs::register::mcause::Exception::UserEnvCall => (
-            ),
+            rv32i::riscvregs::register::mcause::Exception::UserEnvCall => (),
             rv32i::riscvregs::register::mcause::Exception::SupervisorEnvCall => (),
             rv32i::riscvregs::register::mcause::Exception::MachineEnvCall => {
                 panic!("machine mode environment call\n");
             }
             rv32i::riscvregs::register::mcause::Exception::InstructionPageFault => {
-                panic!("instruction page fault {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "instruction page fault {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::LoadPageFault => {
-                panic!("load page fault {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "load page fault {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::StorePageFault => {
-                panic!("store page fault {:x}\n", rv32i::riscvregs::register::mtval::read());
-            },
+                panic!(
+                    "store page fault {:x}\n",
+                    rv32i::riscvregs::register::mtval::read()
+                );
+            }
             rv32i::riscvregs::register::mcause::Exception::Unknown => {
                 panic!("exception type unknown");
-            },
+            }
         }
     }
 }
@@ -233,7 +261,7 @@ pub unsafe fn handle_trap(){
 /// disable it.
 #[export_name = "_start_trap_rust"]
 pub unsafe extern "C" fn start_trap_rust() {
-    unsafe{
+    unsafe {
         handle_trap();
     }
 }
@@ -243,7 +271,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_handler"]
 pub extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {
-    unsafe{
+    unsafe {
         handle_trap();
     }
 }
