@@ -1,20 +1,20 @@
 //! Platform Level Interrupt Control
 
-use kernel::common::registers::{register_bitfields, ReadWrite};
+use kernel::common::registers::{register_bitfields, ReadWrite, ReadOnly};
 use kernel::common::StaticRef;
 
 #[repr(C)]
 struct PlicRegisters {
     /// Interrupt Priority Register
     _reserved0: u32,
-    priority: [ReadWrite<u32, priority::Register>; 51],
-    _reserved1: [u8; 3888],
+    priority: [ReadWrite<u32, priority::Register>; (0x0C00_00D0 - 0x0C00_0004) / 0x4],
+    _reserved1: [u32; (0x0C00_1000 - 0x0C00_00D0) / 0x4],
     /// Interrupt Pending Register
-    pending: [ReadWrite<u32>; 2],
-    _reserved2: [u8; 4088],
+    pending: [ReadOnly<u32>; (0x0C00_1008 -0x0C00_1000) / 0x4],
+    _reserved2: [u32; (0x0C00_2000 - 0x0C00_1008) / 0x4],
     /// Interrupt Enable Register
     enable: [ReadWrite<u32>; 2],
-    _reserved3: [u8; 2088952],
+    _reserved3: [u32; (0x0C20_0000 - 0x0C00_2008) / 0x4],
     /// Priority Threshold Register
     threshold: ReadWrite<u32, priority::Register>,
     /// Claim/Complete Register
@@ -33,8 +33,12 @@ const PLIC_BASE: StaticRef<PlicRegisters> =
 /// Clear all pending interrupts.
 pub unsafe fn clear_all_pending() {
     let plic: &PlicRegisters = &*PLIC_BASE;
-    for pending in plic.pending.iter() {
-        pending.set(0);
+    loop {
+        let id_wrapper = next_pending();
+        match id_wrapper {
+            None => break,
+            Some(id) => complete(id)
+        }
     }
 }
 
@@ -61,6 +65,12 @@ pub unsafe fn disable_all() {
     for enable in plic.enable.iter() {
         enable.set(0);
     }
+}
+
+pub unsafe fn surpress_all() {
+    let plic: &PlicRegisters = &*PLIC_BASE;
+    // Accept all interrupts.
+    plic.threshold.write(priority::Priority.val(0));
 }
 
 /// Get the index (0-256) of the lowest number pending interrupt, or `None` if
