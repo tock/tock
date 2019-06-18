@@ -81,51 +81,19 @@ pub unsafe fn reset_handler() {
 
     // disable interrupts globally
     riscvregs::register::mstatus::clear_mie();
+    // disable specific types of interrupts
     riscvregs::register::mie::clear_msoft();
     riscvregs::register::mie::clear_mtimer();
     riscvregs::register::mie::clear_mext();
-    riscvregs::register::mie::clear_lie0();
-    riscvregs::register::mie::clear_lie1();
-    riscvregs::register::mie::clear_lie2();
-    riscvregs::register::mie::clear_lie3();
-    riscvregs::register::mie::clear_lie4();
-    riscvregs::register::mie::clear_lie5();
-    riscvregs::register::mie::clear_lie6();
-    riscvregs::register::mie::clear_lie7();
-    riscvregs::register::mie::clear_lie8();
-    riscvregs::register::mie::clear_lie9();
-    riscvregs::register::mie::clear_lie10();
-    riscvregs::register::mie::clear_lie11();
-    riscvregs::register::mie::clear_lie12();
-    riscvregs::register::mie::clear_lie13();
-    riscvregs::register::mie::clear_lie14();
-    riscvregs::register::mie::clear_lie15();
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
-    riscvregs::register::mstatus::set_mie();
-    //enable software interrupts
-    riscvregs::register::mie::set_msoft();
-    // enable timer interrupts
-    riscvregs::register::mie::set_mtimer();
-    // enable external interrupts
-    riscvregs::register::mie::set_mext();
-    riscvregs::register::mie::set_lie0();
-    riscvregs::register::mie::set_lie1();
-    riscvregs::register::mie::set_lie2();
-    riscvregs::register::mie::set_lie3();
-    riscvregs::register::mie::set_lie4();
-    riscvregs::register::mie::set_lie5();
-    riscvregs::register::mie::set_lie6();
-    riscvregs::register::mie::set_lie7();
-    riscvregs::register::mie::set_lie8();
-    riscvregs::register::mie::set_lie9();
-    riscvregs::register::mie::set_lie10();
-    riscvregs::register::mie::set_lie11();
-    riscvregs::register::mie::set_lie12();
-    riscvregs::register::mie::set_lie13();
-    riscvregs::register::mie::set_lie14();
-    riscvregs::register::mie::set_lie15();
     // enable interrupts globally
+    riscvregs::register::mie::set_msoft();
+     //we don't use timer interrupts anywhere; not needed
+    riscvregs::register::mie::set_mtimer();
+    // this should be uncommented and masked; unclear why board hangs
+    //riscvregs::register::mie::set_mext();
+    riscvregs::register::mstatus::set_mie();
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -152,7 +120,7 @@ pub unsafe fn reset_handler() {
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[21]);
     hil::gpio::Pin::clear(&e310x::gpio::PORT[21]);
 
-    let hifive1 = HiFive1 {modes: rv32i::PermissionMode::Machine};
+    let hifive1 = HiFive1 {modes: rv32i::PermissionMode::Machine as u32};
 
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
@@ -175,7 +143,12 @@ pub unsafe fn reset_handler() {
 
     e310x::uart::UART0.initialize_gpio_pins(&e310x::gpio::PORT[17], &e310x::gpio::PORT[16]);
 
-    debug!("HiFive1 initialization complete. Entering main loop");
+    debug!("HiFive1 initialization complete. Entering main loop\n");
+    debug!("hello world 1");
+    debug!("hello world 2");
+    debug!("hello world 3");
+    debug!("the value in MIE is {:x}\n", riscvregs::register::mie::read().bits());
+    debug!("the value in Mstatus is {:x}\n", riscvregs::register::mstatus::read().bits());
 
     board_kernel.kernel_loop(&hifive1, chip, None, &main_loop_cap);
 }
