@@ -9,8 +9,9 @@ pub mod machine_timer;
 pub mod plic;
 pub mod support;
 pub mod syscall;
+pub mod pmp;
 
-extern crate riscvregs;
+pub extern crate riscvregs;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -162,7 +163,7 @@ pub extern "C" fn _start_trap() {
             sw   a6, 14*4(sp)
             sw   a7, 15*4(sp)
 
-            // Jump to board-specific trap handler code. Likely this was and
+            // Jump to board-specific trap handler code. Likely this was an
             // interrupt and we want to disable a particular interrupt, but each
             // board/chip can customize this as needed.
             jal ra, _start_trap_rust

@@ -7,6 +7,9 @@ use crate::gpio;
 use crate::interrupts;
 use crate::uart;
 
+use self::kernel::Chip;
+use kernel::mpu::MPU;
+
 extern "C" {
     fn _start_trap();
 }
@@ -14,6 +17,7 @@ extern "C" {
 pub struct ArtyExx {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
+    pmp: rv32i::pmp::PMPConfig
 }
 
 impl ArtyExx {
@@ -26,6 +30,7 @@ impl ArtyExx {
         ArtyExx {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
+            pmp: rv32i::pmp::PMPConfig::new(4),
         }
     }
 
@@ -114,19 +119,19 @@ impl ArtyExx {
     /// operations. Different boards can call the functions that `initialize()`
     /// calls directly if it needs to use a custom setup operation.
     pub unsafe fn initialize(&self) {
-        self.disable_pmp();
+        self.mpu().disable_mpu();
         self.disable_machine_timer();
         self.configure_trap_handler();
     }
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
