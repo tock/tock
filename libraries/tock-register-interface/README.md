@@ -120,7 +120,6 @@ WriteOnly<T: IntLike, R: RegisterLongName = ()>
 .set(value: T)                                 // Set the raw register value
 .write(value: FieldValue<T, R>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
-.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
 
 ReadWrite<T: IntLike, R: RegisterLongName = ()>
