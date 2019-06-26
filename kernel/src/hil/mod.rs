@@ -22,6 +22,7 @@ pub mod time;
 pub mod uart;
 pub mod usb;
 pub mod watchdog;
+pub mod eic;
 
 /// Shared interface for configuring components.
 pub trait Controller {

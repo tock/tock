@@ -17,6 +17,8 @@ use crate::spi;
 use crate::trng;
 use crate::usart;
 use crate::usbc;
+use crate::eic;
+
 use cortexm4;
 use kernel::common::deferred_call;
 use kernel::Chip;
@@ -140,6 +142,16 @@ impl Chip for Sam4l {
 
                         nvic::TRNG => trng::TRNG.handle_interrupt(),
                         nvic::AESA => aes::AES.handle_interrupt(),
+
+                        nvic::EIC1 => eic::EIC.handle_interrupt(1),
+                        nvic::EIC2 => eic::EIC.handle_interrupt(2),
+                        nvic::EIC3 => eic::EIC.handle_interrupt(3),
+                        nvic::EIC4 => eic::EIC.handle_interrupt(4),
+                        nvic::EIC5 => eic::EIC.handle_interrupt(5),
+                        nvic::EIC6 => eic::EIC.handle_interrupt(6),
+                        nvic::EIC7 => eic::EIC.handle_interrupt(7),
+                        nvic::EIC8 => eic::EIC.handle_interrupt(8),
+                        
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }
