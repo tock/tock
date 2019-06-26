@@ -245,7 +245,7 @@ impl<'a> Eic<'a> {
     }
 
     pub fn set_client(&self, client: &'a hil::eic::Client, line_num: usize) {
-        self.callbacks[line_num].set(client);
+        self.callbacks.get(line_num).map(|c| c.set(client));
     }
 
     pub fn handle_interrupt(&self, line_num: usize) {
