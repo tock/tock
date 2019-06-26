@@ -4,7 +4,7 @@
 //!
 //! The External Interrupt Controller (EIC) allows pins to be configured as external
 //! interrupts. Each external interrupt has its own interrupt request and can be individually
-//! masked. Each external interrupt can generate an interrupt on rising or falling edge, or
+//! interrupt_lineed. Each external interrupt can generate an interrupt on rising or falling edge, or
 //! high or low level. Every interrupt input has a configurable filter to remove spikes from
 //! the interrupt source. Every interrupt pin can also be configured to be asynchronous in order
 //! to wake up the part from sleep modes where the CLK_SYNC clock has been disabled.
@@ -103,7 +103,7 @@ register_bitfields![
         INT3 3,
         INT2 2,
         INT1 1,
-        NMI 0   // Non-Maskable Interrupt
+        NMI 0   // Non-interrupt_lineable Interrupt
     ]
 ];
 
@@ -121,7 +121,6 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
     fn enable(&self) {
         pm::enable_clock(Clock::PBD(PBDClock::EIC));
         self.enabled.set(true);
-        debug!("{}", pm::is_clock_enabled(Clock::PBD(PBDClock::EIC)));
     }
 
     fn disable(&self) {
@@ -130,39 +129,24 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
     }
 
     fn line_enable(&self, line_num: usize) {
-        let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        // en == WriteOnly
-        match line_num {
-            0 => regs.en.write(Interrupt::INT.val(mask)),
-            1 => regs.en.write(Interrupt::INT.val(mask)),
-            2 => regs.en.write(Interrupt::INT.val(mask)),
-            3 => regs.en.write(Interrupt::INT.val(mask)),
-            4 => regs.en.write(Interrupt::INT.val(mask)),
-            5 => regs.en.write(Interrupt::INT.val(mask)),
-            6 => regs.en.write(Interrupt::INT.val(mask)),
-            7 => regs.en.write(Interrupt::INT.val(mask)),
-            8 => regs.en.write(Interrupt::INT.val(mask)),
-            _ => debug!("not supported!"),
+        if line_num <= 8 {
+           let interrupt_line = 1 << line_num;
+           let regs: &EicRegisters = &*self.registers;
+           regs.en.write(Interrupt::INT.val(interrupt_line));
+        } else {
+            debug!("interrupt line: {} not supported!", line_num);
         }
 
         self.line_enable_interrupt(line_num);
     }
 
     fn line_disable(&self, line_num: usize) {
-        let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        match line_num {
-            0 => regs.dis.write(Interrupt::INT.val(mask)),
-            1 => regs.dis.write(Interrupt::INT.val(mask)),
-            2 => regs.dis.write(Interrupt::INT.val(mask)),
-            3 => regs.dis.write(Interrupt::INT.val(mask)),
-            4 => regs.dis.write(Interrupt::INT.val(mask)),
-            5 => regs.dis.write(Interrupt::INT.val(mask)),
-            6 => regs.dis.write(Interrupt::INT.val(mask)),
-            7 => regs.dis.write(Interrupt::INT.val(mask)),
-            8 => regs.dis.write(Interrupt::INT.val(mask)),
-            _ => debug!("not supported!"),
+        if line_num <= 8 {
+            let interrupt_line = 1 << line_num;
+            let regs: &EicRegisters = &*self.registers;
+            regs.dis.write(Interrupt::INT.val(interrupt_line));
+        } else {
+            debug!("interrupt line: {} not supported!", line_num);
         }
 
         self.line_disable_interrupt(line_num);
@@ -174,10 +158,12 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
         int_mode: hil::eic::InterruptMode,
         filter: hil::eic::FilterMode,
         syn_mode: hil::eic::SynchronizationMode,
-    ) {
-        let mask: u32 = 1 << line_num;
+    ) { 
+        if line_num > 8 { return; }
 
-        // regs.mode.set(original_mode & !mask);
+        let interrupt_line: u32 = 1 << line_num;
+
+        // regs.mode.set(original_mode & !interrupt_line);
 
         let mode_bits = match int_mode {
             hil::eic::InterruptMode::RisingEdge => 0b00,
@@ -186,39 +172,39 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
             hil::eic::InterruptMode::LowLevel => 0b11,
         };
 
-        self.set_interrupt_mode(mode_bits, mask);
+        self.set_interrupt_mode(mode_bits, interrupt_line);
 
         match filter {
-            hil::eic::FilterMode::FilterEnable => self.line_enable_filter(mask),
-            hil::eic::FilterMode::FilterDisable => self.line_disable_filter(mask),
+            hil::eic::FilterMode::FilterEnable => self.line_enable_filter(interrupt_line),
+            hil::eic::FilterMode::FilterDisable => self.line_disable_filter(interrupt_line),
         }
 
         match syn_mode {
-            hil::eic::SynchronizationMode::Synchronous => self.line_disable_asyn(mask),
-            hil::eic::SynchronizationMode::Asynchronous => self.line_enable_asyn(mask),
+            hil::eic::SynchronizationMode::Synchronous => self.line_disable_asyn(interrupt_line),
+            hil::eic::SynchronizationMode::Asynchronous => self.line_enable_asyn(interrupt_line),
         }
     }
 }
 
 impl<'a> Eic<'a> {
-    pub fn set_interrupt_mode(&self, mode_bits: u8, mask: u32) {
+    pub fn set_interrupt_mode(&self, mode_bits: u8, interrupt_line: u32) {
         let regs: &EicRegisters = &*self.registers;
         let original_mode: u32 = regs.mode.get();
         let original_level: u32 = regs.level.get();
         let original_edge: u32 = regs.edge.get();
 
         if mode_bits & 0b10 != 0 {
-            regs.mode.set(original_mode & !mask);
+            regs.mode.set(original_mode & !interrupt_line);
         } else {
-            regs.mode.set(original_mode | mask);
+            regs.mode.set(original_mode | interrupt_line);
         }
 
         if mode_bits & 0b01 != 0 {
-            regs.edge.set(original_edge & !mask); // falling edge
-            regs.level.set(original_level & !mask); // low level
+            regs.edge.set(original_edge & !interrupt_line); // falling edge
+            regs.level.set(original_level & !interrupt_line); // low level
         } else {
-            regs.edge.set(original_edge | mask); // rising edge
-            regs.level.set(original_level | mask); // high level
+            regs.edge.set(original_edge | interrupt_line); // rising edge
+            regs.level.set(original_level | interrupt_line); // high level
         }
     }
 
@@ -259,115 +245,96 @@ impl<'a> Eic<'a> {
     /// Sets interrupt clear register
     pub fn line_clear_interrupt(&self, line_num: usize) {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        // icr WriteOnly
-        match line_num {
-            0 => regs.icr.write(Interrupt::INT.val(mask)),
-            1 => regs.icr.write(Interrupt::INT.val(mask)),
-            2 => regs.icr.write(Interrupt::INT.val(mask)),
-            3 => regs.icr.write(Interrupt::INT.val(mask)),
-            4 => regs.icr.write(Interrupt::INT.val(mask)),
-            5 => regs.icr.write(Interrupt::INT.val(mask)),
-            6 => regs.icr.write(Interrupt::INT.val(mask)),
-            7 => regs.icr.write(Interrupt::INT.val(mask)),
-            8 => regs.icr.write(Interrupt::INT.val(mask)),
-            _ => debug!("not supported!"),
-        }
+        
+        // line_num always sits in the range 1-8, no need to check shift overflow
+        let interrupt_line: u32 = 1 << line_num;
+        
+        regs.icr.write(Interrupt::INT.val(interrupt_line));
     }
 
+    /// For testing purpose
     pub fn line_is_enabled(&self, line_num: usize) -> bool {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        (mask & regs.ctrl.get()) != 0
+        let interrupt_line: u32 = 1 << line_num;
+        (interrupt_line & regs.ctrl.get()) != 0
     }
 
-    // Enables the propagation from the EIC to the interrupt controller of the external interrupt on a specified
-    // line.
+    /// Enables the propagation from the EIC to the interrupt controller of the external interrupt on a specified
+    /// line.
     pub fn line_enable_interrupt(&self, line_num: usize) {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        // ier WriteOnly
-        match line_num {
-            0 => regs.ier.write(Interrupt::INT.val(mask)),
-            1 => regs.ier.write(Interrupt::INT.val(mask)),
-            2 => regs.ier.write(Interrupt::INT.val(mask)),
-            3 => regs.ier.write(Interrupt::INT.val(mask)),
-            4 => regs.ier.write(Interrupt::INT.val(mask)),
-            5 => regs.ier.write(Interrupt::INT.val(mask)),
-            6 => regs.ier.write(Interrupt::INT.val(mask)),
-            7 => regs.ier.write(Interrupt::INT.val(mask)),
-            8 => regs.ier.write(Interrupt::INT.val(mask)),
-            _ => debug!("not supported!"),
-        }
+
+        // Shift overflow should already be checked by the caller of this function
+        let interrupt_line: u32 = 1 << line_num;
+
+        regs.ier.write(Interrupt::INT.val(interrupt_line));
     }
 
     pub fn line_disable_interrupt(&self, line_num: usize) {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        match line_num {
-            0 => regs.idr.write(Interrupt::INT.val(mask)),
-            1 => regs.idr.write(Interrupt::INT.val(mask)),
-            2 => regs.idr.write(Interrupt::INT.val(mask)),
-            3 => regs.idr.write(Interrupt::INT.val(mask)),
-            4 => regs.idr.write(Interrupt::INT.val(mask)),
-            5 => regs.idr.write(Interrupt::INT.val(mask)),
-            6 => regs.idr.write(Interrupt::INT.val(mask)),
-            7 => regs.idr.write(Interrupt::INT.val(mask)),
-            8 => regs.idr.write(Interrupt::INT.val(mask)),
-            _ => debug!("not supported!"),
-        }
+
+        // Shift overflow should already be checked by the caller of this function
+        let interrupt_line: u32 = 1 << line_num;
+
+        regs.idr.write(Interrupt::INT.val(interrupt_line));
     }
 
-    /// Reads IMR register
+    /// For testing
     pub fn line_interrupt_is_enabled(&self, line_num: usize) -> bool {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        return (mask & regs.imr.get()) != 0;
+        let interrupt_line: u32 = 1 << line_num;
+        (interrupt_line & regs.imr.get()) != 0
     }
 
-    /// Tells whether an EIC interrupt line is pending.
+    /// For testing
     pub fn line_interrupt_pending(&self, line_num: usize) -> bool {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        return (mask & regs.isr.get()) != 0;
+        let interrupt_line: u32 = 1 << line_num;
+        (interrupt_line & regs.isr.get()) != 0
     }
 
-    pub fn line_enable_filter(&self, mask: u32) {
+    /// Enables filtering mode on synchronous interrupt
+    pub fn line_enable_filter(&self, interrupt_line: u32) {
         let regs: &EicRegisters = &*self.registers;
         let original_filter: u32 = regs.filter.get();
-        regs.filter.set(original_filter | mask);
+        regs.filter.set(original_filter | interrupt_line);
     }
 
-    pub fn line_disable_filter(&self, mask: u32) {
+    /// Disables filtering mode on synchronous interrupt
+    pub fn line_disable_filter(&self, interrupt_line: u32) {
         let regs: &EicRegisters = &*self.registers;
         let original_filter: u32 = regs.filter.get();
-        regs.filter.set(original_filter & (!mask));
+        regs.filter.set(original_filter & (!interrupt_line));
     }
 
+    /// For testing
     pub fn line_enable_filter_is_enabled(&self, line_num: usize) -> bool {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        return (mask & regs.filter.get()) != 0;
+        let interrupt_line: u32 = 1 << line_num;
+        (interrupt_line & regs.filter.get()) != 0
     }
 
-    pub fn line_enable_asyn(&self, mask: u32) {
+    /// Enables asynchronous mode
+    pub fn line_enable_asyn(&self, interrupt_line: u32) {
         let regs: &EicRegisters = &*self.registers;
         let original_asyn: u32 = regs.asynchronous.get();
         regs.asynchronous
-            .modify(Interrupt::INT.val(original_asyn | mask));
+            .modify(Interrupt::INT.val(original_asyn | interrupt_line));
     }
 
-    pub fn line_disable_asyn(&self, mask: u32) {
+    /// Disables asynchronous mode, goes back to synchronous mode
+    pub fn line_disable_asyn(&self, interrupt_line: u32) {
         let regs: &EicRegisters = &*self.registers;
         let original_asyn: u32 = regs.asynchronous.get();
         regs.asynchronous
-            .modify(Interrupt::INT.val(original_asyn & (!mask)));
+            .modify(Interrupt::INT.val(original_asyn & (!interrupt_line)));
     }
 
+    /// For testing
     pub fn line_asyn_is_enabled(&self, line_num: usize) -> bool {
         let regs: &EicRegisters = &*self.registers;
-        let mask: u32 = 1 << line_num;
-        return (mask & regs.asynchronous.get()) != 0;
+        let interrupt_line: u32 = 1 << line_num;
+        interrupt_line & regs.asynchronous.get()) != 0
     }
 }
 
