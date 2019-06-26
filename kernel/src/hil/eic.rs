@@ -37,7 +37,13 @@ pub trait ExternalInterruptController {
     fn line_disable(&self, line_num: usize);
 
     /// Configure external interrupt on line_num
-    fn line_configure(&self, line_num: usize, int_mode: InterruptMode, filter: FilterMode, syn_mode: SynchronizationMode);
+    fn line_configure(
+        &self,
+        line_num: usize,
+        int_mode: InterruptMode,
+        filter: FilterMode,
+        syn_mode: SynchronizationMode,
+    );
 }
 
 /// Interface for users of EIC. In order

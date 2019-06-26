@@ -8,6 +8,7 @@ use crate::crccu;
 use crate::dac;
 use crate::deferred_call_tasks::Task;
 use crate::dma;
+use crate::eic;
 use crate::flashcalw;
 use crate::gpio;
 use crate::i2c;
@@ -17,7 +18,6 @@ use crate::spi;
 use crate::trng;
 use crate::usart;
 use crate::usbc;
-use crate::eic;
 
 use cortexm4;
 use kernel::common::deferred_call;
@@ -151,7 +151,7 @@ impl Chip for Sam4l {
                         nvic::EIC6 => eic::EIC.handle_interrupt(6),
                         nvic::EIC7 => eic::EIC.handle_interrupt(7),
                         nvic::EIC8 => eic::EIC.handle_interrupt(8),
-                        
+
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
                         }

@@ -20,6 +20,7 @@ pub mod chip;
 pub mod crccu;
 pub mod dac;
 pub mod dma;
+pub mod eic;
 pub mod flashcalw;
 pub mod gpio;
 pub mod i2c;
@@ -32,7 +33,6 @@ pub mod trng;
 pub mod usart;
 pub mod usbc;
 pub mod wdt;
-pub mod eic;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
