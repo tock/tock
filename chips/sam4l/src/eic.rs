@@ -278,7 +278,7 @@ impl<'a> Eic<'a> {
     pub fn line_is_enabled(&self, line_num: usize) -> bool {
         let regs: &EicRegisters = &*self.registers;
         let mask: u32 = 1 << line_num;
-        return (mask & regs.ctrl.get()) != 0;
+        (mask & regs.ctrl.get()) != 0
     }
 
     // Enables the propagation from the EIC to the interrupt controller of the external interrupt on a specified
