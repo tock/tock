@@ -35,7 +35,7 @@ pub trait ExternalInterruptController {
     type Line;
 
     /// Enables external interrupt on line_num
-    /// In asychronous mode, all edge interrupts will be 
+    /// In asychronous mode, all edge interrupts will be
     /// interpreted as level interrupts and the filter is disabled.
     fn line_enable(
         &self,

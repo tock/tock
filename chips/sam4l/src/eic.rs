@@ -182,7 +182,9 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
     }
 
     fn line_disable(&self, line: &Self::Line) {
-        if !self.is_enabled() { return; }
+        if !self.is_enabled() {
+            return;
+        }
 
         let interrupt_line: u32 = 1 << line.line_number;
         let regs: &EicRegisters = &*self.registers;
@@ -198,8 +200,7 @@ impl<'a> Eic<'a> {
         int_mode: hil::eic::InterruptMode,
         filter_mode: hil::eic::FilterMode,
         syn_mode: hil::eic::SynchronizationMode,
-    ) { 
-
+    ) {
         let mode_bits = match int_mode {
             hil::eic::InterruptMode::RisingEdge => 0b00,
             hil::eic::InterruptMode::FallingEdge => 0b01,
@@ -237,7 +238,7 @@ impl<'a> Eic<'a> {
         let original_edge: u32 = regs.edge.get();
 
         if mode_bits & 0b10 != 0 {
-            regs.mode.set(original_mode | interrupt_line); // 0b10 or 0b11 -> level 
+            regs.mode.set(original_mode | interrupt_line); // 0b10 or 0b11 -> level
         } else {
             regs.mode.set(original_mode & !interrupt_line); // 0b00 or 0b01 -> edge
         }
@@ -274,7 +275,9 @@ impl<'a> Eic<'a> {
     }
 
     pub fn set_client(&self, client: &'a hil::eic::Client, line_number: usize) {
-        if line_number > 8 { return; }
+        if line_number > 8 {
+            return;
+        }
         self.callbacks.get(line_number).map(|c| c.set(client));
     }
 
@@ -289,10 +292,10 @@ impl<'a> Eic<'a> {
     /// Sets interrupt clear register
     pub fn line_clear_interrupt(&self, line_number: usize) {
         let regs: &EicRegisters = &*self.registers;
-        
+
         // line_number always sits in the range 1-8, no need to check shift overflow
         let interrupt_line: u32 = 1 << line_number;
-        
+
         regs.icr.write(Interrupt::INT.val(interrupt_line));
     }
 
