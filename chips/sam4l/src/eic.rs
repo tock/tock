@@ -171,7 +171,7 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
             self.enable();
         }
 
-        let interrupt_line: u32 = 1 << line.line_number;
+        let interrupt_line = *line as u32;
         let regs: &EicRegisters = &*self.registers;
 
         regs.en.write(Interrupt::INT.val(interrupt_line));
