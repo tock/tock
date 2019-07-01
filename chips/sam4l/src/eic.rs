@@ -19,46 +19,19 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 
-/// Representation of an EIC line on the SAM4L.
-pub struct EicLine {
-    line_number: u32,
-}
-
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-enum Line {
-    LINE0 = 0x00, // NMI
-    LINE1 = 0x01, // EXT1
-    LINE2 = 0x02, // EXT2
-    LINE3 = 0x03, // EXT3
-    LINE4 = 0x04, // EXT4
-    LINE5 = 0x05, // EXT5
-    LINE6 = 0x06, // EXT6
-    LINE7 = 0x07, // EXT7
-    LINE8 = 0x08, // EXT8
+pub enum Line {
+    Nmi = 0, // NMI
+    Ext1 = 1, // EXT1
+    Ext2 = 2, // EXT2
+    Ext3 = 4, // EXT3
+    Ext4 = 8, // EXT4
+    Ext5 = 16, // EXT5
+    Ext6 = 32, // EXT6
+    Ext7 = 64, // EXT7
+    Ext8 = 128, // EXT8
 }
-
-/// Initialization of an EIC line.
-impl EicLine {
-    /// Create a new EIC line.
-    ///
-    /// - `line`: Line enum representing the line number
-    const fn new(line: Line) -> EicLine {
-        EicLine {
-            line_number: ((line as u8) & 0x0F) as u32,
-        }
-    }
-}
-
-pub static mut LINE_EIC0: EicLine = EicLine::new(Line::LINE0);
-pub static mut LINE_EIC1: EicLine = EicLine::new(Line::LINE1);
-pub static mut LINE_EIC2: EicLine = EicLine::new(Line::LINE2);
-pub static mut LINE_EIC3: EicLine = EicLine::new(Line::LINE3);
-pub static mut LINE_EIC4: EicLine = EicLine::new(Line::LINE4);
-pub static mut LINE_EIC5: EicLine = EicLine::new(Line::LINE5);
-pub static mut LINE_EIC6: EicLine = EicLine::new(Line::LINE6);
-pub static mut LINE_EIC7: EicLine = EicLine::new(Line::LINE7);
-pub static mut LINE_EIC8: EicLine = EicLine::new(Line::LINE8);
 
 #[repr(C)]
 struct EicRegisters {
@@ -185,7 +158,7 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
             return;
         }
 
-        let interrupt_line: u32 = 1 << line.line_number;
+        let interrupt_line: u32 = 1 << *line as u32;
         let regs: &EicRegisters = &*self.registers;
         regs.dis.write(Interrupt::INT.val(interrupt_line));
         self.line_disable_interrupt(interrupt_line);
