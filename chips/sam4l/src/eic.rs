@@ -22,14 +22,14 @@ use kernel::hil;
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum Line {
-    Nmi = 0, // NMI
-    Ext1 = 1, // EXT1
-    Ext2 = 2, // EXT2
-    Ext3 = 4, // EXT3
-    Ext4 = 8, // EXT4
-    Ext5 = 16, // EXT5
-    Ext6 = 32, // EXT6
-    Ext7 = 64, // EXT7
+    Nmi = 0,    // NMI
+    Ext1 = 1,   // EXT1
+    Ext2 = 2,   // EXT2
+    Ext3 = 4,   // EXT3
+    Ext4 = 8,   // EXT4
+    Ext5 = 16,  // EXT5
+    Ext6 = 32,  // EXT6
+    Ext7 = 64,  // EXT7
     Ext8 = 128, // EXT8
 }
 
@@ -79,6 +79,7 @@ register_bitfields![
     Interrupt [
         INT OFFSET(0) NUMBITS(32) []
     ],
+    // Test is not being used for now
     Test [
         //0: This bit disables external interrupt test mode.
         //1: This bit enables external interrupt test mode.
@@ -86,37 +87,7 @@ register_bitfields![
 
         // Writing a zero to this bit will set the input value to INTn to zero, if test mode is enabled. 
         // Writing a one to this bit will set the input value to INTn to one, if test mode is enabled.
-        INT30 30,
-        INT29 29,
-        INT28 28,
-        INT27 27,
-        INT26 26,
-        INT25 25,
-        INT24 24,
-        INT23 23,
-        INT22 22,
-        INT21 21,
-        INT20 20,
-        INT19 19,
-        INT18 18,
-        INT17 17,
-        INT16 16,
-        INT15 15,
-        INT14 14,
-        INT13 13,
-        INT12 12,
-        INT11 11,
-        INT10 10,
-        INT9 9,
-        INT8 8,
-        INT7 7,
-        INT6 6,
-        INT5 5,
-        INT4 4,
-        INT3 3,
-        INT2 2,
-        INT1 1,
-        NMI 0   // Non-interrupt_lineable Interrupt
+        INT OFFSET(0) NUMBITS(31) []
     ]
 ];
 
