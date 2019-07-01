@@ -158,7 +158,7 @@ pub struct Eic<'a> {
 }
 
 impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
-    type Line = EicLine;
+    type Line = Line;
 
     fn line_enable(
         &self,
