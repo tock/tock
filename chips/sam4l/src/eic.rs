@@ -154,7 +154,7 @@ const EIC_BASE: StaticRef<EicRegisters> =
 pub struct Eic<'a> {
     registers: StaticRef<EicRegisters>,
     enabled: Cell<bool>,
-    callbacks: [OptionalCell<&'a hil::eic::Client>; 9],
+    callbacks: [OptionalCell<&'a dyn hil::eic::Client>; 9],
 }
 
 impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
