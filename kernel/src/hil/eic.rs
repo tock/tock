@@ -18,13 +18,13 @@ pub enum InterruptMode {
     LowLevel,
 }
 
-/// Enum for enabling/disabling filter
+/// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
 pub enum FilterMode {
     FilterEnable,
     FilterDisable,
 }
 
-/// Enum for selecting syn/asyn mode
+/// Enum for selecting synchronous or asynchronous mode.
 pub enum SynchronizationMode {
     Synchronous,
     Asynchronous,
@@ -34,18 +34,18 @@ pub enum SynchronizationMode {
 pub trait ExternalInterruptController {
     type Line;
 
-    /// Enables external interrupt on line_num
+    /// Enables external interrupt on the given 'line'
     /// In asychronous mode, all edge interrupts will be
     /// interpreted as level interrupts and the filter is disabled.
     fn line_enable(
         &self,
         line: &Self::Line,
-        int_mode: InterruptMode,
-        filter: FilterMode,
-        syn_mode: SynchronizationMode,
+        interrupt_mode: InterruptMode,
+        filter_mode: FilterMode,
+        synchronization_mode: SynchronizationMode,
     );
 
-    /// Disables external interrupt on line_num
+    /// Disables external interrupt on the given 'line'
     fn line_disable(&self, line: &Self::Line);
 }
 
