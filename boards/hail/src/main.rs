@@ -14,6 +14,8 @@ use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
+use kernel::hil::gpio;
+use kernel::hil::gpio::InterruptWithValue;
 use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
@@ -56,7 +58,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -68,8 +70,8 @@ struct Hail {
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static>,
+    button: &'static capsules::button::Button<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
@@ -415,7 +417,10 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
+        [(
+            &'static kernel::hil::gpio::Pin,
+            capsules::led::ActivationMode
+        ); 3],
         [
             (
                 &sam4l::gpio::PA[13],
@@ -432,27 +437,42 @@ pub unsafe fn reset_handler() {
         ]
     ); // Blue
     let led = static_init!(
-        capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+        capsules::led::LED<'static>,
         capsules::led::LED::new(led_pins)
     );
 
     // BUTTONs
     let button_pins = static_init!(
-        [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
+        [&'static kernel::hil::gpio::InterruptPin; 1],
+        [&sam4l::gpio::PA[16]]
+    );
+    let button_values = static_init!(
+        [kernel::hil::gpio::InterruptValueWrapper; 1],
+        [gpio::InterruptValueWrapper::new()]
+    );
+    for (&pin, value) in button_pins.iter().zip(button_values.iter()) {
+        pin.set_client(value);
+        value.set_source(pin);
+    }
+    let button_config_values = static_init!(
         [(
-            &sam4l::gpio::PA[16],
+            &'static kernel::hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); 1],
+        [(
+            &button_values[0],
             capsules::button::GpioMode::LowWhenPressed
         )]
     );
     let button = static_init!(
-        capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
-            button_pins,
+            button_config_values,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    for &(btn, _) in button_pins.iter() {
-        btn.set_client(button);
+    for value in button_values.iter() {
+        value.set_client(button);
     }
 
     // Setup ADC
@@ -496,24 +516,44 @@ pub unsafe fn reset_handler() {
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 4],
+        [&'static kernel::hil::gpio::InterruptPin; 4],
         [
             &sam4l::gpio::PB[14], // D0
             &sam4l::gpio::PB[15], // D1
             &sam4l::gpio::PB[11], // D6
-            &sam4l::gpio::PB[12],
+            &sam4l::gpio::PB[12], // D7
         ]
-    ); // D7
+    );
+    let gpio_values = static_init!(
+        [kernel::hil::gpio::InterruptValueWrapper; 4],
+        [
+            kernel::hil::gpio::InterruptValueWrapper::new(),
+            kernel::hil::gpio::InterruptValueWrapper::new(),
+            kernel::hil::gpio::InterruptValueWrapper::new(),
+            kernel::hil::gpio::InterruptValueWrapper::new(),
+        ]
+    );
+    for (index, (&pin, value)) in gpio_pins.iter().zip(gpio_values.iter()).enumerate() {
+        pin.set_client(value);
+        value.set_source(pin);
+        value.set_value(index as u32);
+    }
+    let gpio_refs = static_init!(
+        [&'static hil::gpio::InterruptValuePin; 4],
+        [
+            &gpio_values[0],
+            &gpio_values[1],
+            &gpio_values[2],
+            &gpio_values[3],
+        ]
+    );
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+        capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
-            gpio_pins,
+            &gpio_refs[..],
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
 
     // CRC
     let crc = static_init!(
