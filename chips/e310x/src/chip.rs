@@ -37,7 +37,6 @@ impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
         _remaining_stack_memory: usize,
         _state: &mut RvStoredState,
         _callback: kernel::procs::FunctionCall,
-        _first_function: bool,
     ) -> Result<*mut usize, *mut usize> {
         Err(stack_pointer as *mut usize)
     }

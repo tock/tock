@@ -102,9 +102,6 @@ pub trait UserspaceKernelBoundary {
     /// - `state` is the stored state for this process.
     /// - `callback` is the function that should be executed when the process
     ///   resumes.
-    /// - `first_function` is true if this is the first time this process is
-    ///   being run. This allows a `UserspaceKernelBoundary` implementation to
-    ///   assume there are no stack frames on the process's stack.
     ///
     /// ### Return
     ///
@@ -118,7 +115,6 @@ pub trait UserspaceKernelBoundary {
         remaining_stack_memory: usize,
         state: &mut Self::StoredState,
         callback: process::FunctionCall,
-        first_function: bool,
     ) -> Result<*mut usize, *mut usize>;
 
     /// Context switch to a specific process.

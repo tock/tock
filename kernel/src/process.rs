@@ -825,16 +825,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         // like.
         let mut stored_state = self.stored_state.get();
 
-        // Check to see if this will be the first function call for this
-        // process.
-        let first_function = self.state.get() == State::Unstarted;
-
         match self.chip.userspace_kernel_boundary().set_process_function(
             self.sp(),
             remaining_stack_bytes,
             &mut stored_state,
             callback,
-            first_function,
         ) {
             Ok(stack_bottom) => {
                 // If we got an `Ok` with the new stack pointer we are all

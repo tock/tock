@@ -47,6 +47,7 @@ pub struct CortexMStoredState {
     regs: [usize; 8],
     yield_pc: usize,
     psr: usize,
+    valid_svc_frame: bool,
 }
 
 // Need a custom define for `default()` so we can set the initial PSR value.
@@ -57,6 +58,8 @@ impl Default for CortexMStoredState {
             yield_pc: 0,
             // Set the Thumb bit and clear everything else
             psr: 0x01000000,
+            // The first function call will need to set up a SVC frame
+            valid_svc_frame: false,
         }
     }
 }
@@ -92,19 +95,19 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         remaining_stack_memory: usize,
         state: &mut CortexMStoredState,
         callback: kernel::procs::FunctionCall,
-        first_function: bool,
     ) -> Result<*mut usize, *mut usize> {
         // If this is the first time this process is being used then it has no
         // stack and we have to create a new stack frame for the svc handler to
-        // use. If this process has called a syscall before (i.e.
-        // `first_function` is false), then we can re-use that stack frame to
-        // set this new function to be run after calling `svc`.
-        let stack_bottom = if first_function {
+        // use. If this process has called a syscall before then we can re-use
+        // that stack frame to set this new function to be run after calling
+        // `svc`.
+        let stack_bottom = if !state.valid_svc_frame {
             if remaining_stack_memory < 32 {
                 // Not enough room on the stack to add a frame. Return an error
                 // and where the stack would be to help with debugging.
                 return Err((stack_pointer as *mut usize).offset(-8));
             } else {
+                state.valid_svc_frame = true;
                 // Fill in initial stack expected by SVC handler
                 // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
                 (stack_pointer as *mut usize).offset(-8)
