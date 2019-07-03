@@ -4,12 +4,13 @@
 //!
 //! Configures the GPIO pins, and interfaces with the HIL for gpio.
 
-use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{FieldValue, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::gpio;
+use kernel::hil::gpio::Input;
 
 use crate::event;
 use crate::ioc;
@@ -46,7 +47,6 @@ pub struct GPIOPin {
     ioc_registers: StaticRef<ioc::Registers>,
     pin: usize,
     pin_mask: u32,
-    client_data: Cell<usize>,
     client: OptionalCell<&'static hil::gpio::Client>,
 }
 
@@ -57,19 +57,34 @@ impl GPIOPin {
             ioc_registers: IOC_BASE,
             pin: pin,
             pin_mask: 1 << pin,
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
     }
 
-    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
+    pub fn set_client(&self, client: &'static gpio::Client) {
         self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
         self.client.map(|client| {
-            client.fired(self.client_data.get());
+            client.fired();
         });
+    }
+
+    fn toggle(&self) -> bool {
+        let regs = &*self.registers;
+        regs.dout_tgl.set(self.pin_mask);
+        self.read()
+    }
+
+    fn set(&self) {
+        let regs = &*self.registers;
+        regs.dout_set.set(self.pin_mask);
+    }
+
+    fn clear(&self) {
+        let regs = &*self.registers;
+        regs.dout_clr.set(self.pin_mask);
     }
 }
 
@@ -108,25 +123,25 @@ impl GPIOPin {
         pin_ioc.modify(ioc::Config::PORT_ID::GPIO);
     }
 
-    pub fn enable_output(&self) {
+    fn enable_output(&self) {
         // Enable by disabling input
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
         pin_ioc.modify(ioc::Config::INPUT_EN::CLEAR);
     }
 
-    pub fn enable_input(&self) {
+    fn enable_input(&self) {
         // Set IE (Input Enable) bit
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
         pin_ioc.modify(ioc::Config::INPUT_EN::SET);
     }
 
-    pub fn enable_int(&self, mode: hil::gpio::InterruptMode) {
+    fn enable_int(&self, mode: gpio::InterruptEdge) {
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
 
         let ioc_edge_mode = match mode {
-            hil::gpio::InterruptMode::FallingEdge => ioc::Config::EDGE_DET::FallingEdge,
-            hil::gpio::InterruptMode::RisingEdge => ioc::Config::EDGE_DET::RisingEdge,
-            hil::gpio::InterruptMode::EitherEdge => ioc::Config::EDGE_DET::BothEdges,
+            hil::gpio::InterruptEdge::FallingEdge => ioc::Config::EDGE_DET::FallingEdge,
+            hil::gpio::InterruptEdge::RisingEdge => ioc::Config::EDGE_DET::RisingEdge,
+            hil::gpio::InterruptEdge::EitherEdge => ioc::Config::EDGE_DET::BothEdges,
         };
 
         pin_ioc.modify(ioc_edge_mode + ioc::Config::EDGE_IRQ_EN::SET);
@@ -263,66 +278,123 @@ impl GPIOPin {
     }
 }
 
-impl hil::gpio::PinCtl for GPIOPin {
-    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
+impl gpio::Pin for GPIOPin {}
+impl gpio::InterruptPin for GPIOPin {}
+
+impl gpio::Configure for GPIOPin {
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
         let pin_ioc = &self.ioc_registers.cfg[self.pin];
 
         let field = match mode {
-            hil::gpio::InputMode::PullDown => ioc::Config::PULL::Down,
-            hil::gpio::InputMode::PullUp => ioc::Config::PULL::Up,
-            hil::gpio::InputMode::PullNone => ioc::Config::PULL::None,
+            gpio::FloatingState::PullDown => ioc::Config::PULL::Down,
+            gpio::FloatingState::PullUp => ioc::Config::PULL::Up,
+            gpio::FloatingState::PullNone => ioc::Config::PULL::None,
         };
 
         pin_ioc.modify(field);
     }
-}
 
-impl hil::gpio::Pin for GPIOPin {
-    fn make_output(&self) {
+    fn low_power(&self) {
+        GPIOPin::set_floating_state(self, gpio::FloatingState::PullNone);
+    }
+
+    fn make_output(&self) -> gpio::Configuration {
         self.enable_gpio();
         // Disable input in the io configuration
         self.enable_output();
         // Enable data output
         let regs = &*self.registers;
         regs.doe.set(regs.doe.get() | self.pin_mask);
+        gpio::Configuration::Output
     }
 
-    fn make_input(&self) {
+    fn make_input(&self) -> gpio::Configuration {
         self.enable_gpio();
         self.enable_input();
+        gpio::Configuration::Input
     }
 
-    fn disable(&self) {
-        hil::gpio::PinCtl::set_input_mode(self, hil::gpio::InputMode::PullNone);
+    fn is_input(&self) -> bool {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+        pin_ioc.is_set(ioc::Config::INPUT_EN)
     }
 
-    fn set(&self) {
-        let regs = &*self.registers;
-        regs.dout_set.set(self.pin_mask);
+    fn disable_input(&self) -> gpio::Configuration {
+        // GPIOs are either inputs or outputs on this chip.
+        // To "disable" input would cause this pin to start driving, which is
+        // likely undesired, so this function is a no-op.
+        self.configuration()
     }
 
-    fn clear(&self) {
-        let regs = &*self.registers;
-        regs.dout_clr.set(self.pin_mask);
+    fn is_output(&self) -> bool {
+        let pin_ioc = &self.ioc_registers.cfg[self.pin];
+        !pin_ioc.is_set(ioc::Config::INPUT_EN)
     }
 
-    fn toggle(&self) {
-        let regs = &*self.registers;
-        regs.dout_tgl.set(self.pin_mask);
+    fn disable_output(&self) -> gpio::Configuration {
+        // Disable output for this chip by making it an input
+        self.enable_input();
+        self.configuration()
     }
 
+    fn floating_state(&self) -> gpio::FloatingState {
+        match self.ioc_registers.cfg[self.pin].read_as_enum(ioc::Config::PULL) {
+            Some(ioc::Config::PULL::Value::Down) => gpio::FloatingState::PullDown,
+            Some(ioc::Config::PULL::Value::Up) => gpio::FloatingState::PullUp,
+            Some(ioc::Config::PULL::Value::None) => gpio::FloatingState::PullNone,
+            None => unreachable!("invalid value"),
+        }
+    }
+
+    fn configuration(&self) -> gpio::Configuration {
+        let input = self.is_input();
+        let output = self.is_output();
+        let config = (input, output);
+        match config {
+            (false, false) => gpio::Configuration::Unknown,
+            (false, true) => gpio::Configuration::Output,
+            (true, false) => gpio::Configuration::Input,
+            (true, true) => gpio::Configuration::InputOutput,
+        }
+    }
+}
+
+impl gpio::Input for GPIOPin {
     fn read(&self) -> bool {
         let regs = &*self.registers;
         regs.din.get() & self.pin_mask != 0
     }
+}
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
-        self.client_data.set(client_data);
+impl gpio::Output for GPIOPin {
+    fn toggle(&self) -> bool {
+        GPIOPin::toggle(self)
+    }
+
+    fn set(&self) {
+        GPIOPin::set(self);
+    }
+
+    fn clear(&self) {
+        GPIOPin::clear(self);
+    }
+}
+
+impl gpio::Interrupt for GPIOPin {
+    fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         self.enable_int(mode);
     }
 
-    fn disable_interrupt(&self) {
+    fn disable_interrupts(&self) {
         self.disable_interrupt();
+    }
+
+    fn set_client(&self, client: &'static gpio::Client) {
+        GPIOPin::set_client(self, client);
+    }
+
+    fn is_pending(&self) -> bool {
+        unimplemented!("Not supported by chip?");
     }
 }
 
