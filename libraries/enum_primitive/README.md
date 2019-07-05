@@ -5,7 +5,7 @@ This library is a lightly modified clone of
 [enum_primitive-rs](https://github.com/andersk/enum_primitive-rs), adapted to
 support `no_std`.
 
-For complete documenation please visit
+For complete documentation please visit
 https://andersk.github.io/enum_primitive-rs/enum_primitive/
 
 
