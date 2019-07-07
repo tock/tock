@@ -1,7 +1,8 @@
 //! Tock specific `MapCell` type for sharing references.
 
 use core::cell::{Cell, UnsafeCell};
-use core::{mem, ptr};
+use core::mem::MaybeUninit;
+use core::ptr;
 
 /// A mutable memory location that enforces borrow rules at runtime without
 /// possible panics.
@@ -12,28 +13,14 @@ use core::{mem, ptr};
 /// `Option` wrapped in a `RefCell` --- attempts to take the value from inside a
 /// `MapCell` may fail by returning `None`.
 pub struct MapCell<T> {
-    val: UnsafeCell<U<T>>,
+    val: UnsafeCell<MaybeUninit<T>>,
     occupied: Cell<bool>,
-}
-
-// This allows us to mimic `mem::uninitialized` in a way that can be marked `const`.
-//
-// Specifically, we just want to allocate some memory the size of some
-// particular `T` and we don't care what's there---this happens to not be
-// marked `const` in the core library right now since it's an LLVM intrinsic.
-//
-// The `occupied` field of the MapCell tracks whether it is valid to access the
-// `some` variant of this union.
-#[allow(unions_with_drop_fields)]
-union U<T> {
-    none: (),
-    some: T,
 }
 
 impl<T> MapCell<T> {
     pub const fn empty() -> MapCell<T> {
         MapCell {
-            val: UnsafeCell::new(U { none: () }),
+            val: UnsafeCell::new(MaybeUninit::uninit()),
             occupied: Cell::new(false),
         }
     }
@@ -41,7 +28,7 @@ impl<T> MapCell<T> {
     /// Creates a new `MapCell` containing `value`
     pub const fn new(value: T) -> MapCell<T> {
         MapCell {
-            val: UnsafeCell::new(U { some: value }),
+            val: UnsafeCell::new(MaybeUninit::<T>::new(value)),
             occupied: Cell::new(true),
         }
     }
@@ -76,14 +63,14 @@ impl<T> MapCell<T> {
             return None;
         } else {
             self.occupied.set(false);
-            unsafe { Some(ptr::replace(self.val.get(), mem::uninitialized()).some) }
+            unsafe { Some(ptr::replace(self.val.get(), MaybeUninit::<T>::uninit()).assume_init()) }
         }
     }
 
     pub fn put(&self, val: T) {
         self.occupied.set(true);
         unsafe {
-            ptr::write(self.val.get(), U { some: val });
+            ptr::write(self.val.get(), MaybeUninit::<T>::new(val));
         }
     }
 
@@ -91,7 +78,7 @@ impl<T> MapCell<T> {
     /// empty, the previous value is returned, otherwise `None` is returned.
     pub fn replace(&self, val: T) -> Option<T> {
         if self.is_some() {
-            unsafe { Some(ptr::replace(self.val.get(), U { some: val }).some) }
+            unsafe { Some(ptr::replace(self.val.get(), MaybeUninit::new(val)).assume_init()) }
         } else {
             self.put(val);
             None
@@ -128,7 +115,8 @@ impl<T> MapCell<T> {
         if self.is_some() {
             self.occupied.set(false);
             let valref = unsafe { &mut *self.val.get() };
-            let res = closure(unsafe { &mut valref.some });
+            // TODO: change to valref.get_mut() once stabilized [#53491](https://github.com/rust-lang/rust/issues/53491)
+            let res = closure(unsafe { &mut *valref.as_mut_ptr() });
             self.occupied.set(true);
             Some(res)
         } else {
@@ -152,7 +140,8 @@ impl<T> MapCell<T> {
         if self.is_some() {
             self.occupied.set(false);
             let valref = unsafe { &mut *self.val.get() };
-            let res = closure(unsafe { &mut valref.some });
+            // TODO: change to valref.get_mut() once stabilized [#53491](https://github.com/rust-lang/rust/issues/53491)
+            let res = closure(unsafe { &mut *valref.as_mut_ptr() });
             self.occupied.set(true);
             res
         } else {
