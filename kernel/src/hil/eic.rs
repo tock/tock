@@ -1,10 +1,10 @@
 //! Interface for external interrupt controller.
 //!
-//! The External Interrupt Controller (EIC) allows pins to be configured as 
-//! external interrupts. Each external interrupt has its own interrupt request 
-//! and can be individually masked. Each external interrupt can generate an 
-//! interrupt on rising or falling edge, or high or low level.  
-//! Every interrupt pin can also be configured to be asynchronous, in order to 
+//! The External Interrupt Controller (EIC) allows pins to be configured as
+//! external interrupts. Each external interrupt has its own interrupt request
+//! and can be individually masked. Each external interrupt can generate an
+//! interrupt on rising or falling edge, or high or low level.
+//! Every interrupt pin can also be configured to be asynchronous, in order to
 //! wake-up the part from sleep modes where the CLK_SYNC clock has been disabled.
 //!
 //! A basic use case:

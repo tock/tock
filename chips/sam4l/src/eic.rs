@@ -12,7 +12,6 @@
 // Author: Josh Zhang <jiashuoz@cs.princeton.edu>
 // Last modified July 9, 2019
 
-
 use crate::pm::{self, Clock, PBDClock};
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
@@ -20,15 +19,15 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 
-/// The sam4l chip supports 9 external interrupt lines: Ext1 - Ext8 and an additional 
-/// Non-Maskable Interrupt (NMI) pin. NMI has the same properties as the other external 
-/// interrupts, but is connected to the NMI request of the CPU, enabling it to interrupt 
+/// The sam4l chip supports 9 external interrupt lines: Ext1 - Ext8 and an additional
+/// Non-Maskable Interrupt (NMI) pin. NMI has the same properties as the other external
+/// interrupts, but is connected to the NMI request of the CPU, enabling it to interrupt
 /// any other interrupt mode.
 #[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Line {
     Nmi = 1,
-    Ext1 = 2,   
+    Ext1 = 2,
     Ext2 = 4,
     Ext3 = 8,
     Ext4 = 16,
@@ -138,7 +137,7 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
         regs.dis.write(Interrupt::INT.val(*line as u32));
 
         self.line_disable_interrupt(line);
-        
+
         self.disable();
     }
 }
