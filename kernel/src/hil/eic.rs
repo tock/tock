@@ -19,19 +19,6 @@ pub enum InterruptMode {
     LowLevel,
 }
 
-/// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
-pub enum FilterMode {
-    FilterEnable,
-    FilterDisable,
-}
-
-/// Enum for selecting synchronous or asynchronous mode. Interrupts in asynchronous mode
-/// can wake up the system from deep sleep mode.
-pub enum SynchronizationMode {
-    Synchronous,
-    Asynchronous,
-}
-
 /// Interface for EIC.
 pub trait ExternalInterruptController {
     /// The chip-dependent type of an EIC line. Number of lines available depends on the chip.
@@ -44,8 +31,6 @@ pub trait ExternalInterruptController {
         &self,
         line: &Self::Line,
         interrupt_mode: InterruptMode,
-        filter_mode: FilterMode,
-        synchronization_mode: SynchronizationMode,
     );
 
     /// Disables external interrupt on the given 'line'

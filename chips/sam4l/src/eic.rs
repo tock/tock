@@ -19,6 +19,19 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil;
 
+/// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
+pub enum FilterMode {
+    FilterEnable,
+    FilterDisable,
+}
+
+/// Enum for selecting synchronous or asynchronous mode. Interrupts in asynchronous mode
+/// can wake up the system from deep sleep mode.
+pub enum SynchronizationMode {
+    Synchronous,
+    Asynchronous,
+}
+
 /// The sam4l chip supports 9 external interrupt lines: Ext1 - Ext8 and an additional
 /// Non-Maskable Interrupt (NMI) pin. NMI has the same properties as the other external
 /// interrupts, but is connected to the NMI request of the CPU, enabling it to interrupt
@@ -112,8 +125,6 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
         &self,
         line: &Self::Line,
         interrupt_mode: hil::eic::InterruptMode,
-        filter_mode: hil::eic::FilterMode,
-        synchronization_mode: hil::eic::SynchronizationMode,
     ) {
         if !self.is_enabled() {
             self.enable();
@@ -123,7 +134,7 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
 
         regs.en.write(Interrupt::INT.val(*line as u32));
 
-        self.line_configure(line, interrupt_mode, filter_mode, synchronization_mode);
+        self.line_configure(line, interrupt_mode, FilterMode::FilterEnable, SynchronizationMode::Synchronous);
 
         self.line_enable_interrupt(line);
     }
@@ -147,8 +158,8 @@ impl<'a> Eic<'a> {
         &self,
         line: &Line,
         interrupt_mode: hil::eic::InterruptMode,
-        filter_mode: hil::eic::FilterMode,
-        synchronization_mode: hil::eic::SynchronizationMode,
+        filter_mode: FilterMode,
+        synchronization_mode: SynchronizationMode,
     ) {
         let mode_bits = match interrupt_mode {
             hil::eic::InterruptMode::RisingEdge => 0b00,
@@ -160,13 +171,13 @@ impl<'a> Eic<'a> {
         self.set_interrupt_mode(mode_bits, line);
 
         match filter_mode {
-            hil::eic::FilterMode::FilterEnable => self.line_enable_filter(line),
-            hil::eic::FilterMode::FilterDisable => self.line_disable_filter(line),
+            FilterMode::FilterEnable => self.line_enable_filter(line),
+            FilterMode::FilterDisable => self.line_disable_filter(line),
         }
 
         match synchronization_mode {
-            hil::eic::SynchronizationMode::Synchronous => self.line_disable_asyn(line),
-            hil::eic::SynchronizationMode::Asynchronous => self.line_enable_asyn(line),
+            SynchronizationMode::Synchronous => self.line_disable_asyn(line),
+            SynchronizationMode::Asynchronous => self.line_enable_asyn(line),
         }
     }
 
