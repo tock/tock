@@ -206,10 +206,6 @@ SECTIONS
         /* Optional .app sections a convenience mechanism to bundle tock
            kernel and apps into a single image */
         KEEP (*(.app.*))
-
-        /* Required for objcopy mechanism to bundle tock kernel and apps
-           into a single image to work */
-        LONG(0)
     } > prog
 
 
