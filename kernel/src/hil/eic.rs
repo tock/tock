@@ -27,11 +27,7 @@ pub trait ExternalInterruptController {
     /// Enables external interrupt on the given 'line'
     /// In asychronous mode, all edge interrupts will be
     /// interpreted as level interrupts and the filter is disabled.
-    fn line_enable(
-        &self,
-        line: &Self::Line,
-        interrupt_mode: InterruptMode,
-    );
+    fn line_enable(&self, line: &Self::Line, interrupt_mode: InterruptMode);
 
     /// Disables external interrupt on the given 'line'
     fn line_disable(&self, line: &Self::Line);

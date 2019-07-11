@@ -121,11 +121,7 @@ pub struct Eic<'a> {
 impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
     type Line = Line;
 
-    fn line_enable(
-        &self,
-        line: &Self::Line,
-        interrupt_mode: hil::eic::InterruptMode,
-    ) {
+    fn line_enable(&self, line: &Self::Line, interrupt_mode: hil::eic::InterruptMode) {
         if !self.is_enabled() {
             self.enable();
         }
@@ -134,7 +130,12 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
 
         regs.en.write(Interrupt::INT.val(*line as u32));
 
-        self.line_configure(line, interrupt_mode, FilterMode::FilterEnable, SynchronizationMode::Synchronous);
+        self.line_configure(
+            line,
+            interrupt_mode,
+            FilterMode::FilterEnable,
+            SynchronizationMode::Synchronous,
+        );
 
         self.line_enable_interrupt(line);
     }
