@@ -71,6 +71,16 @@ pub trait UserspaceKernelBoundary {
     /// registers that aren't stored on the stack.
     type StoredState: Default + Copy;
 
+    /// Called by the kernel after a new process has been created by before it
+    /// is allowed to begin executing. Allows for architecture-specific process
+    /// setup, e.g. allocating a syscall stack frame.
+    unsafe fn initialize_new_process(
+        &self,
+        stack_pointer: *const usize,
+        stack_size: usize,
+        state: &mut Self::StoredState,
+    ) -> Result<*const usize, ()>;
+
     /// Set the return value the process should see when it begins executing
     /// again after the syscall. This will only be called after a process has
     /// called a syscall.
@@ -102,9 +112,6 @@ pub trait UserspaceKernelBoundary {
     /// - `state` is the stored state for this process.
     /// - `callback` is the function that should be executed when the process
     ///   resumes.
-    /// - `first_function` is true if this is the first time this process is
-    ///   being run. This allows a `UserspaceKernelBoundary` implementation to
-    ///   assume there are no stack frames on the process's stack.
     ///
     /// ### Return
     ///
@@ -118,7 +125,6 @@ pub trait UserspaceKernelBoundary {
         remaining_stack_memory: usize,
         state: &mut Self::StoredState,
         callback: process::FunctionCall,
-        first_function: bool,
     ) -> Result<*mut usize, *mut usize>;
 
     /// Context switch to a specific process.
