@@ -402,19 +402,19 @@ pub struct Process<'a, C: 'static + Chip> {
     ///     │   ↓
     ///  D  │ ──────  ← kernel_memory_break
     ///  Y  │
-    ///  N  │ ──────  ← app_break
-    ///  A  │
-    ///  M  │   ↑
-    ///     │  Heap
-    ///  ╠═ │ ──────  ← app_heap_start
-    ///     │  Data
-    ///  F  │ ──────  ← data_start_pointer
-    ///  I  │ Stack
-    ///  X  │   ↓
-    ///  E  │
-    ///  D  │ ──────  ← current_stack_pointer
-    ///     │
-    ///  ╚═ ╘════════ ← memory[0]
+    ///  N  │ ──────  ← app_break               ═╗
+    ///  A  │                                    ║
+    ///  M  │   ↑                                  A
+    ///     │  Heap                              P C
+    ///  ╠═ │ ──────  ← app_heap_start           R C
+    ///     │  Data                              O E
+    ///  F  │ ──────  ← data_start_pointer       C S
+    ///  I  │ Stack                              E S
+    ///  X  │   ↓                                S I
+    ///  E  │                                    S B
+    ///  D  │ ──────  ← current_stack_pointer      L
+    ///     │                                    ║ E
+    ///  ╚═ ╘════════ ← memory[0]               ═╝
     /// ```
     ///
     /// The process's memory.
