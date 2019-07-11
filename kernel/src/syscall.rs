@@ -101,6 +101,10 @@ pub trait UserspaceKernelBoundary {
     /// `_start` when the process is started for the very first time; 2) tells
     /// the process to execute a callback function after calling `yield()`.
     ///
+    /// **Note:** This method cannot be called in conjunction with
+    /// `set_syscall_return_value`, as the injected function will clobber the
+    /// return value.
+    ///
     /// ### Arguments
     ///
     /// - `stack_pointer` is the address of the stack pointer for the current

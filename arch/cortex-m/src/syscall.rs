@@ -108,6 +108,18 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         write_volatile(sp, return_value);
     }
 
+    /// When the process calls `svc` to enter the kernel, the hardware
+    /// automatically pushes a stack frame that will be unstacked when the
+    /// kernel returns to the process. In the special case of process startup,
+    /// `initialize_new_process` sets up an empty stack frame and stored state
+    /// as if an `svc` had been called.
+    ///
+    /// Here, we modify this stack frame such that the process resumes at the
+    /// beginning of the callback function that we want the process to run. We
+    /// place the originally intended return addess in the link register so
+    /// that when the function completes execution continues.
+    ///
+    /// In effect, this converts `svc` into `bl callback`.
     unsafe fn set_process_function(
         &self,
         stack_pointer: *const usize,
@@ -115,21 +127,17 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state: &mut CortexMStoredState,
         callback: kernel::procs::FunctionCall,
     ) -> Result<*mut usize, *mut usize> {
+        // Notes:
+        //  - Instruction addresses require `|1` to indicate thumb code
+        //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = stack_pointer as *mut usize;
-
-        // Now either modify the existing stack frame or create one where we just
-        // made space. In either case the process is the same.
-        write_volatile(stack_bottom.offset(7), state.psr);
-        write_volatile(stack_bottom.offset(6), callback.pc | 1);
-
-        // Set the LR register to the saved PC so the callback returns to
-        // wherever wait was called. Set lowest bit to one because of THUMB
-        // instruction requirements.
-        write_volatile(stack_bottom.offset(5), state.yield_pc | 0x1);
-        write_volatile(stack_bottom, callback.argument0);
-        write_volatile(stack_bottom.offset(1), callback.argument1);
-        write_volatile(stack_bottom.offset(2), callback.argument2);
-        write_volatile(stack_bottom.offset(3), callback.argument3);
+        write_volatile(stack_bottom.offset(7), state.psr); //......... -> APSR
+        write_volatile(stack_bottom.offset(6), callback.pc | 1); //... -> PC
+        write_volatile(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
+        write_volatile(stack_bottom.offset(3), callback.argument3); // -> R3
+        write_volatile(stack_bottom.offset(2), callback.argument2); // -> R2
+        write_volatile(stack_bottom.offset(1), callback.argument1); // -> R1
+        write_volatile(stack_bottom.offset(0), callback.argument0); // -> R0
 
         Ok(stack_bottom)
     }
