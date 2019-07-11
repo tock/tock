@@ -74,6 +74,28 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
+    unsafe fn initialize_new_process(
+        &self,
+        stack_pointer: *const usize,
+        stack_size: usize,
+        _state: &mut Self::StoredState,
+    ) -> Result<*const usize, ()> {
+        // The first time a process runs it has no stack and we have to create
+        // a new stack frame for the svc handler to have "returned from".
+
+        // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
+        let svc_frame_size = 32;
+
+        // Make sure there's enough room on the stack for the initial kernel frame
+        if stack_size < svc_frame_size {
+            // Not enough room on the stack to add a frame.
+            return Err(());
+        }
+
+        // Allocate the kernel frame
+        Ok((stack_pointer as *mut usize).offset(-8))
+    }
+
     unsafe fn set_syscall_return_value(
         &self,
         stack_pointer: *const usize,
@@ -89,30 +111,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     unsafe fn set_process_function(
         &self,
         stack_pointer: *const usize,
-        remaining_stack_memory: usize,
+        _remaining_stack_memory: usize,
         state: &mut CortexMStoredState,
         callback: kernel::procs::FunctionCall,
-        first_function: bool,
     ) -> Result<*mut usize, *mut usize> {
-        // If this is the first time this process is being used then it has no
-        // stack and we have to create a new stack frame for the svc handler to
-        // use. If this process has called a syscall before (i.e.
-        // `first_function` is false), then we can re-use that stack frame to
-        // set this new function to be run after calling `svc`.
-        let stack_bottom = if first_function {
-            if remaining_stack_memory < 32 {
-                // Not enough room on the stack to add a frame. Return an error
-                // and where the stack would be to help with debugging.
-                return Err((stack_pointer as *mut usize).offset(-8));
-            } else {
-                // Fill in initial stack expected by SVC handler
-                // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
-                (stack_pointer as *mut usize).offset(-8)
-            }
-        } else {
-            // We can re-use the frame already present.
-            stack_pointer as *mut usize
-        };
+        let stack_bottom = stack_pointer as *mut usize;
 
         // Now either modify the existing stack frame or create one where we just
         // made space. In either case the process is the same.

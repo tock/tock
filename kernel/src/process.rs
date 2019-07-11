@@ -825,16 +825,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         // like.
         let mut stored_state = self.stored_state.get();
 
-        // Check to see if this will be the first function call for this
-        // process.
-        let first_function = self.state.get() == State::Unstarted;
-
         match self.chip.userspace_kernel_boundary().set_process_function(
             self.sp(),
             remaining_stack_bytes,
             &mut stored_state,
             callback,
-            first_function,
         ) {
             Ok(stack_bottom) => {
                 // If we got an `Ok` with the new stack pointer we are all
@@ -1254,6 +1249,26 @@ impl<C: 'static + Chip> Process<'a, C> {
                 }));
             });
 
+            // Handle any architecture-specific requirements for a new process
+            let mut stored_state = process.stored_state.get();
+            match chip.userspace_kernel_boundary().initialize_new_process(
+                process.sp(),
+                process.sp() as usize - process.memory.as_ptr() as usize,
+                &mut stored_state,
+            ) {
+                Ok(new_stack_pointer) => {
+                    process
+                        .current_stack_pointer
+                        .set(new_stack_pointer as *mut u8);
+                    process.debug_set_max_stack_depth();
+                    process.stored_state.set(stored_state);
+                }
+                Err(_) => {
+                    return (None, app_flash_size, 0);
+                }
+            };
+
+            // Mark this process as having something to do (it has to start!)
             kernel.increment_work();
 
             return (
