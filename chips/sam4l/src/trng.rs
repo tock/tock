@@ -64,9 +64,6 @@ impl Trng<'a> {
     pub fn handle_interrupt(&self) {
         let regs = &*self.regs;
 
-        if !regs.imr.is_set(Interrupt::DATRDY) {
-            return;
-        }
         regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
