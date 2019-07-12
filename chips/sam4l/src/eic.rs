@@ -287,7 +287,8 @@ impl<'a> Eic<'a> {
 
         regs.ier.write(Interrupt::INT.val(*line as u32));
     }
-
+    /// Disables the propagation from the EIC to the interrupt controller of the external interrupt
+    /// on a specified line.
     fn line_disable_interrupt(&self, line: &Line) {
         let regs: &EicRegisters = &*self.registers;
 
