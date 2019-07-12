@@ -52,21 +52,35 @@ pub enum Line {
 
 #[repr(C)]
 struct EicRegisters {
-    ier: WriteOnly<u32, Interrupt::Register>,          // 0x00
-    idr: WriteOnly<u32, Interrupt::Register>,          // 0x04
-    imr: ReadOnly<u32, Interrupt::Register>,           // 0x08
-    isr: ReadOnly<u32, Interrupt::Register>,           // 0x0c
-    icr: WriteOnly<u32, Interrupt::Register>,          // 0x10
-    mode: ReadWrite<u32, Interrupt::Register>,         // 0x14
-    edge: ReadWrite<u32, Interrupt::Register>,         // 0x18
-    level: ReadWrite<u32, Interrupt::Register>,        // 0x1c
-    filter: ReadWrite<u32, Interrupt::Register>,       // 0x20
-    test: ReadWrite<u32, Test::Register>,              // 0x24
-    asynchronous: ReadWrite<u32, Interrupt::Register>, // 0x28
-    _reserved0: ReadOnly<u32>,                         // 0x02c, skip
-    en: WriteOnly<u32, Interrupt::Register>,           // 0x30
-    dis: WriteOnly<u32, Interrupt::Register>,          // 0x34
-    ctrl: ReadOnly<u32, Interrupt::Register>,          // 0x38
+    /// Enables propagation from eic to nvic
+    ier: WriteOnly<u32, Interrupt::Register>,
+    /// Disables propagation from eic to nvic
+    idr: WriteOnly<u32, Interrupt::Register>,
+    /// Indicates if the propagation is on
+    imr: ReadOnly<u32, Interrupt::Register>,
+    /// A bit is set when an interrupt triggers
+    isr: ReadOnly<u32, Interrupt::Register>,
+    /// Clears ISR  
+    icr: WriteOnly<u32, Interrupt::Register>,
+    /// Sets interrupt mode
+    mode: ReadWrite<u32, Interrupt::Register>,
+    /// Configures falling or rising edge
+    edge: ReadWrite<u32, Interrupt::Register>,
+    /// Configures low or high level
+    level: ReadWrite<u32, Interrupt::Register>,
+    /// Configures filter
+    filter: ReadWrite<u32, Interrupt::Register>,
+    /// For testing
+    test: ReadWrite<u32, Test::Register>,
+    /// Configures synchronization
+    asynchronous: ReadWrite<u32, Interrupt::Register>,
+    _reserved0: ReadOnly<u32>,
+    /// Enables an interrupt line
+    en: WriteOnly<u32, Interrupt::Register>,
+    /// Disables an interrupt line
+    dis: WriteOnly<u32, Interrupt::Register>,
+    /// Indicates if an interrupt line is enabled or not
+    ctrl: ReadOnly<u32, Interrupt::Register>,
 }
 
 // IER: Writing a one to this bit will set the corresponding bit in IMR.
@@ -94,16 +108,17 @@ struct EicRegisters {
 register_bitfields![
     u32,
     Interrupt [
+        /// Each bit represents the setup for each line, for sam4l, only bit 0-8 makes sense
         INT OFFSET(0) NUMBITS(32) []
     ],
-    // Test is not being used right now
+    /// Test is not being used right now
     Test [
-        //0: This bit disables external interrupt test mode.
-        //1: This bit enables external interrupt test mode.
+        /// 0: This bit disables external interrupt test mode.
+        /// 1: This bit enables external interrupt test mode.
         TESTEN OFFSET(31) NUMBITS(1) [],
 
-        // Writing a zero to this bit will set the input value to INTn to zero, if test mode is enabled. 
-        // Writing a one to this bit will set the input value to INTn to one, if test mode is enabled.
+        /// Writing a zero to this bit will set the input value to INTn to zero, if test mode is enabled. 
+        /// Writing a one to this bit will set the input value to INTn to one, if test mode is enabled.
         INT OFFSET(0) NUMBITS(31) []
     ]
 ];
@@ -134,7 +149,7 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
             line,
             interrupt_mode,
             FilterMode::FilterEnable,
-            SynchronizationMode::Synchronous,
+            SynchronizationMode::Asynchronous,
         );
 
         self.line_enable_interrupt(line);
