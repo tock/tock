@@ -13,11 +13,15 @@ use core::ptr;
 /// `Option` wrapped in a `RefCell` --- attempts to take the value from inside a
 /// `MapCell` may fail by returning `None`.
 pub struct MapCell<T> {
+    // Since val is potentially uninitialized memory, we must be sure to check
+    // `.occupied` before calling `.val.get()` or `.val.assume_init()`. See
+    // [mem::MaybeUninit](https://doc.rust-lang.org/core/mem/union.MaybeUninit.html).
     val: UnsafeCell<MaybeUninit<T>>,
     occupied: Cell<bool>,
 }
 
 impl<T> MapCell<T> {
+    /// Creates an empty `MapCell`
     pub const fn empty() -> MapCell<T> {
         MapCell {
             val: UnsafeCell::new(MaybeUninit::uninit()),
@@ -33,10 +37,12 @@ impl<T> MapCell<T> {
         }
     }
 
+    /// Returns a boolean which indicates if the MapCell is unoccupied.
     pub fn is_none(&self) -> bool {
         !self.is_some()
     }
 
+    /// Returns a boolean which indicates if the MapCell is occupied.
     pub fn is_some(&self) -> bool {
         self.occupied.get()
     }
@@ -60,13 +66,19 @@ impl<T> MapCell<T> {
     /// ```
     pub fn take(&self) -> Option<T> {
         if self.is_none() {
-            return None;
+            None
         } else {
             self.occupied.set(false);
-            unsafe { Some(ptr::replace(self.val.get(), MaybeUninit::<T>::uninit()).assume_init()) }
+            unsafe {
+                let result: MaybeUninit<T> =
+                    ptr::replace(self.val.get(), MaybeUninit::<T>::uninit());
+                // `result` is _initialized_ and now `self.val` is now a new uninitialized value
+                Some(result.assume_init())
+            }
         }
     }
 
+    /// Puts a value into the `MapCell`.
     pub fn put(&self, val: T) {
         self.occupied.set(true);
         unsafe {
@@ -77,11 +89,15 @@ impl<T> MapCell<T> {
     /// Replaces the contents of the `MapCell` with `val`. If the cell was not
     /// empty, the previous value is returned, otherwise `None` is returned.
     pub fn replace(&self, val: T) -> Option<T> {
-        if self.is_some() {
-            unsafe { Some(ptr::replace(self.val.get(), MaybeUninit::new(val)).assume_init()) }
-        } else {
+        if self.is_none() {
             self.put(val);
             None
+        } else {
+            unsafe {
+                let result: MaybeUninit<T> = ptr::replace(self.val.get(), MaybeUninit::new(val));
+                // `result` is _initialized_ and now `self.val` is now a new uninitialized value
+                Some(result.assume_init())
+            }
         }
     }
 
