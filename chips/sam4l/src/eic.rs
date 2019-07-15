@@ -13,7 +13,6 @@
 // Last modified July 9, 2019
 
 use crate::pm::{self, Clock, PBDClock};
-use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -129,7 +128,6 @@ const EIC_BASE: StaticRef<EicRegisters> =
 
 pub struct Eic<'a> {
     registers: StaticRef<EicRegisters>,
-    enabled: Cell<bool>,
     callbacks: [OptionalCell<&'a dyn hil::eic::Client>; 9],
 }
 
@@ -137,11 +135,12 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
     type Line = Line;
 
     fn line_enable(&self, line: &Self::Line, interrupt_mode: hil::eic::InterruptMode) {
-        if !self.is_enabled() {
-            self.enable();
-        }
-
         let regs: &EicRegisters = &*self.registers;
+
+        // If no interrupt line is enabled, eic clock needs to be started first
+        if self.all_line_off() {
+            self.enable_clock();
+        }
 
         regs.en.write(Interrupt::INT.val(*line as u32));
 
@@ -156,7 +155,7 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
     }
 
     fn line_disable(&self, line: &Self::Line) {
-        if !self.is_enabled() {
+        if self.all_line_off() {
             return;
         }
 
@@ -165,7 +164,10 @@ impl<'a> hil::eic::ExternalInterruptController for Eic<'a> {
 
         self.line_disable_interrupt(line);
 
-        self.disable();
+        // If no interrupt line is enabled, we can disable the clock
+        if self.all_line_off() {
+            self.disable_clock();
+        }
     }
 }
 
@@ -197,14 +199,12 @@ impl<'a> Eic<'a> {
         }
     }
 
-    fn enable(&self) {
+    fn enable_clock(&self) {
         pm::enable_clock(Clock::PBD(PBDClock::EIC));
-        self.enabled.set(true);
     }
 
-    fn disable(&self) {
+    fn disable_clock(&self) {
         pm::disable_clock(Clock::PBD(PBDClock::EIC));
-        self.enabled.set(false);
     }
 
     fn set_interrupt_mode(&self, mode_bits: u8, line: &Line) {
@@ -232,7 +232,6 @@ impl<'a> Eic<'a> {
     const fn new() -> Eic<'a> {
         Eic {
             registers: EIC_BASE,
-            enabled: Cell::new(false),
             callbacks: [
                 OptionalCell::empty(),
                 OptionalCell::empty(),
@@ -245,11 +244,6 @@ impl<'a> Eic<'a> {
                 OptionalCell::empty(),
             ],
         }
-    }
-
-    /// Returns true if EIC is enabled.
-    pub fn is_enabled(&self) -> bool {
-        self.enabled.get()
     }
 
     /// Registers a client associated with a line.
@@ -348,6 +342,11 @@ impl<'a> Eic<'a> {
     pub fn line_asyn_is_enabled(&self, line: &Line) -> bool {
         let regs: &EicRegisters = &*self.registers;
         ((*line as u32) & regs.asynchronous.get()) != 0
+    }
+
+    fn all_line_off(&self) -> bool {
+        let regs: &EicRegisters = &*self.registers;
+        regs.imr.get() == 0 && regs.ctrl.get() == 0
     }
 }
 
