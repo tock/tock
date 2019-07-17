@@ -547,6 +547,10 @@ impl Radio {
         }
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.registers.mode.matches_all(Mode::MODE::BLE_1MBIT)
+    }
+
     fn tx(&self) {
         let regs = &*self.registers;
         regs.event_ready.write(Event::READY::CLEAR);
