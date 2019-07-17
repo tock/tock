@@ -211,7 +211,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         (new_stack_pointer as *mut usize, switch_reason)
     }
 
-    unsafe fn fault_fmt(&self, writer: &mut Write) {
+    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
         let _ccr = SCB_REGISTERS[0];
         let cfsr = SCB_REGISTERS[1];
         let hfsr = SCB_REGISTERS[2];
@@ -393,7 +393,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         stack_pointer: *const usize,
         state: &CortexMStoredState,
-        writer: &mut Write,
+        writer: &mut dyn Write,
     ) {
         let r0 = read_volatile(stack_pointer.offset(0));
         let r1 = read_volatile(stack_pointer.offset(1));
