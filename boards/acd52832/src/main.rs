@@ -51,7 +51,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52::radio::Radio,
+        nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
@@ -419,22 +419,22 @@ pub unsafe fn reset_handler() {
     let ble_radio = static_init!(
         capsules::ble_advertising_driver::BLE<
             'static,
-            nrf52::radio::Radio,
+            nrf52::ble_radio::Radio,
             VirtualMuxAlarm<'static, Rtc>,
         >,
         capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::radio::RADIO,
+            &mut nrf52::ble_radio::RADIO,
             board_kernel.create_grant(&memory_allocation_capability),
             &mut capsules::ble_advertising_driver::BUF,
             ble_radio_virtual_alarm
         )
     );
     kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::radio::RADIO,
+        &nrf52::ble_radio::RADIO,
         ble_radio,
     );
     kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::radio::RADIO,
+        &nrf52::ble_radio::RADIO,
         ble_radio,
     );
     ble_radio_virtual_alarm.set_client(ble_radio);

@@ -4,6 +4,7 @@
 #![crate_type = "rlib"]
 
 pub mod adc;
+pub mod ble_radio;
 pub mod chip;
 pub mod clock;
 pub mod crt1;
@@ -13,7 +14,6 @@ pub mod i2c;
 pub mod nvmc;
 pub mod ppi;
 pub mod pwm;
-pub mod radio;
 pub mod spi;
 pub mod uart;
 pub mod uicr;
