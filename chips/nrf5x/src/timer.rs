@@ -265,10 +265,10 @@ pub struct TimerAlarm {
 
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
-const ALARM_CAPTURE: usize = 1;
-const ALARM_COMPARE: usize = 0;
-const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE0;
-const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE0::SET;
+const ALARM_CAPTURE: usize = 0;
+const ALARM_COMPARE: usize = 1;
+const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
+const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
 impl TimerAlarm {
     const fn new(instance: usize) -> TimerAlarm {
