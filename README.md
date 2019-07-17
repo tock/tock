@@ -34,7 +34,8 @@ system to compile Tock.
 
 Head to the [hardware page](https://www.tockos.org/hardware/)
 to learn about the hardware platforms Tock supports. Also check out the
-[workshop-style courses](doc/courses) to get started running apps with TockOS.
+[Tock Book](https://book.tockos.org) for a step-by-step introduction to getting
+Tock up and running.
 
 Find example applications that run on top of the Tock kernel written in both
 [Rust](https://github.com/tock/libtock-rs) and
@@ -61,7 +62,7 @@ post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 
 You can also browse our
-[email group](https://groups.google.com/forum/#!forum/tock-dev) 
+[email group](https://groups.google.com/forum/#!forum/tock-dev)
 and our [Slack](https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LTg4YzE1MTkwYzI0YjhjNjA0YWExOGY2ZGYwNjQ2YmFiZjdhOTdlMzY0YTBiYTA2YTRlYzMyZTI1MDdmMTgwMzc) to see
 discussions on Tock development.
 
