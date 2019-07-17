@@ -19,6 +19,11 @@ use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferred
 
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
+use nrf52_components::ieee802154::Ieee802154Component;
+
+// Constants related to the configuration of the 15.4 network stack
+const SRC_MAC: u16 = 0xf00f;
+const PAN_ID: u16 = 0xABCD;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -74,6 +79,7 @@ pub struct Platform {
         nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
+    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
@@ -103,6 +109,7 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
@@ -265,6 +272,14 @@ pub unsafe fn setup_board(
 
     let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 
+    let (ieee802154_radio, _) = Ieee802154Component::new(
+        board_kernel,
+        &nrf52::ieee802154_radio::RADIO,
+        PAN_ID,
+        SRC_MAC,
+    )
+    .finalize();
+
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
@@ -398,6 +413,7 @@ pub unsafe fn setup_board(
     let platform = Platform {
         button: button,
         ble_radio: ble_radio,
+        ieee802154_radio: ieee802154_radio,
         console: console,
         led: led,
         gpio: gpio,
