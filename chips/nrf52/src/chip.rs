@@ -2,6 +2,7 @@ use crate::adc;
 use crate::ble_radio;
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::i2c;
+use crate::ieee802154_radio;
 use crate::nvmc;
 use crate::spi;
 use crate::uart;
@@ -56,7 +57,21 @@ impl kernel::Chip for NRF52 {
                     match interrupt {
                         peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
                         peripheral_interrupts::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                        peripheral_interrupts::RADIO => ble_radio::RADIO.handle_interrupt(),
+                        peripheral_interrupts::RADIO => {
+                            match (
+                                ieee802154_radio::RADIO.is_enabled(),
+                                ble_radio::RADIO.is_enabled(),
+                            ) {
+                                (false, false) => (),
+                                (true, false) => ieee802154_radio::RADIO.handle_interrupt(),
+                                (false, true) => ble_radio::RADIO.handle_interrupt(),
+                                (true, true) => debug_assert!(
+                                    false,
+                                    "802.15.4 and BLE Radios cannot\
+                                     be enabled at the same time!"
+                                ),
+                            }
+                        }
                         peripheral_interrupts::RNG => nrf5x::trng::TRNG.handle_interrupt(),
                         peripheral_interrupts::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
                         peripheral_interrupts::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),

@@ -11,6 +11,7 @@ pub mod crt1;
 mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;
+pub mod ieee802154_radio;
 pub mod nvmc;
 pub mod ppi;
 pub mod pwm;
