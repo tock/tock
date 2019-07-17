@@ -5,7 +5,7 @@ use crate::returncode::ReturnCode;
 /// Simple interface for reading and writing nonvolatile memory. It is expected
 /// that drivers for nonvolatile memory would implement this trait.
 pub trait NonvolatileStorage<'a> {
-    fn set_client(&self, client: &'a NonvolatileStorageClient<'a>);
+    fn set_client(&self, client: &'a dyn NonvolatileStorageClient<'a>);
 
     /// Read `length` bytes starting at address `address` in to the provided
     /// buffer. The buffer must be at least `length` bytes long. The address

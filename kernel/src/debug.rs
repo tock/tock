@@ -61,8 +61,8 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
     leds: &mut [&mut L],
     writer: &mut W,
     panic_info: &PanicInfo,
-    nop: &Fn(),
-    processes: &'static [Option<&'static ProcessType>],
+    nop: &dyn Fn(),
+    processes: &'static [Option<&'static dyn ProcessType>],
 ) -> ! {
     panic_begin(nop);
     panic_banner(writer, panic_info);
@@ -77,7 +77,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write>(
 /// This opaque method should always be called at the beginning of a board's
 /// panic method to allow hooks for any core kernel cleanups that may be
 /// appropriate.
-pub unsafe fn panic_begin(nop: &Fn()) {
+pub unsafe fn panic_begin(nop: &dyn Fn()) {
     // Let any outstanding uart DMA's finish
     for _ in 0..200000 {
         nop();
@@ -113,7 +113,7 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<W: Write>(
-    procs: &'static [Option<&'static ProcessType>],
+    procs: &'static [Option<&'static dyn ProcessType>],
     writer: &mut W,
 ) {
     // Print fault status once
@@ -167,15 +167,15 @@ pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&mut L]) -> ! {
 // debug_gpio! support
 
 pub static mut DEBUG_GPIOS: (
-    Option<&'static hil::gpio::Pin>,
-    Option<&'static hil::gpio::Pin>,
-    Option<&'static hil::gpio::Pin>,
+    Option<&'static dyn hil::gpio::Pin>,
+    Option<&'static dyn hil::gpio::Pin>,
+    Option<&'static dyn hil::gpio::Pin>,
 ) = (None, None, None);
 
 pub unsafe fn assign_gpios(
-    gpio0: Option<&'static hil::gpio::Pin>,
-    gpio1: Option<&'static hil::gpio::Pin>,
-    gpio2: Option<&'static hil::gpio::Pin>,
+    gpio0: Option<&'static dyn hil::gpio::Pin>,
+    gpio1: Option<&'static dyn hil::gpio::Pin>,
+    gpio2: Option<&'static dyn hil::gpio::Pin>,
 ) {
     DEBUG_GPIOS.0 = gpio0;
     DEBUG_GPIOS.1 = gpio1;
@@ -206,7 +206,7 @@ pub struct DebugWriterWrapper {
 /// the UART provider and this debug module.
 pub struct DebugWriter {
     // What provides the actual writing mechanism.
-    uart: &'static hil::uart::Transmit<'static>,
+    uart: &'static dyn hil::uart::Transmit<'static>,
     // The buffer that is passed to the writing mechanism.
     output_buffer: TakeCell<'static, [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
@@ -248,7 +248,7 @@ impl DebugWriterWrapper {
 
 impl DebugWriter {
     pub fn new(
-        uart: &'static hil::uart::Transmit,
+        uart: &'static dyn hil::uart::Transmit,
         out_buffer: &'static mut [u8],
         internal_buffer: &'static mut [u8],
     ) -> DebugWriter {

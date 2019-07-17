@@ -123,7 +123,7 @@ pub trait Entropy32<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&'a self, _: &'a Client32);
+    fn set_client(&'a self, _: &'a dyn Client32);
 }
 
 /// An [Entropy32](trait.Entropy32.html) client
@@ -148,7 +148,11 @@ pub trait Client32 {
     /// If `entropy_available` is triggered after a call to `cancel()`
     /// then error MUST be ECANCEL and `entropy` MAY contain bits of
     /// entropy.
-    fn entropy_available(&self, entropy: &mut Iterator<Item = u32>, error: ReturnCode) -> Continue;
+    fn entropy_available(
+        &self,
+        entropy: &mut dyn Iterator<Item = u32>,
+        error: ReturnCode,
+    ) -> Continue;
 }
 
 /// An 8-bit entropy generator.
@@ -180,7 +184,7 @@ pub trait Entropy8<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&'a self, _: &'a Client8);
+    fn set_client(&'a self, _: &'a dyn Client8);
 }
 
 /// An [Entropy8](trait.Entropy8.html) client
@@ -205,5 +209,9 @@ pub trait Client8 {
     /// If `entropy_available` is triggered after a call to `cancel()`
     /// then error MUST be ECANCEL and `entropy` MAY contain bits of
     /// entropy.
-    fn entropy_available(&self, entropy: &mut Iterator<Item = u8>, error: ReturnCode) -> Continue;
+    fn entropy_available(
+        &self,
+        entropy: &mut dyn Iterator<Item = u8>,
+        error: ReturnCode,
+    ) -> Continue;
 }

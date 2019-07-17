@@ -57,8 +57,8 @@ pub trait BleAdvertisementDriver {
         channel: RadioChannel,
     ) -> &'static mut [u8];
     fn receive_advertisement(&self, channel: RadioChannel);
-    fn set_receive_client(&self, client: &'static RxClient);
-    fn set_transmit_client(&self, client: &'static TxClient);
+    fn set_receive_client(&self, client: &'static dyn RxClient);
+    fn set_transmit_client(&self, client: &'static dyn TxClient);
 }
 
 pub trait BleConfig {

@@ -141,7 +141,7 @@ pub trait Input {
 
 pub trait Interrupt: Input {
     /// Set the client for interrupt events.
-    fn set_client(&self, client: &'static Client);
+    fn set_client(&self, client: &'static dyn Client);
 
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
@@ -172,7 +172,7 @@ pub trait Client {
 /// value.
 pub trait InterruptWithValue: Input {
     /// Set the client for interrupt events.
-    fn set_client(&self, client: &'static ClientWithValue);
+    fn set_client(&self, client: &'static dyn ClientWithValue);
 
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
@@ -211,12 +211,12 @@ pub trait ClientWithValue {
 /// `gpio::ClientWithValue::fired`.
 pub struct InterruptValueWrapper {
     value: Cell<u32>,
-    client: OptionalCell<&'static ClientWithValue>,
-    source: &'static InterruptPin,
+    client: OptionalCell<&'static dyn ClientWithValue>,
+    source: &'static dyn InterruptPin,
 }
 
 impl InterruptValueWrapper {
-    pub fn new(pin: &'static InterruptPin) -> InterruptValueWrapper {
+    pub fn new(pin: &'static dyn InterruptPin) -> InterruptValueWrapper {
         InterruptValueWrapper {
             value: Cell::new(0),
             client: OptionalCell::empty(),
@@ -239,7 +239,7 @@ impl InterruptWithValue for InterruptValueWrapper {
         self.value.get()
     }
 
-    fn set_client(&self, client: &'static ClientWithValue) {
+    fn set_client(&self, client: &'static dyn ClientWithValue) {
         self.client.replace(client);
     }
 

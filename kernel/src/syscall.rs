@@ -143,7 +143,7 @@ pub trait UserspaceKernelBoundary {
     ) -> (*mut usize, ContextSwitchReason);
 
     /// Display any general information about the fault.
-    unsafe fn fault_fmt(&self, writer: &mut Write);
+    unsafe fn fault_fmt(&self, writer: &mut dyn Write);
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by its stack pointer.
@@ -151,7 +151,7 @@ pub trait UserspaceKernelBoundary {
         &self,
         stack_pointer: *const usize,
         state: &Self::StoredState,
-        writer: &mut Write,
+        writer: &mut dyn Write,
     );
 }
 

@@ -92,7 +92,7 @@ pub trait Alarm<'a, W = u32>: Time<W> {
     fn get_alarm(&self) -> W;
 
     /// Set the client for interrupt events.
-    fn set_client(&'a self, client: &'a AlarmClient);
+    fn set_client(&'a self, client: &'a dyn AlarmClient);
 
     /// Returns whether this alarm is currently active (will eventually trigger
     /// a callback if there is a client).
@@ -125,7 +125,7 @@ pub trait AlarmClient {
 /// has elapsed.
 pub trait Timer<'a, W = u32>: Time<W> {
     /// Set the client for interrupt events.
-    fn set_client(&'a self, client: &'a TimerClient);
+    fn set_client(&'a self, client: &'a dyn TimerClient);
 
     /// Sets a one-shot timer to fire in `interval` clock-tics.
     ///

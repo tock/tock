@@ -127,7 +127,7 @@ pub trait Rng<'a> {
     ///   - FAIL: There will be a randomness_available callback, which
     ///     may or may not return an error code.
     fn cancel(&self) -> ReturnCode;
-    fn set_client(&'a self, _: &'a Client);
+    fn set_client(&'a self, _: &'a dyn Client);
 }
 
 /// An [Rng](trait.Rng.html) client
@@ -151,7 +151,7 @@ pub trait Client {
     /// random bits.
     fn randomness_available(
         &self,
-        randomness: &mut Iterator<Item = u32>,
+        randomness: &mut dyn Iterator<Item = u32>,
         error: ReturnCode,
     ) -> Continue;
 }

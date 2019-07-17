@@ -4,7 +4,7 @@ use crate::returncode::ReturnCode;
 
 /// A basic interface for a temperature sensor
 pub trait TemperatureDriver {
-    fn set_client(&self, client: &'static TemperatureClient);
+    fn set_client(&self, client: &'static dyn TemperatureClient);
     fn read_temperature(&self) -> ReturnCode;
 }
 
@@ -19,7 +19,7 @@ pub trait TemperatureClient {
 
 /// A basic interface for a humidity sensor
 pub trait HumidityDriver {
-    fn set_client(&self, client: &'static HumidityClient);
+    fn set_client(&self, client: &'static dyn HumidityClient);
     fn read_humidity(&self) -> ReturnCode;
 }
 
@@ -35,7 +35,7 @@ pub trait HumidityClient {
 pub trait AmbientLight {
     /// Set the client to be notified when the capsule has data ready or has
     /// finished some command.  This is likely called in a board's `main.rs`.
-    fn set_client(&self, client: &'static AmbientLightClient);
+    fn set_client(&self, client: &'static dyn AmbientLightClient);
 
     /// Get a single instantaneous reading of the ambient light intensity.
     fn read_light_intensity(&self) -> ReturnCode {
@@ -62,7 +62,7 @@ pub trait NineDof {
     /// Set the client to be notified when the capsule has data ready or
     /// has finished some command. This is likely called in a board's main.rs
     /// and is set to the virtual_ninedof.rs driver.
-    fn set_client(&self, client: &'static NineDofClient);
+    fn set_client(&self, client: &'static dyn NineDofClient);
 
     /// Get a single instantaneous reading of the acceleration in the
     /// X,Y,Z directions.

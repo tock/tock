@@ -12,7 +12,7 @@ pub trait Platform {
     /// the Driver methods for that syscall
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&Driver>) -> R;
+        F: FnOnce(Option<&dyn Driver>) -> R;
 }
 
 /// Interface for individual MCUs.

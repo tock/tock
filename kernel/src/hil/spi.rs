@@ -75,7 +75,7 @@ pub trait SpiMasterClient {
 pub trait SpiMaster {
     type ChipSelect: Copy;
 
-    fn set_client(&self, client: &'static SpiMasterClient);
+    fn set_client(&self, client: &'static dyn SpiMasterClient);
 
     fn init(&self);
     fn is_busy(&self) -> bool;
@@ -169,7 +169,7 @@ pub trait SpiSlave {
     /// Returns true if there is a client.
     fn has_client(&self) -> bool;
 
-    fn set_client(&self, client: Option<&'static SpiSlaveClient>);
+    fn set_client(&self, client: Option<&'static dyn SpiSlaveClient>);
 
     fn set_write_byte(&self, write_byte: u8);
     fn read_write_bytes(
