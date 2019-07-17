@@ -202,7 +202,7 @@ pub enum BitmodeValue {
     Size32Bits = 3,
 }
 
-pub static mut TIMER0: Timer = Timer::new(0);
+pub static mut TIMER0: TimerAlarm = TimerAlarm::new(0);
 pub static mut ALARM1: TimerAlarm = TimerAlarm::new(1);
 pub static mut TIMER2: Timer = Timer::new(2);
 
@@ -265,10 +265,10 @@ pub struct TimerAlarm {
 
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
-const ALARM_CAPTURE: usize = 0;
-const ALARM_COMPARE: usize = 1;
-const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
-const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
+const ALARM_CAPTURE: usize = 1;
+const ALARM_COMPARE: usize = 0;
+const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE0;
+const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE0::SET;
 
 impl TimerAlarm {
     const fn new(instance: usize) -> TimerAlarm {
@@ -280,6 +280,8 @@ impl TimerAlarm {
 
     fn clear_alarm(&self) {
         self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
+        self.registers.tasks_stop.write(Task::ENABLE::SET);
+        self.registers.tasks_clear.write(Task::ENABLE::SET);
         self.disable_interrupts();
     }
 
@@ -334,8 +336,9 @@ impl hil::time::Alarm for TimerAlarm {
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
+        self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
         self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
-        self.clear_alarm();
+        self.registers.tasks_start.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
 
