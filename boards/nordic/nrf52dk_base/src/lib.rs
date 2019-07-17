@@ -9,12 +9,16 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+
+pub mod nrf52_components;
+use nrf52_components::ble::BLEComponent;
 
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
@@ -204,10 +208,6 @@ pub unsafe fn setup_board(
         )
     );
     virtual_alarm1.set_client(alarm);
-    let ble_radio_virtual_alarm = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -263,28 +263,7 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    let ble_radio = static_init!(
-        capsules::ble_advertising_driver::BLE<
-            'static,
-            nrf52::ble_radio::Radio,
-            VirtualMuxAlarm<'static, Rtc>,
-        >,
-        capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::ble_radio::RADIO,
-            board_kernel.create_grant(&memory_allocation_capability),
-            &mut capsules::ble_advertising_driver::BUF,
-            ble_radio_virtual_alarm
-        )
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::ble_radio::RADIO,
-        ble_radio,
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::ble_radio::RADIO,
-        ble_radio,
-    );
-    ble_radio_virtual_alarm.set_client(ble_radio);
+    let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
