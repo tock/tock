@@ -526,7 +526,7 @@ impl hil::i2c::I2CClient for MCP230xx<'a> {
 
 impl gpio::ClientWithValue for MCP230xx<'a> {
     fn fired(&self, value: u32) {
-        if value != 0 && value != 1 {
+        if value < 2 { 
             return; // Error, value specifies which pin A=0, B=1
         }
         self.buffer.take().map(|buffer| {

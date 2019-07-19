@@ -7,10 +7,13 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
+use capsules::button;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
+use kernel::hil::gpio;
+use kernel::hil::gpio::{Configure, InterruptPin, InterruptWithValue};
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -51,8 +54,8 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 struct NucleoF446RE {
     console: &'static capsules::console::Console<'static>,
     ipc: kernel::ipc::IPC,
-    led: &'static capsules::led::LED<'static, stm32f4xx::gpio::Pin<'static>>,
-    button: &'static capsules::button::Button<'static, stm32f4xx::gpio::Pin<'static>>,
+    led: &'static capsules::led::LED<'static>,
+    button: &'static capsules::button::Button<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f4xx::tim2::Tim2<'static>>,
@@ -104,7 +107,6 @@ unsafe fn setup_dma() {
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
-    use kernel::hil::gpio::Pin;
     use stm32f4xx::exti::{LineId, EXTI};
     use stm32f4xx::gpio::{AlternateFunction, Mode, PinId, PortId, PORT};
     use stm32f4xx::syscfg::SYSCFG;
@@ -271,34 +273,50 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
-        [(&'static stm32f4xx::gpio::Pin, capsules::led::ActivationMode); 1],
+        [(&'static kernel::hil::gpio::Pin, capsules::led::ActivationMode); 1],
         [(
-            &stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
+            stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
         )]
     );
     let led = static_init!(
-        capsules::led::LED<'static, stm32f4xx::gpio::Pin<'static>>,
-        capsules::led::LED::new(led_pins)
+        capsules::led::LED<'static>,
+        capsules::led::LED::new(&led_pins[..])
     );
 
     // BUTTONs
     let button_pins = static_init!(
-        [(&'static stm32f4xx::gpio::Pin, capsules::button::GpioMode); 1],
+        [&'static InterruptPin; 1],
+        [stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap()]
+    );
+    let values = static_init!(
+        [kernel::hil::gpio::InterruptValueWrapper; 1],
+        [gpio::InterruptValueWrapper::new()]
+    );
+
+    // Button expects a configured InterruptValuePin so configure it here.
+    for i in 0..1 {
+        let pin = button_pins[i];
+        let value = &values[i];
+        pin.set_client(value);
+        value.set_source(pin);
+    }
+    let config_values = static_init!(
         [(
-            &stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
-            capsules::button::GpioMode::LowWhenPressed
-        )]
+           &'static kernel::hil::gpio::InterruptValuePin,
+           button::GpioMode
+        ); 1],
+       [(&values[0], button::GpioMode::LowWhenPressed)]
     );
     let button = static_init!(
-        capsules::button::Button<'static, stm32f4xx::gpio::Pin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
-            button_pins,
+            &config_values[..],
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    for &(btn, _) in button_pins.iter() {
-        btn.set_client(button);
+    for i in 0..1 {
+        values[i].set_client(button);
     }
 
     // ALARM
