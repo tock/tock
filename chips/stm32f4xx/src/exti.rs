@@ -503,7 +503,7 @@ impl Exti<'a> {
             LineId::Exti15 => self.registers.pr.write(PR::PR15::SET),
         }
     }
-    
+
     pub fn is_pending(&self, lineid: LineId) -> bool {
         let val = match lineid {
             LineId::Exti0 => self.registers.pr.read(PR::PR0),

@@ -18,7 +18,6 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio;
-use kernel::hil::gpio::InterruptWithValue;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 
@@ -202,48 +201,39 @@ pub unsafe fn reset_handler() {
 
     // BUTTONS
     let button_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptPin; 2],
-        [
-            &cc26x2::gpio::PORT[pinmap.button1],
-            &cc26x2::gpio::PORT[pinmap.button2],
-        ]
-    );
-    let button_values = static_init!(
-        [kernel::hil::gpio::InterruptValueWrapper; 2],
-        [
-            gpio::InterruptValueWrapper::new(),
-            gpio::InterruptValueWrapper::new(),
-        ]
-    );
-    for (&pin, value) in button_pins.iter().zip(button_values.iter()) {
-        pin.set_client(value);
-        pin.set_floating_state(hil::gpio::FloatingState::PullUp);
-        pin.enable_interrupts(hil::gpio::InterruptEdge::FallingEdge);
-        value.set_source(pin);
-    }
-    let button_config_values = static_init!(
-        [(
-            &'static kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 2],
+        [(&'static gpio::InterruptValuePin, capsules::button::GpioMode); 2],
         [
             (
-                &button_values[0],
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button1])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             (
-                &button_values[1],
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button2])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
-            ),
+            )
         ]
     );
+
     let button = static_init!(
         capsules::button::Button<'static>,
         capsules::button::Button::new(
-            button_config_values,
+            button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+
+    for (pin, _) in button_pins.iter() {
+        pin.set_client(button);
+        pin.set_floating_state(hil::gpio::FloatingState::PullUp);
+    }
 
     // UART
     cc26x2::uart::UART0.initialize();
@@ -312,33 +302,28 @@ pub unsafe fn reset_handler() {
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptPin; 1],
+        [&'static kernel::hil::gpio::InterruptValuePin; 1],
         [
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            &cc26x2::gpio::PORT[pinmap.gpio0],
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.gpio0])
+            )
+            .finalize()
         ]
-    );
-    let gpio_values = static_init!(
-        [kernel::hil::gpio::InterruptValueWrapper; 1],
-        [kernel::hil::gpio::InterruptValueWrapper::new()]
-    );
-    for (index, (&pin, value)) in gpio_pins.iter().zip(gpio_values.iter()).enumerate() {
-        pin.set_client(value);
-        value.set_source(pin);
-        value.set_value(index as u32);
-    }
-    let gpio_refs = static_init!(
-        [&'static hil::gpio::InterruptValuePin; 1],
-        [&gpio_values[0]]
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
-            &gpio_refs[..],
+            gpio_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+
+    for pin in gpio_pins.iter() {
+        pin.set_client(gpio);
+    }
 
     let rtc = &cc26x2::rtc::RTC;
     rtc.start();

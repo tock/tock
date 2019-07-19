@@ -70,10 +70,10 @@ pub struct Platform {
         nrf52::radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
-    button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static>,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -114,15 +114,21 @@ impl kernel::Platform for Platform {
 pub unsafe fn setup_board(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: usize,
-    gpio_pins: &'static mut [&'static nrf5x::gpio::GPIOPin],
+    gpio_pins: &'static mut [&'static kernel::hil::gpio::InterruptValuePin],
     debug_pin1_index: usize,
     debug_pin2_index: usize,
     debug_pin3_index: usize,
-    led_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode)],
+    led_pins: &'static mut [(
+        &'static kernel::hil::gpio::Pin,
+        capsules::led::ActivationMode,
+    )],
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button_pins: &'static mut [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode)],
+    button_pins: &'static mut [(
+        &'static kernel::hil::gpio::InterruptValuePin,
+        capsules::button::GpioMode,
+    )],
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -151,34 +157,34 @@ pub unsafe fn setup_board(
     );
 
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
+        capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
             gpio_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
     // LEDs
     let led = static_init!(
-        capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+        capsules::led::LED<'static>,
         capsules::led::LED::new(led_pins)
     );
 
     // Buttons
     let button = static_init!(
-        capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
             button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    for &(btn, _) in button_pins.iter() {
-        use kernel::hil::gpio::PinCtl;
-        btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
-        btn.set_client(button);
+
+    for (pin, _) in button_pins.iter() {
+        pin.set_client(button);
     }
 
     let rtc = &nrf5x::rtc::RTC;
