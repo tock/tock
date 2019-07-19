@@ -7,13 +7,11 @@
 #![feature(asm, core_intrinsics)]
 #![deny(missing_docs)]
 
-use capsules::button;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::hil;
-use kernel::hil::gpio;
-use kernel::hil::gpio::{Configure, InterruptPin, InterruptWithValue};
+use kernel::hil::gpio::Configure;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -48,6 +46,9 @@ static APP_HACK: u8 = 0;
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+const NUM_BUTTONS: usize = 1;
+
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -284,39 +285,34 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(&led_pins[..])
     );
 
-    // BUTTONs
+  // BUTTONs
     let button_pins = static_init!(
-        [&'static InterruptPin; 1],
-        [stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap()]
-    );
-    let values = static_init!(
-        [kernel::hil::gpio::InterruptValueWrapper; 1],
-        [gpio::InterruptValueWrapper::new()]
+        [(
+            &'static kernel::hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); NUM_BUTTONS],
+        [(
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(
+                    stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap()
+                )
+            )
+            .finalize(),
+            capsules::button::GpioMode::LowWhenPressed
+        ),]
     );
 
-    // Button expects a configured InterruptValuePin so configure it here.
-    for i in 0..1 {
-        let pin = button_pins[i];
-        let value = &values[i];
-        pin.set_client(value);
-        value.set_source(pin);
-    }
-    let config_values = static_init!(
-        [(
-           &'static kernel::hil::gpio::InterruptValuePin,
-           button::GpioMode
-        ); 1],
-       [(&values[0], button::GpioMode::LowWhenPressed)]
-    );
     let button = static_init!(
         capsules::button::Button<'static>,
         capsules::button::Button::new(
-            &config_values[..],
+            button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    for i in 0..1 {
-        values[i].set_client(button);
+
+    for (pin, _) in button_pins.iter() {
+        pin.set_client(button);
     }
 
     // ALARM
