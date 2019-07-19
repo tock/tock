@@ -736,8 +736,7 @@ impl Pin<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client
-            .map(|client| client.fired());
+        self.client.map(|client| client.fired());
     }
 
     pub fn get_mode(&self) -> Mode {
@@ -760,7 +759,7 @@ impl Pin<'a> {
             0b1101 => port.registers.moder.read(MODER::MODER13),
             0b1110 => port.registers.moder.read(MODER::MODER14),
             0b1111 => port.registers.moder.read(MODER::MODER15),
-            _ => 0
+            _ => 0,
         };
 
         Mode::from_u32(val).unwrap_or(Mode::Input)
@@ -866,7 +865,7 @@ impl Pin<'a> {
             0b1101 => port.registers.pupdr.read(PUPDR::PUPDR13),
             0b1110 => port.registers.pupdr.read(PUPDR::PUPDR14),
             0b1111 => port.registers.pupdr.read(PUPDR::PUPDR15),
-            _ => 0
+            _ => 0,
         };
 
         PullUpPullDown::from_u32(val).unwrap_or(PullUpPullDown::NoPullUpPullDown)
@@ -1043,7 +1042,9 @@ impl hil::gpio::Configure for Pin<'a> {
     fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
         match mode {
             hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::PullUp),
-            hil::gpio::FloatingState::PullDown => self.set_pullup_pulldown(PullUpPullDown::PullDown),
+            hil::gpio::FloatingState::PullDown => {
+                self.set_pullup_pulldown(PullUpPullDown::PullDown)
+            }
             hil::gpio::FloatingState::PullNone => {
                 self.set_pullup_pulldown(PullUpPullDown::NoPullUpPullDown)
             }
@@ -1063,7 +1064,7 @@ impl hil::gpio::Configure for Pin<'a> {
             Mode::Input => hil::gpio::Configuration::Input,
             Mode::GeneralPurposeOutputMode => hil::gpio::Configuration::Output,
             Mode::AnalogMode => hil::gpio::Configuration::LowPower,
-            Mode::AlternateFunctionMode => hil::gpio::Configuration::Function
+            Mode::AlternateFunctionMode => hil::gpio::Configuration::Function,
         }
     }
 

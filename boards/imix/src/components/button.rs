@@ -41,22 +41,23 @@ impl Component for ButtonComponent {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let button_pins = static_init!(
-            [(&'static kernel::hil::gpio::InterruptValuePin, button::GpioMode); ButtonComponent::NUM_PINS],
-            [
-                (
-                    static_init!(gpio::InterruptValueWrapper,
-                                 gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[24])).finalize(),
-                     button::GpioMode::LowWhenPressed
+            [(
+                &'static kernel::hil::gpio::InterruptValuePin,
+                button::GpioMode
+            ); ButtonComponent::NUM_PINS],
+            [(
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[24])
                 )
-            ]
+                .finalize(),
+                button::GpioMode::LowWhenPressed
+            )]
         );
 
         let button = static_init!(
             button::Button<'static>,
-            button::Button::new(
-                button_pins,
-                self.board_kernel.create_grant(&grant_cap)
-            )
+            button::Button::new(button_pins, self.board_kernel.create_grant(&grant_cap))
         );
 
         for (pin, _) in button_pins.iter() {

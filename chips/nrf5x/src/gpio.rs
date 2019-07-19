@@ -381,20 +381,20 @@ impl hil::gpio::Configure for GPIOPin {
         hil::gpio::Configuration::Unknown
     }
 
-    fn disable_output(&self) -> hil::gpio::Configuration  {
+    fn disable_output(&self) -> hil::gpio::Configuration {
         self.make_input();
         hil::gpio::Configuration::Unknown
     }
 
     // Configuration constants stolen from
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
-    fn make_input(&self) -> hil::gpio::Configuration  {
+    fn make_input(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.dirclr.set(1 << self.pin);
         hil::gpio::Configuration::Unknown
     }
 
-    fn disable_input(&self) -> hil::gpio::Configuration  {
+    fn disable_input(&self) -> hil::gpio::Configuration {
         self.make_output();
         hil::gpio::Configuration::Unknown
     }
@@ -416,7 +416,6 @@ impl hil::gpio::Configure for GPIOPin {
         //TODO
         false
     }
-
 }
 
 impl hil::gpio::Input for GPIOPin {
@@ -443,7 +442,6 @@ impl hil::gpio::Output for GPIOPin {
         gpio_regs.out.set(result);
         result & (1 << self.pin) != 0
     }
-
 }
 
 impl hil::gpio::Pin for GPIOPin {}

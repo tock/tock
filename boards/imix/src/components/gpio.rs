@@ -45,13 +45,41 @@ impl Component for GpioComponent {
         let gpio_pins = static_init!(
             [&'static kernel::hil::gpio::InterruptValuePin; 7],
             [
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[31])).finalize(),
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[30])).finalize(),
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[29])).finalize(),
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[28])).finalize(),
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[27])).finalize(),
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[26])).finalize(),
-                static_init!(InterruptValueWrapper, InterruptValueWrapper::new(&sam4l::gpio::PC[20])).finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[31])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[30])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[29])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[28])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[27])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[26])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[20])
+                )
+                .finalize(),
             ]
         );
 

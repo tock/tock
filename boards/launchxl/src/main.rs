@@ -204,14 +204,20 @@ pub unsafe fn reset_handler() {
         [(&'static gpio::InterruptValuePin, capsules::button::GpioMode); 2],
         [
             (
-                static_init!(gpio::InterruptValueWrapper,
-                             gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button1])).finalize(),
-                 capsules::button::GpioMode::LowWhenPressed
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button1])
+                )
+                .finalize(),
+                capsules::button::GpioMode::LowWhenPressed
             ),
             (
-                static_init!(gpio::InterruptValueWrapper,
-                             gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button2])).finalize(),
-                 capsules::button::GpioMode::LowWhenPressed
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button2])
+                )
+                .finalize(),
+                capsules::button::GpioMode::LowWhenPressed
             )
         ]
     );
@@ -228,7 +234,6 @@ pub unsafe fn reset_handler() {
         pin.set_client(button);
         pin.set_floating_state(hil::gpio::FloatingState::PullUp);
     }
-
 
     // UART
     cc26x2::uart::UART0.initialize();
@@ -301,8 +306,11 @@ pub unsafe fn reset_handler() {
         [
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            static_init!(gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.gpio0])).finalize()
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.gpio0])
+            )
+            .finalize()
         ]
     );
     let gpio = static_init!(

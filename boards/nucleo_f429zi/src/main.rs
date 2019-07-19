@@ -266,7 +266,10 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
-        [(&'static kernel::hil::gpio::Pin, capsules::led::ActivationMode); NUM_LEDS],
+        [(
+            &'static kernel::hil::gpio::Pin,
+            capsules::led::ActivationMode
+        ); NUM_LEDS],
         [(
             stm32f4xx::gpio::PinId::PB07.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
@@ -279,13 +282,20 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button_pins = static_init!(
-        [(&'static kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode); NUM_BUTTONS],
-        [
-            (static_init!(kernel::hil::gpio::InterruptValueWrapper,
-                        kernel::hil::gpio::InterruptValueWrapper::new(stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap())).finalize(),
-
-            capsules::button::GpioMode::LowWhenPressed),
-        ]
+        [(
+            &'static kernel::hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); NUM_BUTTONS],
+        [(
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(
+                    stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap()
+                )
+            )
+            .finalize(),
+            capsules::button::GpioMode::LowWhenPressed
+        ),]
     );
 
     let button = static_init!(
@@ -299,7 +309,6 @@ pub unsafe fn reset_handler() {
     for (pin, _) in button_pins.iter() {
         pin.set_client(button);
     }
-
 
     // ALARM
     let mux_alarm = static_init!(

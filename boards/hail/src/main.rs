@@ -442,14 +442,18 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button_pins = static_init!(
-        [(&'static kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode); 1],
-        [
-            (
-                static_init!(gpio::InterruptValueWrapper,
-                             gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[16])).finalize(),
-                 capsules::button::GpioMode::LowWhenPressed
+        [(
+            &'static kernel::hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); 1],
+        [(
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[16])
             )
-        ]
+            .finalize(),
+            capsules::button::GpioMode::LowWhenPressed
+        )]
     );
 
     let button = static_init!(
@@ -508,17 +512,29 @@ pub unsafe fn reset_handler() {
         [&'static kernel::hil::gpio::InterruptValuePin; 4],
         [
             // D0
-            static_init!(gpio::InterruptValueWrapper,
-                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[14])).finalize(),
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[14])
+            )
+            .finalize(),
             // D1
-            static_init!(gpio::InterruptValueWrapper,
-                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[15])).finalize(),
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[15])
+            )
+            .finalize(),
             // D6
-            static_init!(gpio::InterruptValueWrapper,
-                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[11])).finalize(),
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[11])
+            )
+            .finalize(),
             // D7
-            static_init!(gpio::InterruptValueWrapper,
-                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[12])).finalize(),
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[12])
+            )
+            .finalize(),
         ]
     );
     let gpio = static_init!(

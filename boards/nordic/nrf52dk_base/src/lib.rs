@@ -118,11 +118,17 @@ pub unsafe fn setup_board(
     debug_pin1_index: usize,
     debug_pin2_index: usize,
     debug_pin3_index: usize,
-    led_pins: &'static mut [(&'static kernel::hil::gpio::Pin, capsules::led::ActivationMode)],
+    led_pins: &'static mut [(
+        &'static kernel::hil::gpio::Pin,
+        capsules::led::ActivationMode,
+    )],
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button_pins: &'static mut [(&'static kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode)],
+    button_pins: &'static mut [(
+        &'static kernel::hil::gpio::InterruptValuePin,
+        capsules::button::GpioMode,
+    )],
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -161,7 +167,6 @@ pub unsafe fn setup_board(
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
-
 
     // LEDs
     let led = static_init!(
