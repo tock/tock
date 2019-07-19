@@ -1147,9 +1147,8 @@ impl hil::gpio::Interrupt for Pin<'a> {
 
     fn is_pending(&self) -> bool {
         unsafe {
-            self.exti_lineid.map_or(false, |&mut lineid| 
-                exti::EXTI.is_pending(lineid)
-            )
+            self.exti_lineid
+                .map_or(false, |&mut lineid| exti::EXTI.is_pending(lineid))
         }
     }
 }
