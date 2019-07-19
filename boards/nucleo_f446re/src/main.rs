@@ -43,7 +43,6 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 const NUM_BUTTONS: usize = 1;
 
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF446RE {
@@ -268,7 +267,10 @@ pub unsafe fn reset_handler() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
-        [(&'static kernel::hil::gpio::Pin, capsules::led::ActivationMode); 1],
+        [(
+            &'static kernel::hil::gpio::Pin,
+            capsules::led::ActivationMode
+        ); 1],
         [(
             stm32f4xx::gpio::PinId::PA05.get_pin().as_ref().unwrap(),
             capsules::led::ActivationMode::ActiveHigh
@@ -279,7 +281,7 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(&led_pins[..])
     );
 
-  // BUTTONs
+    // BUTTONs
     let button_pins = static_init!(
         [(
             &'static kernel::hil::gpio::InterruptValuePin,
