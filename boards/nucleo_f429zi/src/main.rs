@@ -13,7 +13,6 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
-use kernel::hil::gpio::InterruptWithValue;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -280,37 +279,25 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptPin; NUM_BUTTONS],
-        [stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap()]
-    );
-
-    let values = static_init!(
-        [kernel::hil::gpio::InterruptValueWrapper; NUM_BUTTONS],
-        [kernel::hil::gpio::InterruptValueWrapper::new()]
-    );
-    
-    for i in 0..NUM_BUTTONS {
-        let pin = button_pins[i];
-        let value = &values[i];
-        pin.set_client(value);
-        value.set_source(pin);
-    }
-
-    let config_value = static_init!(
         [(&'static kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode); NUM_BUTTONS],
-        [(&values[0], capsules::button::GpioMode::LowWhenPressed)]
+        [
+            (static_init!(kernel::hil::gpio::InterruptValueWrapper,
+                        kernel::hil::gpio::InterruptValueWrapper::new(stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap())).finalize(),
+
+            capsules::button::GpioMode::LowWhenPressed),
+        ]
     );
 
     let button = static_init!(
         capsules::button::Button<'static>,
         capsules::button::Button::new(
-            &config_value[..],
+            button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
 
-    for i in 0..NUM_BUTTONS {
-        values[i].set_client(button);
+    for (pin, _) in button_pins.iter() {
+        pin.set_client(button);
     }
 
 

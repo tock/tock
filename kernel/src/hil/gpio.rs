@@ -123,9 +123,6 @@ pub trait InterruptWithValue: Input {
     /// Set the client for interrupt events.
     fn set_client(&self, client: &'static ClientWithValue);
 
-    /// Set the underlying interrupt source.
-    fn set_source(&'static self, source: &'static InterruptPin);
-
     /// Enable an interrupt on the GPIO pin. This does not
     /// configure the pin except to enable an interrupt: it
     /// should be separately configured as an input, etc.
@@ -164,16 +161,21 @@ pub trait ClientWithValue {
 pub struct InterruptValueWrapper {
     value: Cell<u32>,
     client: OptionalCell<&'static ClientWithValue>,
-    source: OptionalCell<&'static InterruptPin>,
+    source: &'static InterruptPin,
 }
 
 impl InterruptValueWrapper {
-    pub fn new() -> InterruptValueWrapper {
+    pub fn new(pin: &'static InterruptPin) -> InterruptValueWrapper {
         InterruptValueWrapper {
             value: Cell::new(0),
             client: OptionalCell::empty(),
-            source: OptionalCell::empty(),
+            source: pin,
         }
+    }
+
+    pub fn finalize(&'static self) -> &'static Self {
+        self.source.set_client(self);
+        self
     }
 }
 
@@ -191,91 +193,78 @@ impl InterruptWithValue for InterruptValueWrapper {
     }
 
     fn is_pending(&self) -> bool {
-        self.source.map_or(false, |s| s.is_pending())
+        self.source.is_pending()
     }
 
     fn enable_interrupts(&self, edge: InterruptEdge) -> ReturnCode {
-        self.source.map_or(ReturnCode::FAIL, |s| {
-            s.enable_interrupts(edge);
-            ReturnCode::SUCCESS
-        })
+        self.source.enable_interrupts(edge);
+        ReturnCode::SUCCESS
     }
 
     fn disable_interrupts(&self) {
-        self.source.map(|s| s.disable_interrupts());
-    }
-
-    fn set_source(&'static self, source: &'static InterruptPin) {
-        source.set_client(self);
-        self.source.replace(source);
+        self.source.disable_interrupts();
     }
 }
 
 impl Input for InterruptValueWrapper {
     fn read(&self) -> bool {
-        self.source.map_or(false, |s| s.read())
+        self.source.read()
     }
 }
 
 impl Configure for InterruptValueWrapper {
     fn configuration(&self) -> Configuration {
-        self.source
-            .map_or(Configuration::Unknown, |s| s.configuration())
+        self.source.configuration()
     }
 
     fn make_output(&self) -> Configuration {
-        self.source
-            .map_or(Configuration::Unknown, |s| s.make_output())
+        self.source.make_output()
     }
 
     fn disable_output(&self) -> Configuration {
-        self.source
-            .map_or(Configuration::Unknown, |s| s.disable_output())
+        self.source.disable_output()
     }
 
     fn make_input(&self) -> Configuration {
-        self.source
-            .map_or(Configuration::Unknown, |s| s.make_input())
+        self.source.make_input()
     }
 
     fn disable_input(&self) -> Configuration {
-        self.source
-            .map_or(Configuration::Unknown, |s| s.disable_input())
+        self.source.disable_input()
     }
 
     fn low_power(&self) {
-        self.source.map(|s| s.low_power());
+        self.source.low_power();
     }
 
     fn set_floating_state(&self, state: FloatingState) {
-        self.source.map(|s| s.set_floating_state(state));
+        self.source.set_floating_state(state);
     }
 
     fn floating_state(&self) -> FloatingState {
-        self.source
-            .map_or(FloatingState::PullNone, |s| s.floating_state())
+        self.source.floating_state()
     }
 
     fn is_input(&self) -> bool {
-        self.source.map_or(false, |s| s.is_input())
+        self.source.is_input()
     }
 
     fn is_output(&self) -> bool {
-        self.source.map_or(false, |s| s.is_input())
+        self.source.is_input()
     }
 }
 
 impl Output for InterruptValueWrapper {
     fn set(&self) {
-        self.source.map(|s| s.is_input());
+        self.source.is_input();
     }
 
     fn clear(&self) {
-        self.source.map(|s| s.clear());
+        self.source.clear();
     }
 
     fn toggle(&self) -> bool {
-        self.source.map_or(false, |s| s.toggle())
+        self.source.toggle()
     }
 }
 

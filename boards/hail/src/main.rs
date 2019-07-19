@@ -15,7 +15,6 @@ use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio;
-use kernel::hil::gpio::InterruptWithValue;
 use kernel::hil::rng::Rng;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
@@ -443,36 +442,26 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptPin; 1],
-        [&sam4l::gpio::PA[16]]
+        [(&'static kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode); 1],
+        [
+            (
+                static_init!(gpio::InterruptValueWrapper,
+                             gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[16])).finalize(),
+                 capsules::button::GpioMode::LowWhenPressed
+            )
+        ]
     );
-    let button_values = static_init!(
-        [kernel::hil::gpio::InterruptValueWrapper; 1],
-        [gpio::InterruptValueWrapper::new()]
-    );
-    for (&pin, value) in button_pins.iter().zip(button_values.iter()) {
-        pin.set_client(value);
-        value.set_source(pin);
-    }
-    let button_config_values = static_init!(
-        [(
-            &'static kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            &button_values[0],
-            capsules::button::GpioMode::LowWhenPressed
-        )]
-    );
+
     let button = static_init!(
         capsules::button::Button<'static>,
         capsules::button::Button::new(
-            button_config_values,
+            button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    for value in button_values.iter() {
-        value.set_client(button);
+
+    for (pin, _) in button_pins.iter() {
+        pin.set_client(button);
     }
 
     // Setup ADC
@@ -516,41 +505,26 @@ pub unsafe fn reset_handler() {
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptPin; 4],
+        [&'static kernel::hil::gpio::InterruptValuePin; 4],
         [
-            &sam4l::gpio::PB[14], // D0
-            &sam4l::gpio::PB[15], // D1
-            &sam4l::gpio::PB[11], // D6
-            &sam4l::gpio::PB[12], // D7
-        ]
-    );
-    let gpio_values = static_init!(
-        [kernel::hil::gpio::InterruptValueWrapper; 4],
-        [
-            kernel::hil::gpio::InterruptValueWrapper::new(),
-            kernel::hil::gpio::InterruptValueWrapper::new(),
-            kernel::hil::gpio::InterruptValueWrapper::new(),
-            kernel::hil::gpio::InterruptValueWrapper::new(),
-        ]
-    );
-    for (index, (&pin, value)) in gpio_pins.iter().zip(gpio_values.iter()).enumerate() {
-        pin.set_client(value);
-        value.set_source(pin);
-        value.set_value(index as u32);
-    }
-    let gpio_refs = static_init!(
-        [&'static hil::gpio::InterruptValuePin; 4],
-        [
-            &gpio_values[0],
-            &gpio_values[1],
-            &gpio_values[2],
-            &gpio_values[3],
+            // D0
+            static_init!(gpio::InterruptValueWrapper,
+                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[14])).finalize(),
+            // D1
+            static_init!(gpio::InterruptValueWrapper,
+                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[15])).finalize(),
+            // D6
+            static_init!(gpio::InterruptValueWrapper,
+                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[11])).finalize(),
+            // D7
+            static_init!(gpio::InterruptValueWrapper,
+                         gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[12])).finalize(),
         ]
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
-            &gpio_refs[..],
+            gpio_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
