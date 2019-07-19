@@ -46,6 +46,7 @@ pub trait InterruptPin: Pin + Interrupt {}
 /// pass a value.
 pub trait InterruptValuePin: Pin + InterruptWithValue {}
 
+/// Control and configure a GPIO pin.
 pub trait Configure {
     fn configuration(&self) -> Configuration;
     fn make_output(&self) -> Configuration;
