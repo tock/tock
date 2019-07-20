@@ -13,6 +13,7 @@ name = "rv32i"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
+ "tock_rt0 0.1.0",
 ]
 
 [[package]]
@@ -30,4 +31,8 @@ version = "0.1.0"
 [[package]]
 name = "tock-registers"
 version = "0.3.0"
+
+[[package]]
+name = "tock_rt0"
+version = "0.1.0"
 
