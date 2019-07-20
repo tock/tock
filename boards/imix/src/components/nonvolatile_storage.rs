@@ -45,7 +45,7 @@ impl Component for NonvolatileStorageComponent {
         pub static mut FLASH_PAGEBUFFER: sam4l::flashcalw::Sam4lPage =
             sam4l::flashcalw::Sam4lPage::new();
         let nv_to_page = static_init!(
-            NonvolatileToPages<'static, 'static, 'static, sam4l::flashcalw::FLASHCALW>,
+            NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
             NonvolatileToPages::new(
                 &mut sam4l::flashcalw::FLASH_CONTROLLER,
                 &mut FLASH_PAGEBUFFER

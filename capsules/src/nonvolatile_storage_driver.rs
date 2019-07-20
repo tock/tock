@@ -106,7 +106,7 @@ impl Default for App {
 
 pub struct NonvolatileStorage<'a> {
     // The underlying physical storage device.
-    driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'static, 'static>,
+    driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'static>,
     // Per-app state.
     apps: Grant<App>,
 
@@ -142,7 +142,7 @@ pub struct NonvolatileStorage<'a> {
 
 impl NonvolatileStorage<'a> {
     pub fn new(
-        driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'static, 'static>,
+        driver: &'a hil::nonvolatile_storage::NonvolatileStorage<'static>,
         grant: Grant<App>,
         userspace_start_address: usize,
         userspace_length: usize,
@@ -448,11 +448,8 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
 }
 
 /// Provide an interface for the kernel.
-impl hil::nonvolatile_storage::NonvolatileStorage<'static, 'static> for NonvolatileStorage<'a> {
-    fn set_client(
-        &self,
-        client: &'static hil::nonvolatile_storage::NonvolatileStorageClient<'static>,
-    ) {
+impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorage<'a> {
+    fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.kernel_client.set(client);
     }
 
