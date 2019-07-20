@@ -62,8 +62,18 @@ pub trait Configure {
     fn set_floating_state(&self, state: FloatingState);
     fn floating_state(&self) -> FloatingState;
 
-    fn is_input(&self) -> bool;
-    fn is_output(&self) -> bool;
+    fn is_input(&self) -> bool {
+        match self.configuration() {
+            Configuration::Input | Configuration::InputOutput => true,
+            _ => false,
+        }
+    }
+    fn is_output(&self) -> bool {
+        match self.configuration() {
+            Configuration::Output | Configuration::InputOutput => true,
+            _ => false,
+        }
+    }
 }
 
 pub trait Output {
