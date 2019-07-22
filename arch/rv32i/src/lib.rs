@@ -1,6 +1,6 @@
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, lang_items, global_asm)]
+#![feature(asm, const_fn, lang_items, global_asm, naked_functions)]
 #![feature(crate_visibility_modifier)]
 #![no_std]
 
@@ -37,6 +37,7 @@ extern "C" {
 /// the main entry point for Tock boards.
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
+#[naked]
 pub extern "C" fn _start() {
     unsafe {
         asm! ("
@@ -92,13 +93,16 @@ pub enum PermissionMode {
 
 /// Tell the MCU what address the trap handler is located at.
 ///
+/// This is a generic implementation. There may be board specific versions as
+/// some platforms have added more bits to the `mtvec` register.
+///
 /// The trap handler is called on exceptions and for interrupts.
 pub unsafe fn configure_trap_handler(mode: PermissionMode) {
     match mode {
         PermissionMode::Machine =>
-            riscvregs::register::mtvec::write(&_start_trap as *const _ as usize, riscvregs::register::mtvec::TrapMode::Direct),
+            riscvregs::register::mtvec::write(_start_trap as usize, riscvregs::register::mtvec::TrapMode::Direct),
         PermissionMode::Supervisor =>
-            riscvregs::register::stvec::write(&_start_trap as *const _ as usize, riscvregs::register::stvec::TrapMode::Direct),
+            riscvregs::register::stvec::write(_start_trap as usize, riscvregs::register::stvec::TrapMode::Direct),
         PermissionMode::User => () // TODO implement in riscvregs crate
             //riscvregs::register::utvec::write(&_start_trap as *const _ as usize, riscvregs::register::utvec::TrapMode::Direct),
     }
@@ -118,8 +122,12 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
 /// need to. If the trap happens while and application was executing, we have to
 /// save the application state and then resume the `switch_to()` function to
 /// correctly return back to the kernel.
+///
+/// We use the naked directive to prevent _start_trap from having a prologue, as we immediately
+/// want to save registers.
 #[link_section = ".riscv.trap"]
 #[export_name = "_start_trap"]
+#[naked]
 pub extern "C" fn _start_trap() {
     unsafe {
         asm! ("

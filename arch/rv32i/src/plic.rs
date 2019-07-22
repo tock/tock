@@ -67,6 +67,8 @@ pub unsafe fn disable_all() {
     }
 }
 
+/// This is a generic implementation. There may be board specific versions as
+/// some platforms have added more bits to the `mtvec` register.
 pub unsafe fn surpress_all() {
     let plic: &PlicRegisters = &*PLIC_BASE;
     // Accept all interrupts.

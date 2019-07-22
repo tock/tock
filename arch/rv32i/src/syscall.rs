@@ -134,7 +134,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           //  0*4(sp): app s0   <- new stack pointer
           // ```
 
-          addi sp, sp, -33*4  // Move the stack pointer down to make room.
+          addi sp, sp, -34*4  // Move the stack pointer down to make room.
 
           sw   x1,  3*4(sp)    // Save all of the registers on the kernel stack.
           sw   x3,  4*4(sp)
@@ -166,6 +166,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           sw   x29, 30*4(sp)
           sw   x30, 31*4(sp)
           sw   x31, 32*4(sp)
+          sw   $3,  33*4(sp) // save syscall_args, so we can access it later
 
           sw   $2, 1*4(sp)    // Store process state pointer on stack as well.
                               // We need to have the available for after the app
@@ -280,13 +281,18 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           lw   x29, 30*4(sp)
           lw   x30, 31*4(sp)
           lw   x31, 32*4(sp)
+          // We also need to save syscall_args (and state address), because
+          // as of now (7/22/19) llvm will overwrite these values
+          // after the mret instruction.
+          lw   t2,  33*4(sp) // move syscall_args address to t2
+          lw   t6,   1*4(sp) // move state address to t6
 
-          addi sp, sp, 33*4   // Reset kernel stack pointer
+          addi sp, sp, 34*4   // Reset kernel stack pointer
 
 
           // Load mcause from the stored value in the RiscvimacStoredState
           // struct.
-          lw   t0, 32*4($2)
+          lw   t0, 32*4(t6)
           // If mcause < 0 then we encountered an interrupt.
           blt  t0, x0, _app_interrupt // If negative, this was an interrupt.
 
@@ -317,24 +323,24 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           li   $0, 0          // Mark that the process did a syscall.
           // Need to increment the PC so when we return we start at the correct
           // instruction. The hardware does not do this for us.
-          lw   t0, 31*4($2)   // Get the PC from RiscvimacStoredState
+          lw   t0, 31*4(t6)   // Get the PC from RiscvimacStoredState
           addi t0, t0, 4      // Add 4 to increment the PC past ecall instruction
-          sw   t0, 31*4($2)   // Save the new PC back to RiscvimacStoredState
+          sw   t0, 31*4(t6)   // Save the new PC back to RiscvimacStoredState
 
           // We have to get the values that the app passed to us in registers
           // (these are stored in RiscvimacStoredState) and copy them to
           // registers so we can use them when returning to the kernel loop.
-          lw   t0, 9*4($2)    // Fetch a0
-          sw   t0, 0*4($3)
-          lw   t0, 10*4($2)   // Fetch a1
-          sw   t0, 1*4($3)
-          lw   t0, 11*4($2)   // Fetch a2
-          sw   t0, 2*4($3)
-          lw   t0, 12*4($2)   // Fetch a3
-          sw   t0, 3*4($3)
-          lw   t0, 13*4($2)   // Fetch a4
-          sw   t0, 4*4($3)
-          lw   $1, 1*4($2)    // Fetch sp
+          lw   t0, 9*4(t6)    // Fetch a0
+          sw   t0, 0*4(t2)
+          lw   t0, 10*4(t6)   // Fetch a1
+          sw   t0, 1*4(t2)
+          lw   t0, 11*4(t6)   // Fetch a2
+          sw   t0, 2*4(t2)
+          lw   t0, 12*4(t6)   // Fetch a3
+          sw   t0, 3*4(t2)
+          lw   t0, 13*4(t6)   // Fetch a4
+          sw   t0, 4*4(t2)
+          lw   $1, 1*4(t6)    // Fetch sp
 
         _done:
           nop
