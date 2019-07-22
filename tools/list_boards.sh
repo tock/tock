@@ -2,7 +2,7 @@
 
 # Find boards based on folders with Makefiles
 boards=""
-for b in $(find boards | egrep 'Makefile$'); do
+for b in $(find boards -maxdepth 4 | egrep 'Makefile$'); do
     b1=${b#boards/}
     b2=${b1%/*}
     boards+="$b2 "
