@@ -23,26 +23,29 @@ impl NullSysCall {
 impl kernel::syscall::UserspaceKernelBoundary for NullSysCall {
     type StoredState = RvStoredState;
 
-    unsafe fn get_syscall(&self, _stack_pointer: *const usize) -> Option<kernel::syscall::Syscall> {
-        None
-    }
-
-    unsafe fn set_syscall_return_value(&self, _stack_pointer: *const usize, _return_value: isize) {}
-
-    unsafe fn pop_syscall_stack_frame(
+    unsafe fn initialize_new_process(
         &self,
-        stack_pointer: *const usize,
-        _state: &mut RvStoredState,
-    ) -> *mut usize {
-        stack_pointer as *mut usize
+        _stack_pointer: *const usize,
+        _stack_size: usize,
+        _state: &mut Self::StoredState,
+    ) -> Result<*const usize, ()> {
+        Err(())
     }
 
-    unsafe fn push_function_call(
+    unsafe fn set_syscall_return_value(
+        &self,
+        _stack_pointer: *const usize,
+        _state: &mut RvStoredState,
+        _return_value: isize,
+    ) {
+    }
+
+    unsafe fn set_process_function(
         &self,
         stack_pointer: *const usize,
         _remaining_stack_memory: usize,
+        _state: &mut RvStoredState,
         _callback: kernel::procs::FunctionCall,
-        _state: &RvStoredState,
     ) -> Result<*mut usize, *mut usize> {
         Err(stack_pointer as *mut usize)
     }
