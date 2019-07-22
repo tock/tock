@@ -16,7 +16,7 @@
 
 use crate::pm::{self, Clock, PBDClock};
 use kernel::common::cells::OptionalCell;
-use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
+use kernel::common::peripherals::PeripheralManagement;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
@@ -150,8 +150,6 @@ impl PeripheralManagement<pm::Clock> for Eic<'a> {
         }
     }
 }
-
-type EicRegisterManager<'a, 'b> = PeripheralManager<'a, Eic<'b>, pm::Clock>;
 
 pub struct Eic<'a> {
     callbacks: [OptionalCell<&'a dyn hil::eic::Client>; 9],
