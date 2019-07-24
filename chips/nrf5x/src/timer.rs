@@ -202,7 +202,7 @@ pub enum BitmodeValue {
     Size32Bits = 3,
 }
 
-pub static mut TIMER0: Timer = Timer::new(0);
+pub static mut TIMER0: TimerAlarm = TimerAlarm::new(0);
 pub static mut ALARM1: TimerAlarm = TimerAlarm::new(1);
 pub static mut TIMER2: Timer = Timer::new(2);
 
@@ -280,6 +280,8 @@ impl TimerAlarm {
 
     fn clear_alarm(&self) {
         self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
+        self.registers.tasks_stop.write(Task::ENABLE::SET);
+        self.registers.tasks_clear.write(Task::ENABLE::SET);
         self.disable_interrupts();
     }
 
@@ -334,8 +336,9 @@ impl hil::time::Alarm for TimerAlarm {
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
+        self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
         self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
-        self.clear_alarm();
+        self.registers.tasks_start.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
 

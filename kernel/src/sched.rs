@@ -278,26 +278,25 @@ impl Kernel {
                             // Let process deal with it as appropriate.
                             process.set_fault_state();
                         }
-                        Some(ContextSwitchReason::SyscallFired) => {
+                        Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             // Handle each of the syscalls.
-                            match process.get_syscall() {
-                                Some(Syscall::MEMOP { operand, arg0 }) => {
+                            match syscall {
+                                Syscall::MEMOP { operand, arg0 } => {
                                     let res = memop::memop(process, operand, arg0);
                                     process.set_syscall_return_value(res.into());
                                 }
-                                Some(Syscall::YIELD) => {
+                                Syscall::YIELD => {
                                     process.set_yielded_state();
-                                    process.pop_syscall_stack_frame();
 
                                     // There might be already enqueued callbacks
                                     continue;
                                 }
-                                Some(Syscall::SUBSCRIBE {
+                                Syscall::SUBSCRIBE {
                                     driver_number,
                                     subdriver_number,
                                     callback_ptr,
                                     appdata,
-                                }) => {
+                                } => {
                                     let callback_ptr = NonNull::new(callback_ptr);
                                     let callback = callback_ptr
                                         .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
@@ -314,12 +313,12 @@ impl Kernel {
                                         );
                                     process.set_syscall_return_value(res.into());
                                 }
-                                Some(Syscall::COMMAND {
+                                Syscall::COMMAND {
                                     driver_number,
                                     subdriver_number,
                                     arg0,
                                     arg1,
-                                }) => {
+                                } => {
                                     let res =
                                         platform.with_driver(
                                             driver_number,
@@ -332,12 +331,12 @@ impl Kernel {
                                         );
                                     process.set_syscall_return_value(res.into());
                                 }
-                                Some(Syscall::ALLOW {
+                                Syscall::ALLOW {
                                     driver_number,
                                     subdriver_number,
                                     allow_address,
                                     allow_size,
-                                }) => {
+                                } => {
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
@@ -353,7 +352,6 @@ impl Kernel {
                                     });
                                     process.set_syscall_return_value(res.into());
                                 }
-                                _ => {}
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
@@ -372,14 +370,15 @@ impl Kernel {
                         }
                     }
                 }
-                process::State::Yielded => match process.dequeue_task() {
+                process::State::Yielded | process::State::Unstarted => match process.dequeue_task()
+                {
                     // If the process is yielded it might be waiting for a
                     // callback. If there is a task scheduled for this process
                     // go ahead and set the process to execute it.
                     None => break,
                     Some(cb) => match cb {
                         Task::FunctionCall(ccb) => {
-                            process.push_function_call(ccb);
+                            process.set_process_function(ccb);
                         }
                         Task::IPC((otherapp, ipc_type)) => {
                             ipc.map_or_else(

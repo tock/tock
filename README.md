@@ -34,7 +34,8 @@ system to compile Tock.
 
 Head to the [hardware page](https://www.tockos.org/hardware/)
 to learn about the hardware platforms Tock supports. Also check out the
-[workshop-style courses](doc/courses) to get started running apps with TockOS.
+[Tock Book](https://book.tockos.org) for a step-by-step introduction to getting
+Tock up and running.
 
 Find example applications that run on top of the Tock kernel written in both
 [Rust](https://github.com/tock/libtock-rs) and
@@ -61,7 +62,7 @@ post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 
 You can also browse our
-[email group](https://groups.google.com/forum/#!forum/tock-dev) 
+[email group](https://groups.google.com/forum/#!forum/tock-dev)
 and our [Slack](https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LTg4YzE1MTkwYzI0YjhjNjA0YWExOGY2ZGYwNjQ2YmFiZjdhOTdlMzY0YTBiYTA2YTRlYzMyZTI1MDdmMTgwMzc) to see
 discussions on Tock development.
 
@@ -81,3 +82,24 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
+
+## Contributors
+
+The Tock Project Developers include dozens of contributors, some on behalf of
+their university, company, or organization. The most up to date list of contributors is available in the git
+history: `git shortlog -s -n`.
+
+Organizations that have contributed code to Tock include:
+
+  * Stanford University
+  * Princeton University
+  * University of California, Berkeley
+  * University of Virginia
+  * University of Michigan
+  * Chalmers University
+  * Google
+  * Helium
+  * Atihita
+
+_Note: the above list may be incomplete. If your organization has supported you in
+contributing to Tock, and wish to be acknowledged, please update this list accordingly._

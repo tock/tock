@@ -51,7 +51,6 @@ pub trait InterruptPin: Pin + Interrupt {}
 /// either input or output and also to source interrupts which
 /// pass a value.
 pub trait InterruptValuePin: Pin + InterruptWithValue {}
-
 /// Control and configure a GPIO pin.
 pub trait Configure {
     /// Return the current pin configuration.
@@ -85,13 +84,24 @@ pub trait Configure {
     /// the Input trait will return valid results). Returns
     /// true if the pin is in Configuration::Input or
     /// Configuration::InputOutput.
-    fn is_input(&self) -> bool;
+    fn is_input(&self) -> bool {
+        match self.configuration() {
+            Configuration::Input | Configuration::InputOutput => true,
+            _ => false,
+        }
+    }
 
     /// Return whether the pin is an output (writing to 
     /// the Output trait will change the output of the pin). 
     /// Returns true if the pin is in Configuration::Output or
     /// Configuration::InputOutput.
-    fn is_output(&self) -> bool;
+    fn is_output(&self) -> bool {
+        match self.configuration() {
+            Configuration::Output | Configuration::InputOutput => true,
+            _ => false,
+        }
+    }
+
 }
 
 /// Configuration trait for pins that can be simultaneously
@@ -103,6 +113,7 @@ pub trait ConfigureInputOutput: Configure {
     fn make_input_output(&self) -> Configuration;
     fn is_input_output(&self) -> bool; 
 }
+
 
 pub trait Output {
     /// Set the GPIO pin high. If the pin is not an output or

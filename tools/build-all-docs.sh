@@ -16,10 +16,11 @@ function add_board {
 	echo "Building docs for $BOARD"
 	pushd boards/$BOARD > /dev/null
 	make doc
+	TARGET=`make -s show-target`
 	popd > /dev/null
 
 	EXISTING_CRATES=$(get_known_crates doc/rustdoc/search-index.js)
-	BUILT_CRATES=$(get_known_crates boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js)
+	BUILT_CRATES=$(get_known_crates boards/$BOARD/target/$TARGET/doc/search-index.js)
 
 	# Get any new crates.
 	NEW_CRATES=" ${BUILT_CRATES[*]} "
@@ -29,10 +30,10 @@ function add_board {
 
 	# Copy those crates over.
 	for item in ${NEW_CRATES[@]}; do
-		cp -r boards/$BOARD/target/thumb*-none-eabi*/doc/$item doc/rustdoc/
+		cp -r boards/$BOARD/target/$TARGET/doc/$item doc/rustdoc/
 
 		# Add the line to the search-index.js file.
-		grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js >> doc/rustdoc/search-index.js
+		grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/$TARGET/doc/search-index.js >> doc/rustdoc/search-index.js
 
 		# Then need to move `initSearch(searchIndex);` to the bottom.
 		#
@@ -54,8 +55,9 @@ function build_all_docs {
     echo "Building docs for $BOARD"
     pushd boards/$BOARD > /dev/null
     make doc
+    TARGET=`make -s show-target`
     popd > /dev/null
-    cp -r boards/$BOARD/target/thumbv7em-none-eabi/doc doc/rustdoc
+    cp -r boards/$BOARD/target/$TARGET/doc doc/rustdoc
     ## Now can do all the rest.
     for BOARD in $*
     do

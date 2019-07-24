@@ -7,6 +7,7 @@
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{
@@ -16,6 +17,8 @@ use kernel::hil::rng::Rng;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf5x::rtc::Rtc;
+
+use nrf52dk_base::nrf52_components::ble::BLEComponent;
 
 const LED1_PIN: usize = 26;
 const LED2_PIN: usize = 22;
@@ -53,7 +56,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52::radio::Radio,
+        nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
     button: &'static capsules::button::Button<'static>,
@@ -491,35 +494,7 @@ pub unsafe fn reset_handler() {
     // BLE
     //
 
-    // Virtual alarm for the BLE stack
-    let ble_radio_virtual_alarm = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-
-    // Setup the BLE radio object that implements the BLE stack
-    let ble_radio = static_init!(
-        capsules::ble_advertising_driver::BLE<
-            'static,
-            nrf52::radio::Radio,
-            VirtualMuxAlarm<'static, Rtc>,
-        >,
-        capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::radio::RADIO,
-            board_kernel.create_grant(&memory_allocation_capability),
-            &mut capsules::ble_advertising_driver::BUF,
-            ble_radio_virtual_alarm
-        )
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::radio::RADIO,
-        ble_radio,
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::radio::RADIO,
-        ble_radio,
-    );
-    ble_radio_virtual_alarm.set_client(ble_radio);
+    let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 
     //
     // Temperature

@@ -378,12 +378,11 @@ impl hil::gpio::Configure for GPIOPin {
     fn make_output(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.dirset.set(1 << self.pin);
-        hil::gpio::Configuration::Unknown
+        hil::gpio::Configuration::Output
     }
 
     fn disable_output(&self) -> hil::gpio::Configuration {
-        self.make_input();
-        hil::gpio::Configuration::Unknown
+        self.make_input()
     }
 
     // Configuration constants stolen from
@@ -391,30 +390,24 @@ impl hil::gpio::Configure for GPIOPin {
     fn make_input(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.dirclr.set(1 << self.pin);
-        hil::gpio::Configuration::Unknown
+        hil::gpio::Configuration::Input
     }
 
     fn disable_input(&self) -> hil::gpio::Configuration {
-        self.make_output();
-        hil::gpio::Configuration::Unknown
+        self.make_output()
     }
 
     fn configuration(&self) -> hil::gpio::Configuration {
-        hil::gpio::Configuration::Unknown
+        let gpio_regs = &*self.gpio_registers;
+        if gpio_regs.dirclr.get() & 1 << self.pin == 0 {
+            hil::gpio::Configuration::Input
+        } else {
+            hil::gpio::Configuration::Output
+        }
     }
 
     fn low_power(&self) {
-        // TODO
-    }
-
-    fn is_input(&self) -> bool {
-        //TODO
-        false
-    }
-
-    fn is_output(&self) -> bool {
-        //TODO
-        false
+        GPIOPin::set_floating_state(self, hil::gpio::FloatingState::PullNone);
     }
 }
 
