@@ -26,17 +26,17 @@ pub enum InterruptEdge {
 #[derive(Debug)]
 pub enum Configuration {
     /// Cannot be read or written or used; effectively inactive.
-    LowPower, 
+    LowPower,
     /// Calls to the `Input` trait are valid.
-    Input,   
+    Input,
     /// Calls to the `Output` trait are valid.
-    Output, 
+    Output,
     /// Calls to both the `Input` and `Output` traits are valid.
     InputOutput,
     /// Chip-specific, requires chip-specific API for more detail,
     Function,
     /// In a state not covered by other values.
-    Other,  
+    Other,
 }
 
 /// The Pin trait allows a pin to be used as either input
@@ -72,7 +72,7 @@ pub trait Configure {
 
     /// Disable the pin and put it into its lowest power state.
     /// Re-enabling the pin requires reconfiguring it (state of
-    /// its enabled configuration is not stored). 
+    /// its enabled configuration is not stored).
     fn low_power(&self);
 
     /// Set the floating state of the pin.
@@ -91,8 +91,8 @@ pub trait Configure {
         }
     }
 
-    /// Return whether the pin is an output (writing to 
-    /// the Output trait will change the output of the pin). 
+    /// Return whether the pin is an output (writing to
+    /// the Output trait will change the output of the pin).
     /// Returns true if the pin is in Configuration::Output or
     /// Configuration::InputOutput.
     fn is_output(&self) -> bool {
@@ -101,7 +101,6 @@ pub trait Configure {
             _ => false,
         }
     }
-
 }
 
 /// Configuration trait for pins that can be simultaneously
@@ -111,9 +110,8 @@ pub trait ConfigureInputOutput: Configure {
     /// Make the pin a simultaneously input and output; should always
     /// return `Configuration::InputOutput`.
     fn make_input_output(&self) -> Configuration;
-    fn is_input_output(&self) -> bool; 
+    fn is_input_output(&self) -> bool;
 }
-
 
 pub trait Output {
     /// Set the GPIO pin high. If the pin is not an output or

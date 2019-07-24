@@ -552,11 +552,11 @@ impl gpio::Configure for GPIOPin {
         let gpio = (port.gper.val.get() & self.pin_mask) == 1;
         let config = (gpio, input, output);
         match config {
-            (false,     _,     _) => gpio::Configuration::Function,
-            (true,  false, false) => gpio::Configuration::Other,
-            (true,  false,  true) => gpio::Configuration::Output,
-            (true,  true,  false) => gpio::Configuration::Input,
-            (true,  true,   true) => gpio::Configuration::InputOutput,
+            (false, _, _) => gpio::Configuration::Function,
+            (true, false, false) => gpio::Configuration::Other,
+            (true, false, true) => gpio::Configuration::Output,
+            (true, true, false) => gpio::Configuration::Input,
+            (true, true, true) => gpio::Configuration::InputOutput,
         }
     }
 }
