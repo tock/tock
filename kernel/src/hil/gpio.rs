@@ -25,12 +25,18 @@ pub enum InterruptEdge {
 /// and should instead use a chip-specific API.
 #[derive(Debug)]
 pub enum Configuration {
-    LowPower,
-    Input,
-    Output,
+    /// Cannot be read or written or used; effectively inactive.
+    LowPower, 
+    /// Calls to the `Input` trait are valid.
+    Input,   
+    /// Calls to the `Output` trait are valid.
+    Output, 
+    /// Calls to both the `Input` and `Output` traits are valid.
     InputOutput,
-    Function, // Chip-specific, requires chip-specific API for more detail
-    Unknown,
+    /// Chip-specific, requires chip-specific API for more detail,
+    Function,
+    /// In a state not covered by other values.
+    Other,  
 }
 
 /// The Pin trait allows a pin to be used as either input
@@ -48,22 +54,54 @@ pub trait InterruptValuePin: Pin + InterruptWithValue {}
 
 /// Control and configure a GPIO pin.
 pub trait Configure {
+    /// Return the current pin configuration.
     fn configuration(&self) -> Configuration;
+
+    /// Make the pin an output, returning the current configuration,
+    /// which should be either `Configuration::Output` or
+    /// `Configuration::InputOutput`.
     fn make_output(&self) -> Configuration;
+    /// Disable the pin as an output, returning the current configuration.
     fn disable_output(&self) -> Configuration;
+
+    /// Make the pin an input, returning the current configuration,
+    /// which should be ither `Configuration::Input` or
+    /// `Configuration::InputOutput`.
     fn make_input(&self) -> Configuration;
+    /// Disable the pin as an input, returning the current configuration.
     fn disable_input(&self) -> Configuration;
 
-    // Disable the pin and put it into its lowest power state.
-    // Re-enabling the pin requires reconfiguring it (state of
-    // its enabled configuration is not stored).
+    /// Disable the pin and put it into its lowest power state.
+    /// Re-enabling the pin requires reconfiguring it (state of
+    /// its enabled configuration is not stored). 
     fn low_power(&self);
 
+    /// Set the floating state of the pin.
     fn set_floating_state(&self, state: FloatingState);
+    /// Return the current floating state of the pin.
     fn floating_state(&self) -> FloatingState;
 
+    /// Return whether the pin is an input (reading from
+    /// the Input trait will return valid results). Returns
+    /// true if the pin is in Configuration::Input or
+    /// Configuration::InputOutput.
     fn is_input(&self) -> bool;
+
+    /// Return whether the pin is an output (writing to 
+    /// the Output trait will change the output of the pin). 
+    /// Returns true if the pin is in Configuration::Output or
+    /// Configuration::InputOutput.
     fn is_output(&self) -> bool;
+}
+
+/// Configuration trait for pins that can be simultaneously
+/// input and output. Having this trait allows an implementation
+/// to statically verify this is possible.
+pub trait ConfigureInputOutput: Configure {
+    /// Make the pin a simultaneously input and output; should always
+    /// return `Configuration::InputOutput`.
+    fn make_input_output(&self) -> Configuration;
+    fn is_input_output(&self) -> bool; 
 }
 
 pub trait Output {

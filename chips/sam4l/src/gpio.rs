@@ -546,14 +546,17 @@ impl gpio::Configure for GPIOPin {
     }
 
     fn configuration(&self) -> gpio::Configuration {
+        let port: &GpioRegisters = &*self.port;
         let input = self.is_input();
         let output = self.is_output();
-        let config = (input, output);
+        let gpio = (port.gper.val.get() & self.pin_mask) == 1;
+        let config = (gpio, input, output);
         match config {
-            (false, false) => gpio::Configuration::Unknown,
-            (false, true) => gpio::Configuration::Output,
-            (true, false) => gpio::Configuration::Input,
-            (true, true) => gpio::Configuration::InputOutput,
+            (false,     _,     _) => gpio::Configuration::Function,
+            (true,  false, false) => gpio::Configuration::Other,
+            (true,  false,  true) => gpio::Configuration::Output,
+            (true,  true,  false) => gpio::Configuration::Input,
+            (true,  true,   true) => gpio::Configuration::InputOutput,
         }
     }
 }
