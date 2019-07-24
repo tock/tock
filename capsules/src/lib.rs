@@ -18,6 +18,7 @@ pub mod ble_advertising_driver;
 pub mod button;
 pub mod buzzer_driver;
 pub mod console;
+pub mod console_mux;
 pub mod crc;
 pub mod dac;
 pub mod debug_process_restart;
