@@ -170,7 +170,7 @@ pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
 /// Main interface trait that consoles use to send and receive messages. The
 /// buffers provided must not have any console mux header bytes.
-pub trait Console {
+pub trait Console<'a> {
 	/// Function for a console to be able to send a message. It uses the
 	/// standard buffer and length. The buffer should be only the
 	/// console-specific data and should not contain any header information.
@@ -229,7 +229,7 @@ pub struct ConsoleMuxClient<'a> {
     id: Cell<u8>,
 
     /// The reference to the actual client capsule.
-    client: OptionalCell<&'a ConsoleClient<'a>>,
+    client: OptionalCell<&'a ConsoleClient>,
 
     /// Stored buffer for receiving messages. This will get passed in from the
     /// console and saved here until a message arrives for the user destined for
@@ -245,6 +245,9 @@ pub struct ConsoleMuxClient<'a> {
     /// The `tx_subid` is an additional identifier needed for the application console
     /// that corresponds to
     tx_subid: OptionalCell<u8>,
+
+
+    next: ListLink<'a, ConsoleMuxClient<'a>>,
 }
 
 /// The base mux that enables sharing an underlying UART among multiple
@@ -280,6 +283,7 @@ pub struct ConsoleMux<'a> {
 }
 
 /// The state of the mux, mostly handles transitioning in the receive case.
+#[derive(Clone, Copy, PartialEq)]
 enum State {
 	/// Haven't started, not currently sending or transmitting.
 	Idle,
@@ -327,7 +331,7 @@ impl<'a> ConsoleMux<'a> {
     }
 
     /// Add a console client to the mux. This is for in-kernel consoles.
-    crate fn register(&self, client: usize) {
+    fn register(&self, client: &'a ConsoleMuxClient<'a>) {
     	// Determine the ID for this console.
     	let mut count = 1; // Start at 1 because 0 is a reserved index.
     	self.consoles.iter().for_each(|_| {
@@ -339,7 +343,7 @@ impl<'a> ConsoleMux<'a> {
     }
 
     /// Add a console client to the mux. This is for an app console.
-    crate fn register_app_console(&self, client: usize) {
+    fn register_app_console(&self, client: &'a ConsoleMuxClient<'a>) {
     	client.id.set(128);
     	self.consoles.push_head(client);
     }
@@ -367,175 +371,40 @@ impl<'a> ConsoleMux<'a> {
     	if self.active_transmitter.is_none() {
     		self.tx_buffer.take().map(|console_mux_tx_buffer| {
 
+    			let mut sent = false;
 		    	self.consoles.iter().for_each(|client| {
-		    		let sent = client.tx_buffer.map_or(false, |tx_buffer| {
+		    		if sent {
+		    			return;
+		    		}
+		    		client.tx_buffer.map(|tx_buffer| {
 		    			// Get the length to send, and add one for the ID byte.
-		    			let len = tx_buffer.length() as u16 + 1;
-		    			console_mux_tx_buffer[0] = len >> 8;
-		    			console_mux_tx_buffer[1] = len & 0xFF;
+		    			let len = client.tx_buffer_len.get() as u16 + 1;
+		    			console_mux_tx_buffer[0] = (len >> 8) as u8;
+		    			console_mux_tx_buffer[1] = (len & 0xFF) as u8;
 
 		    			// Set the sender id in the message. We have to use the
 		    			// app id if one is set.
-		    			match client.tx_subid.get() {
-		    				Some(id) => console_mux_tx_buffer[2] = id,
-		    				None => console_mux_tx_buffer[2] = client.id,
-		    			}
+		    			client.tx_subid.map_or_else(||{
+		    				console_mux_tx_buffer[2] = client.id.get();
+		    			}, |&mut id| {
+		    				console_mux_tx_buffer[2] = id;
+		    			});
 
 		    			// Copy the payload into the outgoing buffer.
 		    			for (a, b) in console_mux_tx_buffer.iter_mut().skip(3).zip(tx_buffer) {
 		    			    *a = *b;
 		    			}
-		    			self.uart.transmit(console_mux_tx_buffer);
+		    			self.uart.transmit_buffer(console_mux_tx_buffer, (len+2) as usize);
 		    			self.active_transmitter.set(client.id.get());
 
 		    			// Return that we transmitted something.
-		    			true
+		    			sent = true;
 		    		});
-		    		if sent {
-		    			break;
-		    		}
 				});
 
 		    });
 	    }
     }
-
-    // // Process the command in the command buffer and clear the buffer.
-    // fn read_command(&self) {
-    //     self.command_buffer.map(|command| {
-    //         let mut terminator = 0;
-    //         let len = command.len();
-    //         for i in 0..len {
-    //             if command[i] == 0 {
-    //                 terminator = i;
-    //                 break;
-    //             }
-    //         }
-    //         //debug!("Command: {}-{} {:?}", start, terminator, command);
-    //         // A command is valid only if it starts inside the buffer,
-    //         // ends before the beginning of the buffer, and ends after
-    //         // it starts.
-    //         if terminator > 0 {
-    //             let cmd_str = str::from_utf8(&command[0..terminator]);
-    //             match cmd_str {
-    //                 Ok(s) => {
-    //                     let clean_str = s.trim();
-    //                     if clean_str.starts_with("help") {
-    //                         debug!("Welcome to the process console.");
-    //                         debug!("Valid commands are: help status list stop start");
-    //                     } else if clean_str.starts_with("start") {
-    //                         let argument = clean_str.split_whitespace().nth(1);
-    //                         argument.map(|name| {
-    //                             self.kernel.process_each_capability(
-    //                                 &self.capability,
-    //                                 |_i, proc| {
-    //                                     let proc_name = proc.get_process_name();
-    //                                     if proc_name == name {
-    //                                         proc.resume();
-    //                                         debug!("Process {} resumed.", name);
-    //                                     }
-    //                                 },
-    //                             );
-    //                         });
-    //                     } else if clean_str.starts_with("stop") {
-    //                         let argument = clean_str.split_whitespace().nth(1);
-    //                         argument.map(|name| {
-    //                             self.kernel.process_each_capability(
-    //                                 &self.capability,
-    //                                 |_i, proc| {
-    //                                     let proc_name = proc.get_process_name();
-    //                                     if proc_name == name {
-    //                                         proc.stop();
-    //                                         debug!("Process {} stopped", proc_name);
-    //                                     }
-    //                                 },
-    //                             );
-    //                         });
-    //                     } else if clean_str.starts_with("fault") {
-    //                         let argument = clean_str.split_whitespace().nth(1);
-    //                         argument.map(|name| {
-    //                             self.kernel.process_each_capability(
-    //                                 &self.capability,
-    //                                 |_i, proc| {
-    //                                     let proc_name = proc.get_process_name();
-    //                                     if proc_name == name {
-    //                                         proc.set_fault_state();
-    //                                         debug!("Process {} now faulted", proc_name);
-    //                                     }
-    //                                 },
-    //                             );
-    //                         });
-    //                     } else if clean_str.starts_with("list") {
-    //                         debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks    State");
-    //                         self.kernel
-    //                             .process_each_capability(&self.capability, |i, proc| {
-    //                                 let pname = proc.get_process_name();
-    //                                 debug!(
-    //                                     "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}",
-    //                                     i,
-    //                                     pname,
-    //                                     proc.debug_timeslice_expiration_count(),
-    //                                     proc.debug_syscall_count(),
-    //                                     proc.debug_dropped_callback_count(),
-    //                                     proc.get_state()
-    //                                 );
-    //                             });
-    //                     } else if clean_str.starts_with("status") {
-    //                         let info: KernelInfo = KernelInfo::new(self.kernel);
-    //                         debug!(
-    //                             "Total processes: {}",
-    //                             info.number_loaded_processes(&self.capability)
-    //                         );
-    //                         debug!(
-    //                             "Active processes: {}",
-    //                             info.number_active_processes(&self.capability)
-    //                         );
-    //                         debug!(
-    //                             "Timeslice expirations: {}",
-    //                             info.timeslice_expirations(&self.capability)
-    //                         );
-    //                     } else {
-    //                         debug!("Valid commands are: help status list stop start fault");
-    //                     }
-    //                 }
-    //                 Err(_e) => debug!("Invalid command: {:?}", command),
-    //             }
-    //         }
-    //     });
-    //     self.command_buffer.map(|command| {
-    //         command[0] = 0;
-    //     });
-    //     self.command_index.set(0);
-    // }
-
-    // fn write_byte(&self, byte: u8) -> ReturnCode {
-    //     if self.tx_in_progress.get() {
-    //         ReturnCode::EBUSY
-    //     } else {
-    //         self.tx_in_progress.set(true);
-    //         self.tx_buffer.take().map(|buffer| {
-    //             buffer[0] = byte;
-    //             self.uart.transmit_buffer(buffer, 1);
-    //         });
-    //         ReturnCode::SUCCESS
-    //     }
-    // }
-
-    // fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
-    //     if self.tx_in_progress.get() {
-    //         ReturnCode::EBUSY
-    //     } else {
-    //         self.tx_in_progress.set(true);
-    //         self.tx_buffer.take().map(|buffer| {
-    //             let len = cmp::min(bytes.len(), buffer.len());
-    //             for i in 0..len {
-    //                 buffer[i] = bytes[i];
-    //             }
-    //             self.uart.transmit_buffer(buffer, len);
-    //         });
-    //         ReturnCode::SUCCESS
-    //     }
-    // }
 }
 
 impl<'a> ConsoleMuxClient<'a> {
@@ -550,6 +419,7 @@ impl<'a> ConsoleMuxClient<'a> {
             tx_buffer: TakeCell::empty(),
             tx_buffer_len: Cell::new(0),
             tx_subid: OptionalCell::empty(),
+            next: ListLink::empty(),
         }
     }
 
@@ -580,7 +450,7 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
         app_id: Option<u8>,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
     	// Save the buffer for the console client.
-    	self.tx_buffer.set(tx_buffer);
+    	self.tx_buffer.replace(tx_buffer);
     	self.tx_buffer_len.set(tx_len);
 
     	// Save the app id if this comes from the app console.
@@ -598,7 +468,7 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
     // Just have to save the rx buffer in case a command comes in for this
     // particular console.
     fn receive_message(&self, rx_buffer: &'static mut [u8]) -> (ReturnCode, Option<&'static mut [u8]>) {
-    	self.rx_buffer.set(rx_buffer);
+    	self.rx_buffer.replace(rx_buffer);
     	(ReturnCode::SUCCESS, None)
     }
 
@@ -615,18 +485,17 @@ impl<'a> uart::TransmitClient for ConsoleMux<'a> {
 
     	// Now we need to pass the tx buffer for the console back to the console
     	// so it can transmit again.
-    	match self.active_transmitter.get() {
-    		Some(id) => {
-    			self.consoles.iter().for_each(|client| {
-    			    if id == client.id || (id >= 128 && client.id == 128) {
-    			        client.tx_buffer.take().map(|tx_buffer| {
-    			        	client.client.transmitted_command(tx_buffer, tx_len, rcode);
-    			        });
-    			    }
-    			});
-    		}
-    		None => {}
-    	}
+    	self.active_transmitter.map(|&mut id| {
+			self.consoles.iter().for_each(|client| {
+			    if id == client.id.get() || (id >= 128 && client.id.get() == 128) {
+			        client.tx_buffer.take().map(|tx_buffer| {
+			        	client.client.map(|console_client| {
+			        		console_client.transmitted_message(tx_buffer, tx_len, rcode);
+			        	});
+			        });
+			    }
+			});
+    	});
 
     	// Mark that there is no transmitter.
     	self.active_transmitter.clear();
@@ -642,7 +511,7 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         &self,
         read_buf: &'static mut [u8],
         rx_len: usize,
-        _rcode: ReturnCode,
+        rcode: ReturnCode,
         error: uart::Error,
     ) {
         // let mut execute = false;
@@ -653,14 +522,14 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         			match rx_len {
         				3 => {
         					// We got the expected number of header bytes.
-        					let length: u16 = (read_buf[0] as u16 << 8) + (read_buf[1] as u16);
+        					let length: u16 = ((read_buf[0] as u16) << 8) + (read_buf[1] as u16);
         					let id: u8 = read_buf[2];
         					self.state.set(State::ReceivedHeader{length, id});
 
         					// Setup the remainder of the read. Since we already
         					// read the id byte, we subtract one from the
         					// length.
-        					self.uart.receive_buffer(buffer, length-1);
+        					self.uart.receive_buffer(read_buf, (length-1) as usize);
         				}
         				_ => {
         					debug!("ConsoleMux invalid receive.");
@@ -677,6 +546,11 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         						0 => {
         							// Copy the received bytes into our local
         							// command buffer.
+        							self.command_buffer.map(|cmd_buffer| {
+	        							for (a, b) in cmd_buffer.iter_mut().skip(3).zip(read_buf) {
+	        							    *a = *b;
+	        							}
+	        						});
 
         							// The `ConsoleMux` handles this command.
         							self.handle_internal_command(rx_len);
@@ -687,78 +561,31 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         							// Look through all consoles to find one
         							// that matches.
         							self.consoles.iter().for_each(|client| {
-        							    if id == client.id || (id >= 128 && client.id == 128) {
-        							        client.rx_buffer.map(|rx_buffer| {
+        							    if id == client.id.get() || (id >= 128 && client.id.get() == 128) {
+        							        client.rx_buffer.take().map(|rx_buffer| {
         							        	// Copy the receive bytes to the
         							        	// passed in buffer from the
         							        	// console.
+        							        	for (a, b) in rx_buffer.iter_mut().skip(3).zip(read_buf) {
+        							        	    *a = *b;
+        							        	}
 
-        							        	client.client.received_command(rx_buffer, rx_len, id);
+        							        	client.client.map(|console_client| {
+        							        		console_client.received_message(rx_buffer, rx_len, rcode, error);
+        							        	});
         							        });
         							    }
         							});
         						}
-        						// 128..=255 => {
-        						// 	// Handle all application console messages.
-
-        						// 	self.app_console.map(|app_console|{
-        						// 		app_console.rx_buffer.take().map(|rx_buffer| {
-	        					// 			// Copy the receive bytes to the
-	        					// 			// passed in buffer from the
-	        					// 			// app console.
-
-
-	        					// 			app_console.client.received_command(rx_buffer, rx_len, id);
-	        					// 		});
-
-	        					// 	});
-        						// }
         					}
-        					self.uart.receive_buffer(buffer, 3);
+        					self.uart.receive_buffer(read_buf, 3);
         				}
         			}
         		}
+
+        		State::Idle => {}
         	}
-
-
-            // match rx_len {
-            //     0 => debug!("InteractiveConsoleMux had read of 0 bytes"),
-            //     1 => {
-            //         self.command_buffer.map(|command| {
-            //             let index = self.command_index.get() as usize;
-            //             if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-            //                 execute = true;
-            //                 self.write_bytes(&['\r' as u8, '\n' as u8]);
-            //             } else if read_buf[0] == ('\x08' as u8) && index > 0 {
-            //                 // Backspace, echo and remove last byte
-            //                 // Note echo is '\b \b' to erase
-            //                 self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-            //                 command[index - 1] = '\0' as u8;
-            //                 self.command_index.set(index - 1);
-            //             } else if index < (command.len() - 1) && read_buf[0] < 128 {
-            //                 // For some reason, sometimes reads return > 127 but no error,
-            //                 // which causes utf-8 decoding failure, so check byte is < 128. -pal
-
-            //                 // Echo the byte and store it
-            //                 self.write_byte(read_buf[0]);
-            //                 command[index] = read_buf[0];
-            //                 self.command_index.set(index + 1);
-            //                 command[index + 1] = 0;
-            //             }
-            //         });
-            //     }
-            //     _ => debug!(
-            //         "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
-            //         rx_len
-            //     ),
-            // };
         }
-        // self.rx_in_progress.set(true);
-        // self.uart.receive_buffer(read_buf, 1);
-
-        // if execute {
-        //     self.read_command();
-        // }
     }
 }
 
