@@ -145,15 +145,11 @@
 
 
 use core::cell::Cell;
-use core::cmp;
 use core::str;
-use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
 use kernel::hil::uart;
-use kernel::introspection::KernelInfo;
-use kernel::Kernel;
 use kernel::ReturnCode;
 
 // Static buffer for transmitting data.
@@ -371,12 +367,14 @@ impl<'a> ConsoleMux<'a> {
     	if self.active_transmitter.is_none() {
     		self.tx_buffer.take().map(|console_mux_tx_buffer| {
 
-    			let mut sent = false;
-		    	self.consoles.iter().for_each(|client| {
-		    		if sent {
-		    			return;
-		    		}
-		    		client.tx_buffer.map(|tx_buffer| {
+    			// let mut sent_len = 0;
+		    	let to_send_len = self.consoles.iter().find(|client| {
+                    client.tx_buffer.is_some()
+                }).map_or(0, |client| {
+		    		// if sent_len > 0 {
+		    		// 	return;
+		    		// }
+		    		client.tx_buffer.map_or(0, |tx_buffer| {
 		    			// Get the length to send, and add one for the ID byte.
 		    			let len = client.tx_buffer_len.get() as u16 + 1;
 		    			console_mux_tx_buffer[0] = (len >> 8) as u8;
@@ -384,23 +382,23 @@ impl<'a> ConsoleMux<'a> {
 
 		    			// Set the sender id in the message. We have to use the
 		    			// app id if one is set.
-		    			client.tx_subid.map_or_else(||{
-		    				console_mux_tx_buffer[2] = client.id.get();
-		    			}, |&mut id| {
-		    				console_mux_tx_buffer[2] = id;
-		    			});
+		    			let id = client.tx_subid.unwrap_or_else(|| client.id.get());
+                        console_mux_tx_buffer[2] = id;
 
 		    			// Copy the payload into the outgoing buffer.
 		    			for (a, b) in console_mux_tx_buffer.iter_mut().skip(3).zip(tx_buffer) {
 		    			    *a = *b;
 		    			}
-		    			self.uart.transmit_buffer(console_mux_tx_buffer, (len+2) as usize);
-		    			self.active_transmitter.set(client.id.get());
+                        self.active_transmitter.set(client.id.get());
 
 		    			// Return that we transmitted something.
-		    			sent = true;
-		    		});
+		    			(len+2) as usize
+		    		})
 				});
+
+                if to_send_len > 0 {
+                    self.uart.transmit_buffer(console_mux_tx_buffer, to_send_len);
+                }
 
 		    });
 	    }
@@ -486,14 +484,14 @@ impl<'a> uart::TransmitClient for ConsoleMux<'a> {
     	// Now we need to pass the tx buffer for the console back to the console
     	// so it can transmit again.
     	self.active_transmitter.map(|&mut id| {
-			self.consoles.iter().for_each(|client| {
-			    if id == client.id.get() || (id >= 128 && client.id.get() == 128) {
-			        client.tx_buffer.take().map(|tx_buffer| {
-			        	client.client.map(|console_client| {
-			        		console_client.transmitted_message(tx_buffer, tx_len, rcode);
-			        	});
-			        });
-			    }
+			self.consoles.iter().find(|client| {
+			    id == client.id.get() || (id >= 128 && client.id.get() == 128)
+            }).map(|client| {
+	        	client.client.map(|console_client| {
+                    client.tx_buffer.take().map(|tx_buffer| {
+		        		console_client.transmitted_message(tx_buffer, tx_len, rcode);
+		        	});
+		        });
 			});
     	});
 
@@ -547,7 +545,7 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         							// Copy the received bytes into our local
         							// command buffer.
         							self.command_buffer.map(|cmd_buffer| {
-	        							for (a, b) in cmd_buffer.iter_mut().skip(3).zip(read_buf) {
+	        							for (a, b) in cmd_buffer.iter_mut().skip(3).zip(read_buf.as_ref()) {
 	        							    *a = *b;
 	        							}
 	        						});
@@ -558,24 +556,25 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         						_ => {
         							// Handle all kernel console messages.
 
-        							// Look through all consoles to find one
-        							// that matches.
-        							self.consoles.iter().for_each(|client| {
-        							    if id == client.id.get() || (id >= 128 && client.id.get() == 128) {
-        							        client.rx_buffer.take().map(|rx_buffer| {
-        							        	// Copy the receive bytes to the
-        							        	// passed in buffer from the
-        							        	// console.
-        							        	for (a, b) in rx_buffer.iter_mut().skip(3).zip(read_buf) {
-        							        	    *a = *b;
-        							        	}
+                                    // Find the console that matches and pass
+                                    // the received message to it.
+                                    self.consoles.iter().find(|client| {
+                                        id == client.id.get() || (id >= 128 && client.id.get() == 128)
+                                    }).map(|client| {
+                                        client.client.map(|console_client| {
+                                            client.rx_buffer.take().map(|rx_buffer| {
+                                                // Copy the receive bytes to the
+                                                // passed in buffer from the
+                                                // console.
+                                                for (a, b) in rx_buffer.iter_mut().skip(3).zip(read_buf.as_ref()) {
+                                                    *a = *b;
+                                                }
 
-        							        	client.client.map(|console_client| {
-        							        		console_client.received_message(rx_buffer, rx_len, rcode, error);
-        							        	});
-        							        });
-        							    }
-        							});
+                                                console_client.received_message(rx_buffer, rx_len, rcode, error);
+                                            });
+                                        });
+
+                                    });
         						}
         					}
         					self.uart.receive_buffer(read_buf, 3);
