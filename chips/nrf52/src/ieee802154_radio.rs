@@ -1,37 +1,4 @@
-//! Radio driver, Bluetooth Low Energy, NRF52
-//!
-//! The generic radio configuration i.e., not specific to Bluetooth are functions and similar which
-//! do not start with `ble`. Moreover, Bluetooth Low Energy specific radio configuration
-//! starts with `ble`
-//!
-//! For more readability the Bluetooth specific configuration may be moved to separate trait
-//!
-//! ### Author
-//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! * Date: July 18, 2017
-//!
-//! ### Packet Configuration
-//! ```
-//! +----------+------+--------+----+--------+----+---------+-----+
-//! | Preamble | Base | Prefix | S0 | Length | S1 | Payload | CRC |
-//! +----------+------+--------+----+--------+----+---------+-----+
-//! ```
-//!
-//! * Preamble - 1 byte
-//!
-//! * Base and prefix forms together the access address
-//!
-//! * S0, an optional parameter that is configured to indicate how many bytes of
-//! the payload is the PDU Type. Configured as 1 byte!
-//!
-//! * Length, an optional parameter that is configured to indicate how many bits of the
-//! payload is the length field. Configured as 8 bits!
-//!
-//! * S1, Not used
-//!
-//! * Payload - 2 to 255 bytes
-//!
-//! * CRC - 3 bytes
+//! IEEE 802.15.4 radio driver for nRF52
 
 use core::cell::Cell;
 use core::convert::TryFrom;

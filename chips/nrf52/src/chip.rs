@@ -65,10 +65,8 @@ impl kernel::Chip for NRF52 {
                                 (false, false) => (),
                                 (true, false) => ieee802154_radio::RADIO.handle_interrupt(),
                                 (false, true) => ble_radio::RADIO.handle_interrupt(),
-                                (true, true) => debug_assert!(
-                                    false,
-                                    "802.15.4 and BLE Radios cannot\
-                                     be enabled at the same time!"
+                                (true, true) => debug!(
+                                    "nRF 802.15.4 and BLE radios cannot be simultaneously enabled!"
                                 ),
                             }
                         }
