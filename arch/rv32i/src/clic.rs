@@ -139,7 +139,7 @@ impl Clic {
     pub const fn new(in_use_interrupts: u64) -> Clic {
         Clic {
             registers: CLIC_BASE,
-            in_use_interrupts: in_use_interrupts,
+            in_use_interrupts,
         }
     }
 
@@ -241,7 +241,7 @@ impl Clic {
                 return Some((i + 16) as u32);
             }
         }
-        return None;
+        None
     }
 
     /// Signal that an interrupt is finished being handled. In Tock, this should
@@ -265,7 +265,7 @@ impl Clic {
                 self.registers.clicintip.csip.write(intpend::IntPend::CLEAR);
                 self.registers.clicintie.csip.write(inten::IntEn::SET);
             }
-            16...144 => {
+            16..=144 => {
                 self.registers.clicintip.localintpend[(index as usize) - 16]
                     .write(intpend::IntPend::CLEAR);
                 self.registers.clicintie.localint[(index as usize) - 16].write(inten::IntEn::SET);
