@@ -143,7 +143,6 @@
 //!
 //!
 
-
 use core::cell::Cell;
 use core::str;
 use kernel::common::cells::{OptionalCell, TakeCell};
@@ -162,22 +161,20 @@ pub static mut READ_BUF: [u8; 512] = [0; 512];
 // only be short commands.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
-
-
 /// Main interface trait that consoles use to send and receive messages. The
 /// buffers provided must not have any console mux header bytes.
 pub trait Console<'a> {
-	/// Function for a console to be able to send a message. It uses the
-	/// standard buffer and length. The buffer should be only the
-	/// console-specific data and should not contain any header information.
-	///
-	/// The last parameter is an optional application ID that should only be
-	/// used by the app console because the app console is actually forwarding a
-	/// message on behalf of an application. All other consoles should set this
-	/// parameter to `None`.
-	///
-	/// The transmitter should not call this multiple times until the
-	/// `transmitted_message()` callback has occurred.
+    /// Function for a console to be able to send a message. It uses the
+    /// standard buffer and length. The buffer should be only the
+    /// console-specific data and should not contain any header information.
+    ///
+    /// The last parameter is an optional application ID that should only be
+    /// used by the app console because the app console is actually forwarding a
+    /// message on behalf of an application. All other consoles should set this
+    /// parameter to `None`.
+    ///
+    /// The transmitter should not call this multiple times until the
+    /// `transmitted_message()` callback has occurred.
     fn transmit_message(
         &self,
         tx_buffer: &'static mut [u8],
@@ -188,7 +185,10 @@ pub trait Console<'a> {
     /// Setup a receive buffer for this particular console. Since there will be
     /// many consoles, this buffer will be held by the mux until a received
     /// message comes in for the particular console.
-    fn receive_message(&self, rx_buffer: &'static mut [u8]) -> (ReturnCode, Option<&'static mut [u8]>);
+    fn receive_message(
+        &self,
+        rx_buffer: &'static mut [u8],
+    ) -> (ReturnCode, Option<&'static mut [u8]>);
 
     /// Provide a reference to the console client that will be called when
     /// messages come in or when transmissions have finished.
@@ -198,12 +198,12 @@ pub trait Console<'a> {
 /// Callback interface for consoles. This is how consoles are signaled of new
 /// messages and when transmissions are finished.
 pub trait ConsoleClient {
-	/// Called when a message has been sent for the particular client. This will
-	/// return the static buffer back to the console.
-	fn transmitted_message(&self, message: &'static mut [u8], tx_len: usize, rcode: ReturnCode);
+    /// Called when a message has been sent for the particular client. This will
+    /// return the static buffer back to the console.
+    fn transmitted_message(&self, message: &'static mut [u8], tx_len: usize, rcode: ReturnCode);
 
-	/// Called when a incoming message has been received for the particular
-	/// client.
+    /// Called when a incoming message has been received for the particular
+    /// client.
     fn received_message(
         &self,
         read_buf: &'static mut [u8],
@@ -215,13 +215,13 @@ pub trait ConsoleClient {
 
 /// State for each attached console to this `ConsoleMux`.
 pub struct ConsoleMuxClient<'a> {
-	/// A reference to the actual mux structure which is needed for certain
-	/// operations in the implementation.
-	mux: &'a ConsoleMux<'a>,
+    /// A reference to the actual mux structure which is needed for certain
+    /// operations in the implementation.
+    mux: &'a ConsoleMux<'a>,
 
-	/// The `id` is a simple identifier for this client console. It will be used
-	/// when sending message to identify the sender, and used when receiving
-	/// messages to route messages to the correct client.
+    /// The `id` is a simple identifier for this client console. It will be used
+    /// when sending message to identify the sender, and used when receiving
+    /// messages to route messages to the correct client.
     id: Cell<u8>,
 
     /// The reference to the actual client capsule.
@@ -242,14 +242,13 @@ pub struct ConsoleMuxClient<'a> {
     /// that corresponds to
     tx_subid: OptionalCell<u8>,
 
-
     next: ListLink<'a, ConsoleMuxClient<'a>>,
 }
 
 /// The base mux that enables sharing an underlying UART among multiple
 /// consoles.
 pub struct ConsoleMux<'a> {
-	/// The underlying UART hardware for the communication channel.
+    /// The underlying UART hardware for the communication channel.
     uart: &'a uart::UartData<'a>,
 
     /// List of all attached consoles. There is one special console which will
@@ -281,17 +280,17 @@ pub struct ConsoleMux<'a> {
 /// The state of the mux, mostly handles transitioning in the receive case.
 #[derive(Clone, Copy, PartialEq)]
 enum State {
-	/// Haven't started, not currently sending or transmitting.
-	Idle,
+    /// Haven't started, not currently sending or transmitting.
+    Idle,
 
-	/// We are waiting for the user side to send a valid message, and we are
-	/// only listening for the header bytes of the message.
-	WaitingHeader,
+    /// We are waiting for the user side to send a valid message, and we are
+    /// only listening for the header bytes of the message.
+    WaitingHeader,
 
-	/// The console mux has received the first three bytes of the message which
-	/// is the header including the message length and the destination id. The
-	/// `ConsoleMux` is now trying to receive the remainder of the message.
-	ReceivedHeader { length: u16, id: u8 },
+    /// The console mux has received the first three bytes of the message which
+    /// is the header including the message length and the destination id. The
+    /// `ConsoleMux` is now trying to receive the remainder of the message.
+    ReceivedHeader { length: u16, id: u8 },
 }
 
 impl<'a> ConsoleMux<'a> {
@@ -299,7 +298,7 @@ impl<'a> ConsoleMux<'a> {
         uart: &'a uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-        cmd_buffer: &'static mut [u8]
+        cmd_buffer: &'static mut [u8],
     ) -> ConsoleMux<'a> {
         ConsoleMux {
             uart: uart,
@@ -328,25 +327,25 @@ impl<'a> ConsoleMux<'a> {
 
     /// Add a console client to the mux. This is for in-kernel consoles.
     fn register(&self, client: &'a ConsoleMuxClient<'a>) {
-    	// Determine the ID for this console.
-    	let mut count = 1; // Start at 1 because 0 is a reserved index.
-    	self.consoles.iter().for_each(|_| {
-    	    count += 1;
-    	});
+        // Determine the ID for this console.
+        let mut count = 1; // Start at 1 because 0 is a reserved index.
+        self.consoles.iter().for_each(|_| {
+            count += 1;
+        });
 
-    	client.id.set(count);
-    	self.consoles.push_head(client);
+        client.id.set(count);
+        self.consoles.push_head(client);
     }
 
     /// Add a console client to the mux. This is for an app console.
     fn register_app_console(&self, client: &'a ConsoleMuxClient<'a>) {
-    	client.id.set(128);
-    	self.consoles.push_head(client);
+        client.id.set(128);
+        self.consoles.push_head(client);
     }
 
     /// Process messages sent to the `ConsoleMux` itself.
     fn handle_internal_command(&self, length: usize) {
-    	self.command_buffer.map(|command| {
+        self.command_buffer.map(|command| {
             let cmd_str = str::from_utf8(&command[0..length]);
             match cmd_str {
                 Ok(s) => {
@@ -364,51 +363,50 @@ impl<'a> ConsoleMux<'a> {
     /// Check if there are any consoles trying to send messages. If not, just
     /// return and this will get called again when a console tries to send.
     fn transmit(&self) {
-    	if self.active_transmitter.is_none() {
-    		self.tx_buffer.take().map(|console_mux_tx_buffer| {
+        if self.active_transmitter.is_none() {
+            self.tx_buffer.take().map(|console_mux_tx_buffer| {
+                // let mut sent_len = 0;
+                let to_send_len = self
+                    .consoles
+                    .iter()
+                    .find(|client| client.tx_buffer.is_some())
+                    .map_or(0, |client| {
+                        // if sent_len > 0 {
+                        // 	return;
+                        // }
+                        client.tx_buffer.map_or(0, |tx_buffer| {
+                            // Get the length to send, and add one for the ID byte.
+                            let len = client.tx_buffer_len.get() as u16 + 1;
+                            console_mux_tx_buffer[0] = (len >> 8) as u8;
+                            console_mux_tx_buffer[1] = (len & 0xFF) as u8;
 
-    			// let mut sent_len = 0;
-		    	let to_send_len = self.consoles.iter().find(|client| {
-                    client.tx_buffer.is_some()
-                }).map_or(0, |client| {
-		    		// if sent_len > 0 {
-		    		// 	return;
-		    		// }
-		    		client.tx_buffer.map_or(0, |tx_buffer| {
-		    			// Get the length to send, and add one for the ID byte.
-		    			let len = client.tx_buffer_len.get() as u16 + 1;
-		    			console_mux_tx_buffer[0] = (len >> 8) as u8;
-		    			console_mux_tx_buffer[1] = (len & 0xFF) as u8;
+                            // Set the sender id in the message. We have to use the
+                            // app id if one is set.
+                            let id = client.tx_subid.unwrap_or_else(|| client.id.get());
+                            console_mux_tx_buffer[2] = id;
 
-		    			// Set the sender id in the message. We have to use the
-		    			// app id if one is set.
-		    			let id = client.tx_subid.unwrap_or_else(|| client.id.get());
-                        console_mux_tx_buffer[2] = id;
+                            // Copy the payload into the outgoing buffer.
+                            for (a, b) in console_mux_tx_buffer.iter_mut().skip(3).zip(tx_buffer) {
+                                *a = *b;
+                            }
+                            self.active_transmitter.set(client.id.get());
 
-		    			// Copy the payload into the outgoing buffer.
-		    			for (a, b) in console_mux_tx_buffer.iter_mut().skip(3).zip(tx_buffer) {
-		    			    *a = *b;
-		    			}
-                        self.active_transmitter.set(client.id.get());
-
-		    			// Return that we transmitted something.
-		    			(len+2) as usize
-		    		})
-				});
+                            // Return that we transmitted something.
+                            (len + 2) as usize
+                        })
+                    });
 
                 if to_send_len > 0 {
-                    self.uart.transmit_buffer(console_mux_tx_buffer, to_send_len);
+                    self.uart
+                        .transmit_buffer(console_mux_tx_buffer, to_send_len);
                 }
-
-		    });
-	    }
+            });
+        }
     }
 }
 
 impl<'a> ConsoleMuxClient<'a> {
-    pub fn new(
-        mux: &'a ConsoleMux<'a>,
-    ) -> ConsoleMuxClient<'a> {
+    pub fn new(mux: &'a ConsoleMux<'a>) -> ConsoleMuxClient<'a> {
         ConsoleMuxClient {
             mux: mux,
             id: Cell::new(0),
@@ -447,60 +445,64 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
         tx_len: usize,
         app_id: Option<u8>,
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
-    	// Save the buffer for the console client.
-    	self.tx_buffer.replace(tx_buffer);
-    	self.tx_buffer_len.set(tx_len);
+        // Save the buffer for the console client.
+        self.tx_buffer.replace(tx_buffer);
+        self.tx_buffer_len.set(tx_len);
 
-    	// Save the app id if this comes from the app console.
-    	match app_id {
-    		Some(id) => self.tx_subid.set(id),
-    		None => self.tx_subid.clear()
-    	}
+        // Save the app id if this comes from the app console.
+        match app_id {
+            Some(id) => self.tx_subid.set(id),
+            None => self.tx_subid.clear(),
+        }
 
-    	// Try to send the buffer, no guarantee that it will go out right now.
-    	self.mux.transmit();
+        // Try to send the buffer, no guarantee that it will go out right now.
+        self.mux.transmit();
 
-    	(ReturnCode::SUCCESS, None)
+        (ReturnCode::SUCCESS, None)
     }
 
     // Just have to save the rx buffer in case a command comes in for this
     // particular console.
-    fn receive_message(&self, rx_buffer: &'static mut [u8]) -> (ReturnCode, Option<&'static mut [u8]>) {
-    	self.rx_buffer.replace(rx_buffer);
-    	(ReturnCode::SUCCESS, None)
+    fn receive_message(
+        &self,
+        rx_buffer: &'static mut [u8],
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        self.rx_buffer.replace(rx_buffer);
+        (ReturnCode::SUCCESS, None)
     }
 
     fn set_client(&self, client: &'a ConsoleClient) {
-    	self.client.set(client);
+        self.client.set(client);
     }
 }
 
 impl<'a> uart::TransmitClient for ConsoleMux<'a> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], tx_len: usize, rcode: ReturnCode) {
-    	// Replace the `ConsoleMux` tx buffer since that is what we actually
-    	// passed to the UART.
-    	self.tx_buffer.replace(buffer);
+        // Replace the `ConsoleMux` tx buffer since that is what we actually
+        // passed to the UART.
+        self.tx_buffer.replace(buffer);
 
-    	// Now we need to pass the tx buffer for the console back to the console
-    	// so it can transmit again.
-    	self.active_transmitter.map(|&mut id| {
-			self.consoles.iter().find(|client| {
-			    id == client.id.get() || (id >= 128 && client.id.get() == 128)
-            }).map(|client| {
-	        	client.client.map(|console_client| {
-                    client.tx_buffer.take().map(|tx_buffer| {
-		        		console_client.transmitted_message(tx_buffer, tx_len, rcode);
-		        	});
-		        });
-			});
-    	});
+        // Now we need to pass the tx buffer for the console back to the console
+        // so it can transmit again.
+        self.active_transmitter.map(|&mut id| {
+            self.consoles
+                .iter()
+                .find(|client| id == client.id.get() || (id >= 128 && client.id.get() == 128))
+                .map(|client| {
+                    client.client.map(|console_client| {
+                        client.tx_buffer.take().map(|tx_buffer| {
+                            console_client.transmitted_message(tx_buffer, tx_len, rcode);
+                        });
+                    });
+                });
+        });
 
-    	// Mark that there is no transmitter.
-    	self.active_transmitter.clear();
+        // Mark that there is no transmitter.
+        self.active_transmitter.clear();
 
-    	// See if there is more to transmit. This will just do nothing if there
-    	// are no consoles trying to send data.
-    	self.transmit();
+        // See if there is more to transmit. This will just do nothing if there
+        // are no consoles trying to send data.
+        self.transmit();
     }
 }
 
@@ -515,76 +517,86 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         // let mut execute = false;
 
         if error == uart::Error::None {
-        	match self.state.get() {
-        		State::WaitingHeader => {
-        			match rx_len {
-        				3 => {
-        					// We got the expected number of header bytes.
-        					let length: u16 = ((read_buf[0] as u16) << 8) + (read_buf[1] as u16);
-        					let id: u8 = read_buf[2];
-        					self.state.set(State::ReceivedHeader{length, id});
+            match self.state.get() {
+                State::WaitingHeader => {
+                    match rx_len {
+                        3 => {
+                            // We got the expected number of header bytes.
+                            let length: u16 = ((read_buf[0] as u16) << 8) + (read_buf[1] as u16);
+                            let id: u8 = read_buf[2];
+                            self.state.set(State::ReceivedHeader { length, id });
 
-        					// Setup the remainder of the read. Since we already
-        					// read the id byte, we subtract one from the
-        					// length.
-        					self.uart.receive_buffer(read_buf, (length-1) as usize);
-        				}
-        				_ => {
-        					debug!("ConsoleMux invalid receive.");
-        				}
-        			}
-        		}
+                            // Setup the remainder of the read. Since we already
+                            // read the id byte, we subtract one from the
+                            // length.
+                            self.uart.receive_buffer(read_buf, (length - 1) as usize);
+                        }
+                        _ => {
+                            debug!("ConsoleMux invalid receive.");
+                        }
+                    }
+                }
 
-        		State::ReceivedHeader{id, length} => {
-        			match rx_len {
-        				0 => debug!("ConsoleMux recv 0."),
+                State::ReceivedHeader { id, length } => {
+                    match rx_len {
+                        0 => debug!("ConsoleMux recv 0."),
 
-        				_ => {
-        					match id {
-        						0 => {
-        							// Copy the received bytes into our local
-        							// command buffer.
-        							self.command_buffer.map(|cmd_buffer| {
-	        							for (a, b) in cmd_buffer.iter_mut().skip(3).zip(read_buf.as_ref()) {
-	        							    *a = *b;
-	        							}
-	        						});
+                        _ => {
+                            match id {
+                                0 => {
+                                    // Copy the received bytes into our local
+                                    // command buffer.
+                                    self.command_buffer.map(|cmd_buffer| {
+                                        for (a, b) in
+                                            cmd_buffer.iter_mut().skip(3).zip(read_buf.as_ref())
+                                        {
+                                            *a = *b;
+                                        }
+                                    });
 
-        							// The `ConsoleMux` handles this command.
-        							self.handle_internal_command(rx_len);
-        						}
-        						_ => {
-        							// Handle all kernel console messages.
+                                    // The `ConsoleMux` handles this command.
+                                    self.handle_internal_command(rx_len);
+                                }
+                                _ => {
+                                    // Handle all kernel console messages.
 
                                     // Find the console that matches and pass
                                     // the received message to it.
-                                    self.consoles.iter().find(|client| {
-                                        id == client.id.get() || (id >= 128 && client.id.get() == 128)
-                                    }).map(|client| {
-                                        client.client.map(|console_client| {
-                                            client.rx_buffer.take().map(|rx_buffer| {
-                                                // Copy the receive bytes to the
-                                                // passed in buffer from the
-                                                // console.
-                                                for (a, b) in rx_buffer.iter_mut().skip(3).zip(read_buf.as_ref()) {
-                                                    *a = *b;
-                                                }
+                                    self.consoles
+                                        .iter()
+                                        .find(|client| {
+                                            id == client.id.get()
+                                                || (id >= 128 && client.id.get() == 128)
+                                        })
+                                        .map(|client| {
+                                            client.client.map(|console_client| {
+                                                client.rx_buffer.take().map(|rx_buffer| {
+                                                    // Copy the receive bytes to the
+                                                    // passed in buffer from the
+                                                    // console.
+                                                    for (a, b) in rx_buffer
+                                                        .iter_mut()
+                                                        .skip(3)
+                                                        .zip(read_buf.as_ref())
+                                                    {
+                                                        *a = *b;
+                                                    }
 
-                                                console_client.received_message(rx_buffer, rx_len, rcode, error);
+                                                    console_client.received_message(
+                                                        rx_buffer, rx_len, rcode, error,
+                                                    );
+                                                });
                                             });
                                         });
+                                }
+                            }
+                            self.uart.receive_buffer(read_buf, 3);
+                        }
+                    }
+                }
 
-                                    });
-        						}
-        					}
-        					self.uart.receive_buffer(read_buf, 3);
-        				}
-        			}
-        		}
-
-        		State::Idle => {}
-        	}
+                State::Idle => {}
+            }
         }
     }
 }
-
