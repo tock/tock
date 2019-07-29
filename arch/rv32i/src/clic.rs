@@ -3,83 +3,80 @@
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
 
-//CLIC Hart Specific Region
+/// CLIC Hart Specific Region
 #[repr(C)]
 struct ClicRegisters {
-    // CLIC Interrupt Pending Registers
+    /// CLIC Interrupt Pending Registers
     clicintip: IntPendRegisters,
-    // CLIC Interrupt Enable Registers
+    /// CLIC Interrupt Enable Registers
     clicintie: IntEnableRegisters,
-    // CLIC Interrupt Configuration Registers
+    /// CLIC Interrupt Configuration Registers
     clicintcfg: IntConfigRegisters,
-    // CLIC Configuration Registers
+    /// CLIC Configuration Registers
     cliccfg: ConfigRegisters,
 }
 
-//Interrupt Pending Registers
+/// Interrupt Pending Registers
 #[repr(C)]
 struct IntPendRegisters {
-    //Reserved Section
     _reserved0: [u8; 3],
-    //Machine Software Interrupt
+    /// Machine Software Interrupt
     msip: ReadWrite<u8, intpend::Register>,
     _reserved1: [u8; 3],
-    //Machine Timer Interrupt
+    /// Machine Timer Interrupt
     mtip: ReadWrite<u8, intpend::Register>,
     _reserved2: [u8; 3],
-    //Machine External Interrupt
+    /// Machine External Interrupt
     meip: ReadWrite<u8, intpend::Register>,
-    //CLIC Software Interrupt
+    /// CLIC Software Interrupt
     csip: ReadWrite<u8, intpend::Register>,
     _reserved3: [u8; 3],
-    //Local Interrupt 0-127
+    /// Local Interrupt 0-127
     localintpend: [ReadWrite<u8, intpend::Register>; 128],
     _reserved4: [u8; 880],
 }
 
-//Interrupt Enable Registers
+/// Interrupt Enable Registers
 #[repr(C)]
 struct IntEnableRegisters {
-    //Reserved Section
     _reserved0: [u8; 3],
-    //Machine Software Interrupt
+    /// Machine Software Interrupt
     msip: ReadWrite<u8, inten::Register>,
     _reserved1: [u8; 3],
-    //Machine Timer Interrupt
+    /// Machine Timer Interrupt
     mtip: ReadWrite<u8, inten::Register>,
     _reserved2: [u8; 3],
-    //Machine External Interrupt
+    /// Machine External Interrupt
     meip: ReadWrite<u8, inten::Register>,
-    //CLIC Software Interrupt
+    /// CLIC Software Interrupt
     csip: ReadWrite<u8, inten::Register>,
     _reserved3: [u8; 3],
-    //Local Interrupt 0-127
+    /// Local Interrupt 0-127
     localint: [ReadWrite<u8, inten::Register>; 128],
     _reserved4: [u8; 880],
 }
 
-//Interrupt Configuration Registers
+/// Interrupt Configuration Registers
 #[repr(C)]
 struct IntConfigRegisters {
-    //Reserved Section
     _reserved0: [u8; 3],
-    //Machine Software Interrupt
+    /// Machine Software Interrupt
     msip: ReadWrite<u8, intcon::Register>,
     _reserved1: [u8; 3],
-    //Machine Timer Interrupt
+    /// Machine Timer Interrupt
     mtip: ReadWrite<u8, intcon::Register>,
     _reserved2: [u8; 3],
-    //Machine External Interrupt
+    /// Machine External Interrupt
     meip: ReadWrite<u8, intcon::Register>,
-    //CLIC Software Interrupt
+    /// CLIC Software Interrupt
     csip: ReadWrite<u8, intcon::Register>,
     _reserved3: [u8; 3],
-    //Local Interrupt 0-127
+    /// Local Interrupt 0-127
     localint: [ReadWrite<u8, intcon::Register>; 128],
     _reserved4: [u8; 880],
 }
 
-//Configuration Register
+/// Configuration Register
 #[repr(C)]
 struct ConfigRegisters {
     cliccfg: ReadWrite<u8, conreg::Register>,
@@ -116,8 +113,6 @@ register_bitfields![u8,
 
 const CLIC_BASE: StaticRef<ClicRegisters> =
     unsafe { StaticRef::new(0x0280_0000 as *const ClicRegisters) };
-
-// pub static mut CLIC: Clic = Clic::new();
 
 pub struct Clic {
     registers: StaticRef<ClicRegisters>,
@@ -277,7 +272,7 @@ impl Clic {
     /// Return `true` if there are any pending interrupts in the CLIC, `false`
     /// otherwise.
     pub fn has_pending(&self) -> bool {
-        return self.next_pending().is_some();
+        self.next_pending().is_some()
     }
 }
 
@@ -293,7 +288,7 @@ pub unsafe fn disable_interrupt(index: u32) {
         7 => regs.clicintie.mtip.write(inten::IntEn::CLEAR),
         11 => regs.clicintie.meip.write(inten::IntEn::CLEAR),
         12 => regs.clicintie.csip.write(inten::IntEn::CLEAR),
-        16...144 => regs.clicintie.localint[(index as usize) - 16].write(inten::IntEn::CLEAR),
+        16..=144 => regs.clicintie.localint[(index as usize) - 16].write(inten::IntEn::CLEAR),
         _ => {}
     }
 }
