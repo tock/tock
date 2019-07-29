@@ -35,9 +35,11 @@
 //! written.
 
 use core::cmp;
-use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
+use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+
+use crate::console_mux;
 
 /// Syscall driver number.
 use crate::driver;
@@ -60,7 +62,7 @@ pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
-    uart: &'a dyn uart::UartData<'a>,
+    console_mux: &'a console_mux::Console<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -70,13 +72,13 @@ pub struct Console<'a> {
 
 impl Console<'a> {
     pub fn new(
-        uart: &'a dyn uart::UartData<'a>,
+        console_mux: &'a console_mux::Console<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         grant: Grant<App>,
     ) -> Console<'a> {
         Console {
-            uart: uart,
+            console_mux: console_mux,
             apps: grant,
             tx_in_progress: OptionalCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
@@ -140,7 +142,7 @@ impl Console<'a> {
                     app.write_remaining = 0;
                 }
 
-                let (_err, _opt) = self.uart.transmit_buffer(buffer, transaction_len);
+                let (_err, _opt) = self.console_mux.transmit_message(buffer, transaction_len, Some(app_id.idx() as u8));
             });
         } else {
             app.pending_write = true;
@@ -168,7 +170,7 @@ impl Console<'a> {
                     app.read_len = read_len;
                     self.rx_buffer.take().map(|buffer| {
                         self.rx_in_progress.set(app_id);
-                        let (_err, _opt) = self.uart.receive_buffer(buffer, app.read_len);
+                        let (_err, _opt) = self.console_mux.receive_message(buffer);
                     });
                     ReturnCode::SUCCESS
                 }
@@ -268,7 +270,7 @@ impl Driver for Console<'a> {
                 }).unwrap_or_else(|err| err.into())
             },
             3 /* abort rx */ => {
-                self.uart.receive_abort();
+                self.console_mux.receive_message_abort();
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT
@@ -276,8 +278,8 @@ impl Driver for Console<'a> {
     }
 }
 
-impl uart::TransmitClient for Console<'a> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+impl console_mux::ConsoleClient for Console<'a> {
+    fn transmitted_message(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
@@ -339,10 +341,8 @@ impl uart::TransmitClient for Console<'a> {
             }
         }
     }
-}
 
-impl uart::ReceiveClient for Console<'a> {
-    fn received_buffer(
+    fn received_message(
         &self,
         buffer: &'static mut [u8],
         rx_len: usize,
