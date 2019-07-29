@@ -190,6 +190,10 @@ pub trait Console<'a> {
         rx_buffer: &'static mut [u8],
     ) -> (ReturnCode, Option<&'static mut [u8]>);
 
+    /// Cancel a receive operation. The message buffer will be returned through
+    /// the received_message callback.
+    fn receive_message_abort(&self);
+
     /// Provide a reference to the console client that will be called when
     /// messages come in or when transmissions have finished.
     fn set_client(&self, client: &'a ConsoleClient);
@@ -469,6 +473,16 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
     ) -> (ReturnCode, Option<&'static mut [u8]>) {
         self.rx_buffer.replace(rx_buffer);
         (ReturnCode::SUCCESS, None)
+    }
+
+    fn receive_message_abort(&self) {
+        self.client.map(|console_client| {
+            self.rx_buffer.take().map(|rx_buffer| {
+                console_client.received_message(
+                    rx_buffer, 0, ReturnCode::SUCCESS, uart::Error::Aborted,
+                );
+            });
+        });
     }
 
     fn set_client(&self, client: &'a ConsoleClient) {
