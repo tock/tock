@@ -102,6 +102,8 @@ use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
 
+use crate::console_mux;
+
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
 pub static mut WRITE_BUF: [u8; 4] = [0; 4];
@@ -112,11 +114,42 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
-pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
-    console_mux: &'a console_mux::Console<'a>,
-    // tx_in_progress: Cell<bool>,
+pub struct ProcessConsoleWriter {
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
+}
+
+impl ProcessConsoleWriter {
+    pub fn new(
+        tx_buffer: &'static mut [u8],
+    ) -> ProcessConsoleWriter {
+        ProcessConsoleWriter {
+            tx_buffer: TakeCell::new(tx_buffer),
+            tx_len: Cell::new(0),
+        }
+    }
+
+    fn get_tx_buffer(&self) -> Option<&'static mut [u8]> {
+        self.tx_buffer.take()
+    }
+
+    fn set_tx_buffer(&self, buffer: &'static mut [u8]) {
+        self.tx_buffer.replace(buffer);
+    }
+
+    fn get_and_reset_tx_len(&self) -> usize {
+        let l = self.tx_len.get();
+        self.tx_len.set(0);
+        l
+    }
+}
+
+pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
+    console_mux: &'a console_mux::Console<'a>,
+    writer: TakeCell<'static, ProcessConsoleWriter>,
+    // tx_in_progress: Cell<bool>,
+    // tx_buffer: TakeCell<'static, [u8]>,
+    // tx_len: Cell<usize>,
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
@@ -129,7 +162,8 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
         console_mux: &'a console_mux::Console<'a>,
-        tx_buffer: &'static mut [u8],
+        writer: &'static mut ProcessConsoleWriter,
+        // tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
         kernel: &'static Kernel,
@@ -137,9 +171,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     ) -> ProcessConsole<'a, C> {
         ProcessConsole {
             console_mux: console_mux,
+            writer: TakeCell::new(writer),
             // tx_in_progress: Cell::new(false),
-            tx_buffer: TakeCell::new(tx_buffer),
-            tx_len: Cell::new(0),
+            // tx_buffer: TakeCell::new(tx_buffer),
+            // tx_len: Cell::new(0),
             rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
@@ -154,7 +189,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         if self.running.get() == false {
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
-                self.uart.receive_buffer(buffer, 1);
+                self.console_mux.receive_message(buffer);
                 self.running.set(true);
             });
         }
@@ -162,15 +197,18 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     }
 
     fn write_string(&self, args: Arguments) {
-        let _ = write(self, args);
-        let _ = self.write_str("\r\n");
+        self.writer.map(|writer| {
+            let _ = write(writer, args);
+            let _ = writer.write_str("\r\n");
+        });
     }
 
     fn send(&self) {
-        self.tx_buffer.take().map(|tx_buffer| {
-            let tx_len = self.tx_len.get();
-            self.tx_len.set(0);
-            self.console_mux.transmit_message(tx_buffer, tx_len, None);
+        self.writer.map(|writer| {
+            writer.get_tx_buffer().map(|tx_buffer| {
+                let tx_len = writer.get_and_reset_tx_len();
+                self.console_mux.transmit_message(tx_buffer, tx_len, None);
+            });
         });
     }
 
@@ -275,8 +313,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     Err(_e) => {
                         self.write_string(format_args!("Invalid command: {:?}", command));
                     }
-                    self.send();
                 }
+                self.send();
             }
         });
         self.command_buffer.map(|command| {
@@ -315,7 +353,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     // }
 }
 
-impl<'a, C: ProcessManagementCapability> Write for ProcessConsole<'a, C> {
+// impl<'a, C: ProcessManagementCapability> Write for ProcessConsole<'a, C> {
+impl Write for ProcessConsoleWriter {
     fn write_str(&mut self, s: &str) -> Result {
         let start = self.tx_len.get();
         let end = start + s.len();
@@ -334,10 +373,12 @@ impl<'a, C: ProcessManagementCapability> Write for ProcessConsole<'a, C> {
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
     fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
-        // Either print more from the AppSlice or send a callback to the
-        // application.
-        self.tx_buffer.replace(buffer);
-        self.tx_in_progress.set(false);
+        self.writer.map(move |writer| {
+            writer.set_tx_buffer(buffer);
+        });
+
+
+        // self.tx_in_progress.set(false);
     }
 }
 impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
@@ -348,43 +389,43 @@ impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<
         _rcode: ReturnCode,
         error: uart::Error,
     ) {
-        let mut execute = false;
+        // let mut execute = false;
         if error == uart::Error::None {
-            match rx_len {
-                0 => debug!("ProcessConsole had read of 0 bytes"),
-                1 => {
-                    self.command_buffer.map(|command| {
-                        let index = self.command_index.get() as usize;
-                        if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-                            execute = true;
-                            self.write_bytes(&['\r' as u8, '\n' as u8]);
-                        } else if read_buf[0] == ('\x08' as u8) && index > 0 {
-                            // Backspace, echo and remove last byte
-                            // Note echo is '\b \b' to erase
-                            self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                            command[index - 1] = '\0' as u8;
-                            self.command_index.set(index - 1);
-                        } else if index < (command.len() - 1) && read_buf[0] < 128 {
-                            // For some reason, sometimes reads return > 127 but no error,
-                            // which causes utf-8 decoding failure, so check byte is < 128. -pal
+        //     match rx_len {
+        //         0 => debug!("ProcessConsole had read of 0 bytes"),
+        //         1 => {
+        //             self.command_buffer.map(|command| {
+        //                 let index = self.command_index.get() as usize;
+        //                 if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
+        //                     execute = true;
+        //                     self.write_bytes(&['\r' as u8, '\n' as u8]);
+        //                 } else if read_buf[0] == ('\x08' as u8) && index > 0 {
+        //                     // Backspace, echo and remove last byte
+        //                     // Note echo is '\b \b' to erase
+        //                     self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+        //                     command[index - 1] = '\0' as u8;
+        //                     self.command_index.set(index - 1);
+        //                 } else if index < (command.len() - 1) && read_buf[0] < 128 {
+        //                     // For some reason, sometimes reads return > 127 but no error,
+        //                     // which causes utf-8 decoding failure, so check byte is < 128. -pal
 
-                            // Echo the byte and store it
-                            self.write_byte(read_buf[0]);
-                            command[index] = read_buf[0];
-                            self.command_index.set(index + 1);
-                            command[index + 1] = 0;
-                        }
-                    });
-                }
-                _ => debug!(
-                    "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
-                    rx_len
-                ),
-            };
-        }
-        self.rx_in_progress.set(true);
-        self.uart.receive_buffer(read_buf, 1);
-        if execute {
+        //                     // Echo the byte and store it
+        //                     self.write_byte(read_buf[0]);
+        //                     command[index] = read_buf[0];
+        //                     self.command_index.set(index + 1);
+        //                     command[index + 1] = 0;
+        //                 }
+        //             });
+        //         }
+        //         _ => debug!(
+        //             "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
+        //             rx_len
+        //         ),
+        //     };
+        // }
+        // self.rx_in_progress.set(true);
+            self.console_mux.receive_message(read_buf);
+        // if execute {
             self.read_command();
         }
     }
