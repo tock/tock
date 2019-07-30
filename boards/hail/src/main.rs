@@ -227,11 +227,69 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART0, uart_mux);
     hil::uart::Receive::set_receive_client(&sam4l::usart::USART0, uart_mux);
 
-    // Setup the console and the process inspection console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
-    let process_console =
-        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
-            .finalize(());
+// <<<<<<< HEAD
+//     // Setup the console and the process inspection console.
+//     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+//     let process_console =
+//         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+//             .finalize(());
+// =======
+    // Create a UartDevice for the console mux.
+    let console_mux_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    console_mux_uart.setup();
+
+
+    let console_mux = static_init!(
+        capsules::console_mux::ConsoleMux<'static>,
+        capsules::console_mux::ConsoleMux::new(
+            console_mux_uart,
+            &mut capsules::console_mux::WRITE_BUF,
+            &mut capsules::console_mux::READ_BUF,
+            &mut capsules::console_mux::COMMAND_BUF,
+        )
+    );
+    hil::uart::Transmit::set_transmit_client(console_mux_uart, console_mux);
+    hil::uart::Receive::set_receive_client(console_mux_uart, console_mux);
+
+
+    let console_mux_client = static_init!(capsules::console_mux::ConsoleMuxClient, capsules::console_mux::ConsoleMuxClient::new(console_mux));
+    console_mux_client.setup();
+    let console = static_init!(
+        capsules::console::Console<'static>,
+        capsules::console::Console::new(
+            console_mux_client,
+            &mut capsules::console::WRITE_BUF,
+            &mut capsules::console::READ_BUF,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+
+    let process_console_writer = static_init!(
+        capsules::process_console::ProcessConsoleWriter,
+        capsules::process_console::ProcessConsoleWriter::new(
+            &mut capsules::process_console::WRITE_BUF,
+        )
+    );
+
+    // Setup the process inspection console
+    // let process_console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    // process_console_uart.setup();
+    let process_console_mux_client = static_init!(capsules::console_mux::ConsoleMuxClient, capsules::console_mux::ConsoleMuxClient::new(console_mux));
+    process_console_mux_client.setup();
+    pub struct ProcessConsoleCapability;
+    unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
+    let process_console = static_init!(
+        capsules::process_console::ProcessConsole<'static, ProcessConsoleCapability>,
+        capsules::process_console::ProcessConsole::new(
+            process_console_mux_client,
+            process_console_writer,
+            &mut capsules::process_console::READ_BUF,
+            &mut capsules::process_console::COMMAND_BUF,
+            board_kernel,
+            ProcessConsoleCapability,
+        )
+    );
+// >>>>>>> hail: add new console_mux
 
     // Initialize USART3 for UART for the nRF serialization link.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -541,6 +599,7 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.initialize();
 
     process_console.start();
+    console_mux.start();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
