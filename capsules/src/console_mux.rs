@@ -281,6 +281,81 @@ pub struct ConsoleMux<'a> {
     command_buffer: TakeCell<'static, [u8]>,
 }
 
+/// This object is a helper for using the `core::fmt::write()` function which
+/// requires something that implements the `core::fmt::Write` interface.
+///
+/// Consoles that want to write custom strings back to the user should use this
+/// struct to help populate the buffer to send to the user.
+pub struct ConsoleWriter {
+    /// Holds a pointer to the buffer that will be populated with the strings.
+    tx_buffer: TakeCell<'static, [u8]>,
+
+    /// Keeps track of how many bytes of the buffer have been filled.
+    tx_len: Cell<usize>,
+}
+
+/// Helper macro for using the `ConsoleWriter` to output strings. General usage
+/// is very similar to `format_args!()`.
+///
+/// ```
+/// console_write!(self.writer, "Welcome to the process console.");
+/// console_write!(self.writer, "Number of processes: {}", process_count);
+/// ```
+#[macro_export]
+macro_rules! console_write {
+    ($W:expr, $fmt:expr) => ({
+        $W.map(|writer| {
+            let _ = core::fmt::write(writer, format_args!($fmt));
+            let _ = writer.write_str("\r\n");
+        });
+    });
+    ($W:expr, $fmt:expr, $($arg:tt)+) => ({
+        $W.map(|writer| {
+            let _ = core::fmt::write(writer, format_args!($fmt, $($arg)+));
+            let _ = writer.write_str("\r\n");
+        });
+    });
+}
+
+impl ConsoleWriter {
+    pub fn new(buffer: &'static mut [u8]) -> ConsoleWriter {
+        ConsoleWriter {
+            tx_buffer: TakeCell::new(buffer),
+            tx_len: Cell::new(0),
+        }
+    }
+
+    /// Retrieve the buffer from the writer to send to the `ConsoleMux`. Also
+    /// return the number of bytes that are actually populated in the buffer.
+    pub fn get_tx_buffer(&self) -> (Option<&'static mut [u8]>, usize) {
+        (self.tx_buffer.take(), self.tx_len.get())
+    }
+
+    /// Pass the buffer back to the writer, presumably after getting it back
+    /// from the `ConsoleMux`. This will also reset the length automatically.
+    pub fn set_tx_buffer(&self, buffer: &'static mut [u8]) {
+        self.tx_buffer.replace(buffer);
+        self.tx_len.set(0);
+    }
+}
+
+impl core::fmt::Write for ConsoleWriter {
+    fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
+        let start = self.tx_len.get();
+        let end = start + s.len();
+
+        self.tx_buffer.map(|tx_buffer| {
+            for (dst, src) in tx_buffer[start..end].iter_mut().zip(s.as_bytes().iter()) {
+                *dst = *src;
+            }
+        });
+
+        self.tx_len.set(end);
+
+        Ok(())
+    }
+}
+
 /// The state of the mux, mostly handles transitioning in the receive case.
 #[derive(Clone, Copy, PartialEq)]
 enum State {

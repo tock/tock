@@ -265,8 +265,8 @@ pub unsafe fn reset_handler() {
     );
 
     let process_console_writer = static_init!(
-        capsules::process_console::ProcessConsoleWriter,
-        capsules::process_console::ProcessConsoleWriter::new(
+        capsules::console_mux::ConsoleWriter,
+        capsules::console_mux::ConsoleWriter::new(
             &mut capsules::process_console::WRITE_BUF,
         )
     );

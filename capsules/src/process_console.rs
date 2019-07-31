@@ -91,12 +91,10 @@
 //! ```
 
 use core::cell::Cell;
-use core::cmp;
 use core::str;
-use core::fmt::{write, Arguments, Result, Write};
+use core::fmt::Write;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
-use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
@@ -114,39 +112,11 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
-pub struct ProcessConsoleWriter {
-    tx_buffer: TakeCell<'static, [u8]>,
-    tx_len: Cell<usize>,
-}
 
-impl ProcessConsoleWriter {
-    pub fn new(
-        tx_buffer: &'static mut [u8],
-    ) -> ProcessConsoleWriter {
-        ProcessConsoleWriter {
-            tx_buffer: TakeCell::new(tx_buffer),
-            tx_len: Cell::new(0),
-        }
-    }
-
-    fn get_tx_buffer(&self) -> Option<&'static mut [u8]> {
-        self.tx_buffer.take()
-    }
-
-    fn set_tx_buffer(&self, buffer: &'static mut [u8]) {
-        self.tx_buffer.replace(buffer);
-    }
-
-    fn get_and_reset_tx_len(&self) -> usize {
-        let l = self.tx_len.get();
-        self.tx_len.set(0);
-        l
-    }
-}
 
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     console_mux: &'a console_mux::Console<'a>,
-    writer: TakeCell<'static, ProcessConsoleWriter>,
+    writer: TakeCell<'static, console_mux::ConsoleWriter>,
     // tx_in_progress: Cell<bool>,
     // tx_buffer: TakeCell<'static, [u8]>,
     // tx_len: Cell<usize>,
@@ -162,7 +132,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
         console_mux: &'a console_mux::Console<'a>,
-        writer: &'static mut ProcessConsoleWriter,
+        writer: &'static mut console_mux::ConsoleWriter,
         // tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
@@ -196,17 +166,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         ReturnCode::SUCCESS
     }
 
-    fn write_string(&self, args: Arguments) {
-        self.writer.map(|writer| {
-            let _ = write(writer, args);
-            let _ = writer.write_str("\r\n");
-        });
-    }
-
     fn send(&self) {
         self.writer.map(|writer| {
-            writer.get_tx_buffer().map(|tx_buffer| {
-                let tx_len = writer.get_and_reset_tx_len();
+            let (buffer, tx_len) = writer.get_tx_buffer();
+            buffer.map(|tx_buffer| {
                 self.console_mux.transmit_message(tx_buffer, tx_len, None);
             });
         });
@@ -233,8 +196,8 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     Ok(s) => {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
-                            self.write_string(format_args!("Welcome to the process console."));
-                            self.write_string(format_args!("Valid commands are: help status list stop start"));
+                            console_write!(self.writer, "Welcome to the process console.");
+                            console_write!(self.writer, "Valid commands are: help status list stop start");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -244,7 +207,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.resume();
-                                            self.write_string(format_args!("Process {} resumed.", name));
+                                            console_write!(self.writer, "Process {} resumed.", name);
                                         }
                                     },
                                 );
@@ -258,7 +221,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.stop();
-                                            self.write_string(format_args!("Process {} stopped", proc_name));
+                                            console_write!(self.writer, "Process {} stopped", proc_name);
                                         }
                                     },
                                 );
@@ -272,17 +235,17 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.set_fault_state();
-                                            self.write_string(format_args!("Process {} now faulted", proc_name));
+                                            console_write!(self.writer, "Process {} now faulted", proc_name);
                                         }
                                     },
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            self.write_string(format_args!(" PID    Name                Quanta  Syscalls  Dropped Callbacks    State"));
+                            console_write!(self.writer, " PID    Name                Quanta  Syscalls  Dropped Callbacks    State");
                             self.kernel
                                 .process_each_capability(&self.capability, |i, proc| {
                                     let pname = proc.get_process_name();
-                                    self.write_string(format_args!(
+                                    console_write!(self.writer,
                                         "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}",
                                         i,
                                         pname,
@@ -290,28 +253,28 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         proc.debug_syscall_count(),
                                         proc.debug_dropped_callback_count(),
                                         proc.get_state()
-                                    ));
+                                    );
                                 });
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
-                            self.write_string(format_args!(
+                            console_write!(self.writer,
                                 "Total processes: {}",
                                 info.number_loaded_processes(&self.capability)
-                            ));
-                            self.write_string(format_args!(
+                            );
+                            console_write!(self.writer,
                                 "Active processes: {}",
                                 info.number_active_processes(&self.capability)
-                            ));
-                            self.write_string(format_args!(
+                            );
+                            console_write!(self.writer,
                                 "Timeslice expirations: {}",
                                 info.timeslice_expirations(&self.capability)
-                            ));
+                            );
                         } else {
-                            self.write_string(format_args!("Valid commands are: help status list stop start fault"));
+                            console_write!(self.writer, "Valid commands are: help status list stop start fault");
                         }
                     }
                     Err(_e) => {
-                        self.write_string(format_args!("Invalid command: {:?}", command));
+                        console_write!(self.writer, "Invalid command: {:?}", command);
                     }
                 }
                 self.send();
@@ -351,24 +314,6 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     //         ReturnCode::SUCCESS
     //     }
     // }
-}
-
-// impl<'a, C: ProcessManagementCapability> Write for ProcessConsole<'a, C> {
-impl Write for ProcessConsoleWriter {
-    fn write_str(&mut self, s: &str) -> Result {
-        let start = self.tx_len.get();
-        let end = start + s.len();
-
-        self.tx_buffer.map(|tx_buffer| {
-            for (dst, src) in tx_buffer[start..end].iter_mut().zip(s.as_bytes().iter()) {
-                *dst = *src;
-            }
-        });
-
-        self.tx_len.set(end);
-
-        Ok(())
-    }
 }
 
 impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
