@@ -17,7 +17,7 @@ pub struct ArtyExx {
 }
 
 impl ArtyExx {
-    pub unsafe fn new() -> ArtyExx {
+    pub fn new() -> ArtyExx {
         // Make a bit-vector of all interrupt locations that we actually intend
         // to use on this chip.
         // 0001 1111 1111 1111 1111 0000 0000 1000 0000

@@ -26,7 +26,7 @@ pub struct RiscvimacStoredState {
 pub struct SysCall();
 
 impl SysCall {
-    pub const unsafe fn new() -> SysCall {
+    pub const fn new() -> SysCall {
         SysCall()
     }
 }
@@ -356,6 +356,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // Prepare the return type that marks why the app stopped executing.
         let ret = match switch_reason {
+            // Application called a syscall.
             0 => {
                 let syscall = kernel::syscall::arguments_to_syscall(
                     syscall_args[0] as u8,
@@ -369,21 +370,28 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                     None => kernel::syscall::ContextSwitchReason::Fault,
                 }
             }
+
+            // An interrupt occurred while the app was running.
             1 => kernel::syscall::ContextSwitchReason::Interrupted,
+
+            // Some exception occurred in the app.
             2 => kernel::syscall::ContextSwitchReason::Fault,
+
+            // This case should never happen but if something goes wrong with
+            // the switch back to the kernel mark the app as faulted.
             _ => kernel::syscall::ContextSwitchReason::Fault,
         };
 
         (new_stack_pointer as *mut usize, ret)
     }
 
-    unsafe fn fault_fmt(&self, _writer: &mut Write) {}
+    unsafe fn fault_fmt(&self, _writer: &mut dyn Write) {}
 
     unsafe fn process_detail_fmt(
         &self,
         _stack_pointer: *const usize,
         _state: &RiscvimacStoredState,
-        _writer: &mut Write,
+        _writer: &mut dyn Write,
     ) {
     }
 }

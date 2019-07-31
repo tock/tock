@@ -9,7 +9,7 @@ use rv32i;
 
 use crate::PROCESSES;
 
-struct Writer {}
+struct Writer;
 
 static mut WRITER: Writer = Writer {};
 
