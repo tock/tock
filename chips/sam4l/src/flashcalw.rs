@@ -828,7 +828,7 @@ impl FLASHCALW {
     }
 
     // Address is some raw address in flash that you want to read.
-    fn read_range(
+    fn read_page(
         &self,
         address: usize,
         size: usize,
@@ -916,7 +916,7 @@ impl hil::flash::Flash for FLASHCALW {
     type Page = Sam4lPage;
 
     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
-        self.read_range(page_number * (PAGE_SIZE as usize), buf.len(), buf)
+        self.read_page(page_number * (PAGE_SIZE as usize), buf.len(), buf)
     }
 
     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
