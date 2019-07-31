@@ -528,8 +528,6 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
         rcode: ReturnCode,
         error: uart::Error,
     ) {
-        // let mut execute = false;
-
         if error == uart::Error::None {
             match self.state.get() {
                 State::WaitingHeader => {
@@ -552,6 +550,8 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
                 }
 
                 State::ReceivedHeader { id, length } => {
+                    self.state.set(State::WaitingHeader);
+
                     match rx_len {
                         0 => debug!("ConsoleMux recv 0."),
 
@@ -562,7 +562,7 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
                                     // command buffer.
                                     self.command_buffer.map(|cmd_buffer| {
                                         for (a, b) in
-                                            cmd_buffer.iter_mut().skip(3).zip(read_buf.as_ref())
+                                            cmd_buffer.iter_mut().zip(read_buf.as_ref())
                                         {
                                             *a = *b;
                                         }
