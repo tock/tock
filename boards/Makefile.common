@@ -151,7 +151,7 @@ release: target/$(TARGET)/release/$(PLATFORM).bin
 # the documentation for all boards.
 .PHONY: show-target
 show-target:
-  $(info $(TARGET))
+	$(info $(TARGET))
 
 # Support rules
 
