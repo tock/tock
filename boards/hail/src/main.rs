@@ -238,12 +238,17 @@ pub unsafe fn reset_handler() {
     let console_mux_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_mux_uart.setup();
 
+    let console_mux_writer = static_init!(
+        capsules::console_mux::ConsoleWriter,
+        capsules::console_mux::ConsoleWriter::new(&mut capsules::console_mux::WRITE_BUF,)
+    );
 
     let console_mux = static_init!(
         capsules::console_mux::ConsoleMux<'static>,
         capsules::console_mux::ConsoleMux::new(
             console_mux_uart,
-            &mut capsules::console_mux::WRITE_BUF,
+            console_mux_writer,
+            &mut capsules::console_mux::WRITE_BUF2,
             &mut capsules::console_mux::READ_BUF,
             &mut capsules::console_mux::COMMAND_BUF,
         )
@@ -251,9 +256,10 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(console_mux_uart, console_mux);
     hil::uart::Receive::set_receive_client(console_mux_uart, console_mux);
 
-
-    let console_mux_client = static_init!(capsules::console_mux::ConsoleMuxClient, capsules::console_mux::ConsoleMuxClient::new(console_mux));
-    console_mux_client.setup();
+    let console_mux_client = static_init!(
+        capsules::console_mux::ConsoleMuxClient,
+        capsules::console_mux::ConsoleMuxClient::new(console_mux, "Console")
+    );
     let console = static_init!(
         capsules::console::Console<'static>,
         capsules::console::Console::new(
@@ -263,19 +269,20 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+    console_mux_client.setup_as_app_console(console);
 
     let process_console_writer = static_init!(
         capsules::console_mux::ConsoleWriter,
-        capsules::console_mux::ConsoleWriter::new(
-            &mut capsules::process_console::WRITE_BUF,
-        )
+        capsules::console_mux::ConsoleWriter::new(&mut capsules::process_console::WRITE_BUF,)
     );
 
     // Setup the process inspection console
     // let process_console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     // process_console_uart.setup();
-    let process_console_mux_client = static_init!(capsules::console_mux::ConsoleMuxClient, capsules::console_mux::ConsoleMuxClient::new(console_mux));
-    process_console_mux_client.setup();
+    let process_console_mux_client = static_init!(
+        capsules::console_mux::ConsoleMuxClient,
+        capsules::console_mux::ConsoleMuxClient::new(console_mux, "Process Console")
+    );
     pub struct ProcessConsoleCapability;
     unsafe impl capabilities::ProcessManagementCapability for ProcessConsoleCapability {}
     let process_console = static_init!(
@@ -289,7 +296,8 @@ pub unsafe fn reset_handler() {
             ProcessConsoleCapability,
         )
     );
-// >>>>>>> hail: add new console_mux
+
+    process_console_mux_client.setup(process_console);
 
     // Initialize USART3 for UART for the nRF serialization link.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);

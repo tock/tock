@@ -153,6 +153,7 @@ use kernel::ReturnCode;
 
 // Static buffer for transmitting data.
 pub static mut WRITE_BUF: [u8; 512] = [0; 512];
+pub static mut WRITE_BUF2: [u8; 512] = [0; 512];
 
 // Static buffer for receiving data.
 pub static mut READ_BUF: [u8; 512] = [0; 512];
@@ -228,6 +229,9 @@ pub struct ConsoleMuxClient<'a> {
     /// messages to route messages to the correct client.
     id: Cell<u8>,
 
+    /// Store the name of the attached console so we can provide it to the user.
+    name: &'static str,
+
     /// The reference to the actual client capsule.
     client: OptionalCell<&'a ConsoleClient>,
 
@@ -242,8 +246,8 @@ pub struct ConsoleMuxClient<'a> {
     tx_buffer: TakeCell<'static, [u8]>,
     /// The length of the outgoing message.
     tx_buffer_len: Cell<usize>,
-    /// The `tx_subid` is an additional identifier needed for the application console
-    /// that corresponds to
+    /// The `tx_subid` is an additional identifier needed for the application
+    /// console that corresponds to
     tx_subid: OptionalCell<u8>,
 
     next: ListLink<'a, ConsoleMuxClient<'a>>,
@@ -254,6 +258,9 @@ pub struct ConsoleMuxClient<'a> {
 pub struct ConsoleMux<'a> {
     /// The underlying UART hardware for the communication channel.
     uart: &'a uart::UartData<'a>,
+
+    /// Helper object for writing formated strings to a buffer.
+    writer: TakeCell<'static, ConsoleWriter>,
 
     /// List of all attached consoles. There is one special console which will
     /// have an id of 128 which is the console that manages all of the
@@ -268,6 +275,10 @@ pub struct ConsoleMux<'a> {
     /// should be returned to which console. If this is `None`, then nothing is
     /// transmitting.
     active_transmitter: OptionalCell<u8>,
+
+    /// `true` if the console_mux itself is trying to send a message on the
+    /// UART.
+    console_mux_send_ready: Cell<bool>,
 
     /// Saved TX buffer that is actually passed to the UART.
     tx_buffer: TakeCell<'static, [u8]>,
@@ -304,15 +315,17 @@ pub struct ConsoleWriter {
 #[macro_export]
 macro_rules! console_write {
     ($W:expr, $fmt:expr) => ({
+        // use core::fmt::Write;
         $W.map(|writer| {
             let _ = core::fmt::write(writer, format_args!($fmt));
-            let _ = writer.write_str("\r\n");
+            // let _ = writer.write_str("\r\n");
         });
     });
     ($W:expr, $fmt:expr, $($arg:tt)+) => ({
+        // use core::fmt::Write;
         $W.map(|writer| {
             let _ = core::fmt::write(writer, format_args!($fmt, $($arg)+));
-            let _ = writer.write_str("\r\n");
+            // let _ = writer.write_str("\r\n");
         });
     });
 }
@@ -375,15 +388,18 @@ enum State {
 impl<'a> ConsoleMux<'a> {
     pub fn new(
         uart: &'a uart::UartData<'a>,
+        writer: &'static mut ConsoleWriter,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
     ) -> ConsoleMux<'a> {
         ConsoleMux {
             uart: uart,
+            writer: TakeCell::new(writer),
             consoles: List::new(),
             state: Cell::new(State::Idle),
             active_transmitter: OptionalCell::empty(),
+            console_mux_send_ready: Cell::new(false),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
@@ -413,13 +429,13 @@ impl<'a> ConsoleMux<'a> {
         });
 
         client.id.set(count);
-        self.consoles.push_head(client);
+        self.consoles.push_tail(client);
     }
 
     /// Add a console client to the mux. This is for an app console.
     fn register_app_console(&self, client: &'a ConsoleMuxClient<'a>) {
         client.id.set(128);
-        self.consoles.push_head(client);
+        self.consoles.push_tail(client);
     }
 
     /// Process messages sent to the `ConsoleMux` itself.
@@ -430,13 +446,42 @@ impl<'a> ConsoleMux<'a> {
                 Ok(s) => {
                     let clean_str = s.trim();
                     if clean_str.starts_with("list") {
-                        debug!("Consoles:");
-                        debug!("console 1");
+                        // debug!("Consoles:");
+                        // debug!("console 1");
+                        // console_write!(self.writer, "Consolessss");
+
+                        self.consoles.iter().for_each(|client| {
+                            // let id = client.id.get();
+                            console_write!(self.writer, "{}: {}\r\n", client.id.get(), client.name);
+                        });
+
+                        self.console_mux_send_ready.set(true);
+                        self.transmit();
                     }
                 }
                 Err(_e) => debug!("Invalid command: {:?}", command),
             }
         });
+    }
+
+    fn copy_and_create_header(
+        &self,
+        out_buffer: &mut [u8],
+        src_buffer: &mut [u8],
+        len: usize,
+        id: u8,
+    ) -> usize {
+        let length = len as u16 + 1;
+        out_buffer[0] = (length >> 8) as u8;
+        out_buffer[1] = (length & 0xFF) as u8;
+        out_buffer[2] = id;
+
+        // Copy the payload into the outgoing buffer.
+        for (a, b) in out_buffer.iter_mut().skip(3).zip(src_buffer) {
+            *a = *b;
+        }
+
+        (length + 2) as usize
     }
 
     /// Check if there are any consoles trying to send messages. If not, just
@@ -454,30 +499,74 @@ impl<'a> ConsoleMux<'a> {
                         // 	return;
                         // }
                         client.tx_buffer.map_or(0, |tx_buffer| {
-                            // Get the length to send, and add one for the ID byte.
-                            let len = client.tx_buffer_len.get() as u16 + 1;
-                            console_mux_tx_buffer[0] = (len >> 8) as u8;
-                            console_mux_tx_buffer[1] = (len & 0xFF) as u8;
-
                             // Set the sender id in the message. We have to use the
                             // app id if one is set.
                             let id = client.tx_subid.unwrap_or_else(|| client.id.get());
-                            console_mux_tx_buffer[2] = id;
+                            let out_len = self.copy_and_create_header(
+                                console_mux_tx_buffer,
+                                tx_buffer,
+                                client.tx_buffer_len.get(),
+                                id,
+                            );
 
-                            // Copy the payload into the outgoing buffer.
-                            for (a, b) in console_mux_tx_buffer.iter_mut().skip(3).zip(tx_buffer) {
-                                *a = *b;
-                            }
+                            // // Get the length to send, and add one for the ID byte.
+                            // let len = client.tx_buffer_len.get() as u16 + 1;
+                            // console_mux_tx_buffer[0] = (len >> 8) as u8;
+                            // console_mux_tx_buffer[1] = (len & 0xFF) as u8;
+
+                            // console_mux_tx_buffer[2] = id;
+
+                            // // Copy the payload into the outgoing buffer.
+                            // for (a, b) in console_mux_tx_buffer.iter_mut().skip(3).zip(tx_buffer) {
+                            //     *a = *b;
+                            // }
                             self.active_transmitter.set(client.id.get());
 
                             // Return that we transmitted something.
-                            (len + 2) as usize
+                            // (len + 2) as usize
+                            out_len
                         })
                     });
 
                 if to_send_len > 0 {
                     self.uart
                         .transmit_buffer(console_mux_tx_buffer, to_send_len);
+                } else {
+                    // Check if the console mux itself has something to send.
+                    if self.console_mux_send_ready.get() {
+                        self.console_mux_send_ready.set(false);
+
+                        let to_send_len = self.writer.map_or(0, |writer| {
+                            let (buffer, tx_len) = writer.get_tx_buffer();
+                            buffer.map_or(0, |tx_buffer| {
+                                let out_len = self.copy_and_create_header(
+                                    console_mux_tx_buffer,
+                                    tx_buffer,
+                                    tx_len,
+                                    0,
+                                );
+                                writer.set_tx_buffer(tx_buffer);
+                                out_len
+                            })
+                        });
+
+                        // Mark that the console is transmitting so we know
+                        // where to return the buffer to.
+                        self.active_transmitter.set(0);
+
+                        self.uart
+                            .transmit_buffer(console_mux_tx_buffer, to_send_len);
+
+                    // self.writer.map(|writer| {
+                    //     let (buffer, tx_len) = writer.get_tx_buffer();
+                    //     buffer.map(|tx_buffer| {
+                    //         self.uart.transmit_buffer(tx_buffer, tx_len);
+                    //     });
+                    // });
+                    } else {
+                        // No consoles needed to send, replace the buffer.
+                        self.tx_buffer.replace(console_mux_tx_buffer);
+                    }
                 }
             });
         }
@@ -485,10 +574,11 @@ impl<'a> ConsoleMux<'a> {
 }
 
 impl<'a> ConsoleMuxClient<'a> {
-    pub fn new(mux: &'a ConsoleMux<'a>) -> ConsoleMuxClient<'a> {
+    pub fn new(mux: &'a ConsoleMux<'a>, name: &'static str) -> ConsoleMuxClient<'a> {
         ConsoleMuxClient {
             mux: mux,
             id: Cell::new(0),
+            name: name,
             client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
@@ -499,14 +589,16 @@ impl<'a> ConsoleMuxClient<'a> {
     }
 
     /// Must be called right after `static_init!()`.
-    pub fn setup(&'a self) {
+    pub fn setup(&'a self, client: &'a ConsoleClient) {
+        self.client.set(client);
         self.mux.register(self);
     }
 
     /// Setup this `ConsoleMuxClient` as the app_console designed to handle
     /// console messages to and from applications. Must be called right after
     /// `static_init!()`.
-    pub fn setup_as_app_console(&'a self) {
+    pub fn setup_as_app_console(&'a self, client: &'a ConsoleClient) {
+        self.client.set(client);
         self.mux.register_app_console(self);
     }
 }
@@ -554,7 +646,10 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
         self.client.map(|console_client| {
             self.rx_buffer.take().map(|rx_buffer| {
                 console_client.received_message(
-                    rx_buffer, 0, ReturnCode::SUCCESS, uart::Error::Aborted,
+                    rx_buffer,
+                    0,
+                    ReturnCode::SUCCESS,
+                    uart::Error::Aborted,
                 );
             });
         });
@@ -574,16 +669,20 @@ impl<'a> uart::TransmitClient for ConsoleMux<'a> {
         // Now we need to pass the tx buffer for the console back to the console
         // so it can transmit again.
         self.active_transmitter.map(|&mut id| {
-            self.consoles
-                .iter()
-                .find(|client| id == client.id.get() || (id >= 128 && client.id.get() == 128))
-                .map(|client| {
-                    client.client.map(|console_client| {
-                        client.tx_buffer.take().map(|tx_buffer| {
-                            console_client.transmitted_message(tx_buffer, tx_len, rcode);
+            // Check that the active transmitter was a console and not the
+            // console_mux itself.
+            if id > 0 {
+                self.consoles
+                    .iter()
+                    .find(|client| id == client.id.get() || (id >= 128 && client.id.get() == 128))
+                    .map(|client| {
+                        client.client.map(|console_client| {
+                            client.tx_buffer.take().map(|tx_buffer| {
+                                console_client.transmitted_message(tx_buffer, tx_len, rcode);
+                            });
                         });
                     });
-                });
+            }
         });
 
         // Mark that there is no transmitter.
@@ -636,9 +735,7 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
                                     // Copy the received bytes into our local
                                     // command buffer.
                                     self.command_buffer.map(|cmd_buffer| {
-                                        for (a, b) in
-                                            cmd_buffer.iter_mut().zip(read_buf.as_ref())
-                                        {
+                                        for (a, b) in cmd_buffer.iter_mut().zip(read_buf.as_ref()) {
                                             *a = *b;
                                         }
                                     });
@@ -663,10 +760,8 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
                                                     // Copy the receive bytes to the
                                                     // passed in buffer from the
                                                     // console.
-                                                    for (a, b) in rx_buffer
-                                                        .iter_mut()
-                                                        .skip(3)
-                                                        .zip(read_buf.as_ref())
+                                                    for (a, b) in
+                                                        rx_buffer.iter_mut().zip(read_buf.as_ref())
                                                     {
                                                         *a = *b;
                                                     }
