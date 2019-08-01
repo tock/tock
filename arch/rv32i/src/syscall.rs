@@ -26,7 +26,7 @@ pub struct RiscvimacStoredState {
 pub struct SysCall(());
 
 impl SysCall {
-    pub const fn new() -> SysCall {
+    pub const unsafe fn new() -> SysCall {
         SysCall(())
     }
 }
