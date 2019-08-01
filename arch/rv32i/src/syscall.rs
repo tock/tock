@@ -23,11 +23,11 @@ pub struct RiscvimacStoredState {
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
-pub struct SysCall();
+pub struct SysCall(());
 
 impl SysCall {
     pub const fn new() -> SysCall {
-        SysCall()
+        SysCall(())
     }
 }
 
