@@ -92,9 +92,9 @@
 
 use core::cell::Cell;
 use core::str;
-use core::fmt::Write;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
+use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
@@ -104,15 +104,13 @@ use crate::console_mux;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).
-pub static mut WRITE_BUF: [u8; 4] = [0; 4];
+pub static mut WRITE_BUF: [u8; 256] = [0; 256];
 // Since reads are byte-by-byte, to properly echo what's typed,
 // we can use a very small read buffer.
-pub static mut READ_BUF: [u8; 4] = [0; 4];
+pub static mut READ_BUF: [u8; 32] = [0; 32];
 // Commands can be up to 32 bytes long: since commands themselves are 4-5
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
-
-
 
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     console_mux: &'a console_mux::Console<'a>,
@@ -123,7 +121,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
-    command_index: Cell<usize>,
+    // command_index: Cell<usize>,
     running: Cell<bool>,
     kernel: &'static Kernel,
     capability: C,
@@ -148,7 +146,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
             rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
-            command_index: Cell::new(0),
+            // command_index: Cell::new(0),
             running: Cell::new(false),
             kernel: kernel,
             capability: capability,
@@ -186,6 +184,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     break;
                 }
             }
+
             //debug!("Command: {}-{} {:?}", start, terminator, command);
             // A command is valid only if it starts inside the buffer,
             // ends before the beginning of the buffer, and ends after
@@ -196,7 +195,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                     Ok(s) => {
                         let clean_str = s.trim();
                         if clean_str.starts_with("help") {
-                            console_write!(self.writer, "Welcome to the process console.");
+                            console_write!(self.writer, "Welcome to the process console.\n");
                             console_write!(self.writer, "Valid commands are: help status list stop start");
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
@@ -207,7 +206,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.resume();
-                                            console_write!(self.writer, "Process {} resumed.", name);
+                                            console_write!(self.writer, "Process {} resumed.\n", name);
                                         }
                                     },
                                 );
@@ -221,7 +220,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.stop();
-                                            console_write!(self.writer, "Process {} stopped", proc_name);
+                                            console_write!(self.writer, "Process {} stopped\n", proc_name);
                                         }
                                     },
                                 );
@@ -283,7 +282,7 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         self.command_buffer.map(|command| {
             command[0] = 0;
         });
-        self.command_index.set(0);
+        // self.command_index.set(0);
     }
 
     // fn write_byte(&self, byte: u8) -> ReturnCode {
@@ -316,61 +315,27 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     // }
 }
 
-impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+impl<'a, C: ProcessManagementCapability> console_mux::ConsoleClient for ProcessConsole<'a, C> {
+    fn transmitted_message(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.writer.map(move |writer| {
             writer.set_tx_buffer(buffer);
         });
-
-
-        // self.tx_in_progress.set(false);
     }
-}
-impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
-    fn received_buffer(
+
+    fn received_message(
         &self,
         read_buf: &'static mut [u8],
         rx_len: usize,
         _rcode: ReturnCode,
         error: uart::Error,
     ) {
-        // let mut execute = false;
         if error == uart::Error::None {
-        //     match rx_len {
-        //         0 => debug!("ProcessConsole had read of 0 bytes"),
-        //         1 => {
-        //             self.command_buffer.map(|command| {
-        //                 let index = self.command_index.get() as usize;
-        //                 if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-        //                     execute = true;
-        //                     self.write_bytes(&['\r' as u8, '\n' as u8]);
-        //                 } else if read_buf[0] == ('\x08' as u8) && index > 0 {
-        //                     // Backspace, echo and remove last byte
-        //                     // Note echo is '\b \b' to erase
-        //                     self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-        //                     command[index - 1] = '\0' as u8;
-        //                     self.command_index.set(index - 1);
-        //                 } else if index < (command.len() - 1) && read_buf[0] < 128 {
-        //                     // For some reason, sometimes reads return > 127 but no error,
-        //                     // which causes utf-8 decoding failure, so check byte is < 128. -pal
-
-        //                     // Echo the byte and store it
-        //                     self.write_byte(read_buf[0]);
-        //                     command[index] = read_buf[0];
-        //                     self.command_index.set(index + 1);
-        //                     command[index + 1] = 0;
-        //                 }
-        //             });
-        //         }
-        //         _ => debug!(
-        //             "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
-        //             rx_len
-        //         ),
-        //     };
-        // }
-        // self.rx_in_progress.set(true);
+            self.command_buffer.map(|command| {
+                for (a, b) in command.iter_mut().zip(read_buf.as_ref()) {
+                    *a = *b;
+                }
+            });
             self.console_mux.receive_message(read_buf);
-        // if execute {
             self.read_command();
         }
     }
