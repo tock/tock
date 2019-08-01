@@ -35,8 +35,8 @@
 //! written.
 
 use core::cmp;
-use kernel::hil::uart;
 use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 use crate::console_mux;
@@ -142,7 +142,11 @@ impl Console<'a> {
                     app.write_remaining = 0;
                 }
 
-                let (_err, _opt) = self.console_mux.transmit_message(buffer, transaction_len, Some(app_id.idx() as u8));
+                let (_err, _opt) = self.console_mux.transmit_message(
+                    buffer,
+                    transaction_len,
+                    Some(app_id.idx() as u8),
+                );
             });
         } else {
             app.pending_write = true;
