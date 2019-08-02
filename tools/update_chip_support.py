@@ -19,7 +19,9 @@ import os
 import re
 
 # Static info of chip crates that just support other chips.
-SUBSUMES = {'nrf52': ['nrf5x']}
+SUBSUMES = {'nrf52': ['nrf5x'],
+            'e310x': ['sifive'],
+            'arty_e21': ['sifive']}
 
 
 
@@ -32,13 +34,14 @@ for subdir, dirs, files in os.walk(os.fsencode('kernel/src/hil/')):
 
 		if filepath.endswith('.rs'):
 			with open(filepath) as f:
+				mod = os.path.splitext(os.path.basename(filepath))[0]
 				for l in f:
 					if l.startswith('pub trait'):
 						items = re.findall(r"[A-Za-z0-9]+|\S", l)
 
 						hil_name = items[2]
 						if not 'Client' in hil_name:
-							hils[hil_name] = []
+							hils[hil_name] = {'module': mod, 'chips': []}
 
 chips = []
 
@@ -66,7 +69,7 @@ for subdir, dirs, files in os.walk(os.fsencode('chips/')):
 						for hil in hils.keys():
 							for item in items:
 								if item == hil:
-									hils[hil].append(chip)
+									hils[hil]['chips'].append(chip)
 									break
 
 # Calculate chips that should be ignored since they only support other chips.
@@ -82,8 +85,8 @@ table = []
 table.append(['HIL', *sorted(chips)])
 
 # Add rows to the table, one row for each HIL.
-for k,v in sorted(hils.items()):
-	row = [k]
+for k,v in sorted(hils.items(), key=lambda x: '{}::{}'.format(x[1]['module'], x[0])):
+	row = ['{}::{}'.format(v['module'], k)]
 
 	# Skip any HILs that have no chip support. These are likely not HILs
 	# that hardware chips implement.
@@ -91,7 +94,7 @@ for k,v in sorted(hils.items()):
 
 	for chip in sorted(chips):
 		# Check if this chip or if any chip it subsumes implements this HIL.
-		if chip in v or (chip in SUBSUMES and len(set(SUBSUMES[chip]).intersection(set(v)))):
+		if chip in v['chips'] or (chip in SUBSUMES and len(set(SUBSUMES[chip]).intersection(set(v['chips'])))):
 			at_least_one = True
 			row.append('✓')
 		else:
