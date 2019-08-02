@@ -585,7 +585,16 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
 
         // Save the app id if this comes from the app console.
         match app_id {
-            Some(id) => self.tx_subid.set(id),
+            Some(id) => {
+                // If app console used too small of IDs then we
+                // have to make sure they are 128 or greater.
+                let app_console_id = if id < 128 {
+                    id + 128
+                } else {
+                    id
+                };
+                self.tx_subid.set(app_console_id)
+            }
             None => self.tx_subid.clear(),
         }
 
