@@ -50,6 +50,7 @@ use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::process::ProcessType;
 use crate::ReturnCode;
+use crate::console;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -206,7 +207,7 @@ pub struct DebugWriterWrapper {
 /// the UART provider and this debug module.
 pub struct DebugWriter {
     // What provides the actual writing mechanism.
-    uart: &'static dyn hil::uart::Transmit<'static>,
+    console_mux: &'static console::Console<'static>,
     // The buffer that is passed to the writing mechanism.
     output_buffer: TakeCell<'static, [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
@@ -244,12 +245,12 @@ impl DebugWriterWrapper {
 
 impl DebugWriter {
     pub fn new(
-        uart: &'static dyn hil::uart::Transmit,
+        console_mux: &'static console::Console,
         out_buffer: &'static mut [u8],
         internal_buffer: &'static mut RingBuffer<'static, u8>,
     ) -> DebugWriter {
         DebugWriter {
-            uart: uart,
+            console_mux: console_mux,
             output_buffer: TakeCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),
             count: Cell::new(0), // how many debug! calls
@@ -287,7 +288,7 @@ impl DebugWriter {
 
                 if count != 0 {
                     // Transmit the data in the output buffer.
-                    let (_rval, opt) = self.uart.transmit_buffer(out_buffer, count);
+                    let (_rval, opt) = self.console_mux.transmit_buffer(out_buffer, count);
                     self.output_buffer.put(opt);
                 }
             }
@@ -309,7 +310,12 @@ impl hil::uart::TransmitClient for DebugWriter {
             self.publish_str();
         }
     }
-    fn transmitted_word(&self, _rcode: ReturnCode) {}
+    fn received_message(
+        &self,
+        _buffer: &'static mut [u8],
+        _rx_len: usize,
+        _rcode: ReturnCode,
+    ){}
 }
 
 /// Pass through functions.

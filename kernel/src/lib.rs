@@ -16,6 +16,7 @@
 pub mod capabilities;
 pub mod common;
 pub mod component;
+pub mod console;
 pub mod debug;
 pub mod hil;
 pub mod introspection;

@@ -99,6 +99,7 @@ use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
+use kernel::console;
 
 use crate::console_mux;
 
@@ -113,15 +114,11 @@ pub static mut READ_BUF: [u8; 32] = [0; 32];
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
-    console_mux: &'a console_mux::Console<'a>,
+    console_mux: &'a console::Console<'a>,
     writer: TakeCell<'static, console_mux::ConsoleWriter>,
-    // tx_in_progress: Cell<bool>,
-    // tx_buffer: TakeCell<'static, [u8]>,
-    // tx_len: Cell<usize>,
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
-    // command_index: Cell<usize>,
     running: Cell<bool>,
     kernel: &'static Kernel,
     capability: C,
@@ -129,7 +126,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
 
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
-        console_mux: &'a console_mux::Console<'a>,
+        console_mux: &'a console::Console<'a>,
         writer: &'static mut console_mux::ConsoleWriter,
         // tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
@@ -140,13 +137,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         ProcessConsole {
             console_mux: console_mux,
             writer: TakeCell::new(writer),
-            // tx_in_progress: Cell::new(false),
-            // tx_buffer: TakeCell::new(tx_buffer),
-            // tx_len: Cell::new(0),
             rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
-            // command_index: Cell::new(0),
             running: Cell::new(false),
             kernel: kernel,
             capability: capability,
@@ -234,18 +227,18 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
                                             proc.set_fault_state();
-                                            console_write!(self.writer, "Process {} now faulted", proc_name);
+                                            console_write!(self.writer, "Process {} now faulted\n", proc_name);
                                         }
                                     },
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            console_write!(self.writer, " PID    Name                Quanta  Syscalls  Dropped Callbacks    State");
+                            console_write!(self.writer, " PID    Name                Quanta  Syscalls  Dropped Callbacks    State\n");
                             self.kernel
                                 .process_each_capability(&self.capability, |i, proc| {
                                     let pname = proc.get_process_name();
                                     console_write!(self.writer,
-                                        "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}",
+                                        "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}\n",
                                         i,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
@@ -257,15 +250,15 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                         } else if clean_str.starts_with("status") {
                             let info: KernelInfo = KernelInfo::new(self.kernel);
                             console_write!(self.writer,
-                                "Total processes: {}",
+                                "Total processes: {}\n",
                                 info.number_loaded_processes(&self.capability)
                             );
                             console_write!(self.writer,
-                                "Active processes: {}",
+                                "Active processes: {}\n",
                                 info.number_active_processes(&self.capability)
                             );
                             console_write!(self.writer,
-                                "Timeslice expirations: {}",
+                                "Timeslice expirations: {}\n",
                                 info.timeslice_expirations(&self.capability)
                             );
                         } else {
@@ -282,40 +275,10 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
         self.command_buffer.map(|command| {
             command[0] = 0;
         });
-        // self.command_index.set(0);
     }
-
-    // fn write_byte(&self, byte: u8) -> ReturnCode {
-    //     if self.tx_in_progress.get() {
-    //         ReturnCode::EBUSY
-    //     } else {
-    //         self.tx_in_progress.set(true);
-    //         self.tx_buffer.take().map(|buffer| {
-    //             buffer[0] = byte;
-    //             self.uart.transmit_buffer(buffer, 1);
-    //         });
-    //         ReturnCode::SUCCESS
-    //     }
-    // }
-
-    // fn write_bytes(&self, bytes: &[u8]) -> ReturnCode {
-    //     if self.tx_in_progress.get() {
-    //         ReturnCode::EBUSY
-    //     } else {
-    //         self.tx_in_progress.set(true);
-    //         self.tx_buffer.take().map(|buffer| {
-    //             let len = cmp::min(bytes.len(), buffer.len());
-    //             for i in 0..len {
-    //                 buffer[i] = bytes[i];
-    //             }
-    //             self.uart.transmit_buffer(buffer, len);
-    //         });
-    //         ReturnCode::SUCCESS
-    //     }
-    // }
 }
 
-impl<'a, C: ProcessManagementCapability> console_mux::ConsoleClient for ProcessConsole<'a, C> {
+impl<'a, C: ProcessManagementCapability> console::ConsoleClient for ProcessConsole<'a, C> {
     fn transmitted_message(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         self.writer.map(move |writer| {
             writer.set_tx_buffer(buffer);
@@ -327,16 +290,13 @@ impl<'a, C: ProcessManagementCapability> console_mux::ConsoleClient for ProcessC
         read_buf: &'static mut [u8],
         rx_len: usize,
         _rcode: ReturnCode,
-        error: uart::Error,
     ) {
-        if error == uart::Error::None {
-            self.command_buffer.map(|command| {
-                for (a, b) in command.iter_mut().zip(read_buf.as_ref()) {
-                    *a = *b;
-                }
-            });
-            self.console_mux.receive_message(read_buf);
-            self.read_command();
-        }
+        self.command_buffer.map(|command| {
+            for (a, b) in command.iter_mut().zip(read_buf.as_ref()) {
+                *a = *b;
+            }
+        });
+        self.console_mux.receive_message(read_buf);
+        self.read_command();
     }
 }

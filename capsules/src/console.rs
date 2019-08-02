@@ -38,6 +38,7 @@ use core::cmp;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel;
 
 use crate::console_mux;
 
@@ -62,7 +63,7 @@ pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub static mut READ_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a> {
-    console_mux: &'a console_mux::Console<'a>,
+    console_mux: &'a kernel::console::Console<'a>,
     apps: Grant<App>,
     tx_in_progress: OptionalCell<AppId>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -72,7 +73,7 @@ pub struct Console<'a> {
 
 impl Console<'a> {
     pub fn new(
-        console_mux: &'a console_mux::Console<'a>,
+        console_mux: &'a kernel::console::Console<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         grant: Grant<App>,
@@ -282,7 +283,7 @@ impl Driver for Console<'a> {
     }
 }
 
-impl console_mux::ConsoleClient for Console<'a> {
+impl kernel::console::ConsoleClient for Console<'a> {
     fn transmitted_message(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
@@ -351,7 +352,6 @@ impl console_mux::ConsoleClient for Console<'a> {
         buffer: &'static mut [u8],
         rx_len: usize,
         rcode: ReturnCode,
-        error: uart::Error,
     ) {
         self.rx_in_progress
             .take()
@@ -362,23 +362,15 @@ impl console_mux::ConsoleClient for Console<'a> {
                             // An iterator over the returned buffer yielding only the first `rx_len`
                             // bytes
                             let rx_buffer = buffer.iter().take(rx_len);
-                            match error {
-                                uart::Error::None | uart::Error::Aborted => {
-                                    // Receive some bytes, signal error type and return bytes to process buffer
-                                    if let Some(mut app_buffer) = app.read_buffer.take() {
-                                        for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
-                                            *a = *b;
-                                        }
-                                        cb.schedule(From::from(rcode), rx_len, 0);
-                                    } else {
-                                        // Oops, no app buffer
-                                        cb.schedule(From::from(ReturnCode::EINVAL), 0, 0);
-                                    }
+                            // Receive some bytes, signal error type and return bytes to process buffer
+                            if let Some(mut app_buffer) = app.read_buffer.take() {
+                                for (a, b) in app_buffer.iter_mut().zip(rx_buffer) {
+                                    *a = *b;
                                 }
-                                _ => {
-                                    // Some UART error occurred
-                                    cb.schedule(From::from(ReturnCode::FAIL), 0, 0);
-                                }
+                                cb.schedule(From::from(rcode), rx_len, 0);
+                            } else {
+                                // Oops, no app buffer
+                                cb.schedule(From::from(ReturnCode::EINVAL), 0, 0);
                             }
                         });
                     })
