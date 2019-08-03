@@ -92,6 +92,7 @@
 
 use core::cell::Cell;
 use core::str;
+use core::cmp;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
@@ -167,16 +168,9 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     }
 
     // Process the command in the command buffer and clear the buffer.
-    fn read_command(&self) {
+    fn read_command(&self, rx_len: usize) {
         self.command_buffer.map(|command| {
-            let mut terminator = 0;
-            let len = command.len();
-            for i in 0..len {
-                if command[i] == 0 {
-                    terminator = i;
-                    break;
-                }
-            }
+            let terminator = cmp::min(command.len(), rx_len);
 
             //debug!("Command: {}-{} {:?}", start, terminator, command);
             // A command is valid only if it starts inside the buffer,
@@ -292,11 +286,11 @@ impl<'a, C: ProcessManagementCapability> console::ConsoleClient for ProcessConso
         _rcode: ReturnCode,
     ) {
         self.command_buffer.map(|command| {
-            for (a, b) in command.iter_mut().zip(read_buf.as_ref()) {
+            for (a, b) in command.iter_mut().zip(read_buf.as_ref()).take(rx_len) {
                 *a = *b;
             }
         });
         self.console_mux.receive_message(read_buf);
-        self.read_command();
+        self.read_command(rx_len);
     }
 }
