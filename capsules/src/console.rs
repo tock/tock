@@ -35,10 +35,10 @@
 //! written.
 
 use core::cmp;
+use kernel;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::uart;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-use kernel;
 
 use crate::console_mux;
 
@@ -347,12 +347,7 @@ impl kernel::console::ConsoleClient for Console<'a> {
         }
     }
 
-    fn received_message(
-        &self,
-        buffer: &'static mut [u8],
-        rx_len: usize,
-        rcode: ReturnCode,
-    ) {
+    fn received_message(&self, buffer: &'static mut [u8], rx_len: usize, rcode: ReturnCode) {
         self.rx_in_progress
             .take()
             .map(|appid| {

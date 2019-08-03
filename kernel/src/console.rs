@@ -53,10 +53,5 @@ pub trait ConsoleClient {
 
     /// Called when a incoming message has been received for the particular
     /// client.
-    fn received_message(
-        &self,
-        read_buf: &'static mut [u8],
-        rx_len: usize,
-        rcode: ReturnCode,
-    );
+    fn received_message(&self, read_buf: &'static mut [u8], rx_len: usize, rcode: ReturnCode);
 }

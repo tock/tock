@@ -47,10 +47,10 @@ use crate::common::cells::NumericCellExt;
 use crate::common::cells::{MapCell, TakeCell};
 use crate::common::queue::Queue;
 use crate::common::ring_buffer::RingBuffer;
+use crate::console;
 use crate::hil;
 use crate::process::ProcessType;
 use crate::ReturnCode;
-use crate::console;
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -310,12 +310,7 @@ impl hil::uart::TransmitClient for DebugWriter {
             self.publish_str();
         }
     }
-    fn received_message(
-        &self,
-        _buffer: &'static mut [u8],
-        _rx_len: usize,
-        _rcode: ReturnCode,
-    ){}
+    fn received_message(&self, _buffer: &'static mut [u8], _rx_len: usize, _rcode: ReturnCode) {}
 }
 
 /// Pass through functions.

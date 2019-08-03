@@ -148,11 +148,11 @@ use core::cell::Cell;
 use core::str;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::{List, ListLink, ListNode};
+use kernel::console::{Console, ConsoleClient};
 use kernel::debug;
 use kernel::debug_gpio;
 use kernel::hil::uart;
 use kernel::ReturnCode;
-use kernel::console::{Console, ConsoleClient};
 
 // Static buffer for transmitting data.
 pub static mut WRITE_BUF: [u8; 512] = [0; 512];
@@ -441,7 +441,6 @@ impl<'a> ConsoleMux<'a> {
     /// return and this will get called again when a console tries to send.
     fn transmit(&self) {
         if self.active_transmitter.is_none() {
-
             self.tx_buffer.take().map(|console_mux_tx_buffer| {
                 // let mut sent_len = 0;
                 let to_send_len = self
@@ -588,11 +587,7 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
             Some(id) => {
                 // If app console used too small of IDs then we
                 // have to make sure they are 128 or greater.
-                let app_console_id = if id < 128 {
-                    id + 128
-                } else {
-                    id
-                };
+                let app_console_id = if id < 128 { id + 128 } else { id };
                 self.tx_subid.set(app_console_id)
             }
             None => self.tx_subid.clear(),
@@ -617,11 +612,7 @@ impl<'a> Console<'a> for ConsoleMuxClient<'a> {
     fn receive_message_abort(&self) {
         self.client.map(|console_client| {
             self.rx_buffer.take().map(|rx_buffer| {
-                console_client.received_message(
-                    rx_buffer,
-                    0,
-                    ReturnCode::SUCCESS,
-                );
+                console_client.received_message(rx_buffer, 0, ReturnCode::SUCCESS);
             });
         });
     }
@@ -652,7 +643,7 @@ impl<'a> uart::TransmitClient for ConsoleMux<'a> {
                                 debug_gpio!(0, clear);
                                 // Subtract three to compensate for the header
                                 // bytes we appended.
-                                console_client.transmitted_message(tx_buffer, tx_len-3, rcode);
+                                console_client.transmitted_message(tx_buffer, tx_len - 3, rcode);
                             });
                         });
                     });
@@ -740,9 +731,8 @@ impl<'a> uart::ReceiveClient for ConsoleMux<'a> {
                                                         *a = *b;
                                                     }
 
-                                                    console_client.received_message(
-                                                        rx_buffer, rx_len, rcode,
-                                                    );
+                                                    console_client
+                                                        .received_message(rx_buffer, rx_len, rcode);
                                                 });
                                             });
                                         });

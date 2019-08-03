@@ -91,16 +91,16 @@
 //! ```
 
 use core::cell::Cell;
-use core::str;
 use core::cmp;
+use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
+use kernel::console;
 use kernel::debug;
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
-use kernel::console;
 
 use crate::console_mux;
 
@@ -279,12 +279,7 @@ impl<'a, C: ProcessManagementCapability> console::ConsoleClient for ProcessConso
         });
     }
 
-    fn received_message(
-        &self,
-        read_buf: &'static mut [u8],
-        rx_len: usize,
-        _rcode: ReturnCode,
-    ) {
+    fn received_message(&self, read_buf: &'static mut [u8], rx_len: usize, _rcode: ReturnCode) {
         self.command_buffer.map(|command| {
             for (a, b) in command.iter_mut().zip(read_buf.as_ref()).take(rx_len) {
                 *a = *b;

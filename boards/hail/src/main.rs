@@ -316,8 +316,6 @@ pub unsafe fn reset_handler() {
 
 
 
-
-
     // Initialize USART3 for UART for the nRF serialization link.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
     // Create the Nrf51822Serialization driver for passing BLE commands
