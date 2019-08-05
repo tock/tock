@@ -1,7 +1,7 @@
 SiFive E21 Core on ARTY FPGA Board
 =================
 
-- SiFive E21 Core IP v1p0
+- SiFive E21 Core IP v19p02
 - Digilent Arty Artix-7 35T Development Board
 
 
