@@ -142,6 +142,27 @@
 //! `ConsoleMux` through the `Console` capsule, the `Console` capsule is
 //! considered special and is automatically allocated half of the valid IDs.
 //!
+//! ## `console_mux` Protocol
+//!
+//! Configuration messages between the user and the board use `id` 0, which
+//! is reserved for the `console_mux` itself.
+//!
+//! ### User -> Board
+//!
+//! These are messages sent from the user (via a tool like tockloader) to
+//! the `console_mux` capsule on the board.
+//!
+//! command    | Description
+//! -----------|------------------------------------------------------------
+//! `list`     | Return all consoles on the board and their ids.
+//!
+//! ### Board -> User
+//!
+//! These are sent from `console_mux` to the user.
+//!
+//! command    | Format
+//! -----------|------------------------------------------------------------
+//! `list`     | `list\0app_idapp_name\0app_idapp_name\0`
 //!
 
 use core::cell::Cell;
