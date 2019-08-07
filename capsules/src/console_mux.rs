@@ -262,17 +262,28 @@ pub struct ConsoleWriter {
 #[macro_export]
 macro_rules! console_write {
     ($W:expr, $fmt:expr) => ({
-        // use core::fmt::Write;
         $W.map(|writer| {
             let _ = core::fmt::write(writer, format_args!($fmt));
-            // let _ = writer.write_str("\r\n");
         });
     });
     ($W:expr, $fmt:expr, $($arg:tt)+) => ({
-        // use core::fmt::Write;
         $W.map(|writer| {
             let _ = core::fmt::write(writer, format_args!($fmt, $($arg)+));
-            // let _ = writer.write_str("\r\n");
+        });
+    });
+}
+
+/// Helper macro for using the `ConsoleWriter` to add a single u8 to the buffer.
+/// This is helpful for packing binary data in a console message.
+///
+/// ```
+/// console_write_byte!(self.writer, 7);
+/// ```
+#[macro_export]
+macro_rules! console_write_byte {
+    ($W:expr, $byte:expr) => ({
+        $W.map(|writer| {
+            writer.append_byte($byte);
         });
     });
 }
@@ -296,6 +307,20 @@ impl ConsoleWriter {
     pub fn set_tx_buffer(&self, buffer: &'static mut [u8]) {
         self.tx_buffer.replace(buffer);
         self.tx_len.set(0);
+    }
+
+    /// Add a single byte to the outgoing array. This is useful for creating
+    /// binary packed messages.
+    pub fn append_byte(&self, byte: u8) {
+        let start = self.tx_len.get();
+
+        self.tx_buffer.map(|tx_buffer| {
+            for dst in tx_buffer[start..start+1].iter_mut() {
+                *dst = byte;
+            }
+        });
+
+        self.tx_len.set(start+1);
     }
 }
 
@@ -399,13 +424,14 @@ impl<'a> ConsoleMux<'a> {
                 Ok(s) => {
                     let clean_str = s.trim();
                     if clean_str.starts_with("list") {
-                        // debug!("Consoles:");
-                        // debug!("console 1");
-                        // console_write!(self.writer, "Consolessss");
+                        // Start with the command name so we know what
+                        // this message is in response to.
+                        console_write!(self.writer, "list\0");
 
+                        // Add the id and name of each console.
                         self.consoles.iter().for_each(|client| {
-                            // let id = client.id.get();
-                            console_write!(self.writer, "{}: {}\r\n", client.id.get(), client.name);
+                            console_write_byte!(self.writer, client.id.get());
+                            console_write!(self.writer, "{}\0", client.name);
                         });
 
                         self.console_mux_send_ready.set(true);
