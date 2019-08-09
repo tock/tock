@@ -294,7 +294,7 @@ impl gpio::Configure for GPIOPin {
         pin_ioc.modify(field);
     }
 
-    fn low_power(&self) {
+    fn deactivate_to_low_power(&self) {
         GPIOPin::set_floating_state(self, gpio::FloatingState::PullNone);
     }
 

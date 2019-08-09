@@ -166,7 +166,7 @@ impl TMP006<'a> {
     fn disable_interrupts(&self) {
         // disable interrupts from the sensor
         self.interrupt_pin.disable_interrupts();
-        self.interrupt_pin.low_power();
+        self.interrupt_pin.deactivate_to_low_power();
     }
 }
 

@@ -70,10 +70,13 @@ pub trait Configure {
     /// Disable the pin as an input, returning the current configuration.
     fn disable_input(&self) -> Configuration;
 
-    /// Disable the pin and put it into its lowest power state.
-    /// Re-enabling the pin requires reconfiguring it (state of
-    /// its enabled configuration is not stored).
-    fn low_power(&self);
+    /// Put a pin into its lowest power state, with no guarantees on
+    /// if it is enabled or not. Implementations are free to use any
+    /// state (e.g. input, output, disable, etc.) the hardware pin
+    /// supports to ensure the pin is as low power as possible.
+    /// Re-enabling the pin requires reconfiguring it (i.e. the state
+    /// of its enabled configuration is not stored).
+    fn deactivate_to_low_power(&self);
 
     /// Set the floating state of the pin.
     fn set_floating_state(&self, state: FloatingState);
@@ -281,8 +284,8 @@ impl Configure for InterruptValueWrapper {
         self.source.disable_input()
     }
 
-    fn low_power(&self) {
-        self.source.low_power();
+    fn deactivate_to_low_power(&self) {
+        self.source.deactivate_to_low_power();
     }
 
     fn set_floating_state(&self, state: FloatingState) {

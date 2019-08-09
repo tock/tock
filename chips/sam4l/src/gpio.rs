@@ -494,7 +494,7 @@ impl gpio::Configure for GPIOPin {
         }
     }
 
-    fn low_power(&self) {
+    fn deactivate_to_low_power(&self) {
         GPIOPin::disable(self);
     }
 

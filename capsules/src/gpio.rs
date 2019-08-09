@@ -274,7 +274,7 @@ impl<'a> Driver for GPIO<'a> {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
                     pins[pin].disable_interrupts();
-                    pins[pin].low_power();
+                    pins[pin].deactivate_to_low_power();
                     ReturnCode::SUCCESS
                 }
             }
@@ -284,7 +284,7 @@ impl<'a> Driver for GPIO<'a> {
                 if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[pin].low_power();
+                    pins[pin].deactivate_to_low_power();
                     ReturnCode::SUCCESS
                 }
             }

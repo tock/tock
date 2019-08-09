@@ -1025,7 +1025,7 @@ impl hil::gpio::Configure for Pin<'a> {
     /// According to AN4899, Section 6.1, setting to AnalogMode, disables
     /// internal schmitt trigger. We do not disable clock to the GPIO port,
     /// because there could be other pins active on the port.
-    fn low_power(&self) {
+    fn deactivate_to_low_power(&self) {
         self.set_mode(Mode::AnalogMode);
     }
 

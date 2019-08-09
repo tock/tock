@@ -183,7 +183,7 @@ impl hil::gpio::Configure for GpioPin {
         }
     }
 
-    fn low_power(&self) {
+    fn deactivate_to_low_power(&self) {
         self.disable_input();
         self.disable_output();
     }
