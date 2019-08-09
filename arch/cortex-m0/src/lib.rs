@@ -83,8 +83,7 @@ MEXC_RETURN_PSP:
 }
 
 #[naked]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SVC_Handler() {
+pub unsafe extern "C" fn svc_handler() {
     asm!(
         "
   ldr r0, EXC_RETURN_MSP
