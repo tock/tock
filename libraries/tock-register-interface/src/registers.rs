@@ -54,6 +54,12 @@
 //! ------
 //! - Shane Leonard <shanel@stanford.edu>
 
+// The register interface uses `+` in a way that is fine for bitfields, but
+// looks unusual (and perhaps problematic) to a linter. We just ignore those
+// lints for this file.
+#![allow(clippy::suspicious_op_assign_impl)]
+#![allow(clippy::suspicious_arithmetic_impl)]
+
 use core::fmt;
 use core::marker::PhantomData;
 use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
