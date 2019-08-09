@@ -19,7 +19,8 @@ the chip crates (e.g. assigning pins, baud rates, etc).
 `arch` Crate
 ------------
 
-Tock currently supports the ARM Cortex M0 and Cortex M4. There is not much
+Tock currently supports the ARM Cortex-M0, Cortex-M3, and Cortex M4, and the
+riscv32imac architectures. There is not much
 architecture-specific code in Tock, the list is pretty much:
 
  - Syscall entry/exit
@@ -29,12 +30,13 @@ architecture-specific code in Tock, the list is pretty much:
  - Power management configuration (if appropriate)
 
 It would likely be fairly easy to port Tock to another ARM Cortex M
-(specifically the M0+, M23, M3, or M7). It will probably be more work to port
-Tock to a non-ARM architecture. While we aim to be architecture agnostic,
-we have yet to have a non-Cortex-M architecture so issues may exist.
+(specifically the M0+, M23, M4F, or M7) or another riscv32 variant. It will
+probably be more work to port Tock to other architectures. While we aim to be
+architecture agnostic, this has only been tested on a small number of
+architectures.
 
 If you are interested in porting Tock to a new architecture, it's likely best
-to reach out to us via email or IRC before digging in too deep.
+to reach out to us via email or Slack before digging in too deep.
 
 
 `chip` Crate

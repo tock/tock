@@ -10,8 +10,8 @@ if [ ! -x tools/run_cargo_fmt.sh ]; then
 fi
 
 # Add the rustfmt component if needed.
-if ! rustup component list | grep 'rustfmt-preview.*(installed)' -q; then
-	rustup component add rustfmt-preview
+if ! rustup component list | grep 'rustfmt.*(installed)' -q; then
+	rustup component add rustfmt
 fi
 
 # Format overwrites changes, which is probably good, but it's nice to see

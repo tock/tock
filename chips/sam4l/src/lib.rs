@@ -20,6 +20,7 @@ pub mod chip;
 pub mod crccu;
 pub mod dac;
 pub mod dma;
+pub mod eic;
 pub mod flashcalw;
 pub mod gpio;
 pub mod i2c;

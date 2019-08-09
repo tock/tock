@@ -4,7 +4,8 @@
 [![irc](https://img.shields.io/badge/irc-%23tock-lightgrey.svg)](https://kiwiirc.com/client/irc.freenode.net/tock)
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
-distrustful applications on Cortex-M based embedded platforms. Tock's design
+distrustful applications on Cortex-M and RISC-V based embedded platforms.
+Tock's design
 centers around protection, both from potentially malicious applications and
 from device drivers. Tock uses two mechanisms to protect different components
 of the operating system. First, the kernel and device drivers are written in
