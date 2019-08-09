@@ -296,3 +296,4 @@ impl hil::gpio::Interrupt for GpioPin {
 }
 
 impl hil::gpio::Pin for GpioPin {}
+impl hil::gpio::InterruptPin for GpioPin {}

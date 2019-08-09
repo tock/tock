@@ -40,13 +40,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform.
 struct ArtyE21 {
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sifive::gpio::GpioPin>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
     >,
-    led: &'static capsules::led::LED<'static, sifive::gpio::GpioPin>,
-    button: &'static capsules::button::Button<'static, sifive::gpio::GpioPin>,
+    led: &'static capsules::led::LED<'static>,
+    button: &'static capsules::button::Button<'static>,
     // ipc: kernel::ipc::IPC,
 }
 
@@ -164,7 +164,7 @@ pub unsafe fn reset_handler() {
     // LEDs
     let led_pins = static_init!(
         [(
-            &'static sifive::gpio::GpioPin,
+            &'static kernel::hil::gpio::Pin,
             capsules::led::ActivationMode
         ); 3],
         [
@@ -186,20 +186,27 @@ pub unsafe fn reset_handler() {
         ]
     );
     let led = static_init!(
-        capsules::led::LED<'static, sifive::gpio::GpioPin>,
+        capsules::led::LED<'static>,
         capsules::led::LED::new(led_pins)
     );
 
     // BUTTONs
     let button_pins = static_init!(
-        [(&'static sifive::gpio::GpioPin, capsules::button::GpioMode); 1],
         [(
-            &arty_e21::gpio::PORT[4],
+            &'static kernel::hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); 1],
+        [(
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[4])
+            )
+            .finalize(),
             capsules::button::GpioMode::HighWhenPressed
         )]
     );
     let button = static_init!(
-        capsules::button::Button<'static, sifive::gpio::GpioPin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
             button_pins,
             board_kernel.create_grant(&memory_allocation_cap)
@@ -211,15 +218,27 @@ pub unsafe fn reset_handler() {
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sifive::gpio::GpioPin; 3],
+        [&'static kernel::hil::gpio::InterruptValuePin; 3],
         [
-            &arty_e21::gpio::PORT[7],
-            &arty_e21::gpio::PORT[5],
-            &arty_e21::gpio::PORT[6],
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[7])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[5])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[6])
+            )
+            .finalize(),
         ]
     );
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, sifive::gpio::GpioPin>,
+        capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(gpio_pins, board_kernel.create_grant(&memory_allocation_cap))
     );
     for pin in gpio_pins.iter() {

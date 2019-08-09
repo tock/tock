@@ -351,7 +351,7 @@ impl gpio::Configure for GPIOPin {
         let output = self.is_output();
         let config = (input, output);
         match config {
-            (false, false) => gpio::Configuration::Unknown,
+            (false, false) => gpio::Configuration::Other,
             (false, true) => gpio::Configuration::Output,
             (true, false) => gpio::Configuration::Input,
             (true, true) => gpio::Configuration::InputOutput,
