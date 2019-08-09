@@ -593,7 +593,7 @@ pub unsafe fn flush<W: Write>(writer: &mut W) {
             );
 
             if tail > head {
-                let start = buffer.as_mut_ptr().offset(tail as isize);
+                let start = buffer.as_mut_ptr().add(tail);
                 let len = buffer.len();
                 let slice = slice::from_raw_parts(start, len);
                 let s = str::from_utf8_unchecked(slice);
@@ -601,7 +601,7 @@ pub unsafe fn flush<W: Write>(writer: &mut W) {
                 tail = 0;
             }
             if tail != head {
-                let start = buffer.as_mut_ptr().offset(tail as isize);
+                let start = buffer.as_mut_ptr().add(tail);
                 let len = head - tail;
                 let slice = slice::from_raw_parts(start, len);
                 let s = str::from_utf8_unchecked(slice);
