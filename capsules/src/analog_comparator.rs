@@ -72,9 +72,9 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         let chan = self.channels[channel];
         let result = self.analog_comparator.comparison(chan);
 
-        return ReturnCode::SuccessWithValue {
+        ReturnCode::SuccessWithValue {
             value: result as usize,
-        };
+        }
     }
 
     // Start comparing on a channel
@@ -86,7 +86,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         let chan = self.channels[channel];
         let result = self.analog_comparator.start_comparing(chan);
 
-        return result;
+        result
     }
 
     // Stop comparing on a channel
@@ -98,7 +98,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> AnalogComparator<'a, A> {
         let chan = self.channels[channel];
         let result = self.analog_comparator.stop_comparing(chan);
 
-        return result;
+        result
     }
 }
 
@@ -129,7 +129,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator> Driver for AnalogComparato
 
             3 => self.stop_comparing(channel),
 
-            _ => return ReturnCode::ENOSUPPORT,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 

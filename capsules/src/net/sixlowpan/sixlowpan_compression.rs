@@ -544,7 +544,7 @@ fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usiz
         //buf[*written..*written + 4].copy_from_slice(&udp_header[0..4]);
         *written += 4;
     }
-    return udp_port_nhc;
+    udp_port_nhc
 }
 
 // NOTE: We currently only support (or intend to support) carrying the UDP
@@ -878,7 +878,7 @@ fn decompress_nh(iphc_header: u8, buf: &[u8], consumed: &mut usize) -> (bool, u8
         next_header = buf[*consumed];
         *consumed += 1;
     }
-    return (is_nhc, next_header);
+    (is_nhc, next_header)
 }
 
 fn decompress_hl(

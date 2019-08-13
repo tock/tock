@@ -41,11 +41,11 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
     fn enqueue(&mut self, val: T) -> bool {
         if ((self.tail + 1) % self.ring.len()) == self.head {
             // Incrementing tail will overwrite head
-            return false;
+            false
         } else {
             self.ring[self.tail] = val;
             self.tail = (self.tail + 1) % self.ring.len();
-            return true;
+            true
         }
     }
 

@@ -1031,7 +1031,7 @@ impl spi::SpiMaster for USART<'a> {
     }
 
     fn is_busy(&self) -> bool {
-        return false;
+        false
     }
 
     fn read_write_bytes(

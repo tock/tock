@@ -246,31 +246,31 @@ fn setting_to_power(setting: u8) -> i8 {
 
 fn power_to_setting(power: i8) -> u8 {
     if (power >= 4) {
-        return 0x00;
+        0x00
     } else if (power >= 3) {
-        return 0x03;
+        0x03
     } else if (power >= 2) {
-        return 0x05;
+        0x05
     } else if (power >= 1) {
-        return 0x06;
+        0x06
     } else if (power >= 0) {
-        return 0x07;
+        0x07
     } else if (power >= -1) {
-        return 0x08;
+        0x08
     } else if (power >= -2) {
-        return 0x09;
+        0x09
     } else if (power >= -3) {
-        return 0x0A;
+        0x0A
     } else if (power >= -4) {
-        return 0x0B;
+        0x0B
     } else if (power >= -6) {
-        return 0x0C;
+        0x0C
     } else if (power >= -8) {
-        return 0x0D;
+        0x0D
     } else if (power >= -12) {
-        return 0x0E;
+        0x0E
     } else {
-        return 0x0F;
+        0x0F
     }
 }
 

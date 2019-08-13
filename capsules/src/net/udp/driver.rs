@@ -530,15 +530,15 @@ impl<'a> Driver for UDPDriver<'a> {
                             });
                         }
                         if addr_already_bound {
-                            return ReturnCode::EBUSY;
+                            ReturnCode::EBUSY
                         } else {
                             requested_addr_opt = Some(requested_addr);
                             // If this point is reached, the requested addr is free and valid
                             app.bound_port = requested_addr_opt;
-                            return ReturnCode::SUCCESS;
+                            ReturnCode::SUCCESS
                         }
                     } else {
-                        return ReturnCode::EINVAL;
+                        ReturnCode::EINVAL
                     }
                 })
             }
