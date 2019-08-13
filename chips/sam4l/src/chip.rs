@@ -31,23 +31,23 @@ pub struct Sam4l {
 
 impl Sam4l {
     pub unsafe fn new() -> Sam4l {
-        usart::USART0.set_dma(&mut dma::DMA_CHANNELS[0], &mut dma::DMA_CHANNELS[1]);
+        usart::USART0.set_dma(&dma::DMA_CHANNELS[0], &dma::DMA_CHANNELS[1]);
         dma::DMA_CHANNELS[0].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
         dma::DMA_CHANNELS[1].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
 
-        usart::USART1.set_dma(&mut dma::DMA_CHANNELS[2], &mut dma::DMA_CHANNELS[3]);
+        usart::USART1.set_dma(&dma::DMA_CHANNELS[2], &dma::DMA_CHANNELS[3]);
         dma::DMA_CHANNELS[2].initialize(&mut usart::USART1, dma::DMAWidth::Width8Bit);
         dma::DMA_CHANNELS[3].initialize(&mut usart::USART1, dma::DMAWidth::Width8Bit);
 
-        usart::USART2.set_dma(&mut dma::DMA_CHANNELS[4], &mut dma::DMA_CHANNELS[5]);
+        usart::USART2.set_dma(&dma::DMA_CHANNELS[4], &dma::DMA_CHANNELS[5]);
         dma::DMA_CHANNELS[4].initialize(&mut usart::USART2, dma::DMAWidth::Width8Bit);
         dma::DMA_CHANNELS[5].initialize(&mut usart::USART2, dma::DMAWidth::Width8Bit);
 
-        usart::USART3.set_dma(&mut dma::DMA_CHANNELS[6], &mut dma::DMA_CHANNELS[7]);
+        usart::USART3.set_dma(&dma::DMA_CHANNELS[6], &dma::DMA_CHANNELS[7]);
         dma::DMA_CHANNELS[6].initialize(&mut usart::USART3, dma::DMAWidth::Width8Bit);
         dma::DMA_CHANNELS[7].initialize(&mut usart::USART3, dma::DMAWidth::Width8Bit);
 
-        spi::SPI.set_dma(&mut dma::DMA_CHANNELS[8], &mut dma::DMA_CHANNELS[9]);
+        spi::SPI.set_dma(&dma::DMA_CHANNELS[8], &dma::DMA_CHANNELS[9]);
         dma::DMA_CHANNELS[8].initialize(&mut spi::SPI, dma::DMAWidth::Width8Bit);
         dma::DMA_CHANNELS[9].initialize(&mut spi::SPI, dma::DMAWidth::Width8Bit);
 

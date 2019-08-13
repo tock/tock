@@ -470,7 +470,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::Adc<'static, sam4l::adc::Adc>,
         capsules::adc::Adc::new(
-            &mut sam4l::adc::ADC0,
+            &sam4l::adc::ADC0,
             adc_channels,
             &mut capsules::adc::ADC_BUFFER1,
             &mut capsules::adc::ADC_BUFFER2,
@@ -519,7 +519,7 @@ pub unsafe fn reset_handler() {
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
         capsules::crc::Crc::new(
-            &mut sam4l::crccu::CRCCU,
+            &sam4l::crccu::CRCCU,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
@@ -528,7 +528,7 @@ pub unsafe fn reset_handler() {
     // DAC
     let dac = static_init!(
         capsules::dac::Dac<'static>,
-        capsules::dac::Dac::new(&mut sam4l::dac::DAC)
+        capsules::dac::Dac::new(&sam4l::dac::DAC)
     );
 
     // // DEBUG Restart All Apps
