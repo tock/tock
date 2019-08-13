@@ -576,7 +576,7 @@ impl TxState<'a> {
             // functionality should be fixed in the future.
             let mut headers = [0 as u8; 60];
             ip6_packet.encode(&mut headers);
-            frame.append_payload(&mut headers[dgram_offset..dgram_offset + headers_to_write]);
+            frame.append_payload(&headers[dgram_offset..dgram_offset + headers_to_write]);
             payload_len -= headers_to_write;
             dgram_offset += headers_to_write;
         }
