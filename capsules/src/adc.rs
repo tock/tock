@@ -694,7 +694,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                             let mut val = sample;
                             for byte in chunk.iter_mut() {
                                 *byte = (val & 0xFF) as u8;
-                                val = val >> 8;
+                                val >>= 8;
                             }
                         }
 

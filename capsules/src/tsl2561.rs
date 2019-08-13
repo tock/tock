@@ -261,7 +261,7 @@ impl TSL2561<'a> {
                                                    // let mut ch_scale: usize = 1 << CH_SCALE; // Default
 
         // Scale if gain is NOT 16X
-        ch_scale = ch_scale << 4; // scale 1X to 16X
+        ch_scale <<= 4; // scale 1X to 16X
 
         // scale the channel values
         let channel0 = (chan0 as usize * ch_scale) >> CH_SCALE;

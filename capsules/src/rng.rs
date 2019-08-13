@@ -331,7 +331,7 @@ impl entropy::Client8 for Entropy8To32<'a> {
                             let current = self.bytes.get();
                             let bits = val as u32;
                             let result = current | (bits << (8 * count));
-                            count = count + 1;
+                            count += 1;
                             self.count.set(count);
                             self.bytes.set(result)
                         }

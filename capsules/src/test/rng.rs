@@ -75,7 +75,7 @@ impl<'a> rng::Client for TestRng<'a> {
             let mut pool = self.pool.get();
             let mut count = self.count.get();
             pool[count] = data;
-            count = count + 1;
+            count += 1;
             self.pool.set(pool);
             self.count.set(count);
 
@@ -138,7 +138,7 @@ impl<'a> entropy::Client32 for TestEntropy32<'a> {
             let mut pool = self.pool.get();
             let mut count = self.count.get();
             pool[count] = data;
-            count = count + 1;
+            count += 1;
             self.pool.set(pool);
             self.count.set(count);
 
@@ -201,7 +201,7 @@ impl<'a> entropy::Client8 for TestEntropy8<'a> {
             let mut pool = self.pool.get();
             let mut count = self.count.get();
             pool[count] = data;
-            count = count + 1;
+            count += 1;
             self.pool.set(pool);
             self.count.set(count);
 
