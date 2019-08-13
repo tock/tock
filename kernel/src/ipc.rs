@@ -56,30 +56,28 @@ impl IPC {
                         *mydata.client_callbacks.get(otherapp.idx()).unwrap_or(&None)
                     }
                 };
-                callback
-                    .map(|mut callback| {
-                        self.data
-                            .enter(otherapp, |otherdata, _| {
-                                if appid.idx() >= otherdata.shared_memory.len() {
-                                    return;
+                callback.map_or((), |mut callback| {
+                    self.data
+                        .enter(otherapp, |otherdata, _| {
+                            if appid.idx() >= otherdata.shared_memory.len() {
+                                return;
+                            }
+                            match otherdata.shared_memory[appid.idx()] {
+                                Some(ref slice) => {
+                                    slice.expose_to(appid);
+                                    callback.schedule(
+                                        otherapp.idx() + 1,
+                                        slice.len(),
+                                        slice.ptr() as usize,
+                                    );
                                 }
-                                match otherdata.shared_memory[appid.idx()] {
-                                    Some(ref slice) => {
-                                        slice.expose_to(appid);
-                                        callback.schedule(
-                                            otherapp.idx() + 1,
-                                            slice.len(),
-                                            slice.ptr() as usize,
-                                        );
-                                    }
-                                    None => {
-                                        callback.schedule(otherapp.idx() + 1, 0, 0);
-                                    }
+                                None => {
+                                    callback.schedule(otherapp.idx() + 1, 0, 0);
                                 }
-                            })
-                            .unwrap_or(());
-                    })
-                    .unwrap_or(());
+                            }
+                        })
+                        .unwrap_or(());
+                });
             })
             .unwrap_or(());
     }
@@ -211,13 +209,13 @@ impl Driver for IPC {
         return self
             .data
             .enter(appid, |data, _| {
-                data.shared_memory
-                    .get_mut(target_id - 1)
-                    .map(|smem| {
+                data.shared_memory.get_mut(target_id - 1).map_or(
+                    ReturnCode::EINVAL, /* Target process does not exist */
+                    |smem| {
                         *smem = slice;
                         ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
+                    },
+                )
             })
             .unwrap_or(ReturnCode::EBUSY);
     }

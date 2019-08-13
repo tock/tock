@@ -236,44 +236,37 @@ impl App {
         B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
         A: kernel::hil::time::Alarm,
     {
-        self.adv_data
-            .as_ref()
-            .map(|adv_data| {
-                ble.kernel_tx
-                    .take()
-                    .map(|kernel_tx| {
-                        let adv_data_len =
-                            cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                        let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
-                        let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
-                        {
-                            let (header, payload) = kernel_tx.split_at_mut(2);
-                            header[0] = self.pdu_type;
-                            match self.pdu_type {
-                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                                    // Set TxAdd because AdvA field is going to be a "random"
-                                    // address
-                                    header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
-                                }
-                                _ => {}
-                            }
-                            // The LENGTH field is 6-bits wide, so make sure to truncate it
-                            header[1] = (payload_len & 0x3f) as u8;
-
-                            let (adva, data) = payload.split_at_mut(6);
-                            adva.copy_from_slice(&self.address);
-                            data[..adv_data_len].copy_from_slice(adv_data_corrected);
+        self.adv_data.as_ref().map_or(ReturnCode::FAIL, |adv_data| {
+            ble.kernel_tx.take().map_or(ReturnCode::FAIL, |kernel_tx| {
+                let adv_data_len = cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
+                let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                {
+                    let (header, payload) = kernel_tx.split_at_mut(2);
+                    header[0] = self.pdu_type;
+                    match self.pdu_type {
+                        ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                            // Set TxAdd because AdvA field is going to be a "random"
+                            // address
+                            header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
                         }
-                        let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                        let result = ble
-                            .radio
-                            .transmit_advertisement(kernel_tx, total_len, channel);
-                        ble.kernel_tx.replace(result);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::FAIL)
+                        _ => {}
+                    }
+                    // The LENGTH field is 6-bits wide, so make sure to truncate it
+                    header[1] = (payload_len & 0x3f) as u8;
+
+                    let (adva, data) = payload.split_at_mut(6);
+                    adva.copy_from_slice(&self.address);
+                    data[..adv_data_len].copy_from_slice(adv_data_corrected);
+                }
+                let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                let result = ble
+                    .radio
+                    .transmit_advertisement(kernel_tx, total_len, channel);
+                ble.kernel_tx.replace(result);
+                ReturnCode::SUCCESS
             })
-            .unwrap_or(ReturnCode::FAIL)
+        })
     }
 
     // Returns a new pseudo-random number and updates the randomness state.

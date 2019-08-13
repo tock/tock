@@ -445,8 +445,9 @@ impl RadioDriver<'a> {
                     .app_write
                     .take()
                     .as_ref()
-                    .map(|payload| frame.append_payload(payload.as_ref()))
-                    .unwrap_or(ReturnCode::EINVAL);
+                    .map_or(ReturnCode::EINVAL, |payload| {
+                        frame.append_payload(payload.as_ref())
+                    });
                 if result != ReturnCode::SUCCESS {
                     return result;
                 }
@@ -481,7 +482,7 @@ impl RadioDriver<'a> {
     #[inline]
     fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
-            .map(|appid| {
+            .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
                     self.perform_tx_sync(appid)
                 } else {
@@ -489,7 +490,6 @@ impl RadioDriver<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::SUCCESS)
     }
 }
 
@@ -750,8 +750,9 @@ impl Driver for RadioDriver<'a> {
                 KeyDescriptor::decode(cfg)
                     .done()
                     .and_then(|(_, new_key)| self.add_key(new_key))
-                    .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
-                    .unwrap_or(ReturnCode::EINVAL)
+                    .map_or(ReturnCode::EINVAL, |index| ReturnCode::SuccessWithValue {
+                        value: index + 1,
+                    })
             }),
             25 => self.remove_key(arg1),
             26 => {
