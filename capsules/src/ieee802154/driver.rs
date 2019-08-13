@@ -708,7 +708,7 @@ impl Driver for RadioDriver<'a> {
                     })
             }),
             17 => self.do_with_cfg(appid, 8, |cfg| {
-                let mut new_neighbor: DeviceDescriptor = Default::default();
+                let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
                 new_neighbor.short_addr = arg1 as u16;
                 new_neighbor.long_addr.copy_from_slice(cfg);
                 self.add_neighbor(new_neighbor)
