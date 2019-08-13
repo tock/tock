@@ -195,7 +195,7 @@ impl FrameInfo {
     }
 }
 
-fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
+fn get_ccm_nonce(device_addr: [u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
     let mut nonce = [0u8; 13];
     let encode_ccm_nonce = |buf: &mut [u8]| {
         let off = enc_consume!(buf; encode_bytes, device_addr.as_ref());
@@ -442,7 +442,7 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
                         };
 
                         // Compute ccm nonce
-                        let nonce = get_ccm_nonce(&device_addr, frame_counter, security.level);
+                        let nonce = get_ccm_nonce(device_addr, frame_counter, security.level);
 
                         Some(FrameInfo {
                             frame_type: header.frame_type,
@@ -706,7 +706,7 @@ impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             self.lookup_key(level, key_id).map(|key| {
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
-                let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
+                let nonce = get_ccm_nonce(src_addr_long, frame_counter, level);
                 (
                     Security {
                         level: level,

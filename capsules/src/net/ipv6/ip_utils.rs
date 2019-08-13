@@ -115,7 +115,7 @@ impl IPAddr {
 
 pub fn compute_udp_checksum(
     ip6_header: &IP6Header,
-    udp_header: &UDPHeader,
+    udp_header: UDPHeader,
     udp_length: u16,
     payload: &[u8],
 ) -> u16 {

@@ -812,7 +812,7 @@ impl device::TxClient for RadioDriver<'a> {
 
 /// Encode two PAN IDs into a single usize.
 #[inline]
-fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
+fn encode_pans(dst_pan: Option<PanID>, src_pan: Option<PanID>) -> usize {
     ((dst_pan.unwrap_or(0) as usize) << 16) | (src_pan.unwrap_or(0) as usize)
 }
 
@@ -839,7 +839,7 @@ impl device::RxClient for RadioDriver<'a> {
                 rbuf[1] = data_len as u8;
 
                 // Encode useful parts of the header in 3 usizes
-                let pans = encode_pans(&header.dst_pan, &header.src_pan);
+                let pans = encode_pans(header.dst_pan, header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
                 app.rx_callback

@@ -166,15 +166,15 @@ impl SecurityLevel {
         }
     }
 
-    pub fn encryption_needed(&self) -> bool {
-        match *self {
+    pub fn encryption_needed(self) -> bool {
+        match self {
             SecurityLevel::EncMic32 | SecurityLevel::EncMic64 | SecurityLevel::EncMic128 => true,
             _ => false,
         }
     }
 
-    pub fn mic_len(&self) -> usize {
-        match *self {
+    pub fn mic_len(self) -> usize {
+        match self {
             SecurityLevel::Mic32 | SecurityLevel::EncMic32 => 4,
             SecurityLevel::Mic64 | SecurityLevel::EncMic64 => 8,
             SecurityLevel::Mic128 | SecurityLevel::EncMic128 => 16,

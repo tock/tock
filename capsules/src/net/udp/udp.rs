@@ -36,7 +36,7 @@ impl UDPHeader {
         UDPHeader::default()
     }
     // TODO: Always returns size of UDP header
-    pub fn get_offset(&self) -> usize {
+    pub fn get_offset(self) -> usize {
         8
     }
 
@@ -55,23 +55,23 @@ impl UDPHeader {
         self.cksum = cksum.to_be();
     }
 
-    pub fn get_src_port(&self) -> u16 {
+    pub fn get_src_port(self) -> u16 {
         u16::from_be(self.src_port)
     }
 
-    pub fn get_dst_port(&self) -> u16 {
+    pub fn get_dst_port(self) -> u16 {
         u16::from_be(self.dst_port)
     }
 
-    pub fn get_len(&self) -> u16 {
+    pub fn get_len(self) -> u16 {
         u16::from_be(self.len)
     }
 
-    pub fn get_cksum(&self) -> u16 {
+    pub fn get_cksum(self) -> u16 {
         u16::from_be(self.cksum)
     }
 
-    pub fn get_hdr_size(&self) -> usize {
+    pub fn get_hdr_size(self) -> usize {
         // TODO
         8
     }
@@ -87,7 +87,7 @@ impl UDPHeader {
     ///
     /// This function returns the new offset into the buffer wrapped in an
     /// SResult.
-    pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
+    pub fn encode(self, buf: &mut [u8], offset: usize) -> SResult<usize> {
         stream_len_cond!(buf, self.get_hdr_size() + offset);
 
         let mut off = offset;

@@ -266,7 +266,7 @@ impl IP6Header {
                 let checksum = match UDPHeader::decode(&udp_header).done() {
                     Some((_offset, hdr)) => u16::from_be(compute_udp_checksum(
                         &self,
-                        &hdr,
+                        hdr,
                         buf.len() as u16,
                         &buf[UDP_HDR_LEN..],
                     )),
@@ -459,10 +459,10 @@ impl IP6Packet<'a> {
         // using this pseudoheader cksum to set the transport packet cksum
 
         match self.payload.header {
-            TransportHeader::UDP(ref mut udp_header) => {
+            TransportHeader::UDP(mut udp_header) => {
                 let cksum = compute_udp_checksum(
                     &self.header,
-                    &udp_header,
+                    udp_header,
                     udp_header.get_len(),
                     self.payload.payload,
                 );

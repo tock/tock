@@ -272,8 +272,8 @@ pub fn compress<'a>(
                 written += 1;
 
                 // Compress ports and checksum
-                nhc_header |= compress_udp_ports(&udp_header, &mut buf, &mut written);
-                nhc_header |= compress_udp_checksum(&udp_header, &mut buf, &mut written);
+                nhc_header |= compress_udp_ports(udp_header, &mut buf, &mut written);
+                nhc_header |= compress_udp_checksum(udp_header, &mut buf, &mut written);
 
                 // Write the UDP LoWPAN_NHC byte
                 buf[udp_nh_offset] = nhc_header;
@@ -509,7 +509,7 @@ fn compress_multicast(
     }
 }
 
-fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usize) -> u8 {
+fn compress_udp_ports(udp_header: UDPHeader, buf: &mut [u8], written: &mut usize) -> u8 {
     // Need to deal with fields in network byte order when writing directly to buf
     let src_port = udp_header.get_src_port().to_be();
     let dst_port = udp_header.get_dst_port().to_be();
@@ -549,7 +549,7 @@ fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usiz
 
 // NOTE: We currently only support (or intend to support) carrying the UDP
 // checksum inline.
-fn compress_udp_checksum(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usize) -> u8 {
+fn compress_udp_checksum(udp_header: UDPHeader, buf: &mut [u8], written: &mut usize) -> u8 {
     // get_cksum returns cksum in host byte order
     let cksum = udp_header.get_cksum().to_be();
     buf[*written] = cksum as u8;
@@ -1174,7 +1174,7 @@ fn decompress_udp_checksum(
         match UDPHeader::decode(&udp_header_copy).done() {
             Some((_offset, hdr)) => u16::from_be(compute_udp_checksum(
                 ip6_header,
-                &hdr,
+                hdr,
                 udp_length,
                 &buf[*consumed..],
             )),

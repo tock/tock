@@ -143,14 +143,14 @@ impl Chip for Sam4l {
                         nvic::TRNG => trng::TRNG.handle_interrupt(),
                         nvic::AESA => aes::AES.handle_interrupt(),
 
-                        nvic::EIC1 => eic::EIC.handle_interrupt(&eic::Line::Ext1),
-                        nvic::EIC2 => eic::EIC.handle_interrupt(&eic::Line::Ext2),
-                        nvic::EIC3 => eic::EIC.handle_interrupt(&eic::Line::Ext3),
-                        nvic::EIC4 => eic::EIC.handle_interrupt(&eic::Line::Ext4),
-                        nvic::EIC5 => eic::EIC.handle_interrupt(&eic::Line::Ext5),
-                        nvic::EIC6 => eic::EIC.handle_interrupt(&eic::Line::Ext6),
-                        nvic::EIC7 => eic::EIC.handle_interrupt(&eic::Line::Ext7),
-                        nvic::EIC8 => eic::EIC.handle_interrupt(&eic::Line::Ext8),
+                        nvic::EIC1 => eic::EIC.handle_interrupt(eic::Line::Ext1),
+                        nvic::EIC2 => eic::EIC.handle_interrupt(eic::Line::Ext2),
+                        nvic::EIC3 => eic::EIC.handle_interrupt(eic::Line::Ext3),
+                        nvic::EIC4 => eic::EIC.handle_interrupt(eic::Line::Ext4),
+                        nvic::EIC5 => eic::EIC.handle_interrupt(eic::Line::Ext5),
+                        nvic::EIC6 => eic::EIC.handle_interrupt(eic::Line::Ext6),
+                        nvic::EIC7 => eic::EIC.handle_interrupt(eic::Line::Ext7),
+                        nvic::EIC8 => eic::EIC.handle_interrupt(eic::Line::Ext8),
 
                         _ => {
                             panic!("unhandled interrupt {}", interrupt);
