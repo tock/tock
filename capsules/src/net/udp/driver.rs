@@ -273,7 +273,7 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
-            .map(|appid| {
+            .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
                     let sync_result = self.perform_tx_sync(appid);
                     if sync_result == ReturnCode::SUCCESS {
@@ -285,7 +285,6 @@ impl<'a> UDPDriver<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::SUCCESS)
     }
 
     #[inline]
