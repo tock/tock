@@ -1334,7 +1334,7 @@ impl NetworkManagementTlv<'a> {
                     NetworkManagementTlv::ActiveTimestamp {
                         timestamp_seconds: timestamp_seconds,
                         timestamp_ticks: timestamp_ticks >> 1,
-                        u_bit: (timestamp_ticks | 1u16) > 0,
+                        u_bit: true,
                     }
                 )
             }
@@ -1351,7 +1351,7 @@ impl NetworkManagementTlv<'a> {
                     NetworkManagementTlv::PendingTimestamp {
                         timestamp_seconds: timestamp_seconds,
                         timestamp_ticks: timestamp_ticks >> 1,
-                        u_bit: (timestamp_ticks | 1u16) > 0,
+                        u_bit: true,
                     }
                 )
             }
