@@ -206,8 +206,7 @@ impl Driver for IPC {
 
             return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
         }
-        return self
-            .data
+        self.data
             .enter(appid, |data, _| {
                 data.shared_memory.get_mut(target_id - 1).map_or(
                     ReturnCode::EINVAL, /* Target process does not exist */
@@ -217,6 +216,6 @@ impl Driver for IPC {
                     },
                 )
             })
-            .unwrap_or(ReturnCode::EBUSY);
+            .unwrap_or(ReturnCode::EBUSY)
     }
 }

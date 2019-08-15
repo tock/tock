@@ -302,7 +302,7 @@ impl Crccu<'a> {
         let t = s % 512;
         let u = 512 - t;
         let d = s + u;
-        return d as *mut Descriptor;
+        d as *mut Descriptor
     }
 
     /// Handle an interrupt from the CRCCU
@@ -393,7 +393,7 @@ impl crc::CRC for Crccu<'a> {
         // Enable DMA channel
         regs.dmaen.write(DmaEnable::DMAEN::SET);
 
-        return ReturnCode::SUCCESS;
+        ReturnCode::SUCCESS
     }
 
     fn disable(&self) {

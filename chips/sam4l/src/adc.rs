@@ -620,7 +620,7 @@ impl hil::adc::Adc for Adc {
         let res = self.config_and_enable(1000);
 
         if res != ReturnCode::SUCCESS {
-            return res;
+            res
         } else if !self.enabled.get() {
             ReturnCode::EOFF
         } else if self.active.get() {
@@ -670,7 +670,7 @@ impl hil::adc::Adc for Adc {
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
-            return res;
+            res
         } else if !self.enabled.get() {
             ReturnCode::EOFF
         } else if self.active.get() {
@@ -851,7 +851,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
-            return (res, Some(buffer1), Some(buffer2));
+            (res, Some(buffer1), Some(buffer2))
         } else if !self.enabled.get() {
             (ReturnCode::EOFF, Some(buffer1), Some(buffer2))
         } else if self.active.get() {

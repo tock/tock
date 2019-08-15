@@ -350,7 +350,7 @@ pub fn enable_rc32k() {
 }
 
 pub fn rc32k_enabled() -> bool {
-    return BSCIF.rc32kcr.is_set(RC32Control::EN);
+    BSCIF.rc32kcr.is_set(RC32Control::EN)
 }
 
 pub fn setup_rc_1mhz() {

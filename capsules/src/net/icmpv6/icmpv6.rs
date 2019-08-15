@@ -106,11 +106,11 @@ impl ICMP6Header {
     }
 
     pub fn get_len(&self) -> u16 {
-        return self.len;
+        self.len
     }
 
     pub fn get_hdr_size(&self) -> usize {
-        return 8;
+        8
     }
 
     /// Serializes an `ICMP6Header` into a buffer.
