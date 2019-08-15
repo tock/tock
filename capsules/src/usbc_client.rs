@@ -203,7 +203,7 @@ impl<C: hil::usb::UsbController> hil::usb::Client for Client<'a, C> {
                                                 manufacturer_string: 1,
                                                 product_string: 2,
                                                 serial_number_string: 3,
-                                                ..Default::default()
+                                                ..DeviceDescriptor::default()
                                             };
                                             let len = d.write_to(buf);
                                             let end = min(len, requested_length as usize);
@@ -258,7 +258,7 @@ impl<C: hil::usb::UsbController> hil::usb::Client for Client<'a, C> {
                                             // A single interface, with the above endpoints
                                             let di = InterfaceDescriptor {
                                                 num_endpoints: num_endpoints,
-                                                ..Default::default()
+                                                ..InterfaceDescriptor::default()
                                             };
                                             storage_avail -=
                                                 di.write_to(&buf[storage_avail - di.size()..]);
@@ -269,7 +269,7 @@ impl<C: hil::usb::UsbController> hil::usb::Client for Client<'a, C> {
                                                 num_interfaces: 1,
                                                 related_descriptor_length:
                                                     related_descriptor_length,
-                                                ..Default::default()
+                                                ..ConfigurationDescriptor::default()
                                             };
                                             storage_avail -=
                                                 dc.write_to(&buf[storage_avail - dc.size()..]);

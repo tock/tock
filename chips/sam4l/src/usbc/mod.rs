@@ -771,7 +771,7 @@ impl Usbc<'a> {
             });
 
             // Reset our record of the device state
-            *device_state = Default::default();
+            *device_state = DeviceState::default();
 
             // Reconfigure and initialize endpoints
             for i in 0..N_ENDPOINTS {
@@ -1431,8 +1431,8 @@ impl hil::usb::UsbController for Usbc<'a> {
         match self.get_state() {
             State::Reset => self._enable(Mode::Device {
                 speed: speed,
-                config: Default::default(),
-                state: Default::default(),
+                config: DeviceConfig::default(),
+                state: DeviceState::default(),
             }),
             _ => client_err!("Already enabled"),
         }
