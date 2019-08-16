@@ -64,8 +64,8 @@ pub fn load_processes<C: Chip>(
                 procs[i] = process;
             }
 
-            apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
-            app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
+            apps_in_flash_ptr = apps_in_flash_ptr.add(flash_offset);
+            app_memory_ptr = app_memory_ptr.add(memory_offset);
             app_memory_size -= memory_offset;
         }
     }
@@ -639,7 +639,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     fn mem_end(&self) -> *const u8 {
-        unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
+        unsafe { self.memory.as_ptr().add(self.memory.len()) }
     }
 
     fn flash_start(&self) -> *const u8 {
@@ -651,7 +651,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     }
 
     fn flash_end(&self) -> *const u8 {
-        unsafe { self.flash.as_ptr().offset(self.flash.len() as isize) }
+        unsafe { self.flash.as_ptr().add(self.flash.len()) }
     }
 
     fn kernel_memory_break(&self) -> *const u8 {
@@ -762,7 +762,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // Valid slice, we need to adjust the app's watermark
             // in_app_owned_memory eliminates this offset actually wrapping
-            let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+            let buf_end_addr = buf_start_addr.wrapping_add(size);
             let new_water_mark = max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
             Ok(Some(AppSlice::new(
@@ -925,7 +925,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     unsafe fn process_detail_fmt(&self, writer: &mut Write) {
         // Flash
-        let flash_end = self.flash.as_ptr().offset(self.flash.len() as isize) as usize;
+        let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
@@ -933,7 +933,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         // SRAM addresses
-        let sram_end = self.memory.as_ptr().offset(self.memory.len() as isize) as usize;
+        let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
         let sram_heap_start = self.debug.map_or(ptr::null(), |debug| {
@@ -1154,11 +1154,11 @@ impl<C: 'static + Chip> Process<'a, C> {
             let app_memory = slice::from_raw_parts_mut(memory_start as *mut u8, memory_size);
 
             // Set the initial process stack and memory to 3072 bytes.
-            let initial_stack_pointer = memory_start.offset(initial_app_memory_size as isize);
-            let initial_sbrk_pointer = memory_start.offset(initial_app_memory_size as isize);
+            let initial_stack_pointer = memory_start.add(initial_app_memory_size);
+            let initial_sbrk_pointer = memory_start.add(initial_app_memory_size);
 
             // Set up initial grant region.
-            let mut kernel_memory_break = app_memory.as_mut_ptr().offset(app_memory.len() as isize);
+            let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
 
             // Now that we know we have the space we can setup the grant
             // pointers.
@@ -1290,7 +1290,7 @@ impl<C: 'static + Chip> Process<'a, C> {
     /// is guaranteed to be accessible to the process and to not overlap with
     /// the grant region.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
-        let buf_end_addr = buf_start_addr.wrapping_offset(size as isize);
+        let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.mem_start()
