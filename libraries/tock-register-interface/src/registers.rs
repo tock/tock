@@ -375,6 +375,14 @@ impl<R: RegisterLongName> Field<u8, R> {
     pub fn val(&self, value: u8) -> FieldValue<u8, R> {
         FieldValue::<u8, R>::new(self.mask, self.shift, value)
     }
+
+    pub fn set(&self) -> FieldValue<u8, R> {
+        FieldValue::<u8, R>::new(self.mask, self.shift, 1)
+    }
+
+    pub fn clear(&self) -> FieldValue<u8, R> {
+        FieldValue::<u8, R>::new(self.mask, self.shift, 0)
+    }
 }
 
 impl<R: RegisterLongName> Field<u16, R> {
@@ -388,6 +396,14 @@ impl<R: RegisterLongName> Field<u16, R> {
 
     pub fn val(&self, value: u16) -> FieldValue<u16, R> {
         FieldValue::<u16, R>::new(self.mask, self.shift, value)
+    }
+
+    pub fn set(&self) -> FieldValue<u16, R> {
+        FieldValue::<u16, R>::new(self.mask, self.shift, 1)
+    }
+
+    pub fn clear(&self) -> FieldValue<u16, R> {
+        FieldValue::<u16, R>::new(self.mask, self.shift, 0)
     }
 }
 
@@ -403,6 +419,14 @@ impl<R: RegisterLongName> Field<u32, R> {
     pub fn val(&self, value: u32) -> FieldValue<u32, R> {
         FieldValue::<u32, R>::new(self.mask, self.shift, value)
     }
+
+    pub fn set(&self) -> FieldValue<u32, R> {
+        FieldValue::<u32, R>::new(self.mask, self.shift, 1)
+    }
+
+    pub fn clear(&self) -> FieldValue<u32, R> {
+        FieldValue::<u32, R>::new(self.mask, self.shift, 0)
+    }
 }
 
 impl<R: RegisterLongName> Field<u64, R> {
@@ -416,6 +440,14 @@ impl<R: RegisterLongName> Field<u64, R> {
 
     pub fn val(&self, value: u64) -> FieldValue<u64, R> {
         FieldValue::<u64, R>::new(self.mask, self.shift, value)
+    }
+
+    pub fn set(&self) -> FieldValue<u64, R> {
+        FieldValue::<u64, R>::new(self.mask, self.shift, 1)
+    }
+
+    pub fn clear(&self) -> FieldValue<u64, R> {
+        FieldValue::<u64, R>::new(self.mask, self.shift, 0)
     }
 }
 
