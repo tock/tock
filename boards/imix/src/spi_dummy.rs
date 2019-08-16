@@ -1,7 +1,7 @@
 //! A dummy SPI client to test the SPI implementation
 
 use kernel::hil::gpio;
-use kernel::hil::gpio::Pin;
+use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
 use kernel::ReturnCode;
 

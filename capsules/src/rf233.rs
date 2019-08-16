@@ -36,8 +36,6 @@ use crate::rf233_const::TRX_TRAC_MASK;
 use crate::rf233_const::XAH_CTRL_0;
 use crate::rf233_const::XAH_CTRL_1;
 
-const INTERRUPT_ID: usize = 0x2154;
-
 #[allow(non_camel_case_types, dead_code)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
@@ -202,8 +200,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     power_client_pending: Cell<bool>,
     reset_pin: &'a gpio::Pin,
     sleep_pin: &'a gpio::Pin,
-    irq_pin: &'a gpio::Pin,
-    irq_ctl: &'a gpio::PinCtl,
+    irq_pin: &'a gpio::InterruptPin,
     state: Cell<InternalState>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -474,9 +471,10 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::START_TURNING_OFF => {
                 self.irq_pin.make_input();
                 self.irq_pin.clear();
-                self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
                 self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
+                    .set_floating_state(gpio::FloatingState::PullNone);
+                self.irq_pin
+                    .enable_interrupts(gpio::InterruptEdge::RisingEdge);
 
                 self.state_transition_write(
                     RF233Register::TRX_CTRL_1,
@@ -682,7 +680,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     self.power_client.map(|p| {
                         p.changed(self.radio_on.get());
                     });
-                    self.irq_pin.disable_interrupt(); // Lets MCU sleep
+                    self.irq_pin.disable_interrupts(); // Lets MCU sleep
                 }
             }
             // Do nothing; a call to start() is required to restart radio
@@ -693,7 +691,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 // InternalState::TRX_OFF, then transition directly to RX_AACK_ON.
                 self.sleep_pin.clear();
                 self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
+                    .enable_interrupts(gpio::InterruptEdge::RisingEdge);
                 self.state_transition_write(
                     RF233Register::TRX_STATE,
                     RF233TrxCmd::RX_AACK_ON as u8,
@@ -1020,10 +1018,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
 }
 
 impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
-    fn fired(&self, identifier: usize) {
-        if identifier == INTERRUPT_ID {
-            self.handle_interrupt();
-        }
+    fn fired(&self) {
+        self.handle_interrupt();
     }
 }
 
@@ -1032,8 +1028,7 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
         spi: &'a S,
         reset: &'a gpio::Pin,
         sleep: &'a gpio::Pin,
-        irq: &'a gpio::Pin,
-        ctl: &'a gpio::PinCtl,
+        irq: &'a gpio::InterruptPin,
         channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
@@ -1041,7 +1036,6 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
             reset_pin: reset,
             sleep_pin: sleep,
             irq_pin: irq,
-            irq_ctl: ctl,
             radio_on: Cell::new(false),
             transmitting: Cell::new(false),
             receiving: Cell::new(false),

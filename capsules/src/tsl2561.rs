@@ -202,7 +202,7 @@ enum State {
 
 pub struct TSL2561<'a> {
     i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a gpio::Pin,
+    interrupt_pin: &'a gpio::InterruptPin,
     callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -211,7 +211,7 @@ pub struct TSL2561<'a> {
 impl TSL2561<'a> {
     pub fn new(
         i2c: &'a i2c::I2CDevice,
-        interrupt_pin: &'a gpio::Pin,
+        interrupt_pin: &'a gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> TSL2561<'a> {
         // setup and return struct
@@ -240,7 +240,7 @@ impl TSL2561<'a> {
         // Need pull up on interrupt pin
         self.interrupt_pin.make_input();
         self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+            .enable_interrupts(gpio::InterruptEdge::FallingEdge);
 
         self.buffer.take().map(|buf| {
             // Turn on i2c to send commands
@@ -408,7 +408,7 @@ impl i2c::I2CClient for TSL2561<'a> {
                 buffer[0] = Registers::Control as u8 | COMMAND_REG;
                 buffer[1] = POWER_OFF;
                 self.i2c.write(buffer, 2);
-                self.interrupt_pin.disable_interrupt();
+                self.interrupt_pin.disable_interrupts();
                 self.state.set(State::Done);
             }
             State::Done => {
@@ -422,7 +422,7 @@ impl i2c::I2CClient for TSL2561<'a> {
 }
 
 impl gpio::Client for TSL2561<'a> {
-    fn fired(&self, _: usize) {
+    fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
             self.i2c.enable();

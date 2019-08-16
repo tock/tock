@@ -50,8 +50,7 @@
 //!   of the button.
 
 use core::cell::Cell;
-use kernel::hil;
-use kernel::hil::gpio::{Client, InterruptMode};
+use kernel::hil::gpio;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -81,18 +80,19 @@ pub enum ButtonState {
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a, G: hil::gpio::Pin> {
-    pins: &'a [(&'a G, GpioMode)],
+pub struct Button<'a> {
+    pins: &'a [(&'a gpio::InterruptValuePin, GpioMode)],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
+impl<'a> Button<'a> {
     pub fn new(
-        pins: &'a [(&'a G, GpioMode)],
+        pins: &'a [(&'a gpio::InterruptValuePin, GpioMode)],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
-    ) -> Button<'a, G> {
-        for &(pin, _) in pins.iter() {
+    ) -> Button<'a> {
+        for (i, &(pin, _)) in pins.iter().enumerate() {
             pin.make_input();
+            pin.set_value(i as u32);
         }
 
         Button {
@@ -101,9 +101,10 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
         }
     }
 
-    fn get_button_state(&self, pin_num: usize) -> ButtonState {
-        let pin_value = self.pins[pin_num].0.read();
-        match self.pins[pin_num].1 {
+    fn get_button_state(&self, pin_num: u32) -> ButtonState {
+        let index = pin_num as usize;
+        let pin_value = self.pins[index].0.read();
+        match self.pins[index].1 {
             GpioMode::LowWhenPressed => match pin_value {
                 false => ButtonState::Pressed,
                 true => ButtonState::NotPressed,
@@ -116,7 +117,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
     }
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
+impl<'a> Driver for Button<'a> {
     /// Set callbacks.
     ///
     /// ### `subscribe_num`
@@ -178,7 +179,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             cntr.1 |= 1 << data;
                             pins[data]
                                 .0
-                                .enable_interrupt(data, InterruptMode::EitherEdge);
+                                .enable_interrupts(gpio::InterruptEdge::EitherEdge);
                             ReturnCode::SUCCESS
                         })
                         .unwrap_or_else(|err| err.into())
@@ -212,7 +213,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
 
                     // if not, disable the interrupt
                     if interrupt_count.get() == 0 {
-                        self.pins[data].0.disable_interrupt();
+                        self.pins[data].0.disable_interrupts();
                     }
 
                     res
@@ -224,7 +225,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                 if data >= pins.len() {
                     ReturnCode::EINVAL /* impossible button */
                 } else {
-                    let button_state = self.get_button_state(data);
+                    let button_state = self.get_button_state(data as u32);
                     ReturnCode::SuccessWithValue {
                         value: button_state as usize,
                     }
@@ -237,8 +238,8 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     }
 }
 
-impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
-    fn fired(&self, pin_num: usize) {
+impl<'a> gpio::ClientWithValue for Button<'a> {
+    fn fired(&self, pin_num: u32) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);
         let interrupt_count = Cell::new(0);
@@ -248,7 +249,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
             cntr.0.map(|mut callback| {
                 if cntr.1 & (1 << pin_num) != 0 {
                     interrupt_count.set(interrupt_count.get() + 1);
-                    callback.schedule(pin_num, button_state as usize, 0);
+                    callback.schedule(pin_num as usize, button_state as usize, 0);
                 }
             });
         });
@@ -257,7 +258,7 @@ impl<G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
         // (and didn't unregister the interrupt). Lazily disable interrupts for
         // this button if so.
         if interrupt_count.get() == 0 {
-            self.pins[pin_num].0.disable_interrupt();
+            self.pins[pin_num as usize].0.disable_interrupts();
         }
     }
 }

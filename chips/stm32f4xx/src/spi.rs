@@ -5,7 +5,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::hil::gpio::Pin;
+use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
 use kernel::{ClockInterface, ReturnCode};
 

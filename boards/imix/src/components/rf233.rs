@@ -25,7 +25,7 @@ pub struct RF233Component {
     spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     reset: &'static hil::gpio::Pin,
     sleep: &'static hil::gpio::Pin,
-    irq: &'static hil::gpio::Pin,
+    irq: &'static hil::gpio::InterruptPin,
     ctl: &'static sam4l::gpio::GPIOPin,
     channel: u8,
 }
@@ -35,7 +35,7 @@ impl RF233Component {
         spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
         reset: &'static hil::gpio::Pin,
         sleep: &'static hil::gpio::Pin,
-        irq: &'static hil::gpio::Pin,
+        irq: &'static hil::gpio::InterruptPin,
         ctl: &'static sam4l::gpio::GPIOPin,
         channel: u8,
     ) -> RF233Component {
@@ -56,14 +56,7 @@ impl Component for RF233Component {
     unsafe fn finalize(&mut self) -> Self::Output {
         let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
             RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-            RF233::new(
-                self.spi,
-                self.reset,
-                self.sleep,
-                self.irq,
-                self.ctl,
-                self.channel
-            )
+            RF233::new(self.spi, self.reset, self.sleep, self.irq, self.channel)
         );
         self.ctl.set_client(rf233);
         self.spi.set_client(rf233);

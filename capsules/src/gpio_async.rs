@@ -50,9 +50,9 @@ impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
         let ports = self.ports.as_ref();
         let mode = match config {
-            0 => hil::gpio::InputMode::PullNone,
-            1 => hil::gpio::InputMode::PullUp,
-            2 => hil::gpio::InputMode::PullDown,
+            0 => hil::gpio::FloatingState::PullNone,
+            1 => hil::gpio::FloatingState::PullUp,
+            2 => hil::gpio::FloatingState::PullDown,
             _ => return ReturnCode::EINVAL,
         };
         ports[port].make_input(pin, mode)
@@ -61,12 +61,12 @@ impl<Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     fn configure_interrupt(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
         let ports = self.ports.as_ref();
         let mode = match config {
-            0 => hil::gpio::InterruptMode::EitherEdge,
-            1 => hil::gpio::InterruptMode::RisingEdge,
-            2 => hil::gpio::InterruptMode::FallingEdge,
+            0 => hil::gpio::InterruptEdge::EitherEdge,
+            1 => hil::gpio::InterruptEdge::RisingEdge,
+            2 => hil::gpio::InterruptEdge::FallingEdge,
             _ => return ReturnCode::EINVAL,
         };
-        ports[port].enable_interrupt(pin, mode, port)
+        ports[port].enable_interrupt(pin, mode)
     }
 }
 

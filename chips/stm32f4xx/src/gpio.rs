@@ -1,6 +1,7 @@
-use core::cell::Cell;
 use cortexm4;
 use cortexm4::support::atomic;
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -529,12 +530,15 @@ impl PinId {
 /// GPIO pin mode [^1]
 ///
 /// [^1]: Section 7.1.4, page 187 of reference manual
-#[repr(u32)]
-pub enum Mode {
-    Input = 0b00,
-    GeneralPurposeOutputMode = 0b01,
-    AlternateFunctionMode = 0b10,
-    AnalogMode = 0b11,
+enum_from_primitive! {
+    #[repr(u32)]
+    #[derive(PartialEq)]
+    pub enum Mode {
+        Input = 0b00,
+        GeneralPurposeOutputMode = 0b01,
+        AlternateFunctionMode = 0b10,
+        AnalogMode = 0b11,
+    }
 }
 
 /// Alternate functions that may be assigned to a `Pin`.
@@ -573,11 +577,13 @@ pub enum AlternateFunction {
 /// GPIO pin internal pull-up and pull-down [^1]
 ///
 /// [^1]: Section 7.4.4, page 189 of reference manual
-#[repr(u32)]
-enum PullUpPullDown {
-    NoPullUpPullDown = 0b00,
-    PullUp = 0b01,
-    PullDown = 0b10,
+enum_from_primitive! {
+    #[repr(u32)]
+    enum PullUpPullDown {
+        NoPullUpPullDown = 0b00,
+        PullUp = 0b01,
+        PullDown = 0b10,
+    }
 }
 
 pub struct Port {
@@ -653,7 +659,6 @@ impl ClockInterface for PortClock {
 // `exti_lineid` is used to configure EXTI settings for the Pin.
 pub struct Pin<'a> {
     pinid: PinId,
-    client_data: Cell<usize>,
     client: OptionalCell<&'a hil::gpio::Client>,
     exti_lineid: OptionalCell<exti::LineId>,
 }
@@ -721,7 +726,6 @@ impl Pin<'a> {
     const fn new(pinid: PinId) -> Pin<'a> {
         Pin {
             pinid: pinid,
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
             exti_lineid: OptionalCell::empty(),
         }
@@ -732,8 +736,33 @@ impl Pin<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client
-            .map(|client| client.fired(self.client_data.get()));
+        self.client.map(|client| client.fired());
+    }
+
+    pub fn get_mode(&self) -> Mode {
+        let port = self.pinid.get_port();
+
+        let val = match self.pinid.get_pin_number() {
+            0b0000 => port.registers.moder.read(MODER::MODER0),
+            0b0001 => port.registers.moder.read(MODER::MODER1),
+            0b0010 => port.registers.moder.read(MODER::MODER2),
+            0b0011 => port.registers.moder.read(MODER::MODER3),
+            0b0100 => port.registers.moder.read(MODER::MODER4),
+            0b0101 => port.registers.moder.read(MODER::MODER5),
+            0b0110 => port.registers.moder.read(MODER::MODER6),
+            0b0111 => port.registers.moder.read(MODER::MODER7),
+            0b1000 => port.registers.moder.read(MODER::MODER8),
+            0b1001 => port.registers.moder.read(MODER::MODER9),
+            0b1010 => port.registers.moder.read(MODER::MODER10),
+            0b1011 => port.registers.moder.read(MODER::MODER11),
+            0b1100 => port.registers.moder.read(MODER::MODER12),
+            0b1101 => port.registers.moder.read(MODER::MODER13),
+            0b1110 => port.registers.moder.read(MODER::MODER14),
+            0b1111 => port.registers.moder.read(MODER::MODER15),
+            _ => 0,
+        };
+
+        Mode::from_u32(val).unwrap_or(Mode::Input)
     }
 
     pub fn set_mode(&self, mode: Mode) {
@@ -814,6 +843,32 @@ impl Pin<'a> {
             0b1111 => port.registers.otyper.modify(OTYPER::OT15::CLEAR),
             _ => {}
         }
+    }
+
+    fn get_pullup_pulldown(&self) -> PullUpPullDown {
+        let port = self.pinid.get_port();
+
+        let val = match self.pinid.get_pin_number() {
+            0b0000 => port.registers.pupdr.read(PUPDR::PUPDR0),
+            0b0001 => port.registers.pupdr.read(PUPDR::PUPDR1),
+            0b0010 => port.registers.pupdr.read(PUPDR::PUPDR2),
+            0b0011 => port.registers.pupdr.read(PUPDR::PUPDR3),
+            0b0100 => port.registers.pupdr.read(PUPDR::PUPDR4),
+            0b0101 => port.registers.pupdr.read(PUPDR::PUPDR5),
+            0b0110 => port.registers.pupdr.read(PUPDR::PUPDR6),
+            0b0111 => port.registers.pupdr.read(PUPDR::PUPDR7),
+            0b1000 => port.registers.pupdr.read(PUPDR::PUPDR8),
+            0b1001 => port.registers.pupdr.read(PUPDR::PUPDR9),
+            0b1010 => port.registers.pupdr.read(PUPDR::PUPDR10),
+            0b1011 => port.registers.pupdr.read(PUPDR::PUPDR11),
+            0b1100 => port.registers.pupdr.read(PUPDR::PUPDR12),
+            0b1101 => port.registers.pupdr.read(PUPDR::PUPDR13),
+            0b1110 => port.registers.pupdr.read(PUPDR::PUPDR14),
+            0b1111 => port.registers.pupdr.read(PUPDR::PUPDR15),
+            _ => 0,
+        };
+
+        PullUpPullDown::from_u32(val).unwrap_or(PullUpPullDown::NoPullUpPullDown)
     }
 
     fn set_pullup_pulldown(&self, pupd: PullUpPullDown) {
@@ -912,11 +967,13 @@ impl Pin<'a> {
         }
     }
 
-    fn toggle_output(&self) {
+    fn toggle_output(&self) -> bool {
         if self.is_output_high() {
             self.set_output_low();
+            false
         } else {
             self.set_output_high();
+            true
         }
     }
 
@@ -945,28 +1002,82 @@ impl Pin<'a> {
     }
 }
 
-impl hil::gpio::Pin for Pin<'a> {
+impl hil::gpio::Pin for Pin<'a> {}
+impl hil::gpio::InterruptPin for Pin<'a> {}
+
+impl hil::gpio::Configure for Pin<'a> {
     /// Output mode default is push-pull
-    fn make_output(&self) {
+    fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::GeneralPurposeOutputMode);
         self.set_mode_output_pushpull();
+        hil::gpio::Configuration::Output
     }
 
     /// Input mode default is no internal pull-up, no pull-down (i.e.,
     /// floating). Also upon setting the mode as input, the internal schmitt
     /// trigger is automatically activated. Schmitt trigger is deactivated in
     /// AnalogMode.
-    fn make_input(&self) {
+    fn make_input(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::Input);
+        hil::gpio::Configuration::Input
     }
 
     /// According to AN4899, Section 6.1, setting to AnalogMode, disables
     /// internal schmitt trigger. We do not disable clock to the GPIO port,
     /// because there could be other pins active on the port.
-    fn disable(&self) {
+    fn deactivate_to_low_power(&self) {
         self.set_mode(Mode::AnalogMode);
     }
 
+    fn disable_output(&self) -> hil::gpio::Configuration {
+        self.set_mode(Mode::AnalogMode);
+        hil::gpio::Configuration::LowPower
+    }
+
+    fn disable_input(&self) -> hil::gpio::Configuration {
+        self.set_mode(Mode::AnalogMode);
+        hil::gpio::Configuration::LowPower
+    }
+
+    fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
+        match mode {
+            hil::gpio::FloatingState::PullUp => self.set_pullup_pulldown(PullUpPullDown::PullUp),
+            hil::gpio::FloatingState::PullDown => {
+                self.set_pullup_pulldown(PullUpPullDown::PullDown)
+            }
+            hil::gpio::FloatingState::PullNone => {
+                self.set_pullup_pulldown(PullUpPullDown::NoPullUpPullDown)
+            }
+        }
+    }
+
+    fn floating_state(&self) -> hil::gpio::FloatingState {
+        match self.get_pullup_pulldown() {
+            PullUpPullDown::PullUp => hil::gpio::FloatingState::PullUp,
+            PullUpPullDown::PullDown => hil::gpio::FloatingState::PullDown,
+            PullUpPullDown::NoPullUpPullDown => hil::gpio::FloatingState::PullNone,
+        }
+    }
+
+    fn configuration(&self) -> hil::gpio::Configuration {
+        match self.get_mode() {
+            Mode::Input => hil::gpio::Configuration::Input,
+            Mode::GeneralPurposeOutputMode => hil::gpio::Configuration::Output,
+            Mode::AnalogMode => hil::gpio::Configuration::LowPower,
+            Mode::AlternateFunctionMode => hil::gpio::Configuration::Function,
+        }
+    }
+
+    fn is_input(&self) -> bool {
+        self.get_mode() == Mode::Input
+    }
+
+    fn is_output(&self) -> bool {
+        self.get_mode() == Mode::GeneralPurposeOutputMode
+    }
+}
+
+impl hil::gpio::Output for Pin<'a> {
     fn set(&self) {
         self.set_output_high();
     }
@@ -975,15 +1086,19 @@ impl hil::gpio::Pin for Pin<'a> {
         self.set_output_low();
     }
 
-    fn toggle(&self) {
-        self.toggle_output();
+    fn toggle(&self) -> bool {
+        self.toggle_output()
     }
+}
 
+impl hil::gpio::Input for Pin<'a> {
     fn read(&self) -> bool {
         self.read_input()
     }
+}
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+impl hil::gpio::Interrupt for Pin<'a> {
+    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
@@ -994,15 +1109,15 @@ impl hil::gpio::Pin for Pin<'a> {
                     exti::EXTI.clear_pending(l);
 
                     match mode {
-                        hil::gpio::InterruptMode::EitherEdge => {
+                        hil::gpio::InterruptEdge::EitherEdge => {
                             exti::EXTI.select_rising_trigger(l);
                             exti::EXTI.select_falling_trigger(l);
                         }
-                        hil::gpio::InterruptMode::RisingEdge => {
+                        hil::gpio::InterruptEdge::RisingEdge => {
                             exti::EXTI.select_rising_trigger(l);
                             exti::EXTI.deselect_falling_trigger(l);
                         }
-                        hil::gpio::InterruptMode::FallingEdge => {
+                        hil::gpio::InterruptEdge::FallingEdge => {
                             exti::EXTI.deselect_rising_trigger(l);
                             exti::EXTI.select_falling_trigger(l);
                         }
@@ -1010,12 +1125,11 @@ impl hil::gpio::Pin for Pin<'a> {
 
                     exti::EXTI.unmask_interrupt(l);
                 });
-                self.client_data.set(client_data);
             });
         }
     }
 
-    fn disable_interrupt(&self) {
+    fn disable_interrupts(&self) {
         unsafe {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
@@ -1026,16 +1140,15 @@ impl hil::gpio::Pin for Pin<'a> {
             });
         }
     }
-}
 
-impl hil::gpio::PinCtl for Pin<'a> {
-    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-        match mode {
-            hil::gpio::InputMode::PullUp => self.set_pullup_pulldown(PullUpPullDown::PullUp),
-            hil::gpio::InputMode::PullDown => self.set_pullup_pulldown(PullUpPullDown::PullDown),
-            hil::gpio::InputMode::PullNone => {
-                self.set_pullup_pulldown(PullUpPullDown::NoPullUpPullDown)
-            }
+    fn set_client(&self, client: &'static hil::gpio::Client) {
+        self.client.set(client);
+    }
+
+    fn is_pending(&self) -> bool {
+        unsafe {
+            self.exti_lineid
+                .map_or(false, |&mut lineid| exti::EXTI.is_pending(lineid))
         }
     }
 }

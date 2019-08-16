@@ -504,6 +504,28 @@ impl Exti<'a> {
         }
     }
 
+    pub fn is_pending(&self, lineid: LineId) -> bool {
+        let val = match lineid {
+            LineId::Exti0 => self.registers.pr.read(PR::PR0),
+            LineId::Exti1 => self.registers.pr.read(PR::PR1),
+            LineId::Exti2 => self.registers.pr.read(PR::PR2),
+            LineId::Exti3 => self.registers.pr.read(PR::PR3),
+            LineId::Exti4 => self.registers.pr.read(PR::PR4),
+            LineId::Exti5 => self.registers.pr.read(PR::PR5),
+            LineId::Exti6 => self.registers.pr.read(PR::PR6),
+            LineId::Exti7 => self.registers.pr.read(PR::PR7),
+            LineId::Exti8 => self.registers.pr.read(PR::PR8),
+            LineId::Exti9 => self.registers.pr.read(PR::PR9),
+            LineId::Exti10 => self.registers.pr.read(PR::PR10),
+            LineId::Exti11 => self.registers.pr.read(PR::PR11),
+            LineId::Exti12 => self.registers.pr.read(PR::PR12),
+            LineId::Exti13 => self.registers.pr.read(PR::PR13),
+            LineId::Exti14 => self.registers.pr.read(PR::PR14),
+            LineId::Exti15 => self.registers.pr.read(PR::PR15),
+        };
+        val > 0
+    }
+
     pub fn select_rising_trigger(&self, lineid: LineId) {
         match lineid {
             LineId::Exti0 => self.registers.rtsr.modify(RTSR::TR0::SET),

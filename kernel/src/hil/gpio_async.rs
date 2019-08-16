@@ -23,9 +23,9 @@ pub trait Port {
     /// Configure a pin as an ouput GPIO.
     fn make_output(&self, pin: usize) -> ReturnCode;
 
-    /// Configure a pin as an input GPIO. Not all InputMode settings may
+    /// Configure a pin as an input GPIO. Not all FloatingMode settings may
     /// be supported by a given device.
-    fn make_input(&self, pin: usize, mode: hil::gpio::InputMode) -> ReturnCode;
+    fn make_input(&self, pin: usize, mode: hil::gpio::FloatingState) -> ReturnCode;
 
     /// Get the state (0 or 1) of an input pin. The value will be returned
     /// via a callback.
@@ -43,15 +43,12 @@ pub trait Port {
     /// Setup an interrupt on a GPIO input pin. The identifier should be
     /// the port number and will be returned when the interrupt callback
     /// fires.
-    fn enable_interrupt(
-        &self,
-        pin: usize,
-        mode: hil::gpio::InterruptMode,
-        identifier: usize,
-    ) -> ReturnCode;
+    fn enable_interrupt(&self, pin: usize, mode: hil::gpio::InterruptEdge) -> ReturnCode;
 
     /// Disable an interrupt on a GPIO input pin.
     fn disable_interrupt(&self, pin: usize) -> ReturnCode;
+
+    fn is_pending(&self, pin: usize) -> bool;
 }
 
 /// The gpio_async Client interface is used to both receive callbacks

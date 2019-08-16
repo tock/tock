@@ -1,12 +1,12 @@
-//! Implementation of the GPIO controller.
+//! Implementation of the GPIO controller for the SAM4L.
 
-use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::hil::gpio;
 
 #[repr(C)]
 struct Register {
@@ -158,16 +158,12 @@ impl Port {
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
         // are enabled in Interrupt Enabled Register (IER).
         let mut fired = port.ifr.val.get() & port.ier.val.get();
-
-        // About to handle all the interrupts, so just clear them now to get
-        // over with it.
-        port.ifr.clear.set(!0);
-
         loop {
             let pin = fired.trailing_zeros() as usize;
             if pin < self.pins.len() {
                 fired &= !(1 << pin);
                 self.pins[pin].handle_interrupt();
+                port.ifr.clear.set(1 << pin);
             } else {
                 break;
             }
@@ -294,7 +290,6 @@ pub static mut PC: Port = Port {
 pub struct GPIOPin {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
-    client_data: Cell<usize>,
     client: OptionalCell<&'static hil::gpio::Client>,
 }
 
@@ -307,12 +302,11 @@ impl GPIOPin {
                 )
             },
             pin_mask: 1 << ((pin as u32) % 32),
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
     }
 
-    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
+    pub fn set_client(&self, client: &'static gpio::Client) {
         self.client.set(client);
     }
 
@@ -350,6 +344,11 @@ impl GPIOPin {
     pub fn disable(&self) {
         let port: &GpioRegisters = &*self.port;
         port.gper.clear.set(self.pin_mask);
+    }
+
+    pub fn is_pending(&self) -> bool {
+        let port: &GpioRegisters = &*self.port;
+        (port.ifr.val.get() & self.pin_mask) != 0
     }
 
     pub fn enable_output(&self) {
@@ -427,7 +426,7 @@ impl GPIOPin {
 
     pub fn handle_interrupt(&self) {
         self.client.map(|client| {
-            client.fired(self.client_data.get());
+            client.fired();
         });
     }
 
@@ -446,9 +445,10 @@ impl GPIOPin {
         (port.pvr.get() & self.pin_mask) > 0
     }
 
-    pub fn toggle(&self) {
+    pub fn toggle(&self) -> bool {
         let port: &GpioRegisters = &*self.port;
         port.ovr.toggle.set(self.pin_mask);
+        self.read()
     }
 
     pub fn set(&self) {
@@ -473,48 +473,103 @@ impl hil::Controller for GPIOPin {
     }
 }
 
-impl hil::gpio::PinCtl for GPIOPin {
-    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
+impl gpio::Pin for GPIOPin {}
+impl gpio::InterruptPin for GPIOPin {}
+
+impl gpio::Configure for GPIOPin {
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
         match mode {
-            hil::gpio::InputMode::PullUp => {
+            gpio::FloatingState::PullUp => {
                 self.disable_pull_down();
                 self.enable_pull_up();
             }
-            hil::gpio::InputMode::PullDown => {
+            gpio::FloatingState::PullDown => {
                 self.disable_pull_up();
                 self.enable_pull_down();
             }
-            hil::gpio::InputMode::PullNone => {
+            gpio::FloatingState::PullNone => {
                 self.disable_pull_up();
                 self.disable_pull_down();
             }
         }
     }
-}
 
-impl hil::gpio::Pin for GPIOPin {
-    fn disable(&self) {
+    fn deactivate_to_low_power(&self) {
         GPIOPin::disable(self);
     }
 
-    fn make_output(&self) {
+    fn make_output(&self) -> gpio::Configuration {
         self.enable();
         GPIOPin::enable_output(self);
         self.disable_schmidtt_trigger();
+        gpio::Configuration::Output
     }
 
-    fn make_input(&self) {
+    fn make_input(&self) -> gpio::Configuration {
         self.enable();
         GPIOPin::disable_output(self);
         self.enable_schmidtt_trigger();
+        gpio::Configuration::Input
     }
 
+    fn disable_output(&self) -> gpio::Configuration {
+        let port: &GpioRegisters = &*self.port;
+        port.oder.clear.set(self.pin_mask);
+        self.configuration()
+    }
+
+    fn disable_input(&self) -> gpio::Configuration {
+        self.configuration()
+    }
+
+    fn is_input(&self) -> bool {
+        let port: &GpioRegisters = &*self.port;
+        port.gper.val.get() & self.pin_mask != 0
+    }
+
+    fn is_output(&self) -> bool {
+        let port: &GpioRegisters = &*self.port;
+        port.oder.val.get() & self.pin_mask != 0
+    }
+
+    fn floating_state(&self) -> gpio::FloatingState {
+        let port: &GpioRegisters = &*self.port;
+        let down = (port.pder.val.get() & self.pin_mask) != 0;
+        let up = (port.puer.val.get() & self.pin_mask) != 0;
+        if down {
+            gpio::FloatingState::PullDown
+        } else if up {
+            gpio::FloatingState::PullUp
+        } else {
+            gpio::FloatingState::PullNone
+        }
+    }
+
+    fn configuration(&self) -> gpio::Configuration {
+        let port: &GpioRegisters = &*self.port;
+        let input = self.is_input();
+        let output = self.is_output();
+        let gpio = (port.gper.val.get() & self.pin_mask) == 1;
+        let config = (gpio, input, output);
+        match config {
+            (false, _, _) => gpio::Configuration::Function,
+            (true, false, false) => gpio::Configuration::Other,
+            (true, false, true) => gpio::Configuration::Output,
+            (true, true, false) => gpio::Configuration::Input,
+            (true, true, true) => gpio::Configuration::InputOutput,
+        }
+    }
+}
+
+impl gpio::Input for GPIOPin {
     fn read(&self) -> bool {
         GPIOPin::read(self)
     }
+}
 
-    fn toggle(&self) {
-        GPIOPin::toggle(self);
+impl gpio::Output for GPIOPin {
+    fn toggle(&self) -> bool {
+        GPIOPin::toggle(self)
     }
 
     fn set(&self) {
@@ -524,19 +579,28 @@ impl hil::gpio::Pin for GPIOPin {
     fn clear(&self) {
         GPIOPin::clear(self);
     }
+}
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+impl gpio::Interrupt for GPIOPin {
+    fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let mode_bits = match mode {
-            hil::gpio::InterruptMode::EitherEdge => 0b00,
-            hil::gpio::InterruptMode::RisingEdge => 0b01,
-            hil::gpio::InterruptMode::FallingEdge => 0b10,
+            hil::gpio::InterruptEdge::EitherEdge => 0b00,
+            hil::gpio::InterruptEdge::RisingEdge => 0b01,
+            hil::gpio::InterruptEdge::FallingEdge => 0b10,
         };
-        self.client_data.set(client_data);
         GPIOPin::set_interrupt_mode(self, mode_bits);
         GPIOPin::enable_interrupt(self);
     }
 
-    fn disable_interrupt(&self) {
+    fn disable_interrupts(&self) {
         GPIOPin::disable_interrupt(self);
+    }
+
+    fn set_client(&self, client: &'static gpio::Client) {
+        GPIOPin::set_client(self, client);
+    }
+
+    fn is_pending(&self) -> bool {
+        GPIOPin::is_pending(self)
     }
 }

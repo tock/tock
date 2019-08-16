@@ -1,5 +1,3 @@
-use core::cell::Cell;
-
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, Field, FieldValue, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -85,7 +83,6 @@ pub struct GpioPin {
     pin: Field<u32, pins::Register>,
     set: FieldValue<u32, pins::Register>,
     clear: FieldValue<u32, pins::Register>,
-    client_data: Cell<usize>,
     client: OptionalCell<&'static hil::gpio::Client>,
 }
 
@@ -101,13 +98,8 @@ impl GpioPin {
             pin: pin,
             set: set,
             clear: clear,
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
         }
-    }
-
-    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(client);
     }
 
     /// Configure this pin as IO Function 0. What that maps to is chip- and pin-
@@ -142,59 +134,103 @@ impl GpioPin {
         regs.low_ip.modify(self.set);
 
         self.client.map(|client| {
-            client.fired(self.client_data.get());
+            client.fired();
         });
     }
 }
 
-impl hil::gpio::PinCtl for GpioPin {
-    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
+impl hil::gpio::Configure for GpioPin {
+    fn configuration(&self) -> hil::gpio::Configuration {
+        let regs = self.registers;
+
+        if regs.iof_en.is_set(self.pin) {
+            return hil::gpio::Configuration::Function;
+        }
+
+        let output = regs.output_en.is_set(self.pin);
+        let input = regs.output_en.is_set(self.pin);
+
+        return match (input, output) {
+            (true, true) => hil::gpio::Configuration::InputOutput,
+            (true, false) => hil::gpio::Configuration::Input,
+            (false, true) => hil::gpio::Configuration::Output,
+            (false, false) => hil::gpio::Configuration::LowPower,
+        };
+    }
+
+    fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
         let regs = self.registers;
 
         match mode {
-            hil::gpio::InputMode::PullUp => {
+            hil::gpio::FloatingState::PullUp => {
                 regs.pullup.modify(self.set);
             }
-            hil::gpio::InputMode::PullDown => {
+            hil::gpio::FloatingState::PullDown => {
                 regs.pullup.modify(self.clear);
             }
-            hil::gpio::InputMode::PullNone => {
+            hil::gpio::FloatingState::PullNone => {
                 regs.pullup.modify(self.clear);
             }
         }
     }
-}
 
-impl hil::gpio::Pin for GpioPin {
-    fn disable(&self) {
-        // NOP. There does not seem to be a way to "disable" a GPIO pin on this
-        // chip.
+    fn floating_state(&self) -> hil::gpio::FloatingState {
+        let regs = self.registers;
+        if regs.pullup.is_set(self.pin) {
+            hil::gpio::FloatingState::PullUp
+        } else {
+            hil::gpio::FloatingState::PullDown
+        }
     }
 
-    fn make_output(&self) {
+    fn deactivate_to_low_power(&self) {
+        self.disable_input();
+        self.disable_output();
+    }
+
+    fn make_output(&self) -> hil::gpio::Configuration {
         let regs = self.registers;
 
         regs.drive.modify(self.clear);
         regs.out_xor.modify(self.clear);
         regs.output_en.modify(self.set);
         regs.iof_en.modify(self.clear);
+
+        self.configuration()
     }
 
-    fn make_input(&self) {
+    fn disable_output(&self) -> hil::gpio::Configuration {
+        let regs = self.registers;
+        regs.output_en.modify(self.clear);
+        self.configuration()
+    }
+
+    fn make_input(&self) -> hil::gpio::Configuration {
         let regs = self.registers;
 
-        regs.pullup.modify(self.clear);
         regs.input_en.modify(self.set);
         regs.iof_en.modify(self.clear);
+
+        self.configuration()
     }
 
+    fn disable_input(&self) -> hil::gpio::Configuration {
+        let regs = self.registers;
+        regs.input_en.modify(self.clear);
+        self.configuration()
+    }
+}
+
+impl hil::gpio::Input for GpioPin {
     fn read(&self) -> bool {
         let regs = self.registers;
 
         regs.value.is_set(self.pin)
     }
+}
 
-    fn toggle(&self) {
+impl hil::gpio::Output for GpioPin {
+    fn toggle(&self) -> bool {
         let regs = self.registers;
 
         let current_outputs = regs.port.extract();
@@ -203,6 +239,7 @@ impl hil::gpio::Pin for GpioPin {
         } else {
             regs.port.modify_no_read(current_outputs, self.set);
         }
+        regs.port.extract().is_set(self.pin)
     }
 
     fn set(&self) {
@@ -216,34 +253,47 @@ impl hil::gpio::Pin for GpioPin {
 
         regs.port.modify(self.clear);
     }
+}
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+impl hil::gpio::Interrupt for GpioPin {
+    fn set_client(&self, client: &'static hil::gpio::Client) {
+        self.client.set(client);
+    }
+
+    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         let regs = self.registers;
 
         regs.pullup.modify(self.clear);
         regs.input_en.modify(self.set);
         regs.iof_en.modify(self.clear);
 
-        self.client_data.set(client_data);
-
         match mode {
-            hil::gpio::InterruptMode::RisingEdge => {
+            hil::gpio::InterruptEdge::RisingEdge => {
                 regs.rise_ie.modify(self.set);
             }
-            hil::gpio::InterruptMode::FallingEdge => {
+            hil::gpio::InterruptEdge::FallingEdge => {
                 regs.fall_ie.modify(self.set);
             }
-            hil::gpio::InterruptMode::EitherEdge => {
+            hil::gpio::InterruptEdge::EitherEdge => {
                 regs.rise_ie.modify(self.set);
                 regs.fall_ie.modify(self.set);
             }
         }
     }
 
-    fn disable_interrupt(&self) {
+    fn disable_interrupts(&self) {
         let regs = self.registers;
 
         regs.rise_ie.modify(self.clear);
         regs.fall_ie.modify(self.clear);
     }
+
+    fn is_pending(&self) -> bool {
+        let regs = self.registers;
+
+        regs.rise_ip.is_set(self.pin) || regs.fall_ip.is_set(self.pin)
+    }
 }
+
+impl hil::gpio::Pin for GpioPin {}
+impl hil::gpio::InterruptPin for GpioPin {}

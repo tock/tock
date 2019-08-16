@@ -21,6 +21,7 @@ use capsules::gpio;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::gpio::InterruptValueWrapper;
 use kernel::static_init;
 
 pub struct GpioComponent {
@@ -36,32 +37,60 @@ impl GpioComponent {
 }
 
 impl Component for GpioComponent {
-    type Output = &'static gpio::GPIO<'static, sam4l::gpio::GPIOPin>;
+    type Output = &'static gpio::GPIO<'static>;
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let gpio_pins = static_init!(
-            [&'static sam4l::gpio::GPIOPin; 7],
+            [&'static kernel::hil::gpio::InterruptValuePin; 7],
             [
-                &sam4l::gpio::PC[31], // P2
-                &sam4l::gpio::PC[30], // P3
-                &sam4l::gpio::PC[29], // P4
-                &sam4l::gpio::PC[28], // P5
-                &sam4l::gpio::PC[27], // P6
-                &sam4l::gpio::PC[26], // P7
-                &sam4l::gpio::PA[20], // P8
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[31])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[30])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[29])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[28])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[27])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[26])
+                )
+                .finalize(),
+                static_init!(
+                    InterruptValueWrapper,
+                    InterruptValueWrapper::new(&sam4l::gpio::PC[20])
+                )
+                .finalize(),
             ]
         );
 
         let gpio = static_init!(
-            gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+            gpio::GPIO<'static>,
             gpio::GPIO::new(gpio_pins, self.board_kernel.create_grant(&grant_cap))
         );
+
         for pin in gpio_pins.iter() {
             pin.set_client(gpio);
         }
-
         gpio
     }
 }

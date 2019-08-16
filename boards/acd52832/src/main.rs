@@ -10,7 +10,9 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
-use kernel::hil::gpio::Pin;
+use kernel::hil::gpio::{
+    Configure, InterruptValuePin, InterruptValueWrapper, InterruptWithValue, Output, Pin,
+};
 use kernel::hil::rng::Rng;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -57,10 +59,10 @@ pub struct Platform {
         nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc>,
     >,
-    button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static>,
     console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
@@ -115,29 +117,84 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 14],
+        [&'static kernel::hil::gpio::InterruptValuePin; 14],
         [
-            &nrf5x::gpio::PORT[3], // Bottom right header on DK board
-            &nrf5x::gpio::PORT[4],
-            &nrf5x::gpio::PORT[28],
-            &nrf5x::gpio::PORT[29],
-            &nrf5x::gpio::PORT[30],
-            // &nrf5x::gpio::PORT[31], // -----
-            &nrf5x::gpio::PORT[12], // Top mid header on DK board
-            &nrf5x::gpio::PORT[11], // -----
-            &nrf5x::gpio::PORT[27], // Top left header on DK board
-            &nrf5x::gpio::PORT[26],
-            &nrf5x::gpio::PORT[2],
-            &nrf5x::gpio::PORT[25],
-            &nrf5x::gpio::PORT[24],
-            &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22], // -----
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[3])
+            )
+            .finalize(), // Bottom right header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[4])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[28])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[29])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[30])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[12])
+            )
+            .finalize(), // Top mid header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[11])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[27])
+            )
+            .finalize(), // Top left header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[26])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[2])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[25])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[24])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[23])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[22])
+            )
+            .finalize(),
         ]
     );
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&'static Pin, capsules::led::ActivationMode); 4],
         [
             (
                 &nrf5x::gpio::PORT[LED1_PIN],
@@ -160,26 +217,42 @@ pub unsafe fn reset_handler() {
 
     // Setup GPIO pins that correspond to buttons
     let button_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
+        [(&'static InterruptValuePin, capsules::button::GpioMode); 4],
         [
             // 13
             (
-                &nrf5x::gpio::PORT[BUTTON1_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON1_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             // 14
             (
-                &nrf5x::gpio::PORT[BUTTON2_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON2_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             // 15
             (
-                &nrf5x::gpio::PORT[BUTTON3_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON3_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             // 16
             (
-                &nrf5x::gpio::PORT[BUTTON4_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON4_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
         ]
@@ -205,7 +278,7 @@ pub unsafe fn reset_handler() {
     // GPIO Pins
     //
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
+        capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
             gpio_pins,
             board_kernel.create_grant(&memory_allocation_capability)
@@ -219,7 +292,7 @@ pub unsafe fn reset_handler() {
     // LEDs
     //
     let led = static_init!(
-        capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+        capsules::led::LED<'static>,
         capsules::led::LED::new(led_pins)
     );
 
@@ -227,15 +300,14 @@ pub unsafe fn reset_handler() {
     // Buttons
     //
     let button = static_init!(
-        capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
             button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     for &(btn, _) in button_pins.iter() {
-        use kernel::hil::gpio::PinCtl;
-        btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
+        btn.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
         btn.set_client(button);
     }
 
@@ -371,6 +443,16 @@ pub unsafe fn reset_handler() {
     nrf52::i2c::TWIM0.set_client(i2c_mux);
 
     // Configure the MCP23017. Device address 0x20.
+    let mcp_pin0 = static_init!(
+        InterruptValueWrapper,
+        InterruptValueWrapper::new(&nrf5x::gpio::PORT[11])
+    )
+    .finalize();
+    let mcp_pin1 = static_init!(
+        InterruptValueWrapper,
+        InterruptValueWrapper::new(&nrf5x::gpio::PORT[12])
+    )
+    .finalize();
     let mcp23017_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
         capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x40)
@@ -379,16 +461,16 @@ pub unsafe fn reset_handler() {
         capsules::mcp230xx::MCP230xx<'static>,
         capsules::mcp230xx::MCP230xx::new(
             mcp23017_i2c,
-            Some(&nrf5x::gpio::PORT[11]),
-            Some(&nrf5x::gpio::PORT[12]),
+            Some(mcp_pin0),
+            Some(mcp_pin1),
             &mut capsules::mcp230xx::BUFFER,
             8,
             2
         )
     );
     mcp23017_i2c.set_client(mcp23017);
-    nrf5x::gpio::PORT[11].set_client(mcp23017);
-    nrf5x::gpio::PORT[12].set_client(mcp23017);
+    mcp_pin0.set_client(mcp23017);
+    mcp_pin1.set_client(mcp23017);
 
     //
     // GPIO Extenders

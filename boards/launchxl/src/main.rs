@@ -17,9 +17,7 @@ use cc26x2::pwm;
 use kernel::capabilities;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
-use kernel::hil::gpio::InterruptMode;
-use kernel::hil::gpio::Pin;
-use kernel::hil::gpio::PinCtl;
+use kernel::hil::gpio;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 
@@ -53,10 +51,10 @@ static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 pub struct Platform {
-    gpio: &'static capsules::gpio::GPIO<'static, cc26x2::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, cc26x2::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static>,
     console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static, cc26x2::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
@@ -182,7 +180,7 @@ pub unsafe fn reset_handler() {
     // LEDs
     let led_pins = static_init!(
         [(
-            &'static cc26x2::gpio::GPIOPin,
+            &'static kernel::hil::gpio::Pin,
             capsules::led::ActivationMode
         ); 2],
         [
@@ -197,38 +195,44 @@ pub unsafe fn reset_handler() {
         ]
     );
     let led = static_init!(
-        capsules::led::LED<'static, cc26x2::gpio::GPIOPin>,
+        capsules::led::LED<'static>,
         capsules::led::LED::new(led_pins)
     );
 
     // BUTTONS
     let button_pins = static_init!(
-        [(&'static cc26x2::gpio::GPIOPin, capsules::button::GpioMode); 2],
+        [(&'static gpio::InterruptValuePin, capsules::button::GpioMode); 2],
         [
             (
-                &cc26x2::gpio::PORT[pinmap.button1],
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button1])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
-            ), // Button 1
+            ),
             (
-                &cc26x2::gpio::PORT[pinmap.button2],
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button2])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
-            ), // Button 2
+            )
         ]
     );
+
     let button = static_init!(
-        capsules::button::Button<'static, cc26x2::gpio::GPIOPin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
             button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
 
-    let mut count = 0;
-    for &(btn, _) in button_pins.iter() {
-        btn.set_input_mode(hil::gpio::InputMode::PullUp);
-        btn.enable_interrupt(count, InterruptMode::FallingEdge);
-        btn.set_client(button);
-        count += 1;
+    for (pin, _) in button_pins.iter() {
+        pin.set_client(button);
+        pin.set_floating_state(hil::gpio::FloatingState::PullUp);
     }
 
     // UART
@@ -298,20 +302,25 @@ pub unsafe fn reset_handler() {
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static cc26x2::gpio::GPIOPin; 1],
+        [&'static kernel::hil::gpio::InterruptValuePin; 1],
         [
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30
-            &cc26x2::gpio::PORT[pinmap.gpio0],
+            static_init!(
+                gpio::InterruptValueWrapper,
+                gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.gpio0])
+            )
+            .finalize()
         ]
     );
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, cc26x2::gpio::GPIOPin>,
+        capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
             gpio_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
+
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }

@@ -19,6 +19,7 @@ use capsules::button;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::gpio;
 use kernel::static_init;
 
 pub struct ButtonComponent {
@@ -26,6 +27,7 @@ pub struct ButtonComponent {
 }
 
 impl ButtonComponent {
+    const NUM_PINS: usize = 1;
     pub fn new(board_kernel: &'static kernel::Kernel) -> ButtonComponent {
         ButtonComponent {
             board_kernel: board_kernel,
@@ -34,22 +36,32 @@ impl ButtonComponent {
 }
 
 impl Component for ButtonComponent {
-    type Output = &'static button::Button<'static, sam4l::gpio::GPIOPin>;
-
+    type Output = &'static button::Button<'static>;
     unsafe fn finalize(&mut self) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let button_pins = static_init!(
-            [(&'static sam4l::gpio::GPIOPin, button::GpioMode); 1],
-            [(&sam4l::gpio::PC[24], button::GpioMode::LowWhenPressed)]
+            [(
+                &'static kernel::hil::gpio::InterruptValuePin,
+                button::GpioMode
+            ); ButtonComponent::NUM_PINS],
+            [(
+                static_init!(
+                    gpio::InterruptValueWrapper,
+                    gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[24])
+                )
+                .finalize(),
+                button::GpioMode::LowWhenPressed
+            )]
         );
 
         let button = static_init!(
-            button::Button<'static, sam4l::gpio::GPIOPin>,
+            button::Button<'static>,
             button::Button::new(button_pins, self.board_kernel.create_grant(&grant_cap))
         );
-        for &(btn, _) in button_pins.iter() {
-            btn.set_client(button);
+
+        for (pin, _) in button_pins.iter() {
+            pin.set_client(button);
         }
 
         button
