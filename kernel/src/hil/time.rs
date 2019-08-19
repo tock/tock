@@ -72,7 +72,7 @@ impl Frequency for Freq1KHz {
 /// (usually clock tics). Implementors should use the
 /// [`Client`](trait.Client.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
-pub trait Alarm: Time {
+pub trait Alarm<'a>: Time {
     /// Sets a one-shot alarm to fire when the clock reaches `tics`.
     ///
     /// [`Client#fired`](trait.Client.html#tymethod.fired) is signaled
@@ -90,7 +90,7 @@ pub trait Alarm: Time {
     /// Returns the value set in [`set_alarm`](#tymethod.set_alarm)
     fn get_alarm(&self) -> u32;
 
-    fn set_client(&self, client: &'static AlarmClient);
+    fn set_client(&self, client: &'a AlarmClient);
 
     fn is_enabled(&self) -> bool;
 
@@ -121,8 +121,8 @@ pub trait AlarmClient {
 
 /// The `Timer` trait models a timer that can notify when a particular interval
 /// has elapsed.
-pub trait Timer: Time {
-    fn set_client(&self, client: &'static TimerClient);
+pub trait Timer<'a>: Time {
+    fn set_client(&self, client: &'a TimerClient);
 
     /// Sets a one-shot timer to fire in `interval` clock-tics.
     ///
