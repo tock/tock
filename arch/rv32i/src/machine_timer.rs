@@ -3,8 +3,8 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::ReturnCode;
 use kernel::hil;
+use kernel::ReturnCode;
 
 const MTIME_BASE: StaticRef<MachineTimerRegisters> =
     unsafe { StaticRef::new(0x0200_0000 as *const MachineTimerRegisters) };
