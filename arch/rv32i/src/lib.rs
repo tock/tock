@@ -2,6 +2,7 @@
 #![crate_type = "rlib"]
 #![feature(asm, const_fn, lang_items, global_asm)]
 #![feature(crate_visibility_modifier)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 
 pub mod clic;

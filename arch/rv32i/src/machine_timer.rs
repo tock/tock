@@ -3,6 +3,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
+use kernel::ReturnCode;
 use kernel::hil;
 
 const MTIME_BASE: StaticRef<MachineTimerRegisters> =
@@ -27,21 +28,17 @@ register_bitfields![u64,
 
 pub static mut MACHINETIMER: MachineTimer = MachineTimer::new();
 
-pub struct MachineTimer {
+pub struct MachineTimer<'a> {
     registers: StaticRef<MachineTimerRegisters>,
-    client: OptionalCell<&'static hil::time::Client>,
+    client: OptionalCell<&'a hil::time::AlarmClient>,
 }
 
-impl MachineTimer {
-    const fn new() -> MachineTimer {
+impl MachineTimer<'a> {
+    const fn new() -> MachineTimer<'a> {
         MachineTimer {
             registers: MTIME_BASE,
             client: OptionalCell::empty(),
         }
-    }
-
-    pub fn set_client(&self, client: &'static hil::time::Client) {
-        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
@@ -61,23 +58,21 @@ impl MachineTimer {
     }
 }
 
-impl hil::time::Time for MachineTimer {
+impl hil::time::Time for MachineTimer<'a> {
     type Frequency = hil::time::Freq32KHz;
 
-    fn disable(&self) {
-        self.disable_machine_timer();
+    fn now(&self) -> u32 {
+        self.registers.mtime.get() as u32
     }
 
-    fn is_armed(&self) -> bool {
-        // Check if mtimecmp is the max value. If it is, then we are not armed,
-        // otherwise we assume we have a value set.
-        self.registers.mtimecmp.get() != 0xFFFF_FFFF_FFFF_FFFF
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
     }
 }
 
-impl hil::time::Alarm for MachineTimer {
-    fn now(&self) -> u32 {
-        self.registers.mtime.get() as u32
+impl hil::time::Alarm<'a> for MachineTimer<'a> {
+    fn set_client(&self, client: &'a hil::time::AlarmClient) {
+        self.client.set(client);
     }
 
     fn set_alarm(&self, tics: u32) {
@@ -88,5 +83,16 @@ impl hil::time::Alarm for MachineTimer {
 
     fn get_alarm(&self) -> u32 {
         self.registers.mtimecmp.get() as u32
+    }
+
+    fn disable(&self) -> ReturnCode {
+        self.disable_machine_timer();
+        ReturnCode::SUCCESS
+    }
+
+    fn is_enabled(&self) -> bool {
+        // Check if mtimecmp is the max value. If it is, then we are not armed,
+        // otherwise we assume we have a value set.
+        self.registers.mtimecmp.get() != 0xFFFF_FFFF_FFFF_FFFF
     }
 }
