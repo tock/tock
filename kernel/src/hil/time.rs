@@ -154,7 +154,7 @@ pub trait Timer: Time {
     fn time_remaining(&self) -> Option<u32>;
 
     fn is_enabled(&self) -> bool {
-        self.time_remainint().is_some()
+        self.time_remaining().is_some()
     }
 
     /// Cancels an outstanding timer.
