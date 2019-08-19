@@ -26,6 +26,7 @@ pub trait Counter: Time {
 /// This trait is used as an associated type for `Alarm` so clients can portably
 /// convert native cycles to real-time values.
 pub trait Frequency {
+    /// Returns frequency in Hz.
     fn frequency() -> u32;
 }
 
@@ -65,11 +66,11 @@ impl Frequency for Freq1KHz {
     }
 }
 
-/// The `Alarm` trait models a wrapping counter capapable of notifying when the
+/// The `Alarm` trait models a wrapping counter capable of notifying when the
 /// counter reaches a certain value.
 ///
 /// Alarms represent a resource that keeps track of time in some fixed unit
-/// (usually clock tics). Implementors should use the
+/// (usually clock tics). Implementers should use the
 /// [`Client`](trait.Client.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
 pub trait Alarm<'a>: Time {
@@ -90,8 +91,11 @@ pub trait Alarm<'a>: Time {
     /// Returns the value set in [`set_alarm`](#tymethod.set_alarm)
     fn get_alarm(&self) -> u32;
 
+    /// Set the client for interrupt events.
     fn set_client(&self, client: &'a AlarmClient);
 
+    /// Returns whether this alarm is currently active (will eventually trigger
+    /// a callback if there is a client).
     fn is_enabled(&self) -> bool;
 
     /// Enables the alarm using the previously set `tics` for the alarm.
@@ -112,7 +116,7 @@ pub trait Alarm<'a>: Time {
     fn disable(&self) -> ReturnCode;
 }
 
-/// A client of an implementor of the [`Alarm`](trait.Alarm.html) trait.
+/// A client of an implementer of the [`Alarm`](trait.Alarm.html) trait.
 pub trait AlarmClient {
     /// Callback signaled when the alarm's clock reaches the value set in
     /// [`Alarm#set_alarm`](trait.Alarm.html#tymethod.set_alarm).
@@ -122,6 +126,7 @@ pub trait AlarmClient {
 /// The `Timer` trait models a timer that can notify when a particular interval
 /// has elapsed.
 pub trait Timer<'a>: Time {
+    /// Set the client for interrupt events.
     fn set_client(&self, client: &'a TimerClient);
 
     /// Sets a one-shot timer to fire in `interval` clock-tics.
@@ -140,10 +145,12 @@ pub trait Timer<'a>: Time {
     /// repeating.
     fn interval(&self) -> Option<u32>;
 
+    /// Returns whether this is a oneshot (rather than repeating) timer.
     fn is_oneshot(&self) -> bool {
         self.interval().is_none()
     }
 
+    /// Returns whether this is a repeating (rather than oneshot) timer.
     fn is_repeating(&self) -> bool {
         self.interval().is_some()
     }
@@ -153,6 +160,7 @@ pub trait Timer<'a>: Time {
     /// Returns `None` if the timer is disabled.
     fn time_remaining(&self) -> Option<u32>;
 
+    /// Returns whether this timer is currently active (has time remaining).
     fn is_enabled(&self) -> bool {
         self.time_remaining().is_some()
     }
@@ -170,7 +178,7 @@ pub trait Timer<'a>: Time {
     fn cancel(&self) -> ReturnCode;
 }
 
-/// A client of an implementor of the [`Timer`](trait.Timer.html) trait.
+/// A client of an implementer of the [`Timer`](trait.Timer.html) trait.
 pub trait TimerClient {
     /// Callback signaled when the timer's clock reaches the specified interval.
     fn fired(&self);
