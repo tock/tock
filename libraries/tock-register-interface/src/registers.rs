@@ -114,18 +114,27 @@ pub trait TryFromValue<V> {
 }
 
 /// Read/Write registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct ReadWrite<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 /// Read-only registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct ReadOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 /// Write-only registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
