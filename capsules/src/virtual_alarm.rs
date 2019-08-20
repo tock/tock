@@ -46,7 +46,7 @@ impl<A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
 }
 
 impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
-    fn set_client(&self, client: &'a time::AlarmClient) {
+    fn set_client(&'a self, client: &'a time::AlarmClient) {
         self.mux.virtual_alarms.push_head(self);
         self.when.set(0);
         self.armed.set(false);
