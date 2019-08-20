@@ -7,11 +7,11 @@ use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Time};
 use kernel::ReturnCode;
 
-pub struct VirtualMuxAlarm<'a, Alrm: Alarm<'a>> {
-    mux: &'a MuxAlarm<'a, Alrm>,
+pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
+    mux: &'a MuxAlarm<'a, A>,
     when: Cell<u32>,
     armed: Cell<bool>,
-    next: ListLink<'a, VirtualMuxAlarm<'a, Alrm>>,
+    next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
     client: OptionalCell<&'a time::AlarmClient>,
 }
 
@@ -21,8 +21,8 @@ impl<A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, 
     }
 }
 
-impl<Alrm: Alarm<'a>> VirtualMuxAlarm<'a, Alrm> {
-    pub fn new(mux_alarm: &'a MuxAlarm<'a, Alrm>) -> VirtualMuxAlarm<'a, Alrm> {
+impl<A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
+    pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
         VirtualMuxAlarm {
             mux: mux_alarm,
             when: Cell::new(0),
@@ -31,17 +31,10 @@ impl<Alrm: Alarm<'a>> VirtualMuxAlarm<'a, Alrm> {
             client: OptionalCell::empty(),
         }
     }
-
-    pub fn set_client(&'a self, client: &'a time::AlarmClient) {
-        self.mux.virtual_alarms.push_head(self);
-        self.when.set(0);
-        self.armed.set(false);
-        self.client.set(client);
-    }
 }
 
-impl<Alrm: Alarm<'a>> Time for VirtualMuxAlarm<'a, Alrm> {
-    type Frequency = Alrm::Frequency;
+impl<A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
+    type Frequency = A::Frequency;
 
     fn max_tics(&self) -> u32 {
         self.mux.alarm.max_tics()
@@ -52,7 +45,14 @@ impl<Alrm: Alarm<'a>> Time for VirtualMuxAlarm<'a, Alrm> {
     }
 }
 
-impl<Alrm: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, Alrm> {
+impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
+    fn set_client(&self, client: &'a time::AlarmClient) {
+        self.mux.virtual_alarms.push_head(self);
+        self.when.set(0);
+        self.armed.set(false);
+        self.client.set(client);
+    }
+
     fn disable(&self) -> ReturnCode {
         if !self.armed.get() {
             return ReturnCode::SUCCESS;
@@ -79,7 +79,7 @@ impl<Alrm: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, Alrm> {
     fn set_alarm(&self, when: u32) {
         let enabled = self.mux.enabled.get();
 
-        if !self.is_armed() {
+        if !self.armed.get() {
             self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
         }
@@ -105,7 +105,7 @@ impl<Alrm: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, Alrm> {
     }
 }
 
-impl<Alrm: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, Alrm> {
+impl<A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
     fn fired(&self) {
         self.client.map(|client| client.fired());
     }
@@ -113,15 +113,15 @@ impl<Alrm: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, Alrm> {
 
 // MuxAlarm
 
-pub struct MuxAlarm<'a, Alrm: Alarm<'a>> {
-    virtual_alarms: List<'a, VirtualMuxAlarm<'a, Alrm>>,
+pub struct MuxAlarm<'a, A: Alarm<'a>> {
+    virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
     enabled: Cell<usize>,
     prev: Cell<u32>,
-    alarm: &'a Alrm,
+    alarm: &'a A,
 }
 
-impl<Alrm: Alarm<'a>> MuxAlarm<'a, Alrm> {
-    pub const fn new(alarm: &'a Alrm) -> MuxAlarm<'a, Alrm> {
+impl<A: Alarm<'a>> MuxAlarm<'a, A> {
+    pub const fn new(alarm: &'a A) -> MuxAlarm<'a, A> {
         MuxAlarm {
             virtual_alarms: List::new(),
             enabled: Cell::new(0),
@@ -135,7 +135,7 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
-impl<Alrm: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, Alrm> {
+impl<A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
 
