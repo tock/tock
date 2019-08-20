@@ -132,13 +132,6 @@ pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
 }
 
 impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
-    pub const fn new(value: T) -> Self {
-        ReadWrite {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn get(&self) -> T {
         unsafe { ::core::ptr::read_volatile(&self.value) }
@@ -199,13 +192,6 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
 }
 
 impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
-    pub const fn new(value: T) -> Self {
-        ReadOnly {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn get(&self) -> T {
         unsafe { ::core::ptr::read_volatile(&self.value) }
@@ -245,13 +231,6 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
 }
 
 impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
-    pub const fn new(value: T) -> Self {
-        WriteOnly {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn set(&self, value: T) {
         unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
