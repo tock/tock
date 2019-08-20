@@ -19,3 +19,13 @@ relatively new (i.e. from git) version of OpenOCD.
 
 The kernel also assumes there is the default HiFive1 software bootloader running
 on the chip.
+
+Running in QEMU
+---------------
+
+The HiFive1 application can be run in the QEMU emulation platform, allowing quick and easy testing.
+
+QEMU can be started with the following arguments:
+```
+qemu-system-riscv32 -M sifive_e -kernel boards/hifive1/target/riscv32imac-unknown-none-elf/release/hifive1.elf  -nographic
+```
