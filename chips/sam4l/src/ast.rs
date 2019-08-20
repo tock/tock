@@ -10,6 +10,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
 use kernel::hil::Controller;
+use kernel::ReturnCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
@@ -166,7 +167,7 @@ const AST_ADDRESS: StaticRef<AstRegisters> =
 
 pub struct Ast<'a> {
     registers: StaticRef<AstRegisters>,
-    callback: OptionalCell<&'a time::Client>,
+    callback: OptionalCell<&'a time::AlarmClient>,
 }
 
 pub static mut AST: Ast<'static> = Ast {
@@ -175,9 +176,9 @@ pub static mut AST: Ast<'static> = Ast {
 };
 
 impl Controller for Ast<'a> {
-    type Config = &'static time::Client;
+    type Config = &'static time::AlarmClient;
 
-    fn configure(&self, client: &'a time::Client) {
+    fn configure(&self, client: &'a time::AlarmClient) {
         self.callback.set(client);
 
         pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
@@ -204,10 +205,6 @@ impl Ast<'a> {
     fn clock_busy(&self) -> bool {
         let regs: &AstRegisters = &*self.registers;
         regs.sr.is_set(Status::CLKBUSY)
-    }
-
-    pub fn set_client(&self, client: &'a time::Client) {
-        self.callback.set(client);
     }
 
     fn busy(&self) -> bool {
@@ -305,19 +302,18 @@ impl Ast<'a> {
 impl Time for Ast<'a> {
     type Frequency = Freq16KHz;
 
-    fn disable(&self) {
-        self.disable_alarm_irq();
-        self.clear_alarm();
+    fn now(&self) -> u32 {
+        self.get_counter()
     }
 
-    fn is_armed(&self) -> bool {
-        self.is_alarm_enabled()
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
     }
 }
 
-impl Alarm for Ast<'a> {
-    fn now(&self) -> u32 {
-        self.get_counter()
+impl Alarm<'a> for Ast<'a> {
+    fn set_client(&self, client: &'a time::AlarmClient) {
+        self.callback.set(client);
     }
 
     fn set_alarm(&self, mut tics: u32) {
@@ -338,5 +334,15 @@ impl Alarm for Ast<'a> {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
         regs.ar0.read(Value::VALUE)
+    }
+
+    fn disable(&self) -> ReturnCode {
+        self.disable_alarm_irq();
+        self.clear_alarm();
+        ReturnCode::SUCCESS
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.is_alarm_enabled()
     }
 }
