@@ -32,7 +32,7 @@ pub trait IP6RecvClient {
     fn receive(&self, header: IP6Header, payload: &[u8]);
 }
 
-/// Currently only one implemetation of this trait should exist,
+/// Currently only one implementation of this trait should exist,
 /// as we do not multiplex received packets based on the address.
 /// The receiver receives IP packets destined for any local address.
 /// The receiver should drop any packets with destination addresses
