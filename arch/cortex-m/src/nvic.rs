@@ -25,7 +25,7 @@ const NVIC_BASE_ADDRESS: StaticRef<NvicRegisters> =
 
 /// Clear all pending interrupts
 pub unsafe fn clear_all_pending() {
-    let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
     for icpr in nvic.icpr.iter() {
         icpr.set(!0)
     }
@@ -33,7 +33,7 @@ pub unsafe fn clear_all_pending() {
 
 /// Enable all interrupts
 pub unsafe fn enable_all() {
-    let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
     for icer in nvic.iser.iter() {
         icer.set(!0)
     }
@@ -41,7 +41,7 @@ pub unsafe fn enable_all() {
 
 /// Disable all interrupts
 pub unsafe fn disable_all() {
-    let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
     for icer in nvic.icer.iter() {
         icer.set(!0)
     }
@@ -50,7 +50,7 @@ pub unsafe fn disable_all() {
 /// Get the index (0-240) the lowest number pending interrupt, or `None` if none
 /// are pending.
 pub unsafe fn next_pending() -> Option<u32> {
-    let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
 
     for (block, ispr) in nvic.ispr.iter().enumerate() {
         let ispr = ispr.get();
@@ -66,7 +66,7 @@ pub unsafe fn next_pending() -> Option<u32> {
 }
 
 pub unsafe fn has_pending() -> bool {
-    let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
 
     nvic.ispr.iter().fold(0, |i, ispr| ispr.get() | i) != 0
 }
@@ -88,7 +88,7 @@ impl Nvic {
 
     /// Enable the interrupt
     pub fn enable(&self) {
-        let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+        let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
         let idx = self.0 as usize;
 
         nvic.iser[idx / 32].set(1 << (self.0 & 31));
@@ -96,7 +96,7 @@ impl Nvic {
 
     /// Disable the interrupt
     pub fn disable(&self) {
-        let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+        let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
         let idx = self.0 as usize;
 
         nvic.icer[idx / 32].set(1 << (self.0 & 31));
@@ -104,7 +104,7 @@ impl Nvic {
 
     /// Clear pending state
     pub fn clear_pending(&self) {
-        let nvic: &NvicRegisters = &*NVIC_BASE_ADDRESS;
+        let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
         let idx = self.0 as usize;
 
         nvic.icpr[idx / 32].set(1 << (self.0 & 31));
