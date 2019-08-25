@@ -36,8 +36,8 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
 
@@ -64,7 +64,7 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 
-pub struct LowpanTest<'a, A: time::Alarm> {
+pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     alarm: A,
     test_counter: Cell<usize>,
     udp_sender: &'a UDPSender<'a>,
@@ -168,7 +168,7 @@ pub unsafe fn initialize_all(
     udp_lowpan_test
 }
 
-impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
     fn send_done(&self, result: ReturnCode) {
         match result {
             ReturnCode::SUCCESS => {
@@ -183,7 +183,7 @@ impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanT
     }
 }
 
-impl<'a, A: time::Alarm> LowpanTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     pub fn new(
         //sixlowpan_tx: TxState<'a>,
         //radio: &'a Mac<'a>,
@@ -252,7 +252,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm> time::Client for LowpanTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
     fn fired(&self) {
         self.run_test_and_increment();
     }

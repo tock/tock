@@ -29,6 +29,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::time::Alarm;
 use kernel::static_init;
 
 pub struct Isl29035Component {
