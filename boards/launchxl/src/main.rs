@@ -57,7 +57,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc<'static>>,
     >,
     rng: &'static capsules::rng::RngDriver<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<cc26x2::i2c::I2CMaster<'static>>,
@@ -332,7 +332,7 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::MuxAlarm<'static, cc26x2::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&cc26x2::rtc::RTC)
     );
-    rtc.set_client(mux_alarm);
+    hil::time::Alarm::set_client(rtc, mux_alarm);
 
     let virtual_alarm1 = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, cc26x2::rtc::Rtc>,
@@ -348,7 +348,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    virtual_alarm1.set_client(alarm);
+    hil::time::Alarm::set_client(virtual_alarm1, alarm);
 
     let entropy_to_random = static_init!(
         capsules::rng::Entropy32ToRandom<'static>,
