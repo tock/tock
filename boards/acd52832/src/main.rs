@@ -57,7 +57,7 @@ pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio,
-        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
     button: &'static capsules::button::Button<'static>,
     console: &'static capsules::console::Console<'static>,
@@ -66,14 +66,16 @@ pub struct Platform {
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
-    alarm:
-        &'static capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
+    >,
     gpio_async:
         &'static capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
     light: &'static capsules::ambient_light::AmbientLight<'static>,
     buzzer: &'static capsules::buzzer_driver::Buzzer<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
     >,
 }
 
@@ -320,7 +322,7 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC)
     );
-    rtc.set_client(mux_alarm);
+    hil::time::Alarm::set_client(rtc, mux_alarm);
 
     //
     // Timer/Alarm
@@ -343,7 +345,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    alarm_driver_virtual_alarm.set_client(alarm);
+    hil::time::Alarm::set_client(alarm_driver_virtual_alarm, alarm);
 
     //
     // RTT and Console and `debug!()`
@@ -374,7 +376,7 @@ pub unsafe fn reset_handler() {
             &mut capsules::segger_rtt::DOWN_BUFFER
         )
     );
-    virtual_alarm_rtt.set_client(rtt);
+    hil::time::Alarm::set_client(virtual_alarm_rtt, rtt);
 
     //
     // Virtual UART
@@ -588,7 +590,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    virtual_alarm_buzzer.set_client(buzzer);
+    hil::time::Alarm::set_client(virtual_alarm_buzzer, buzzer);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
