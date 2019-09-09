@@ -88,7 +88,7 @@ _ggeneric_isr_no_stacking:
 	str	r2, [r3]
     bx lr /* return here since we have extra words in the assembly */
 
-.align 2
+.align 4
 NVICICER:
   .word 0xE000E180
 MEXC_RETURN_MSP:
@@ -115,6 +115,7 @@ to_kernel:
   ldr r1, EXC_RETURN_MSP
   bx r1
 
+.align 4
 EXC_RETURN_MSP:
   .word 0xFFFFFFF9
 EXC_RETURN_PSP:
@@ -294,7 +295,7 @@ _hardfault_exit:
 
              ldr r0, FEXC_RETURN_MSP
              bx r0
-.align 2
+.align 4
 FEXC_RETURN_MSP:
   .word 0xFFFFFFF9
              "
