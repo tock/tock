@@ -323,6 +323,9 @@ impl Alarm<'a> for Ast<'a> {
             tics = now.wrapping_add(ALARM0_SYNC_TICS);
         }
 
+        // Clear any alarm event that may be pending before setting the new alarm.
+        self.clear_alarm();
+
         while self.busy() {}
         regs.ar0.write(Value::VALUE.val(tics));
         while self.busy() {}
@@ -337,6 +340,8 @@ impl Alarm<'a> for Ast<'a> {
     }
 
     fn disable(&self) -> ReturnCode {
+        // After disable the IRQ and clearing the alarmn bit in the status register, the NVIC bit
+        // is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
         ReturnCode::SUCCESS

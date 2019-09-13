@@ -152,8 +152,9 @@ impl Alarm<'a> for Rtc<'a> {
     fn set_alarm(&self, tics: u32) {
         // Similarly to the disable function, here we don't restart the timer
         // Instead, we just listen for it again
-        self.registers.cc[0].write(CC::CC.val(tics));
         self.registers.intenset.write(Inte::COMPARE0::SET);
+        self.registers.cc[0].write(CC::CC.val(tics));
+        self.registers.events_compare[0].write(Event::READY::CLEAR);
     }
 
     fn get_alarm(&self) -> u32 {
@@ -162,6 +163,7 @@ impl Alarm<'a> for Rtc<'a> {
 
     fn disable(&self) -> ReturnCode {
         self.registers.intenclr.write(Inte::COMPARE0::SET);
+        self.registers.events_compare[0].write(Event::READY::CLEAR);
         ReturnCode::SUCCESS
     }
 
