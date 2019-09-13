@@ -4,6 +4,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
+use kernel::ReturnCode;
 
 #[repr(C)]
 struct RtcRegisters {
@@ -60,15 +61,15 @@ register_bitfields![
 const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40092000 as *const RtcRegisters) };
 
-pub struct Rtc {
+pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    callback: OptionalCell<&'static time::Client>,
+    callback: OptionalCell<&'a time::AlarmClient>,
 }
 
-pub static mut RTC: Rtc = Rtc::new();
+pub static mut RTC: Rtc<'static> = Rtc::new();
 
-impl Rtc {
-    const fn new() -> Rtc {
+impl Rtc<'a> {
+    const fn new() -> Rtc<'static> {
         Rtc {
             registers: RTC_BASE,
             callback: OptionalCell::empty(),
@@ -132,10 +133,6 @@ impl Rtc {
         self.callback.map(|cb| cb.fired());
     }
 
-    pub fn set_client(&self, client: &'static time::Client) {
-        self.callback.set(client);
-    }
-
     pub fn set_upd_en(&self, value: bool) {
         let regs = &*self.registers;
         if value {
@@ -157,26 +154,21 @@ impl Frequency for RtcFreq {
     }
 }
 
-impl Time for Rtc {
+impl Time for Rtc<'a> {
     type Frequency = RtcFreq;
 
-    fn disable(&self) {
-        let regs = &*self.registers;
-
-        regs.ctl.modify(Control::COMB_EV_MASK::NoEvent);
-        regs.channel_ctl.modify(ChannelControl::CH1_EN::CLEAR);
-
-        regs.sync.get();
+    fn now(&self) -> u32 {
+        self.read_counter()
     }
 
-    fn is_armed(&self) -> bool {
-        self.is_running()
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
     }
 }
 
-impl Alarm for Rtc {
-    fn now(&self) -> u32 {
-        self.read_counter()
+impl Alarm<'a> for Rtc<'a> {
+    fn set_client(&self, client: &'a time::AlarmClient) {
+        self.callback.set(client);
     }
 
     fn set_alarm(&self, tics: u32) {
@@ -192,5 +184,20 @@ impl Alarm for Rtc {
     fn get_alarm(&self) -> u32 {
         let regs = &*self.registers;
         regs.channel1_cmp.get()
+    }
+
+    fn disable(&self) -> ReturnCode {
+        let regs = &*self.registers;
+
+        regs.ctl.modify(Control::COMB_EV_MASK::NoEvent);
+        regs.channel_ctl.modify(ChannelControl::CH1_EN::CLEAR);
+
+        regs.sync.get();
+
+        ReturnCode::SUCCESS
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.is_running()
     }
 }
