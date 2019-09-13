@@ -10,8 +10,8 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
-use kernel::hil;
 use kernel::hil::gpio::Configure;
+use kernel::hil::{self, time::Alarm};
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
