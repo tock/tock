@@ -5,7 +5,6 @@ use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Time};
-use kernel::ReturnCode;
 
 pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     mux: &'a MuxAlarm<'a, A>,
@@ -53,9 +52,9 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         self.client.set(client);
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) {
         if !self.armed.get() {
-            return ReturnCode::SUCCESS;
+            return;
         }
 
         self.armed.set(false);
@@ -68,8 +67,6 @@ impl<A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         if enabled == 0 {
             self.mux.alarm.disable();
         }
-
-        ReturnCode::SUCCESS
     }
 
     fn is_enabled(&self) -> bool {

@@ -4,7 +4,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Frequency, Time};
-use kernel::ReturnCode;
 
 #[repr(C)]
 struct RtcRegisters {
@@ -186,15 +185,13 @@ impl Alarm<'a> for Rtc<'a> {
         regs.channel1_cmp.get()
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) {
         let regs = &*self.registers;
 
         regs.ctl.modify(Control::COMB_EV_MASK::NoEvent);
         regs.channel_ctl.modify(ChannelControl::CH1_EN::CLEAR);
 
         regs.sync.get();
-
-        ReturnCode::SUCCESS
     }
 
     fn is_enabled(&self) -> bool {

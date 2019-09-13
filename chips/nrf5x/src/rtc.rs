@@ -5,7 +5,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 use kernel::hil::Controller;
-use kernel::ReturnCode;
 
 const RTC1_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
@@ -161,10 +160,9 @@ impl Alarm<'a> for Rtc<'a> {
         self.registers.cc[0].read(CC::CC)
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) {
         self.registers.intenclr.write(Inte::COMPARE0::SET);
         self.registers.events_compare[0].write(Event::READY::CLEAR);
-        ReturnCode::SUCCESS
     }
 
     fn is_enabled(&self) -> bool {

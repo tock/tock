@@ -10,7 +10,6 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
 use kernel::hil::Controller;
-use kernel::ReturnCode;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
@@ -339,12 +338,11 @@ impl Alarm<'a> for Ast<'a> {
         regs.ar0.read(Value::VALUE)
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) {
         // After disable the IRQ and clearing the alarmn bit in the status register, the NVIC bit
         // is also guaranteed to be clear.
         self.disable_alarm_irq();
         self.clear_alarm();
-        ReturnCode::SUCCESS
     }
 
     fn is_enabled(&self) -> bool {

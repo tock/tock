@@ -26,7 +26,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{self, register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [
@@ -331,9 +330,8 @@ impl hil::time::Alarm<'a> for TimerAlarm<'a> {
         self.client.set(client);
     }
 
-    fn disable(&self) -> ReturnCode {
+    fn disable(&self) {
         self.disable_interrupts();
-        ReturnCode::SUCCESS
     }
 
     fn is_enabled(&self) -> bool {

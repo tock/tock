@@ -109,11 +109,9 @@ pub trait Alarm<'a>: Time {
 
     /// Disables the alarm.
     ///
-    /// The implementation will _always_ disable the alarm, however, it may be possible for an
-    /// alarm to have already expired but the event not delivered to the client. In this case, the
-    /// implementation must return [`FAIL`] letting the caller know that an event for the alarm
-    /// will still be delivered.
-    fn disable(&self) -> ReturnCode;
+    /// The implementation will _always_ disable the alarm and prevent events related to previously
+    /// set alarms from being delivered to the client.
+    fn disable(&self);
 }
 
 /// A client of an implementer of the [`Alarm`](trait.Alarm.html) trait.
