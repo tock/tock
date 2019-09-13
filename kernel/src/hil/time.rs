@@ -2,20 +2,20 @@
 
 use crate::ReturnCode;
 
-pub trait Time {
+pub trait Time<W=u32> {
     type Frequency: Frequency;
 
     /// Returns the current time in hardware clock units.
-    fn now(&self) -> u32;
+    fn now(&self) -> W;
 
     /// Returns the wrap-around value of the clock.
     ///
     /// The maximum value of the clock, at which `now` will wrap around. I.e., this should return
     /// `core::u32::MAX` on a 32-bit-clock, or `1 << 24` for a 24-bit clock.
-    fn max_tics(&self) -> u32;
+    fn max_tics(&self) -> W;
 }
 
-pub trait Counter: Time {
+pub trait Counter<W=u32>: Time<W> {
     fn start(&self) -> ReturnCode;
     fn stop(&self) -> ReturnCode;
     fn is_running(&self) -> bool;
@@ -73,7 +73,7 @@ impl Frequency for Freq1KHz {
 /// (usually clock tics). Implementers should use the
 /// [`Client`](trait.Client.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
-pub trait Alarm<'a>: Time {
+pub trait Alarm<'a, W=u32>: Time<W> {
     /// Sets a one-shot alarm to fire when the clock reaches `tics`.
     ///
     /// [`Client#fired`](trait.Client.html#tymethod.fired) is signaled
@@ -86,10 +86,10 @@ pub trait Alarm<'a>: Time {
     /// let tics = alarm.now().wrapping_add(delta);
     /// alarm.set_alarm(tics);
     /// ```
-    fn set_alarm(&self, tics: u32);
+    fn set_alarm(&self, tics: W);
 
     /// Returns the value set in [`set_alarm`](#tymethod.set_alarm)
-    fn get_alarm(&self) -> u32;
+    fn get_alarm(&self) -> W;
 
     /// Set the client for interrupt events.
     fn set_client(&'a self, client: &'a AlarmClient);
@@ -123,25 +123,25 @@ pub trait AlarmClient {
 
 /// The `Timer` trait models a timer that can notify when a particular interval
 /// has elapsed.
-pub trait Timer<'a>: Time {
+pub trait Timer<'a, W=u32>: Time<W> {
     /// Set the client for interrupt events.
     fn set_client(&'a self, client: &'a TimerClient);
 
     /// Sets a one-shot timer to fire in `interval` clock-tics.
     ///
     /// Calling this method will override any existing oneshot or repeating timer.
-    fn oneshot(&self, interval: u32);
+    fn oneshot(&self, interval: W);
 
     /// Sets repeating timer to fire every `interval` clock-tics.
     ///
     /// Calling this method will override any existing oneshot or repeating timer.
-    fn repeat(&self, interval: u32);
+    fn repeat(&self, interval: W);
 
     /// Returns the interval for a repeating timer.
     ///
     /// Returns `None` if the timer is disabled or in oneshot mode and `Some(interval)` if it is
     /// repeating.
-    fn interval(&self) -> Option<u32>;
+    fn interval(&self) -> Option<W>;
 
     /// Returns whether this is a oneshot (rather than repeating) timer.
     fn is_oneshot(&self) -> bool {
@@ -156,7 +156,7 @@ pub trait Timer<'a>: Time {
     /// Returns the remaining time in clock tics for a oneshot or repeating timer.
     ///
     /// Returns `None` if the timer is disabled.
-    fn time_remaining(&self) -> Option<u32>;
+    fn time_remaining(&self) -> Option<W>;
 
     /// Returns whether this timer is currently active (has time remaining).
     fn is_enabled(&self) -> bool {
