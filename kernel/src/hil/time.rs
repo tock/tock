@@ -2,7 +2,7 @@
 
 use crate::ReturnCode;
 
-pub trait Time<W=u32> {
+pub trait Time<W = u32> {
     type Frequency: Frequency;
 
     /// Returns the current time in hardware clock units.
@@ -15,7 +15,7 @@ pub trait Time<W=u32> {
     fn max_tics(&self) -> W;
 }
 
-pub trait Counter<W=u32>: Time<W> {
+pub trait Counter<W = u32>: Time<W> {
     fn start(&self) -> ReturnCode;
     fn stop(&self) -> ReturnCode;
     fn is_running(&self) -> bool;
@@ -73,7 +73,7 @@ impl Frequency for Freq1KHz {
 /// (usually clock tics). Implementers should use the
 /// [`Client`](trait.Client.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
-pub trait Alarm<'a, W=u32>: Time<W> {
+pub trait Alarm<'a, W = u32>: Time<W> {
     /// Sets a one-shot alarm to fire when the clock reaches `tics`.
     ///
     /// [`Client#fired`](trait.Client.html#tymethod.fired) is signaled
@@ -123,7 +123,7 @@ pub trait AlarmClient {
 
 /// The `Timer` trait models a timer that can notify when a particular interval
 /// has elapsed.
-pub trait Timer<'a, W=u32>: Time<W> {
+pub trait Timer<'a, W = u32>: Time<W> {
     /// Set the client for interrupt events.
     fn set_client(&'a self, client: &'a TimerClient);
 

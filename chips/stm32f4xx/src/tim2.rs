@@ -307,7 +307,7 @@ const TIM2_BASE: StaticRef<Tim2Registers> =
 pub struct Tim2<'a> {
     registers: StaticRef<Tim2Registers>,
     clock: Tim2Clock,
-    client: OptionalCell<&'a hil::time::Client>,
+    client: OptionalCell<&'a hil::time::AlarmClient>,
     irqn: u32,
 }
 
@@ -335,10 +335,6 @@ impl Tim2<'a> {
         self.clock.disable();
     }
 
-    pub fn set_client(&self, client: &'a hil::time::Client) {
-        self.client.set(client);
-    }
-
     pub fn handle_interrupt(&self) {
         self.registers.sr.modify(SR::CC1IF::CLEAR);
 
@@ -360,9 +356,9 @@ impl Tim2<'a> {
     }
 }
 
-impl hil::time::Alarm for Tim2<'a> {
-    fn now(&self) -> u32 {
-        self.registers.cnt.get()
+impl hil::time::Alarm<'a> for Tim2<'a> {
+    fn set_client(&self, client: &'a hil::time::AlarmClient) {
+        self.client.set(client);
     }
 
     fn set_alarm(&self, tics: u32) {
@@ -373,10 +369,6 @@ impl hil::time::Alarm for Tim2<'a> {
     fn get_alarm(&self) -> u32 {
         self.registers.ccr1.get()
     }
-}
-
-impl hil::time::Time for Tim2<'a> {
-    type Frequency = hil::time::Freq16KHz;
 
     fn disable(&self) {
         unsafe {
@@ -388,9 +380,21 @@ impl hil::time::Time for Tim2<'a> {
         }
     }
 
-    fn is_armed(&self) -> bool {
+    fn is_enabled(&self) -> bool {
         // If counter is enabled, then CC1IE is set
         self.registers.dier.is_set(DIER::CC1IE)
+    }
+}
+
+impl hil::time::Time for Tim2<'a> {
+    type Frequency = hil::time::Freq16KHz;
+
+    fn now(&self) -> u32 {
+        self.registers.cnt.get()
+    }
+
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
     }
 }
 
