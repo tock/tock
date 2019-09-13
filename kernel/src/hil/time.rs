@@ -165,15 +165,9 @@ pub trait Timer<'a, W=u32>: Time<W> {
 
     /// Cancels an outstanding timer.
     ///
-    /// The implementation will _always_ cancel the timer, however, it may be possible for a timer
-    /// to have already expired but not delivered to the client. In this case, the implementation
-    /// must return [`FAIL`] letting the caller know that an event for the timer will still be
+    /// The implementation will _always_ cancel the timer.
     /// delivered.
-    // Q:(alevy) would it be simpler semantics to require the implementation to handle this?
-    // Specifically, if there is a pending interrupt when `cancel` is called, the implementation
-    // should ensure that a callback for the timer event is _not_ delivered. On the SAM4L, at
-    // least, that would be nearly as easy to implement and seems easier to use.
-    fn cancel(&self) -> ReturnCode;
+    fn cancel(&self);
 }
 
 /// A client of an implementer of the [`Timer`](trait.Timer.html) trait.
