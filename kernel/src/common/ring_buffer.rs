@@ -63,4 +63,29 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
         self.head = 0;
         self.tail = 0;
     }
+
+    fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        let len = self.ring.len();
+        // Index over the elements before the retain operation.
+        let mut src = self.head;
+        // Index over the retained elements.
+        let mut dst = self.head;
+
+        while src != self.tail {
+            if f(&self.ring[src]) {
+                // When the predicate is true, move the current element to the
+                // destination if needed, and increment the destination index.
+                if src != dst {
+                    self.ring[dst] = self.ring[src];
+                }
+                dst = (dst + 1) % len;
+            }
+            src = (src + 1) % len;
+        }
+
+        self.tail = dst;
+    }
 }

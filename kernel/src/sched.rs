@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::Callback;
+use crate::callback::{Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -297,9 +297,16 @@ impl Kernel {
                                     callback_ptr,
                                     appdata,
                                 } => {
+                                    let callback_id = CallbackId {
+                                        driver_num: driver_number,
+                                        subscribe_num: subdriver_number,
+                                    };
+                                    process.remove_pending_callbacks(callback_id);
+
                                     let callback_ptr = NonNull::new(callback_ptr);
-                                    let callback = callback_ptr
-                                        .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
+                                    let callback = callback_ptr.map(|ptr| {
+                                        Callback::new(appid, callback_id, appdata, ptr.cast())
+                                    });
 
                                     let res =
                                         platform.with_driver(
