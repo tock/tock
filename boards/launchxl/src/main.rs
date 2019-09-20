@@ -39,7 +39,8 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 3;
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None, None, None];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None, None, None];
 
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
@@ -67,7 +68,7 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -180,7 +181,7 @@ pub unsafe fn reset_handler() {
     // LEDs
     let led_pins = static_init!(
         [(
-            &'static kernel::hil::gpio::Pin,
+            &'static dyn kernel::hil::gpio::Pin,
             capsules::led::ActivationMode
         ); 2],
         [
@@ -201,7 +202,10 @@ pub unsafe fn reset_handler() {
 
     // BUTTONS
     let button_pins = static_init!(
-        [(&'static gpio::InterruptValuePin, capsules::button::GpioMode); 2],
+        [(
+            &'static dyn gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); 2],
         [
             (
                 static_init!(
@@ -302,7 +306,7 @@ pub unsafe fn reset_handler() {
 
     // Setup for remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptValuePin; 1],
+        [&'static dyn kernel::hil::gpio::InterruptValuePin; 1],
         [
             // This is the order they appear on the launchxl headers.
             // Pins 5, 8, 11, 29, 30

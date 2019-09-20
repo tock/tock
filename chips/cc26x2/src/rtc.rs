@@ -166,7 +166,7 @@ impl Time for Rtc<'a> {
 }
 
 impl Alarm<'a> for Rtc<'a> {
-    fn set_client(&self, client: &'a time::AlarmClient) {
+    fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
 
