@@ -145,7 +145,7 @@ const AES_BASE: StaticRef<AesRegisters> =
 pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
 
-    client: OptionalCell<&'a hil::symmetric_encryption::Client<'a>>,
+    client: OptionalCell<&'a dyn hil::symmetric_encryption::Client<'a>>,
     source: TakeCell<'a, [u8]>,
     dest: TakeCell<'a, [u8]>,
 
@@ -416,7 +416,7 @@ impl hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         self.disable_clock();
     }
 
-    fn set_client(&'a self, client: &'a hil::symmetric_encryption::Client<'a>) {
+    fn set_client(&'a self, client: &'a dyn hil::symmetric_encryption::Client<'a>) {
         self.client.set(client);
     }
 

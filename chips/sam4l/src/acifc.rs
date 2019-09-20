@@ -275,7 +275,7 @@ const ACIFC_BASE: StaticRef<AcifcRegisters> =
     unsafe { StaticRef::new(0x40040000 as *const AcifcRegisters) };
 
 pub struct Acifc<'a> {
-    client: Cell<Option<&'a analog_comparator::Client>>,
+    client: Cell<Option<&'a dyn analog_comparator::Client>>,
 }
 
 /// Implement constructor for struct Acifc
@@ -294,7 +294,7 @@ impl<'a> Acifc<'a> {
         pm::disable_clock(pm::Clock::PBA(pm::PBAClock::ACIFC));
     }
 
-    pub fn set_client(&self, client: &'a analog_comparator::Client) {
+    pub fn set_client(&self, client: &'a dyn analog_comparator::Client) {
         self.client.set(Some(client));
     }
 

@@ -127,7 +127,7 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static EverythingClient>,
+    client: OptionalCell<&'static dyn EverythingClient>,
 }
 
 /// Memory mapped registers for the ADC.

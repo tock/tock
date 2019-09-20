@@ -194,7 +194,7 @@ pub static mut DMA_CHANNELS: [DMAChannel; 16] = [
 
 pub struct DMAChannel {
     registers: StaticRef<DMARegisters>,
-    client: OptionalCell<&'static DMAClient>,
+    client: OptionalCell<&'static dyn DMAClient>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
@@ -219,7 +219,7 @@ impl DMAChannel {
         }
     }
 
-    pub fn initialize(&self, client: &'static mut DMAClient, width: DMAWidth) {
+    pub fn initialize(&self, client: &'static mut dyn DMAClient, width: DMAWidth) {
         self.client.set(client);
         self.width.set(width);
     }
