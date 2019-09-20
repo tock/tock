@@ -29,7 +29,7 @@ const INSTANCES: [StaticRef<TwimRegisters>; 2] = unsafe {
 /// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
     registers: StaticRef<TwimRegisters>,
-    client: OptionalCell<&'static hil::i2c::I2CHwMasterClient>,
+    client: OptionalCell<&'static dyn hil::i2c::I2CHwMasterClient>,
     buf: TakeCell<'static, [u8]>,
 }
 
@@ -50,7 +50,7 @@ impl TWIM {
         }
     }
 
-    pub fn set_client(&self, client: &'static hil::i2c::I2CHwMasterClient) {
+    pub fn set_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
         debug_assert!(self.client.is_none());
         self.client.set(client);
     }

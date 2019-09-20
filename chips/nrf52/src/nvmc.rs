@@ -197,7 +197,7 @@ pub static mut NVMC: Nvmc = Nvmc::new();
 
 pub struct Nvmc {
     registers: StaticRef<NvmcRegisters>,
-    client: OptionalCell<&'static hil::flash::Client<Nvmc>>,
+    client: OptionalCell<&'static dyn hil::flash::Client<Nvmc>>,
     buffer: TakeCell<'static, NrfPage>,
     state: Cell<FlashState>,
 }

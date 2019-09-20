@@ -246,7 +246,7 @@ static mut SAMPLE: [u16; 1] = [0; 1];
 
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
-    client: OptionalCell<&'static hil::adc::Client>,
+    client: OptionalCell<&'static dyn hil::adc::Client>,
 }
 
 impl Adc {
@@ -258,7 +258,7 @@ impl Adc {
         }
     }
 
-    pub fn set_client(&self, client: &'static hil::adc::Client) {
+    pub fn set_client(&self, client: &'static dyn hil::adc::Client) {
         self.client.set(client);
     }
 

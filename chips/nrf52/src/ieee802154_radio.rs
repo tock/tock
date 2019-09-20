@@ -653,8 +653,8 @@ register_bitfields! [u32,
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: OptionalCell<&'static radio::RxClient>,
-    tx_client: OptionalCell<&'static radio::TxClient>,
+    rx_client: OptionalCell<&'static dyn radio::RxClient>,
+    tx_client: OptionalCell<&'static dyn radio::TxClient>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     addr: Cell<u16>,
@@ -1018,7 +1018,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
         ReturnCode::SUCCESS
     }
 
-    fn set_power_client(&self, _client: &'static PowerClient) {
+    fn set_power_client(&self, _client: &'static dyn PowerClient) {
         //
     }
 
@@ -1057,7 +1057,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
         self.radio_initialize(self.channel.get());
     }
 
-    fn set_config_client(&self, _client: &'static radio::ConfigClient) {}
+    fn set_config_client(&self, _client: &'static dyn radio::ConfigClient) {}
 
     //#################################################
     /// Accessors
@@ -1125,7 +1125,7 @@ impl kernel::hil::radio::RadioConfig for Radio {
 }
 
 impl kernel::hil::radio::RadioData for Radio {
-    fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'static dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);
     }
@@ -1134,7 +1134,7 @@ impl kernel::hil::radio::RadioData for Radio {
         self.rx_buf.replace(buffer);
     }
 
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 

@@ -329,7 +329,7 @@ register_bitfields! [u32,
 
 pub struct GPIOPin {
     pin: u8,
-    client: OptionalCell<&'static hil::gpio::Client>,
+    client: OptionalCell<&'static dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
@@ -440,7 +440,7 @@ impl hil::gpio::Output for GPIOPin {
 impl hil::gpio::Pin for GPIOPin {}
 
 impl hil::gpio::Interrupt for GPIOPin {
-    fn set_client(&self, client: &'static hil::gpio::Client) {
+    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
         self.client.set(client);
     }
 

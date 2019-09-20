@@ -145,7 +145,7 @@ pub enum HighClockSource {
 /// Clock struct
 pub struct Clock {
     registers: StaticRef<ClockRegisters>,
-    client: OptionalCell<&'static ClockClient>,
+    client: OptionalCell<&'static dyn ClockClient>,
 }
 
 pub trait ClockClient {
@@ -168,7 +168,7 @@ impl Clock {
     }
 
     /// Client for callbacks
-    pub fn set_client(&self, client: &'static ClockClient) {
+    pub fn set_client(&self, client: &'static dyn ClockClient) {
         self.client.set(client);
     }
 
