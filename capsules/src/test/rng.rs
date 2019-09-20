@@ -14,11 +14,11 @@ use kernel::ReturnCode;
 const ELEMENTS: usize = 8;
 
 pub struct TestRandom<'a> {
-    random: &'a rng::Random<'a>,
+    random: &'a dyn rng::Random<'a>,
 }
 
 impl<'a> TestRandom<'a> {
-    pub fn new(random: &'a rng::Random<'a>) -> TestRandom<'a> {
+    pub fn new(random: &'a dyn rng::Random<'a>) -> TestRandom<'a> {
         TestRandom { random: random }
     }
 
@@ -33,13 +33,13 @@ impl<'a> TestRandom<'a> {
 
 // Use this test to test an Rng
 pub struct TestRng<'a> {
-    rng: &'a rng::Rng<'a>,
+    rng: &'a dyn rng::Rng<'a>,
     pool: Cell<[u32; ELEMENTS]>,
     count: Cell<usize>,
 }
 
 impl<'a> TestRng<'a> {
-    pub fn new(rng: &'a rng::Rng<'a>) -> TestRng<'a> {
+    pub fn new(rng: &'a dyn rng::Rng<'a>) -> TestRng<'a> {
         TestRng {
             rng: rng,
             pool: Cell::new([0xeeeeeeee; ELEMENTS]),
@@ -58,7 +58,7 @@ impl<'a> TestRng<'a> {
 impl<'a> rng::Client for TestRng<'a> {
     fn randomness_available(
         &self,
-        randomness: &mut Iterator<Item = u32>,
+        randomness: &mut dyn Iterator<Item = u32>,
         error: ReturnCode,
     ) -> rng::Continue {
         let mut val = randomness.next();
@@ -96,13 +96,13 @@ impl<'a> rng::Client for TestRng<'a> {
 
 // Use this test to test a 32 bit Entropy source
 pub struct TestEntropy32<'a> {
-    egen: &'a entropy::Entropy32<'a>,
+    egen: &'a dyn entropy::Entropy32<'a>,
     pool: Cell<[u32; ELEMENTS]>,
     count: Cell<usize>,
 }
 
 impl<'a> TestEntropy32<'a> {
-    pub fn new(egen: &'a entropy::Entropy32<'a>) -> TestEntropy32<'a> {
+    pub fn new(egen: &'a dyn entropy::Entropy32<'a>) -> TestEntropy32<'a> {
         TestEntropy32 {
             egen: egen,
             pool: Cell::new([0xeeeeeeee; ELEMENTS]),
@@ -121,7 +121,7 @@ impl<'a> TestEntropy32<'a> {
 impl<'a> entropy::Client32 for TestEntropy32<'a> {
     fn entropy_available(
         &self,
-        entropy: &mut Iterator<Item = u32>,
+        entropy: &mut dyn Iterator<Item = u32>,
         error: ReturnCode,
     ) -> entropy::Continue {
         let mut val = entropy.next();
@@ -159,13 +159,13 @@ impl<'a> entropy::Client32 for TestEntropy32<'a> {
 
 // Use this test if the underlying Entropy source is an Entropy8
 pub struct TestEntropy8<'a> {
-    egen: &'a entropy::Entropy8<'a>,
+    egen: &'a dyn entropy::Entropy8<'a>,
     pool: Cell<[u8; ELEMENTS]>,
     count: Cell<usize>,
 }
 
 impl<'a> TestEntropy8<'a> {
-    pub fn new(egen: &'a entropy::Entropy8<'a>) -> TestEntropy8<'a> {
+    pub fn new(egen: &'a dyn entropy::Entropy8<'a>) -> TestEntropy8<'a> {
         TestEntropy8 {
             egen: egen,
             pool: Cell::new([0xee; ELEMENTS]),
@@ -184,7 +184,7 @@ impl<'a> TestEntropy8<'a> {
 impl<'a> entropy::Client8 for TestEntropy8<'a> {
     fn entropy_available(
         &self,
-        entropy: &mut Iterator<Item = u8>,
+        entropy: &mut dyn Iterator<Item = u8>,
         error: ReturnCode,
     ) -> entropy::Continue {
         let mut val = entropy.next();

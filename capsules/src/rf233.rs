@@ -198,17 +198,17 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     sleep_pending: Cell<bool>,
     wake_pending: Cell<bool>,
     power_client_pending: Cell<bool>,
-    reset_pin: &'a gpio::Pin,
-    sleep_pin: &'a gpio::Pin,
-    irq_pin: &'a gpio::InterruptPin,
+    reset_pin: &'a dyn gpio::Pin,
+    sleep_pin: &'a dyn gpio::Pin,
+    irq_pin: &'a dyn gpio::InterruptPin,
     state: Cell<InternalState>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     tx_len: Cell<u8>,
-    tx_client: OptionalCell<&'static radio::TxClient>,
-    rx_client: OptionalCell<&'static radio::RxClient>,
-    cfg_client: OptionalCell<&'static radio::ConfigClient>,
-    power_client: OptionalCell<&'static radio::PowerClient>,
+    tx_client: OptionalCell<&'static dyn radio::TxClient>,
+    rx_client: OptionalCell<&'static dyn radio::RxClient>,
+    cfg_client: OptionalCell<&'static dyn radio::ConfigClient>,
+    power_client: OptionalCell<&'static dyn radio::PowerClient>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
@@ -1026,9 +1026,9 @@ impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
 impl<S: spi::SpiMasterDevice> RF233<'a, S> {
     pub fn new(
         spi: &'a S,
-        reset: &'a gpio::Pin,
-        sleep: &'a gpio::Pin,
-        irq: &'a gpio::InterruptPin,
+        reset: &'a dyn gpio::Pin,
+        sleep: &'a dyn gpio::Pin,
+        irq: &'a dyn gpio::InterruptPin,
         channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
@@ -1247,11 +1247,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
         self.state.get() != InternalState::READY && self.state.get() != InternalState::SLEEP
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'static dyn radio::ConfigClient) {
         self.cfg_client.set(client);
     }
 
-    fn set_power_client(&self, client: &'static radio::PowerClient) {
+    fn set_power_client(&self, client: &'static dyn radio::PowerClient) {
         self.power_client.set(client);
     }
 
@@ -1330,11 +1330,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
 }
 
 impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'static dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);
     }

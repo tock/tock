@@ -169,7 +169,7 @@ pub struct MX25R6435F<
     hold_pin: Option<&'a P>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'a hil::flash::Client<MX25R6435F<'a, S, P, A>>>,
+    client: OptionalCell<&'a dyn hil::flash::Client<MX25R6435F<'a, S, P, A>>>,
     client_sector: TakeCell<'static, Mx25r6435fSector>,
 }
 

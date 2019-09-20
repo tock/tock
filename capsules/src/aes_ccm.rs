@@ -73,7 +73,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC> {
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: OptionalCell<&'a symmetric_encryption::CCMClient>,
+    crypt_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
 
     state: Cell<CCMState>,
     confidential: Cell<bool>,
@@ -417,7 +417,7 @@ impl<A: AES128<'a> + AES128Ctr + AES128CBC> AES128CCM<'a, A> {
 impl<A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::AES128CCM<'a>
     for AES128CCM<'a, A>
 {
-    fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
+    fn set_client(&self, client: &'a dyn symmetric_encryption::CCMClient) {
         self.crypt_client.set(client);
     }
 

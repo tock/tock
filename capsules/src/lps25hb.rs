@@ -92,8 +92,8 @@ enum State {
 }
 
 pub struct LPS25HB<'a> {
-    i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a gpio::InterruptPin,
+    i2c: &'a dyn i2c::I2CDevice,
+    interrupt_pin: &'a dyn gpio::InterruptPin,
     callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -101,8 +101,8 @@ pub struct LPS25HB<'a> {
 
 impl LPS25HB<'a> {
     pub fn new(
-        i2c: &'a i2c::I2CDevice,
-        interrupt_pin: &'a gpio::InterruptPin,
+        i2c: &'a dyn i2c::I2CDevice,
+        interrupt_pin: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> LPS25HB<'a> {
         // setup and return struct

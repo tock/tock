@@ -97,8 +97,8 @@ enum ProtocolState {
 }
 
 pub struct TMP006<'a> {
-    i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a gpio::InterruptPin,
+    i2c: &'a dyn i2c::I2CDevice,
+    interrupt_pin: &'a dyn gpio::InterruptPin,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
     callback: OptionalCell<Callback>,
@@ -109,8 +109,8 @@ pub struct TMP006<'a> {
 impl TMP006<'a> {
     /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(
-        i2c: &'a i2c::I2CDevice,
-        interrupt_pin: &'a gpio::InterruptPin,
+        i2c: &'a dyn i2c::I2CDevice,
+        interrupt_pin: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> TMP006<'a> {
         // setup and return struct

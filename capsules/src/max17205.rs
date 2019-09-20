@@ -94,20 +94,20 @@ pub trait MAX17205Client {
 }
 
 pub struct MAX17205<'a> {
-    i2c_lower: &'a i2c::I2CDevice,
-    i2c_upper: &'a i2c::I2CDevice,
+    i2c_lower: &'a dyn i2c::I2CDevice,
+    i2c_upper: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     soc: Cell<u16>,
     soc_mah: Cell<u16>,
     voltage: Cell<u16>,
     buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static MAX17205Client>,
+    client: OptionalCell<&'static dyn MAX17205Client>,
 }
 
 impl MAX17205<'a> {
     pub fn new(
-        i2c_lower: &'a i2c::I2CDevice,
-        i2c_upper: &'a i2c::I2CDevice,
+        i2c_lower: &'a dyn i2c::I2CDevice,
+        i2c_upper: &'a dyn i2c::I2CDevice,
         buffer: &'static mut [u8],
     ) -> MAX17205<'a> {
         MAX17205 {

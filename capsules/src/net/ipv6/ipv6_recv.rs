@@ -38,15 +38,15 @@ pub trait IP6RecvClient {
 /// The receiver should drop any packets with destination addresses
 /// that are not among the local addresses of this device.
 pub trait IP6Receiver<'a> {
-    fn set_client(&self, client: &'a IP6RecvClient);
+    fn set_client(&self, client: &'a dyn IP6RecvClient);
 }
 
 pub struct IP6RecvStruct<'a> {
-    client: OptionalCell<&'a IP6RecvClient>,
+    client: OptionalCell<&'a dyn IP6RecvClient>,
 }
 
 impl<'a> IP6Receiver<'a> for IP6RecvStruct<'a> {
-    fn set_client(&self, client: &'a IP6RecvClient) {
+    fn set_client(&self, client: &'a dyn IP6RecvClient) {
         self.client.set(client);
     }
 }

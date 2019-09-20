@@ -16,11 +16,11 @@ use kernel::hil;
 use kernel::{AppId, Driver, ReturnCode};
 
 pub struct Dac<'a> {
-    dac: &'a hil::dac::DacChannel,
+    dac: &'a dyn hil::dac::DacChannel,
 }
 
 impl Dac<'a> {
-    pub fn new(dac: &'a hil::dac::DacChannel) -> Dac<'a> {
+    pub fn new(dac: &'a dyn hil::dac::DacChannel) -> Dac<'a> {
         Dac { dac: dac }
     }
 }

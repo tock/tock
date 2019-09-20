@@ -297,9 +297,9 @@ fn is_fragment(packet: &[u8]) -> bool {
 
 pub trait SixlowpanState<'a> {
     fn next_dgram_tag(&self) -> u16;
-    fn get_ctx_store(&self) -> &ContextStore;
+    fn get_ctx_store(&self) -> &dyn ContextStore;
     fn add_rx_state(&self, rx_state: &'a RxState<'a>);
-    fn set_rx_client(&'a self, client: &'a SixlowpanRxClient);
+    fn set_rx_client(&'a self, client: &'a dyn SixlowpanRxClient);
 }
 
 /// Tracks the compression state for a single IPv6 packet.
@@ -324,7 +324,7 @@ pub struct TxState<'a> {
     busy: Cell<bool>,
     // We need a reference to sixlowpan to compute and increment
     // the global dgram_tag value
-    sixlowpan: &'a SixlowpanState<'a>,
+    sixlowpan: &'a dyn SixlowpanState<'a>,
 }
 
 impl TxState<'a> {
@@ -334,7 +334,7 @@ impl TxState<'a> {
     ///
     /// `sixlowpan` - A reference to a `SixlowpanState` object, which contains
     /// global state for the entire Sixlowpan layer.
-    pub fn new(sixlowpan: &'a SixlowpanState<'a>) -> TxState<'a> {
+    pub fn new(sixlowpan: &'a dyn SixlowpanState<'a>) -> TxState<'a> {
         TxState {
             // Externally setable fields
             src_pan: Cell::new(0),
@@ -412,7 +412,7 @@ impl TxState<'a> {
         &self,
         ip6_packet: &'b IP6Packet<'b>,
         frag_buf: &'static mut [u8],
-        radio: &MacDevice,
+        radio: &dyn MacDevice,
     ) -> Result<(bool, Frame), (ReturnCode, &'static mut [u8])> {
         // This consumes frag_buf
         let frame = radio
@@ -456,7 +456,7 @@ impl TxState<'a> {
         &self,
         ip6_packet: &'b IP6Packet<'b>,
         frame: Frame,
-        ctx_store: &ContextStore,
+        ctx_store: &dyn ContextStore,
     ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
         self.busy.set(true);
         self.dgram_size.set(ip6_packet.get_total_len());
@@ -468,7 +468,7 @@ impl TxState<'a> {
         &self,
         ip6_packet: &'b IP6Packet<'b>,
         mut frame: Frame,
-        ctx_store: &ContextStore,
+        ctx_store: &dyn ContextStore,
     ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
         // Here, we assume that the compressed headers fit in the first MTU
         // fragment. This is consistent with RFC 6282.
@@ -716,7 +716,7 @@ impl RxState<'a> {
         payload_len: usize,
         dgram_size: u16,
         dgram_offset: usize,
-        ctx_store: &ContextStore,
+        ctx_store: &dyn ContextStore,
     ) -> Result<bool, ReturnCode> {
         let mut packet = self.packet.take().ok_or(ReturnCode::ENOMEM)?;
         let uncompressed_len = if dgram_offset == 0 {
@@ -753,7 +753,7 @@ impl RxState<'a> {
         }
     }
 
-    fn end_receive(&self, client: Option<&'a SixlowpanRxClient>, result: ReturnCode) {
+    fn end_receive(&self, client: Option<&'a dyn SixlowpanRxClient>, result: ReturnCode) {
         self.busy.set(false);
         self.bitmap.map(|bitmap| bitmap.clear());
         self.start_time.set(0);
@@ -787,7 +787,7 @@ pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
     pub ctx_store: C,
     clock: &'a A,
     tx_dgram_tag: Cell<u16>,
-    rx_client: Cell<Option<&'a SixlowpanRxClient>>,
+    rx_client: Cell<Option<&'a dyn SixlowpanRxClient>>,
 
     // Receive state
     rx_states: List<'a, RxState<'a>>,
@@ -827,7 +827,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A
         dgram_tag
     }
 
-    fn get_ctx_store(&self) -> &ContextStore {
+    fn get_ctx_store(&self) -> &dyn ContextStore {
         &self.ctx_store
     }
 
@@ -841,7 +841,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A
 
     /// Sets the [SixlowpanClient](trait.SixlowpanClient.html) that will receive
     /// transmission completion and new packet reception callbacks.
-    fn set_rx_client(&'a self, client: &'a SixlowpanRxClient) {
+    fn set_rx_client(&'a self, client: &'a dyn SixlowpanRxClient) {
         self.rx_client.set(Some(client));
     }
 }

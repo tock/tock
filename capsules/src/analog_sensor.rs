@@ -19,7 +19,7 @@ pub struct AnalogLightSensor<'a, A: hil::adc::Adc> {
     adc: &'a A,
     channel: &'a <A as hil::adc::Adc>::Channel,
     sensor_type: AnalogLightSensorType,
-    client: OptionalCell<&'a hil::sensors::AmbientLightClient>,
+    client: OptionalCell<&'a dyn hil::sensors::AmbientLightClient>,
 }
 
 impl<A: hil::adc::Adc> AnalogLightSensor<'a, A> {
@@ -52,7 +52,7 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogLightSensor<'a, A> {
 }
 
 impl<A: hil::adc::Adc> hil::sensors::AmbientLight for AnalogLightSensor<'a, A> {
-    fn set_client(&self, client: &'static hil::sensors::AmbientLightClient) {
+    fn set_client(&self, client: &'static dyn hil::sensors::AmbientLightClient) {
         self.client.set(client);
     }
 
@@ -71,7 +71,7 @@ pub struct AnalogTemperatureSensor<'a, A: hil::adc::Adc> {
     adc: &'a A,
     channel: &'a <A as hil::adc::Adc>::Channel,
     sensor_type: AnalogTemperatureSensorType,
-    client: OptionalCell<&'a hil::sensors::TemperatureClient>,
+    client: OptionalCell<&'a dyn hil::sensors::TemperatureClient>,
 }
 
 impl<A: hil::adc::Adc> AnalogTemperatureSensor<'a, A> {
@@ -108,7 +108,7 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogTemperatureSensor<'a, A> {
 }
 
 impl<A: hil::adc::Adc> hil::sensors::TemperatureDriver for AnalogTemperatureSensor<'a, A> {
-    fn set_client(&self, client: &'static hil::sensors::TemperatureClient) {
+    fn set_client(&self, client: &'static dyn hil::sensors::TemperatureClient) {
         self.client.set(client);
     }
 

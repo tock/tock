@@ -37,7 +37,7 @@ use kernel::ReturnCode;
 /// any pending transmission requests. Any received frames from the underlying
 /// MAC device are sent to all users.
 pub struct MuxMac<'a> {
-    mac: &'a device::MacDevice<'a>,
+    mac: &'a dyn device::MacDevice<'a>,
     users: List<'a, MacUser<'a>>,
     inflight: OptionalCell<&'a MacUser<'a>>,
 }
@@ -60,7 +60,7 @@ impl device::RxClient for MuxMac<'a> {
 }
 
 impl MuxMac<'a> {
-    pub const fn new(mac: &'a device::MacDevice<'a>) -> MuxMac<'a> {
+    pub const fn new(mac: &'a dyn device::MacDevice<'a>) -> MuxMac<'a> {
         MuxMac {
             mac: mac,
             users: List::new(),
@@ -187,8 +187,8 @@ pub struct MacUser<'a> {
     mux: &'a MuxMac<'a>,
     operation: MapCell<Op>,
     next: ListLink<'a, MacUser<'a>>,
-    tx_client: Cell<Option<&'a device::TxClient>>,
-    rx_client: Cell<Option<&'a device::RxClient>>,
+    tx_client: Cell<Option<&'a dyn device::TxClient>>,
+    rx_client: Cell<Option<&'a dyn device::RxClient>>,
 }
 
 impl MacUser<'a> {
@@ -224,11 +224,11 @@ impl ListNode<'a, MacUser<'a>> for MacUser<'a> {
 }
 
 impl device::MacDevice<'a> for MacUser<'a> {
-    fn set_transmit_client(&self, client: &'a device::TxClient) {
+    fn set_transmit_client(&self, client: &'a dyn device::TxClient) {
         self.tx_client.set(Some(client));
     }
 
-    fn set_receive_client(&self, client: &'a device::RxClient) {
+    fn set_receive_client(&self, client: &'a dyn device::RxClient) {
         self.rx_client.set(Some(client));
     }
 

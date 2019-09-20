@@ -98,7 +98,7 @@ pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     rxbuffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
-    client: OptionalCell<&'a hil::spi::SpiMasterClient>,
+    client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 }
 
 impl<Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
@@ -117,7 +117,7 @@ impl<Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a hil::spi::SpiMasterClient) {
+    pub fn set_client(&'a self, client: &'a dyn hil::spi::SpiMasterClient) {
         self.mux.devices.push_head(self);
         self.client.set(client);
     }
@@ -193,7 +193,7 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDev
 
 pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave> {
     spi: &'a Spi,
-    client: OptionalCell<&'a hil::spi::SpiSlaveClient>,
+    client: OptionalCell<&'a dyn hil::spi::SpiSlaveClient>,
 }
 
 impl<Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
@@ -204,7 +204,7 @@ impl<Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a hil::spi::SpiSlaveClient) {
+    pub fn set_client(&'a self, client: &'a dyn hil::spi::SpiSlaveClient) {
         self.client.set(client);
     }
 }

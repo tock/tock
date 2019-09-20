@@ -65,11 +65,11 @@ pub enum ActivationMode {
 /// Holds the array of GPIO pins attached to the LEDs and implements a `Driver`
 /// interface to control them.
 pub struct LED<'a> {
-    pins_init: &'a [(&'a gpio::Pin, ActivationMode)],
+    pins_init: &'a [(&'a dyn gpio::Pin, ActivationMode)],
 }
 
 impl<'a> LED<'a> {
-    pub fn new(pins_init: &'a [(&'a gpio::Pin, ActivationMode)]) -> LED<'a> {
+    pub fn new(pins_init: &'a [(&'a dyn gpio::Pin, ActivationMode)]) -> LED<'a> {
         // Make all pins output and off
         for &(pin, mode) in pins_init.as_ref().iter() {
             pin.make_output();

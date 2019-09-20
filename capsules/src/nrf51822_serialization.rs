@@ -44,8 +44,8 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 // We need two resources: a UART HW driver and driver state for each
 // application.
 pub struct Nrf51822Serialization<'a> {
-    uart: &'a uart::UartAdvanced<'a>,
-    reset_pin: &'a hil::gpio::Pin,
+    uart: &'a dyn uart::UartAdvanced<'a>,
+    reset_pin: &'a dyn hil::gpio::Pin,
     app: MapCell<App>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
@@ -53,8 +53,8 @@ pub struct Nrf51822Serialization<'a> {
 
 impl Nrf51822Serialization<'a> {
     pub fn new(
-        uart: &'a uart::UartAdvanced<'a>,
-        reset_pin: &'a hil::gpio::Pin,
+        uart: &'a dyn uart::UartAdvanced<'a>,
+        reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
     ) -> Nrf51822Serialization<'a> {

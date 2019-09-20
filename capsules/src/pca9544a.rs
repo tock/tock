@@ -53,14 +53,14 @@ enum ControlField {
 }
 
 pub struct PCA9544A<'a> {
-    i2c: &'a i2c::I2CDevice,
+    i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
     callback: OptionalCell<Callback>,
 }
 
 impl PCA9544A<'a> {
-    pub fn new(i2c: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
+    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
         PCA9544A {
             i2c: i2c,
             state: Cell::new(State::Idle),
