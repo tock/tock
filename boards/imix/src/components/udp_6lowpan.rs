@@ -118,7 +118,7 @@ impl Component for UDPComponent {
             )
         );
 
-        let sixlowpan_state = sixlowpan as &sixlowpan_state::SixlowpanState;
+        let sixlowpan_state = sixlowpan as &dyn sixlowpan_state::SixlowpanState;
         let sixlowpan_tx = sixlowpan_state::TxState::new(sixlowpan_state);
         let default_rx_state = static_init!(
             sixlowpan_state::RxState<'static>,

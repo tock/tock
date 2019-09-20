@@ -43,7 +43,7 @@ impl Component for GpioComponent {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let gpio_pins = static_init!(
-            [&'static kernel::hil::gpio::InterruptValuePin; 7],
+            [&'static dyn kernel::hil::gpio::InterruptValuePin; 7],
             [
                 static_init!(
                     InterruptValueWrapper,

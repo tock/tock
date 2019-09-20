@@ -42,7 +42,7 @@ impl Component for ButtonComponent {
 
         let button_pins = static_init!(
             [(
-                &'static kernel::hil::gpio::InterruptValuePin,
+                &'static dyn kernel::hil::gpio::InterruptValuePin,
                 button::GpioMode
             ); ButtonComponent::NUM_PINS],
             [(

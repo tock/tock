@@ -31,7 +31,7 @@ impl Component for LedComponent {
 
     unsafe fn finalize(&mut self) -> Self::Output {
         let led_pins = static_init!(
-            [(&'static kernel::hil::gpio::Pin, led::ActivationMode); 1],
+            [(&'static dyn kernel::hil::gpio::Pin, led::ActivationMode); 1],
             [(&sam4l::gpio::PC[10], led::ActivationMode::ActiveHigh),]
         );
         let led = static_init!(led::LED<'static>, led::LED::new(&led_pins[..]));

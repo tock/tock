@@ -26,7 +26,7 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
             debug!("{:#x}", dev_id);
         }
 
-        let dev: &mut I2CMaster = unsafe { &mut i2c::I2C2 };
+        let dev: &mut dyn I2CMaster = unsafe { &mut i2c::I2C2 };
         if dev_id < 0x7F {
             dev_id += 1;
             self.dev_id.set(dev_id);
@@ -48,7 +48,7 @@ pub fn i2c_scan_slaves() {
     let i2c_client = unsafe { &SCAN_CLIENT };
     dev.set_master_client(i2c_client);
 
-    let dev: &mut I2CMaster = dev;
+    let dev: &mut dyn I2CMaster = dev;
     dev.enable();
 
     debug!("Scanning for I2C devices...");
