@@ -72,7 +72,7 @@ pub static mut TRNG: Trng = Trng::new();
 
 pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
-    client: OptionalCell<&'a entropy::Client32>,
+    client: OptionalCell<&'a dyn entropy::Client32>,
 }
 
 impl<'a> Trng<'a> {
@@ -167,7 +167,7 @@ impl<'a> entropy::Entropy32<'a> for Trng<'a> {
         ReturnCode::FAIL
     }
 
-    fn set_client(&'a self, client: &'a entropy::Client32) {
+    fn set_client(&'a self, client: &'a dyn entropy::Client32) {
         self.client.set(client);
     }
 }
