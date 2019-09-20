@@ -59,8 +59,8 @@ register_bitfields![u32,
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
     clock_frequency: u32,
-    tx_client: OptionalCell<&'a hil::uart::TransmitClient>,
-    rx_client: OptionalCell<&'a hil::uart::ReceiveClient>,
+    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
     stop_bits: Cell<hil::uart::StopBits>,
     buffer: TakeCell<'static, [u8]>,
     len: Cell<usize>,
@@ -178,7 +178,7 @@ impl hil::uart::Configure for Uart<'a> {
 }
 
 impl hil::uart::Transmit<'a> for Uart<'a> {
-    fn set_transmit_client(&self, client: &'a hil::uart::TransmitClient) {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -234,7 +234,7 @@ impl hil::uart::Transmit<'a> for Uart<'a> {
 }
 
 impl hil::uart::Receive<'a> for Uart<'a> {
-    fn set_receive_client(&self, client: &'a hil::uart::ReceiveClient) {
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 
