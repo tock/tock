@@ -76,27 +76,40 @@ pub trait IntLike:
     + Clone
 {
     fn zero() -> Self;
+    fn extract(self) -> usize;
 }
 
 impl IntLike for u8 {
     fn zero() -> Self {
         0
     }
+    fn extract(self) -> usize {
+        self as usize
+    }
 }
 impl IntLike for u16 {
     fn zero() -> Self {
         0
+    }
+    fn extract(self) -> usize {
+        self as usize
     }
 }
 impl IntLike for u32 {
     fn zero() -> Self {
         0
     }
+    fn extract(self) -> usize {
+        self as usize
+    }
 }
 
 impl IntLike for u64 {
     fn zero() -> Self {
         0
+    }
+    fn extract(self) -> usize {
+        self as usize
     }
 }
 

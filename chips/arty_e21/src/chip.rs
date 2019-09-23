@@ -14,6 +14,7 @@ extern "C" {
 pub struct ArtyExx {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
+    pmp: rv32i::pmp::PMPConfig,
 }
 
 impl ArtyExx {
@@ -26,6 +27,7 @@ impl ArtyExx {
         ArtyExx {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
+            pmp: rv32i::pmp::PMPConfig::new(4),
         }
     }
 
@@ -121,12 +123,12 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {

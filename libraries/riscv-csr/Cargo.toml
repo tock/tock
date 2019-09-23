@@ -1,0 +1,18 @@
+[package]
+name = "riscv-csr"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+description = "RISC-V CSR interface developed for Tock."
+homepage = "https://www.tockos.org/"
+repository = "https://github.com/tock/tock/tree/master/libraries/riscv-csr"
+readme = "README.md"
+keywords = ["tock", "embedded", "riscv", "bare-metal"]
+categories = ["data-structures", "embedded", "no-std"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+
+[badges]
+travis-ci = { repository = "tock/tock", branch = "master" }
+
+[dependencies]
+tock-registers = { path = "../tock-register-interface" }
