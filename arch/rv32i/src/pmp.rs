@@ -1,5 +1,4 @@
 //! Implementation of the physical memory protection unit (PMP)
-//! for the arty board
 use crate::csr;
 use kernel;
 use kernel::mpu;
