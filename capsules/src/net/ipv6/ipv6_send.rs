@@ -235,6 +235,7 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
 
 impl<A: time::Alarm> time::Client for IP6SendStruct<'a, A> {
     fn fired(&self) {
+        debug!("alarm fired");
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
             self.send_completed(result);

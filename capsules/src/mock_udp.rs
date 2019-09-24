@@ -22,26 +22,26 @@ pub const DST_ADDR: IPAddr = IPAddr([
 ]);
 pub const PAYLOAD_LEN: usize = 192;
 
-pub struct MockUdp1<'a, A: Alarm + 'a> {
+pub struct MockUdp1<'a, A: Alarm> {
     id: u16,
-    pub alarm: A,
+    pub alarm: &'a A,
     udp_sender: &'a UDPSender<'a>,
     udp_receiver: &'a UDPReceiver<'a>,
     port_table: &'static UdpPortTable,
     udp_dgram: MapCell<Buffer<'static, u8>>,
     src_port: Cell<u16>,
     dst_port: Cell<u16>,
+    send_loop: Cell<bool>,
 }
 
 impl<'a, A: Alarm> MockUdp1<'a, A> {
     pub fn new(
         id: u16,
-        alarm: A,
+        alarm: &'a A,
         udp_sender: &'a UDPSender<'a>,
         udp_receiver: &'a UDPReceiver<'a>,
         port_table: &'static UdpPortTable,
         udp_dgram: Buffer<'static, u8>,
-        src_port: u16,
         dst_port: u16,
     ) -> MockUdp1<'a, A> {
         MockUdp1 {
@@ -51,72 +51,84 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
             udp_receiver: udp_receiver,
             port_table: port_table,
             udp_dgram: MapCell::new(udp_dgram),
-            src_port: Cell::new(src_port),
+            src_port: Cell::new(0), // invalid initial value
             dst_port: Cell::new(dst_port),
+            send_loop: Cell::new(false),
         }
     }
 
-    // Only call me once!
-    // Binds to port passed in new(), starts sending packets every 5 seconds.
-    pub fn start(&self) {
+    // starts sending packets every 5 seconds.
+    pub fn start_sending(&self) {
         // Set alarm bc if you try to send immediately there are initialization issues
+        self.send_loop.set(true);
         self.alarm.set_alarm(
             self.alarm
                 .now()
                 .wrapping_add(<A::Frequency>::frequency() * 5),
         );
-        // Bind for the first time.
-        let socket = self.port_table.create_socket();
-        match socket {
-            Ok(sock) => {
-                debug!("Socket successfully created in mock_udp");
-                match self.port_table.bind(sock, self.src_port.get()) {
-                    Ok((send_bind, rcv_bind)) => {
-                        debug!(
-                            "mock_udp id {:?} bound to port {:?}",
-                            self.id,
-                            self.src_port.get()
-                        );
-                        self.udp_sender.set_binding(send_bind);
-                        self.udp_receiver.set_binding(rcv_bind);
-                    }
-                    Err(sock) => {
-                        debug!("Binding error in mock_udp (passed 0 as src_port?)");
-                        self.port_table.destroy_socket(sock);
-                    }
-                }
-            }
-            Err(_return_code) => {
-                debug!("Socket error in mock_udp");
-                return;
-            }
-        }
     }
 
-    // Unbinds currently bound to ports and binds to passed port.
-    pub fn rebind(&self, src_port: u16) {
+    pub fn stop_sending(&self) {
+        self.alarm.disable();
+    }
+
+    // Binds to passed port. If already bound to a port,
+    // unbinds currently bound to port and binds to passed port.
+    pub fn bind(&self, src_port: u16) {
         self.src_port.set(src_port);
-        match self.port_table.unbind(
-            self.udp_sender.get_binding().expect("missing1"),
-            self.udp_receiver.get_binding().expect("missing2"),
-        ) {
-            Ok(sock) => match self.port_table.bind(sock, self.src_port.get()) {
-                Ok((send_bind, rcv_bind)) => {
-                    debug!(
-                        "mock_udp id {:?} bound to port {:?}",
-                        self.id,
-                        self.src_port.get()
-                    );
-                    self.udp_sender.set_binding(send_bind);
-                    self.udp_receiver.set_binding(rcv_bind);
+        match self.udp_sender.is_bound() {
+            true => {
+                match self.port_table.unbind(
+                    self.udp_sender.get_binding().expect("missing1"),
+                    self.udp_receiver.get_binding().expect("missing2"),
+                ) {
+                    Ok(sock) => match self.port_table.bind(sock, self.src_port.get()) {
+                        Ok((send_bind, rcv_bind)) => {
+                            debug!(
+                                "mock_udp id {:?} bound to port {:?}",
+                                self.id,
+                                self.src_port.get()
+                            );
+                            self.udp_sender.set_binding(send_bind);
+                            self.udp_receiver.set_binding(rcv_bind);
+                        }
+                        Err(sock) => {
+                            debug!("Binding error in mock_udp");
+                            self.port_table.destroy_socket(sock);
+                        }
+                    },
+                    Err((_send_bind, _rcv_bind)) => {
+                        debug!("TEST FAIL: attempted to unbind with mismatched bindings.");
+                    }
                 }
-                Err(sock) => {
-                    debug!("Binding error in mock_udp");
-                    self.port_table.destroy_socket(sock);
+            }
+            false => {
+                // Bind for the first time.
+                let socket = self.port_table.create_socket();
+                match socket {
+                    Ok(sock) => {
+                        debug!("Socket successfully created in mock_udp");
+                        match self.port_table.bind(sock, self.src_port.get()) {
+                            Ok((send_bind, rcv_bind)) => {
+                                debug!(
+                                    "mock_udp id {:?} bound to port {:?}",
+                                    self.id,
+                                    self.src_port.get()
+                                );
+                                self.udp_sender.set_binding(send_bind);
+                                self.udp_receiver.set_binding(rcv_bind);
+                            }
+                            Err(sock) => {
+                                debug!("Binding error in mock_udp (passed 0 as src_port?)");
+                                self.port_table.destroy_socket(sock);
+                            }
+                        }
+                    }
+                    Err(_return_code) => {
+                        debug!("Socket error in mock_udp");
+                        return;
+                    }
                 }
-            },
-            Err((_send_bind, _rcv_bind)) => {
-                debug!("TEST FAIL: attempted to unbind with mismatched bindings.");
             }
         }
     }
@@ -125,6 +137,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
         self.dst_port.set(dst_port);
     }
 
+    // Sends a packet containing a single 2 byte number.
     pub fn send(&self, value: u16) {
         match self.udp_dgram.take() {
             Some(mut dgram) => {
@@ -146,7 +159,10 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
 
 impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
     fn fired(&self) {
-        self.send(self.id);
+        debug!("hudson you suck.");
+        if self.send_loop.get() {
+            self.send(self.id);
+        }
     }
 }
 
@@ -156,11 +172,11 @@ impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
         dgram.reset();
         self.udp_dgram.replace(dgram);
         debug!("");
-        self.alarm.set_alarm(
+        /*self.alarm.set_alarm(
             self.alarm
                 .now()
                 .wrapping_add(<A::Frequency>::frequency() * 5),
-        );
+        );*/
     }
 }
 

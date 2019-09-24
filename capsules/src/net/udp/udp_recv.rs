@@ -138,6 +138,10 @@ impl<'a> UDPReceiver<'a> {
         self.binding.take()
     }
 
+    fn is_bound(&self) -> bool {
+        self.binding.is_some()
+    }
+
     pub fn set_binding(&self, binding: UdpReceiverBinding) -> Option<UdpReceiverBinding> {
         self.binding.replace(binding)
     }

@@ -149,6 +149,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
 
 impl<R: radio::Radio> radio::TxClient for AwakeMac<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+        debug!("send done");
         self.tx_client.map(move |c| {
             c.send_done(buf, acked, result);
         });

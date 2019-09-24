@@ -69,6 +69,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
+        debug!("udp send done");
         let last_sender = self.sender_list.pop_head();
         last_sender.map(|last_sender| {
             last_sender
@@ -185,6 +186,8 @@ pub trait UDPSender<'a> {
 
     fn get_binding(&self) -> Option<UdpSenderBinding>;
 
+    fn is_bound(&self) -> bool;
+
     fn set_binding(&self, binding: UdpSenderBinding) -> Option<UdpSenderBinding>;
 }
 
@@ -264,6 +267,10 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 
     fn get_binding(&self) -> Option<UdpSenderBinding> {
         self.binding.take()
+    }
+
+    fn is_bound(&self) -> bool {
+        self.binding.is_some()
     }
 
     fn set_binding(&self, binding: UdpSenderBinding) -> Option<UdpSenderBinding> {

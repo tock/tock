@@ -35,6 +35,7 @@ pub trait PortQuery {
 /// A UdpPortSocket provides a handle into the bound port table. When binding to
 /// a port, the socket is consumed and stored inside a UdpPortBinding. When
 /// undbinding, the socket is returned and can be used to bind to other ports.
+#[derive(Debug)]
 pub struct UdpPortSocket {
     idx: usize,
 }
@@ -55,6 +56,7 @@ impl UdpPortSocket {
 
 /// An opaque descriptor that allows the holder to obtain a binding on a port
 /// for receiving UDP packets.
+#[derive(Debug)]
 pub struct UdpReceiverBinding {
     idx: usize,
     port: u16,
@@ -62,6 +64,7 @@ pub struct UdpReceiverBinding {
 
 /// An opaque descriptor that allows the holder to obtain a binding on a port
 /// for sending UDP packets.
+#[derive(Debug)]
 pub struct UdpSenderBinding {
     idx: usize,
     port: u16,

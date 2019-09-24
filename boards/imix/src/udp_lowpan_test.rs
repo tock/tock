@@ -1,21 +1,20 @@
-//! `udp_lowpan_test.rs`: Test kernel space sending of
-//! UDP Packets over 6LoWPAN.
+//! `udp_lowpan_test.rs`: Kernel test suite for the UDP/6LoWPAN stack
 //!
-//! Currently this file only tests sending messages. It sends two long UDP messages
-//! (long enough that each requires multiple fragments). The payload of each message
+//! This file tests port binding and sending messages from kernel space.
+//! It instantiates two capsules that use the UDP stack, and tests various
+//! binding and sending orders to ensure that port binding and sending
+//! is enforced as expected.
+//! The messages sent are long enough to require multiple fragments). The payload of each message
 //! is all 0's. Tests for UDP reception exist in userspace, but not in the kernel
 //! at this point in time. At the conclusion of the test, it prints "Test completed successfully."
 //!
-//! To use this test suite, allocate space for a new LowpanTest structure, and
-//! call the `initialize_all` function, which performs
-//! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
-//! structs. Insert the code into `boards/imix/src/main.rs` as follows:
+//! To use this test suite, insert the code into `boards/imix/src/main.rs` as follows:
 //!
 //! ...
 //! // Radio initialization code
 //! ...
 //!    let udp_lowpan_test = udp_lowpan_test::initialize_all(
-//!        mux_mac,
+//!        udp_mux,
 //!        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
 //!    );
 //! ...
@@ -23,7 +22,9 @@
 //! ...
 //! udp_lowpan_test.start();
 
+use super::components::mock_udp::MockUDPComponent;
 use capsules::ieee802154::device::MacDevice;
+use capsules::mock_udp::MockUdp1;
 use capsules::net::buffer::Buffer;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
@@ -32,223 +33,105 @@ use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 use capsules::net::udp::udp::UDPHeader;
+use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
+use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use kernel::static_init;
+use kernel::udp_port_table::UdpPortTable;
 use kernel::ReturnCode;
 
-use kernel::udp_port_table::UdpPortTable;
-
-pub const SRC_ADDR: IPAddr = IPAddr([
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-]);
-pub const DST_ADDR: IPAddr = IPAddr([
-    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
-]);
-pub const PAYLOAD_LEN: usize = 200;
-
-/* 6LoWPAN Constants */
-const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
-static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
-static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
-const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
-const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
-
 pub const TEST_DELAY_MS: u32 = 10000;
-pub const TEST_LOOP: bool = true;
-static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
+pub const TEST_LOOP: bool = false;
 
-pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
+const UDP_HDR_SIZE: usize = 8;
+const PAYLOAD_LEN: usize = super::components::udp_mux::PAYLOAD_LEN;
+static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 
 pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: A,
     test_counter: Cell<usize>,
-    udp_sender: &'a UDPSender<'a>,
     port_table: &'static UdpPortTable,
-    dgram: MapCell<Buffer<'static, u8>>,
+    mock_udp1: &'a MockUdp1<'a, A>,
+    mock_udp2: &'a MockUdp1<'a, A>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
-    mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    udp_send_mux: &'static MuxUdpSender<
+        'static,
+        IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    >,
+    udp_recv_mux: &'static MuxUdpReceiver<'static>,
+    port_table: &'static UdpPortTable,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
-    let radio_mac = static_init!(
-        capsules::ieee802154::virtual_mac::MacUser<'static>,
-        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
-    );
-    mux_mac.add_user(radio_mac);
-    let sixlowpan = static_init!(
-        Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
-        Sixlowpan::new(
-            sixlowpan_compression::Context {
-                prefix: DEFAULT_CTX_PREFIX,
-                prefix_len: DEFAULT_CTX_PREFIX_LEN,
-                id: 0,
-                compress: false,
-            },
-            &sam4l::ast::AST
-        )
-    );
+    let mock_udp1 = MockUDPComponent::new(
+        udp_send_mux,
+        udp_recv_mux,
+        port_table,
+        mux_alarm,
+        &mut UDP_PAYLOAD1,
+        1, //id
+        3, //dst_port
+    )
+    .finalize();
 
-    let sixlowpan_state = sixlowpan as &SixlowpanState;
-    let sixlowpan_tx = TxState::new(sixlowpan_state);
-    // Following code initializes an IP6Packet using the global UDP_DGRAM buffer as the payload
-    let mut udp_hdr: UDPHeader = UDPHeader {
-        src_port: 0,
-        dst_port: 0,
-        len: 0,
-        cksum: 0,
-    };
-    udp_hdr.set_src_port(12345);
-    udp_hdr.set_dst_port(54321);
-    udp_hdr.set_len(PAYLOAD_LEN as u16 + 8);
-    //checksum is calculated and set later
-
-    let mut ip6_hdr: IP6Header = IP6Header::new();
-    ip6_hdr.set_next_header(ip6_nh::UDP);
-    ip6_hdr.set_payload_len(PAYLOAD_LEN as u16 + 8);
-    ip6_hdr.src_addr = SRC_ADDR;
-    ip6_hdr.dst_addr = DST_ADDR;
-
-    let tr_hdr: TransportHeader = TransportHeader::UDP(udp_hdr);
-
-    let ip_pyld: IPPayload = IPPayload {
-        header: tr_hdr,
-        payload: &mut UDP_PAYLOAD,
-    };
-
-    let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
-
-    let ipsender_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-
-    let ip6_sender = static_init!(
-        IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-        IP6SendStruct::new(
-            ip6_dg,
-            ipsender_virtual_alarm,
-            &mut RF233_BUF,
-            sixlowpan_tx,
-            radio_mac,
-            DST_MAC_ADDR,
-            SRC_MAC_ADDR
-        )
-    );
-    radio_mac.set_transmit_client(ip6_sender);
-
-    let udp_port_table = static_init!(UdpPortTable, UdpPortTable::new());
-
-    let udp_mux = static_init!(
-        MuxUdpSender<
-            'static,
-            capsules::net::ipv6::ipv6_send::IP6SendStruct<
-                'static,
-                VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-            >,
-        >,
-        MuxUdpSender::new(ip6_sender)
-    );
-
-    let udp_send_struct = static_init!(
-        UDPSendStruct<
-            'static,
-            IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-        >,
-        UDPSendStruct::new(udp_mux)
-    );
+    let mock_udp2 = MockUDPComponent::new(
+        udp_send_mux,
+        udp_recv_mux,
+        port_table,
+        mux_alarm,
+        &mut UDP_PAYLOAD2,
+        2, //id
+        4, //dst_port
+    )
+    .finalize();
 
     let udp_lowpan_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         LowpanTest::new(
-            //sixlowpan_tx,
-            //radio_mac,
             VirtualMuxAlarm::new(mux_alarm),
-            udp_send_struct,
-            udp_port_table,
-            &mut UDP_PAYLOAD,
+            port_table,
+            mock_udp1,
+            mock_udp2
         )
     );
-    ip6_sender.set_client(udp_mux);
-    udp_send_struct.set_client(udp_lowpan_test);
+
     udp_lowpan_test.alarm.set_client(udp_lowpan_test);
-    ipsender_virtual_alarm.set_client(ip6_sender);
 
     udp_lowpan_test
 }
 
-impl<'a, A: time::Alarm> capsules::net::udp::udp_send::UDPSendClient for LowpanTest<'a, A> {
-    fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
-        dgram.reset();
-        self.dgram.replace(dgram);
-        match result {
-            ReturnCode::SUCCESS => {
-                debug!("Packet Sent!");
-                match self.test_counter.get() {
-                    2 => debug!("Test completed successfully."),
-                    _ => self.schedule_next(),
-                }
-            }
-            _ => debug!("Failed to send UDP Packet!"),
-        }
-    }
-}
-
 impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     pub fn new(
-        //sixlowpan_tx: TxState<'a>,
-        //radio: &'a Mac<'a>,
         alarm: A,
-        //ip6_packet: &'static mut IP6Packet<'a>
-        udp_sender: &'a UDPSender<'a>,
         port_table: &'static UdpPortTable,
-        dgram: &'static mut [u8],
+        mock_udp1: &'static MockUdp1<'a, A>,
+        mock_udp2: &'static MockUdp1<'a, A>,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
-            //sixlowpan_tx: sixlowpan_tx,
-            //radio: radio,
             test_counter: Cell::new(0),
-            udp_sender: udp_sender,
             port_table: port_table,
-            dgram: MapCell::new(Buffer::new(dgram)),
+            mock_udp1: mock_udp1,
+            mock_udp2: mock_udp2,
         }
     }
 
     pub fn start(&self) {
-        let socket = self.port_table.create_socket();
-        let src_port = 12345;
-        match socket {
-            Ok(sock) => {
-                debug!("Socket successfully created in udp_lowpan_test");
-                match self.port_table.bind(sock, src_port) {
-                    Ok((send_bind, _rcv_bind)) => {
-                        debug!("Binding successfully created in udp_lowpan_test");
-                        self.udp_sender.set_binding(send_bind);
-                    }
-                    Err(sock) => {
-                        debug!("Binding error in udp_lowpan_test");
-                        self.port_table.destroy_socket(sock);
-                    }
-                }
-            }
-            Err(_return_code) => {
-                debug!("Socket error in udp_lowpan_test");
-                return;
-            }
-        }
+        debug!("starting");
         self.schedule_next();
     }
 
@@ -259,106 +142,78 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn run_test_and_increment(&self) {
+        debug!("run test and incr");
         let test_counter = self.test_counter.get();
         self.run_test(test_counter);
+        debug!("ran test");
         match TEST_LOOP {
             true => self.test_counter.set((test_counter + 1) % self.num_tests()),
             false => self.test_counter.set(test_counter + 1),
         };
+        debug!("ran test");
     }
 
     fn num_tests(&self) -> usize {
-        2 // 3
+        2
     }
 
     fn run_test(&self, test_id: usize) {
         debug!("Running test {}:", test_id);
         match test_id {
-            //0 => self.port_table_test(),//self.ipv6_send_packet_test(),
-            0 => self.ipv6_send_packet_test(), //self.ipv6_send_packet_test(),
-            1 => self.ipv6_send_packet_test(),
-            //1 => self.port_table_test(),
+            0 => {}
+            //0 => self.port_table_test(),
+            1 => self.capsule_send_test(),
             _ => {}
         }
+        self.schedule_next();
     }
 
+    // A basic test of port table functionality without using any capsules at all,
+    // instead directly creating socket and calling bind/unbind.
+    // This test ensures that two capsules could not bind to the same port,
+    // that single bindings work correctly,
     fn port_table_test(&self) {
         // Initialize bindings.
         let socket1 = self.port_table.create_socket().unwrap();
-        let socket2 = self.port_table.create_socket().unwrap();
-        let _socket3 = self.port_table.create_socket().unwrap();
-        debug!("Finished creating sockets");
+        let mut socket2 = self.port_table.create_socket().unwrap();
+        let socket3 = self.port_table.create_socket().unwrap();
+        //debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let (send_bind, recv_bind) = self.port_table.bind(socket1, 80).ok().unwrap();
-        // TODO: socket "memory-leak"?
-        assert!(self.port_table.bind(socket2, 80).is_err());
+        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).ok().unwrap();
+        let result = self.port_table.bind(socket2, 4000);
+        assert!(result.is_err());
+        socket2 = result.unwrap_err();
+        assert!(self.port_table.bind(socket2, 4001).is_ok());
         // debug!("After return code assertions for binding");
         // // Ensure that only the first binding is able to send
-        assert_eq!(send_bind.get_port(), 80);
-        assert_eq!(recv_bind.get_port(), 80);
-        let _new_sock1 = self.port_table.unbind(send_bind, recv_bind);
+        assert_eq!(send_bind.get_port(), 4000);
+        assert_eq!(recv_bind.get_port(), 4000);
+        assert!(self.port_table.unbind(send_bind, recv_bind).is_ok());
 
-        // let binding_socket = match ret1 {
-        //     Ok(binding) => {
-        //         let send_binding = binding.get_sender().unwrap();
-        //         // Make sure correct port is bound
-        //         assert_eq!(send_binding.get_port(), 80);
-        //         // Disallow getting sender twice
-        //         let err = binding.get_sender();
-        //         match err {
-        //             Ok(_) => assert!(false),
-        //             Err(_) => assert!(true),
-        //             _ => assert!(false),
-        //         }
-        //         assert!(binding.put_sender(send_binding).is_ok());
-        //         let send_binding2 = binding.get_sender().unwrap();
-        //         // Make sure correct port is bound
-        //         assert_eq!(send_binding2.get_port(), 80);
-        //         // Cannot unbind until we call put_sender
-        //         let attempt = self.port_table.unbind(binding);
-        //         let binding = attempt.err().unwrap();
-        //         assert!(binding.put_sender(send_binding2).is_ok());
-        //         self.port_table.unbind(binding).ok()
-        //     },
-        //     Err(x) => {
-        //         assert!(false);
-        //         None
-        //     },
-        // };
-        // // // See if the third binding can successfully bind once the first is
-        // // // unbound.
-        // assert!(self.port_table.bind(socket3, 80).is_ok());
-        // assert!(self.port_table.bind(binding_socket.unwrap(), 20).is_ok());
+        // Show that you can bind to a port once another socket has unbound it
+        assert!(self.port_table.bind(socket3, 4000).is_ok());
+
         debug!("port_table_test passed");
     }
 
-    // TODO: add a test that involves sending/receiving.
-
-    fn ipv6_send_packet_test(&self) {
-        unsafe {
-            self.send_ipv6_packet();
-        }
-    }
-
-    unsafe fn send_ipv6_packet(&self) {
-        self.send_next();
-    }
-
-    fn send_next(&self) {
-        let dst_port: u16 = 32123;
-        debug!("before send_to");
-        match self.dgram.take() {
-            Some(dgram) => {
-                self.udp_sender.send_to(DST_ADDR, dst_port, dgram);
-            }
-            None => debug!("UDP_LOWPAN_TEST: DGRAM Missing - Err"),
-        }
-        debug!("send_next done");
+    fn capsule_send_test(&self) {
+        self.mock_udp1.bind(14000);
+        self.mock_udp1.set_dst(15000);
+        self.mock_udp2.bind(14001);
+        self.mock_udp2.set_dst(15001);
+        // Send from 2 different capsules in quick succession - second send should execute once
+        // first completes!
+        self.mock_udp1.send(22);
+        self.mock_udp2.send(23);
     }
 }
 
 impl<'a, A: time::Alarm> time::Client for LowpanTest<'a, A> {
     fn fired(&self) {
+        debug!("alarm1");
+        debug!("alarm2");
+        //panic!();
+        //self.schedule_next();
         self.run_test_and_increment();
     }
 }

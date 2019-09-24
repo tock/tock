@@ -26,7 +26,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::udp_port_table::UdpPortTable;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, static_init};
+use kernel::{create_capability, debug, debug_gpio, static_init};
 
 use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
@@ -110,6 +110,10 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
+const UDP_HDR_SIZE: usize = 8;
+const PAYLOAD_LEN: usize = components::udp_mux::PAYLOAD_LEN;
+static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -124,9 +128,9 @@ struct Imix {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
+    //temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    //humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    //ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -179,9 +183,9 @@ impl kernel::Platform for Imix {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            //capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            //capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            //capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
@@ -287,6 +291,18 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    kernel::debug::assign_gpios(
+        Some(&sam4l::gpio::PC[26]),
+        Some(&sam4l::gpio::PC[27]),
+        Some(&sam4l::gpio::PC[28]),
+    );
+    debug_gpio!(0, make_output);
+    debug_gpio!(0, clear);
+    debug_gpio!(1, make_output);
+    debug_gpio!(1, clear);
+    debug_gpio!(2, make_output);
+    debug_gpio!(2, clear);
+
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -335,10 +351,10 @@ pub unsafe fn reset_handler() {
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
-    let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm).finalize();
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
-    let temp = TemperatureComponent::new(board_kernel, si7021).finalize();
-    let humidity = HumidityComponent::new(board_kernel, si7021).finalize();
+    //let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm).finalize();
+    //let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
+    //let temp = TemperatureComponent::new(board_kernel, si7021).finalize();
+    //let humidity = HumidityComponent::new(board_kernel, si7021).finalize();
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize();
 
     // SPI MUX, SPI syscall driver and RF233 radio
@@ -424,22 +440,30 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
 
-    let mock_udp =
-        MockUDPComponent::new(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm).finalize();
+    /*
+    let mock_udp = MockUDPComponent::new(
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        mux_alarm,
+        &mut UDP_PAYLOAD,
+        1, //id
+        2, //dst_port
+    )
+    .finalize();
+    */
 
-    /*let udp_lowpan_test = udp_lowpan_test::initialize_all(
-        mux_mac,
-        mux_alarm as &'static MuxAlarm<'static, sam4l::ast::Ast>,
-    );*/
+    let udp_lowpan_test =
+        udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
 
     let imix = Imix {
         pconsole,
         console,
         alarm,
         gpio,
-        temp,
-        humidity,
-        ambient_light,
+        //temp,
+        //humidity,
+        //ambient_light,
         adc,
         led,
         button,
@@ -485,7 +509,10 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
     debug!("src mac: {:?}", src_mac_from_serial_num);
-    mock_udp.start();
+    /*
+    mock_udp.bind(81);
+    mock_udp.start_sending();
+    */
 
     //udp_lowpan_test.start();
 

@@ -4,6 +4,8 @@
 use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::{List, ListLink, ListNode};
+use kernel::debug;
+use kernel::debug_gpio;
 use kernel::hil::time::{self, Alarm, Time};
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm> {
@@ -128,6 +130,7 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
+#[no_mangle]
 impl<Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
     fn fired(&self) {
         let now = self.alarm.now();
@@ -140,14 +143,46 @@ impl<Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
 
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the fired() callback.
+        // begin hudson test code
+        let tmp = self.virtual_alarms.iter();
+        let mut filtered =
+            tmp.filter(|cur| cur.armed.get() && has_expired(cur.when.get(), now, prev));
+        //let opt = filtered.nth(0);
+        let size = filtered.count();
+        debug_gpio!(0, toggle);
+        debug!("Size: {:?}", size);
+        /*
+        if (opt.is_none()) {
+            debug_gpio!(1, toggle);
+            debug_gpio!(0, toggle);
+        // debug!("is none!");
+        } else {
+            debug_gpio!(2, toggle);
+            debug_gpio!(0, toggle);
+            opt.unwrap().fired();
+        }
+        filtered.for_each(|cur| {
+            //debug_gpio!(1, toggle);
+            cur.armed.set(false);
+            self.enabled.set(self.enabled.get() - 1);
+            cur.fired();
+        });*/
+        debug_gpio!(0, toggle);
+        // end Hudson test code
+
+        // Begin original code
+        /*
         self.virtual_alarms
             .iter()
             .filter(|cur| cur.armed.get() && has_expired(cur.when.get(), now, prev))
             .for_each(|cur| {
+                debug!("hi");
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
                 cur.fired();
             });
+            */
+        //debug!("done1");
 
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.  This needs to happen after firing all expired
@@ -157,6 +192,7 @@ impl<Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
             .iter()
             .filter(|cur| cur.armed.get())
             .min_by_key(|cur| cur.when.get().wrapping_sub(now));
+        debug!("done iterating2");
 
         self.prev.set(now);
         // If there is an alarm to fire, set the underlying alarm to it
@@ -168,5 +204,6 @@ impl<Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
         } else {
             self.alarm.disable();
         }
+        debug!("done iterating3");
     }
 }
