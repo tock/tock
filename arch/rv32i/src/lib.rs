@@ -1,15 +1,24 @@
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn, lang_items, global_asm)]
-#![feature(crate_visibility_modifier)]
-#![feature(in_band_lifetimes)]
+#![feature(
+    asm,
+    const_fn,
+    lang_items,
+    global_asm,
+    crate_visibility_modifier,
+    naked_functions,
+    in_band_lifetimes
+)]
 #![no_std]
 
 pub mod clic;
+pub mod csr;
 pub mod machine_timer;
 pub mod plic;
+pub mod pmp;
 pub mod support;
 pub mod syscall;
+extern crate tock_registers;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -35,6 +44,7 @@ extern "C" {
 /// the main entry point for Tock boards.
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
+#[naked]
 pub extern "C" fn _start() {
     unsafe {
         asm! ("
@@ -82,25 +92,37 @@ pub unsafe fn init_memory() {
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 }
 
-/// Tell the MCU what address the trap handler is located at. The trap handler
-/// is called on exceptions and for interrupts.
+pub enum PermissionMode {
+    User = 0x0,
+    Supervisor = 0x1,
+    Reserved = 0x2,
+    Machine = 0x3,
+}
+
+/// Tell the MCU what address the trap handler is located at.
 ///
 /// This is a generic implementation. There may be board specific versions as
 /// some platforms have added more bits to the `mtvec` register.
-pub unsafe fn configure_trap_handler() {
-    asm!("
-        // The csrw instruction writes a Control and Status Register (CSR)
-        // with a new value.
-        //
-        // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
-        // address of the trap handler. We do not care about its old value, so
-        // we don't bother reading it.
-        csrw 0x305, $0        // Write the mtvec CSR.
-    "
-    :
-    : "r"(&_start_trap)
-    :
-    : "volatile");
+///
+/// The trap handler is called on exceptions and for interrupts.
+pub unsafe fn configure_trap_handler(mode: PermissionMode) {
+    match mode {
+        PermissionMode::Machine => csr::CSR.mtvec.write(
+            csr::mtvec::mtvec::trap_addr.val(_start_trap as u32 >> 2)
+                + csr::mtvec::mtvec::mode::CLEAR,
+        ),
+        PermissionMode::Supervisor => csr::CSR.stvec.write(
+            csr::stvec::stvec::trap_addr.val(_start_trap as u32 >> 2)
+                + csr::stvec::stvec::mode::CLEAR,
+        ),
+        PermissionMode::User => csr::CSR.utvec.write(
+            csr::utvec::utvec::trap_addr.val(_start_trap as u32 >> 2)
+                + csr::utvec::utvec::mode::CLEAR,
+        ),
+        PermissionMode::Reserved => (
+            // TODO some sort of error handling?
+            ),
+    }
 }
 
 /// This is the trap handler function. This code is called on all traps,
@@ -119,6 +141,7 @@ pub unsafe fn configure_trap_handler() {
 /// correctly return back to the kernel.
 #[link_section = ".riscv.trap"]
 #[export_name = "_start_trap"]
+#[naked]
 pub extern "C" fn _start_trap() {
     unsafe {
         asm! ("

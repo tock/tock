@@ -7,3 +7,6 @@ edition = "2018"
 [dependencies]
 kernel = { path = "../../kernel" }
 tock_rt0 = { path = "../../libraries/tock-rt0" }
+tock-registers = { path = "../../libraries/tock-register-interface" }
+riscv-csr = { path = "../../libraries/riscv-csr" }
+

@@ -8,7 +8,7 @@ MEMORY
 {
   rom (rx)  : ORIGIN = 0x20400000, LENGTH = 0x30000
   prog (rx) : ORIGIN = 0x20430000, LENGTH = 512M-0x430000
-  ram (rwx) : ORIGIN = 0x80000000, LENGTH = 16K
+  ram (rwx) : ORIGIN = 0x80000000, LENGTH = 1M
 }
 
 MPU_MIN_ALIGN = 1K;

@@ -116,7 +116,7 @@ include ../Makefile.common      # ../ assumes board lives in $(TOCK)/boards/<boa
 
 Tock provides `boards/Makefile.common` that drives most of the build system.
 In general, you should not need to
-dig into this Makefile -- if something doesn't seem to be working, hop on IRC
+dig into this Makefile -- if something doesn't seem to be working, hop on slack
 and ask.
 
 ##### Getting the built kernel onto a board

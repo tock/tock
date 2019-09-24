@@ -19,6 +19,7 @@ usage:
 	@echo "   allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "     alldoc: Builds Tock documentation for all boards"
 	@echo "         ci: Run all continuous integration tests"
+	@echo "      clean: Clean all builds"
 	@echo "     format: Runs the rustfmt tool on all kernel sources"
 	@echo "  formatall: Runs all formatting tools"
 	@echo "       list: Lists available boards"
@@ -82,6 +83,13 @@ ci-netlify:
 
 .PHONY: ci
 ci: ci-travis ci-netlify
+
+.PHONY: clean
+clean:
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean $$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@cd kernel && echo "$$(tput bold)Clean kernel" && cargo clean
+	@cd libraries/tock-cells && echo "$$(tput bold)Clean libraries/tock-cells" && cargo clean
+	@cd libraries/tock-register-interface && echo "$$(tput bold)Clean libraries/tock-register-interface" && cargo clean
 
 .PHONY: fmt format formatall
 fmt format formatall:

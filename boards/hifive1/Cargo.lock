@@ -41,10 +41,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "riscv-csr"
+version = "0.1.0"
+dependencies = [
+ "tock-registers 0.3.0",
+]
+
+[[package]]
 name = "rv32i"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
+ "riscv-csr 0.1.0",
+ "tock-registers 0.3.0",
  "tock_rt0 0.1.0",
 ]
 
