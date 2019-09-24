@@ -659,7 +659,7 @@ impl ClockInterface for PortClock {
 // `exti_lineid` is used to configure EXTI settings for the Pin.
 pub struct Pin<'a> {
     pinid: PinId,
-    client: OptionalCell<&'a hil::gpio::Client>,
+    client: OptionalCell<&'a dyn hil::gpio::Client>,
     exti_lineid: OptionalCell<exti::LineId>,
 }
 
@@ -731,7 +731,7 @@ impl Pin<'a> {
         }
     }
 
-    pub fn set_client(&self, client: &'a hil::gpio::Client) {
+    pub fn set_client(&self, client: &'a dyn hil::gpio::Client) {
         self.client.set(client);
     }
 
@@ -1141,7 +1141,7 @@ impl hil::gpio::Interrupt for Pin<'a> {
         }
     }
 
-    fn set_client(&self, client: &'static hil::gpio::Client) {
+    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
         self.client.set(client);
     }
 

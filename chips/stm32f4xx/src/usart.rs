@@ -168,8 +168,8 @@ pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: UsartClock,
 
-    tx_client: OptionalCell<&'a hil::uart::TransmitClient>,
-    rx_client: OptionalCell<&'a hil::uart::ReceiveClient>,
+    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
 
     tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
     tx_dma_pid: Dma1Peripheral,
@@ -364,7 +364,7 @@ impl Usart<'a> {
 }
 
 impl hil::uart::Transmit<'a> for Usart<'a> {
-    fn set_transmit_client(&self, client: &'a hil::uart::TransmitClient) {
+    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -453,7 +453,7 @@ impl hil::uart::Configure for Usart<'a> {
 }
 
 impl hil::uart::Receive<'a> for Usart<'a> {
-    fn set_receive_client(&self, client: &'a hil::uart::ReceiveClient) {
+    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 
