@@ -796,6 +796,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     unsafe fn free(&self, _: *mut u8) {}
 
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn grant_ptr(&self, grant_num: usize) -> *mut *mut u8 {
         let grant_num = grant_num as isize;
         (self.mem_end() as *mut *mut u8).offset(-(grant_num + 1))
@@ -1062,6 +1063,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 }
 
 impl<C: 'static + Chip> Process<'a, C> {
+    #[allow(clippy::cast_ptr_alignment)]
     crate unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1280,6 +1282,7 @@ impl<C: 'static + Chip> Process<'a, C> {
         (None, 0, 0)
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
     }
@@ -1298,6 +1301,7 @@ impl<C: 'static + Chip> Process<'a, C> {
     }
 
     /// Reset all `grant_ptr`s to NULL.
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn grant_ptrs_reset(&self) {
         let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
         for grant_num in 0..grant_ptrs_num {

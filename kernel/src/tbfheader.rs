@@ -183,6 +183,7 @@ impl TbfHeader {
 /// This function takes a pointer to arbitrary memory and optionally returns a
 /// TBF header struct. This function will validate the header checksum, but does
 /// not perform sanity or security checking on the structure.
+#[allow(clippy::cast_ptr_alignment)]
 crate unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader> {
     let version = *(address as *const u16);
 
