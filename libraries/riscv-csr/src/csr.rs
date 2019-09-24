@@ -1,8 +1,6 @@
-//! CSR
+//! `ReadWriteRiscvCsr` type for RISC-V CSRs.
 
-// use core::fmt;
 use core::marker::PhantomData;
-// use core::ops::{Add, AddAssign, BitAnd, BitOr, Not, Shl, Shr};
 
 use tock_registers::registers::{
     Field, FieldValue, IntLike, LocalRegisterCopy, RegisterLongName, TryFromValue,
