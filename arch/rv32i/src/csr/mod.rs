@@ -1,4 +1,3 @@
-//use riscv_csr::csr::{ReadOnlyRiscvCsr, ReadWriteRiscvCsr, WriteOnlyRiscvCsr};
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
 pub mod mcause;
@@ -48,7 +47,7 @@ pub struct CSR {
     pub mstatus: ReadWriteRiscvCsr<u32, mstatus::mstatus::Register>,
 }
 
-// to be used to access csrs
+// Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
     mie: ReadWriteRiscvCsr::new(0x304),
     mtvec: ReadWriteRiscvCsr::new(0x305),
