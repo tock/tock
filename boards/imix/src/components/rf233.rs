@@ -23,9 +23,9 @@ use kernel::static_init;
 
 pub struct RF233Component {
     spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-    reset: &'static hil::gpio::Pin,
-    sleep: &'static hil::gpio::Pin,
-    irq: &'static hil::gpio::InterruptPin,
+    reset: &'static dyn hil::gpio::Pin,
+    sleep: &'static dyn hil::gpio::Pin,
+    irq: &'static dyn hil::gpio::InterruptPin,
     ctl: &'static sam4l::gpio::GPIOPin,
     channel: u8,
 }
@@ -33,9 +33,9 @@ pub struct RF233Component {
 impl RF233Component {
     pub fn new(
         spi: &'static VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        reset: &'static hil::gpio::Pin,
-        sleep: &'static hil::gpio::Pin,
-        irq: &'static hil::gpio::InterruptPin,
+        reset: &'static dyn hil::gpio::Pin,
+        sleep: &'static dyn hil::gpio::Pin,
+        irq: &'static dyn hil::gpio::InterruptPin,
         ctl: &'static sam4l::gpio::GPIOPin,
         channel: u8,
     ) -> RF233Component {

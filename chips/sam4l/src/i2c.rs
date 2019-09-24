@@ -548,8 +548,8 @@ pub struct I2CHw {
     slave_clock: TWISClock,
     dma: OptionalCell<&'static DMAChannel>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
-    master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
-    slave_client: Cell<Option<&'static hil::i2c::I2CHwSlaveClient>>,
+    master_client: Cell<Option<&'static dyn hil::i2c::I2CHwMasterClient>>,
+    slave_client: Cell<Option<&'static dyn hil::i2c::I2CHwSlaveClient>>,
     on_deck: Cell<Option<(DMAPeripheral, usize)>>,
 
     slave_enabled: Cell<bool>,
@@ -728,11 +728,11 @@ impl I2CHw {
         self.dma.set(dma);
     }
 
-    pub fn set_master_client(&self, client: &'static hil::i2c::I2CHwMasterClient) {
+    pub fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
         self.master_client.set(Some(client));
     }
 
-    pub fn set_slave_client(&self, client: &'static hil::i2c::I2CHwSlaveClient) {
+    pub fn set_slave_client(&self, client: &'static dyn hil::i2c::I2CHwSlaveClient) {
         self.slave_client.set(Some(client));
     }
 

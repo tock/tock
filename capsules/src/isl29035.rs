@@ -44,15 +44,15 @@ enum State {
 }
 
 pub struct Isl29035<'a, A: time::Alarm<'a>> {
-    i2c: &'a I2CDevice,
+    i2c: &'a dyn I2CDevice,
     alarm: &'a A,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'a AmbientLightClient>,
+    client: OptionalCell<&'a dyn AmbientLightClient>,
 }
 
 impl<A: time::Alarm<'a>> Isl29035<'a, A> {
-    pub fn new(i2c: &'a I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
+    pub fn new(i2c: &'a dyn I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
         Isl29035 {
             i2c: i2c,
             alarm: alarm,
@@ -87,7 +87,7 @@ impl<A: time::Alarm<'a>> Isl29035<'a, A> {
 }
 
 impl<A: time::Alarm<'a>> AmbientLight for Isl29035<'a, A> {
-    fn set_client(&self, client: &'static AmbientLightClient) {
+    fn set_client(&self, client: &'static dyn AmbientLightClient) {
         self.client.set(client);
     }
 

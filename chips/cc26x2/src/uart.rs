@@ -102,8 +102,8 @@ struct Transaction {
 
 pub struct UART<'a> {
     registers: &'static StaticRef<UartRegisters>,
-    tx_client: OptionalCell<&'a uart::TransmitClient>,
-    rx_client: OptionalCell<&'a uart::ReceiveClient>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     tx: MapCell<Transaction>,
     rx: MapCell<Transaction>,
     receiving_word: Cell<bool>,
@@ -306,7 +306,7 @@ impl<'a> uart::Configure for UART<'a> {
 }
 
 impl<'a> uart::Transmit<'a> for UART<'a> {
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -350,7 +350,7 @@ impl<'a> uart::Transmit<'a> for UART<'a> {
 }
 
 impl<'a> uart::Receive<'a> for UART<'a> {
-    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 

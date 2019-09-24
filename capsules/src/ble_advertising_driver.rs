@@ -599,7 +599,7 @@ where
                             && app.process_status != Some(BLEState::AdvertisingIdle)
                         {
                             match data as u8 {
-                                tx_power @ 0...10 | tx_power @ 0xec...0xff => {
+                                tx_power @ 0..=10 | tx_power @ 0xec..=0xff => {
                                     // query the underlying chip if the power level is supported
                                     let status = self.radio.set_tx_power(tx_power);
                                     if let ReturnCode::SUCCESS = status {

@@ -64,7 +64,7 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     alarm: A,
     test_counter: Cell<usize>,
-    icmp_sender: &'a ICMP6Sender<'a>,
+    icmp_sender: &'a dyn ICMP6Sender<'a>,
 }
 
 pub unsafe fn initialize_all(
@@ -92,7 +92,7 @@ pub unsafe fn initialize_all(
         )
     );
 
-    let sixlowpan_state = sixlowpan as &SixlowpanState;
+    let sixlowpan_state = sixlowpan as &dyn SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
     let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
@@ -167,7 +167,7 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
 }
 
 impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
-    pub fn new(alarm: A, icmp_sender: &'a ICMP6Sender<'a>) -> LowpanICMPTest<'a, A> {
+    pub fn new(alarm: A, icmp_sender: &'a dyn ICMP6Sender<'a>) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
             alarm: alarm,
             test_counter: Cell::new(0),

@@ -17,9 +17,9 @@ use kernel::ReturnCode;
 
 pub trait MacDevice<'a> {
     /// Sets the transmission client of this MAC device
-    fn set_transmit_client(&self, client: &'a TxClient);
+    fn set_transmit_client(&self, client: &'a dyn TxClient);
     /// Sets the receive client of this MAC device
-    fn set_receive_client(&self, client: &'a RxClient);
+    fn set_receive_client(&self, client: &'a dyn RxClient);
 
     /// The short 16-bit address of the MAC device
     fn get_address(&self) -> u16;

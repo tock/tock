@@ -51,13 +51,13 @@ use kernel::hil::gpio;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 pub struct GPIO<'a> {
-    pins: &'a [&'a gpio::InterruptValuePin],
+    pins: &'a [&'a dyn gpio::InterruptValuePin],
     apps: Grant<Option<Callback>>,
 }
 
 impl<'a> GPIO<'a> {
     pub fn new(
-        pins: &'a [&'a gpio::InterruptValuePin],
+        pins: &'a [&'a dyn gpio::InterruptValuePin],
         grant: Grant<Option<Callback>>,
     ) -> GPIO<'a> {
         for (i, pin) in pins.iter().enumerate() {

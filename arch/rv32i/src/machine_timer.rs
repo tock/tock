@@ -29,7 +29,7 @@ pub static mut MACHINETIMER: MachineTimer = MachineTimer::new();
 
 pub struct MachineTimer<'a> {
     registers: StaticRef<MachineTimerRegisters>,
-    client: OptionalCell<&'a hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
 impl MachineTimer<'a> {
@@ -70,7 +70,7 @@ impl hil::time::Time for MachineTimer<'a> {
 }
 
 impl hil::time::Alarm<'a> for MachineTimer<'a> {
-    fn set_client(&self, client: &'a hil::time::AlarmClient) {
+    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
 

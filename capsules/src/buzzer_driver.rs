@@ -65,7 +65,7 @@ pub struct App {
 
 pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     // The underlying PWM generator to make the buzzer buzz.
-    pwm_pin: &'a hil::pwm::PwmPin,
+    pwm_pin: &'a dyn hil::pwm::PwmPin,
     // Alarm to stop the buzzer after some time.
     alarm: &'a A,
     // Per-app state.
@@ -78,7 +78,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
 
 impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     pub fn new(
-        pwm_pin: &'a hil::pwm::PwmPin,
+        pwm_pin: &'a dyn hil::pwm::PwmPin,
         alarm: &'a A,
         max_duration_ms: usize,
         grant: Grant<App>,

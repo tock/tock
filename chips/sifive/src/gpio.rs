@@ -83,7 +83,7 @@ pub struct GpioPin {
     pin: Field<u32, pins::Register>,
     set: FieldValue<u32, pins::Register>,
     clear: FieldValue<u32, pins::Register>,
-    client: OptionalCell<&'static hil::gpio::Client>,
+    client: OptionalCell<&'static dyn hil::gpio::Client>,
 }
 
 impl GpioPin {
@@ -256,7 +256,7 @@ impl hil::gpio::Output for GpioPin {
 }
 
 impl hil::gpio::Interrupt for GpioPin {
-    fn set_client(&self, client: &'static hil::gpio::Client) {
+    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
         self.client.set(client);
     }
 

@@ -21,11 +21,11 @@ pub trait Mac {
     fn initialize(&self, mac_buf: &'static mut [u8]) -> ReturnCode;
 
     /// Sets the notified client for configuration changes
-    fn set_config_client(&self, client: &'static radio::ConfigClient);
+    fn set_config_client(&self, client: &'static dyn radio::ConfigClient);
     /// Sets the notified client for transmission completions
-    fn set_transmit_client(&self, client: &'static radio::TxClient);
+    fn set_transmit_client(&self, client: &'static dyn radio::TxClient);
     /// Sets the notified client for frame receptions
-    fn set_receive_client(&self, client: &'static radio::RxClient);
+    fn set_receive_client(&self, client: &'static dyn radio::RxClient);
     /// Sets the buffer for packet reception
     fn set_receive_buffer(&self, buffer: &'static mut [u8]);
 
@@ -70,8 +70,8 @@ pub trait Mac {
 pub struct AwakeMac<'a, R: radio::Radio> {
     radio: &'a R,
 
-    tx_client: OptionalCell<&'static radio::TxClient>,
-    rx_client: OptionalCell<&'static radio::RxClient>,
+    tx_client: OptionalCell<&'static dyn radio::TxClient>,
+    rx_client: OptionalCell<&'static dyn radio::RxClient>,
 }
 
 impl<R: radio::Radio> AwakeMac<'a, R> {
@@ -94,7 +94,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
         self.radio.is_on()
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'static dyn radio::ConfigClient) {
         self.radio.set_config_client(client)
     }
 
@@ -126,11 +126,11 @@ impl<R: radio::Radio> Mac for AwakeMac<'a, R> {
         self.radio.config_commit()
     }
 
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient) {
+    fn set_receive_client(&self, client: &'static dyn radio::RxClient) {
         self.rx_client.set(client);
     }
 

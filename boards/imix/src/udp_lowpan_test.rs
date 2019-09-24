@@ -67,7 +67,7 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     alarm: A,
     test_counter: Cell<usize>,
-    udp_sender: &'a UDPSender<'a>,
+    udp_sender: &'a dyn UDPSender<'a>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -95,7 +95,7 @@ pub unsafe fn initialize_all(
         )
     );
 
-    let sixlowpan_state = sixlowpan as &SixlowpanState;
+    let sixlowpan_state = sixlowpan as &dyn SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
     // Following code initializes an IP6Packet using the global UDP_DGRAM buffer as the payload
     let mut udp_hdr: UDPHeader = UDPHeader {
@@ -189,7 +189,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         //radio: &'a Mac<'a>,
         alarm: A,
         //ip6_packet: &'static mut IP6Packet<'a>
-        udp_sender: &'a UDPSender<'a>,
+        udp_sender: &'a dyn UDPSender<'a>,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,

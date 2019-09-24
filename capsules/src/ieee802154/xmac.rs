@@ -145,9 +145,9 @@ pub struct XMacHeaderInfo {
 pub struct XMac<'a, R: radio::Radio, A: Alarm<'a>> {
     radio: &'a R,
     alarm: &'a A,
-    rng: &'a Rng<'a>,
-    tx_client: OptionalCell<&'static radio::TxClient>,
-    rx_client: OptionalCell<&'static radio::RxClient>,
+    rng: &'a dyn Rng<'a>,
+    tx_client: OptionalCell<&'static dyn radio::TxClient>,
+    rx_client: OptionalCell<&'static dyn radio::RxClient>,
     state: Cell<XMacState>,
     delay_sleep: Cell<bool>,
 
@@ -163,7 +163,7 @@ pub struct XMac<'a, R: radio::Radio, A: Alarm<'a>> {
 }
 
 impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
-    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a Rng<'a>) -> XMac<'a, R, A> {
+    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a dyn Rng<'a>) -> XMac<'a, R, A> {
         XMac {
             radio: radio,
             alarm: alarm,
@@ -311,7 +311,7 @@ impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
 impl<R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
     fn randomness_available(
         &self,
-        randomness: &mut Iterator<Item = u32>,
+        randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> rng::Continue {
         match randomness.next() {
@@ -355,7 +355,7 @@ impl<R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         self.radio.is_on()
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'static dyn radio::ConfigClient) {
         self.radio.set_config_client(client)
     }
 
@@ -387,11 +387,11 @@ impl<R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         self.radio.config_commit()
     }
 
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient) {
+    fn set_receive_client(&self, client: &'static dyn radio::RxClient) {
         self.rx_client.set(client);
     }
 

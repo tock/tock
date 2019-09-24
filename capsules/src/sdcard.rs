@@ -58,7 +58,7 @@ pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
 pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
-    spi: &'a hil::spi::SpiMasterDevice,
+    spi: &'a dyn hil::spi::SpiMasterDevice,
     state: Cell<SpiState>,
     after_state: Cell<SpiState>,
 
@@ -69,12 +69,12 @@ pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
     is_initialized: Cell<bool>,
     card_type: Cell<SDCardType>,
 
-    detect_pin: Cell<Option<&'static hil::gpio::InterruptPin>>,
+    detect_pin: Cell<Option<&'static dyn hil::gpio::InterruptPin>>,
 
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
 
-    client: OptionalCell<&'static SDCardClient>,
+    client: OptionalCell<&'static dyn SDCardClient>,
     client_buffer: TakeCell<'static, [u8]>,
     client_offset: Cell<usize>,
 }
@@ -202,9 +202,9 @@ impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
     /// rxbuffer - buffer for holding SPI read data, at least 515 bytes in
     ///     length
     pub fn new(
-        spi: &'a hil::spi::SpiMasterDevice,
+        spi: &'a dyn hil::spi::SpiMasterDevice,
         alarm: &'a A,
-        detect_pin: Option<&'static hil::gpio::InterruptPin>,
+        detect_pin: Option<&'static dyn hil::gpio::InterruptPin>,
         txbuffer: &'static mut [u8; 515],
         rxbuffer: &'static mut [u8; 515],
     ) -> SDCard<'a, A> {

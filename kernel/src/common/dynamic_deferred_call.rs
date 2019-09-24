@@ -77,7 +77,7 @@ static mut DYNAMIC_DEFERRED_CALL: Option<&'static DynamicDeferredCall> = None;
 /// Internal per-client state tracking for the [DynamicDeferredCall]
 pub struct DynamicDeferredCallClientState {
     scheduled: Cell<bool>,
-    client: OptionalCell<&'static DynamicDeferredCallClient>,
+    client: OptionalCell<&'static dyn DynamicDeferredCallClient>,
 }
 impl Default for DynamicDeferredCallClientState {
     fn default() -> DynamicDeferredCallClientState {
@@ -187,7 +187,7 @@ impl DynamicDeferredCall {
     /// required to schedule a deferred call.
     pub fn register(
         &self,
-        ddc_client: &'static DynamicDeferredCallClient,
+        ddc_client: &'static dyn DynamicDeferredCallClient,
     ) -> Option<DeferredCallHandle> {
         let current_counter = self.handle_counter.get();
 

@@ -36,7 +36,7 @@ pub struct IPC {
 }
 
 impl IPC {
-    pub fn new(kernel: &'static Kernel, capability: &MemoryAllocationCapability) -> IPC {
+    pub fn new(kernel: &'static Kernel, capability: &dyn MemoryAllocationCapability) -> IPC {
         IPC {
             data: kernel.create_grant(capability),
         }

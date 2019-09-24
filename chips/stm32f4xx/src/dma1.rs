@@ -821,7 +821,7 @@ impl From<Dma1Peripheral> for StreamId {
 
 pub struct Stream<'a> {
     streamid: StreamId,
-    client: OptionalCell<&'a StreamClient>,
+    client: OptionalCell<&'a dyn StreamClient>,
     buffer: TakeCell<'static, [u8]>,
     peripheral: OptionalCell<Dma1Peripheral>,
 }
@@ -851,7 +851,7 @@ impl Stream<'a> {
         }
     }
 
-    pub fn set_client(&self, client: &'a StreamClient) {
+    pub fn set_client(&self, client: &'a dyn StreamClient) {
         self.client.set(client);
     }
 

@@ -158,11 +158,11 @@ register_bitfields! [u32,
 // is exported outside this module it must be `pub`
 pub struct Uarte<'a> {
     registers: StaticRef<UarteRegisters>,
-    tx_client: OptionalCell<&'a uart::TransmitClient>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     tx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_remaining_bytes: Cell<usize>,
-    rx_client: OptionalCell<&'a uart::ReceiveClient>,
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     rx_buffer: kernel::common::cells::TakeCell<'static, [u8]>,
     rx_remaining_bytes: Cell<usize>,
     rx_abort_in_progress: Cell<bool>,
@@ -439,7 +439,7 @@ impl<'a> uart::UartData<'a> for Uarte<'a> {}
 impl<'a> uart::Uart<'a> for Uarte<'a> {}
 
 impl<'a> uart::Transmit<'a> for Uarte<'a> {
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -488,7 +488,7 @@ impl<'a> uart::Configure for Uarte<'a> {
 }
 
 impl<'a> uart::Receive<'a> for Uarte<'a> {
-    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 

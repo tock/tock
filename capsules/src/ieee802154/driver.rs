@@ -168,7 +168,7 @@ impl Default for App {
 
 pub struct RadioDriver<'a> {
     /// Underlying MAC device, possibly multiplexed
-    mac: &'a device::MacDevice<'a>,
+    mac: &'a dyn device::MacDevice<'a>,
 
     /// List of (short address, long address) pairs representing IEEE 802.15.4
     /// neighbors.
@@ -193,7 +193,7 @@ pub struct RadioDriver<'a> {
 
 impl RadioDriver<'a> {
     pub fn new(
-        mac: &'a device::MacDevice<'a>,
+        mac: &'a dyn device::MacDevice<'a>,
         grant: Grant<App>,
         kernel_tx: &'static mut [u8],
     ) -> RadioDriver<'a> {

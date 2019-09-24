@@ -230,8 +230,8 @@ impl From<u32> for Frequency {
 /// addition data necessary to implement an asynchronous interface.
 pub struct SPIM {
     registers: StaticRef<SpimRegisters>,
-    client: OptionalCell<&'static hil::spi::SpiMasterClient>,
-    chip_select: OptionalCell<&'static hil::gpio::Pin>,
+    client: OptionalCell<&'static dyn hil::spi::SpiMasterClient>,
+    chip_select: OptionalCell<&'static dyn hil::gpio::Pin>,
     initialized: Cell<bool>,
     busy: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
@@ -325,9 +325,9 @@ impl SPIM {
 }
 
 impl hil::spi::SpiMaster for SPIM {
-    type ChipSelect = &'static hil::gpio::Pin;
+    type ChipSelect = &'static dyn hil::gpio::Pin;
 
-    fn set_client(&self, client: &'static hil::spi::SpiMasterClient) {
+    fn set_client(&self, client: &'static dyn hil::spi::SpiMasterClient) {
         self.client.set(client);
     }
 

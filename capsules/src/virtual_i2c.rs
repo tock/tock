@@ -9,7 +9,7 @@ use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
 
 pub struct MuxI2C<'a> {
-    i2c: &'a i2c::I2CMaster,
+    i2c: &'a dyn i2c::I2CMaster,
     devices: List<'a, I2CDevice<'a>>,
     enabled: Cell<usize>,
     inflight: OptionalCell<&'a I2CDevice<'a>>,
@@ -25,7 +25,7 @@ impl I2CHwMasterClient for MuxI2C<'a> {
 }
 
 impl MuxI2C<'a> {
-    pub const fn new(i2c: &'a i2c::I2CMaster) -> MuxI2C<'a> {
+    pub const fn new(i2c: &'a dyn i2c::I2CMaster) -> MuxI2C<'a> {
         MuxI2C {
             i2c: i2c,
             devices: List::new(),
@@ -89,7 +89,7 @@ pub struct I2CDevice<'a> {
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, I2CDevice<'a>>,
-    client: OptionalCell<&'a I2CClient>,
+    client: OptionalCell<&'a dyn I2CClient>,
 }
 
 impl I2CDevice<'a> {
@@ -105,7 +105,7 @@ impl I2CDevice<'a> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a I2CClient) {
+    pub fn set_client(&'a self, client: &'a dyn I2CClient) {
         self.mux.devices.push_head(self);
         self.client.set(client);
     }

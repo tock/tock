@@ -138,7 +138,7 @@ static mut IP6_DG_OPT: Option<IP6Packet> = None;
 pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     alarm: A,
     sixlowpan_tx: TxState<'a>,
-    radio: &'a MacDevice<'a>,
+    radio: &'a dyn MacDevice<'a>,
     test_counter: Cell<usize>,
 }
 
@@ -169,7 +169,7 @@ pub unsafe fn initialize_all(
         )
     );
 
-    let sixlowpan_state = sixlowpan as &SixlowpanState;
+    let sixlowpan_state = sixlowpan as &dyn SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
     sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, radio_mac.get_pan(), None);
@@ -226,7 +226,11 @@ pub unsafe fn initialize_all(
 }
 
 impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
-    pub fn new(sixlowpan_tx: TxState<'a>, radio: &'a MacDevice<'a>, alarm: A) -> LowpanTest<'a, A> {
+    pub fn new(
+        sixlowpan_tx: TxState<'a>,
+        radio: &'a dyn MacDevice<'a>,
+        alarm: A,
+    ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
             sixlowpan_tx: sixlowpan_tx,

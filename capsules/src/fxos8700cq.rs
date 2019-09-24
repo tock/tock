@@ -175,17 +175,17 @@ enum State {
 }
 
 pub struct Fxos8700cq<'a> {
-    i2c: &'a I2CDevice,
-    interrupt_pin1: &'a gpio::InterruptPin,
+    i2c: &'a dyn I2CDevice,
+    interrupt_pin1: &'a dyn gpio::InterruptPin,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: OptionalCell<&'static hil::sensors::NineDofClient>,
+    callback: OptionalCell<&'static dyn hil::sensors::NineDofClient>,
 }
 
 impl Fxos8700cq<'a> {
     pub fn new(
-        i2c: &'a I2CDevice,
-        interrupt_pin1: &'a gpio::InterruptPin,
+        i2c: &'a dyn I2CDevice,
+        interrupt_pin1: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> Fxos8700cq<'a> {
         Fxos8700cq {
@@ -316,7 +316,7 @@ impl I2CClient for Fxos8700cq<'a> {
 }
 
 impl hil::sensors::NineDof for Fxos8700cq<'a> {
-    fn set_client(&self, client: &'static hil::sensors::NineDofClient) {
+    fn set_client(&self, client: &'static dyn hil::sensors::NineDofClient) {
         self.callback.set(client);
     }
 

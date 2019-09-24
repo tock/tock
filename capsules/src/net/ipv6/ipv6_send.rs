@@ -46,7 +46,7 @@ pub trait IP6Sender<'a> {
     /// # Arguments
     /// `client` - Client that implements the `IP6SendClient` trait to receive the
     /// `send_done` callback
-    fn set_client(&self, client: &'a IP6SendClient);
+    fn set_client(&self, client: &'a dyn IP6SendClient);
 
     /// This method sets the source address for packets sent from the
     /// `IP6Sender` instance.
@@ -93,14 +93,14 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     gateway: Cell<MacAddress>,
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
-    radio: &'a MacDevice<'a>,
+    radio: &'a dyn MacDevice<'a>,
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
-    client: OptionalCell<&'a IP6SendClient>,
+    client: OptionalCell<&'a dyn IP6SendClient>,
 }
 
 impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
-    fn set_client(&self, client: &'a IP6SendClient) {
+    fn set_client(&self, client: &'a dyn IP6SendClient) {
         self.client.set(client);
     }
 
@@ -141,7 +141,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         alarm: &'a A,
         tx_buf: &'static mut [u8],
         sixlowpan: TxState<'a>,
-        radio: &'a MacDevice<'a>,
+        radio: &'a dyn MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
     ) -> IP6SendStruct<'a, A> {

@@ -201,8 +201,8 @@ enum State {
 }
 
 pub struct TSL2561<'a> {
-    i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a gpio::InterruptPin,
+    i2c: &'a dyn i2c::I2CDevice,
+    interrupt_pin: &'a dyn gpio::InterruptPin,
     callback: OptionalCell<Callback>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -210,8 +210,8 @@ pub struct TSL2561<'a> {
 
 impl TSL2561<'a> {
     pub fn new(
-        i2c: &'a i2c::I2CDevice,
-        interrupt_pin: &'a gpio::InterruptPin,
+        i2c: &'a dyn i2c::I2CDevice,
+        interrupt_pin: &'a dyn gpio::InterruptPin,
         buffer: &'static mut [u8],
     ) -> TSL2561<'a> {
         // setup and return struct

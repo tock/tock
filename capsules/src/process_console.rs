@@ -112,7 +112,7 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
 pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
-    uart: &'a uart::UartData<'a>,
+    uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: Cell<bool>,
@@ -126,7 +126,7 @@ pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
 
 impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
-        uart: &'a uart::UartData<'a>,
+        uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],

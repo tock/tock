@@ -128,7 +128,7 @@ pub static mut I2C0: I2CMaster = I2CMaster::new(I2C0REGISTERS);
 
 pub struct I2CMaster<'a> {
     registers: StaticRef<I2CMasterRegisters>,
-    client: OptionalCell<&'a i2c::I2CHwMasterClient>,
+    client: OptionalCell<&'a dyn i2c::I2CHwMasterClient>,
     transfer: MapCell<Transfer>,
 }
 
@@ -141,7 +141,7 @@ impl<'a> I2CMaster<'a> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a i2c::I2CHwMasterClient) {
+    pub fn set_client(&'a self, client: &'a dyn i2c::I2CHwMasterClient) {
         self.client.set(client)
     }
 

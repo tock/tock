@@ -290,7 +290,7 @@ pub static mut PC: Port = Port {
 pub struct GPIOPin {
     port: StaticRef<GpioRegisters>,
     pin_mask: u32,
-    client: OptionalCell<&'static hil::gpio::Client>,
+    client: OptionalCell<&'static dyn hil::gpio::Client>,
 }
 
 impl GPIOPin {
@@ -306,7 +306,7 @@ impl GPIOPin {
         }
     }
 
-    pub fn set_client(&self, client: &'static gpio::Client) {
+    pub fn set_client(&self, client: &'static dyn gpio::Client) {
         self.client.set(client);
     }
 
@@ -596,7 +596,7 @@ impl gpio::Interrupt for GPIOPin {
         GPIOPin::disable_interrupt(self);
     }
 
-    fn set_client(&self, client: &'static gpio::Client) {
+    fn set_client(&self, client: &'static dyn gpio::Client) {
         GPIOPin::set_client(self, client);
     }
 

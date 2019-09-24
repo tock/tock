@@ -531,8 +531,8 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
 pub struct Radio {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: OptionalCell<&'static ble_advertising::RxClient>,
-    tx_client: OptionalCell<&'static ble_advertising::TxClient>,
+    rx_client: OptionalCell<&'static dyn ble_advertising::RxClient>,
+    tx_client: OptionalCell<&'static dyn ble_advertising::TxClient>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -814,11 +814,11 @@ impl ble_advertising::BleAdvertisementDriver for Radio {
         self.enable_interrupts();
     }
 
-    fn set_receive_client(&self, client: &'static ble_advertising::RxClient) {
+    fn set_receive_client(&self, client: &'static dyn ble_advertising::RxClient) {
         self.rx_client.set(client);
     }
 
-    fn set_transmit_client(&self, client: &'static ble_advertising::TxClient) {
+    fn set_transmit_client(&self, client: &'static dyn ble_advertising::TxClient) {
         self.tx_client.set(client);
     }
 }

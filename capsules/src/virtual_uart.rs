@@ -51,7 +51,7 @@ const RX_BUF_LEN: usize = 64;
 pub static mut RX_BUF: [u8; RX_BUF_LEN] = [0; RX_BUF_LEN];
 
 pub struct MuxUart<'a> {
-    uart: &'a uart::Uart<'a>,
+    uart: &'a dyn uart::Uart<'a>,
     speed: u32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
@@ -155,7 +155,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
+    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
         MuxUart {
             uart: uart,
             speed: speed,
@@ -263,8 +263,8 @@ pub struct UartDevice<'a> {
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
     next: ListLink<'a, UartDevice<'a>>,
-    rx_client: OptionalCell<&'a uart::ReceiveClient>,
-    tx_client: OptionalCell<&'a uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
 
 impl uart::UartData<'a> for UartDevice<'a> {}
@@ -330,7 +330,7 @@ impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
 }
 
 impl<'a> uart::Transmit<'a> for UartDevice<'a> {
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -368,7 +368,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
 }
 
 impl<'a> uart::Receive<'a> for UartDevice<'a> {
-    fn set_receive_client(&self, client: &'a uart::ReceiveClient) {
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 

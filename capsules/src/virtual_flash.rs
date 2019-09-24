@@ -129,7 +129,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     buffer: TakeCell<'static, F::Page>,
     operation: Cell<Op>,
     next: ListLink<'a, FlashUser<'a, F>>,
-    client: OptionalCell<&'a hil::flash::Client<FlashUser<'a, F>>>,
+    client: OptionalCell<&'a dyn hil::flash::Client<FlashUser<'a, F>>>,
 }
 
 impl<F: hil::flash::Flash> FlashUser<'a, F> {

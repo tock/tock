@@ -254,7 +254,7 @@ impl<'a> Eic<'a> {
     }
 
     /// Registers a client associated with a line.
-    pub fn set_client(&self, client: &'a hil::eic::Client, line: &Line) {
+    pub fn set_client(&self, client: &'a dyn hil::eic::Client, line: &Line) {
         self.callbacks.get(*line as usize).map(|c| c.set(client));
     }
 

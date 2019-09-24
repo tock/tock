@@ -162,7 +162,7 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     config: TakeCell<'a, SeggerRttMemory>,
     up_buffer: TakeCell<'static, [u8]>,
     _down_buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'a uart::TransmitClient>,
+    client: OptionalCell<&'a dyn uart::TransmitClient>,
     client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
 }
@@ -190,7 +190,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Uart<'a> for SeggerRtt<'a, A> {}
 impl<'a, A: hil::time::Alarm<'a>> uart::UartData<'a> for SeggerRtt<'a, A> {}
 
 impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
-    fn set_transmit_client(&self, client: &'a uart::TransmitClient) {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.client.set(client);
     }
 
@@ -261,7 +261,8 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Configure for SeggerRtt<'a, A> {
 // Dummy implementation so this can act as the underlying UART for a
 // virtualized UART MUX.  -pal 1/10/19
 impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
-    fn set_receive_client(&self, _client: &'a uart::ReceiveClient) {}
+    fn set_receive_client(&self, _client: &'a dyn uart::ReceiveClient) {}
+
     fn receive_buffer(
         &self,
         buffer: &'static mut [u8],

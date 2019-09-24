@@ -26,7 +26,7 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
 // How should the kernel respond when a process faults.
@@ -66,7 +66,7 @@ struct NucleoF446RE {
 impl Platform for NucleoF446RE {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -274,7 +274,7 @@ pub unsafe fn reset_handler() {
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let led_pins = static_init!(
         [(
-            &'static kernel::hil::gpio::Pin,
+            &'static dyn kernel::hil::gpio::Pin,
             capsules::led::ActivationMode
         ); 1],
         [(
@@ -290,7 +290,7 @@ pub unsafe fn reset_handler() {
     // BUTTONs
     let button_pins = static_init!(
         [(
-            &'static kernel::hil::gpio::InterruptValuePin,
+            &'static dyn kernel::hil::gpio::InterruptValuePin,
             capsules::button::GpioMode
         ); NUM_BUTTONS],
         [(

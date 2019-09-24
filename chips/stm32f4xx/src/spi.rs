@@ -144,7 +144,7 @@ pub struct Spi<'a> {
     clock: SpiClock,
 
     // SPI slave support not yet implemented
-    master_client: OptionalCell<&'a hil::spi::SpiMasterClient>,
+    master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
     tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
     tx_dma_pid: Dma1Peripheral,
@@ -332,7 +332,7 @@ impl Spi<'a> {
 impl spi::SpiMaster for Spi<'a> {
     type ChipSelect = PinId;
 
-    fn set_client(&self, client: &'static SpiMasterClient) {
+    fn set_client(&self, client: &'static dyn SpiMasterClient) {
         self.master_client.set(client);
     }
 

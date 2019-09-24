@@ -77,7 +77,7 @@ pub trait Configure {
 pub trait Transmit<'a> {
     /// Set the transmit client, which will be called when transmissions
     /// complete.
-    fn set_transmit_client(&self, client: &'a TransmitClient);
+    fn set_transmit_client(&self, client: &'a dyn TransmitClient);
 
     /// Transmit a buffer of data. On completion, `transmitted_buffer`
     /// in the `TransmitClient` will be called.  If the `ReturnCode`
@@ -151,7 +151,7 @@ pub trait Transmit<'a> {
 
 pub trait Receive<'a> {
     /// Set the receive client, which will he called when reads complete.
-    fn set_receive_client(&self, client: &'a ReceiveClient);
+    fn set_receive_client(&self, client: &'a dyn ReceiveClient);
 
     /// Receive `rx_len` bytes into `rx_buffer`, making a callback to
     /// the `ReceiveClient` when complete.  If the `ReturnCode` of

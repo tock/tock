@@ -48,13 +48,13 @@ impl Default for App {
 }
 
 pub struct NineDof<'a> {
-    driver: &'a hil::sensors::NineDof,
+    driver: &'a dyn hil::sensors::NineDof,
     apps: Grant<App>,
     current_app: OptionalCell<AppId>,
 }
 
 impl NineDof<'a> {
-    pub fn new(driver: &'a hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
+    pub fn new(driver: &'a dyn hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             driver: driver,
             apps: grant,

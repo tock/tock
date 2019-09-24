@@ -62,7 +62,7 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    callback: OptionalCell<&'a time::AlarmClient>,
+    callback: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
 pub static mut RTC: Rtc<'static> = Rtc::new();
@@ -166,7 +166,7 @@ impl Time for Rtc<'a> {
 }
 
 impl Alarm<'a> for Rtc<'a> {
-    fn set_client(&self, client: &'a time::AlarmClient) {
+    fn set_client(&self, client: &'a dyn time::AlarmClient) {
         self.callback.set(client);
     }
 

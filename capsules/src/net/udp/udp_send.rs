@@ -30,7 +30,7 @@ pub trait UDPSender<'a> {
     /// # Arguments
     /// `client` - Implementation of `UDPSendClient` to be set as the client
     /// for the `UDPSender` instance
-    fn set_client(&self, client: &'a UDPSendClient);
+    fn set_client(&self, client: &'a dyn UDPSendClient);
 
     /// This function constructs a `UDPHeader` and sends the payload to the
     /// provided destination IP address over the provided source and
@@ -66,13 +66,13 @@ pub trait UDPSender<'a> {
 /// forwards packets to (and receives callbacks from).
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
-    client: OptionalCell<&'a UDPSendClient>,
+    client: OptionalCell<&'a dyn UDPSendClient>,
 }
 
 /// Below is the implementation of the `UDPSender` traits for the
 /// `UDPSendStruct`.
 impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
-    fn set_client(&self, client: &'a UDPSendClient) {
+    fn set_client(&self, client: &'a dyn UDPSendClient) {
         self.client.set(client);
     }
 

@@ -297,21 +297,21 @@ pub struct Framer<'a, M: Mac, A: AES128CCM<'a>> {
     data_sequence: Cell<u8>,
 
     /// KeyDescriptor lookup procedure
-    key_procedure: OptionalCell<&'a KeyProcedure>,
+    key_procedure: OptionalCell<&'a dyn KeyProcedure>,
     /// DeviceDescriptor lookup procedure
-    device_procedure: OptionalCell<&'a DeviceProcedure>,
+    device_procedure: OptionalCell<&'a dyn DeviceProcedure>,
 
     /// Transmision pipeline state. This should never be `None`, except when
     /// transitioning between states. That is, any method that consumes the
     /// current state should always remember to replace it along with the
     /// associated state information.
     tx_state: MapCell<TxState>,
-    tx_client: OptionalCell<&'a TxClient>,
+    tx_client: OptionalCell<&'a dyn TxClient>,
 
     /// Reception pipeline state. Similar to the above, this should never be
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
-    rx_client: OptionalCell<&'a RxClient>,
+    rx_client: OptionalCell<&'a dyn RxClient>,
 }
 
 impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
@@ -330,12 +330,12 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 
     /// Sets the IEEE 802.15.4 key lookup procedure to be used.
-    pub fn set_key_procedure(&self, key_procedure: &'a KeyProcedure) {
+    pub fn set_key_procedure(&self, key_procedure: &'a dyn KeyProcedure) {
         self.key_procedure.set(key_procedure);
     }
 
     /// Sets the IEEE 802.15.4 key lookup procedure to be used.
-    pub fn set_device_procedure(&self, device_procedure: &'a DeviceProcedure) {
+    pub fn set_device_procedure(&self, device_procedure: &'a dyn DeviceProcedure) {
         self.device_procedure.set(device_procedure);
     }
 
@@ -646,11 +646,11 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
 }
 
 impl<M: Mac, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
-    fn set_transmit_client(&self, client: &'a TxClient) {
+    fn set_transmit_client(&self, client: &'a dyn TxClient) {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'a RxClient) {
+    fn set_receive_client(&self, client: &'a dyn RxClient) {
         self.rx_client.set(client);
     }
 

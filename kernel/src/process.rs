@@ -33,9 +33,9 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     start_of_flash: *const u8,
     app_memory: &mut [u8],
-    procs: &'static mut [Option<&'static ProcessType>],
+    procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
-    _capability: &ProcessManagementCapability,
+    _capability: &dyn ProcessManagementCapability,
 ) {
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
@@ -213,8 +213,8 @@ pub trait ProcessType {
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn fault_fmt(&self, writer: &mut Write);
-    unsafe fn process_detail_fmt(&self, writer: &mut Write);
+    unsafe fn fault_fmt(&self, writer: &mut dyn Write);
+    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write);
 
     // debug
 
@@ -919,11 +919,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             .map(|debug| debug.timeslice_expiration_count += 1);
     }
 
-    unsafe fn fault_fmt(&self, writer: &mut Write) {
+    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
         self.chip.userspace_kernel_boundary().fault_fmt(writer);
     }
 
-    unsafe fn process_detail_fmt(&self, writer: &mut Write) {
+    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write) {
         // Flash
         let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
@@ -1070,7 +1070,7 @@ impl<C: 'static + Chip> Process<'a, C> {
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
         index: usize,
-    ) -> (Option<&'static ProcessType>, usize, usize) {
+    ) -> (Option<&'static dyn ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
 

@@ -239,7 +239,7 @@ pub struct Usbc<'a> {
     descriptors: [Endpoint; N_ENDPOINTS],
     state: OptionalCell<State>,
     requests: [Cell<Requests>; N_ENDPOINTS],
-    client: Option<&'a hil::usb::Client>,
+    client: Option<&'a dyn hil::usb::Client>,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -446,7 +446,7 @@ impl Usbc<'a> {
     }
 
     /// Set a client to receive data from the USBC
-    pub fn set_client(&mut self, client: &'a hil::usb::Client) {
+    pub fn set_client(&mut self, client: &'a dyn hil::usb::Client) {
         self.client = Some(client);
     }
 

@@ -29,7 +29,7 @@ pub trait ICMP6Sender<'a> {
     ///
     /// `client` - The `ICMP6SendClient` instance to be set as the client
     /// of the `ICMP6Sender` instance
-    fn set_client(&self, client: &'a ICMP6SendClient);
+    fn set_client(&self, client: &'a dyn ICMP6SendClient);
 
     /// Constructs and sends an IP packet from provided ICMPv6 header
     /// and payload.
@@ -51,7 +51,7 @@ pub trait ICMP6Sender<'a> {
 /// A struct that implements the `ICMP6Sender` trait.
 pub struct ICMP6SendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
-    client: OptionalCell<&'a ICMP6SendClient>,
+    client: OptionalCell<&'a dyn ICMP6SendClient>,
 }
 
 impl<T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
@@ -64,7 +64,7 @@ impl<T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
 }
 
 impl<T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
-    fn set_client(&self, client: &'a ICMP6SendClient) {
+    fn set_client(&self, client: &'a dyn ICMP6SendClient) {
         self.client.set(client);
     }
 

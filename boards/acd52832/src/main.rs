@@ -45,7 +45,8 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -82,7 +83,7 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -119,7 +120,7 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptValuePin; 14],
+        [&'static dyn kernel::hil::gpio::InterruptValuePin; 14],
         [
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
@@ -196,7 +197,7 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static Pin, capsules::led::ActivationMode); 4],
+        [(&'static dyn Pin, capsules::led::ActivationMode); 4],
         [
             (
                 &nrf5x::gpio::PORT[LED1_PIN],
@@ -219,7 +220,7 @@ pub unsafe fn reset_handler() {
 
     // Setup GPIO pins that correspond to buttons
     let button_pins = static_init!(
-        [(&'static InterruptValuePin, capsules::button::GpioMode); 4],
+        [(&'static dyn InterruptValuePin, capsules::button::GpioMode); 4],
         [
             // 13
             (

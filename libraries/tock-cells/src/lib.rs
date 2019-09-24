@@ -1,6 +1,5 @@
 //! Tock Cell types.
 
-#![feature(maybe_uninit)]
 #![feature(const_fn, untagged_unions)]
 #![no_std]
 

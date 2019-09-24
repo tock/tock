@@ -148,7 +148,7 @@ pub unsafe extern "C" fn svc_handler() {
 }
 
 #[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *const u8) -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, _process_got: *const u8) -> *mut u8 {
     user_stack as *mut u8
 }
 
@@ -389,13 +389,13 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
         4 => "MemManage",
         5 => "BusFault",
         6 => "UsageFault",
-        7...10 => "Reserved",
+        7..=10 => "Reserved",
         11 => "SVCall",
         12 => "Reserved for Debug",
         13 => "Reserved",
         14 => "PendSV",
         15 => "SysTick",
-        16...255 => "IRQn",
+        16..=255 => "IRQn",
         _ => "(Unknown! Illegal value?)",
     }
 }

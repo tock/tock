@@ -79,13 +79,13 @@ pub trait RadioConfig {
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    fn set_power_client(&self, client: &'static PowerClient);
+    fn set_power_client(&self, client: &'static dyn PowerClient);
 
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
     fn config_commit(&self);
-    fn set_config_client(&self, client: &'static ConfigClient);
+    fn set_config_client(&self, client: &'static dyn ConfigClient);
 
     fn get_address(&self) -> u16; //....... The local 16-bit address
     fn get_address_long(&self) -> [u8; 8]; // 64-bit address
@@ -101,8 +101,8 @@ pub trait RadioConfig {
 }
 
 pub trait RadioData {
-    fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
+    fn set_transmit_client(&self, client: &'static dyn TxClient);
+    fn set_receive_client(&self, client: &'static dyn RxClient, receive_buffer: &'static mut [u8]);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     fn transmit(
