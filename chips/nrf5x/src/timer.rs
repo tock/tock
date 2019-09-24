@@ -258,9 +258,9 @@ impl Timer {
     }
 }
 
-pub struct TimerAlarm {
+pub struct TimerAlarm<'a> {
     registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'static hil::time::Client>,
+    client: OptionalCell<&'a hil::time::AlarmClient>,
 }
 
 // CC0 is used for capture
@@ -270,8 +270,8 @@ const ALARM_COMPARE: usize = 1;
 const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
 const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
-impl TimerAlarm {
-    const fn new(instance: usize) -> TimerAlarm {
+impl TimerAlarm<'a> {
+    const fn new(instance: usize) -> TimerAlarm<'a> {
         TimerAlarm {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),
@@ -283,10 +283,6 @@ impl TimerAlarm {
         self.registers.tasks_stop.write(Task::ENABLE::SET);
         self.registers.tasks_clear.write(Task::ENABLE::SET);
         self.disable_interrupts();
-    }
-
-    pub fn set_client(&self, client: &'static hil::time::Client) {
-        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
@@ -317,21 +313,29 @@ impl TimerAlarm {
     }
 }
 
-impl hil::time::Time for TimerAlarm {
+impl hil::time::Time for TimerAlarm<'a> {
     type Frequency = hil::time::Freq16KHz;
+
+    fn now(&self) -> u32 {
+        self.value()
+    }
+
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
+    }
+}
+
+impl hil::time::Alarm<'a> for TimerAlarm<'a> {
+    fn set_client(&self, client: &'a hil::time::AlarmClient) {
+        self.client.set(client);
+    }
 
     fn disable(&self) {
         self.disable_interrupts();
     }
 
-    fn is_armed(&self) -> bool {
+    fn is_enabled(&self) -> bool {
         self.interrupts_enabled()
-    }
-}
-
-impl hil::time::Alarm for TimerAlarm {
-    fn now(&self) -> u32 {
-        self.value()
     }
 
     fn set_alarm(&self, tics: u32) {

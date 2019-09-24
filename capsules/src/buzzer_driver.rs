@@ -63,7 +63,7 @@ pub struct App {
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
-pub struct Buzzer<'a, A: hil::time::Alarm> {
+pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     // The underlying PWM generator to make the buzzer buzz.
     pwm_pin: &'a hil::pwm::PwmPin,
     // Alarm to stop the buzzer after some time.
@@ -76,7 +76,7 @@ pub struct Buzzer<'a, A: hil::time::Alarm> {
     max_duration_ms: usize,
 }
 
-impl<A: hil::time::Alarm> Buzzer<'a, A> {
+impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     pub fn new(
         pwm_pin: &'a hil::pwm::PwmPin,
         alarm: &'a A,
@@ -161,7 +161,7 @@ impl<A: hil::time::Alarm> Buzzer<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm> hil::time::Client for Buzzer<'a, A> {
+impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
     fn fired(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
@@ -179,7 +179,7 @@ impl<A: hil::time::Alarm> hil::time::Client for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<A: hil::time::Alarm> Driver for Buzzer<'a, A> {
+impl<A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

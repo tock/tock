@@ -34,6 +34,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio;
+use kernel::hil::time::Alarm;
 use kernel::static_init;
 
 const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userland apps

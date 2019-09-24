@@ -77,7 +77,7 @@ pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio,
-        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
     ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
     button: &'static capsules::button::Button<'static>,
@@ -89,7 +89,7 @@ pub struct Platform {
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
     >,
     // The nRF52dk does not have the flash chip on it, so we make this optional.
     nonvolatile_storage:
@@ -204,7 +204,7 @@ pub unsafe fn setup_board(
         capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC)
     );
-    rtc.set_client(mux_alarm);
+    hil::time::Alarm::set_client(rtc, mux_alarm);
 
     let virtual_alarm1 = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
@@ -220,7 +220,7 @@ pub unsafe fn setup_board(
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    virtual_alarm1.set_client(alarm);
+    hil::time::Alarm::set_client(virtual_alarm1, alarm);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -357,7 +357,7 @@ pub unsafe fn setup_board(
             )
         );
         mx25r6435f_spi.set_client(mx25r6435f);
-        mx25r6435f_virtual_alarm.set_client(mx25r6435f);
+        hil::time::Alarm::set_client(mx25r6435f_virtual_alarm, mx25r6435f);
 
         pub static mut FLASH_PAGEBUFFER: capsules::mx25r6435f::Mx25r6435fSector =
             capsules::mx25r6435f::Mx25r6435fSector::new();

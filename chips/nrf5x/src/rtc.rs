@@ -82,9 +82,9 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct Rtc {
+pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    callback: OptionalCell<&'static time::Client>,
+    callback: OptionalCell<&'a time::AlarmClient>,
 }
 
 pub static mut RTC: Rtc = Rtc {
@@ -92,10 +92,10 @@ pub static mut RTC: Rtc = Rtc {
     callback: OptionalCell::empty(),
 };
 
-impl Controller for Rtc {
-    type Config = &'static time::Client;
+impl Controller for Rtc<'a> {
+    type Config = &'a time::AlarmClient;
 
-    fn configure(&self, client: &'static time::Client) {
+    fn configure(&self, client: &'a time::AlarmClient) {
         self.callback.set(client);
 
         // FIXME: what to do here?
@@ -105,7 +105,7 @@ impl Controller for Rtc {
     }
 }
 
-impl Rtc {
+impl Rtc<'a> {
     pub fn start(&self) {
         // This function takes a nontrivial amount of time
         // So it should only be called during initialization, not each tick
@@ -129,37 +129,43 @@ impl Rtc {
             cb.fired();
         });
     }
-
-    pub fn set_client(&self, client: &'static time::Client) {
-        self.callback.set(client);
-    }
 }
 
-impl Time for Rtc {
+impl Time for Rtc<'a> {
     type Frequency = Freq32KHz;
 
-    fn disable(&self) {
-        self.registers.intenclr.write(Inte::COMPARE0::SET);
+    fn now(&self) -> u32 {
+        self.registers.counter.get()
     }
 
-    fn is_armed(&self) -> bool {
-        self.is_running()
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
     }
 }
 
-impl Alarm for Rtc {
-    fn now(&self) -> u32 {
-        self.registers.counter.get()
+impl Alarm<'a> for Rtc<'a> {
+    fn set_client(&self, client: &'a time::AlarmClient) {
+        self.callback.set(client);
     }
 
     fn set_alarm(&self, tics: u32) {
         // Similarly to the disable function, here we don't restart the timer
         // Instead, we just listen for it again
-        self.registers.cc[0].write(CC::CC.val(tics));
         self.registers.intenset.write(Inte::COMPARE0::SET);
+        self.registers.cc[0].write(CC::CC.val(tics));
+        self.registers.events_compare[0].write(Event::READY::CLEAR);
     }
 
     fn get_alarm(&self) -> u32 {
         self.registers.cc[0].read(CC::CC)
+    }
+
+    fn disable(&self) {
+        self.registers.intenclr.write(Inte::COMPARE0::SET);
+        self.registers.events_compare[0].write(Event::READY::CLEAR);
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.is_running()
     }
 }

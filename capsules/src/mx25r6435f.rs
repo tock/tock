@@ -160,7 +160,7 @@ pub struct MX25R6435F<
     'a,
     S: hil::spi::SpiMasterDevice + 'a,
     P: hil::gpio::Pin + 'a,
-    A: hil::time::Alarm + 'a,
+    A: hil::time::Alarm<'a> + 'a,
 > {
     spi: &'a S,
     alarm: &'a A,
@@ -173,8 +173,12 @@ pub struct MX25R6435F<
     client_sector: TakeCell<'static, Mx25r6435fSector>,
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    MX25R6435F<'a, S, P, A>
+impl<
+        'a,
+        S: hil::spi::SpiMasterDevice + 'a,
+        P: hil::gpio::Pin + 'a,
+        A: hil::time::Alarm<'a> + 'a,
+    > MX25R6435F<'a, S, P, A>
 {
     pub fn new(
         spi: &'a S,
@@ -289,8 +293,12 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
+impl<
+        'a,
+        S: hil::spi::SpiMasterDevice + 'a,
+        P: hil::gpio::Pin + 'a,
+        A: hil::time::Alarm<'a> + 'a,
+    > hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
 {
     fn read_write_done(
         &self,
@@ -497,8 +505,12 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    hil::time::Client for MX25R6435F<'a, S, P, A>
+impl<
+        'a,
+        S: hil::spi::SpiMasterDevice + 'a,
+        P: hil::gpio::Pin + 'a,
+        A: hil::time::Alarm<'a> + 'a,
+    > hil::time::AlarmClient for MX25R6435F<'a, S, P, A>
 {
     fn fired(&self) {
         // After the timer expires we still have to check that the erase/write
@@ -517,7 +529,7 @@ impl<
         'a,
         S: hil::spi::SpiMasterDevice + 'a,
         P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm + 'a,
+        A: hil::time::Alarm<'a> + 'a,
         C: hil::flash::Client<Self>,
     > hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A>
 {
@@ -526,8 +538,12 @@ impl<
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a, P: hil::gpio::Pin + 'a, A: hil::time::Alarm + 'a>
-    hil::flash::Flash for MX25R6435F<'a, S, P, A>
+impl<
+        'a,
+        S: hil::spi::SpiMasterDevice + 'a,
+        P: hil::gpio::Pin + 'a,
+        A: hil::time::Alarm<'a> + 'a,
+    > hil::flash::Flash for MX25R6435F<'a, S, P, A>
 {
     type Page = Mx25r6435fSector;
 

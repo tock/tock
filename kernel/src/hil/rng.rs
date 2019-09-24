@@ -52,12 +52,12 @@
 //! use kernel::hil::time::Frequency;
 //! use kernel::ReturnCode;
 //!
-//! struct RngTest<'a, A: 'a + hil::time::Alarm> {
+//! struct RngTest<'a, A: 'a + hil::time::Alarm<'a>> {
 //!     rng: &'a hil::rng::Rng<'a>,
 //!     alarm: &'a A
 //! }
 //!
-//! impl<'a, A: hil::time::Alarm> RngTest<'a, A> {
+//! impl<'a, A: hil::time::Alarm<'a>> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let interval = 1 * <A::Frequency>::frequency();
 //!         let tics = self.alarm.now().wrapping_add(interval);
@@ -65,13 +65,13 @@
 //!     }
 //! }
 //!
-//! impl<'a, A: hil::time::Alarm> hil::time::Client for RngTest<'a, A> {
+//! impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for RngTest<'a, A> {
 //!     fn fired(&self) {
 //!         self.rng.get();
 //!     }
 //! }
 //!
-//! impl<'a, A: hil::time::Alarm> hil::rng::Client for RngTest<'a, A> {
+//! impl<'a, A: hil::time::Alarm<'a>> hil::rng::Client for RngTest<'a, A> {
 //!     fn randomness_available(&self,
 //!                             randomness: &mut Iterator<Item = u32>,
 //!                             error: ReturnCode) -> hil::rng::Continue {

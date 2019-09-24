@@ -19,6 +19,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::time::Alarm;
 use kernel::static_init;
 
 pub struct AlarmDriverComponent {

@@ -306,7 +306,7 @@ pub unsafe fn reset_handler() {
         )
     );
     si7021_i2c.set_client(si7021);
-    si7021_virtual_alarm.set_client(si7021);
+    hil::time::Alarm::set_client(si7021_virtual_alarm, si7021);
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
@@ -341,7 +341,7 @@ pub unsafe fn reset_handler() {
         )
     );
     isl29035_i2c.set_client(isl29035);
-    isl29035_virtual_alarm.set_client(isl29035);
+    hil::time::Alarm::set_client(isl29035_virtual_alarm, isl29035);
 
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
@@ -364,7 +364,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    virtual_alarm1.set_client(alarm);
+    hil::time::Alarm::set_client(virtual_alarm1, alarm);
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));

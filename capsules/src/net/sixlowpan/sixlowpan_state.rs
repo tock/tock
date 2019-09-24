@@ -783,7 +783,7 @@ impl RxState<'a> {
 ///
 /// Finally, `set_client` controls the client that will receive transmission
 /// completion and reception callbacks.
-pub struct Sixlowpan<'a, A: time::Alarm, C: ContextStore> {
+pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
     pub ctx_store: C,
     clock: &'a A,
     tx_dgram_tag: Cell<u16>,
@@ -794,7 +794,7 @@ pub struct Sixlowpan<'a, A: time::Alarm, C: ContextStore> {
 }
 
 // This function is called after receiving a frame
-impl<A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
@@ -815,7 +815,7 @@ impl<A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     }
 }
 
-impl<A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
     fn next_dgram_tag(&self) -> u16 {
         // Increment dgram_tag
         let dgram_tag = if (self.tx_dgram_tag.get() + 1) == 0 {
@@ -846,7 +846,7 @@ impl<A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C>
     }
 }
 
-impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// Creates a new `Sixlowpan`
     ///
     /// # Arguments

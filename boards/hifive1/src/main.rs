@@ -44,7 +44,7 @@ struct HiFive1 {
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
     >,
 }
 
@@ -164,7 +164,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
         MuxAlarm::new(&rv32i::machine_timer::MACHINETIMER)
     );
-    rv32i::machine_timer::MACHINETIMER.set_client(mux_alarm);
+    hil::time::Alarm::set_client(&rv32i::machine_timer::MACHINETIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -181,7 +181,8 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_cap)
         )
     );
-    virtual_alarm_user.set_client(alarm);
+    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
+
     // Create a UartDevice for the console.
     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
     console_uart.setup();
