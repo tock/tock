@@ -99,7 +99,7 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -125,23 +125,23 @@ impl kernel::Platform for Platform {
 pub unsafe fn setup_board(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: usize,
-    gpio_pins: &'static mut [&'static kernel::hil::gpio::InterruptValuePin],
+    gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
     debug_pin1_index: usize,
     debug_pin2_index: usize,
     debug_pin3_index: usize,
     led_pins: &'static mut [(
-        &'static kernel::hil::gpio::Pin,
+        &'static dyn kernel::hil::gpio::Pin,
         capsules::led::ActivationMode,
     )],
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button_pins: &'static mut [(
-        &'static kernel::hil::gpio::InterruptValuePin,
+        &'static dyn kernel::hil::gpio::InterruptValuePin,
         capsules::button::GpioMode,
     )],
     app_memory: &mut [u8],
-    process_pointers: &'static mut [Option<&'static kernel::procs::ProcessType>],
+    process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
 ) {
     // Make non-volatile memory writable and activate the reset button

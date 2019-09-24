@@ -52,7 +52,7 @@ const NUM_PROCS: usize = 8;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 245760] = [0; 245760];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -68,7 +68,7 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static kernel::hil::gpio::InterruptValuePin; 13],
+        [&'static dyn kernel::hil::gpio::InterruptValuePin; 13],
         [
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
@@ -141,7 +141,7 @@ pub unsafe fn reset_handler() {
     // LEDs
     let led_pins = static_init!(
         [(
-            &'static kernel::hil::gpio::Pin,
+            &'static dyn kernel::hil::gpio::Pin,
             capsules::led::ActivationMode
         ); 4],
         [
@@ -166,7 +166,7 @@ pub unsafe fn reset_handler() {
 
     let button_pins = static_init!(
         [(
-            &'static kernel::hil::gpio::InterruptValuePin,
+            &'static dyn kernel::hil::gpio::InterruptValuePin,
             capsules::button::GpioMode
         ); 4],
         [
