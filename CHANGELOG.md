@@ -1,3 +1,35 @@
+Since 1.3
+=========
+
+* Major HIL Changes
+
+  Three HILs have been revised to better support embedded devices and clean up
+  the interface for users of the HILs.
+
+  - [#1211](https://github.com/tock/tock/pull/1211) revamps the UART interface
+    to separate the transmit and receive paths.
+
+  - [#1297](https://github.com/tock/tock/pull/1297) breaks the GPIO HIL into
+    component subtraits so GPIO users can be specific about the features they
+    need from GPIO pins.
+
+  - [#1345](https://github.com/tock/tock/pull/1345) clearly defines the
+    differences between counters, alarms, and timers.
+
+* Start on RISC-V Support
+
+  [#1323](https://github.com/tock/tock/pull/1317),
+  [#1323](https://github.com/tock/tock/pull/1323), and
+  [#1345](https://github.com/tock/tock/pull/1345) add architecture support and
+  boards to Tock for the RISC-V architecture.
+
+* Update Userland-Kernel Boundary Interface
+
+  [#1318](https://github.com/tock/tock/pull/1318) updates the interface for
+  switching to and returning from userspace to be less Cortex-M specific. The
+  functions are more general and do not assume values are passed on the stack.
+
+
 Since 1.2
 =========
 
