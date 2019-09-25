@@ -3,6 +3,7 @@
 //! Used in order read and write to internal flash.
 
 use core::cell::Cell;
+use core::convert::TryFrom;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -11,7 +12,7 @@ use kernel::common::deferred_call::DeferredCall;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
-use kernel::ReturnCode;
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 use crate::deferred_call_tasks::DeferredCallTask;
 
@@ -141,7 +142,13 @@ register_bitfields! [u32,
 static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
     unsafe { DeferredCall::new(DeferredCallTask::Nvmc) };
 
+type WORD = u32;
+const WORD_SIZE: usize = core::mem::size_of::<WORD>();
 const PAGE_SIZE: usize = 4096;
+const MAX_WORD_WRITES: usize = 2;
+const MAX_PAGE_ERASES: usize = 10000;
+const WORD_MASK: usize = WORD_SIZE - 1;
+const PAGE_MASK: usize = PAGE_SIZE - 1;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
 /// nrf. Users of this module must pass an object of this type to use the
@@ -210,6 +217,11 @@ impl Nvmc {
             buffer: TakeCell::empty(),
             state: Cell::new(FlashState::Ready),
         }
+    }
+
+    pub fn configure_readonly(&self) {
+        let regs = &*self.registers;
+        regs.config.write(Configuration::WEN::Ren);
     }
 
     /// Configure the NVMC to allow writes to flash.
@@ -311,7 +323,7 @@ impl Nvmc {
         // Put the NVMC in write mode.
         regs.config.write(Configuration::WEN::Wen);
 
-        for i in (0..data.len()).step_by(4) {
+        for i in (0..data.len()).step_by(WORD_SIZE) {
             let word: u32 = (data[i + 0] as u32) << 0
                 | (data[i + 1] as u32) << 8
                 | (data[i + 2] as u32) << 16
@@ -369,5 +381,180 @@ impl hil::flash::Flash for Nvmc {
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
         self.erase_page(page_number)
+    }
+}
+
+/// Provides access to the writeable flash regions of the application.
+///
+/// The purpose of this driver is to provide low-level access to the embedded flash of nRF52 boards
+/// to allow applications to implement flash-aware (like wear-leveling) data-structures. The driver
+/// only permits applications to operate on their writeable flash regions. The API is blocking since
+/// the CPU is halted during write and erase operations.
+///
+/// Supported boards:
+/// - nRF52840 (tested)
+/// - nRF52833
+/// - nRF52811
+/// - nRF52810
+///
+/// The maximum number of writes for the nRF52832 board is not per word but per block (512 bytes)
+/// and as such doesn't exactly fit this API. However, it could be safely supported by returning
+/// either 1 for the maximum number of word writes (i.e. the flash can only be written once before
+/// being erased) or 8 for the word size (i.e. the write granularity is doubled). In both cases,
+/// only 128 writes per block are permitted while the flash supports 181.
+///
+/// # Syscalls
+///
+/// - COMMAND(0): Check the driver.
+/// - COMMAND(1, 0): Get the word size (always 4).
+/// - COMMAND(1, 1): Get the page size (always 4096).
+/// - COMMAND(1, 2): Get the maximum number of word writes between page erasures (always 2).
+/// - COMMAND(1, 3): Get the maximum number page erasures in the lifetime of the flash (always
+///     10000).
+/// - COMMAND(2, ptr): Write the allow slice to the flash region starting at `ptr`.
+///   - `ptr` must be word-aligned.
+///   - The allow slice length must be word aligned.
+///   - The region starting at `ptr` of the same length as the allow slice must be in a writeable
+///     flash region.
+/// - COMMAND(3, ptr): Erase a page.
+///   - `ptr` must be page-aligned.
+///   - The page starting at `ptr` must be in a writeable flash region.
+/// - ALLOW(0): The allow slice for COMMAND(2).
+pub struct SyscallDriver {
+    nvmc: &'static Nvmc,
+    apps: Grant<App>,
+}
+
+pub const DRIVER_NUM: usize = 0x50003;
+
+#[derive(Default)]
+pub struct App {
+    /// The allow slice for COMMAND(2).
+    slice: Option<AppSlice<Shared, u8>>,
+}
+
+impl SyscallDriver {
+    pub fn new(nvmc: &'static Nvmc, apps: Grant<App>) -> SyscallDriver {
+        SyscallDriver { nvmc, apps }
+    }
+}
+
+fn is_write_needed(old: u32, new: u32) -> bool {
+    // No need to write if it would not modify the current value.
+    old & new != old
+}
+
+impl SyscallDriver {
+    /// Writes a word-aligned slice at a word-aligned address.
+    ///
+    /// Words are written only if necessary, i.e. if writing the new value would change the current
+    /// value. This can be used to simplify recovery operations (e.g. if power is lost during a
+    /// write operation). The application doesn't need to check which prefix has already been
+    /// written and may repeat the complete write that was interrupted.
+    ///
+    /// # Safety
+    ///
+    /// The words in this range must have been written less than `MAX_WORD_WRITES` since their last
+    /// page erasure.
+    ///
+    /// # Errors
+    ///
+    /// Fails with `EINVAL` if any of the following conditions does not hold:
+    /// - `ptr` must be word-aligned.
+    /// - `slice.len()` must be word-aligned.
+    /// - The slice starting at `ptr` of length `slice.len()` must fit in a writeable flash region.
+    fn write_slice(&self, appid: AppId, ptr: usize, slice: &[u8]) -> ReturnCode {
+        if !appid.in_writeable_flash_region(ptr, slice.len()) {
+            return ReturnCode::EINVAL;
+        }
+        if ptr & WORD_MASK != 0 || slice.len() & WORD_MASK != 0 {
+            return ReturnCode::EINVAL;
+        }
+        self.nvmc.configure_writeable();
+        for (i, chunk) in slice.chunks(WORD_SIZE).enumerate() {
+            // `unwrap` cannot fail because `slice.len()` is word-aligned (see above).
+            let val = WORD::from_ne_bytes(<[u8; WORD_SIZE]>::try_from(chunk).unwrap());
+            let loc = unsafe { &*(ptr as *const VolatileCell<u32>).add(i) };
+            if is_write_needed(loc.get(), val) {
+                loc.set(val);
+            }
+        }
+        while !self.nvmc.is_ready() {}
+        self.nvmc.configure_readonly();
+        ReturnCode::SUCCESS
+    }
+
+    /// Erases a page at a page-aligned address.
+    ///
+    /// # Errors
+    ///
+    /// Fails with `EINVAL` if any of the following conditions does not hold:
+    /// - `ptr` must be page-aligned.
+    /// - The slice starting at `ptr` of length `PAGE_SIZE` must fit in a writeable flash region.
+    fn erase_page(&self, appid: AppId, ptr: usize) -> ReturnCode {
+        if !appid.in_writeable_flash_region(ptr, PAGE_SIZE) {
+            return ReturnCode::EINVAL;
+        }
+        if ptr & PAGE_MASK != 0 {
+            return ReturnCode::EINVAL;
+        }
+        self.nvmc.erase_page_helper(ptr / PAGE_SIZE);
+        self.nvmc.configure_readonly();
+        ReturnCode::SUCCESS
+    }
+}
+
+impl Driver for SyscallDriver {
+    fn subscribe(&self, _: usize, _: Option<Callback>, _: AppId) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+
+    fn command(&self, cmd: usize, arg: usize, _: usize, appid: AppId) -> ReturnCode {
+        match (cmd, arg) {
+            (0, _) => ReturnCode::SUCCESS,
+
+            (1, 0) => ReturnCode::SuccessWithValue { value: WORD_SIZE },
+            (1, 1) => ReturnCode::SuccessWithValue { value: PAGE_SIZE },
+            (1, 2) => ReturnCode::SuccessWithValue {
+                value: MAX_WORD_WRITES,
+            },
+            (1, 3) => ReturnCode::SuccessWithValue {
+                value: MAX_PAGE_ERASES,
+            },
+            (1, _) => ReturnCode::EINVAL,
+
+            (2, ptr) => self
+                .apps
+                .enter(appid, |app, _| {
+                    let slice = match app.slice.take() {
+                        None => return ReturnCode::EINVAL,
+                        Some(slice) => slice,
+                    };
+                    self.write_slice(appid, ptr, slice.as_ref())
+                })
+                .unwrap_or_else(|err| err.into()),
+
+            (3, ptr) => self.erase_page(appid, ptr),
+
+            _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
+    fn allow(
+        &self,
+        appid: AppId,
+        allow_num: usize,
+        slice: Option<AppSlice<Shared, u8>>,
+    ) -> ReturnCode {
+        match allow_num {
+            0 => self
+                .apps
+                .enter(appid, |app, _| {
+                    app.slice = slice;
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
+            _ => ReturnCode::ENOSUPPORT,
+        }
     }
 }

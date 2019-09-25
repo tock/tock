@@ -92,6 +92,7 @@ pub struct Platform {
     // The nRF52dk does not have the flash chip on it, so we make this optional.
     nonvolatile_storage:
         Option<&'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>>,
+    nvmc: &'static nrf52::nvmc::SyscallDriver,
 }
 
 impl kernel::Platform for Platform {
@@ -115,6 +116,7 @@ impl kernel::Platform for Platform {
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
             }
+            nrf52::nvmc::DRIVER_NUM => f(Some(self.nvmc)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -349,6 +351,14 @@ pub unsafe fn setup_board(
         None
     };
 
+    let nvmc = static_init!(
+        nrf52::nvmc::SyscallDriver,
+        nrf52::nvmc::SyscallDriver::new(
+            &nrf52::nvmc::NVMC,
+            board_kernel.create_grant(&memory_allocation_capability)
+        )
+    );
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52::clock::CLOCK.low_stop();
@@ -381,6 +391,7 @@ pub unsafe fn setup_board(
         alarm: alarm,
         nonvolatile_storage: nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
+        nvmc: nvmc,
     };
 
     let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new());
