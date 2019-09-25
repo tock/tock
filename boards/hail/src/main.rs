@@ -450,7 +450,7 @@ pub unsafe fn reset_handler() {
         [(
             static_init!(
                 gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[16])
+                gpio::InterruptValueWrapper::new(&sam4l::gpio::PA[16])
             )
             .finalize(),
             capsules::button::GpioMode::LowWhenPressed
