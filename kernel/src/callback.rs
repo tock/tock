@@ -52,6 +52,9 @@ impl AppId {
     }
 }
 
+/// Type to uniquely identify a callback subscription accross all drivers.
+///
+/// This contains the driver number and the subscribe number within the driver.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct CallbackId {
     pub driver_num: usize,
@@ -97,7 +100,7 @@ impl Callback {
             .kernel
             .process_map_or(false, self.app_id.idx(), |process| {
                 process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                    callback_id: Some(self.callback_id),
+                    source: process::FunctionCallSource::Driver(self.callback_id),
                     argument0: r0,
                     argument1: r1,
                     argument2: r2,

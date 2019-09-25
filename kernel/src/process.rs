@@ -331,6 +331,16 @@ pub enum Task {
     IPC((AppId, IPCType)),
 }
 
+/// Enumeration to identify whether a function call comes directly from the
+/// kernel or from a callback subscribed through a driver.
+///
+/// An example of kernel function is the application entry point.
+#[derive(Copy, Clone, Debug)]
+pub enum FunctionCallSource {
+    Kernel, // For functions coming directly from the kernel, such as `init_fn`.
+    Driver(CallbackId),
+}
+
 /// Struct that defines a callback that can be passed to a process. The callback
 /// takes four arguments that are `Driver` and callback specific, so they are
 /// represented generically here.
@@ -342,7 +352,7 @@ pub enum Task {
 /// that it can be unscheduled when the process unsubscribes from this callback.
 #[derive(Copy, Clone, Debug)]
 pub struct FunctionCall {
-    pub callback_id: Option<CallbackId>,
+    pub source: FunctionCallSource,
     pub argument0: usize,
     pub argument1: usize,
     pub argument2: usize,
@@ -513,9 +523,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
                 // to `callback_id`.
-                Task::FunctionCall(function_call) => function_call
-                    .callback_id
-                    .map_or(true, |id| id != callback_id),
+                Task::FunctionCall(function_call) => match function_call.source {
+                    FunctionCallSource::Kernel => true,
+                    FunctionCallSource::Driver(id) => id != callback_id,
+                },
                 _ => true,
             });
         });
@@ -607,7 +618,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 self.tasks.map(|tasks| {
                     tasks.empty();
                     tasks.enqueue(Task::FunctionCall(FunctionCall {
-                        callback_id: None,
+                        source: FunctionCallSource::Kernel,
                         pc: init_fn,
                         argument0: flash_app_start,
                         argument1: self.memory.as_ptr() as usize,
@@ -1264,7 +1275,7 @@ impl<C: 'static + Chip> Process<'a, C> {
 
             process.tasks.map(|tasks| {
                 tasks.enqueue(Task::FunctionCall(FunctionCall {
-                    callback_id: None,
+                    source: FunctionCallSource::Kernel,
                     pc: init_fn,
                     argument0: flash_app_start,
                     argument1: process.memory.as_ptr() as usize,
