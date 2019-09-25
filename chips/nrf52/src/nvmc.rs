@@ -3,6 +3,7 @@
 //! Used in order read and write to internal flash.
 
 use core::cell::Cell;
+use core::convert::TryFrom;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
@@ -141,7 +142,14 @@ register_bitfields! [u32,
 static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
     unsafe { DeferredCall::new(DeferredCallTask::Nvmc) };
 
-const PAGE_SIZE: usize = 4096;
+// Maybe this should be configurable when building the NVMC in the board setup. Keeping them
+// hard-coded until a board needs a different configuration, since everything was already
+// hard-coded.
+type WORD = u32;
+const WORD_SIZE: usize = core::mem::size_of::<WORD>();
+const PAGE_SIZE: usize = 0x1000;
+const MAX_WORD_WRITES: usize = 2;
+const MAX_PAGE_ERASES: usize = 10000;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
 /// nrf. Users of this module must pass an object of this type to use the
@@ -210,6 +218,11 @@ impl Nvmc {
             buffer: TakeCell::empty(),
             state: Cell::new(FlashState::Ready),
         }
+    }
+
+    pub fn configure_readonly(&self) {
+        let regs = &*self.registers;
+        regs.config.write(Configuration::WEN::Ren);
     }
 
     /// Configure the NVMC to allow writes to flash.
@@ -311,7 +324,7 @@ impl Nvmc {
         // Put the NVMC in write mode.
         regs.config.write(Configuration::WEN::Wen);
 
-        for i in (0..data.len()).step_by(4) {
+        for i in (0..data.len()).step_by(WORD_SIZE) {
             let word: u32 = (data[i + 0] as u32) << 0
                 | (data[i + 1] as u32) << 8
                 | (data[i + 2] as u32) << 16
@@ -369,5 +382,58 @@ impl hil::flash::Flash for Nvmc {
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
         self.erase_page(page_number)
+    }
+}
+
+const WORD_MASK: usize = WORD_SIZE - 1;
+const PAGE_MASK: usize = PAGE_SIZE - 1;
+
+fn is_write_needed(old: u32, new: u32) -> bool {
+    // No need to write if it would not modify the current value.
+    old & new != old
+}
+
+impl hil::embedded_flash::EmbeddedFlash for Nvmc {
+    fn word_size(&self) -> usize {
+        WORD_SIZE
+    }
+
+    fn page_size(&self) -> usize {
+        PAGE_SIZE
+    }
+
+    fn max_word_writes(&self) -> usize {
+        MAX_WORD_WRITES
+    }
+
+    fn max_page_erases(&self) -> usize {
+        MAX_PAGE_ERASES
+    }
+
+    fn write_slice(&self, ptr: usize, slice: &[u8]) -> ReturnCode {
+        if ptr & WORD_MASK != 0 || slice.len() & WORD_MASK != 0 {
+            return ReturnCode::EINVAL;
+        }
+        self.configure_writeable();
+        for (i, chunk) in slice.chunks(WORD_SIZE).enumerate() {
+            // `unwrap` cannot fail because `slice.len()` is word-aligned (see above).
+            let val = WORD::from_ne_bytes(<[u8; WORD_SIZE]>::try_from(chunk).unwrap());
+            let loc = unsafe { &*(ptr as *const VolatileCell<u32>).add(i) };
+            if is_write_needed(loc.get(), val) {
+                loc.set(val);
+            }
+        }
+        while !self.is_ready() {}
+        self.configure_readonly();
+        ReturnCode::SUCCESS
+    }
+
+    fn erase_page(&self, ptr: usize) -> ReturnCode {
+        if ptr & PAGE_MASK != 0 {
+            return ReturnCode::EINVAL;
+        }
+        self.erase_page_helper(ptr / PAGE_SIZE);
+        self.configure_readonly();
+        ReturnCode::SUCCESS
     }
 }

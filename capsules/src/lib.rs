@@ -22,6 +22,7 @@ pub mod crc;
 pub mod dac;
 pub mod debug_process_restart;
 pub mod driver;
+pub mod embedded_flash;
 pub mod fm25cl;
 pub mod fxos8700cq;
 pub mod gpio;
