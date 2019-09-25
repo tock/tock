@@ -17,7 +17,8 @@ use core::{cmp, mem};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x30002;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UDPEndpoint {

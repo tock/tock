@@ -3,9 +3,6 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x00010000;
-
 use crate::callback::{AppId, Callback};
 use crate::capabilities::MemoryAllocationCapability;
 use crate::driver::Driver;
@@ -14,6 +11,9 @@ use crate::mem::{AppSlice, Shared};
 use crate::process;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
+
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x10000;
 
 struct IPCData {
     shared_memory: [Option<AppSlice<Shared, u8>>; 8],
