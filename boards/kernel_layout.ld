@@ -274,7 +274,10 @@ SECTIONS
         . = ALIGN(4);
         _szero = .;
 
-        *(.bss .bss.*)
+        /* In addition to the traditional .bss section, RISC-V splits out a "small data" section
+         * see: https://github.com/riscv/riscv-pk/blob/a3e4ac61d2b1ff37a22b9193b85d3b94273e80cb/pk/pk.lds#L84
+         */
+        *(.sbss .sbss.* .bss .bss.*);
         *(COMMON)
 
         . = ALIGN(4);
