@@ -274,7 +274,7 @@ SECTIONS
         . = ALIGN(4);
         _szero = .;
 
-        *(.bss .bss.*)
+        *(.sbss .sbss.* .bss .bss.*);
         *(COMMON)
 
         . = ALIGN(4);
