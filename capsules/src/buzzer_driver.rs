@@ -44,7 +44,8 @@ use kernel::hil::time::Frequency;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x90000;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Buzzer as usize;
 
 /// Standard max buzz time.
 pub const DEFAULT_MAX_BUZZ_TIME_MS: usize = 5000;

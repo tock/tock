@@ -16,7 +16,8 @@ const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x30001;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct DeviceDescriptor {

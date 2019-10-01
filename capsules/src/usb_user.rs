@@ -29,7 +29,8 @@ use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x20005;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 
 #[derive(Default)]
 pub struct App {
