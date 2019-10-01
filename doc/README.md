@@ -1,9 +1,9 @@
 Tock Documentation
 ==================
 
-Here you can find guides on how Tock works, as well as short [tutorials](tutorials)
-and longer [workshop-style courses](courses) on how to use Tock, and
-[reference documents](reference) that detail internal interfaces.
+Here you can find guides on how Tock works and its [internal
+interfaces](reference). For short tutorials and longer courses on how to use
+Tock, see the [Tock OS Book](https://book.tockos.org).
 
 Tock Guides
 -----------
@@ -39,6 +39,3 @@ Tock Guides
 ### Management of Tock
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 
-### Courses and Tutorials
-- **[Courses](courses)** - Workshops on multiple aspects of Tock.
-- **[Tutorials](tutorials)** - Tutorials that walk through specific features of Tock.
