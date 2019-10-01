@@ -23,8 +23,11 @@ HIL Support
 | eic::ExternalInterruptController        |          |        |       |       | ✓     |           |
 | entropy::Entropy32                      |          | ✓      |       | ✓     | ✓     |           |
 | flash::Flash                            |          |        |       | ✓     | ✓     |           |
+| gpio::Input                             | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::Interrupt                         | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::InterruptPin                      | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::Output                            | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
 | gpio::Pin                               | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
-| gpio::PinCtl                            | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
 | i2c::I2CMaster                          |          | ✓      |       | ✓     | ✓     |           |
 | i2c::I2CMasterSlave                     |          |        |       |       | ✓     |           |
 | i2c::I2CSlave                           |          |        |       |       | ✓     |           |
