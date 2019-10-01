@@ -1,3 +1,5 @@
+//! Helper library for converting numbers to enums.
+
 // copied from https://github.com/andersk/enum_primitive-rs which did not with with nostd out of box
 #![no_std]
 pub mod cast;

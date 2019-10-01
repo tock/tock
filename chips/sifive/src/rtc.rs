@@ -1,4 +1,4 @@
-//! Real Time Clock (RTC) Driver
+//! Real Time Clock (RTC) driver.
 
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;

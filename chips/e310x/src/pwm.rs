@@ -1,3 +1,5 @@
+//! PWM instantiation.
+
 use kernel::common::StaticRef;
 use sifive::pwm::{Pwm, PwmRegisters};
 

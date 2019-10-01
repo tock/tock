@@ -1,3 +1,5 @@
+//! Tock Register interface for using CSR registers.
+
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
 pub mod mcause;

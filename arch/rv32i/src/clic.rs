@@ -1,4 +1,4 @@
-//! Core Local Interrupt Control
+//! Core Local Interrupt Control peripheral driver.
 
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;

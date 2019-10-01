@@ -1,4 +1,4 @@
-//! Pulse Width Modulation (PWM) Driver
+//! Pulse Width Modulation (PWM) driver.
 
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;

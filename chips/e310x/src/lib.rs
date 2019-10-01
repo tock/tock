@@ -1,3 +1,5 @@
+//! Chip support for the E310 from SiFive.
+
 #![feature(asm, concat_idents, const_fn)]
 #![feature(exclusive_range_pattern)]
 #![no_std]

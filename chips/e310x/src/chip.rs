@@ -1,3 +1,5 @@
+//! High-level setup and interrupt mapping for the chip.
+
 use kernel;
 use kernel::debug;
 use rv32i;

@@ -1,4 +1,4 @@
-//! Power Reset Clock Interrupts
+//! Power Reset Clock Interrupt controller driver.
 
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;

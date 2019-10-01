@@ -1,3 +1,5 @@
+//! Core low-level operations.
+
 use core::ops::FnOnce;
 
 #[inline(always)]

@@ -1,3 +1,5 @@
+//! UART driver.
+
 use core::cell::Cell;
 
 use crate::gpio;
