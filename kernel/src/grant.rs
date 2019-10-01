@@ -9,6 +9,7 @@ use crate::callback::AppId;
 use crate::process::Error;
 use crate::sched::Kernel;
 
+/// Region of process memory reserved for the kernel.
 pub struct Grant<T: Default> {
     crate kernel: &'static Kernel,
     grant_num: usize,
