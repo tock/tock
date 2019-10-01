@@ -2,16 +2,16 @@
 
 Values in the Tock kernel can be allocated in three ways:
 
-  1. **Static allocation** Statically allocated values are never deallocated.
+  1. **Static allocation**. Statically allocated values are never deallocated.
      These values are represented as Rust "borrows" with a `'static` lifetime.
 
-  2. **Stack allocation** Stack allocated values have a lexically bound
+  2. **Stack allocation**. Stack allocated values have a lexically bound
      lifetime. That is, we know by looking at the source code when they will be
      deallocated. When you create a reference to such a value, the Rust type
      system ensures that reference is never used after the value is deallocated
      by assigning a "lifetime" to the reference.
 
-  3. **Grant values** Values allocated from a process's grant region have a
+  3. **Grant values**. Values allocated from a process's grant region have a
      runtime-dependent lifetime. For example, when they are deallocated depends
      on whether the processes crashes. Since we can't represent
      runtime-dependent lifetimes in Rust's type-system, references to grant
