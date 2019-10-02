@@ -1,3 +1,5 @@
+//! RTC instantiation.
+
 use kernel::common::StaticRef;
 use sifive::rtc::{Rtc, RtcRegisters};
 

@@ -1,3 +1,5 @@
+//! Support for the 32-bit RISC-V architecture.
+
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
 #![feature(
@@ -92,6 +94,7 @@ pub unsafe fn init_memory() {
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
 }
 
+/// The various privilege levels in RISC-V.
 pub enum PermissionMode {
     User = 0x0,
     Supervisor = 0x1,

@@ -1,4 +1,4 @@
-//! Watchdog
+//! Watchdog instantiation.
 
 use kernel::common::StaticRef;
 

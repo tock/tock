@@ -1,3 +1,5 @@
+//! Driver for an I2C Master interface.
+
 use enum_primitive::enum_from_primitive;
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;

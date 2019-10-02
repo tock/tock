@@ -1,3 +1,5 @@
+//! Drivers and chip support for the E21 soft core.
+
 #![feature(asm, concat_idents, const_fn)]
 #![feature(exclusive_range_pattern)]
 #![no_std]

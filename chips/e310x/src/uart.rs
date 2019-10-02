@@ -1,3 +1,5 @@
+//! UART instantiation.
+
 use kernel::common::StaticRef;
 use sifive::uart::{Uart, UartRegisters};
 

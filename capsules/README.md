@@ -73,6 +73,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 
 - **[ADC](src/adc.rs)**: Individual and continuous samples.
 - **[Alarm](src/alarm.rs)**: Oneshot and periodic timers.
+- **[Analog Comparator](src/analog_comparator.rs)**: Voltage comparison.
 - **[CRC](src/crc.rs)**: CRC calculation.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.

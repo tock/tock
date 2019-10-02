@@ -1,3 +1,5 @@
+//! GPIO instantiation.
+
 use core::ops::{Index, IndexMut};
 
 use kernel::common::StaticRef;

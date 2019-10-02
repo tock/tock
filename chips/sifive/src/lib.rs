@@ -1,3 +1,5 @@
+//! Implementations for generic SiFive MCU peripherals.
+
 #![feature(asm, concat_idents, const_fn, core_intrinsics)]
 #![feature(in_band_lifetimes)]
 #![feature(exclusive_range_pattern)]

@@ -36,9 +36,10 @@ macro_rules! static_init {
 }
 
 /// Allocates space in the kernel image for on-chip non-volatile storage.
+///
 /// Storage volumes are placed after the kernel code and before relocated
 /// variables (those copied into RAM on boot). They are placed in
-/// a section called ".storage".
+/// a section called `.storage`.
 ///
 /// Non-volatile storage abstractions can then refer to the block of
 /// allocate flash in terms of the name of the volume. For example,

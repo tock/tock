@@ -1,4 +1,4 @@
-//! Power Reset Clock Interrupts
+//! Power Reset Clock Interrupt controller instantiation.
 
 use kernel::common::StaticRef;
 use sifive::prci::{Prci, PrciRegisters};

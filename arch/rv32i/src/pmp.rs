@@ -1,4 +1,5 @@
-//! Implementation of the physical memory protection unit (PMP)
+//! Implementation of the physical memory protection unit (PMP).
+
 use crate::csr;
 use kernel;
 use kernel::mpu;

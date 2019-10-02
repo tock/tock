@@ -1,3 +1,5 @@
+//! Mapping of capsules to their syscall driver number.
+
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 

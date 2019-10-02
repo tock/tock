@@ -1,4 +1,4 @@
-//! Platform Level Interrupt Control
+//! Platform Level Interrupt Control peripheral driver.
 
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;

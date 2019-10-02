@@ -7,8 +7,11 @@ use core::slice;
 
 use crate::callback::AppId;
 
+/// Type for specifying an AppSlice is hidden from the kernel.
 #[derive(Debug)]
 pub struct Private;
+
+/// Type for specifying an AppSlice is shared with the kernel.
 #[derive(Debug)]
 pub struct Shared;
 

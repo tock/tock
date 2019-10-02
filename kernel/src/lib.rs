@@ -49,6 +49,7 @@ pub use crate::sched::Kernel;
 // this cannot be called `process`, so we use a shortened version. These
 // functions and types are used by board files to setup the platform and setup
 // processes.
+/// Publicly available process-related objects.
 pub mod procs {
     pub use crate::process::{load_processes, FaultResponse, FunctionCall, Process, ProcessType};
 }
