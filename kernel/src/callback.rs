@@ -52,7 +52,7 @@ impl AppId {
     }
 }
 
-/// Type to uniquely identify a callback subscription accross all drivers.
+/// Type to uniquely identify a callback subscription across all drivers.
 ///
 /// This contains the driver number and the subscribe number within the driver.
 #[derive(Copy, Clone, PartialEq, Debug)]
