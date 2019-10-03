@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Builds all of the board documentation into doc/rustdoc.
+# The list of boards is to build documentation for is generated from
+# list_boards.sh.
+
 set -e
 
 # Parse a search-index.js file to get the known crates.

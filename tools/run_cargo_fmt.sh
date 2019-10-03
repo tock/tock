@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-
+#
+# Runs rustfmt on all subdirectories with a Cargo.toml file. Must
+# be run from root Tock directory. Additionally checks for wildcard
+# imports (which are to be avoided at all costs). Protects user from 
+# inadvertently overwriting files.
+#
+# Author: Pat Pannuto <pat.pannuto@gmail.com>
+# Author: Brad Campbell <bradjc5@gmail.com>
+#
 set -e
 
 # Verify that we're running in the base directory

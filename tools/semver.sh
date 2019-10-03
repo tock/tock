@@ -5,6 +5,8 @@
 # whether they are equal. This is not a simple text comparison
 # because 4.10.1 > 4.1.
 #
+# Author: Pat Pannuto <pat.pannuto@gmail.com>
+#
 # Adapted from
 # https://stackoverflow.com/questions/4023830/
 

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#
+#  Script used to build docs on netlify rather than travis.
+#
+#  Author: Pat Pannuto <pat.pannuto@gmail.com>
+
 
 set -e
 set -u

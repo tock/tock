@@ -5,6 +5,8 @@
 #
 # As a side effect, if you run this locally it will generate
 # all needed TOC and update the markdown documents.
+#
+# Author: Brad Campbell <bradjc5@gmail.com>
 
 let ERROR=0
 
