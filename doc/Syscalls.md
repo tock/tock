@@ -84,7 +84,7 @@ In Tock, a process can be in one of three states:
 
 ## Startup
 
-Upon process initialization, a single function call task is added to it's
+Upon process initialization, a single function call task is added to its
 callback queue. The function is determined by the ENTRY point in the process
 TBF header (typically the `_start` symbol) and is passed the following
 arguments in registers `r0` - `r3`:
@@ -150,7 +150,15 @@ None.
 ### 1: Subscribe
 
 Subscribe assigns callback functions to be executed in response to various
-events. A null pointer to a callback disables a previously set callback.
+events.
+
+A callback function is uniquely identified by the pair (`driver`,
+`subscribe_number`), a.k.a. *callback ID*. When calling `subscribe`, if there
+are any pending callbacks for this callback ID, they are removed from the queue
+before the new callback function is bound to the callback ID.
+
+Passing a null pointer callback function disables a previously set callback
+(besides flushing pending callbacks for this callback ID).
 
 ```rust
 subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> ReturnCode as u32
