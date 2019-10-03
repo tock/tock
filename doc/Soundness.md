@@ -22,7 +22,7 @@ but should still preserve safety in the overall OS.
 
 The "type" of `static_init!` is basically:
 
-```
+```rust
 T => (fn() -> T) -> &'static mut T
 ```
 
@@ -38,7 +38,7 @@ static mut MY_VAR: SomeT = SomeT::const_constructor();
 
 Then creating a reference to it:
 
-```
+```rust
 let my_ref: &'static mut = &mut MY_VAR;
 ```
 
