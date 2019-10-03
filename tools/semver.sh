@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Semantic version comparison. This function compares two
+# strings of the form X{.Y}* and returns which is larger or
+# whether they are equal. This is not a simple text comparison
+# because 4.10.1 > 4.1.
+#
 # Adapted from
 # https://stackoverflow.com/questions/4023830/
 
