@@ -14,7 +14,6 @@ extern "C" {
 pub struct ArtyExx {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
-    pmp: rv32i::pmp::PMPConfig,
 }
 
 impl ArtyExx {
@@ -27,7 +26,6 @@ impl ArtyExx {
         ArtyExx {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
-            pmp: rv32i::pmp::PMPConfig::new(4),
         }
     }
 
@@ -123,12 +121,19 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
-    type MPU = rv32i::pmp::PMPConfig;
+    // While there is initial support for a PMP driver (as of 2019-10-04), it is not
+    // complete, and while it should disable the PMP, it seems to cause some negative
+    // side effects (context switching does not work correctly) on the Arty-E21 platform.
+    //
+    // TODO: implement the PMP driver and add it here `type MPU = rv32i::pmp::PMPConfig;`.
+    //
+    // See https://github.com/tock/tock/pull/1382 for (a little) more information.
+    type MPU = ();
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &self.pmp
+        &()
     }
 
     fn systick(&self) -> &Self::SysTick {
