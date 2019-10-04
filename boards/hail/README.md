@@ -35,6 +35,7 @@ install tockloader, use pip:
 ```bash
 (Linux): sudo pip3 install --upgrade tockloader
 (MacOS): pip3 install --upgrade tockloader
+(Windows): pip3 install --upgrade tockloader
 ```
 
 Tockloader can read attributes from connected serial devices, and will
