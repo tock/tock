@@ -180,7 +180,6 @@ arguments.
 
 #### Return
 
- - `EINVAL` if the callback pointer is NULL.
  - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
  - `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
  - Other return codes based on the specific driver.
