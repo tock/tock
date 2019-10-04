@@ -121,6 +121,13 @@ impl ArtyExx {
 }
 
 impl kernel::Chip for ArtyExx {
+    // While there is initial support for a PMP driver (as of 2019-10-04), it is not
+    // complete, and while it should disable the PMP, it seems to cause some negative
+    // side effects (context switching does not work correctly) on the Arty-E21 platform.
+    //
+    // TODO: implement the PMP driver and add it here `type MPU = rv32i::pmp::PMPConfig;`.
+    //
+    // See https://github.com/tock/tock/pull/1382 for (a little) more information.
     type MPU = ();
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
