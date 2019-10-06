@@ -11,7 +11,7 @@ pub trait Time<W = u32> {
     /// Returns the wrap-around value of the clock.
     ///
     /// The maximum value of the clock, at which `now` will wrap around. I.e., this should return
-    /// `core::u32::MAX` on a 32-bit-clock, or `1 << 24` for a 24-bit clock.
+    /// `core::u32::MAX` on a 32-bit-clock, or `(1 << 24) - 1` for a 24-bit clock.
     fn max_tics(&self) -> W;
 }
 
