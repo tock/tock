@@ -53,9 +53,9 @@ ci-travis:
 	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@CI=true $(MAKE) allcheck
-	@printf "$$(tput bold)****************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: DocTests *$$(tput sgr0)\n"
-	@printf "$$(tput bold)****************$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Kernel *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@cd kernel && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Compilation *$$(tput sgr0)\n"
