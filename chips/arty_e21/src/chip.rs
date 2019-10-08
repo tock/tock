@@ -67,8 +67,7 @@ impl ArtyExx {
     }
 
     #[cfg(not(target_os = "none"))]
-    pub unsafe fn disable_pmp(&self) {
-    }
+    pub unsafe fn disable_pmp(&self) {}
 
     /// By default the machine timer is enabled and will trigger interrupts. To
     /// prevent that we can make the compare register very large to effectively
@@ -92,8 +91,7 @@ impl ArtyExx {
     }
 
     #[cfg(not(target_os = "none"))]
-    pub unsafe fn disable_machine_timer(&self) {
-    }
+    pub unsafe fn disable_machine_timer(&self) {}
 
     /// Setup the function that should run when a trap happens.
     ///
@@ -122,8 +120,7 @@ impl ArtyExx {
     }
 
     #[cfg(not(target_os = "none"))]
-    pub unsafe fn configure_trap_handler(&self) {
-    }
+    pub unsafe fn configure_trap_handler(&self) {}
 
     /// Generic helper initialize function to setup all of the chip specific
     /// operations. Different boards can call the functions that `initialize()`
