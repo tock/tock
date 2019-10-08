@@ -79,7 +79,7 @@ pub struct Platform {
         nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     button: &'static capsules::button::Button<'static>,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static>,
@@ -109,7 +109,10 @@ impl kernel::Platform for Platform {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules::ieee802154::DRIVER_NUM => match self.ieee802154_radio {
+                Some(radio) => f(Some(radio)),
+                None => f(None),
+            },
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
@@ -140,6 +143,7 @@ pub unsafe fn setup_board(
         &'static dyn kernel::hil::gpio::InterruptValuePin,
         capsules::button::GpioMode,
     )],
+    ieee802154: bool,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -278,13 +282,18 @@ pub unsafe fn setup_board(
 
     let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 
-    let (ieee802154_radio, _) = Ieee802154Component::new(
-        board_kernel,
-        &nrf52::ieee802154_radio::RADIO,
-        PAN_ID,
-        SRC_MAC,
-    )
-    .finalize();
+    let ieee802154_radio = if ieee802154 {
+        let (radio, _) = Ieee802154Component::new(
+            board_kernel,
+            &nrf52::ieee802154_radio::RADIO,
+            PAN_ID,
+            SRC_MAC,
+        )
+        .finalize();
+        Some(radio)
+    } else {
+        None
+    };
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,

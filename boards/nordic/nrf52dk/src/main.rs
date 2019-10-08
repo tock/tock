@@ -276,6 +276,7 @@ pub unsafe fn reset_handler() {
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &None,
         button_pins,
+        false,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

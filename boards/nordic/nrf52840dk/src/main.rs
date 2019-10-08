@@ -227,6 +227,7 @@ pub unsafe fn reset_handler() {
             SPI_MX25R6435F_HOLD_PIN,
         )),
         button_pins,
+        true,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
