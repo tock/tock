@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Runs cargo fix (which removes lint warnings) on every subdirectory from .
+# that has a Cargo.toml file.
+#
+# Author: Brad Campbell <bradjc5@gmail.com>
+
 FAIL=0
 
 set -e
