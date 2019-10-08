@@ -90,8 +90,8 @@ ci: ci-travis ci-netlify
 
 .PHONY: clean
 clean:
-	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean $$f"; cd "chips/$$f" && cargo clean || exit 1; cd ../..; done
 	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean $$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean $$f"; cd "chips/$$f" && cargo clean || exit 1; cd ../..; done
 	@cd kernel && echo "$$(tput bold)Clean kernel" && cargo clean
 	@cd libraries/tock-cells && echo "$$(tput bold)Clean libraries/tock-cells" && cargo clean
 	@cd libraries/tock-register-interface && echo "$$(tput bold)Clean libraries/tock-register-interface" && cargo clean
