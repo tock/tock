@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-#  Script used to build docs on netlify rather than travis.
+# Script used to install additional requirements to the base Netlify image.
+#
+# Should not be used or relied on outside of Netlify context.
 #
 #  Author: Pat Pannuto <pat.pannuto@gmail.com>
 
