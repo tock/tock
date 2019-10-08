@@ -149,7 +149,10 @@ const PAGE_SIZE: usize = 4096;
 ///
 /// An example looks like:
 ///
-/// ```
+/// ```rust
+/// # extern crate nrf52;
+/// # use nrf52::nvmc::NrfPage;
+///
 /// static mut PAGEBUFFER: NrfPage = NrfPage::new();
 /// ```
 pub struct NrfPage(pub [u8; PAGE_SIZE as usize]);

@@ -365,7 +365,10 @@ enum FlashState {
 ///
 /// An example looks like:
 ///
-/// ```
+/// ```rust
+/// # extern crate sam4l;
+/// # use sam4l::flashcalw::Sam4lPage;
+///
 /// static mut PAGEBUFFER: Sam4lPage = Sam4lPage::new();
 /// ```
 pub struct Sam4lPage(pub [u8; PAGE_SIZE as usize]);

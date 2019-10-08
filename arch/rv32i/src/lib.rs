@@ -44,6 +44,7 @@ extern "C" {
 /// It initializes the stack pointer, the frame pointer (needed for closures to
 /// work in start_rust) and the global pointer. Then it calls `reset_handler()`,
 /// the main entry point for Tock boards.
+#[cfg(target_os = "none")]
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
 #[naked]
@@ -142,6 +143,12 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
 /// need to. If the trap happens while and application was executing, we have to
 /// save the application state and then resume the `switch_to()` function to
 /// correctly return back to the kernel.
+#[cfg(not(target_os = "none"))]
+fn _start_trap() {
+    // Mock implementation for tests.
+}
+
+#[cfg(target_os = "none")]
 #[link_section = ".riscv.trap"]
 #[export_name = "_start_trap"]
 #[naked]
@@ -333,6 +340,7 @@ pub extern "C" fn _start_trap() {
 }
 
 /// Ensure an abort symbol exists.
+#[cfg(target_os = "none")]
 #[link_section = ".init"]
 #[export_name = "abort"]
 pub extern "C" fn abort() {

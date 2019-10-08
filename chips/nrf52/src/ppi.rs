@@ -14,18 +14,18 @@
 //! Pre-programmed Channels
 //! (Channel EEP TEP):
 //!
-//!     * 20        TIMER0->EVENTS_COMPARE[0]       RADIO->TASKS_TXEN
-//!     * 21        TIMER0->EVENTS_COMPARE[0]       RADIO->TASKS_RXEN
-//!     * 22        TIMER0->EVENTS_COMPARE[1]       RADIO->TASKS_DISABLE
-//!     * 23        RADIO->EVENTS_BCMATCH           AAR->TASKS_START
-//!     * 24        RADIO->EVENTS_READY             CCM->TASKS_KSGEN
-//!     * 25        RADIO->EVENTS_ADDRESS           CCM->TASKS_CRYPT
-//!     * 26        RADIO->EVENTS_ADDRESS           TIMER0->TASKS_CAPTURE[1]
-//!     * 27        RADIO->EVENTS_END               TIMER0->TASKS_CAPTURE[2]
-//!     * 28        RTC0->EVENTS_COMPARE[0]         RADIO->TASKS_TXEN
-//!     * 29        RTC0->EVENTS_COMPARE[0]         RADIO->TASKS_RXEN
-//!     * 30        RTC0->EVENTS_COMPARE[0]         TIMER0->TASKS_CLEAR
-//!     * 31        RTC0->EVENTS_COMPARE[0]         TIMER0->TASKS_START
+//! * 20        TIMER0->EVENTS_COMPARE[0]       RADIO->TASKS_TXEN
+//! * 21        TIMER0->EVENTS_COMPARE[0]       RADIO->TASKS_RXEN
+//! * 22        TIMER0->EVENTS_COMPARE[1]       RADIO->TASKS_DISABLE
+//! * 23        RADIO->EVENTS_BCMATCH           AAR->TASKS_START
+//! * 24        RADIO->EVENTS_READY             CCM->TASKS_KSGEN
+//! * 25        RADIO->EVENTS_ADDRESS           CCM->TASKS_CRYPT
+//! * 26        RADIO->EVENTS_ADDRESS           TIMER0->TASKS_CAPTURE[1]
+//! * 27        RADIO->EVENTS_END               TIMER0->TASKS_CAPTURE[2]
+//! * 28        RTC0->EVENTS_COMPARE[0]         RADIO->TASKS_TXEN
+//! * 29        RTC0->EVENTS_COMPARE[0]         RADIO->TASKS_RXEN
+//! * 30        RTC0->EVENTS_COMPARE[0]         TIMER0->TASKS_CLEAR
+//! * 31        RTC0->EVENTS_COMPARE[0]         TIMER0->TASKS_START
 //!
 //! Authors
 //! ---------

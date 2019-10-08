@@ -15,6 +15,13 @@ use kernel::hil;
 const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
+// Dummy value for testing on travis.
+#[cfg(all(
+    not(target_os = "none"),
+    not(feature = "nrf51"),
+    not(feature = "nrf52"),
+))]
+const NUM_GPIOTE: usize = 4;
 
 const GPIOTE_BASE: StaticRef<GpioteRegisters> =
     unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };

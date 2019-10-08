@@ -182,6 +182,7 @@ pub unsafe extern "C" fn switch_to_user(
     user_stack
 }
 
+#[cfg(target_os = "none")]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     use core::intrinsics::offset;
@@ -326,6 +327,10 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     );
 }
 
+#[cfg(not(target_os = "none"))]
+pub unsafe extern "C" fn hard_fault_handler() {}
+
+#[cfg(target_os = "none")]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;

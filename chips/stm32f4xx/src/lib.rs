@@ -26,6 +26,10 @@ pub mod usart;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
+#[cfg(not(target_os = "none"))]
+unsafe extern "C" fn unhandled_interrupt() {}
+
+#[cfg(target_os = "none")]
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
