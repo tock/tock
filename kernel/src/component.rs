@@ -1,18 +1,18 @@
 //! Components extend the functionality of the Tock kernel through a
 //! simple factory method interface.
 
-/// Encapsulates peripheral-specific and capsule-specific
+/// A component encapsulates peripheral-specific and capsule-specific
 /// initialization for the Tock OS kernel in a factory method,
-/// reducing repeated code and simplifying the boot sequence.
+/// which reduces repeated code and simplifies the boot sequence.
 ///
-/// The Component trait encapsulates all of the initialization and
-/// configuration of a kernel extension inside the finalize function
-/// call. The Output type defines what type this component generates.
+/// The `Component` trait encapsulates all of the initialization and
+/// configuration of a kernel extension inside the `finalize()` function
+/// call. The `Output` type defines what type this component generates.
 /// Note that instantiating a component does not necessarily
-/// instantiate the underlying Output type; instead, it is typically
-/// instantiated in the call to finalize() is called. If instantiating
-/// and initializing the Output type requires parameters, these should
-/// be passed in the Component's new() function.
+/// instantiate the underlying `Output` type; instead, it is typically
+/// instantiated in the `finalize()` method. If instantiating and
+/// initializing the `Output` type requires parameters, these should be
+/// passed in the component's `new()` function.
 pub trait Component {
     /// An optional type to specify the chip or board specific static memory
     /// that a component needs to setup the output object(s). This is the memory
@@ -23,7 +23,7 @@ pub trait Component {
     type StaticInput = ();
 
     /// The type (e.g., capsule, peripheral) that this implementation
-    /// of Component produces via finalize. This is typically a
+    /// of Component produces via `finalize()`. This is typically a
     /// static reference (`&'static`).
     type Output;
 
