@@ -77,7 +77,7 @@ impl Component for GpioComponent {
                 .finalize(),
                 static_init!(
                     InterruptValueWrapper,
-                    InterruptValueWrapper::new(&sam4l::gpio::PC[20])
+                    InterruptValueWrapper::new(&sam4l::gpio::PA[20])
                 )
                 .finalize(),
             ]

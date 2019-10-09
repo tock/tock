@@ -4,6 +4,29 @@ imix: Platform-Specific Instructions
 This board file is for imix version 2.
 
 
+## Userspace Resource Mapping
+
+This table shows the mappings between resources available in userspace
+and the physical elements on the imix board.
+
+| Software Resource | Physical Element |
+|-------------------|------------------|
+| GPIO[0]           | Pin D2           |
+| GPIO[1]           | Pin D3           |
+| GPIO[2]           | Pin D4           |
+| GPIO[3]           | Pin D5           |
+| GPIO[4]           | Pin D6           |
+| GPIO[5]           | Pin D7           |
+| GPIO[6]           | Pin D8           |
+| ADC[0]            | Pin A0           |
+| ADC[1]            | Pin A1           |
+| ADC[2]            | Pin A2           |
+| ADC[3]            | Pin A3           |
+| ADC[4]            | Pin A4           |
+| ADC[5]            | Pin A5           |
+| Button[0]         | "USER" button    |
+| LED[0]            | "USER" LED       |
+
 ## Flashing the kernel
 
 To program the Tock kernel onto the imix, `cd` into the `boards/imix` directory
