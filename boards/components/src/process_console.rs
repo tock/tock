@@ -1,4 +1,4 @@
-//! Component for ProcessConsole on the imix board.
+//! Component for ProcessConsole, the command console.
 //!
 //! This provides one Component, ProcessConsoleComponent, which
 //! implements a command console for controlling processes over USART3

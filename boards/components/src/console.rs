@@ -1,4 +1,4 @@
-//! Component for Console on the imix board.
+//! Component for Console, the generic serial interface.
 //!
 //! This provides one Component, ConsoleComponent, which implements
 //! a buffered read/write console over a serial port. This is typically

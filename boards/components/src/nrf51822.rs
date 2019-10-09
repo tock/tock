@@ -1,4 +1,4 @@
-//! Component for communicating with the nRF51822 (BLE) on imix boards.
+//! Component for communicating with the nRF51822 (BLE).
 //!
 //! This provides one Component, Nrf51822Component, which implements
 //! a system call interface to the nRF51822 for BLE advertisements.
