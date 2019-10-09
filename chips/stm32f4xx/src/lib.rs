@@ -57,7 +57,6 @@ extern "C" {
 }
 
 #[cfg_attr(target_os = "none", link_section = ".vectors")]
-#[cfg_attr(not(target_os = "none"), link_section = "OSX_SEGMENT,.vectors")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(target_os = "none", used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
@@ -84,7 +83,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // NOTE: There are missing IRQn between 0 and 96
 #[cfg(feature = "stm32f446re")]
 #[cfg_attr(target_os = "none", link_section = ".irqs")]
-#[cfg_attr(not(target_os = "none"), link_section = "OSX_SEGMENT,.irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(target_os = "none", used)]
 pub static IRQS: [unsafe extern "C" fn(); 97] = [
@@ -190,7 +188,6 @@ pub static IRQS: [unsafe extern "C" fn(); 97] = [
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg(feature = "stm32f429zi")]
 #[cfg_attr(target_os = "none", link_section = ".irqs")]
-#[cfg_attr(not(target_os = "none"), link_section = "OSX_SEGMENT,.irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(target_os = "none", used)]
 pub static IRQS: [unsafe extern "C" fn(); 91] = [

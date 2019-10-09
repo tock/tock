@@ -73,7 +73,6 @@ extern "C" {
 }
 
 #[cfg_attr(target_os = "none", link_section = ".vectors")]
-#[cfg_attr(not(target_os = "none"), link_section = "OSX_SEGMENT,.vectors")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(target_os = "none", used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
@@ -96,7 +95,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 ];
 
 #[cfg_attr(target_os = "none", link_section = ".vectors")]
-#[cfg_attr(not(target_os = "none"), link_section = "OSX_SEGMENT,.vectors")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(target_os = "none", used)]
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
