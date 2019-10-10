@@ -62,7 +62,7 @@ impl Component for BLEComponent {
                 VirtualMuxAlarm<'static, Rtc>,
             >,
             capsules::ble_advertising_driver::BLE::new(
-                &mut nrf52::ble_radio::RADIO,
+                &nrf52::ble_radio::RADIO,
                 self.board_kernel.create_grant(&grant_cap),
                 &mut capsules::ble_advertising_driver::BUF,
                 ble_radio_virtual_alarm
