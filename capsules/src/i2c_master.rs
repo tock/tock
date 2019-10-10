@@ -78,11 +78,11 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterDriver<I> {
                     });
                     // buffer has not been returned by I2C
                     // i2c_master.rs should not allow us to get here
-                    return ReturnCode::ENOMEM;
+                    ReturnCode::ENOMEM
                 } else {
                     // AppDriver is attempting operation
                     // but has not granted memory
-                    return ReturnCode::EINVAL;
+                    ReturnCode::EINVAL
                 }
             })
             .expect("Appid does not map to app");
