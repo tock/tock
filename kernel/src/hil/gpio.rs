@@ -307,7 +307,7 @@ impl Configure for InterruptValueWrapper {
 
 impl Output for InterruptValueWrapper {
     fn set(&self) {
-        self.source.is_input();
+        self.source.set();
     }
 
     fn clear(&self) {
