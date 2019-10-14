@@ -814,8 +814,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
             // The alignement must be a power of two, 2^a. The expression `!(align - 1)` then
             // returns a mask with leading ones, followed by `a` trailing zeros.
-            let alignement_mask = !(align - 1);
-            let new_break = (new_break_unaligned as usize & alignement_mask) as *const u8;
+            let alignment_mask = !(align - 1);
+            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
             if new_break < self.app_break.get() {
                 None
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
