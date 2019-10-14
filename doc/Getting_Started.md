@@ -180,14 +180,16 @@ SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", \
 ## Installing your first application
 
 A kernel alone isn't much use, as an embedded developer you want to
-see some LEDs blink.  Fortunatety, there is an example `blink` app
+see some LEDs blink.  Fortunately, there is an example `blink` app
 available from the TockOS app repository which `tockloader` can
-download and install (if you are using a Cortex M4 board that is
-supported by `tockloader`).
+download and install (if you are using a board that is supported
+by `tockloader`).
 
-Unlike the makefile in the board directory, `tockloader` cannot know
+For certain boards (e.g. Hail and imix), `tockloader` can read
+attributes from the board to configure how it communicates with the
+board. For many boards, however, `tockloader` cannot know
 which board and communication method you want to use, so you have to
-tell it explicitly, for example:
+tell it explicitly. For example:
 
 ```bash
 $ tockloader install --board nrf52dk --jlink blink
@@ -203,28 +205,33 @@ Finished in 2.567 seconds
 ```
 
 Boards that use `openocd` will of course require the parameter
-`--openocd` instead of `--jlink`.  And if your board has a serial
-bootloader, it is sufficient to tell `tockloader` the board type, it
-will look for the default serial interface (named `tock`) or else ask
-you which interface to use:
+`--openocd` instead of `--jlink`.  If your board has a serial
+bootloader, `tockloader` should work without any additional arguments:
+
+    $ tockloader install blink
+
+However, you can specify the board type manually as well:
 
     $ tockloader install --board imix blink
 
-You can also tell it which serial port to use by passing it a
-parameter like `--port ttyACM0` to use `/dev/ttyACM0`.
+You can also tell it which serial port to use (which is useful if you
+have multiple boards plugged in) by passing it the `--port` parameter
+like `--port /dev/ttyACM0` to use `/dev/ttyACM0`:
 
-If you have another board, try
+    $ tockloader --port /dev/ttyACM0 install blink
+
+To see the list of boards `tockloader` knows about you can run:
 
     $ tockloader list-known-boards
 
 If everything has worked until here, the LEDs on your board should now
 display a binary counter. Congratulations, you have a working TockOS
-installation on your board.
+installation on your board!
 
 ## Compiling applications
 
 The last remaining step is to compile applications locally.
-All user-level code lives in two  separate repositories:
+All user-level code lives in two separate repositories:
 
 - [libtock-c](https://github.com/tock/libtock-c): C and C++ apps.
 - [libtock-rs](https://github.com/tock/libtock-rs): Rust apps.
