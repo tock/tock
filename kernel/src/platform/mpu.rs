@@ -1,6 +1,7 @@
 //! Interface for configuring the Memory Protection Unit.
 
 use core::cmp;
+use core::fmt::Display;
 
 /// User mode access permissions.
 #[derive(Copy, Clone)]
@@ -70,7 +71,11 @@ pub trait MPU {
     /// This state will be held on a per-process basis as a way to cache all of
     /// the process settings. When the kernel switches to a new process it will
     /// use the `MpuConfig` for that process to quickly configure the MPU.
-    type MpuConfig: Default = ();
+    ///
+    /// It is `Default` so we can create empty state when the process is
+    /// created, and `Display` so that the `panic!()` output can display the
+    /// current state to help with debugging.
+    type MpuConfig: Default + Display = ();
 
     /// Enables the MPU.
     ///
