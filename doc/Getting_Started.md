@@ -9,7 +9,7 @@ developing Tock.
 1. [Rust](http://www.rust-lang.org/)
 2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
 3. Command line utilities: make
-4. A supported board.
+4. A supported board or QEMU configuration.
 
    If you are just starting to work with TockOS, you should look in
    the [`boards/` subdirectory](../boards/README.md) and choose one of
@@ -145,7 +145,7 @@ most purposes, available distribution packages are sufficient and it can
 be installed with:
 
 ```bash
-(Linux): sudo apt-get install openocd
+(Linux/Debian): sudo apt-get install openocd
 (MacOS): brew install open-ocd
 ```
 
