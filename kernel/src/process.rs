@@ -1127,6 +1127,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             writer,
         );
 
+        // Display the current state of the MPU for this process.
+        self.mpu_config.map(|config| {
+            let _ = writer.write_fmt(format_args!("{}", config));
+        });
+
         let _ = writer.write_fmt(format_args!(
             "\
              \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
