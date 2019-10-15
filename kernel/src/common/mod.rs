@@ -8,10 +8,10 @@
 
 /// Re-export the tock-register-interface library.
 pub mod registers {
-    pub use tock_registers::register_bitfields;
     pub use tock_registers::registers::RegisterLongName;
     pub use tock_registers::registers::{Field, FieldValue, LocalRegisterCopy};
     pub use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
+    pub use tock_registers::{register_bitfields, register_structs};
 }
 
 pub mod deferred_call;

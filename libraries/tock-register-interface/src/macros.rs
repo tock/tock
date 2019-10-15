@@ -136,3 +136,201 @@ macro_rules! register_bitfields {
         )*
     }
 }
+
+#[macro_export]
+macro_rules! register_fields {
+    // Macro entry point.
+    (@root $name:ident { $($input:tt)* } ) => {
+        $crate::register_fields!(@munch ($($input)*) -> {struct $name});
+    };
+
+    // Print the struct once all fields have been munched.
+    (@munch
+        (
+            $(#[$attr_end:meta])*
+            ($addr:expr => END)
+        )
+        -> {struct $name:ident $(
+                $(#[$attr:meta])*
+                ($id:ident: $ty:ty)
+            )*}
+    ) => {
+        #[repr(C)]
+        struct $name {
+            $(
+                $(#[$attr])*
+                $id: $ty
+            ),*
+        }
+    };
+
+    // Munch field.
+    (@munch
+        (
+            $(#[$attr:meta])*
+            ($addr_start:expr => $field:ident: $ty:ty)
+            $($after:tt)*
+        )
+        -> {$($output:tt)*}
+    ) => {
+        $crate::register_fields!(
+            @munch (
+                $($after)*
+            ) -> {
+                $($output)*
+                $(#[$attr])*
+                ($field: $ty)
+            }
+        );
+    };
+
+    // Munch padding.
+    (@munch
+        (
+            $(#[$attr:meta])*
+            ($addr_start:expr => $padding:ident)
+            $(#[$attr_next:meta])*
+            ($addr_end:expr => $($next:tt)*)
+            $($after:tt)*
+        )
+        -> {$($output:tt)*}
+    ) => {
+        $crate::register_fields!(
+            @munch (
+                $(#[$attr_next])*
+                ($addr_end => $($next)*)
+                $($after)*
+            ) -> {
+                $($output)*
+                $(#[$attr])*
+                ($padding: [u8; $addr_end - $addr_start])
+            }
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! test_fields {
+    // Macro entry point.
+    (@root $struct:ident $($input:tt)* ) => {
+        $crate::test_fields!(@munch $struct sum ($($input)*) -> {});
+    };
+
+    // Print the tests once all fields have been munched.
+    (@munch $struct:ident $sum:ident
+        (
+            $(#[$attr_end:meta])*
+            ($size:expr => END)
+        )
+        -> {$($stmts:block)*}
+    ) => {
+        {
+        let mut $sum: usize = 0;
+        $($stmts)*
+        let size = core::mem::size_of::<$struct>();
+        assert!(
+            size == $size,
+            "Invalid size for struct {} (expected {:#X} but was {:#X})",
+            stringify!($struct),
+            $size,
+            size
+        );
+        }
+    };
+
+    // Munch field.
+    (@munch $struct:ident $sum:ident
+        (
+            $(#[$attr:meta])*
+            ($addr_start:expr => $field:ident: $ty:ty)
+            $(#[$attr_next:meta])*
+            ($addr_end:expr => $($next:tt)*)
+            $($after:tt)*
+        )
+        -> {$($output:block)*}
+    ) => {
+        $crate::test_fields!(
+            @munch $struct $sum (
+                $(#[$attr_next])*
+                ($addr_end => $($next)*)
+                $($after)*
+            ) -> {
+                $($output)*
+                {
+                    assert!(
+                        $sum == $addr_start,
+                        "Invalid start address for field {} (expected {:#X} but was {:#X})",
+                        stringify!($field),
+                        $addr_start,
+                        $sum
+                    );
+                    $sum += core::mem::size_of::<$ty>();
+                    assert!(
+                        $sum == $addr_end,
+                        "Invalid end address for field {} (expected {:#X} but was {:#X})",
+                        stringify!($field),
+                        $addr_end,
+                        $sum
+                    );
+                }
+            }
+        );
+    };
+
+    // Munch padding.
+    (@munch $struct:ident $sum:ident
+        (
+            $(#[$attr:meta])*
+            ($addr_start:expr => $padding:ident)
+            $(#[$attr_next:meta])*
+            ($addr_end:expr => $($next:tt)*)
+            $($after:tt)*
+        )
+        -> {$($output:block)*}
+    ) => {
+        $crate::test_fields!(
+            @munch $struct $sum (
+                $(#[$attr_next])*
+                ($addr_end => $($next)*)
+                $($after)*
+            ) -> {
+                $($output)*
+                {
+                    assert!(
+                        $sum == $addr_start,
+                        "Invalid start address for padding {} (expected {:#X} but was {:#X})",
+                        stringify!($padding),
+                        $addr_start,
+                        $sum
+                    );
+                    $sum = $addr_end;
+                }
+            }
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! register_structs {
+    {
+        $( $name:ident [
+            $( $fields:tt )*
+        ] ),*
+    } => {
+        $( $crate::register_fields!(@root $name { $($fields)* } ); )*
+
+        #[cfg(test)]
+        mod test_register_structs {
+        $(
+            #[allow(non_snake_case)]
+            mod $name {
+                use super::super::*;
+                #[test]
+                fn test_addresses() {
+                    $crate::test_fields!(@root $name $($fields)* )
+                }
+            }
+        )*
+        }
+    };
+}
