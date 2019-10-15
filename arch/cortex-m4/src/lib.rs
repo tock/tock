@@ -272,7 +272,7 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
          \tBus Fault Address:       (valid: {}) {:#010X}\r\n\
          ",
         mode_str,
-        env!("TOCK_KERNEL_VERSION"),
+        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
         stacked_r0,
         stacked_r1,
         stacked_r2,
