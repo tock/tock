@@ -812,7 +812,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
         self.mpu_config.and_then(|mut config| {
             let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
-            // The alignement must be a power of two, 2^a. The expression `!(align - 1)` then
+            // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
             // returns a mask with leading ones, followed by `a` trailing zeros.
             let alignment_mask = !(align - 1);
             let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
