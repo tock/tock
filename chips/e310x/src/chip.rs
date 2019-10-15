@@ -3,6 +3,7 @@
 use kernel;
 use kernel::debug;
 use rv32i;
+use rv32i::machine_timer;
 use rv32i::plic;
 
 use crate::gpio;
@@ -93,7 +94,9 @@ pub unsafe fn handle_trap() {
                 rv32i::csr::mcause::Interrupt::UserSoft => (),
                 rv32i::csr::mcause::Interrupt::SupervisorSoft => (),
 
-                rv32i::csr::mcause::Interrupt::MachineTimer => (),
+                rv32i::csr::mcause::Interrupt::MachineTimer => {
+                    machine_timer::MACHINETIMER.handle_interrupt();
+                }
 
                 // should never occur
                 rv32i::csr::mcause::Interrupt::UserTimer => (),
