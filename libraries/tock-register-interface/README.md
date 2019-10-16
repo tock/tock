@@ -44,7 +44,7 @@ register_structs![
         // Etc.
 
         // The end of the struct is marked as follows.
-        (0x100 => @END)
+        (0x100 => @END),
     }
 ]
 ```
