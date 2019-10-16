@@ -85,15 +85,18 @@ class CodeBlock(str):
 
 class Includes(CodeBlock):
     TEMPLATE = """
+use kernel::common::registers::{{
+    define_registers, register_bitfields, BaseAddress, ReadOnly, ReadWrite, WriteOnly,
+}};
 use kernel::common::StaticRef;
-use kernel::common::registers::{{self, ReadOnly, ReadWrite, WriteOnly}};
-    """
+"""
 
 
 class PeripheralBaseDeclaration(CodeBlock):
     TEMPLATE = """
-const {name}_BASE: StaticRef<{title}Registers> =
-    unsafe {{ StaticRef::new(0x{base:8X} as *const {title}Registers) }};
+const {name}_BASE: {title}Registers = {title}Registers {{
+    base_address: unsafe {{ BaseAddress::new(0x{base:8X}) }},
+}};
 """
 
     @staticmethod
@@ -106,10 +109,12 @@ const {name}_BASE: StaticRef<{title}Registers> =
 
 
 class PeripheralStruct(CodeBlock):
-    TEMPLATE = """{comment}
-#[repr(C)]
-struct {name}Registers {{
+    TEMPLATE = """
+define_registers! {{
+    {comment}
+    unsafe struct {name}Registers {{
 {fields}
+    }}
 }}
 """
 
@@ -133,17 +138,14 @@ struct {name}Registers {{
 
         fields = []
         offset = 0
-        cnt = 0
         for register in sorted(peripheral.registers,
                                key=lambda r: r.address_offset):
             if register.address_offset > offset:
                 diff = (register.address_offset - offset)
-                fields.append(ReservedStructField(cnt, diff))
-                cnt += 1
                 offset += diff
             if offset == register.address_offset:
                 size = get_register_size(register)
-                fields.append(PeripheralStructField(register, size))
+                fields.append(PeripheralStructField(register, size, offset))
                 offset += size / 8
             else:
                 # TODO: handle overlapping registers better (Unions?)
@@ -163,11 +165,11 @@ struct {name}Registers {{
 
 
 class PeripheralStructField(CodeBlock):
-    TEMPLATE = """{comment}
-{name}: {mode}<u{size}{definition}>,"""
+    TEMPLATE = """        {comment}
+        {name}: {mode}<u{size}{definition}> = 0x{offset:03X},"""
 
     @staticmethod
-    def fields(register, size):
+    def fields(register, size, offset):
         def identifier(name):
             identifier = pydentifier.lower_underscore(name)
             if identifier in RUST_KEYWORDS:
@@ -191,17 +193,7 @@ class PeripheralStructField(CodeBlock):
             "size": size,
             "mode": mode_map.get(register._access, "ReadWrite"),
             "definition": definition(register),
-        }
-
-
-class ReservedStructField(CodeBlock):
-    TEMPLATE = """_reserved{cnt}: [u8; {size}],"""
-
-    @staticmethod
-    def fields(cnt, size):
-        return {
-            "cnt": cnt,
-            "size": int(size),
+            "offset": offset,
         }
 
 

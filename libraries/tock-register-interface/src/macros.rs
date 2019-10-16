@@ -136,3 +136,39 @@ macro_rules! register_bitfields {
         )*
     }
 }
+
+#[macro_export]
+macro_rules! define_registers {
+    ($(#[$smeta: meta])* unsafe struct $Name: ident {
+        $($(#[$fmeta: meta])* $name: ident: $type: ty = $offset: expr),*$(,)?
+    }) => {
+        #[derive(Clone, Copy)]
+        $(#[$smeta])*
+        struct $Name { base_address: $crate::BaseAddress }
+        impl $Name {
+            $($(#[$fmeta])* const fn $name(&self) -> StaticRef<$type> {
+                unsafe { StaticRef::new(self.base_address.offset($offset) as *const $type) }
+            })*
+            const fn test() {
+                const CONDITION: bool = $crate::define_registers_test_internal!(
+                    $(($offset, core::mem::size_of::<$type>()))*
+                );
+                const TEST: usize = 0 - !CONDITION as usize;
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! define_registers_test_internal {
+    () => { true };
+    (($offset: expr, $size: expr) $($rest: tt)*) => {
+        $crate::define_registers_test_internal!([true][$offset + $size] $($rest)*)
+    };
+    ([$result: expr][$limit: expr]) => { $result };
+    ([$result: expr][$limit: expr] ($offset: expr, $size: expr) $($rest: tt)*) => {
+        $crate::define_registers_test_internal!(
+            [$result && $limit <= $offset][$offset + $size] $($rest)*
+        )
+    };
+}

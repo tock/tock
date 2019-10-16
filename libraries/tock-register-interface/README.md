@@ -9,8 +9,8 @@ The crate provides three types for working with memory mapped registers:
 `ReadWrite`, `ReadOnly`, and `WriteOnly`, providing read-write, read-only, and
 write-only functionality, respectively.
 
-Defining the registers is similar to the C-style approach, where each register
-is a field in a packed struct:
+Defining the registers can be done in a similar approach to the C-style, where
+each register is a field in a packed struct:
 
 ```rust
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
@@ -36,6 +36,48 @@ struct Registers {
     // Etc.
 }
 ```
+
+However in Rust, we may avoid encoding the mapping from register name to offset
+as the offset of a field in a `repr(C)` struct, and directly express this
+mapping as constant functions through the use of the `define_registers!` macro:
+
+```rust
+use tock_registers::registers::{define_registers, BaseAddress, ReadOnly, ReadWrite, WriteOnly};
+
+define_registers! {
+    // The unsafe keyword reminds you to check the register names, types, and offsets.
+    unsafe struct Registers {
+        // Control register: read-write
+        // The 'Control' parameter constrains this register to only use fields from
+        // a certain group (defined below in the bitfields section).
+        cr: ReadWrite<u8, Control::Register> = 0x000,
+
+        // Status register: read-only
+        s: ReadOnly<u8, Status::Register> = 0x001,
+
+        // Registers can be bytes, halfwords, or words:
+        // Note that the second type parameter can be omitted, meaning that there
+        // are no bitfields defined for these registers.
+        byte0: ReadWrite<u8> = 0x002,
+        byte1: ReadWrite<u8> = 0x003,
+        short: ReadWrite<u16> = 0x004,
+        // It is also possible to have gaps between registers since the offset
+        // is explicit. The macro has a compile-time check that offsets are
+        // increasing and registers are not overlapping.
+        word: ReadWrite<u32> = 0x008,
+
+        // Etc.
+    }
+}
+
+const BASE: Registers = Registers {
+    // The unsafe keyword reminds you to check the base address.
+    base_address: unsafe { BaseAddress::new(0x40000000) },
+};
+```
+
+Compared to the C-style approach, in the Rust approach you would write
+`BASE.cr()` instead of `BASE.cr` to access a register from a base address.
 
 ## Defining bitfields
 
