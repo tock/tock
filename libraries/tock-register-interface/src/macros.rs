@@ -148,7 +148,7 @@ macro_rules! register_fields {
     (@munch
         (
             $(#[$attr_end:meta])*
-            ($addr:expr => END)
+            ($offset:expr => @END),
         )
         -> {struct $name:ident $(
                 $(#[$attr:meta])*
@@ -168,7 +168,7 @@ macro_rules! register_fields {
     (@munch
         (
             $(#[$attr:meta])*
-            ($addr_start:expr => $field:ident: $ty:ty)
+            ($offset_start:expr => $field:ident: $ty:ty),
             $($after:tt)*
         )
         -> {$($output:tt)*}
@@ -188,9 +188,9 @@ macro_rules! register_fields {
     (@munch
         (
             $(#[$attr:meta])*
-            ($addr_start:expr => $padding:ident)
+            ($offset_start:expr => $padding:ident),
             $(#[$attr_next:meta])*
-            ($addr_end:expr => $($next:tt)*)
+            ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
         )
         -> {$($output:tt)*}
@@ -198,12 +198,12 @@ macro_rules! register_fields {
         $crate::register_fields!(
             @munch (
                 $(#[$attr_next])*
-                ($addr_end => $($next)*)
+                ($offset_end => $($next)*),
                 $($after)*
             ) -> {
                 $($output)*
                 $(#[$attr])*
-                ($padding: [u8; $addr_end - $addr_start])
+                ($padding: [u8; $offset_end - $offset_start])
             }
         );
     };
@@ -220,7 +220,7 @@ macro_rules! test_fields {
     (@munch $struct:ident $sum:ident
         (
             $(#[$attr_end:meta])*
-            ($size:expr => END)
+            ($size:expr => @END),
         )
         -> {$($stmts:block)*}
     ) => {
@@ -242,9 +242,9 @@ macro_rules! test_fields {
     (@munch $struct:ident $sum:ident
         (
             $(#[$attr:meta])*
-            ($addr_start:expr => $field:ident: $ty:ty)
+            ($offset_start:expr => $field:ident: $ty:ty),
             $(#[$attr_next:meta])*
-            ($addr_end:expr => $($next:tt)*)
+            ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
         )
         -> {$($output:block)*}
@@ -252,24 +252,32 @@ macro_rules! test_fields {
         $crate::test_fields!(
             @munch $struct $sum (
                 $(#[$attr_next])*
-                ($addr_end => $($next)*)
+                ($offset_end => $($next)*),
                 $($after)*
             ) -> {
                 $($output)*
                 {
                     assert!(
-                        $sum == $addr_start,
-                        "Invalid start address for field {} (expected {:#X} but was {:#X})",
+                        $sum == $offset_start,
+                        "Invalid start offset for field {} (expected {:#X} but was {:#X})",
                         stringify!($field),
-                        $addr_start,
+                        $offset_start,
+                        $sum
+                    );
+                    let align = core::mem::align_of::<$ty>();
+                    assert!(
+                        $sum & (align - 1) == 0,
+                        "Invalid alignment for field {} (expected alignment of {:#X} but offset was {:#X})",
+                        stringify!($field),
+                        align,
                         $sum
                     );
                     $sum += core::mem::size_of::<$ty>();
                     assert!(
-                        $sum == $addr_end,
-                        "Invalid end address for field {} (expected {:#X} but was {:#X})",
+                        $sum == $offset_end,
+                        "Invalid end offset for field {} (expected {:#X} but was {:#X})",
                         stringify!($field),
-                        $addr_end,
+                        $offset_end,
                         $sum
                     );
                 }
@@ -281,9 +289,9 @@ macro_rules! test_fields {
     (@munch $struct:ident $sum:ident
         (
             $(#[$attr:meta])*
-            ($addr_start:expr => $padding:ident)
+            ($offset_start:expr => $padding:ident),
             $(#[$attr_next:meta])*
-            ($addr_end:expr => $($next:tt)*)
+            ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
         )
         -> {$($output:block)*}
@@ -291,19 +299,19 @@ macro_rules! test_fields {
         $crate::test_fields!(
             @munch $struct $sum (
                 $(#[$attr_next])*
-                ($addr_end => $($next)*)
+                ($offset_end => $($next)*),
                 $($after)*
             ) -> {
                 $($output)*
                 {
                     assert!(
-                        $sum == $addr_start,
-                        "Invalid start address for padding {} (expected {:#X} but was {:#X})",
+                        $sum == $offset_start,
+                        "Invalid start offset for padding {} (expected {:#X} but was {:#X})",
                         stringify!($padding),
-                        $addr_start,
+                        $offset_start,
                         $sum
                     );
-                    $sum = $addr_end;
+                    $sum = $offset_end;
                 }
             }
         );
@@ -326,7 +334,7 @@ macro_rules! register_structs {
             mod $name {
                 use super::super::*;
                 #[test]
-                fn test_addresses() {
+                fn test_offsets() {
                     $crate::test_fields!(@root $name $($fields)* )
                 }
             }

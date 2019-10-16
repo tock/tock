@@ -24,36 +24,36 @@ use kernel::common::StaticRef;
 
 register_structs! {
     ClockRegisters [
-        (0x000 => tasks_hfclkstart: WriteOnly<u32, Control::Register>)
-        (0x004 => tasks_hfclkstop: WriteOnly<u32, Control::Register>)
-        (0x008 => tasks_lfclkstart: ReadWrite<u32, Control::Register>)
-        (0x00C => tasks_lfclkstop: WriteOnly<u32, Control::Register>)
-        (0x010 => tasks_cal: WriteOnly<u32, Control::Register>)
-        (0x014 => tasks_ctstart: WriteOnly<u32, Control::Register>)
-        (0x018 => tasks_ctstop: WriteOnly<u32, Control::Register>)
-        (0x01C => _reserved1)
-        (0x100 => events_hfclkstarted: ReadOnly<u32, Status::Register>)
-        (0x104 => events_lfclkstarted: ReadOnly<u32, Status::Register>)
-        (0x108 => _reserved2)
-        (0x10C => events_done: ReadOnly<u32, Status::Register>)
-        (0x110 => events_ctto: ReadOnly<u32, Status::Register>)
-        (0x114 => _reserved3)
-        (0x304 => intenset: ReadWrite<u32, Interrupt::Register>)
-        (0x308 => intenclr: ReadWrite<u32, Interrupt::Register>)
-        (0x30C => _reserved4)
-        (0x408 => hfclkrun: ReadOnly<u32, Status::Register>)
-        (0x40C => hfclkstat: ReadWrite<u32, HfClkStat::Register>)
-        (0x410 => _reserved5)
-        (0x414 => lfclkrun: ReadOnly<u32, Control::Register>)
-        (0x418 => lfclkstat: ReadWrite<u32, LfClkStat::Register>)
-        (0x41C => lfclksrccopy: ReadOnly<u32, LfClkSrcCopy::Register>)
-        (0x420 => _reserved6)
-        (0x518 => lfclksrc: ReadWrite<u32, LfClkSrc::Register>)
-        (0x51C => _reserved7)
-        (0x538 => ctiv: ReadWrite<u32, Ctiv::Register>)
-        (0x53C => _reserved8)
-        (0x55C => traceconfig: ReadWrite<u32, TraceConfig::Register>)
-        (0x560 => END)
+        (0x000 => tasks_hfclkstart: WriteOnly<u32, Control::Register>),
+        (0x004 => tasks_hfclkstop: WriteOnly<u32, Control::Register>),
+        (0x008 => tasks_lfclkstart: ReadWrite<u32, Control::Register>),
+        (0x00C => tasks_lfclkstop: WriteOnly<u32, Control::Register>),
+        (0x010 => tasks_cal: WriteOnly<u32, Control::Register>),
+        (0x014 => tasks_ctstart: WriteOnly<u32, Control::Register>),
+        (0x018 => tasks_ctstop: WriteOnly<u32, Control::Register>),
+        (0x01C => _reserved1),
+        (0x100 => events_hfclkstarted: ReadOnly<u32, Status::Register>),
+        (0x104 => events_lfclkstarted: ReadOnly<u32, Status::Register>),
+        (0x108 => _reserved2),
+        (0x10C => events_done: ReadOnly<u32, Status::Register>),
+        (0x110 => events_ctto: ReadOnly<u32, Status::Register>),
+        (0x114 => _reserved3),
+        (0x304 => intenset: ReadWrite<u32, Interrupt::Register>),
+        (0x308 => intenclr: ReadWrite<u32, Interrupt::Register>),
+        (0x30C => _reserved4),
+        (0x408 => hfclkrun: ReadOnly<u32, Status::Register>),
+        (0x40C => hfclkstat: ReadWrite<u32, HfClkStat::Register>),
+        (0x410 => _reserved5),
+        (0x414 => lfclkrun: ReadOnly<u32, Control::Register>),
+        (0x418 => lfclkstat: ReadWrite<u32, LfClkStat::Register>),
+        (0x41C => lfclksrccopy: ReadOnly<u32, LfClkSrcCopy::Register>),
+        (0x420 => _reserved6),
+        (0x518 => lfclksrc: ReadWrite<u32, LfClkSrc::Register>),
+        (0x51C => _reserved7),
+        (0x538 => ctiv: ReadWrite<u32, Ctiv::Register>),
+        (0x53C => _reserved8),
+        (0x55C => traceconfig: ReadWrite<u32, TraceConfig::Register>),
+        (0x560 => @END),
     ]
 }
 
