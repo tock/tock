@@ -9,12 +9,51 @@ The crate provides three types for working with memory mapped registers:
 `ReadWrite`, `ReadOnly`, and `WriteOnly`, providing read-write, read-only, and
 write-only functionality, respectively.
 
-Defining the registers is similar to the C-style approach, where each register
-is a field in a packed struct:
+Defining the registers is done with the `register_structs` macro, which expects
+for each register an offset, a field name and a type. Registers must be declared
+in increasing order of offsets and contiguously. If any padding is required
+between two registers, this must be explicited with a padding identifier. The
+end of the struct is marked with its size and the `@END` keyword.
 
 ```rust
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
 
+register_structs![
+    Registers {
+        // Control register: read-write
+        // The 'Control' parameter constrains this register to only use fields from
+        // a certain group (defined below in the bitfields section).
+        (0x000 => cr: ReadWrite<u8, Control::Register>),
+
+        // Status register: read-only
+        (0x001 => s: ReadOnly<u8, Status::Register>),
+
+        // Registers can be bytes, halfwords, or words:
+        // Note that the second type parameter can be omitted, meaning that there
+        // are no bitfields defined for these registers.
+        (0x002 => byte0: ReadWrite<u8>),
+        (0x003 => byte1: ReadWrite<u8>),
+        (0x004 => short: ReadWrite<u16>),
+
+        // Empty space between registers must be marked with a padding field,
+        // declared as follows. The length of this padding is automatically
+        // computed by the macro.
+        (0x006 => _reserved),
+        (0x008 => word: ReadWrite<u32>),
+
+        // Etc.
+
+        // The end of the struct is marked as follows.
+        (0x100 => @END)
+    }
+]
+```
+
+This generates a C-style struct of the following form. Unit tests are also
+generated to make sure that the offsets and padding are consistent with the
+actual fields in the struct, and that alignment is correct.
+
+```rust
 #[repr(C)]
 struct Registers {
     // Control register: read-write
@@ -31,6 +70,9 @@ struct Registers {
     byte0: ReadWrite<u8>,
     byte1: ReadWrite<u8>,
     short: ReadWrite<u16>,
+
+    // The padding length was automatically computed as 0x008 - 0x006.
+    _reserved: [u8; 2],
     word: ReadWrite<u32>
 
     // Etc.
