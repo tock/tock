@@ -8,6 +8,11 @@
 ###
 ###     Then patch /usr/local/lib/ruby/gems/2.4.0/gems/awesome_bot-1.17.2/lib/awesome_bot/check.rb
 ###     to set `head = true`.
+###
+### There are some limitations to this tool, so it tends to find many false positives.
+### Using this script requires skipping through the output and manually checking and
+### fixing links. Therefore, we do not include it in any CI build right now, and instead
+### simply run it periodically to try to keep links up-to-date.
 
 red=`tput setaf 1`
 green=`tput setaf 2`
