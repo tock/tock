@@ -106,11 +106,14 @@ const {name}_BASE: StaticRef<{title}Registers> =
 
 
 class PeripheralStruct(CodeBlock):
-    TEMPLATE = """{comment}
-#[repr(C)]
-struct {name}Registers {{
-{fields}
-}}
+    TEMPLATE = """
+register_structs![
+    {comment}
+    {name}Registers {{
+        {fields}
+        (0x{end:03X} => @END),
+    }}
+]
 """
 
     @staticmethod
@@ -133,14 +136,13 @@ struct {name}Registers {{
 
         fields = []
         offset = 0
-        cnt = 0
+        count_reserved = 0
         for register in sorted(peripheral.registers,
                                key=lambda r: r.address_offset):
             if register.address_offset > offset:
-                diff = (register.address_offset - offset)
-                fields.append(ReservedStructField(cnt, diff))
-                cnt += 1
-                offset += diff
+                fields.append(ReservedStructField(offset, count_reserved))
+                count_reserved += 1
+                offset = register.address_offset
             if offset == register.address_offset:
                 size = get_register_size(register)
                 fields.append(PeripheralStructField(register, size))
@@ -158,13 +160,14 @@ struct {name}Registers {{
         return {
             "comment": comment(peripheral.description),
             "name": name.title(),
-            "fields": "\n".join(fields)
+            "fields": "\n        ".join(fields),
+            "end": int(offset),
         }
 
 
 class PeripheralStructField(CodeBlock):
     TEMPLATE = """{comment}
-{name}: {mode}<u{size}{definition}>,"""
+        (0x{offset:03X} => {name}: {mode}<u{size}{definition}>),"""
 
     @staticmethod
     def fields(register, size):
@@ -187,6 +190,7 @@ class PeripheralStructField(CodeBlock):
 
         return {
             "comment": comment(register.description),
+            "offset": int(register.address_offset),
             "name": identifier(register.name),
             "size": size,
             "mode": mode_map.get(register._access, "ReadWrite"),
@@ -195,13 +199,13 @@ class PeripheralStructField(CodeBlock):
 
 
 class ReservedStructField(CodeBlock):
-    TEMPLATE = """_reserved{cnt}: [u8; {size}],"""
+    TEMPLATE = """(0x{offset:03X} => _reserved{cnt}),"""
 
     @staticmethod
-    def fields(cnt, size):
+    def fields(offset, cnt):
         return {
+            "offset": int(offset),
             "cnt": cnt,
-            "size": int(size),
         }
 
 
