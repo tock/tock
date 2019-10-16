@@ -72,6 +72,7 @@ use crate::net::stream::{decode_bytes, decode_u16, decode_u8};
 use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::udp::UDPHeader;
+use kernel::debug;
 use kernel::ReturnCode;
 
 pub const UDP_HDR_LEN: usize = 8;
@@ -351,7 +352,7 @@ impl IPPayload<'a> {
         payload: &Buffer<'static, u8>,
     ) -> (u8, u16) {
         if self.payload.len() < payload.len() {
-            // TODO: Error
+            debug!("Error in set_payload for ipv6_packet");
         }
         for i in 0..payload.len() {
             self.payload[i] = payload[i];

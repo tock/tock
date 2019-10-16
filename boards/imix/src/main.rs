@@ -128,9 +128,9 @@ struct Imix {
     console: &'static capsules::console::Console<'static, UartDevice<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    //temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    //humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    //ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -351,10 +351,10 @@ pub unsafe fn reset_handler() {
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
-    //let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm).finalize();
-    //let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
-    //let temp = TemperatureComponent::new(board_kernel, si7021).finalize();
-    //let humidity = HumidityComponent::new(board_kernel, si7021).finalize();
+    let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm).finalize();
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
+    let temp = TemperatureComponent::new(board_kernel, si7021).finalize();
+    let humidity = HumidityComponent::new(board_kernel, si7021).finalize();
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize();
 
     // SPI MUX, SPI syscall driver and RF233 radio
@@ -440,19 +440,6 @@ pub unsafe fn reset_handler() {
     )
     .finalize();
 
-    /*
-    let mock_udp = MockUDPComponent::new(
-        udp_send_mux,
-        udp_recv_mux,
-        udp_port_table,
-        mux_alarm,
-        &mut UDP_PAYLOAD,
-        1, //id
-        2, //dst_port
-    )
-    .finalize();
-    */
-
     let udp_lowpan_test =
         udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
 
@@ -461,9 +448,9 @@ pub unsafe fn reset_handler() {
         console,
         alarm,
         gpio,
-        //temp,
-        //humidity,
-        //ambient_light,
+        temp,
+        humidity,
+        ambient_light,
         adc,
         led,
         button,
@@ -509,12 +496,8 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
     debug!("src mac: {:?}", src_mac_from_serial_num);
-    /*
-    mock_udp.bind(81);
-    mock_udp.start_sending();
-    */
 
-    //udp_lowpan_test.start();
+    udp_lowpan_test.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

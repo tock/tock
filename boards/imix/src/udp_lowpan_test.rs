@@ -23,6 +23,7 @@
 //! udp_lowpan_test.start();
 
 use super::components::mock_udp::MockUDPComponent;
+use super::components::mock_udp2::MockUDPComponent2;
 use capsules::ieee802154::device::MacDevice;
 use capsules::mock_udp::MockUdp1;
 use capsules::net::buffer::Buffer;
@@ -47,7 +48,7 @@ use kernel::static_init;
 use kernel::udp_port_table::UdpPortTable;
 use kernel::ReturnCode;
 
-pub const TEST_DELAY_MS: u32 = 10000;
+pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
 
 const UDP_HDR_SIZE: usize = 8;
@@ -58,7 +59,7 @@ static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UD
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 
 pub struct LowpanTest<'a, A: time::Alarm> {
-    alarm: A,
+    alarm: &'a A,
     test_counter: Cell<usize>,
     port_table: &'static UdpPortTable,
     mock_udp1: &'a MockUdp1<'a, A>,
@@ -88,7 +89,7 @@ pub unsafe fn initialize_all(
     )
     .finalize();
 
-    let mock_udp2 = MockUDPComponent::new(
+    let mock_udp2 = MockUDPComponent2::new(
         udp_send_mux,
         udp_recv_mux,
         port_table,
@@ -102,7 +103,10 @@ pub unsafe fn initialize_all(
     let udp_lowpan_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         LowpanTest::new(
-            VirtualMuxAlarm::new(mux_alarm),
+            static_init!(
+                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+                VirtualMuxAlarm::new(mux_alarm)
+            ),
             port_table,
             mock_udp1,
             mock_udp2
@@ -116,7 +120,7 @@ pub unsafe fn initialize_all(
 
 impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     pub fn new(
-        alarm: A,
+        alarm: &'a A,
         port_table: &'static UdpPortTable,
         mock_udp1: &'static MockUdp1<'a, A>,
         mock_udp2: &'static MockUdp1<'a, A>,
@@ -131,7 +135,6 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     pub fn start(&self) {
-        debug!("starting");
         self.schedule_next();
     }
 
@@ -142,15 +145,12 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn run_test_and_increment(&self) {
-        debug!("run test and incr");
         let test_counter = self.test_counter.get();
         self.run_test(test_counter);
-        debug!("ran test");
         match TEST_LOOP {
             true => self.test_counter.set((test_counter + 1) % self.num_tests()),
             false => self.test_counter.set(test_counter + 1),
         };
-        debug!("ran test");
     }
 
     fn num_tests(&self) -> usize {
@@ -160,10 +160,9 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     fn run_test(&self, test_id: usize) {
         debug!("Running test {}:", test_id);
         match test_id {
-            0 => {}
-            //0 => self.port_table_test(),
+            0 => self.port_table_test(),
             1 => self.capsule_send_test(),
-            _ => {}
+            _ => return,
         }
         self.schedule_next();
     }
@@ -179,19 +178,20 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         let socket3 = self.port_table.create_socket().unwrap();
         //debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).ok().unwrap();
+        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).expect("fail1");
         let result = self.port_table.bind(socket2, 4000);
         assert!(result.is_err());
         socket2 = result.unwrap_err();
-        assert!(self.port_table.bind(socket2, 4001).is_ok());
-        // debug!("After return code assertions for binding");
-        // // Ensure that only the first binding is able to send
+        let (send_bind2, recv_bind2) = self.port_table.bind(socket2, 4001).expect("fail2");
+
+        // Ensure that only the first binding is able to send
         assert_eq!(send_bind.get_port(), 4000);
         assert_eq!(recv_bind.get_port(), 4000);
         assert!(self.port_table.unbind(send_bind, recv_bind).is_ok());
 
         // Show that you can bind to a port once another socket has unbound it
-        assert!(self.port_table.bind(socket3, 4000).is_ok());
+        let (send_bind3, recv_bind3) = self.port_table.bind(socket3, 4000).expect("fail3");
+        assert!(self.port_table.unbind(send_bind3, recv_bind3).is_ok());
 
         debug!("port_table_test passed");
     }
@@ -210,10 +210,6 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
 
 impl<'a, A: time::Alarm> time::Client for LowpanTest<'a, A> {
     fn fired(&self) {
-        debug!("alarm1");
-        debug!("alarm2");
-        //panic!();
-        //self.schedule_next();
         self.run_test_and_increment();
     }
 }

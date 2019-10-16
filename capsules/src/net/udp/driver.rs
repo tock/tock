@@ -264,7 +264,6 @@ impl<'a> UDPDriver<'a> {
                         .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
                             kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                             kernel_buffer.slice(0..payload.len());
-                            debug!("sending...");
                             self.sender.driver_send_to(
                                 dst_addr,
                                 dst_port,
@@ -587,7 +586,6 @@ impl<'a> Driver for UDPDriver<'a> {
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
     fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
-        debug!("send done");
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

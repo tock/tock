@@ -84,11 +84,6 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                 ) {
                     Ok(sock) => match self.port_table.bind(sock, self.src_port.get()) {
                         Ok((send_bind, rcv_bind)) => {
-                            debug!(
-                                "mock_udp id {:?} bound to port {:?}",
-                                self.id,
-                                self.src_port.get()
-                            );
                             self.udp_sender.set_binding(send_bind);
                             self.udp_receiver.set_binding(rcv_bind);
                         }
@@ -110,11 +105,6 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                         debug!("Socket successfully created in mock_udp");
                         match self.port_table.bind(sock, self.src_port.get()) {
                             Ok((send_bind, rcv_bind)) => {
-                                debug!(
-                                    "mock_udp id {:?} bound to port {:?}",
-                                    self.id,
-                                    self.src_port.get()
-                                );
                                 self.udp_sender.set_binding(send_bind);
                                 self.udp_receiver.set_binding(rcv_bind);
                             }
@@ -149,17 +139,16 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                     .send_to(DST_ADDR, self.dst_port.get(), dgram)
                 {
                     ReturnCode::SUCCESS => {}
-                    _ => debug!("Mock UDP Send Failed."),
+                    _ => debug!("ERROR: Mock UDP Send Failed."),
                 }
             }
-            None => debug!("udp_dgram not present."),
+            None => debug!("ERROR: udp_dgram not present."),
         }
     }
 }
 
 impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
     fn fired(&self) {
-        debug!("hudson you suck.");
         if self.send_loop.get() {
             self.send(self.id);
         }

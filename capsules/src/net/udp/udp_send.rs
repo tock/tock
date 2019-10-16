@@ -47,6 +47,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
             ret = match caller.tx_buffer.take() {
                 Some(buf) => {
                     let ret = self.ip_sender.send_to(dest, transport_header, &buf);
+                    debug!("replacing buffer after calling ip_sender send_to");
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
                 }
@@ -69,14 +70,24 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 /// the UDP layer receives this callback, it forwards it to the `UDPSendClient`.
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
-        debug!("udp send done");
         let last_sender = self.sender_list.pop_head();
         last_sender.map(|last_sender| {
             last_sender
                 .client
                 .map(|client| match last_sender.tx_buffer.take() {
-                    Some(buf) => client.send_done(result, buf),
-                    None => debug!("missing buffer in send done."),
+                    Some(buf) => {
+                        debug!("Successful call to send done.");
+                        let bind = last_sender.get_binding().expect("hi");
+                        debug!("Bound port: {:?}", bind.get_port());
+                        last_sender.set_binding(bind);
+                        client.send_done(result, buf);
+                    }
+                    None => {
+                        debug!("ERROR: Missing buffer in send done.");
+                        let bind = last_sender.get_binding().expect("hi");
+                        debug!("Bound port: {:?}", bind.get_port());
+                        last_sender.set_binding(bind);
+                    }
                 })
         });
 
@@ -85,9 +96,14 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                 //send next packet in queue
                 match next_sender.tx_buffer.take() {
                     Some(buf) => match next_sender.next_th.take() {
-                        Some(th) => self
-                            .ip_sender
-                            .send_to(next_sender.next_dest.get(), th, &buf),
+                        Some(th) => {
+                            let ret = self
+                                .ip_sender
+                                .send_to(next_sender.next_dest.get(), th, &buf);
+                            next_sender.tx_buffer.replace(buf);
+                            ret
+                        }
+
                         None => {
                             debug!("Missing transport header.");
                             ReturnCode::FAIL
