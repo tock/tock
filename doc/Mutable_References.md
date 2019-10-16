@@ -112,17 +112,17 @@ references.
 
 ## `Cell`s in Tock
 
-Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for 
+Tock uses several [Cell](https://doc.rust-lang.org/core/cell/) types for
 different data types. This
 table summarizes the various types, and more detail is included below.
 
-| Cell Type      | Best Used For        | Example                                    | Common Uses                                                                                           |
-|----------------|----------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `Cell`         | Primitive types      | `Cell<bool>`, [`sched.rs`](../kernel/src/sched.rs) | State variables (holding an `enum`), true/false flags, integer parameters like length.    |
-| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi.rs)                 | Holding static buffers that will receive or send data.                                                |
-| `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)              | Delegating reference to large buffers (e.g. application buffers).                                       |
-| `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.                             |
-| `VolatileCell` | Registers            | `VolatileCell<u32>`                        | Accessing MMIO registers, used by `tock_registers` crate.                                                       |
+| Cell Type      | Best Used For        | Example                                                                                                                                                   | Common Uses                                                                            |
+|----------------|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| `Cell`         | Primitive types      | `Cell<bool>`, [`sched.rs`](../kernel/src/sched.rs)                                                                                                        | State variables (holding an `enum`), true/false flags, integer parameters like length. |
+| `TakeCell`     | Small static buffers | `TakeCell<'static, [u8]>`, [`spi.rs`](../capsules/src/spi.rs)                                                                                             | Holding static buffers that will receive or send data.                                 |
+| `MapCell`      | Large static buffers | `MapCell<App>`, [`spi.rs`](../capsules/src/spi.rs)                                                                                                        | Delegating reference to large buffers (e.g. application buffers).                      |
+| `OptionalCell` | Optional parameters  | `client: OptionalCell<&'static hil::nonvolatile_storage::NonvolatileStorageClient>`, [`nonvolatile_to_pages.rs`](../capsules/src/nonvolatile_to_pages.rs) | Keeping state that can be uninitialized, like a Client before one is set.              |
+| `VolatileCell` | Registers            | `VolatileCell<u32>`                                                                                                                                       | Accessing MMIO registers, used by `tock_registers` crate.                              |
 
 ## The `TakeCell` abstraction
 
