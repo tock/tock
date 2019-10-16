@@ -6,7 +6,7 @@ Cortex-M4 and a multi-functional Radio (BLE, IEEE, FM). The kit is i2c
 compatible, and can be extended with several sensors using i2c.
 
 The technical reference manual for the cc26x2 can be found
-[here](http://www.ti.com/lit/ug/swcu185/swcu185.pdf).
+[here](http://www.ti.com/lit/ug/swcu185d/swcu185d.pdf).
 
 ## Getting Started
 

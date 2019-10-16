@@ -236,14 +236,12 @@ All user-level code lives in two separate repositories:
 - [libtock-c](https://github.com/tock/libtock-c): C and C++ apps.
 - [libtock-rs](https://github.com/tock/libtock-rs): Rust apps.
 
-The C version of the Tock library and the example applications is
-older and more stable, so it is a good idea to look at these first.
-So look at the [libtock-c
-README](https://github.com/tock/libtock-c/README.md) and follow the
+The C version of the Tock library and the example applications is older and more
+stable, so it is a good idea to look at these first. So look at the [libtock-c
+README](https://github.com/tock/libtock-c/blob/master/README.md) and follow the
 steps therein.  Then you can do the same for the [libtock-rs
-README](https://github.com/tock/libtock-rs/README.md).  This should
-give you a first impression of how to build and deploy applications
-for TockOS.
+README](https://github.com/tock/libtock-rs/blob/master/README.md).  This should
+give you a first impression of how to build and deploy applications for TockOS.
 
 For an introduction on how applications work in TockOS, have a look at
 the ["Userland" document](Userland.md) in this directory.
