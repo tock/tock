@@ -10,10 +10,13 @@ The crate provides three types for working with memory mapped registers:
 write-only functionality, respectively.
 
 Defining the registers is done with the `register_structs` macro, which expects
-for each register an offset, a field name and a type. Registers must be declared
-in increasing order of offsets and contiguously. If any padding is required
-between two registers, this must be explicited with a padding identifier. The
-end of the struct is marked with its size and the `@END` keyword.
+for each register an offset, a field name, and a type. Registers must be declared
+in increasing order of offsets and contiguously. If any gap is left between a register
+entry the previous entry, the previous entry will be treated as an array to fill the
+gap. If there is an unused gap in the register mapping, then explicit padding is
+required and should be named like `_reserved`. The end of the struct is marked with
+its size and the `@END` keyword, effectively pointing to the offset immediately past
+the list of registers.
 
 ```rust
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
