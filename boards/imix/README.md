@@ -18,12 +18,12 @@ and the physical elements on the imix board.
 | GPIO[4]           | Pin D6           |
 | GPIO[5]           | Pin D7           |
 | GPIO[6]           | Pin D8           |
-| ADC[0]            | Pin A0           |
-| ADC[1]            | Pin A1           |
-| ADC[2]            | Pin A2           |
-| ADC[3]            | Pin A3           |
-| ADC[4]            | Pin A4           |
-| ADC[5]            | Pin A5           |
+| ADC[0]            | Pin A1           |
+| ADC[1]            | Pin A2           |
+| ADC[2]            | Pin A3           |
+| ADC[3]            | Pin A4           |
+| ADC[4]            | Pin A5           |
+| ADC[5]            | ?                |
 | Button[0]         | "USER" button    |
 | LED[0]            | "USER" LED       |
 
