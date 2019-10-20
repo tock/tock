@@ -22,6 +22,7 @@ pub mod dac;
 pub mod dma;
 pub mod eic;
 pub mod flashcalw;
+pub mod gloc;
 pub mod gpio;
 pub mod i2c;
 pub mod nvic;
