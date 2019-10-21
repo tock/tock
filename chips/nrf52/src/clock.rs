@@ -23,7 +23,7 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 
 register_structs! {
-    ClockRegisters [
+    ClockRegisters {
         (0x000 => tasks_hfclkstart: WriteOnly<u32, Control::Register>),
         (0x004 => tasks_hfclkstop: WriteOnly<u32, Control::Register>),
         (0x008 => tasks_lfclkstart: ReadWrite<u32, Control::Register>),
@@ -54,7 +54,7 @@ register_structs! {
         (0x53C => _reserved8),
         (0x55C => traceconfig: ReadWrite<u32, TraceConfig::Register>),
         (0x560 => @END),
-    ]
+    }
 }
 
 register_bitfields! [u32,

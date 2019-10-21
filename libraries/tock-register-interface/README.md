@@ -21,7 +21,7 @@ the list of registers.
 ```rust
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
 
-register_structs![
+register_structs! {
     Registers {
         // Control register: read-write
         // The 'Control' parameter constrains this register to only use fields from
@@ -49,7 +49,7 @@ register_structs![
         // The end of the struct is marked as follows.
         (0x100 => @END),
     }
-]
+}
 ```
 
 This generates a C-style struct of the following form. Unit tests are also

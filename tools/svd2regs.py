@@ -107,13 +107,13 @@ const {name}_BASE: StaticRef<{title}Registers> =
 
 class PeripheralStruct(CodeBlock):
     TEMPLATE = """
-register_structs![
+register_structs! {{
     {comment}
     {name}Registers {{
         {fields}
         (0x{end:03X} => @END),
     }}
-]
+}}
 """
 
     @staticmethod

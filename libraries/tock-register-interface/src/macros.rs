@@ -321,9 +321,9 @@ macro_rules! test_fields {
 #[macro_export]
 macro_rules! register_structs {
     {
-        $( $name:ident [
+        $( $name:ident {
             $( $fields:tt )*
-        ] ),*
+        } ),*
     } => {
         $( $crate::register_fields!(@root $name { $($fields)* } ); )*
 
