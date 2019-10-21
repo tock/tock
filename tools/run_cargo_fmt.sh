@@ -64,7 +64,7 @@ done
 # Find folders with Cargo.toml files in them and check them (avoids matching this script!)
 for f in $(find . | grep Cargo.toml); do
 	pushd $(dirname $f) > /dev/null
-	if $(git grep -q 'use .*\*;'); then
+	if $(git grep -q 'use .*\*;' -- ':!src/macros.rs'); then
 		echo
 		echo "$(tput bold)Wildcard import(s) found in $(dirname $f).$(tput sgr0)"
 		echo "Tock style rules prohibit this use of wildcard imports."
