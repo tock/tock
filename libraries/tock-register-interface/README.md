@@ -11,12 +11,11 @@ write-only functionality, respectively.
 
 Defining the registers is done with the `register_structs` macro, which expects
 for each register an offset, a field name, and a type. Registers must be declared
-in increasing order of offsets and contiguously. If any gap is left between a register
-entry the previous entry, the previous entry will be treated as an array to fill the
-gap. If there is an unused gap in the register mapping, then explicit padding is
-required and should be named like `_reserved`. The end of the struct is marked with
-its size and the `@END` keyword, effectively pointing to the offset immediately past
-the list of registers.
+in increasing order of offsets and contiguously. If there is an unused gap
+between two registeres in the mapping, then explicit padding is required, marked
+by an offset and gap identifier which should be named like `_reservedN`. The end
+of the struct is marked with its size and the `@END` keyword, effectively
+pointing to the offset immediately past the list of registers.
 
 ```rust
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
