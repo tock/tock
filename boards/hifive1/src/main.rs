@@ -105,12 +105,9 @@ pub unsafe fn reset_handler() {
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
     // enable interrupts globally
-    // we don't use timer interrupts anywhere; not needed
-    csr::CSR.mie.modify(
-        csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET + csr::mie::mie::mtimer::SET,
-    );
-    // this should be uncommented and masked; unclear why board hangs
-    //riscvregs::mie::set_mext();
+    csr::CSR
+        .mie
+        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Create a shared UART channel for the console and for kernel debug.
