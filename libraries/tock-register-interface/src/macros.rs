@@ -140,8 +140,14 @@ macro_rules! register_bitfields {
 #[macro_export]
 macro_rules! register_fields {
     // Macro entry point.
-    (@root $name:ident { $($input:tt)* } ) => {
-        $crate::register_fields!(@munch ($($input)*) -> {struct $name});
+    (@root $(#[$attr_struct:meta])* $name:ident { $($input:tt)* } ) => {
+        $crate::register_fields!(
+            @munch (
+                $($input)*
+            ) -> {
+                struct $(#[$attr_struct])* $name
+            }
+        );
     };
 
     // Print the struct once all fields have been munched.
@@ -150,11 +156,12 @@ macro_rules! register_fields {
             $(#[$attr_end:meta])*
             ($offset:expr => @END),
         )
-        -> {struct $name:ident $(
+        -> {struct $(#[$attr_struct:meta])* $name:ident $(
                 $(#[$attr:meta])*
                 ($id:ident: $ty:ty)
             )*}
     ) => {
+        $(#[$attr_struct])*
         #[repr(C)]
         struct $name {
             $(
@@ -321,11 +328,14 @@ macro_rules! test_fields {
 #[macro_export]
 macro_rules! register_structs {
     {
-        $( $name:ident {
-            $( $fields:tt )*
-        } ),*
+        $(
+            $(#[$attr:meta])*
+            $name:ident {
+                $( $fields:tt )*
+            }
+        ),*
     } => {
-        $( $crate::register_fields!(@root $name { $($fields)* } ); )*
+        $( $crate::register_fields!(@root $(#[$attr])* $name { $($fields)* } ); )*
 
         #[cfg(test)]
         mod test_register_structs {
