@@ -813,7 +813,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.mpu_config.and_then(|mut config| {
             let new_break = self.kernel_memory_break.get().offset(-(size as isize));
             if new_break < self.app_break.get() {
-                None
+                Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
                 new_break,
