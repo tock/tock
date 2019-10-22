@@ -12,3 +12,4 @@ default = []
 
 nrf51 = []
 nrf52 = []
+nrf52840 = ["nrf52"]

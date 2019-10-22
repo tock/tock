@@ -16,11 +16,18 @@ const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
 
+#[cfg(not(feature = "nrf52840"))]
+const NUM_PINS: usize = 32;
+#[cfg(feature = "nrf52840")]
+const NUM_PINS: usize = 48;
+
+const GPIO_PER_PORT: usize = 32;
+
 const GPIOTE_BASE: StaticRef<GpioteRegisters> =
     unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
 
-const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x50000000 as *const GpioRegisters) };
+const GPIO_BASE_ADDRESS: usize = 0x50000000;
+const GPIO_SIZE: usize = 0x300;
 
 /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
 /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
@@ -297,8 +304,10 @@ register_bitfields! [u32,
             Task = 3
         ],
         /// GPIO number associated with SET\[n\], CLR\[n\] and OUT\[n\] tasks
-        /// and IN\[n\] event
-        PSEL OFFSET(8) NUMBITS(5) [],
+        /// and IN\[n\] event. Only 5 bits are used but they are followed by 1 bit
+        /// indicating the port. This allows us to abstract the port away as each port
+        /// is defined for 32 pins.
+        PSEL OFFSET(8) NUMBITS(6) [],
         /// When In task mode: Operation to be performed on output
         /// when OUT\[n\] task is triggered. When In event mode: Operation
         /// on input that shall trigger IN\[n\] event
@@ -327,19 +336,67 @@ register_bitfields! [u32,
     ]
 ];
 
+#[derive(Copy, Clone)]
+#[rustfmt::skip]
+pub enum Pin {
+    P0_00, P0_01, P0_02, P0_03, P0_04, P0_05, P0_06, P0_07,
+    P0_08, P0_09, P0_10, P0_11, P0_12, P0_13, P0_14, P0_15,
+    P0_16, P0_17, P0_18, P0_19, P0_20, P0_21, P0_22, P0_23,
+    P0_24, P0_25, P0_26, P0_27, P0_28, P0_29, P0_30, P0_31,
+    #[cfg(feature = "nrf52840")]
+    P1_00,
+    #[cfg(feature = "nrf52840")]
+    P1_01,
+    #[cfg(feature = "nrf52840")]
+    P1_02,
+    #[cfg(feature = "nrf52840")]
+    P1_03,
+    #[cfg(feature = "nrf52840")]
+    P1_04,
+    #[cfg(feature = "nrf52840")]
+    P1_05,
+    #[cfg(feature = "nrf52840")]
+    P1_06,
+    #[cfg(feature = "nrf52840")]
+    P1_07,
+    #[cfg(feature = "nrf52840")]
+    P1_08,
+    #[cfg(feature = "nrf52840")]
+    P1_09,
+    #[cfg(feature = "nrf52840")]
+    P1_10,
+    #[cfg(feature = "nrf52840")]
+    P1_11,
+    #[cfg(feature = "nrf52840")]
+    P1_12,
+    #[cfg(feature = "nrf52840")]
+    P1_13,
+    #[cfg(feature = "nrf52840")]
+    P1_14,
+    #[cfg(feature = "nrf52840")]
+    P1_15,
+}
+
 pub struct GPIOPin {
     pin: u8,
+    port: u8,
     client: OptionalCell<&'static dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
 
 impl GPIOPin {
-    const fn new(pin: u8) -> GPIOPin {
+    const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
-            pin: pin,
+            pin: ((pin as usize) % GPIO_PER_PORT) as u8,
+            port: ((pin as usize) / GPIO_PER_PORT) as u8,
             client: OptionalCell::empty(),
-            gpio_registers: GPIO_BASE,
+            gpio_registers: unsafe {
+                StaticRef::new(
+                    (GPIO_BASE_ADDRESS + ((pin as usize) / GPIO_PER_PORT) * GPIO_SIZE)
+                        as *const GpioRegisters,
+                )
+            },
             gpiote_registers: GPIOTE_BASE,
         }
     }
@@ -462,8 +519,8 @@ impl hil::gpio::Interrupt for GPIOPin {
                 hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
             };
             let regs = &*self.gpiote_registers;
-            regs.config[channel]
-                .write(Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity);
+            let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
+            regs.config[channel].write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
             regs.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
@@ -500,7 +557,8 @@ impl GPIOPin {
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = &*self.gpiote_registers;
         for (i, ch) in regs.config.iter().enumerate() {
-            if ch.matches_all(Config::PSEL.val(pin as u32)) {
+            let encoded_pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
+            if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
             }
         }
@@ -515,7 +573,7 @@ impl GPIOPin {
 }
 
 pub struct Port {
-    pins: [GPIOPin; 32],
+    pins: [GPIOPin; NUM_PINS],
 }
 
 impl Index<usize> for Port {
@@ -553,37 +611,69 @@ impl Port {
 
 pub static mut PORT: Port = Port {
     pins: [
-        GPIOPin::new(0),
-        GPIOPin::new(1),
-        GPIOPin::new(2),
-        GPIOPin::new(3),
-        GPIOPin::new(4),
-        GPIOPin::new(5),
-        GPIOPin::new(6),
-        GPIOPin::new(7),
-        GPIOPin::new(8),
-        GPIOPin::new(9),
-        GPIOPin::new(10),
-        GPIOPin::new(11),
-        GPIOPin::new(12),
-        GPIOPin::new(13),
-        GPIOPin::new(14),
-        GPIOPin::new(15),
-        GPIOPin::new(16),
-        GPIOPin::new(17),
-        GPIOPin::new(18),
-        GPIOPin::new(19),
-        GPIOPin::new(20),
-        GPIOPin::new(21),
-        GPIOPin::new(22),
-        GPIOPin::new(23),
-        GPIOPin::new(24),
-        GPIOPin::new(25),
-        GPIOPin::new(26),
-        GPIOPin::new(27),
-        GPIOPin::new(28),
-        GPIOPin::new(29),
-        GPIOPin::new(30),
-        GPIOPin::new(31),
+        GPIOPin::new(Pin::P0_00),
+        GPIOPin::new(Pin::P0_01),
+        GPIOPin::new(Pin::P0_02),
+        GPIOPin::new(Pin::P0_03),
+        GPIOPin::new(Pin::P0_04),
+        GPIOPin::new(Pin::P0_05),
+        GPIOPin::new(Pin::P0_06),
+        GPIOPin::new(Pin::P0_07),
+        GPIOPin::new(Pin::P0_08),
+        GPIOPin::new(Pin::P0_09),
+        GPIOPin::new(Pin::P0_10),
+        GPIOPin::new(Pin::P0_11),
+        GPIOPin::new(Pin::P0_12),
+        GPIOPin::new(Pin::P0_13),
+        GPIOPin::new(Pin::P0_14),
+        GPIOPin::new(Pin::P0_15),
+        GPIOPin::new(Pin::P0_16),
+        GPIOPin::new(Pin::P0_17),
+        GPIOPin::new(Pin::P0_18),
+        GPIOPin::new(Pin::P0_19),
+        GPIOPin::new(Pin::P0_20),
+        GPIOPin::new(Pin::P0_21),
+        GPIOPin::new(Pin::P0_22),
+        GPIOPin::new(Pin::P0_23),
+        GPIOPin::new(Pin::P0_24),
+        GPIOPin::new(Pin::P0_25),
+        GPIOPin::new(Pin::P0_26),
+        GPIOPin::new(Pin::P0_27),
+        GPIOPin::new(Pin::P0_28),
+        GPIOPin::new(Pin::P0_29),
+        GPIOPin::new(Pin::P0_30),
+        GPIOPin::new(Pin::P0_31),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_00),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_01),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_02),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_03),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_04),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_05),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_06),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_07),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_08),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_09),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_10),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_11),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_12),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_13),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_14),
+        #[cfg(feature = "nrf52840")]
+        GPIOPin::new(Pin::P1_15),
     ],
 };
