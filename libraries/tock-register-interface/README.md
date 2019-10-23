@@ -43,6 +43,11 @@ register_structs! {
         (0x006 => _reserved),
         (0x008 => word: ReadWrite<u32>),
 
+        // The type for a register can be anything. Conveniently, you can use an
+        // array when there are a bunch of similar registers.
+        (0x00C => array: [ReadWrite<u32>; 4])
+        (0x01C => ... )
+
         // Etc.
 
         // The end of the struct is marked as follows.
@@ -75,7 +80,10 @@ struct Registers {
 
     // The padding length was automatically computed as 0x008 - 0x006.
     _reserved: [u8; 2],
-    word: ReadWrite<u32>
+    word: ReadWrite<u32>,
+
+    // Arrays are expanded as-is, like any other type.
+    array: [ReadWrite<u32>; 4],
 
     // Etc.
 }
