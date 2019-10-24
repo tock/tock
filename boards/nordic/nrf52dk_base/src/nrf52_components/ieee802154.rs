@@ -59,12 +59,13 @@ const CRYPT_SIZE: usize = 1;
 static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl Component for Ieee802154Component {
+    type StaticInput = ();
     type Output = (
         &'static capsules::ieee802154::RadioDriver<'static>,
         &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     );
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let aes_ccm = static_init!(

@@ -8,7 +8,7 @@
 #![feature(in_band_lifetimes)]
 #![deny(missing_docs)]
 
-mod components;
+mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
@@ -27,26 +27,26 @@ use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use components::adc::AdcComponent;
 use components::alarm::AlarmDriverComponent;
-use components::analog_comparator::AcComponent;
-use components::button::ButtonComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
-use components::fxos8700::NineDofComponent;
-use components::gpio::GpioComponent;
 use components::isl29035::AmbientLightComponent;
-use components::led::LedComponent;
-use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
-use components::radio::RadioComponent;
-use components::rf233::RF233Component;
 use components::rng::RngComponent;
-use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
-use components::spi::{SpiComponent, SpiSyscallComponent};
-use components::udp_6lowpan::UDPComponent;
-use components::usb::UsbComponent;
+use imix_components::adc::AdcComponent;
+use imix_components::analog_comparator::AcComponent;
+use imix_components::button::ButtonComponent;
+use imix_components::fxos8700::NineDofComponent;
+use imix_components::gpio::GpioComponent;
+use imix_components::led::LedComponent;
+use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
+use imix_components::radio::RadioComponent;
+use imix_components::rf233::RF233Component;
+use imix_components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
+use imix_components::spi::{SpiComponent, SpiSyscallComponent};
+use imix_components::udp_6lowpan::UDPComponent;
+use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -313,12 +313,13 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART3, uart_mux);
     hil::uart::Receive::set_receive_client(&sam4l::usart::USART3, uart_mux);
 
-    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize();
-    let console = ConsoleComponent::new(board_kernel, uart_mux).finalize();
+    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
+    sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize();
+        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize(());
 
     // # TIMER
     let ast = &sam4l::ast::AST;
@@ -327,17 +328,19 @@ pub unsafe fn reset_handler() {
         MuxAlarm::new(&sam4l::ast::AST)
     );
     ast.configure(mux_alarm);
-    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm).finalize();
+    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
-    let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm).finalize();
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
-    let temp = TemperatureComponent::new(board_kernel, si7021).finalize();
-    let humidity = HumidityComponent::new(board_kernel, si7021).finalize();
-    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize();
+    let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
+        .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
+    let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
+    let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = static_init!(
@@ -347,8 +350,8 @@ pub unsafe fn reset_handler() {
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
 
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
-    let rf233_spi = SpiComponent::new(mux_spi).finalize();
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize(());
+    let rf233_spi = SpiComponent::new(mux_spi).finalize(());
     let rf233 = RF233Component::new(
         rf233_spi,
         &sam4l::gpio::PA[09], // reset
@@ -357,15 +360,17 @@ pub unsafe fn reset_handler() {
         &sam4l::gpio::PA[08],
         RADIO_CHANNEL,
     )
-    .finalize();
+    .finalize(());
 
-    let adc = AdcComponent::new().finalize();
-    let gpio = GpioComponent::new(board_kernel).finalize();
-    let led = LedComponent::new().finalize();
-    let button = ButtonComponent::new(board_kernel).finalize();
-    let crc = CrcComponent::new(board_kernel).finalize();
-    let analog_comparator = AcComponent::new().finalize();
-    let rng = RngComponent::new(board_kernel).finalize();
+    let adc = AdcComponent::new().finalize(());
+    let gpio = GpioComponent::new(board_kernel).finalize(());
+
+    let led = LedComponent::new().finalize(());
+    let button = ButtonComponent::new(board_kernel).finalize(());
+    let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
+        .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+    let analog_comparator = AcComponent::new().finalize(());
+    let rng = RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
@@ -379,10 +384,10 @@ pub unsafe fn reset_handler() {
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize();
+        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize(());
 
-    let usb_driver = UsbComponent::new(board_kernel).finalize();
-    let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
+    let usb_driver = UsbComponent::new(board_kernel).finalize(());
+    let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
 
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
@@ -409,7 +414,7 @@ pub unsafe fn reset_handler() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize();
+    .finalize(());
 
     let imix = Imix {
         pconsole,

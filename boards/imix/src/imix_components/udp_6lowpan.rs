@@ -10,7 +10,7 @@
 //!                                    DEFAULT_CTX_PREFIX_LEN,
 //!                                    DEFAULT_CTX_PREFIX,
 //!                                    DST_MAC_ADDR,
-//!                                    &LOCAL_IP_IFACES).finalize();
+//!                                    &LOCAL_IP_IFACES).finalize(());
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
@@ -86,9 +86,10 @@ impl UDPComponent {
 }
 
 impl Component for UDPComponent {
+    type StaticInput = ();
     type Output = &'static capsules::net::udp::UDPDriver<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let ipsender_virtual_alarm = static_init!(
             VirtualMuxAlarm<'static, sam4l::ast::Ast>,

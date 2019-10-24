@@ -6,7 +6,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let usb = UsbComponent::new().finalize();
+//! let usb = UsbComponent::new().finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -37,9 +37,10 @@ impl UsbComponent {
 }
 
 impl Component for UsbComponent {
+    type StaticInput = ();
     type Output = &'static UsbDevice;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         // Configure the USB controller

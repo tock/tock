@@ -10,7 +10,7 @@
 //!                                 &sam4l::gpio::PA[09], // reset
 //!                                 &sam4l::gpio::PA[10], // sleep
 //!                                 &sam4l::gpio::PA[08], // irq
-//!                                 &sam4l::gpio::PA[08]).finalize();
+//!                                 &sam4l::gpio::PA[08]).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -51,9 +51,10 @@ impl RF233Component {
 }
 
 impl Component for RF233Component {
+    type StaticInput = ();
     type Output = &'static RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>> = static_init!(
             RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
             RF233::new(self.spi, self.reset, self.sleep, self.irq, self.channel)
