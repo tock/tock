@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 #
-# Runs rustfmt on all subdirectories with a Cargo.toml file. Must
-# be run from root Tock directory. Additionally checks for wildcard
-# imports (which are to be avoided at all costs). Protects user from 
-# inadvertently overwriting files.
+# Runs rustfmt on all subdirectories with a Cargo.toml file. Must be run from
+# root Tock directory. Protects user from inadvertently overwriting files.
 #
 # Author: Pat Pannuto <pat.pannuto@gmail.com>
 # Author: Brad Campbell <bradjc5@gmail.com>
@@ -57,22 +55,6 @@ fi
 for f in $(find . | grep Cargo.toml); do
 	pushd $(dirname $f) > /dev/null
 	cargo-fmt $CARGO_FMT_ARGS || let FAIL=FAIL+1
-	popd > /dev/null
-done
-
-# rustfmt doesn't have an option for this, so do it manually
-# Find folders with Cargo.toml files in them and check them (avoids matching this script!)
-for f in $(find . | grep Cargo.toml); do
-	pushd $(dirname $f) > /dev/null
-	if $(git grep -q 'use .*\*;' -- ':!src/macros.rs'); then
-		echo
-		echo "$(tput bold)Wildcard import(s) found in $(dirname $f).$(tput sgr0)"
-		echo "Tock style rules prohibit this use of wildcard imports."
-		echo
-		echo "The following wildcard imports were found:"
-		git grep 'use .*\*;'
-		let FAIL=FAIL+1
-	fi
 	popd > /dev/null
 done
 
