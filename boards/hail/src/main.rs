@@ -56,25 +56,22 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    >,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LED<'static>,
-    button: &'static capsules::button::Button<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
+    console: Option<&'static dyn kernel::Driver>,
+    gpio: Option<&'static dyn kernel::Driver>,
+    alarm: Option<&'static dyn kernel::Driver>,
+    ambient_light: Option<&'static dyn kernel::Driver>,
+    temp:Option<&'static dyn kernel::Driver>,
+    ninedof: Option<&'static dyn kernel::Driver>,
+    humidity: Option<&'static dyn kernel::Driver>,
+    spi: Option<&'static dyn kernel::Driver>,
+    nrf51822: Option<&'static dyn kernel::Driver>,
+    adc: Option<&'static dyn kernel::Driver>,
+    led: Option<&'static dyn kernel::Driver>,
+    button: Option<&'static dyn kernel::Driver>,
+    rng: Option<&'static dyn kernel::Driver>,
     ipc: kernel::ipc::IPC,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    dac: &'static capsules::dac::Dac<'static>,
+    crc: Option<&'static dyn kernel::Driver>,
+    dac: Option<&'static dyn kernel::Driver>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -84,25 +81,25 @@ impl Platform for Hail {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::console::DRIVER_NUM => f(self.console),
+            capsules::gpio::DRIVER_NUM => f(self.gpio),
 
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
-            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::alarm::DRIVER_NUM => f(self.alarm),
+            capsules::spi::DRIVER_NUM => f(self.spi),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(self.nrf51822),
+            capsules::ambient_light::DRIVER_NUM => f(self.ambient_light),
+            capsules::adc::DRIVER_NUM => f(self.adc),
+            capsules::led::DRIVER_NUM => f(self.led),
+            capsules::button::DRIVER_NUM => f(self.button),
+            capsules::humidity::DRIVER_NUM => f(self.humidity),
+            capsules::temperature::DRIVER_NUM => f(self.temp),
+            capsules::ninedof::DRIVER_NUM => f(self.ninedof),
 
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::rng::DRIVER_NUM => f(self.rng),
 
-            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::crc::DRIVER_NUM => f(self.crc),
 
-            capsules::dac::DRIVER_NUM => f(Some(self.dac)),
+            capsules::dac::DRIVER_NUM => f(self.dac),
 
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -499,22 +496,22 @@ pub unsafe fn reset_handler() {
     // sam4l::gpio::PA[16].set_client(debug_process_restart);
 
     let hail = Hail {
-        console: console,
-        gpio: gpio,
-        alarm: alarm,
-        ambient_light: ambient_light,
-        temp: temp,
-        humidity: humidity,
-        ninedof: ninedof,
-        spi: spi_syscalls,
-        nrf51822: nrf_serialization,
-        adc: adc,
-        led: led,
-        button: button,
-        rng: rng,
+        console: Some(console),
+        gpio: Some(gpio),
+        alarm: Some(alarm),
+        ambient_light: Some(ambient_light),
+        temp: Some(temp),
+        humidity: Some(humidity),
+        ninedof: Some(ninedof),
+        spi: Some(spi_syscalls),
+        nrf51822: Some(nrf_serialization),
+        adc: Some(adc),
+        led: Some(led),
+        button: Some(button),
+        rng: Some(rng),
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
-        crc: crc,
-        dac: dac,
+        crc: Some(crc),
+        dac: Some(dac),
     };
 
     // Create virtual device for kernel debug.
@@ -537,8 +534,8 @@ pub unsafe fn reset_handler() {
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     // Reset the nRF and setup the UART bus.
-    hail.nrf51822.reset();
-    hail.nrf51822.initialize();
+    nrf_serialization.reset();
+    nrf_serialization.initialize();
 
     process_console.start();
 
