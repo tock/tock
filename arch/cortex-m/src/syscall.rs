@@ -455,7 +455,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let _ = writer.write_fmt(format_args!(
             "\
              \r\n EPSR: ICI.IT {:#04x}\
-             \r\n       ThumbBit {} {}",
+             \r\n       ThumbBit {} {}\r\n",
             ici_it,
             thumb_bit,
             if thumb_bit {
