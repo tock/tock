@@ -1,6 +1,6 @@
 use kernel::common::registers::register_bitfields;
 
-// mtvec contains the address(es) of the trap handler
+// myclceh is the higher 32 bits of the number of elapsed cycles
 register_bitfields![u32,
 mcycleh [
     mcycleh OFFSET(0) NUMBITS(32) []

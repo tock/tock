@@ -96,14 +96,16 @@ pub const CSR: &CSR = &CSR {
 };
 
 impl CSR {
+    // resets the cycle counter to 0
     pub fn reset_cycle_counter(&self) {
-        CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
         CSR.mcycleh.write(mcycleh::mcycleh::mcycleh.val(0));
+        CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
     }
 
+    // reads the cycle counter
     pub fn read_cycle_counter(&self) -> u64 {
-        let bot = CSR.mcycle.read(mcycle::mcycle::mcycle);
         let top = CSR.mcycleh.read(mcycleh::mcycleh::mcycleh);
+        let bot = CSR.mcycle.read(mcycle::mcycle::mcycle);
 
         u64::from(top).checked_shl(32).unwrap() + u64::from(bot)
     }
