@@ -4,11 +4,9 @@ use riscv_csr::csr::ReadWriteRiscvCsr;
 
 pub mod mcause;
 pub mod mcycle;
-pub mod mcycleh;
 pub mod mepc;
 pub mod mie;
 pub mod minstret;
-pub mod minstreth;
 pub mod mip;
 pub mod mscratch;
 pub mod mstatus;
@@ -21,9 +19,9 @@ pub mod utvec;
 
 #[repr(C)]
 pub struct CSR {
-    pub minstreth: ReadWriteRiscvCsr<u32, minstreth::minstreth::Register>,
+    pub minstreth: ReadWriteRiscvCsr<u32, minstret::minstreth::Register>,
     pub minstret: ReadWriteRiscvCsr<u32, minstret::minstret::Register>,
-    pub mcycleh: ReadWriteRiscvCsr<u32, mcycleh::mcycleh::Register>,
+    pub mcycleh: ReadWriteRiscvCsr<u32, mcycle::mcycleh::Register>,
     pub mcycle: ReadWriteRiscvCsr<u32, mcycle::mcycle::Register>,
     pub pmpcfg0: ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>,
     pub pmpcfg1: ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>,
@@ -98,13 +96,13 @@ pub const CSR: &CSR = &CSR {
 impl CSR {
     // resets the cycle counter to 0
     pub fn reset_cycle_counter(&self) {
-        CSR.mcycleh.write(mcycleh::mcycleh::mcycleh.val(0));
+        CSR.mcycleh.write(mcycle::mcycleh::mcycleh.val(0));
         CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
     }
 
     // reads the cycle counter
     pub fn read_cycle_counter(&self) -> u64 {
-        let top = CSR.mcycleh.read(mcycleh::mcycleh::mcycleh);
+        let top = CSR.mcycleh.read(mcycle::mcycleh::mcycleh);
         let bot = CSR.mcycle.read(mcycle::mcycle::mcycle);
 
         u64::from(top).checked_shl(32).unwrap() + u64::from(bot)
