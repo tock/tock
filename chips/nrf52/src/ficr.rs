@@ -143,20 +143,26 @@ register_bitfields! [u32,
         // Note, some of these are not present in datasheets
         // but are in nrf52.svd or are observed in the wild
         VARIANT OFFSET(0) NUMBITS(32) [
+            /// AAA0
+            AAA0 = 0x41414130,
             /// AAAA
             AAAA = 0x41414141,
             /// AAAB
             AAAB = 0x41414142,
+            /// AAB0
+            AAB0 = 0x41414230,
             /// AABA
             AABA = 0x41414241,
             /// AABB
             AABB = 0x41414242,
-            /// AAB0
-            AAB0 = 0x41414230,
-            /// AACA
-            AACA = 0x41414341,
             /// AAC0
             AAC0 = 0x41414330,
+            /// AACA
+            AACA = 0x41414341,
+            /// AACB
+            AACB = 0x41414342,
+            /// ABBA
+            ABBA = 0x41424241,
             /// AAE0
             AAE0 = 0x41414530,
             /// BAAA
@@ -229,13 +235,16 @@ register_bitfields! [u32,
 #[derive(PartialEq, Debug)]
 #[repr(u32)]
 enum Variant {
+    AAA0 = 0x41414130,
     AAAA = 0x41414141,
     AAAB = 0x41414142,
+    AAB0 = 0x41414230,
     AABA = 0x41414241,
     AABB = 0x41414242,
-    AAB0 = 0x41414230,
-    AACA = 0x41414341,
     AAC0 = 0x41414330,
+    AACA = 0x41414341,
+    AACB = 0x41414342,
+    ABBA = 0x41424241,
     AAE0 = 0x41414530,
     BAAA = 0x42414141,
     CAAA = 0x43414141,
@@ -306,13 +315,16 @@ impl Ficr {
     fn variant(&self) -> Variant {
         let regs = &*self.registers;
         match regs.info_variant.get() {
+            0x41414130 => Variant::AAA0,
             0x41414141 => Variant::AAAA,
             0x41414142 => Variant::AAAB,
-            0x41414241 => Variant::AABA,
-            0x41414341 => Variant::AACA,
-            0x41414242 => Variant::AABB,
             0x41414230 => Variant::AAB0,
+            0x41414241 => Variant::AABA,
+            0x41414242 => Variant::AABB,
             0x41414330 => Variant::AAC0,
+            0x41414341 => Variant::AACA,
+            0x41414342 => Variant::AACB,
+            0x41424241 => Variant::ABBA,
             0x41414530 => Variant::AAE0,
             0x42414141 => Variant::BAAA,
             0x43414141 => Variant::CAAA,
