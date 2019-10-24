@@ -225,7 +225,7 @@ pub unsafe fn reset_handler() {
     hil::uart::Receive::set_receive_client(&sam4l::usart::USART0, uart_mux);
 
     // Setup the console and the process inspection console.
-    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    let console = Some(components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(()));
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
@@ -496,7 +496,7 @@ pub unsafe fn reset_handler() {
     // sam4l::gpio::PA[16].set_client(debug_process_restart);
 
     let hail = Hail {
-        console: Some(console),
+        console: console,
         gpio: Some(gpio),
         alarm: Some(alarm),
         ambient_light: Some(ambient_light),
