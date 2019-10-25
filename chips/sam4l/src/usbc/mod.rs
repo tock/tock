@@ -12,7 +12,8 @@ use core::ptr;
 use core::slice;
 use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{
-    register_bitfields, FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
+    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
+    WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::debug as debugln;
@@ -379,8 +380,8 @@ pub struct Bank {
     // (they may be placed anywhere in memory),
     // but the register interface provides the volatile
     // read/writes and bitfields that we need.
-    pub packet_size: ReadWrite<u32, PacketSize::Register>,
-    pub control_status: ReadWrite<u32, ControlStatus::Register>,
+    pub packet_size: InMemoryRegister<u32, PacketSize::Register>,
+    pub control_status: InMemoryRegister<u32, ControlStatus::Register>,
 
     _reserved: u32,
 }
@@ -389,8 +390,8 @@ impl Bank {
     pub const fn new() -> Bank {
         Bank {
             addr: VolatileCell::new(ptr::null_mut()),
-            packet_size: ReadWrite::new(0),
-            control_status: ReadWrite::new(0),
+            packet_size: InMemoryRegister::new(0),
+            control_status: InMemoryRegister::new(0),
             _reserved: 0,
         }
     }
