@@ -236,14 +236,14 @@ struct UsbdRegisters {
     isoinconfig: ReadWrite<u32, IsoInConfig::Register>,
     _reserved12: [u32; 51],
     /// - Address: 0x600 - 0x6A0
-    epin: [EndpointRegisters; NUM_ENDPOINTS],
+    epin: [detail::EndpointRegisters; NUM_ENDPOINTS],
     /// - Address: 0x6A0 - 0x6B4
-    isoin: EndpointRegisters,
+    isoin: detail::EndpointRegisters,
     _reserved13: [u32; 19],
     /// - Address: 0x700 - 0x7A0
-    epout: [EndpointRegisters; NUM_ENDPOINTS],
+    epout: [detail::EndpointRegisters; NUM_ENDPOINTS],
     /// - Address: 0x7A0 - 0x7B4
-    isoout: EndpointRegisters,
+    isoout: detail::EndpointRegisters,
     _reserved14: [u32; 19],
     /// Errata 166 related register (ISO double buffering not functional)
     /// - Address: 0x800 - 0x804
@@ -257,13 +257,26 @@ struct UsbdRegisters {
     errata199: WriteOnly<u32>,
 }
 
-#[repr(C)]
-struct EndpointRegisters {
-    ptr: VolatileCell<*const u8>,
-    maxcnt: ReadWrite<u32, Count::Register>,
-    amount: ReadOnly<u32, Amount::Register>,
-    // padding
-    _reserved: [u32; 2],
+mod detail {
+    use super::{Amount, Count};
+    use kernel::common::cells::VolatileCell;
+    use kernel::common::registers::{ReadOnly, ReadWrite};
+
+    #[repr(C)]
+    pub struct EndpointRegisters {
+        ptr: VolatileCell<*const u8>,
+        maxcnt: ReadWrite<u32, Count::Register>,
+        amount: ReadOnly<u32, Amount::Register>,
+        // padding
+        _reserved: [u32; 2],
+    }
+
+    impl EndpointRegisters {
+        pub fn set_buffer<'a>(&'a self, slice: &'a [VolatileCell<u8>]) {
+            self.ptr.set(slice.as_ptr() as *const u8);
+            self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
+        }
+    }
 }
 
 register_bitfields! [u32,
