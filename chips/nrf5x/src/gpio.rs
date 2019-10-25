@@ -102,7 +102,6 @@ struct GpioRegisters {
     #[cfg(feature = "nrf51")]
     /// Reserved
     _reserved2: [u32; 120],
-    #[cfg(feature = "nrf52")]
     /// Latch register indicating what GPIO pins that have met the criteria set in the
     /// PIN_CNF\[n\].SENSE
     /// - Address: 0x520 - 0x524
@@ -112,8 +111,8 @@ struct GpioRegisters {
     /// - Address: 0x524 - 0x528
     #[cfg(feature = "nrf52")]
     detect_mode: ReadWrite<u32, DetectMode::Register>,
-    #[cfg(feature = "nrf52")]
     /// Reserved
+    #[cfg(feature = "nrf52")]
     _reserved2: [u32; 118],
     /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],

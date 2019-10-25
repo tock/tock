@@ -1,14 +1,11 @@
 [package]
-name = "nrf5x"
+name = "nrf52840"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2018"
 
 [dependencies]
+cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
-
-[features]
-default = []
-
-nrf51 = []
-nrf52 = []
+nrf52 = { path = "../nrf52" }
+tock_rt0 = { path = "../../libraries/tock-rt0" }

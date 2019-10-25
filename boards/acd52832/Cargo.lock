@@ -7,9 +7,8 @@ dependencies = [
  "capsules 0.1.0",
  "cortexm4 0.1.0",
  "kernel 0.1.0",
- "nrf52 0.1.0",
+ "nrf52832 0.1.0",
  "nrf52dk_base 0.1.0",
- "nrf5x 0.1.0",
 ]
 
 [[package]]
@@ -62,6 +61,16 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
  "nrf5x 0.1.0",
+ "tock_rt0 0.1.0",
+]
+
+[[package]]
+name = "nrf52832"
+version = "0.1.0"
+dependencies = [
+ "cortexm4 0.1.0",
+ "kernel 0.1.0",
+ "nrf52 0.1.0",
  "tock_rt0 0.1.0",
 ]
 
