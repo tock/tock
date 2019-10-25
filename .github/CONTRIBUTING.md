@@ -15,7 +15,7 @@ join us on [Slack][slack].
 As a reminder, all contributors are expected to follow the Rust [Code of
 Conduct][coc].
 
-[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LTg4YzE1MTkwYzI0YjhjNjA0YWExOGY2ZGYwNjQ2YmFiZjdhOTdlMzY0YTBiYTA2YTRlYzMyZTI1MDdmMTgwMzc
+[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 [listserv]: https://groups.google.com/forum/#!forum/tock-dev
 [coc]: https://www.rust-lang.org/conduct.html
 
