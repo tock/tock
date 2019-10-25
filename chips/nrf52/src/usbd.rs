@@ -3,7 +3,6 @@
 // TODO: implement the USB HIL and remove this unused warning.
 #![allow(dead_code)]
 
-use kernel::common::cells::VolatileCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
