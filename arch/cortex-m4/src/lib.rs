@@ -64,13 +64,6 @@ pub unsafe extern "C" fn generic_isr() {
     cmp lr, #0xfffffffd
     bne _ggeneric_isr_no_stacking
 
-    /* We need the most recent kernel's version of r1, which points */
-    /* to the Process struct's stored registers field. The kernel's r1 */
-    /* lives in the second word of the hardware stacked registers on MSP */
-    mov r1, sp
-    ldr r1, [r1, #4]
-    stmia r1, {r4-r11}
-
     /* Set thread mode to privileged */
     mov r0, #0
     msr CONTROL, r0
