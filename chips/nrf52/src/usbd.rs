@@ -6,8 +6,8 @@
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 
-const USBD_BASE: StaticRef<UsbdRegisters> =
-    unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters) };
+const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
+    unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
 
 const NUM_ENDPOINTS: usize = 8;
 
@@ -43,7 +43,7 @@ const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
     unsafe { StaticRef::new(0x4006EC00 as *const UsbErrataRegisters) };
 
 #[repr(C)]
-struct UsbdRegisters {
+struct UsbdRegisters<'a> {
     _reserved1: [u32; 1],
     /// Captures the EPIN\[n\].PTR, EPIN\[n\].MAXCNT and EPIN\[n\].CONFIG
     /// registers values and enables endpoint IN not respond to traffic
@@ -235,14 +235,14 @@ struct UsbdRegisters {
     isoinconfig: ReadWrite<u32, IsoInConfig::Register>,
     _reserved12: [u32; 51],
     /// - Address: 0x600 - 0x6A0
-    epin: [detail::EndpointRegisters; NUM_ENDPOINTS],
+    epin: [detail::EndpointRegisters<'a>; NUM_ENDPOINTS],
     /// - Address: 0x6A0 - 0x6B4
-    isoin: detail::EndpointRegisters,
+    isoin: detail::EndpointRegisters<'a>,
     _reserved13: [u32; 19],
     /// - Address: 0x700 - 0x7A0
-    epout: [detail::EndpointRegisters; NUM_ENDPOINTS],
+    epout: [detail::EndpointRegisters<'a>; NUM_ENDPOINTS],
     /// - Address: 0x7A0 - 0x7B4
-    isoout: detail::EndpointRegisters,
+    isoout: detail::EndpointRegisters<'a>,
     _reserved14: [u32; 19],
     /// Errata 166 related register (ISO double buffering not functional)
     /// - Address: 0x800 - 0x804
@@ -258,20 +258,23 @@ struct UsbdRegisters {
 
 mod detail {
     use super::{Amount, Count};
+    use core::marker::PhantomData;
     use kernel::common::cells::VolatileCell;
     use kernel::common::registers::{ReadOnly, ReadWrite};
 
     #[repr(C)]
-    pub struct EndpointRegisters {
+    pub struct EndpointRegisters<'a> {
         ptr: VolatileCell<*const u8>,
         maxcnt: ReadWrite<u32, Count::Register>,
         amount: ReadOnly<u32, Amount::Register>,
         // padding
         _reserved: [u32; 2],
+        // Lifetime marker.
+        _phantom: PhantomData<&'a [u8]>,
     }
 
-    impl EndpointRegisters {
-        pub fn set_buffer<'a>(&'a self, slice: &'a [VolatileCell<u8>]) {
+    impl<'a> EndpointRegisters<'a> {
+        pub fn set_buffer(&self, slice: &'a [VolatileCell<u8>]) {
             self.ptr.set(slice.as_ptr() as *const u8);
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
@@ -558,12 +561,12 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Usbd {
-    registers: StaticRef<UsbdRegisters>,
+pub struct Usbd<'a> {
+    registers: StaticRef<UsbdRegisters<'a>>,
     // Stub for the USB device controller state.
 }
 
-impl Usbd {
+impl<'a> Usbd<'a> {
     const fn new() -> Self {
         Usbd {
             registers: USBD_BASE,
@@ -571,4 +574,4 @@ impl Usbd {
     }
 }
 
-pub static mut USBD: Usbd = Usbd::new();
+pub static mut USBD: Usbd<'static> = Usbd::new();
