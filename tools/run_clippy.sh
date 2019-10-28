@@ -2,7 +2,7 @@
 
 # Install clippy if it is not already preset.
 if ! rustup component list | grep 'clippy.*(installed)' -q; then
-	rustup component add clippy
+	rustup component add clippy || rustup component add clippy-preview
 fi
 
 # We start by turning most lints off (by -A with most of the categories), then
