@@ -19,7 +19,7 @@ fi
 
 # Add the rustfmt component if needed.
 if ! rustup component list | grep 'rustfmt.*(installed)' -q; then
-	rustup component add rustfmt
+	rustup component add rustfmt || rustup component add rustfmt-preview
 fi
 
 # Format overwrites changes, which is probably good, but it's nice to see
