@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let adc = AdcComponent::new().finalize();
+//! let adc = AdcComponent::new().finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -28,9 +28,10 @@ impl AdcComponent {
 }
 
 impl Component for AdcComponent {
+    type StaticInput = ();
     type Output = &'static adc::Adc<'static, sam4l::adc::Adc>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let adc_channels = static_init!(
             [&'static sam4l::adc::AdcChannel; 6],
             [

@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let button = ButtonComponent::new(board_kernel).finalize();
+//! let button = ButtonComponent::new(board_kernel).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -36,8 +36,10 @@ impl ButtonComponent {
 }
 
 impl Component for ButtonComponent {
+    type StaticInput = ();
     type Output = &'static button::Button<'static>;
-    unsafe fn finalize(&mut self) -> Self::Output {
+
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let button_pins = static_init!(

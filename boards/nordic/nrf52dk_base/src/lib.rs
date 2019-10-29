@@ -11,8 +11,6 @@ use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::entropy::Entropy32;
-use kernel::hil::rng::Rng;
 use nrf5x::rtc::Rtc;
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -210,21 +208,8 @@ pub unsafe fn setup_board(
     );
     hil::time::Alarm::set_client(rtc, mux_alarm);
 
-    let virtual_alarm1 = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
-            'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        >,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm1,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    hil::time::Alarm::set_client(virtual_alarm1, alarm);
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
+        .finalize(components::alarm_component_helper!(nrf5x::rtc::Rtc));
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -280,7 +265,8 @@ pub unsafe fn setup_board(
     );
     kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
-    let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
+    let ble_radio =
+        BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());
 
     let ieee802154_radio = if ieee802154 {
         let (radio, _) = Ieee802154Component::new(
@@ -289,7 +275,7 @@ pub unsafe fn setup_board(
             PAN_ID,
             SRC_MAC,
         )
-        .finalize();
+        .finalize(());
         Some(radio)
     } else {
         None
@@ -304,20 +290,7 @@ pub unsafe fn setup_board(
     );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
-    let entropy_to_random = static_init!(
-        capsules::rng::Entropy32ToRandom<'static>,
-        capsules::rng::Entropy32ToRandom::new(&nrf5x::trng::TRNG)
-    );
-
-    let rng = static_init!(
-        capsules::rng::RngDriver<'static>,
-        capsules::rng::RngDriver::new(
-            entropy_to_random,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    nrf5x::trng::TRNG.set_client(entropy_to_random);
-    entropy_to_random.set_client(rng);
+    let rng = components::rng::RngComponent::new(board_kernel, &nrf5x::trng::TRNG).finalize(());
 
     // SPI
     let mux_spi = static_init!(

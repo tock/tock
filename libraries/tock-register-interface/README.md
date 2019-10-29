@@ -323,6 +323,23 @@ let local = registers.cr.extract();
 
 // Now all the functions for a ReadOnly register work.
 let txcomplete: bool = local.is_set(Status::TXCOMPLETE);
+
+// -----------------------------------------------------------------------------
+// In-Memory Registers
+// -----------------------------------------------------------------------------
+
+// In some cases, code may want to edit a memory location with all of the
+// register features described above, but the actual memory location is not a
+// fixed MMIO register but instead an arbitrary location in memory. If this
+// location is then shared with the hardware (i.e. via DMA) then the code
+// must do volatile reads and writes since the value may change without the
+// software knowing. To support this, the library includes an `InMemoryRegister`
+// type.
+
+let control: InMemoryRegister<u32, Control::Register> = InMemoryRegister::new(0)
+control.write(Contol::BYTE_COUNT.val(0) +
+              Contol::ENABLE::Yes +
+              Contol::LENGTH.val(10));
 ```
 
 Note that `modify` performs exactly one volatile load and one volatile store,

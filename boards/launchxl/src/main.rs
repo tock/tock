@@ -25,8 +25,6 @@ use kernel::hil::rng::Rng;
 pub mod io;
 
 #[allow(dead_code)]
-mod ccfg_test;
-#[allow(dead_code)]
 mod i2c_tests;
 #[allow(dead_code)]
 mod uart_echo;

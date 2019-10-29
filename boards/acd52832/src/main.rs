@@ -497,7 +497,8 @@ pub unsafe fn reset_handler() {
     // BLE
     //
 
-    let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
+    let ble_radio =
+        BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());
 
     //
     // Temperature

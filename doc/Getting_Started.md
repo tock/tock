@@ -9,6 +9,12 @@ developing Tock.
 1. [Rust](http://www.rust-lang.org/)
 2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
 3. Command line utilities: make
+4. A supported board or QEMU configuration.
+
+   If you are just starting to work with TockOS, you should look in
+   the [`boards/` subdirectory](../boards/README.md) and choose one of
+   the options with `tockloader` support to load applications, as that
+   is the configuration that most examples and tutorials assume.
 
 ### Super Quick Setup
 
@@ -70,7 +76,7 @@ Tockloader is a Python application and can be installed with the Python
 package manager (pip).
 
 ```bash
-(Linux): sudo pip3 install --upgrade tockloader
+(Linux): pip3 install --upgrade tockloader --user
 (MacOS): pip3 install --upgrade tockloader
 ```
 
@@ -79,7 +85,7 @@ package manager (pip).
 Tock builds a unique kernel for every _board_ it supports. Boards include
 details like pulling together the correct chips and pin assignments. To
 build a kernel, first choose a board, then navigate to that board directory.
-e.g. `cd boards/hail ; make`.
+e.g. `cd boards/nordic/nrf52840dk ; make`.
 
 Some boards have special build options that can only be used within the board's
 directory.  All boards share a few common targets:
@@ -91,76 +97,158 @@ directory.  All boards share a few common targets:
   - `flash`: Load code using JTAG, if available.
   - `program`: Load code using a bootloader, if available.
 
-The READMEs in each board provide more details for each platform.
+The [board-specific READMEs](../boards/README.md) in each board's
+subdirectory provide more details for each platform.
+
+## Loading the kernel onto a board
+
+The process to load the kernel onto the board depends on the board.
+There are two main variants: some boards (notably the
+[Imix](../boards/imix/README.md) and [Hail](../boards/hail/README.md)
+boards) have a serial bootloader, most other boards use a programming
+adapter that supports the JTAG or SWD protocol instead.
+
+To load a kernel onto a board using a serial bootloader, no other
+software is required and you can just run
+
+    $ make program
+
+in the board's directory. To load the kernel using a programming
+adapter, you need the appropriate software that supports the adapter
+and can then install the kernel by running
+
+    $ make flash
+
+Depending on the apapter, you will need either the free `openocd` or
+Segger's proprietary `JLinkExe`. Programming adapters are available as
+standalone devices (for example the [JLink EDU JTAG
+debugger](https://www.segger.com/j-link-edu.html) available on
+[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)),
+but most development boards come with an onboard programming and
+debugging adapter. In that case, the board you use determines which
+software you will need and the `Makefile` in the board directory will
+know which one to call. Again, the [board-specific
+READMEs](../boards/README.md) provide the required details.
+
+### Installing `JLinkExe`
+
+`JLink` is available [from the Segger
+website](https://www.segger.com/downloads/jlink). You want to install
+the "J-Link Software and Documentation Pack". There are various
+packages available depending on operating system. We require a version
+greater than or equal to `5.0`.
+
+### Installing `openocd`
+
+`Openocd` works with various programming and debugging adapters. For
+most purposes, available distribution packages are sufficient and it can
+be installed with:
+
+```bash
+(Linux/Debian): sudo apt-get install openocd
+(MacOS): brew install open-ocd
+```
+
+We require at least version `0.8.0` to support the SAM4L on `imix` if
+you choose to flash it using an adapter instead of the bootloader.
+Some boards (at the time of writing the HiFive1 RISC-V board) may
+require newer or unreleased versions, in that case you should follow
+the installation instructions on the [`openocd`
+website](http://openocd.org/getting-openocd/).
+
+### (Linux): Adding a `udev` rule
+
+Depending on which programming adapter you use, you may want to add a
+`udev` rule in `/etc/udev/rules.d` that allows you to interact with
+the board as a user instead of as root. If you install the `deb`
+packet of the `JLink` software it will automatically install a
+`/etc/udev/rules.d/99-jlink.rules` that allows everyone to access the
+adapter. If you use something else, like for example the onboard
+programmer of a ST Nucleo board, you could install something like this as
+`/etc/udev/rules.d/99-stlinkv2-1.rules`:
+
+```
+# stm32 nucleo boards, with onboard st/linkv2-1
+# ie, STM32F0, STM32F4.
+# STM32VL has st/linkv1, which is quite different
+
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", \
+    MODE:="0660", GROUP="dialout", \
+    SYMLINK+="stlinkv2-1_%n"
+```
+
+## Installing your first application
+
+A kernel alone isn't much use, as an embedded developer you want to
+see some LEDs blink.  Fortunately, there is an example `blink` app
+available from the TockOS app repository which `tockloader` can
+download and install (if you are using a board that is supported
+by `tockloader`).
+
+For certain boards (e.g. Hail and imix), `tockloader` can read
+attributes from the board to configure how it communicates with the
+board. For many boards, however, `tockloader` cannot know
+which board and communication method you want to use, so you have to
+tell it explicitly. For example:
+
+```bash
+$ tockloader install --board nrf52dk --jlink blink
+Could not find TAB named "blink" locally.
+
+[0]     No
+[1]     Yes
+
+Would you like to check the online TAB repository for that app?[0] 1
+Installing apps on the board...
+Using known arch and jtag-device for known board nrf52dk
+Finished in 2.567 seconds
+```
+
+Boards that use `openocd` will of course require the parameter
+`--openocd` instead of `--jlink`.  If your board has a serial
+bootloader, `tockloader` should work without any additional arguments:
+
+    $ tockloader install blink
+
+However, you can specify the board type manually as well:
+
+    $ tockloader install --board imix blink
+
+You can also tell it which serial port to use (which is useful if you
+have multiple boards plugged in) by passing it the `--port` parameter
+like `--port /dev/ttyACM0` to use `/dev/ttyACM0`:
+
+    $ tockloader --port /dev/ttyACM0 install blink
+
+To see the list of boards `tockloader` knows about you can run:
+
+    $ tockloader list-known-boards
+
+If everything has worked until here, the LEDs on your board should now
+display a binary counter. Congratulations, you have a working TockOS
+installation on your board!
 
 ## Compiling applications
 
-All user-level code lives in separate repositories:
+The last remaining step is to compile applications locally.
+All user-level code lives in two separate repositories:
 
 - [libtock-c](https://github.com/tock/libtock-c): C and C++ apps.
 - [libtock-rs](https://github.com/tock/libtock-rs): Rust apps.
 
-Compiled applications are architecture-specific (e.g. `cortex-m4`,
-`cortex-m0`) since the compiler emits slightly different instructions
-for each variant. Compiled applications can also depend on specific
-drivers, which not all boards provide; if you load an application onto
-a board that does not support every driver/system call it uses, some
-system calls with return error codes (`ENODEVICE` or `ENOSUPPORT`).
+The C version of the Tock library and the example applications is older and more
+stable, so it is a good idea to look at these first. So look at the [libtock-c
+README](https://github.com/tock/libtock-c/blob/master/README.md) and follow the
+steps therein.  Then you can do the same for the [libtock-rs
+README](https://github.com/tock/libtock-rs/blob/master/README.md).  This should
+give you a first impression of how to build and deploy applications for TockOS.
 
-Applications are built for all architectures Tock supports. Boards select an
-appropriate architecture when uploading code (e.g. `cortex-m4` for the SAM4L on
-the `imix` board). Apps are packaged into .tab files that contain compiled
-binaries for all supported architectures.
+For an introduction on how applications work in TockOS, have a look at
+the ["Userland" document](Userland.md) in this directory.
 
-## Loading the kernel and applications onto a board
+## Developing TockOS
 
-To load a kernel onto a board using a serial bootloader, run
-
-    $ make program
-
-in the board's directory. To load the kernel using JTAG, run
-
-    $ make flash
-
-Tockloader can help with installing a test app. For example, to install
-the `blink` app, simply run:
-
-    $ tockloader install blink
-
-This will fetch it from the TockOS app repository and load it onto the board.
-
-### Optional Requirements
-
-Some boards in Tock support other tools to load code and debug.
-
-#### `openocd`
-
-Works with various JTAG debuggers. We require at least version `0.8.0` to
-support the SAM4L on `imix`.
-
-```bash
-(Linux): sudo apt-get install openocd
-(MacOS): brew install open-ocd
-```
-
-#### `JLinkExe`
-
-If you want to upload code through a [JLink JTAG
-debugger](https://www.segger.com/j-link-edu.html) (available on
-[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)), you should install JLinkExe. We require a version greater than or equal to `5.0`.
-
-It is available [here](https://www.segger.com/downloads/jlink). You want to
-install the "J-Link Software and Documentation Pack". There are various
-packages available depending on operating system.
-
-### Loading code onto a board
-
-This is generally done with `make program` and `make flash`, but is board
-specific. To learn how to program your specific hardware, please see
-the [board-specific READMEs](../boards/README.md).
-
-
-## Formatting Rust source code
+### Formatting Rust source code
 
 Rust includes a tool for automatically formatting Rust source
 code. Simply run:
@@ -169,7 +257,7 @@ code. Simply run:
 
 from the root of the repository to format all rust code in the repository.
 
-## Keeping build tools up to date
+### Keeping build tools up to date
 
 Occasionally, Tock updates to a new nightly version of Rust. The build system
 automatically checks whether the versions of `rustc` and `rustup` are correct
