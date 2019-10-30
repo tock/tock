@@ -44,7 +44,7 @@ impl<'u, U: Transmit<'u>> kernel::Driver for LowLevelDebug<'u, U> {
     fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> ReturnCode {
         match minor_num {
             0 => return ReturnCode::SUCCESS,
-            1 => self.push_entry(DebugEntry::StatusCode(r2), caller_id),
+            1 => self.push_entry(DebugEntry::AlertCode(r2), caller_id),
             2 => self.push_entry(DebugEntry::Print1(r2), caller_id),
             3 => self.push_entry(DebugEntry::Print2(r2, r3), caller_id),
             _ => return ReturnCode::ENOSUPPORT,
@@ -150,7 +150,7 @@ pub struct AppData {
 #[derive(Clone, Copy)]
 pub(crate) enum DebugEntry {
     Dropped(usize),       // Some debug messages were dropped
-    StatusCode(usize),    // Display a predefined status code
+    AlertCode(usize),     // Display a predefined alert code
     Print1(usize),        // Print a single number
     Print2(usize, usize), // Print two numbers
 }

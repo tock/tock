@@ -8,14 +8,14 @@ driver number: 0x00008
 
 The low-level debug driver provides tools to diagnose userspace issues that make
 normal debugging workflows (e.g. printing to the console) difficult. It allows
-apps to print status codes and numeric information using only the `command`
-system call, and is easy to call from handwritten assembly. The driver is in
-capsules/src/low\_level\_debug.rs.
+libraries to print alert codes and apps to print numeric information using only
+the `command` system call, and is easy to call from handwritten assembly. The
+driver is in capsules/src/low\_level\_debug.rs.
 
 ## Command
 
-  * Description: command() is used to print status codes and numbers. The driver
-    does not provide a way for an app to wait for the print completed. If the
+  * Description: command() is used to print alert codes and numbers. The driver
+    does not provide a way for an app to wait for the print to complete. If the
     app prints too many messages in a row, the driver will print a message
     indicating it has dropped some debug messages.
 
@@ -31,10 +31,11 @@ capsules/src/low\_level\_debug.rs.
 
   * ### Command Number: 1
 
-    **Description**: Print a predefined status code. The available status codes
-    are listed later in this doc.
+    **Description**: Print a predefined alert code. The available alert codes
+    are listed later in this doc. Predefined alert codes are intended for use in
+    library code, and are defined here to avoid collisions between projects.
 
-    **Argument 1**: Status code to print
+    **Argument 1**: Alert code to print
 
     **Argument 2**: Unused
 
@@ -62,13 +63,13 @@ capsules/src/low\_level\_debug.rs.
 
     **Returns**: SUCCESS
 
-## Predefined Status Codes
+## Predefined Alert Codes
 
-The following status codes are defined for use with the predefined status code
-command (\#1). As an alternative to this table, the binary in
-tools/status\_codes may be used to decode the status codes.
+The following alert codes are defined for use with the predefined alert code
+command (\#1). As an alternative to this table, the binary in tools/alert\_codes
+may be used to decode the alert codes.
 
-| Status Code | Description                                                                |
-|-------------|----------------------------------------------------------------------------|
-| 0x01        | Application panic (e.g. panic!() called in Rust code)                      |
-| 0x02        | A statically-linked app was not installed in the correct location in flash |
+| Alert Code | Description                                                                |
+|------------|----------------------------------------------------------------------------|
+| 0x01       | Application panic (e.g. panic!() called in Rust code)                      |
+| 0x02       | A statically-linked app was not installed in the correct location in flash |

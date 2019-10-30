@@ -4,7 +4,7 @@ use super::DebugEntry;
 
 // Messages that may be emitted:
 //   1. LowLevelDebug: Dropped ## entries for app ##\n
-//   2. LowLevelDebug: App ## status code ##\n
+//   2. LowLevelDebug: App ## alert code ##\n
 //   3. LowLevelDebug: App ## prints ##\n
 //   4. LowLevelDebug: App ## prints ## ##\n
 //
@@ -17,7 +17,7 @@ pub const BUF_LEN: usize = max(45 + 2 * USIZE_DIGITS, 35 + 3 * USIZE_DIGITS);
 // the message.
 pub(crate) fn format_entry(app_num: usize, entry: DebugEntry, buffer: &mut [u8]) -> usize {
     use core::fmt::write;
-    use DebugEntry::{Dropped, Print1, Print2, StatusCode};
+    use DebugEntry::{AlertCode, Dropped, Print1, Print2};
     let mut adapter = WriteAdapter::new(buffer);
     let _ = match entry {
         Dropped(count) => write(
@@ -27,10 +27,10 @@ pub(crate) fn format_entry(app_num: usize, entry: DebugEntry, buffer: &mut [u8])
                 count, app_num
             ),
         ),
-        StatusCode(code) => write(
+        AlertCode(code) => write(
             &mut adapter,
             format_args!(
-                "LowLevelDebug: App 0x{:x} status code 0x{:x}\n",
+                "LowLevelDebug: App 0x{:x} alert code 0x{:x}\n",
                 app_num, code
             ),
         ),

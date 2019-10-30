@@ -1,5 +1,5 @@
 [package]
-name = "status_codes"
+name = "alert_codes"
 version = "0.1.0"
 authors = ["jrvanwhy <jrvanwhy@google.com>"]
 edition = "2018"
