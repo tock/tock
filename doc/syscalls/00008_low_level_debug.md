@@ -44,7 +44,8 @@ driver is in capsules/src/low\_level\_debug.rs.
   * ### Command Number: 2
 
     **Description**: Print a single number. The number will be printed in
-    hexadecimal.
+    hexadecimal. In general, this should only be added temporarily for debugging
+    and should not be called by released library code.
 
     **Argument 1**: Number to print
 
@@ -55,7 +56,10 @@ driver is in capsules/src/low\_level\_debug.rs.
   * ### Command Number: 3
 
     **Description**: Print two numbers. The numbers will be printed in
-    hexadecimal.
+    hexadecimal. Like command 2, this is intended for temporary debugging and
+    should not be called by released library code. If you want to print multiple
+    values, it is often useful to use the first argument to indicate what value
+    is being printed.
 
     **Argument 1**: First number to print
 
