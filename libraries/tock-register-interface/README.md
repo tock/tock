@@ -11,17 +11,13 @@ write-only functionality, respectively.
 
 Defining the registers is done with the `register_structs` macro, which expects
 for each register an offset, a field name, and a type. Registers must be
-declared in increasing order of offsets and contiguously. Any gap when defining
-the registers will **not** be preserved when the register struct is created by
-the macro. The macro also generates a unit test which will fail if a gap is
-introduced. If, however, there is an unused gap between two registers in the
-register map on the chip, then explicit padding is required. This padding is
-specified by an offset and gap identifier (the naming convention is to use
-`_reservedN`) but without an explicit type. The `register_structs` macro will
-specify the padding as an array that will fill the gap between the previous and
-subsequent register definitions. The end of the struct is marked with its size
-and the `@END` keyword, effectively pointing to the offset immediately past the
-list of registers.
+declared in increasing order of offsets and contiguously. Gaps when defining the
+registers must be explicitly annotated with an offset and gap identifier (by
+convention using a field named `_reservedN`), but without a type. The macro will
+then automatically take care of calculating the gap size and inserting a
+suitable filler struct. The end of the struct is marked with its size and the
+`@END` keyword, effectively pointing to the offset immediately past the list of
+registers.
 
 ```rust
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
