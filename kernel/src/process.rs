@@ -779,7 +779,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&mut config);
+                    self.chip.mpu().configure_mpu(&config);
                     Ok(old_break)
                 }
             })

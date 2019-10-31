@@ -58,7 +58,6 @@ pub trait ToPrimitive {
     }
 
     /// Converts the value of `self` to an `u64`.
-    #[inline]
     fn to_u64(&self) -> Option<u64>;
 }
 

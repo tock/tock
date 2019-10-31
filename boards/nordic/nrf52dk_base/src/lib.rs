@@ -284,7 +284,7 @@ pub unsafe fn setup_board(
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
-            &mut nrf5x::temperature::TEMP,
+            &nrf5x::temperature::TEMP,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );

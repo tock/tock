@@ -885,7 +885,6 @@ impl Usbc<'a> {
             }
             EndpointState::Disabled => {
                 debug1!("Ignoring interrupt for disabled endpoint {}", endpoint);
-                return;
             }
         }
     }
