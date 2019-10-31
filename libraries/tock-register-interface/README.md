@@ -91,6 +91,34 @@ struct Registers {
 }
 ```
 
+WARNING: For now, the **unit tests checking offsets and alignments are not yet
+run** on `make ci-travis`. This means that leaving an unintentional gap between
+registers will **not** be caught. Instead, the `register_structs` macro will
+generate a struct with invalid offsets without warning. Please follow the
+discussion on https://github.com/tock/tock/pull/1393.
+
+For example, the following call to the macro:
+
+```rust
+register_structs! {
+    Registers {
+        (0x000 => foo: ReadOnly<u8>),
+        (0x008 => bar: ReadOnly<u8>),
+    }
+}
+```
+
+will generate the following struct, even though there is an unintentional gap of
+4 bytes between addresses `0x004` (the end of register `foo`) and `0x008` (the
+intended beginning of register `bar`).
+
+```rust
+#[repr(C)]
+struct Registers {
+    foo: ReadOnly<u32>,
+    bar: ReadOnly<u32>,
+}
+```
 ## Defining bitfields
 
 Bitfields are defined through the `register_bitfields!` macro:
