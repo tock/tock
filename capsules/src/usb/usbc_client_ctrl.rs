@@ -2,21 +2,21 @@
 //!
 //! It responds to control requests and forwards bulk/interrupt transfers to the above layer.
 
-use crate::usb::Buffer64;
-use crate::usb::ConfigurationDescriptor;
-use crate::usb::Descriptor;
-use crate::usb::DescriptorType;
-use crate::usb::DeviceDescriptor;
-use crate::usb::EndpointDescriptor;
-use crate::usb::HIDDescriptor;
-use crate::usb::InterfaceDescriptor;
-use crate::usb::LanguagesDescriptor;
-use crate::usb::Recipient;
-use crate::usb::ReportDescriptor;
-use crate::usb::SetupData;
-use crate::usb::StandardRequest;
-use crate::usb::StringDescriptor;
-use crate::usb::TransferDirection;
+use super::descriptors::Buffer64;
+use super::descriptors::ConfigurationDescriptor;
+use super::descriptors::Descriptor;
+use super::descriptors::DescriptorType;
+use super::descriptors::DeviceDescriptor;
+use super::descriptors::EndpointDescriptor;
+use super::descriptors::HIDDescriptor;
+use super::descriptors::InterfaceDescriptor;
+use super::descriptors::LanguagesDescriptor;
+use super::descriptors::Recipient;
+use super::descriptors::ReportDescriptor;
+use super::descriptors::SetupData;
+use super::descriptors::StandardRequest;
+use super::descriptors::StringDescriptor;
+use super::descriptors::TransferDirection;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil;

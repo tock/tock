@@ -138,9 +138,9 @@ struct Imix {
     radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    usb_driver: &'static capsules::usb_user::UsbSyscallDriver<
+    usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
         'static,
-        capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+        capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
@@ -178,7 +178,7 @@ impl kernel::Platform for Imix {
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
-            capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+            capsules::usb::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
             capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),

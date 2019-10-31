@@ -2,13 +2,13 @@
 //!
 //! It responds to standard device requests and can be enumerated.
 
-use crate::usb::Buffer8;
-use crate::usb::DeviceDescriptor;
-use crate::usb::EndpointAddress;
-use crate::usb::EndpointDescriptor;
-use crate::usb::TransferDirection;
-use crate::usb::TransferType;
-use crate::usbc_client_ctrl::ClientCtrl;
+use super::descriptors::Buffer8;
+use super::descriptors::DeviceDescriptor;
+use super::descriptors::EndpointAddress;
+use super::descriptors::EndpointDescriptor;
+use super::descriptors::TransferDirection;
+use super::descriptors::TransferType;
+use super::usbc_client_ctrl::ClientCtrl;
 use core::cell::Cell;
 use kernel::common::cells::VolatileCell;
 use kernel::debug;
