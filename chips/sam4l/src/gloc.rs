@@ -71,7 +71,7 @@ impl Gloc {
     }
 
     /// Disables the GLOC by resetting the registers and disabling the clocks.
-    pub fn disable(&mut self) {
+    pub fn disable(&self) {
         self.disable_lut(Lut::Lut0);
         self.disable_lut(Lut::Lut1);
         scif::generic_clock_disable(GenericClock::GCLK5);
@@ -84,27 +84,27 @@ impl Gloc {
     }
 
     /// Set the truth table values.
-    pub fn configure_lut(&mut self, lut: Lut, config: u16) {
+    pub fn configure_lut(&self, lut: Lut, config: u16) {
         let registers = self.lut_registers(lut);
         registers.truth.write(Truth::TRUTH.val(config as u32));
     }
 
     /// Enable selected LUT inputs.
-    pub fn enable_lut_inputs(&mut self, lut: Lut, inputs: u8) {
+    pub fn enable_lut_inputs(&self, lut: Lut, inputs: u8) {
         let registers = self.lut_registers(lut);
         let aen: u32 = registers.cr.read(Control::AEN) | (inputs as u32);
         registers.cr.modify(Control::AEN.val(aen));
     }
 
     /// Disable selected LUT inputs.
-    pub fn disable_lut_inputs(&mut self, lut: Lut, inputs: u8) {
+    pub fn disable_lut_inputs(&self, lut: Lut, inputs: u8) {
         let registers = self.lut_registers(lut);
         let aen: u32 = registers.cr.read(Control::AEN) & !(inputs as u32);
         registers.cr.modify(Control::AEN.val(aen));
     }
 
     /// Disable LUT by resetting registers.
-    pub fn disable_lut(&mut self, lut: Lut) {
+    pub fn disable_lut(&self, lut: Lut) {
         let registers = self.lut_registers(lut);
         registers.truth.write(Truth::TRUTH.val(0));
         registers.cr.modify(Control::AEN.val(0));
@@ -112,14 +112,14 @@ impl Gloc {
 
     /// Enable filter on output to prevent glitches.  This will delay the given
     /// LUT's output by 3-4 GCLK cycles.
-    pub fn enable_lut_filter(&mut self, lut: Lut) {
+    pub fn enable_lut_filter(&self, lut: Lut) {
         scif::generic_clock_enable(GenericClock::GCLK5, ClockSource::CLK_CPU);
         let registers = self.lut_registers(lut);
         registers.cr.modify(Control::FILTEN::GlitchFilter);
     }
 
     /// Disable output filter.
-    pub fn disable_lut_filter(&mut self, lut: Lut) {
+    pub fn disable_lut_filter(&self, lut: Lut) {
         let registers = self.lut_registers(lut);
         registers.cr.modify(Control::FILTEN::NoGlitchFilter);
     }
