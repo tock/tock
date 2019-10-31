@@ -5,6 +5,27 @@ use core::convert::From;
 use core::fmt;
 use kernel::common::cells::VolatileCell;
 
+// On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For now we apply these
+// constraints on all platforms.
+#[derive(Default)]
+#[repr(align(4))]
+pub struct Buffer8 {
+    pub buf: [VolatileCell<u8>; 8],
+}
+
+#[repr(align(4))]
+pub struct Buffer64 {
+    pub buf: [VolatileCell<u8>; 64],
+}
+
+impl Default for Buffer64 {
+    fn default() -> Self {
+        Self {
+            buf: [Default::default(); 64],
+        }
+    }
+}
+
 /// The datastructure sent in a SETUP handshake
 #[derive(Debug, Copy, Clone)]
 pub struct SetupData {
@@ -18,7 +39,7 @@ pub struct SetupData {
 impl SetupData {
     /// Create a `SetupData` structure from a packet received from the wire
     pub fn get(p: &[VolatileCell<u8>]) -> Option<Self> {
-        if p.len() != 8 {
+        if p.len() < 8 {
             return None;
         }
         Some(SetupData {
@@ -31,26 +52,26 @@ impl SetupData {
     }
 
     /// If the `SetupData` represents a standard device request, return it
-    pub fn get_standard_request(&self) -> Option<StandardDeviceRequest> {
+    pub fn get_standard_request(&self) -> Option<StandardRequest> {
         match self.request_type.request_type() {
             RequestType::Standard => match self.request_code {
-                0 => Some(StandardDeviceRequest::GetStatus {
+                0 => Some(StandardRequest::GetStatus {
                     recipient_index: self.index,
                 }),
-                1 => Some(StandardDeviceRequest::ClearFeature {
+                1 => Some(StandardRequest::ClearFeature {
                     feature: FeatureSelector::get(self.value),
                     recipient_index: self.index,
                 }),
-                3 => Some(StandardDeviceRequest::SetFeature {
+                3 => Some(StandardRequest::SetFeature {
                     feature: FeatureSelector::get(self.value),
                     test_mode: (self.index >> 8) as u8,
                     recipient_index: self.index & 0xff,
                 }),
-                5 => Some(StandardDeviceRequest::SetAddress {
+                5 => Some(StandardRequest::SetAddress {
                     device_address: self.value,
                 }),
                 6 => get_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                    Some(StandardDeviceRequest::GetDescriptor {
+                    Some(StandardRequest::GetDescriptor {
                         descriptor_type: dt,
                         descriptor_index: (self.value & 0xff) as u8,
                         lang_id: self.index,
@@ -58,22 +79,22 @@ impl SetupData {
                     })
                 }),
                 7 => get_set_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                    Some(StandardDeviceRequest::SetDescriptor {
+                    Some(StandardRequest::SetDescriptor {
                         descriptor_type: dt,
                         descriptor_index: (self.value & 0xff) as u8,
                         lang_id: self.index,
                         descriptor_length: self.length,
                     })
                 }),
-                8 => Some(StandardDeviceRequest::GetConfiguration),
-                9 => Some(StandardDeviceRequest::SetConfiguration {
+                8 => Some(StandardRequest::GetConfiguration),
+                9 => Some(StandardRequest::SetConfiguration {
                     configuration_value: (self.value & 0xff) as u8,
                 }),
-                10 => Some(StandardDeviceRequest::GetInterface {
+                10 => Some(StandardRequest::GetInterface {
                     interface: self.index,
                 }),
-                11 => Some(StandardDeviceRequest::SetInterface),
-                12 => Some(StandardDeviceRequest::SynchFrame),
+                11 => Some(StandardRequest::SetInterface),
+                12 => Some(StandardRequest::SynchFrame),
                 _ => None,
             },
             _ => None,
@@ -82,7 +103,7 @@ impl SetupData {
 }
 
 #[derive(Debug)]
-pub enum StandardDeviceRequest {
+pub enum StandardRequest {
     GetStatus {
         recipient_index: u16,
     },
@@ -121,7 +142,7 @@ pub enum StandardDeviceRequest {
     SynchFrame,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum DescriptorType {
     Device = 1,
     Configuration,
@@ -131,6 +152,8 @@ pub enum DescriptorType {
     DeviceQualifier,
     OtherSpeedConfiguration,
     InterfacePower,
+    HID = 0x21,
+    Report = 0x22,
 }
 
 fn get_descriptor_type(byte: u8) -> Option<DescriptorType> {
@@ -143,6 +166,8 @@ fn get_descriptor_type(byte: u8) -> Option<DescriptorType> {
         6 => Some(DescriptorType::DeviceQualifier),
         7 => Some(DescriptorType::OtherSpeedConfiguration),
         8 => Some(DescriptorType::InterfacePower),
+        0x21 => Some(DescriptorType::HID),
+        0x22 => Some(DescriptorType::Report),
         _ => None,
     }
 }
@@ -202,8 +227,8 @@ impl fmt::Debug for DeviceRequestType {
 
 #[derive(Debug)]
 pub enum TransferDirection {
-    DeviceToHost,
-    HostToDevice,
+    HostToDevice = 0,
+    DeviceToHost = 1,
 }
 
 #[derive(Debug)]
@@ -458,6 +483,13 @@ impl EndpointAddress {
                 } << 7,
         )
     }
+
+    // TODO: Until https://github.com/rust-lang/rust/issues/49146 is resolved, we cannot use `match`
+    // in const functions. As we need to initialize static endpoint addresses for the USB client
+    // capsule, this function offers a workaround to have a const constructor.
+    pub const fn new_const(endpoint: usize, direction: TransferDirection) -> Self {
+        EndpointAddress(endpoint as u8 & 0xf | (direction as u8) << 7)
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -492,6 +524,94 @@ impl Descriptor for EndpointDescriptor {
         put_u16(&buf[4..6], self.max_packet_size & 0x7ff as u16);
         buf[6].set(self.interval);
         len
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum HIDCountryCode {
+    NotSupported = 0,
+    Arabic,
+    Belgian,
+    CanadianBilingual,
+    CanadianFrench,
+    CzechRepublic,
+    Danish,
+    Finnish,
+    French,
+    German,
+    Greek,
+    Hebrew,
+    Hungary,
+    InternationalISO,
+    Italian,
+    JapanKatakana,
+    Korean,
+    LatinAmerican,
+    NetherlandsDutch,
+    Norwegian,
+    PersianFarsi,
+    Poland,
+    Portuguese,
+    Russia,
+    Slovakia,
+    Spanish,
+    Swedish,
+    SwissFrench,
+    SwissGerman,
+    Switzerland,
+    Taiwan,
+    TurkishQ,
+    UK,
+    US,
+    Yugoslavia,
+    TurkishF,
+}
+
+pub struct HIDDescriptor<'a> {
+    pub hid_class: u16,
+    pub country_code: HIDCountryCode,
+    pub sub_descriptors: &'a [HIDSubordinateDescriptor],
+}
+
+pub struct HIDSubordinateDescriptor {
+    pub typ: DescriptorType,
+    pub len: u16,
+}
+
+impl Descriptor for HIDDescriptor<'a> {
+    fn size(&self) -> usize {
+        6 + (3 * self.sub_descriptors.len())
+    }
+
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
+        let len = self.size();
+        buf[0].set(len as u8);
+        buf[1].set(DescriptorType::HID as u8);
+        put_u16(&buf[2..4], self.hid_class);
+        buf[4].set(self.country_code as u8);
+        buf[5].set(self.sub_descriptors.len() as u8);
+        for (i, desc) in self.sub_descriptors.iter().enumerate() {
+            buf[6 + 3 * i].set(desc.typ as u8);
+            put_u16(&buf[7 + (3 * i)..9 + (3 * i)], desc.len);
+        }
+        len
+    }
+}
+
+pub struct ReportDescriptor<'a> {
+    pub desc: &'a [u8],
+}
+
+impl Descriptor for ReportDescriptor<'a> {
+    fn size(&self) -> usize {
+        self.desc.len()
+    }
+
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
+        for (i, x) in self.desc.iter().enumerate() {
+            buf[i].set(*x);
+        }
+        self.size()
     }
 }
 
