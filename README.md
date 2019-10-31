@@ -101,7 +101,8 @@ Organizations that have contributed code to Tock include:
   * Google
   * Helium
   * Atihita
-  * MIT and MIT Lincoln Laboratory
+  * MIT
+  * MIT Lincoln Laboratory
 
 _Note: the above list may be incomplete. If your organization has supported you in
 contributing to Tock, and wish to be acknowledged, please update this list accordingly._
