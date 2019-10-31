@@ -70,7 +70,7 @@ pub struct RegisterInitializer {
 }
 
 register_bitfields![
-    u8,
+    u32,
     ExtLfClk [
         // Unsigned value pin selection
         DIO OFFSET(24) NUMBITS(8) [],

@@ -19,7 +19,8 @@ fi
 
 # Add the rustfmt component if needed.
 if ! rustup component list | grep 'rustfmt.*(installed)' -q; then
-	rustup component add rustfmt
+	# Some versions of OS X want the -preview version, retry that on failure
+	rustup component add rustfmt || rustup component add rustfmt-preview
 fi
 
 # Format overwrites changes, which is probably good, but it's nice to see
