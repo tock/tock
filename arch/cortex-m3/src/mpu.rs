@@ -409,11 +409,6 @@ impl kernel::mpu::MPU for MPU {
             }
         }
 
-        // Cortex-M regions can't be greater than 4 GB.
-        if math::log_base_two(region_size as u32) >= 32 {
-            return None;
-        }
-
         // Check that our logical region fits in memory.
         if start + size > (unallocated_memory_start as usize) + unallocated_memory_size {
             return None;
