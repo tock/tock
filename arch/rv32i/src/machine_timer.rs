@@ -1,5 +1,6 @@
 //! Create a timer using the Machine Timer registers.
 
+use crate::csr;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
@@ -78,6 +79,7 @@ impl hil::time::Alarm<'a> for MachineTimer<'a> {
         self.registers
             .mtimecmp
             .write(MTimeCmp::MTIMECMP.val(tics as u64));
+        csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
     fn get_alarm(&self) -> u32 {

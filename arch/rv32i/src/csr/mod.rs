@@ -3,8 +3,10 @@
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
 pub mod mcause;
+pub mod mcycle;
 pub mod mepc;
 pub mod mie;
+pub mod minstret;
 pub mod mip;
 pub mod mscratch;
 pub mod mstatus;
@@ -17,6 +19,10 @@ pub mod utvec;
 
 #[repr(C)]
 pub struct CSR {
+    pub minstreth: ReadWriteRiscvCsr<u32, minstret::minstreth::Register>,
+    pub minstret: ReadWriteRiscvCsr<u32, minstret::minstret::Register>,
+    pub mcycleh: ReadWriteRiscvCsr<u32, mcycle::mcycleh::Register>,
+    pub mcycle: ReadWriteRiscvCsr<u32, mcycle::mcycle::Register>,
     pub pmpcfg0: ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>,
     pub pmpcfg1: ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>,
     pub pmpcfg2: ReadWriteRiscvCsr<u32, pmpconfig::pmpcfg::Register>,
@@ -51,6 +57,10 @@ pub struct CSR {
 
 // Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
+    minstreth: ReadWriteRiscvCsr::new(0xB82),
+    minstret: ReadWriteRiscvCsr::new(0xB02),
+    mcycleh: ReadWriteRiscvCsr::new(0xB80),
+    mcycle: ReadWriteRiscvCsr::new(0xB00),
     mie: ReadWriteRiscvCsr::new(0x304),
     mtvec: ReadWriteRiscvCsr::new(0x305),
     mstatus: ReadWriteRiscvCsr::new(0x300),
@@ -82,3 +92,19 @@ pub const CSR: &CSR = &CSR {
     pmpaddr14: ReadWriteRiscvCsr::new(0x3BE),
     pmpaddr15: ReadWriteRiscvCsr::new(0x3BF),
 };
+
+impl CSR {
+    // resets the cycle counter to 0
+    pub fn reset_cycle_counter(&self) {
+        CSR.mcycleh.write(mcycle::mcycleh::mcycleh.val(0));
+        CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
+    }
+
+    // reads the cycle counter
+    pub fn read_cycle_counter(&self) -> u64 {
+        let top = CSR.mcycleh.read(mcycle::mcycleh::mcycleh);
+        let bot = CSR.mcycle.read(mcycle::mcycle::mcycle);
+
+        u64::from(top).checked_shl(32).unwrap() + u64::from(bot)
+    }
+}

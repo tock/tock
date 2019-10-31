@@ -119,8 +119,9 @@ particular peripheral, capsule, or set of capsules need inside a
 call to the function `finalize()`. Changing what the build of the kernel
 includes involve changing just which Components are initialized, rather
 than changing many lines of `reset_handler`. Components are typically
-found inside a `components` subdirectory of the board directory, e.g.
-`boards/imix/src/components`.
+found in the `components` crate in the `/boards` folder, but may also be
+board-specifc and found inside a `components` subdirectory of the board
+directory, e.g. `boards/imix/src/imix_components`.
 
 ## Application Startup
 

@@ -9,7 +9,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let gpio = GpioComponent::new(board_kernel).finalize();
+//! let gpio = GpioComponent::new(board_kernel).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -37,9 +37,10 @@ impl GpioComponent {
 }
 
 impl Component for GpioComponent {
+    type StaticInput = ();
     type Output = &'static gpio::GPIO<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let gpio_pins = static_init!(

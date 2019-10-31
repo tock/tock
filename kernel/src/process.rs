@@ -198,7 +198,7 @@ pub trait ProcessType {
 
     /// Create new memory in the grant region, and check that the MPU region
     /// covering program memory does not extend past the kernel memory break.
-    unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]>;
+    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]>;
 
     unsafe fn free(&self, _: *mut u8);
 
@@ -809,9 +809,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         }
     }
 
-    unsafe fn alloc(&self, size: usize) -> Option<&mut [u8]> {
+    unsafe fn alloc(&self, size: usize, align: usize) -> Option<&mut [u8]> {
         self.mpu_config.and_then(|mut config| {
-            let new_break = self.kernel_memory_break.get().offset(-(size as isize));
+            let new_break_unaligned = self.kernel_memory_break.get().offset(-(size as isize));
+            // The alignment must be a power of two, 2^a. The expression `!(align - 1)` then
+            // returns a mask with leading ones, followed by `a` trailing zeros.
+            let alignment_mask = !(align - 1);
+            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
             if new_break < self.app_break.get() {
                 None
             } else if let Err(_) = self.chip.mpu().update_app_memory_region(

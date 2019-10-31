@@ -1,4 +1,4 @@
-//! Components for the ISL29035 on the imix board.
+//! Components for the ISL29035 sensor.
 //!
 //! This provides two Components, Isl29035Component, which provides
 //! direct access to the ISL29035 within the kernel, and
@@ -12,8 +12,10 @@
 //! Usage
 //! -----
 //! ```rust
-//! let isl = Isl29035Component::new(mux_i2c, mux_alarm).finalize();
-//! let ambient_light = AmbientLightComponent::new(mux_i2c, mux_alarm).finalize();
+//! let isl = Isl29035Component::new(mux_i2c, mux_alarm)
+//!     .finalize(isl29035_component_helper!(sam4l::ast::Ast));
+//! let ambient_light = AmbientLightComponent::new(board_kernel, sensors_i2c, mux_alarm)
+//!     .finalize(isl29035_component_helper!(sam4l::ast::Ast));
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -29,19 +31,30 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::time;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 
-pub struct Isl29035Component {
-    i2c_mux: &'static MuxI2C<'static>,
-    alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+use crate::static_init_half;
+
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! isl29035_component_helper {
+    ($A:ty) => {{
+        use capsules::isl29035::Isl29035;
+        static mut BUF1: Option<VirtualMuxAlarm<'static, $A>> = None;
+        static mut BUF2: Option<Isl29035<'static, VirtualMuxAlarm<'static, $A>>> = None;
+        (&mut BUF1, &mut BUF2)
+    };};
 }
 
-impl Isl29035Component {
-    pub fn new(
-        i2c: &'static MuxI2C<'static>,
-        alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    ) -> Self {
+pub struct Isl29035Component<A: 'static + time::Alarm<'static>> {
+    i2c_mux: &'static MuxI2C<'static>,
+    alarm_mux: &'static MuxAlarm<'static, A>,
+}
+
+impl<A: 'static + time::Alarm<'static>> Isl29035Component<A> {
+    pub fn new(i2c: &'static MuxI2C<'static>, alarm: &'static MuxAlarm<'static, A>) -> Self {
         Isl29035Component {
             i2c_mux: i2c,
             alarm_mux: alarm,
@@ -57,17 +70,24 @@ impl Isl29035Component {
 
 static mut I2C_BUF: [u8; 3] = [0; 3];
 
-impl Component for Isl29035Component {
-    type Output = &'static Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
+impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
+    type StaticInput = (
+        &'static mut Option<VirtualMuxAlarm<'static, A>>,
+        &'static mut Option<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
+    );
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    type Output = &'static Isl29035<'static, VirtualMuxAlarm<'static, A>>;
+
+    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
         let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x44));
-        let isl29035_virtual_alarm = static_init!(
-            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        let isl29035_virtual_alarm = static_init_half!(
+            static_buffer.0,
+            VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
-        let isl29035 = static_init!(
-            Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        let isl29035 = static_init_half!(
+            static_buffer.1,
+            Isl29035<'static, VirtualMuxAlarm<'static, A>>,
             Isl29035::new(isl29035_i2c, isl29035_virtual_alarm, &mut I2C_BUF)
         );
         isl29035_i2c.set_client(isl29035);
@@ -76,17 +96,17 @@ impl Component for Isl29035Component {
     }
 }
 
-pub struct AmbientLightComponent {
+pub struct AmbientLightComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     i2c_mux: &'static MuxI2C<'static>,
-    alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl AmbientLightComponent {
+impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         i2c: &'static MuxI2C<'static>,
-        alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        alarm: &'static MuxAlarm<'static, A>,
     ) -> Self {
         AmbientLightComponent {
             board_kernel: board_kernel,
@@ -96,19 +116,25 @@ impl AmbientLightComponent {
     }
 }
 
-impl Component for AmbientLightComponent {
+impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
+    type StaticInput = (
+        &'static mut Option<VirtualMuxAlarm<'static, A>>,
+        &'static mut Option<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
+    );
     type Output = &'static AmbientLight<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x44));
-        let isl29035_virtual_alarm = static_init!(
-            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        let isl29035_virtual_alarm = static_init_half!(
+            static_buffer.0,
+            VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
-        let isl29035 = static_init!(
-            Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        let isl29035 = static_init_half!(
+            static_buffer.1,
+            Isl29035<'static, VirtualMuxAlarm<'static, A>>,
             Isl29035::new(isl29035_i2c, isl29035_virtual_alarm, &mut I2C_BUF)
         );
         isl29035_i2c.set_client(isl29035);

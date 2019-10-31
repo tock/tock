@@ -5,9 +5,10 @@ MAKEFLAGS += -R
 
 MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
+# Common defaults that specific boards can override, but likely do not need to.
 TOOLCHAIN ?= llvm
-
-CARGO ?= cargo
+CARGO     ?= cargo
+RUSTUP    ?= rustup
 
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 # lld uses the page size to align program sections. It defaults to 4096 and this
@@ -24,90 +25,98 @@ ifeq ($(CI),true)
 endif
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
-# Check that given variables are set and all have non-empty values,
-# die with an error otherwise.
-#
-# Params:
-#   1. Variable name(s) to test.
-#   2. (optional) Error message to print.
-check_defined = \
-    $(strip $(foreach 1,$1, \
-        $(call __check_defined,$1,$(strip $(value 2)))))
-__check_defined = \
-    $(if $(value $1),, \
-      $(error Undefined $1$(if $2, ($2))))
+# Check that given variables are set and all have non-empty values, print an
+# error otherwise.
+check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined variable "$1"))))
 
-
+# Check that we know the basics of what we are compiling for.
+# `PLATFORM`: The name of the board that the kernel is being compiled for.
+# `TARGET`  : The Rust target architecture the kernel is being compiled for.
 $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
-# If environment variable V is non-empty, be verbose
+# If environment variable V is non-empty, be verbose.
 ifneq ($(V),)
-Q=
-VERBOSE = --verbose
+  Q =
+  VERBOSE = --verbose
 else
-Q=@
-VERBOSE =
+  Q = @
+  VERBOSE =
 endif
 
+# Ask git what version of the Tock kernel we are compiling, so we can include
+# this within the binary. If Tock is not within a git repo then we fallback to
+# a set string which should be updated with every release.
 export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "1.4+")
 
-
-# Validate that rustup is new enough
+# Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.11.0
-RUSTUP_VERSION := $(strip $(word 2, $(shell rustup --version)))
+RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version)))
 ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
-  $(warning Required tool `rustup` is out-of-date.)
-  $(warning Running `rustup update` in 3 seconds (ctrl-c to cancel))
+  $(warning Required tool `$(RUSTUP)` is out-of-date.)
+  $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
-  DUMMY := $(shell rustup update)
+  DUMMY := $(shell $(RUSTUP) update)
 endif
 
-LLVM_TOOLS_INSTALLED := $(shell rustup component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
+# Verify that various required Rust components are installed. All of these steps
+# only have to be done once per Rust version, but will take some time when
+# compiling for the first time.
+LLVM_TOOLS_INSTALLED := $(shell $(RUSTUP) component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
 ifeq ($(LLVM_TOOLS_INSTALLED),1)
-  $(shell rustup component add llvm-tools-preview)
+  $(shell $(RUSTUP) component add llvm-tools-preview)
 endif
-ifneq ($(shell rustup component list | grep rust-src),rust-src (installed))
-  $(shell rustup component add rust-src)
+ifneq ($(shell $(RUSTUP) component list | grep rust-src),rust-src (installed))
+  $(shell $(RUSTUP) component add rust-src)
 endif
-ifneq ($(shell rustup target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
-  $(shell rustup target add $(TARGET))
+ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
+  $(shell $(RUSTUP) target add $(TARGET))
 endif
 
+# If the user is using the standard toolchain we need to get the full path.
+# rustup should take care of this for us by putting in a proxy in .cargo/bin,
+# but until that is setup we workaround it.
 ifeq ($(TOOLCHAIN),llvm)
-  # If the user is using the standard toolchain we need to get the full path.
-  # rustup should take care of this for us by putting in a proxy in .cargo/bin,
-  # but until that is setup we workaround it.
   TOOLCHAIN = "$(shell dirname $(shell find `rustc --print sysroot` -name llvm-size))/llvm"
 endif
 
+# Set variables of the key tools we need to compile a Tock kernel.
 SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
 OBJDUMP   ?= $(TOOLCHAIN)-objdump
+
+# Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS += --disassemble-all --source --section-headers
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
-  OBJDUMP += --arch-name=thumb
+  OBJDUMP_FLAGS += --arch-name=thumb
 endif
 
 # Dump configuration for verbose builds
 ifneq ($(V),)
   $(info )
-  $(info **************************************************)
-  $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD)
-  $(info **************************************************)
-  $(info Config:)
-  $(info MAKEFLAGS=$(MAKEFLAGS))
-  $(info OBJCOPY=$(OBJCOPY))
-  $(info PLATFORM=$(PLATFORM))
-  $(info TARGET=$(TARGET))
-  $(info TOCK_KERNEL_VERSION=$(TOCK_KERNEL_VERSION))
-  $(info TOOLCHAIN=$(TOOLCHAIN))
+  $(info *******************************************************)
+  $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
+  $(info *******************************************************)
+  $(info PLATFORM            = $(PLATFORM))
+  $(info TARGET              = $(TARGET))
+  $(info TOCK_KERNEL_VERSION = $(TOCK_KERNEL_VERSION))
+  $(info RUSTFLAGS_FOR_CARGO = $(RUSTFLAGS_FOR_CARGO_LINKING))
+  $(info MAKEFLAGS           = $(MAKEFLAGS))
+  $(info OBJDUMP_FLAGS       = $(OBJDUMP_FLAGS))
   $(info )
-  $(info $(OBJCOPY) --version = $(shell $(OBJCOPY) --version))
-  $(info rustc --version = $(shell rustc --version))
-  $(info **************************************************)
+  $(info TOOLCHAIN           = $(TOOLCHAIN))
+  $(info SIZE                = $(SIZE))
+  $(info OBJCOPY             = $(OBJCOPY))
+  $(info OBJDUMP             = $(OBJDUMP))
+  $(info CARGO               = $(CARGO))
+  $(info RUSTUP              = $(RUSTUP))
+  $(info )
+  $(info cargo --version     = $(shell $(CARGO) --version))
+  $(info rustc --version     = $(shell rustc --version))
+  $(info rustup --version    = $(shell $(RUSTUP) --version))
+  $(info *******************************************************)
   $(info )
 endif
 

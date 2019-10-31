@@ -9,9 +9,9 @@
 //! Usage
 //! -----
 //! ```rust
-//! let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize();
-//! let temp = TemperatureComponent::new(si7021).finalize();
-//! let humidity = HumidityComponent::new(si7021).finalize();
+//! let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
+//! let temp = TemperatureComponent::new(si7021).finalize(());
+//! let humidity = HumidityComponent::new(si7021).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -51,9 +51,10 @@ impl SI7021Component {
 static mut I2C_BUF: [u8; 14] = [0; 14];
 
 impl Component for SI7021Component {
+    type StaticInput = ();
     type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x40));
         let si7021_alarm = static_init!(
             VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -88,9 +89,10 @@ impl TemperatureComponent {
 }
 
 impl Component for TemperatureComponent {
+    type StaticInput = ();
     type Output = &'static TemperatureSensor<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let temp = static_init!(
@@ -121,9 +123,10 @@ impl HumidityComponent {
 }
 
 impl Component for HumidityComponent {
+    type StaticInput = ();
     type Output = &'static HumiditySensor<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let hum = static_init!(

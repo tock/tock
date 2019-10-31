@@ -9,6 +9,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
 name = "cortexm"
 version = "0.1.0"
 dependencies = [
@@ -62,6 +70,7 @@ name = "nrf52dk_base"
 version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
+ "components 0.1.0",
  "cortexm4 0.1.0",
  "kernel 0.1.0",
  "nrf52 0.1.0",

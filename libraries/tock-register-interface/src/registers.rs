@@ -114,31 +114,33 @@ pub trait TryFromValue<V> {
 }
 
 /// Read/Write registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct ReadWrite<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 /// Read-only registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct ReadOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 /// Write-only registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
-    pub const fn new(value: T) -> Self {
-        ReadWrite {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn get(&self) -> T {
         unsafe { ::core::ptr::read_volatile(&self.value) }
@@ -199,13 +201,6 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
 }
 
 impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
-    pub const fn new(value: T) -> Self {
-        ReadOnly {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn get(&self) -> T {
         unsafe { ::core::ptr::read_volatile(&self.value) }
@@ -245,13 +240,6 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
 }
 
 impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
-    pub const fn new(value: T) -> Self {
-        WriteOnly {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn set(&self, value: T) {
         unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
@@ -351,6 +339,82 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u32, R>> for u32 {
 impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
     fn from(r: LocalRegisterCopy<u64, R>) -> u64 {
         r.value
+    }
+}
+
+/// In memory volatile register.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
+pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
+    value: T,
+    associated_register: PhantomData<R>,
+}
+
+impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
+    pub const fn new(value: T) -> Self {
+        InMemoryRegister {
+            value: value,
+            associated_register: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn get(&self) -> T {
+        unsafe { ::core::ptr::read_volatile(&self.value) }
+    }
+
+    #[inline]
+    pub fn set(&self, value: T) {
+        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<T, R>) -> T {
+        (self.get() & (field.mask << field.shift)) >> field.shift
+    }
+
+    #[inline]
+    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
+        let val: T = self.read(field);
+
+        E::try_from(val)
+    }
+
+    #[inline]
+    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
+        LocalRegisterCopy::new(self.get())
+    }
+
+    #[inline]
+    pub fn write(&self, field: FieldValue<T, R>) {
+        self.set(field.value);
+    }
+
+    #[inline]
+    pub fn modify(&self, field: FieldValue<T, R>) {
+        let reg: T = self.get();
+        self.set((reg & !field.mask) | field.value);
+    }
+
+    #[inline]
+    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
+        self.set((original.get() & !field.mask) | field.value);
+    }
+
+    #[inline]
+    pub fn is_set(&self, field: Field<T, R>) -> bool {
+        self.read(field) != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask == field.value
     }
 }
 

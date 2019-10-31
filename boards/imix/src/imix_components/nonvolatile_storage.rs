@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let nonvolatile_storage = NonvolatileStorageComponent::new().finalize();
+//! let nonvolatile_storage = NonvolatileStorageComponent::new().finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -36,9 +36,10 @@ impl NonvolatileStorageComponent {
 }
 
 impl Component for NonvolatileStorageComponent {
+    type StaticInput = ();
     type Output = &'static NonvolatileStorage<'static>;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         sam4l::flashcalw::FLASH_CONTROLLER.configure();
