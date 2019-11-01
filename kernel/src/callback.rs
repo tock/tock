@@ -96,7 +96,8 @@ impl Callback {
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        self.app_id
+        let res = self
+            .app_id
             .kernel
             .process_map_or(false, self.app_id.idx(), |process| {
                 process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
@@ -107,6 +108,20 @@ impl Callback {
                     argument3: self.appdata,
                     pc: self.fn_ptr.as_ptr() as usize,
                 }))
-            })
+            });
+        #[cfg(feature = "strace")]
+        debug!(
+            "[{}] schedule[{:x}:{:x}] @{:x}({:x}, {:x}, {:x}, {:x}) = {}",
+            self.app_id.idx(),
+            self.callback_id.driver_num,
+            self.callback_id.subscribe_num,
+            self.fn_ptr.as_ptr() as usize,
+            r0,
+            r1,
+            r2,
+            self.appdata,
+            res
+        );
+        res
     }
 }
