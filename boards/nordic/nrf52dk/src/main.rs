@@ -281,5 +281,6 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
         nrf52::uicr::RegOut0::DEFAULT,
+        false,
     );
 }

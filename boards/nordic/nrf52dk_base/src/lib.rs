@@ -147,6 +147,7 @@ pub unsafe fn setup_board(
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
     reg_vout: RegOut0,
+    nfc_as_gpios: bool,
 ) {
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52::uicr::Uicr::new();
@@ -158,15 +159,8 @@ pub unsafe fn setup_board(
         | (!(uicr.get_vout() as u32) & (reg_vout as u32) != 0);
 
     // Only enabling the NFC pin protection requires an erase.
-    #[cfg(feature = "nfc_as_gpios")]
-    {
+    if nfc_as_gpios {
         erase_uicr |= !uicr.is_nfc_pins_protection_enabled();
-    }
-
-    // Only disabling app protection requires an erase
-    #[cfg(not(feature = "ap_protect"))]
-    {
-        erase_uicr |= uicr.is_ap_protect_enabled();
     }
 
     if erase_uicr {
@@ -198,17 +192,8 @@ pub unsafe fn setup_board(
     }
 
     // Check if we need to free the NFC pins for GPIO
-    #[cfg(feature = "nfc_as_gpio")]
-    {
+    if nfc_as_gpios {
         uicr.set_nfc_pins_protection(true);
-        while !nrf52::nvmc::NVMC.is_ready() {}
-        needs_soft_reset = true;
-    }
-
-    // Sets Access Port protection if requested.
-    #[cfg(feature = "ap_protect")]
-    {
-        uicr.set_ap_protect();
         while !nrf52::nvmc::NVMC.is_ready() {}
         needs_soft_reset = true;
     }
