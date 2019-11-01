@@ -61,7 +61,6 @@ pub unsafe extern "C" fn generic_isr() {
     asm!(
         "
     /* Skip saving process state if not coming from user-space */
-    cmp lr, #0xfffffffd
     bne _ggeneric_isr_no_stacking
 
     /* Set thread mode to privileged */
