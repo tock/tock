@@ -136,3 +136,219 @@ macro_rules! register_bitfields {
         )*
     }
 }
+
+#[macro_export]
+macro_rules! register_fields {
+    // Macro entry point.
+    (@root $(#[$attr_struct:meta])* $name:ident { $($input:tt)* } ) => {
+        $crate::register_fields!(
+            @munch (
+                $($input)*
+            ) -> {
+                struct $(#[$attr_struct])* $name
+            }
+        );
+    };
+
+    // Print the struct once all fields have been munched.
+    (@munch
+        (
+            $(#[$attr_end:meta])*
+            ($offset:expr => @END),
+        )
+        -> {struct $(#[$attr_struct:meta])* $name:ident $(
+                $(#[$attr:meta])*
+                ($id:ident: $ty:ty)
+            )*}
+    ) => {
+        $(#[$attr_struct])*
+        #[repr(C)]
+        struct $name {
+            $(
+                $(#[$attr])*
+                $id: $ty
+            ),*
+        }
+    };
+
+    // Munch field.
+    (@munch
+        (
+            $(#[$attr:meta])*
+            ($offset_start:expr => $field:ident: $ty:ty),
+            $($after:tt)*
+        )
+        -> {$($output:tt)*}
+    ) => {
+        $crate::register_fields!(
+            @munch (
+                $($after)*
+            ) -> {
+                $($output)*
+                $(#[$attr])*
+                ($field: $ty)
+            }
+        );
+    };
+
+    // Munch padding.
+    (@munch
+        (
+            $(#[$attr:meta])*
+            ($offset_start:expr => $padding:ident),
+            $(#[$attr_next:meta])*
+            ($offset_end:expr => $($next:tt)*),
+            $($after:tt)*
+        )
+        -> {$($output:tt)*}
+    ) => {
+        $crate::register_fields!(
+            @munch (
+                $(#[$attr_next])*
+                ($offset_end => $($next)*),
+                $($after)*
+            ) -> {
+                $($output)*
+                $(#[$attr])*
+                ($padding: [u8; $offset_end - $offset_start])
+            }
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! test_fields {
+    // Macro entry point.
+    (@root $struct:ident $($input:tt)* ) => {
+        $crate::test_fields!(@munch $struct sum ($($input)*) -> {});
+    };
+
+    // Print the tests once all fields have been munched.
+    (@munch $struct:ident $sum:ident
+        (
+            $(#[$attr_end:meta])*
+            ($size:expr => @END),
+        )
+        -> {$($stmts:block)*}
+    ) => {
+        {
+        let mut $sum: usize = 0;
+        $($stmts)*
+        let size = core::mem::size_of::<$struct>();
+        assert!(
+            size == $size,
+            "Invalid size for struct {} (expected {:#X} but was {:#X})",
+            stringify!($struct),
+            $size,
+            size
+        );
+        }
+    };
+
+    // Munch field.
+    (@munch $struct:ident $sum:ident
+        (
+            $(#[$attr:meta])*
+            ($offset_start:expr => $field:ident: $ty:ty),
+            $(#[$attr_next:meta])*
+            ($offset_end:expr => $($next:tt)*),
+            $($after:tt)*
+        )
+        -> {$($output:block)*}
+    ) => {
+        $crate::test_fields!(
+            @munch $struct $sum (
+                $(#[$attr_next])*
+                ($offset_end => $($next)*),
+                $($after)*
+            ) -> {
+                $($output)*
+                {
+                    assert!(
+                        $sum == $offset_start,
+                        "Invalid start offset for field {} (expected {:#X} but was {:#X})",
+                        stringify!($field),
+                        $offset_start,
+                        $sum
+                    );
+                    let align = core::mem::align_of::<$ty>();
+                    assert!(
+                        $sum & (align - 1) == 0,
+                        "Invalid alignment for field {} (expected alignment of {:#X} but offset was {:#X})",
+                        stringify!($field),
+                        align,
+                        $sum
+                    );
+                    $sum += core::mem::size_of::<$ty>();
+                    assert!(
+                        $sum == $offset_end,
+                        "Invalid end offset for field {} (expected {:#X} but was {:#X})",
+                        stringify!($field),
+                        $offset_end,
+                        $sum
+                    );
+                }
+            }
+        );
+    };
+
+    // Munch padding.
+    (@munch $struct:ident $sum:ident
+        (
+            $(#[$attr:meta])*
+            ($offset_start:expr => $padding:ident),
+            $(#[$attr_next:meta])*
+            ($offset_end:expr => $($next:tt)*),
+            $($after:tt)*
+        )
+        -> {$($output:block)*}
+    ) => {
+        $crate::test_fields!(
+            @munch $struct $sum (
+                $(#[$attr_next])*
+                ($offset_end => $($next)*),
+                $($after)*
+            ) -> {
+                $($output)*
+                {
+                    assert!(
+                        $sum == $offset_start,
+                        "Invalid start offset for padding {} (expected {:#X} but was {:#X})",
+                        stringify!($padding),
+                        $offset_start,
+                        $sum
+                    );
+                    $sum = $offset_end;
+                }
+            }
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! register_structs {
+    {
+        $(
+            $(#[$attr:meta])*
+            $name:ident {
+                $( $fields:tt )*
+            }
+        ),*
+    } => {
+        $( $crate::register_fields!(@root $(#[$attr])* $name { $($fields)* } ); )*
+
+        #[cfg(test)]
+        mod test_register_structs {
+        $(
+            #[allow(non_snake_case)]
+            mod $name {
+                use super::super::*;
+                #[test]
+                fn test_offsets() {
+                    $crate::test_fields!(@root $name $($fields)* )
+                }
+            }
+        )*
+        }
+    };
+}
