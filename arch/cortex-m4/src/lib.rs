@@ -82,6 +82,7 @@ pub unsafe extern "C" fn generic_isr() {
     mov r0, #0
     msr CONTROL, r0
 
+    // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
     movt LR, #0xFFFF
 
@@ -154,6 +155,7 @@ pub unsafe extern "C" fn svc_handler() {
     mov r0, #1
     msr CONTROL, r0
 
+    // This is a special address to return Thread mode with Process stack
     movw lr, #0xfffd
     movt lr, #0xffff
     // Switch to the app.
@@ -172,6 +174,7 @@ pub unsafe extern "C" fn svc_handler() {
     mov r0, #0
     msr CONTROL, r0
 
+    // This is a special address to return Thread mode with Main stack
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr"
