@@ -16,6 +16,31 @@ impl<T: Copy> RingBuffer<'a, T> {
             ring: ring,
         }
     }
+
+    // Returns the number of elements that can be enqueued until the ring buffer is full.
+    pub fn available_len(&self) -> usize {
+        // The maximum capacity of the queue is ring.len - 1, because head == tail for the empty
+        // queue.
+        self.ring.len().saturating_sub(1 + queue::Queue::len(self))
+    }
+
+    pub fn as_slices(&'a self) -> (Option<&'a [T]>, Option<&'a [T]>) {
+        if self.head < self.tail {
+            (Some(&self.ring[self.head..self.tail]), None)
+        } else if self.head > self.tail {
+            let (left, right) = self.ring.split_at(self.head);
+            (
+                Some(right),
+                if self.tail == 0 {
+                    None
+                } else {
+                    Some(&left[..self.tail])
+                },
+            )
+        } else {
+            (None, None)
+        }
+    }
 }
 
 impl<T: Copy> queue::Queue<T> for RingBuffer<'a, T> {

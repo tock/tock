@@ -20,10 +20,10 @@ pub mod dynamic_deferred_call;
 pub mod list;
 pub mod math;
 pub mod peripherals;
+pub mod queue;
+pub mod ring_buffer;
 pub mod utils;
 
-mod queue;
-mod ring_buffer;
 mod static_ref;
 
 pub use self::list::{List, ListLink, ListNode};
