@@ -26,7 +26,8 @@ macro_rules! static_init {
             // return a reference to it.
             static mut BUF: MaybeUninit<$T> = MaybeUninit::<$T>::uninit();
             BUF.as_mut_ptr().write($e);
-            // TODO: use BUF.get_mut() once that is stabilized.
+            // TODO: use MaybeUninit::get_mut() once that is stabilized (see
+            // https://github.com/rust-lang/rust/issues/63568).
             let result: &'static mut $T = &mut *BUF.as_mut_ptr();
             result
         };
