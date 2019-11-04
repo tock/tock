@@ -19,18 +19,16 @@
 #[macro_export]
 macro_rules! static_init {
     ($T:ty, $e:expr) => {
-        // Ideally we could use mem::size_of<$T>, uninitialized or zerod here
-        // instead of having an `Option`, however that is not currently possible
-        // in Rust, so in some cases we're wasting up to a word.
         {
-            use core::{mem, ptr};
+            use core::mem::MaybeUninit;
             // Statically allocate a read-write buffer for the value, write our
             // initial value into it (without dropping the initial zeros) and
             // return a reference to it.
-            static mut BUF: Option<$T> = None;
-            let tmp : &'static mut $T = mem::transmute(&mut BUF);
-            ptr::write(tmp as *mut $T, $e);
-            tmp
+            static mut BUF: MaybeUninit<$T> = MaybeUninit::<$T>::uninit();
+            BUF.as_mut_ptr().write($e);
+            // TODO: use BUF.get_mut() once that is stabilized.
+            let result: &'static mut $T = &mut *BUF.as_mut_ptr();
+            result
         };
     }
 }
