@@ -314,6 +314,7 @@ pub unsafe fn reset_handler() {
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
