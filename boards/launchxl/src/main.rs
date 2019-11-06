@@ -21,7 +21,6 @@ use kernel::hil::gpio;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::rng::Rng;
 
-#[macro_use]
 pub mod io;
 
 #[allow(dead_code)]

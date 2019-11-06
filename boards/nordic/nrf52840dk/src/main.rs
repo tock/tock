@@ -39,7 +39,6 @@ const SPI_MX25R6435F_WRITE_PROTECT_PIN: usize = 22;
 const SPI_MX25R6435F_HOLD_PIN: usize = 23;
 
 /// UART Writer
-#[macro_use]
 pub mod io;
 
 // State for loading and holding applications.

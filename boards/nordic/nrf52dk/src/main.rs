@@ -92,7 +92,6 @@ const SPI_MISO: usize = 23;
 const SPI_CLK: usize = 24;
 
 /// UART Writer
-#[macro_use]
 pub mod io;
 
 // FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
