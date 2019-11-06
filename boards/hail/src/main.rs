@@ -15,7 +15,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::gpio;
-use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
 #[allow(unused_imports)]
@@ -28,9 +27,6 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 pub mod io;
 #[allow(dead_code)]
 mod test_take_map_cell;
-
-static mut SPI_READ_BUF: [u8; 64] = [0; 64];
-static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
 // State for loading and holding applications.
 
@@ -321,31 +317,13 @@ pub unsafe fn reset_handler() {
     );
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
-    // Initialize and enable SPI HAL
-    // Set up an SPI MUX, so there can be multiple clients
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
-    );
-
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-
-    // Create a virtualized client for SPI system call interface
-    // CS line is CS0
-    let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        VirtualSpiMasterDevice::new(mux_spi, 0)
-    );
-
-    // Create the SPI system call capsule, passing the client
-    let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        capsules::spi::Spi::new(syscall_spi_device)
-    );
-
-    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
-    syscall_spi_device.set_client(spi_syscalls);
+    // SPI
+    // Set up a SPI MUX, so there can be multiple clients.
+    let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI)
+        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
+    // Create the SPI system call capsule.
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(mux_spi, 0)
+        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
     let led_pins = static_init!(
