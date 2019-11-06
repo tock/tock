@@ -51,7 +51,6 @@ use imix_components::usb::UsbComponent;
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART3 configuration.
-#[macro_use]
 pub mod io;
 
 // Unit Tests for drivers.
