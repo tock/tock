@@ -9,6 +9,7 @@ pub mod isl29035;
 pub mod nrf51822;
 pub mod process_console;
 pub mod rng;
+pub mod si7021;
 pub mod spi;
 
 /// Same as `static_init!()` but without actually creating the static buffer.

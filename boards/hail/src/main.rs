@@ -249,42 +249,10 @@ pub unsafe fn reset_handler() {
     sam4l::i2c::I2C1.set_master_client(sensors_i2c);
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
-    let si7021_i2c = static_init!(
-        capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c, 0x40)
-    );
-    let si7021_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    let si7021 = static_init!(
-        capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::si7021::SI7021::new(
-            si7021_i2c,
-            si7021_virtual_alarm,
-            &mut capsules::si7021::BUFFER
-        )
-    );
-    si7021_i2c.set_client(si7021);
-    hil::time::Alarm::set_client(si7021_virtual_alarm, si7021);
-
-    let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(
-            si7021,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
-
-    let humidity = static_init!(
-        capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(
-            si7021,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
+    let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
+        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
+    let temp = components::si7021::TemperatureComponent::new(board_kernel, si7021).finalize(());
+    let humidity = components::si7021::HumidityComponent::new(board_kernel, si7021).finalize(());
 
     // Configure the ISL29035, device address 0x44
     let ambient_light =

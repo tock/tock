@@ -34,6 +34,7 @@ use components::isl29035::AmbientLightComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
+use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::analog_comparator::AcComponent;
@@ -44,7 +45,6 @@ use imix_components::led::LedComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
 use imix_components::udp_6lowpan::UDPComponent;
 use imix_components::usb::UsbComponent;
 
@@ -337,7 +337,8 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
+        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
     let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
