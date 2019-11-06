@@ -8,8 +8,9 @@ crate mod systick;
 
 /// Interface for individual boards.
 ///
-/// Each board in their `main.rs` file should define a struct which implements
-/// this trait. This trait is the core for how syscall dispatching is handled.
+/// Each board should define a struct which implements this trait. This trait is
+/// the core for how syscall dispatching is handled, and the implementation is
+/// responsible for dispatching to drivers for each system call number.
 ///
 /// ## Example
 ///
@@ -44,6 +45,11 @@ pub trait Platform {
 }
 
 /// Interface for individual MCUs.
+///
+/// The trait defines chip-specific properties of Tock's operation. These
+/// include whether and which memory protection mechanism and systick to use,
+/// how to switch between the kernel and userland applications, and how to
+/// handle hardware events.
 ///
 /// Each microcontroller should define a struct and implement this trait.
 pub trait Chip {
