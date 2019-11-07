@@ -5,9 +5,8 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -391,44 +390,10 @@ pub unsafe fn reset_handler() {
     kernel::hil::uart::Transmit::set_transmit_client(rtt, uart_mux);
     kernel::hil::uart::Receive::set_receive_client(rtt, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-
-    // Create the console object for apps to printf()
-    let console = static_init!(
-        capsules::console::Console,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
-    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
-
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-
-    // Create the debugger object that handles calls to `debug!()`
-    let ring_buffer = static_init!(
-        RingBuffer<'static, u8>,
-        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
-    );
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    // Create the wrapper which helps with rust ownership rules.
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     //
     // I2C Devices

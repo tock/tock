@@ -7,9 +7,8 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use nrf5x::rtc::Rtc;
@@ -225,46 +224,17 @@ pub unsafe fn setup_board(
     hil::uart::Transmit::set_transmit_client(&nrf52::uart::UARTE0, uart_mux);
     hil::uart::Receive::set_receive_client(&nrf52::uart::UARTE0, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-
     nrf52::uart::UARTE0.initialize(
         nrf5x::pinmux::Pinmux::new(uart_pins.txd as u32),
         nrf5x::pinmux::Pinmux::new(uart_pins.rxd as u32),
         nrf5x::pinmux::Pinmux::new(uart_pins.cts as u32),
         nrf5x::pinmux::Pinmux::new(uart_pins.rts as u32),
     );
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
-    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
 
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let ring_buffer = static_init!(
-        RingBuffer<'static, u8>,
-        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
-    );
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     let ble_radio =
         BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());

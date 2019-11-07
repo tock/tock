@@ -30,6 +30,7 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
+use components::debug_writer::DebugWriterComponent;
 use components::isl29035::AmbientLightComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;

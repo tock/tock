@@ -19,6 +19,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
 name = "cortexm"
 version = "0.1.0"
 dependencies = [
@@ -51,6 +59,7 @@ version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
  "cc26x2 0.1.0",
+ "components 0.1.0",
  "cortexm4 0.1.0",
  "enum_primitive 0.1.0",
  "kernel 0.1.0",

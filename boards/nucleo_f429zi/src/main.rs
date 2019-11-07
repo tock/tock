@@ -8,9 +8,9 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
+use kernel::component::Component;
 use kernel::hil::{self, time::Alarm};
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -208,25 +208,6 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(&stm32f4xx::usart::USART3, mux_uart);
     hil::uart::Receive::set_receive_client(&stm32f4xx::usart::USART3, mux_uart);
 
-    // Create a virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(mux_uart, false));
-    debugger_uart.setup();
-    let ring_buffer = static_init!(
-        RingBuffer<'static, u8>,
-        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
-    );
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
@@ -234,20 +215,10 @@ pub unsafe fn reset_handler() {
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
-    // Create a UartDevice for console
-    let console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(console_uart, console);
-    hil::uart::Receive::set_receive_client(console_uart, console);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, mux_uart).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(mux_uart).finalize(());
 
     // // Setup the process inspection console
     // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));
