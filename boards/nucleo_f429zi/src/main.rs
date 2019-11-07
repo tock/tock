@@ -10,6 +10,7 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::ring_buffer::RingBuffer;
 use kernel::hil::{self, time::Alarm};
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -210,13 +211,13 @@ pub unsafe fn reset_handler() {
     // Create a virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(mux_uart, false));
     debugger_uart.setup();
+    let ring_buffer = static_init!(
+        RingBuffer<'static, u8>,
+        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
+    );
     let debugger = static_init!(
         kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
+        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
     );
     hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 

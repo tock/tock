@@ -13,6 +13,7 @@
 use capsules::process_console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::static_init;
@@ -63,12 +64,16 @@ impl Component for ProcessConsoleComponent {
         // Create virtual device for kernel debug.
         let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
         debugger_uart.setup();
+        let ring_buffer = static_init!(
+            RingBuffer<'static, u8>,
+            RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
+        );
         let debugger = static_init!(
             kernel::debug::DebugWriter,
             kernel::debug::DebugWriter::new(
                 debugger_uart,
                 &mut kernel::debug::OUTPUT_BUF,
-                &mut kernel::debug::INTERNAL_BUF,
+                ring_buffer,
             )
         );
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
