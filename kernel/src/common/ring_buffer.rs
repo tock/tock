@@ -17,13 +17,22 @@ impl<T: Copy> RingBuffer<'a, T> {
         }
     }
 
-    // Returns the number of elements that can be enqueued until the ring buffer is full.
+    /// Returns the number of elements that can be enqueued until the ring buffer is full.
     pub fn available_len(&self) -> usize {
         // The maximum capacity of the queue is ring.len - 1, because head == tail for the empty
         // queue.
         self.ring.len().saturating_sub(1 + queue::Queue::len(self))
     }
 
+    /// Returns up to 2 slices that together form the contents of the ring buffer.
+    ///
+    /// Returns:
+    /// - `(None, None)` if the buffer is empty.
+    /// - `(Some(slice), None)` if the head is before the tail (therefore all the contents is
+    /// contiguous).
+    /// - `(Some(left), Some(right))` if the head is after the tail. In that case, the logical
+    /// contents of the buffer is `[left, right].concat()` (although physically the "left" slice is
+    /// stored after the "right" slice).
     pub fn as_slices(&'a self) -> (Option<&'a [T]>, Option<&'a [T]>) {
         if self.head < self.tail {
             (Some(&self.ring[self.head..self.tail]), None)
