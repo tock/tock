@@ -4,11 +4,10 @@
 //! registers and bitfields.
 //!
 //! ```rust
-//! # #[macro_use]
-//! # extern crate tock_registers;
 //! # fn main() {}
 //!
 //! use tock_registers::registers::{ReadOnly, ReadWrite};
+//! use tock_registers::register_bitfields;
 //!
 //! // Register maps are specified like this:
 //! #[repr(C)]

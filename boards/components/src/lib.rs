@@ -1,16 +1,13 @@
 #![no_std]
 #![feature(in_band_lifetimes)]
 
-#[macro_use]
-pub mod isl29035;
-pub mod rng;
-#[macro_use]
-pub mod crc;
-#[macro_use]
 pub mod alarm;
 pub mod console;
+pub mod crc;
+pub mod isl29035;
 pub mod nrf51822;
 pub mod process_console;
+pub mod rng;
 pub mod spi;
 
 /// Same as `static_init!()` but without actually creating the static buffer.
