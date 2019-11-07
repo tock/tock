@@ -269,30 +269,28 @@ impl DebugWriter {
     fn publish_str(&self) {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
-        self.output_buffer.take().map(|out_buffer| {
-            let mut count = 0;
+        self.internal_buffer.map(|ring_buffer| {
+            if let Some(out_buffer) = self.output_buffer.take() {
+                let mut count = 0;
 
-            let ring_buffer = self.internal_buffer.take().unwrap();
-            for dst in out_buffer.iter_mut() {
-                match ring_buffer.dequeue() {
-                    Some(src) => {
-                        *dst = src;
-                        count += 1;
-                    }
-                    None => {
-                        break;
+                for dst in out_buffer.iter_mut() {
+                    match ring_buffer.dequeue() {
+                        Some(src) => {
+                            *dst = src;
+                            count += 1;
+                        }
+                        None => {
+                            break;
+                        }
                     }
                 }
-            }
-            self.internal_buffer.put(Some(ring_buffer));
 
-            if count == 0 {
-                panic!("Consistency error: publish empty buffer?");
+                if count != 0 {
+                    // Transmit the data in the output buffer.
+                    let (_rval, opt) = self.uart.transmit_buffer(out_buffer, count);
+                    self.output_buffer.put(opt);
+                }
             }
-
-            // Transmit the data in the output buffer.
-            let (_rval, opt) = self.uart.transmit_buffer(out_buffer, count);
-            self.output_buffer.put(opt);
         });
     }
 
@@ -341,26 +339,27 @@ impl Write for DebugWriterWrapper {
     fn write_str(&mut self, s: &str) -> Result {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw.map(|dw| {
-            let bytes = s.as_bytes();
+            dw.internal_buffer.map(|ring_buffer| {
+                let bytes = s.as_bytes();
 
-            let ring_buffer = dw.internal_buffer.take().unwrap();
-            let available_len_for_msg = ring_buffer.available_len().saturating_sub(FULL_MSG.len());
+                let available_len_for_msg =
+                    ring_buffer.available_len().saturating_sub(FULL_MSG.len());
 
-            if available_len_for_msg >= bytes.len() {
-                for &b in bytes {
-                    ring_buffer.enqueue(b);
+                if available_len_for_msg >= bytes.len() {
+                    for &b in bytes {
+                        ring_buffer.enqueue(b);
+                    }
+                } else {
+                    for &b in &bytes[..available_len_for_msg] {
+                        ring_buffer.enqueue(b);
+                    }
+                    // When the buffer is close to full, print a warning and drop the current
+                    // string.
+                    for &b in FULL_MSG {
+                        ring_buffer.enqueue(b);
+                    }
                 }
-            } else {
-                for &b in &bytes[..available_len_for_msg] {
-                    ring_buffer.enqueue(b);
-                }
-                // When the buffer is close to full, print a warning and drop the current
-                // string.
-                for &b in FULL_MSG {
-                    ring_buffer.enqueue(b);
-                }
-            }
-            dw.internal_buffer.put(Some(ring_buffer));
+            });
         });
 
         Ok(())
