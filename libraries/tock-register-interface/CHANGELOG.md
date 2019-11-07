@@ -2,6 +2,9 @@
 
 ## master
 
+
+## v0.4
+
  - #1368: Remove `new()` and add `InMemoryRegister`
  - #1410: Add new macro for generating structs
 

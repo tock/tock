@@ -6,6 +6,7 @@ version = "0.1.0"
 dependencies = [
  "arty_e21 0.1.0",
  "capsules 0.1.0",
+ "components 0.1.0",
  "kernel 0.1.0",
  "rv32i 0.1.0",
  "sifive 0.1.0",
@@ -29,6 +30,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
 name = "enum_primitive"
 version = "0.1.0"
 
@@ -37,14 +46,14 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "tock-cells 0.1.0",
- "tock-registers 0.3.0",
+ "tock-registers 0.4.0",
 ]
 
 [[package]]
 name = "riscv-csr"
 version = "0.1.0"
 dependencies = [
- "tock-registers 0.3.0",
+ "tock-registers 0.4.0",
 ]
 
 [[package]]
@@ -53,7 +62,7 @@ version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
  "riscv-csr 0.1.0",
- "tock-registers 0.3.0",
+ "tock-registers 0.4.0",
  "tock_rt0 0.1.0",
 ]
 
@@ -71,7 +80,7 @@ version = "0.1.0"
 
 [[package]]
 name = "tock-registers"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "tock_rt0"

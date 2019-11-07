@@ -25,7 +25,6 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART0 configuration.
-#[macro_use]
 pub mod io;
 #[allow(dead_code)]
 mod test_take_map_cell;

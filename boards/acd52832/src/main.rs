@@ -33,7 +33,6 @@ const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 19;
 
 /// UART Writer
-#[macro_use]
 pub mod io;
 
 // State for loading and holding applications.
