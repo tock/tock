@@ -7,6 +7,7 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -109,20 +110,7 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(&arty_e21::uart::UART0, uart_mux);
     hil::uart::Receive::set_receive_client(&arty_e21::uart::UART0, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(console_uart, console);
-    hil::uart::Receive::set_receive_client(console_uart, console);
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -133,21 +121,9 @@ pub unsafe fn reset_handler() {
     hil::time::Alarm::set_client(&rv32i::machine_timer::MACHINETIMER, mux_alarm);
 
     // Alarm
-    let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        VirtualMuxAlarm::new(mux_alarm)
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
+        components::alarm_component_helper!(rv32i::machine_timer::MachineTimer),
     );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        >,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm_user,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
 
     // TEST for timer
     //
