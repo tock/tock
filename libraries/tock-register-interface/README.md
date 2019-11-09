@@ -104,6 +104,7 @@ register_structs! {
     Registers {
         (0x000 => foo: ReadOnly<u8>),
         (0x008 => bar: ReadOnly<u8>),
+        (0x009 => @END),
     }
 }
 ```
