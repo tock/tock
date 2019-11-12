@@ -247,17 +247,19 @@ impl<A: time::Alarm> TxClient for IP6SendStruct<'a, A> {
         self.tx_buf.replace(tx_buf);
         if result != ReturnCode::SUCCESS {
             debug!("Send Failed: {:?}, acked: {}", result, acked);
+            client.send_done(result);
+        } else {
+            // Below code adds delay between fragments. Despite some efforts
+            // to fix this bug, I find that without it the receiving imix cannot
+            // receive more than 2 fragments in a single packet without hanging
+            // waiting for the third fragments.
+            // Specifically, here we set a timer, which fires and sends the next fragment
+            // One flaw with this is that we also introduce a delay after sending the last
+            // fragment, before passing the send_done callback back to the client. This
+            // could be optimized by checking if it is the last fragment before setting the timer.
+            let interval = (100000 as u32) * <A::Frequency>::frequency() / 1000000;
+            let tics = self.alarm.now().wrapping_add(interval);
+            self.alarm.set_alarm(tics);
         }
-        // Below code adds delay between fragments. Despite some efforts
-        // to fix this bug, I find that without it the receiving imix cannot
-        // receive more than 2 fragments in a single packet without hanging
-        // waiting for the third fragments.
-        // Specifically, here we set a timer, which fires and sends the next fragment
-        // One flaw with this is that we also introduce a delay after sending the last
-        // fragment, before passing the send_done callback back to the client. This
-        // could be optimized by checking if it is the last fragment before setting the timer.
-        let interval = (100000 as u32) * <A::Frequency>::frequency() / 1000000;
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
     }
 }

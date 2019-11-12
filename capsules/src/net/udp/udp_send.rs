@@ -38,7 +38,6 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
         transport_header: TransportHeader,
         caller: &'a UDPSendStruct<'a, T>,
     ) -> ReturnCode {
-        // TO DO: Enforce port binding here ()
         // Add this sender to the tail of the sender_list
         let list_empty = self.sender_list.head().is_none();
         self.add_client(caller);
@@ -47,7 +46,6 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
             ret = match caller.tx_buffer.take() {
                 Some(buf) => {
                     let ret = self.ip_sender.send_to(dest, transport_header, &buf);
-                    debug!("replacing buffer after calling ip_sender send_to");
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
                 }
@@ -76,16 +74,13 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                 .client
                 .map(|client| match last_sender.tx_buffer.take() {
                     Some(buf) => {
-                        debug!("Successful call to send done.");
                         let bind = last_sender.get_binding().expect("hi");
-                        debug!("Bound port: {:?}", bind.get_port());
                         last_sender.set_binding(bind);
                         client.send_done(result, buf);
                     }
                     None => {
                         debug!("ERROR: Missing buffer in send done.");
                         let bind = last_sender.get_binding().expect("hi");
-                        debug!("Bound port: {:?}", bind.get_port());
                         last_sender.set_binding(bind);
                     }
                 })
@@ -162,7 +157,7 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         //src_port: u16,
         buf: Buffer<'static, u8>,
-    ) -> ReturnCode;
+    ) -> Result<(), Buffer<'static, u8>>;
 
     /// This function is identical to `send_to()` except that it takes in
     /// an explicit src_port instead of a binding. This allows it to be used
@@ -184,8 +179,7 @@ pub trait UDPSender<'a> {
         src_port: u16,
         buf: Buffer<'static, u8>,
         driver_send_cap: &UdpDriverSendCapability,
-    ) -> ReturnCode;
-    // TODO: Require capability to call above function
+    ) -> Result<(), Buffer<'static, u8>>;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
     /// and buffer, and sends it to the provided IP address
@@ -198,7 +192,12 @@ pub trait UDPSender<'a> {
     /// # Return Value
     /// Returns any synchronous errors or success. Note that any asynchrounous
     /// errors are returned via the callback.
-    fn send(&'a self, dest: IPAddr, udp_header: UDPHeader, buf: Buffer<'static, u8>) -> ReturnCode;
+    fn send(
+        &'a self,
+        dest: IPAddr,
+        udp_header: UDPHeader,
+        buf: Buffer<'static, u8>,
+    ) -> Result<(), Buffer<'static, u8>>;
 
     fn get_binding(&self) -> Option<UdpSenderBinding>;
 
@@ -233,20 +232,25 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.client.set(client);
     }
 
-    fn send_to(&'a self, dest: IPAddr, dst_port: u16, buf: Buffer<'static, u8>) -> ReturnCode {
+    fn send_to(
+        &'a self,
+        dest: IPAddr,
+        dst_port: u16,
+        buf: Buffer<'static, u8>,
+    ) -> Result<(), Buffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         match self.binding.take() {
             Some(binding) => {
                 if binding.get_port() == 0 {
-                    ReturnCode::EINVAL
+                    Err(buf)
                 } else {
                     udp_header.set_src_port(binding.get_port());
                     self.binding.replace(binding);
                     self.send(dest, udp_header, buf)
                 }
             }
-            None => ReturnCode::EINVAL,
+            None => Err(buf),
         }
     }
 
@@ -257,28 +261,28 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         src_port: u16,
         buf: Buffer<'static, u8>,
         _driver_send_cap: &UdpDriverSendCapability,
-    ) -> ReturnCode {
+    ) -> Result<(), Buffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
         self.send(dest, udp_header, buf)
     }
-    // TODO: Require capability to call above function
 
     fn send(
         &'a self,
         dest: IPAddr,
         mut udp_header: UDPHeader,
         buf: Buffer<'static, u8>,
-    ) -> ReturnCode {
-        // TODO: need to enforce port binding here? Up to what point do we
-        // enforce it? IP layer?
+    ) -> Result<(), Buffer<'static, u8>> {
         udp_header.set_len((buf.len() + udp_header.get_hdr_size()) as u16);
         let transport_header = TransportHeader::UDP(udp_header);
         self.tx_buffer.replace(buf);
         self.next_dest.replace(dest);
         self.next_th.replace(transport_header); // th = transport header
-        self.udp_mux_sender.send_to(dest, transport_header, &self)
+        match self.udp_mux_sender.send_to(dest, transport_header, &self) {
+            ReturnCode::SUCCESS => Ok(()),
+            _ => Err(self.tx_buffer.take().unwrap()),
+        }
     }
 
     fn get_binding(&self) -> Option<UdpSenderBinding> {

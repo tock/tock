@@ -264,13 +264,20 @@ impl<'a> UDPDriver<'a> {
                         .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
                             kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
                             kernel_buffer.slice(0..payload.len());
-                            self.sender.driver_send_to(
+                            match self.sender.driver_send_to(
                                 dst_addr,
                                 dst_port,
                                 src_port,
                                 kernel_buffer,
                                 self.driver_send_cap,
-                            )
+                            ) {
+                                Ok(_) => ReturnCode::SUCCESS,
+                                Err(mut buf) => {
+                                    buf.reset();
+                                    self.kernel_buffer.replace(buf);
+                                    ReturnCode::FAIL
+                                }
+                            }
                         })
                 });
             if result == ReturnCode::SUCCESS {

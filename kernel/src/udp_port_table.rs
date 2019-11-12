@@ -6,6 +6,7 @@
 //! table. In order to bind to a particular port as sending/receiving, one must
 //! obtain the corresponding sender/receiving binding from UdpPortBinding.
 use crate::returncode::ReturnCode;
+use core::fmt;
 use tock_cells::optional_cell::OptionalCell;
 use tock_cells::take_cell::TakeCell;
 
@@ -15,7 +16,7 @@ const MAX_NUM_BOUND_PORTS: usize = 16;
 /// The PortEntry struct is stored in the table and conveys what port is bound
 /// at the given index if one is bound. If no port is bound, the value stored
 /// at location is Unbound.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum PortEntry {
     Port(u16),
     Unbound,
@@ -38,6 +39,7 @@ pub trait PortQuery {
 #[derive(Debug)]
 pub struct UdpPortSocket {
     idx: usize,
+    port_table: &'static UdpPortTable,
 }
 
 /// The UdpPortTable maintains a reference the port_array, which manages what
@@ -48,9 +50,26 @@ pub struct UdpPortTable {
     user_ports: OptionalCell<&'static PortQuery>,
 }
 
+impl fmt::Debug for UdpPortTable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[Port Table]")
+    }
+}
+
 impl UdpPortSocket {
-    fn new(idx: usize) -> UdpPortSocket {
-        UdpPortSocket { idx: idx }
+    // important that this function is not public. If it were, capsules could
+    // obtain access to ports bound by other capsules
+    fn new(idx: usize, pt: &'static UdpPortTable) -> UdpPortSocket {
+        UdpPortSocket {
+            idx: idx,
+            port_table: pt,
+        }
+    }
+}
+
+impl Drop for UdpPortSocket {
+    fn drop(&mut self) {
+        self.port_table.destroy_socket(self);
     }
 }
 
@@ -110,14 +129,14 @@ impl UdpPortTable {
         self.user_ports.replace(user_ports_ref);
     }
 
-    pub fn create_socket(&self) -> Result<UdpPortSocket, ReturnCode> {
+    pub fn create_socket(&'static self) -> Result<UdpPortSocket, ReturnCode> {
         self.port_array
             .map(|table| {
                 let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
                         None => {
-                            result = Ok(UdpPortSocket::new(i));
+                            result = Ok(UdpPortSocket::new(i, &self));
                             table[i] = Some(PortEntry::Unbound);
                             break;
                         }
@@ -129,9 +148,21 @@ impl UdpPortTable {
             .expect("failed to create socket")
     }
 
-    pub fn destroy_socket(&self, socket: UdpPortSocket) {
+    pub fn destroy_socket(&self, socket: &mut UdpPortSocket) {
         self.port_array.map(|table| {
-            table[socket.idx] = None;
+            // only free slot if it is unbound! Current design means that drop is also called
+            // when port table consumes socket on call to bind(), but dont want to drop the
+            // bindings. Alternate approach is to have port table store the sockets in the port
+            // table itself rather than consuming sockets on bind() and creating them on unbind(),
+            // but this approach would bloat the size of the table
+            match table[socket.idx] {
+                Some(entry) => {
+                    if entry == PortEntry::Unbound {
+                        table[socket.idx] = None;
+                    }
+                }
+                _ => {}
+            }
         });
     }
 
@@ -200,7 +231,7 @@ impl UdpPortTable {
     /// Disassociate the port from the given binding. Return the socket that was
     /// contained within the binding object.
     pub fn unbind(
-        &self,
+        &'static self,
         sender_binding: UdpSenderBinding,
         receiver_binding: UdpReceiverBinding,
         /*cap: &capabilities::UDPBindCapability*/
@@ -211,9 +242,9 @@ impl UdpPortTable {
         }
         let idx = sender_binding.idx;
         self.port_array.map(|table| {
-            table[idx] = None;
+            table[idx] = Some(PortEntry::Unbound);
         });
         // Search the list and return the appropriate socket
-        Ok(UdpPortSocket::new(idx))
+        Ok(UdpPortSocket::new(idx, &self))
     }
 }

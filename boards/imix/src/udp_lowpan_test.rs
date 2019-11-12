@@ -25,7 +25,7 @@
 use super::components::mock_udp::MockUDPComponent;
 use super::components::mock_udp2::MockUDPComponent2;
 use capsules::ieee802154::device::MacDevice;
-use capsules::mock_udp::MockUdp1;
+use capsules::mock_udp::MockUdp;
 use capsules::net::buffer::Buffer;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
@@ -62,8 +62,8 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: &'a A,
     test_counter: Cell<usize>,
     port_table: &'static UdpPortTable,
-    mock_udp1: &'a MockUdp1<'a, A>,
-    mock_udp2: &'a MockUdp1<'a, A>,
+    mock_udp1: &'a MockUdp<'a, A>,
+    mock_udp2: &'a MockUdp<'a, A>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -122,8 +122,8 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     pub fn new(
         alarm: &'a A,
         port_table: &'static UdpPortTable,
-        mock_udp1: &'static MockUdp1<'a, A>,
-        mock_udp2: &'static MockUdp1<'a, A>,
+        mock_udp1: &'static MockUdp<'a, A>,
+        mock_udp2: &'static MockUdp<'a, A>,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
@@ -154,14 +154,18 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn num_tests(&self) -> usize {
-        2
+        4
     }
 
     fn run_test(&self, test_id: usize) {
-        debug!("Running test {}:", test_id);
+        if test_id < self.num_tests() {
+            debug!("Running test {}:", test_id);
+        }
         match test_id {
-            0 => self.port_table_test(),
-            1 => self.capsule_send_test(),
+            0 => self.capsule_send_fail(),
+            1 => self.port_table_test(),
+            2 => self.port_table_test2(),
+            3 => self.capsule_send_test(),
             _ => return,
         }
         self.schedule_next();
@@ -178,11 +182,11 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         let socket3 = self.port_table.create_socket().unwrap();
         //debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).expect("fail1");
+        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).expect("UDP Bind fail1");
         let result = self.port_table.bind(socket2, 4000);
         assert!(result.is_err());
-        socket2 = result.unwrap_err();
-        let (send_bind2, recv_bind2) = self.port_table.bind(socket2, 4001).expect("fail2");
+        socket2 = result.unwrap_err(); // This is how you get the socket back
+        let (send_bind2, recv_bind2) = self.port_table.bind(socket2, 4001).expect("UDP Bind fail2");
 
         // Ensure that only the first binding is able to send
         assert_eq!(send_bind.get_port(), 4000);
@@ -190,10 +194,51 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         assert!(self.port_table.unbind(send_bind, recv_bind).is_ok());
 
         // Show that you can bind to a port once another socket has unbound it
-        let (send_bind3, recv_bind3) = self.port_table.bind(socket3, 4000).expect("fail3");
+        let (send_bind3, recv_bind3) = self.port_table.bind(socket3, 4000).expect("UDP Bind fail3");
+
+        //clean up remaining bindings
         assert!(self.port_table.unbind(send_bind3, recv_bind3).is_ok());
+        assert!(self.port_table.unbind(send_bind2, recv_bind2).is_ok());
 
         debug!("port_table_test passed");
+    }
+
+    fn port_table_test2(&self) {
+        // Show that you can create up to 16 sockets before fail, but that destroying allows more
+        // (MAX_NUM_BOUND_PORTS is set to 16 in udp_port_table.rs)
+        {
+            let socket1 = self.port_table.create_socket().unwrap();
+            let socket2 = self.port_table.create_socket().unwrap();
+            let socket3 = self.port_table.create_socket().unwrap();
+            let socket4 = self.port_table.create_socket().unwrap();
+            let socket5 = self.port_table.create_socket().unwrap();
+            let socket6 = self.port_table.create_socket().unwrap();
+            let socket7 = self.port_table.create_socket().unwrap();
+            let socket8 = self.port_table.create_socket().unwrap();
+            let socket9 = self.port_table.create_socket().unwrap();
+            let socket10 = self.port_table.create_socket().unwrap();
+            let socket11 = self.port_table.create_socket().unwrap();
+            let socket12 = self.port_table.create_socket().unwrap();
+            let socket13 = self.port_table.create_socket().unwrap();
+            let socket14 = self.port_table.create_socket().unwrap();
+            let socket15 = self.port_table.create_socket().unwrap();
+            let socket16 = self.port_table.create_socket().unwrap();
+            let willfail = self.port_table.create_socket();
+            assert!(willfail.is_err());
+            // these sockets table slots are freed once they are dropped, so
+            // we can succeed again outside this block
+        }
+        let willsucceed = self.port_table.create_socket();
+        assert!(willsucceed.is_ok());
+
+        debug!("port_table_test2 passed");
+    }
+
+    fn capsule_send_fail(&self) {
+        let ret = self.mock_udp1.send(0);
+        assert!(ret != ReturnCode::SUCCESS); //trying to send while not bound should fail!
+
+        debug!("send_fail test passed")
     }
 
     fn capsule_send_test(&self) {
@@ -205,6 +250,8 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         // first completes!
         self.mock_udp1.send(22);
         self.mock_udp2.send(23);
+
+        debug!("send_test executed, look at printed results once callbacks arrive");
     }
 }
 

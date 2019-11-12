@@ -21,8 +21,9 @@ pub const DST_ADDR: IPAddr = IPAddr([
     // 0x0f,
 ]);
 pub const PAYLOAD_LEN: usize = 192;
+pub const SEND_INTERVAL_SECONDS: u32 = 5;
 
-pub struct MockUdp1<'a, A: Alarm> {
+pub struct MockUdp<'a, A: Alarm> {
     id: u16,
     pub alarm: &'a A,
     udp_sender: &'a UDPSender<'a>,
@@ -34,7 +35,7 @@ pub struct MockUdp1<'a, A: Alarm> {
     send_loop: Cell<bool>,
 }
 
-impl<'a, A: Alarm> MockUdp1<'a, A> {
+impl<'a, A: Alarm> MockUdp<'a, A> {
     pub fn new(
         id: u16,
         alarm: &'a A,
@@ -43,8 +44,8 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
         port_table: &'static UdpPortTable,
         udp_dgram: Buffer<'static, u8>,
         dst_port: u16,
-    ) -> MockUdp1<'a, A> {
-        MockUdp1 {
+    ) -> MockUdp<'a, A> {
+        MockUdp {
             id: id,
             alarm: alarm,
             udp_sender: udp_sender,
@@ -64,7 +65,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
         self.alarm.set_alarm(
             self.alarm
                 .now()
-                .wrapping_add(<A::Frequency>::frequency() * 5),
+                .wrapping_add(<A::Frequency>::frequency() * SEND_INTERVAL_SECONDS),
         );
     }
 
@@ -89,7 +90,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                         }
                         Err(sock) => {
                             debug!("Binding error in mock_udp");
-                            self.port_table.destroy_socket(sock);
+                            // dropping sock destroys it!
                         }
                     },
                     Err((_send_bind, _rcv_bind)) => {
@@ -102,7 +103,6 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                 let socket = self.port_table.create_socket();
                 match socket {
                     Ok(sock) => {
-                        debug!("Socket successfully created in mock_udp");
                         match self.port_table.bind(sock, self.src_port.get()) {
                             Ok((send_bind, rcv_bind)) => {
                                 self.udp_sender.set_binding(send_bind);
@@ -110,7 +110,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                             }
                             Err(sock) => {
                                 debug!("Binding error in mock_udp (passed 0 as src_port?)");
-                                self.port_table.destroy_socket(sock);
+                                // dropping sock destroys it!
                             }
                         }
                     }
@@ -128,7 +128,7 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
     }
 
     // Sends a packet containing a single 2 byte number.
-    pub fn send(&self, value: u16) {
+    pub fn send(&self, value: u16) -> ReturnCode {
         match self.udp_dgram.take() {
             Some(mut dgram) => {
                 dgram[0] = (value >> 8) as u8;
@@ -138,16 +138,23 @@ impl<'a, A: Alarm> MockUdp1<'a, A> {
                     .udp_sender
                     .send_to(DST_ADDR, self.dst_port.get(), dgram)
                 {
-                    ReturnCode::SUCCESS => {}
-                    _ => debug!("ERROR: Mock UDP Send Failed."),
+                    Ok(_) => ReturnCode::SUCCESS,
+                    Err(mut buf) => {
+                        buf.reset();
+                        self.udp_dgram.replace(buf);
+                        ReturnCode::ERESERVE
+                    }
                 }
             }
-            None => debug!("ERROR: udp_dgram not present."),
+            None => {
+                debug!("ERROR: udp_dgram not present.");
+                ReturnCode::FAIL
+            }
         }
     }
 }
 
-impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
+impl<'a, A: Alarm> time::Client for MockUdp<'a, A> {
     fn fired(&self) {
         if self.send_loop.get() {
             self.send(self.id);
@@ -155,21 +162,21 @@ impl<'a, A: Alarm> time::Client for MockUdp1<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> UDPSendClient for MockUdp1<'a, A> {
+impl<'a, A: Alarm> UDPSendClient for MockUdp<'a, A> {
     fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
         self.udp_dgram.replace(dgram);
         debug!("");
-        /*self.alarm.set_alarm(
+        self.alarm.set_alarm(
             self.alarm
                 .now()
-                .wrapping_add(<A::Frequency>::frequency() * 5),
-        );*/
+                .wrapping_add(<A::Frequency>::frequency() * SEND_INTERVAL_SECONDS),
+        );
     }
 }
 
-impl<'a, A: Alarm> UDPRecvClient for MockUdp1<'a, A> {
+impl<'a, A: Alarm> UDPRecvClient for MockUdp<'a, A> {
     fn receive(
         &self,
         src_addr: IPAddr,
