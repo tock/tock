@@ -16,3 +16,4 @@ that Tock supports.
 | [ST Nucleo F429ZI](nucleo_f429zi/README.md)       | ARM Cortex-M4   | STM32F429  | openocd    | custom         |
 | [SiFive HiFive1](hifive1/README.md)               | RISC-V          | FE310-G000 | openocd    | tockloader     |
 | [Digilent Arty A-7 100T](arty-e21/README.md)      | RISC-V RV32IMAC | SiFive E21 | openocd    | tockloader     |
+| [Nexys Video OpenTitan](opentitan/README.md)      | RISC-V RV32IMC  | Ibex       | custom     | custom         |
