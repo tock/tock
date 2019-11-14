@@ -2,6 +2,9 @@
 
 ## master
 
+ - #1461: Update `register_structs` macro to support flexible visibility of each
+   struct and each field. Also revert to private structs by default.
+
 ## v0.4.1
 
  - #1458: Update struct macro to create `pub` structs
