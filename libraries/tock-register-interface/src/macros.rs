@@ -140,12 +140,12 @@ macro_rules! register_bitfields {
 #[macro_export]
 macro_rules! register_fields {
     // Macro entry point.
-    (@root $(#[$attr_struct:meta])* $name:ident { $($input:tt)* } ) => {
+    (@root $(#[$attr_struct:meta])* $vis_struct:vis $name:ident { $($input:tt)* } ) => {
         $crate::register_fields!(
             @munch (
                 $($input)*
             ) -> {
-                struct $(#[$attr_struct])* $name
+                $vis_struct struct $(#[$attr_struct])* $name
             }
         );
     };
@@ -156,17 +156,17 @@ macro_rules! register_fields {
             $(#[$attr_end:meta])*
             ($offset:expr => @END),
         )
-        -> {struct $(#[$attr_struct:meta])* $name:ident $(
+        -> {$vis_struct:vis struct $(#[$attr_struct:meta])* $name:ident $(
                 $(#[$attr:meta])*
-                ($id:ident: $ty:ty)
+                ($vis:vis $id:ident: $ty:ty)
             )*}
     ) => {
         $(#[$attr_struct])*
         #[repr(C)]
-        pub struct $name {
+        $vis_struct struct $name {
             $(
                 $(#[$attr])*
-                $id: $ty
+                $vis $id: $ty
             ),*
         }
     };
@@ -175,7 +175,7 @@ macro_rules! register_fields {
     (@munch
         (
             $(#[$attr:meta])*
-            ($offset_start:expr => $field:ident: $ty:ty),
+            ($offset_start:expr => $vis:vis $field:ident: $ty:ty),
             $($after:tt)*
         )
         -> {$($output:tt)*}
@@ -186,7 +186,7 @@ macro_rules! register_fields {
             ) -> {
                 $($output)*
                 $(#[$attr])*
-                ($field: $ty)
+                ($vis $field: $ty)
             }
         );
     };
@@ -249,7 +249,7 @@ macro_rules! test_fields {
     (@munch $struct:ident $sum:ident
         (
             $(#[$attr:meta])*
-            ($offset_start:expr => $field:ident: $ty:ty),
+            ($offset_start:expr => $vis:vis $field:ident: $ty:ty),
             $(#[$attr_next:meta])*
             ($offset_end:expr => $($next:tt)*),
             $($after:tt)*
@@ -330,12 +330,12 @@ macro_rules! register_structs {
     {
         $(
             $(#[$attr:meta])*
-            $name:ident {
+            $vis_struct:vis $name:ident {
                 $( $fields:tt )*
             }
         ),*
     } => {
-        $( $crate::register_fields!(@root $(#[$attr])* $name { $($fields)* } ); )*
+        $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name { $($fields)* } ); )*
 
         #[cfg(test)]
         mod test_register_structs {
