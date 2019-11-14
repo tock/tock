@@ -2,6 +2,9 @@
 
 ## master
 
+## v0.4.1
+
+ - #1458: Update struct macro to create `pub` structs
 
 ## v0.4
 
