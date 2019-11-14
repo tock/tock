@@ -9,6 +9,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
 name = "e310x"
 version = "0.1.0"
 dependencies = [
@@ -26,6 +34,7 @@ name = "hifive1"
 version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
+ "components 0.1.0",
  "e310x 0.1.0",
  "kernel 0.1.0",
  "rv32i 0.1.0",

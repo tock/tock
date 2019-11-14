@@ -10,12 +10,12 @@ extern crate enum_primitive;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::pwm;
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio;
@@ -253,40 +253,10 @@ pub unsafe fn reset_handler() {
     hil::uart::Receive::set_receive_client(&cc26x2::uart::UART0, uart_mux);
     hil::uart::Transmit::set_transmit_client(&cc26x2::uart::UART0, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
-    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
-
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let ring_buffer = static_init!(
-        RingBuffer<'static, u8>,
-        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
-    );
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     cc26x2::i2c::I2C0.initialize();
 

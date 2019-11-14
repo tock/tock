@@ -30,6 +30,7 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
+use components::debug_writer::DebugWriterComponent;
 use components::isl29035::AmbientLightComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
@@ -314,6 +315,7 @@ pub unsafe fn reset_handler() {
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);

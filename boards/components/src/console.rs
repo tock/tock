@@ -1,15 +1,13 @@
 //! Component for Console, the generic serial interface.
 //!
-//! This provides one Component, ConsoleComponent, which implements
-//! a buffered read/write console over a serial port. This is typically
-//! USART3 (the DEBUG USB connector). It attaches kernel debug output
-//! to this console (for panic!, print!, debug!, etc.).
+//! This provides one Component, ConsoleComponent, which implements a buffered
+//! read/write console over a serial port. For example, this is typically USART3
+//! (the DEBUG USB connector) on imix.
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize();
-//! let rf233_spi = SpiComponent::new(mux_spi).finalize();
+//! let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -20,7 +18,6 @@
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
@@ -65,29 +62,6 @@ impl Component for ConsoleComponent {
         );
         hil::uart::Transmit::set_transmit_client(console_uart, console);
         hil::uart::Receive::set_receive_client(console_uart, console);
-
-        // Create virtual device for kernel debug.
-        let debugger_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, false));
-        debugger_uart.setup();
-        let ring_buffer = static_init!(
-            RingBuffer<'static, u8>,
-            RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
-        );
-        let debugger = static_init!(
-            kernel::debug::DebugWriter,
-            kernel::debug::DebugWriter::new(
-                debugger_uart,
-                &mut kernel::debug::OUTPUT_BUF,
-                ring_buffer,
-            )
-        );
-        hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-        let debug_wrapper = static_init!(
-            kernel::debug::DebugWriterWrapper,
-            kernel::debug::DebugWriterWrapper::new(debugger)
-        );
-        kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
         console
     }
