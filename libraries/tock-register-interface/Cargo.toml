@@ -1,6 +1,6 @@
 [package]
 name = "tock-registers"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 description = "Memory-Mapped I/O and register interface developed for Tock."
 homepage = "https://www.tockos.org/"

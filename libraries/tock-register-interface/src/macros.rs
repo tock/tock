@@ -163,7 +163,7 @@ macro_rules! register_fields {
     ) => {
         $(#[$attr_struct])*
         #[repr(C)]
-        struct $name {
+        pub struct $name {
             $(
                 $(#[$attr])*
                 $id: $ty
