@@ -22,6 +22,6 @@ for f in $(find . | grep Cargo.toml); do
 	popd > /dev/null
 done
 
-echo "Generate or updated all Cargo.lock files."
+echo "Generated or updated all Cargo.lock files."
 echo "Because of the .gitignore file this will not show any changed files."
 
