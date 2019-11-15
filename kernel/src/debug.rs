@@ -288,7 +288,7 @@ impl DebugWriter {
 
                 if count != 0 {
                     // Transmit the data in the output buffer.
-                    let (_rval, opt) = self.console_mux.transmit_buffer(out_buffer, count);
+                    let (_rval, opt) = self.console_mux.transmit_message(out_buffer, count, None);
                     self.output_buffer.put(opt);
                 }
             }
@@ -300,8 +300,8 @@ impl DebugWriter {
     }
 }
 
-impl hil::uart::TransmitClient for DebugWriter {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
+impl console::ConsoleClient for DebugWriter {
+    fn transmitted_message(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 
