@@ -1,7 +1,7 @@
 //! Interface for configuring the Memory Protection Unit.
 
 use core::cmp;
-use core::fmt::Display;
+use core::fmt::{self, Display};
 
 /// User mode access permissions.
 #[derive(Copy, Clone)]
@@ -49,6 +49,20 @@ impl Region {
     }
 }
 
+/// Null type for the default type of the `MpuConfig` type in an implementation
+/// of the `MPU` trait. We need this to workaround a bug in the Rust compiler.
+///
+/// If https://github.com/rust-lang/rust/issues/65774 is resolved then we should
+/// be able to remove this type.
+#[derive(Default)]
+pub struct MpuConfigDefault {}
+
+impl Display for MpuConfigDefault {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
+    }
+}
+
 /// The generic trait that particular memory protection unit implementations
 /// need to implement.
 ///
@@ -75,7 +89,7 @@ pub trait MPU {
     /// It is `Default` so we can create empty state when the process is
     /// created, and `Display` so that the `panic!()` output can display the
     /// current state to help with debugging.
-    type MpuConfig: Default + Display = ();
+    type MpuConfig: Default + Display = MpuConfigDefault;
 
     /// Enables the MPU.
     ///
