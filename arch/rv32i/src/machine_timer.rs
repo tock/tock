@@ -6,11 +6,8 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
 
-const MTIME_BASE: StaticRef<MachineTimerRegisters> =
-    unsafe { StaticRef::new(0x0200_0000 as *const MachineTimerRegisters) };
-
 #[repr(C)]
-struct MachineTimerRegisters {
+pub struct MachineTimerRegisters {
     _reserved0: [u8; 0x4000],
     mtimecmp: ReadWrite<u64, MTimeCmp::Register>,
     _reserved1: [u8; 0x7FF0],
@@ -26,17 +23,15 @@ register_bitfields![u64,
     ]
 ];
 
-pub static mut MACHINETIMER: MachineTimer = MachineTimer::new();
-
 pub struct MachineTimer<'a> {
     registers: StaticRef<MachineTimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
 impl MachineTimer<'a> {
-    const fn new() -> MachineTimer<'a> {
+    pub const fn new(base: StaticRef<MachineTimerRegisters>) -> MachineTimer<'a> {
         MachineTimer {
-            registers: MTIME_BASE,
+            registers: base,
             client: OptionalCell::empty(),
         }
     }

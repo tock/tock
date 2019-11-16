@@ -4,11 +4,11 @@ use kernel;
 use kernel::debug;
 use rv32i;
 use rv32i::csr;
-use rv32i::machine_timer;
 
 use crate::gpio;
 use crate::interrupts;
 use crate::plic;
+use crate::timer;
 use crate::uart;
 
 pub struct E310x {
@@ -96,7 +96,7 @@ pub unsafe fn handle_trap() {
                 rv32i::csr::mcause::Interrupt::SupervisorSoft => (),
 
                 rv32i::csr::mcause::Interrupt::MachineTimer => {
-                    machine_timer::MACHINETIMER.handle_interrupt();
+                    timer::MACHINETIMER.handle_interrupt();
                 }
 
                 // should never occur
