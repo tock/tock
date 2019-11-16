@@ -7,6 +7,7 @@ use rv32i::csr;
 
 use crate::interrupts;
 use crate::plic;
+use crate::timer;
 use crate::uart;
 
 pub struct Ibex {
@@ -93,7 +94,9 @@ pub unsafe fn handle_trap() {
                 rv32i::csr::mcause::Interrupt::UserSoft => (),
                 rv32i::csr::mcause::Interrupt::SupervisorSoft => (),
 
-                rv32i::csr::mcause::Interrupt::MachineTimer => {}
+                rv32i::csr::mcause::Interrupt::MachineTimer => {
+                    timer::MACHINETIMER.handle_interrupt();
+                }
 
                 // should never occur
                 rv32i::csr::mcause::Interrupt::UserTimer => (),
