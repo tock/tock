@@ -1,12 +1,22 @@
 //! `udp_lowpan_test.rs`: Kernel test suite for the UDP/6LoWPAN stack
 //!
-//! This file tests port binding and sending messages from kernel space.
-//! It instantiates two capsules that use the UDP stack, and tests various
+//! This file tests port binding and sending and receiving messages from kernel space.
+//! It has several different test modes.
+//!
+//! The first, called by start(),
+//! instantiates two capsules that use the UDP stack, and tests various
 //! binding and sending orders to ensure that port binding and sending
 //! is enforced as expected.
-//! The messages sent are long enough to require multiple fragments). The payload of each message
-//! is all 0's. Tests for UDP reception exist in userspace, but not in the kernel
-//! at this point in time. At the conclusion of the test, it prints "Test completed successfully."
+//! The messages sent are long enough to require multiple fragments. The payload of each message
+//! is all 0's.
+//!
+//! start_rx() runs a test where an app and a userspace capsule both attempt UDP reception on
+//! different ports.
+//!
+//! start_with_app() tests port binding virtualization between both apps and capsules.
+//!
+//! start_dual_rx() tests multiple capsules attempting to bind to different ports and receive
+//! messages in quick succession.
 //!
 //! To use this test suite, insert the code into `boards/imix/src/main.rs` as follows:
 //!
@@ -21,27 +31,35 @@
 //! // Imix initialization
 //! ...
 //! udp_lowpan_test.start();
+//!
+//! Depending on the test you want to run, replace the call to start() with calls to
+//! start_rx(), start_dual_rx(), or start_with_app().
+//! Only one of these should be included at a time. Each is used for a different
+//! set of kernel tests, some of which require additional boards or that userland
+//! apps be flashed simultaneously.
+//!
+//! start_with_app() should be used alongside the userland app `examples/tests/udp/udp_virt_app_kernel`
+//! start_rx() should be run alongside the userland app
+//! `examples/tests/udp/udp_virt_rx_tests/app1`. It also requires that a second board with the
+//! normal kernel (no tests) be running simultaneously with both userland apps in
+//! `examples/tests/udp/udp_virt_app_tests/` flashed on this second board. Press reset on the
+//! second board at least 2 seconds after running `tockloader listen` on the receiving board to run
+//! this test.
+//! start_dual_rx() has the same instructions as start_rx(), but it should be run with no userspace
+//! apps on the receiving board. This test also requires additional changes to main.rs --
+//! serial_num_bottom_16 must be replaced with 49138 for this to work. main.rs includes comments
+//! showing what should be included and excluded to run this final test.
 
 use super::components::mock_udp::MockUDPComponent;
 use super::components::mock_udp2::MockUDPComponent2;
-use capsules::ieee802154::device::MacDevice;
 use capsules::mock_udp::MockUdp;
-use capsules::net::buffer::Buffer;
-use capsules::net::ieee802154::MacAddress;
-use capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
-use capsules::net::ipv6::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
-use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
-use capsules::net::sixlowpan::sixlowpan_compression;
-use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
-use capsules::net::udp::udp::UDPHeader;
+use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
-use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
+use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::common::cells::MapCell;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use kernel::static_init;
@@ -56,7 +74,13 @@ const PAYLOAD_LEN: usize = super::components::udp_mux::PAYLOAD_LEN;
 static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
-//Use a global variable option, initialize as None, then actually initialize in initialize all
+#[derive(Copy, Clone)]
+enum TestMode {
+    DefaultMode,
+    WithAppMode,
+    RxMode,
+    DualRxMode,
+}
 
 pub struct LowpanTest<'a, A: time::Alarm> {
     alarm: &'a A,
@@ -64,6 +88,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     port_table: &'static UdpPortTable,
     mock_udp1: &'a MockUdp<'a, A>,
     mock_udp2: &'a MockUdp<'a, A>,
+    test_mode: Cell<TestMode>,
 }
 //TODO: Initialize UDP sender/send_done client in initialize all
 pub unsafe fn initialize_all(
@@ -131,10 +156,26 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
             port_table: port_table,
             mock_udp1: mock_udp1,
             mock_udp2: mock_udp2,
+            test_mode: Cell::new(TestMode::DefaultMode),
         }
     }
 
     pub fn start(&self) {
+        self.schedule_next();
+    }
+
+    pub fn start_with_app(&self) {
+        self.test_mode.set(TestMode::WithAppMode);
+        self.schedule_next();
+    }
+
+    pub fn start_rx(&self) {
+        self.test_mode.set(TestMode::RxMode);
+        self.schedule_next();
+    }
+
+    pub fn start_dual_rx(&self) {
+        self.test_mode.set(TestMode::DualRxMode);
         self.schedule_next();
     }
 
@@ -158,17 +199,52 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 
     fn run_test(&self, test_id: usize) {
-        if test_id < self.num_tests() {
-            debug!("Running test {}:", test_id);
-        }
-        match test_id {
-            0 => self.capsule_send_fail(),
-            1 => self.port_table_test(),
-            2 => self.port_table_test2(),
-            3 => self.capsule_send_test(),
-            _ => return,
+        match self.test_mode.get() {
+            TestMode::DefaultMode => {
+                if test_id < self.num_tests() {
+                    debug!("Running test {}:", test_id);
+                } else {
+                    debug!("All UDP kernel tests complete.");
+                }
+                match test_id {
+                    0 => self.capsule_send_fail(),
+                    1 => self.port_table_test(),
+                    2 => self.port_table_test2(),
+                    3 => self.capsule_send_test(),
+                    _ => return,
+                }
+            }
+            TestMode::RxMode => match test_id {
+                0 => self.capsule_receive_test(),
+                _ => return,
+            },
+            TestMode::DualRxMode => match test_id {
+                0 => self.capsule_dual_receive_test(),
+                _ => return,
+            },
+            TestMode::WithAppMode => match test_id {
+                0 => self.bind_test(),
+                1 => self.capsule_send_test(),
+                _ => return,
+            },
         }
         self.schedule_next();
+    }
+
+    // This test ensures that an app and capsule cant bind to the same port
+    // but can bind to different ports
+    fn bind_test(&self) {
+        let mut socket1 = self.port_table.create_socket().unwrap();
+        // Attempt to bind to a port that has already been bound by an app.
+        let result = self.port_table.bind(socket1, 1000);
+        assert!(result.is_err());
+        socket1 = result.unwrap_err(); // Get the socket back
+
+        //now bind to an open port
+        let (_send_bind, _recv_bind) = self.port_table.bind(socket1, 1001).expect("UDP Bind fail");
+        //dont unbind, so we can test if app will still be able to bind it
+
+        debug!("bind_test passed");
     }
 
     // A basic test of port table functionality without using any capsules at all,
@@ -207,22 +283,22 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         // Show that you can create up to 16 sockets before fail, but that destroying allows more
         // (MAX_NUM_BOUND_PORTS is set to 16 in udp_port_table.rs)
         {
-            let socket1 = self.port_table.create_socket().unwrap();
-            let socket2 = self.port_table.create_socket().unwrap();
-            let socket3 = self.port_table.create_socket().unwrap();
-            let socket4 = self.port_table.create_socket().unwrap();
-            let socket5 = self.port_table.create_socket().unwrap();
-            let socket6 = self.port_table.create_socket().unwrap();
-            let socket7 = self.port_table.create_socket().unwrap();
-            let socket8 = self.port_table.create_socket().unwrap();
-            let socket9 = self.port_table.create_socket().unwrap();
-            let socket10 = self.port_table.create_socket().unwrap();
-            let socket11 = self.port_table.create_socket().unwrap();
-            let socket12 = self.port_table.create_socket().unwrap();
-            let socket13 = self.port_table.create_socket().unwrap();
-            let socket14 = self.port_table.create_socket().unwrap();
-            let socket15 = self.port_table.create_socket().unwrap();
-            let socket16 = self.port_table.create_socket().unwrap();
+            let _socket1 = self.port_table.create_socket().unwrap();
+            let _socket2 = self.port_table.create_socket().unwrap();
+            let _socket3 = self.port_table.create_socket().unwrap();
+            let _socket4 = self.port_table.create_socket().unwrap();
+            let _socket5 = self.port_table.create_socket().unwrap();
+            let _socket6 = self.port_table.create_socket().unwrap();
+            let _socket7 = self.port_table.create_socket().unwrap();
+            let _socket8 = self.port_table.create_socket().unwrap();
+            let _socket9 = self.port_table.create_socket().unwrap();
+            let _socket10 = self.port_table.create_socket().unwrap();
+            let _socket11 = self.port_table.create_socket().unwrap();
+            let _socket12 = self.port_table.create_socket().unwrap();
+            let _socket13 = self.port_table.create_socket().unwrap();
+            let _socket14 = self.port_table.create_socket().unwrap();
+            let _socket15 = self.port_table.create_socket().unwrap();
+            let _socket16 = self.port_table.create_socket().unwrap();
             let willfail = self.port_table.create_socket();
             assert!(willfail.is_err());
             // these sockets table slots are freed once they are dropped, so
@@ -252,6 +328,23 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
         self.mock_udp2.send(23);
 
         debug!("send_test executed, look at printed results once callbacks arrive");
+    }
+
+    fn capsule_app_send_test(&self) {
+        self.mock_udp1.bind(16124);
+        self.mock_udp1.set_dst(15000);
+        self.mock_udp1.send(22);
+
+        debug!("app/kernel send_test executed, look at printed results once callbacks arrive");
+    }
+
+    fn capsule_receive_test(&self) {
+        self.mock_udp1.bind(16124);
+    }
+
+    fn capsule_dual_receive_test(&self) {
+        self.mock_udp1.bind(16123);
+        self.mock_udp2.bind(16124);
     }
 }
 

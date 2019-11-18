@@ -170,13 +170,18 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
         transport_header: TransportHeader,
         payload: &Buffer<'static, u8>,
     ) {
-        self.ip6_packet.map(|ip6_packet| {
-            ip6_packet.header = IP6Header::default();
-            ip6_packet.header.src_addr = self.src_addr.get();
-            ip6_packet.header.dst_addr = dst_addr;
-            ip6_packet.set_payload(transport_header, payload);
-            ip6_packet.set_transport_checksum();
-        });
+        self.ip6_packet.map_or_else(
+            || {
+                debug!("init packet failed.");
+            },
+            |ip6_packet| {
+                ip6_packet.header = IP6Header::default();
+                ip6_packet.header.src_addr = self.src_addr.get();
+                ip6_packet.header.dst_addr = dst_addr;
+                ip6_packet.set_payload(transport_header, payload);
+                ip6_packet.set_transport_checksum();
+            },
+        );
     }
 
     // Returns EBUSY if the tx_buf is not there
@@ -192,31 +197,29 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
             .ip6_packet
             .map(move |ip6_packet| match self.tx_buf.take() {
                 Some(tx_buf) => {
-                    let mut send = false;
-                    let mut send_complete_return = ReturnCode::SUCCESS;
                     let next_frame = self.sixlowpan.next_fragment(ip6_packet, tx_buf, self.radio);
                     match next_frame {
                         Ok((is_done, frame)) => {
                             if is_done {
                                 self.tx_buf.replace(frame.into_buf());
                                 //self.send_completed(ReturnCode::SUCCESS);
-                                send = true;
-                                return (send_complete_return, send);
+                                return (ReturnCode::SUCCESS, true);
                             } else {
                                 let (err, _frame_option) = self.radio.transmit(frame);
-                                return (err, send);
+                                return (err, false);
                             }
                         }
                         Err((retcode, buf)) => {
                             self.tx_buf.replace(buf);
                             //self.send_completed(retcode);
-                            send = true;
-                            send_complete_return = retcode;
+                            return (retcode, true);
                         }
                     }
-                    (send_complete_return, send)
                 }
-                None => (ReturnCode::EBUSY, false),
+                None => {
+                    debug!("Missing tx_buf");
+                    (ReturnCode::EBUSY, false)
+                }
             })
             .unwrap_or((ReturnCode::ENOMEM, false));
         if call_send_complete {
@@ -247,7 +250,9 @@ impl<A: time::Alarm> TxClient for IP6SendStruct<'a, A> {
         self.tx_buf.replace(tx_buf);
         if result != ReturnCode::SUCCESS {
             debug!("Send Failed: {:?}, acked: {}", result, acked);
-            client.send_done(result);
+            self.client.map(move |client| {
+                client.send_done(result);
+            });
         } else {
             // Below code adds delay between fragments. Despite some efforts
             // to fix this bug, I find that without it the receiving imix cannot

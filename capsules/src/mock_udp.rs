@@ -88,7 +88,7 @@ impl<'a, A: Alarm> MockUdp<'a, A> {
                             self.udp_sender.set_binding(send_bind);
                             self.udp_receiver.set_binding(rcv_bind);
                         }
-                        Err(sock) => {
+                        Err(_sock) => {
                             debug!("Binding error in mock_udp");
                             // dropping sock destroys it!
                         }
@@ -108,7 +108,7 @@ impl<'a, A: Alarm> MockUdp<'a, A> {
                                 self.udp_sender.set_binding(send_bind);
                                 self.udp_receiver.set_binding(rcv_bind);
                             }
-                            Err(sock) => {
+                            Err(_sock) => {
                                 debug!("Binding error in mock_udp (passed 0 as src_port?)");
                                 // dropping sock destroys it!
                             }
@@ -186,8 +186,8 @@ impl<'a, A: Alarm> UDPRecvClient for MockUdp<'a, A> {
         payload: &[u8],
     ) {
         debug!(
-            "[MOCK_UDP] Received packet from {:?}:{:?}, contents: {:?}",
-            src_addr, src_port, payload
+            "[MOCK_UDP {:?}] Received packet from {:?}:{:?}, contents: {:?}",
+            self.id, src_addr, src_port, payload
         );
     }
 }

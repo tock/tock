@@ -362,14 +362,28 @@ impl<'a> Driver for UDPDriver<'a> {
     ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 | 3 => self.do_with_app(appid, |app| {
+                let mut success = true;
                 match allow_num {
                     0 => app.app_read = slice,
-                    1 => app.app_write = slice,
+                    1 => match slice {
+                        Some(s) => {
+                            if s.len() > self.max_tx_pyld_len {
+                                success = false;
+                            } else {
+                                app.app_write = Some(s);
+                            }
+                        }
+                        None => {}
+                    },
                     2 => app.app_cfg = slice,
                     3 => app.app_rx_cfg = slice,
                     _ => {}
                 }
-                ReturnCode::SUCCESS
+                if success {
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EINVAL //passed tx buffer too long
+                }
             }),
             _ => ReturnCode::ENOSUPPORT,
         }

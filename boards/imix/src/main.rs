@@ -38,7 +38,6 @@ use components::fxos8700::NineDofComponent;
 use components::gpio::GpioComponent;
 use components::isl29035::AmbientLightComponent;
 use components::led::LedComponent;
-use components::mock_udp::MockUDPComponent;
 use components::nonvolatile_storage::NonvolatileStorageComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
@@ -110,10 +109,6 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
 
-const UDP_HDR_SIZE: usize = 8;
-const PAYLOAD_LEN: usize = components::udp_mux::PAYLOAD_LEN;
-static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
-
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -183,9 +178,9 @@ impl kernel::Platform for Imix {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            //capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-            //capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            //capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
@@ -396,8 +391,14 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize();
+    let (radio_driver, mux_mac) = RadioComponent::new(
+        board_kernel,
+        rf233,
+        PAN_ID,
+        serial_num_bottom_16, //comment out for dual rx test only
+                              //49138, //comment in for dual rx test only
+    )
+    .finalize();
 
     let usb_driver = UsbComponent::new(board_kernel).finalize();
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize();
@@ -424,7 +425,8 @@ pub unsafe fn reset_handler() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        src_mac_from_serial_num,
+        src_mac_from_serial_num, //comment out for dual rx test only
+        //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
     )
@@ -495,7 +497,6 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
-    debug!("src mac: {:?}", src_mac_from_serial_num);
 
     udp_lowpan_test.start();
 

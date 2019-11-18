@@ -69,24 +69,23 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
 impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: ReturnCode) {
         let last_sender = self.sender_list.pop_head();
+        let next_sender_option = self.sender_list.head(); // must check here, because udp driver
+                                                          // could queue addl. sends in response to
+                                                          // send_done.
         last_sender.map(|last_sender| {
             last_sender
                 .client
                 .map(|client| match last_sender.tx_buffer.take() {
                     Some(buf) => {
-                        let bind = last_sender.get_binding().expect("hi");
-                        last_sender.set_binding(bind);
                         client.send_done(result, buf);
                     }
                     None => {
                         debug!("ERROR: Missing buffer in send done.");
-                        let bind = last_sender.get_binding().expect("hi");
-                        last_sender.set_binding(bind);
                     }
                 })
         });
 
-        let success = match self.sender_list.head() {
+        let success = match next_sender_option {
             Some(next_sender) => {
                 //send next packet in queue
                 match next_sender.tx_buffer.take() {
@@ -96,6 +95,9 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                                 .ip_sender
                                 .send_to(next_sender.next_dest.get(), th, &buf);
                             next_sender.tx_buffer.replace(buf);
+                            if ret != ReturnCode::SUCCESS {
+                                debug!("IP send_to failed: {:?}", ret);
+                            }
                             ret
                         }
 
