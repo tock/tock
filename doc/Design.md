@@ -143,3 +143,91 @@ dereferencing. Unlike shared buffers, which can only be a buffer type in a
 capsule, granted memory can be defined as any type. Therefore, processes cannot
 access this memory since doing so might violate type-safety.
 
+## Some in-kernel design principles
+
+### Role of HILs
+
+Generally, the Tock kernel is structured into three layers:
+
+1. Chip-specific drivers: these typically live in a crate in the
+   `chips` subdirectory, or an equivalent crate in an different repo
+   (e.g. the Titan port is out of tree but it’s `h1b` create is the
+   equivalent here). These drivers have implements that are specific
+   to the hardware particular to a certain microcontroller. Ideally,
+   their implementation is fairly simple, and they merely adhere to a
+   common interface (a HIL). That’s not always the case, but that’s
+   the ideal.
+
+2. Chip-agnostic, portable, peripheral drivers and subsystems. These
+   typically live in the `capsules` crate. These includes things like
+   the virtual alarms and virtual I2C stack, as well as drivers for
+   hardware peripherals not on the chip itself (e.g. sensors, radios,
+   etc). These drivers typically rely on the chip-specific drivers
+   through the HILs.
+
+3. System call drivers, also typically found in the `capsules`
+   crate. These are the drivers that implement a particular part of
+   the system call interfaces, and are often even more abstracted from
+   the hardware than (2) - for example, the temperature sensor system
+   call driver can use any temperature sensor, including several
+   implemented as portable peripheral drivers. We don’t have many
+   examples of this, but the system call interface is another point of
+   standardization that can be implemented in various ways. So it’s
+   perfectly reasonable to have several implementations of the same
+   system call interface that use completely different hardware
+   stacks, and therefore HILs and chip-specific drivers (e.g. a
+   console driver that operates over USB might just be implemented as
+   a different system call driver that implements the same system
+   calls, rather than trying to fit USB into the UART HIL).
+
+The connective tissue between layers are the HILs. The HIL interfaces
+are portable interfaces that are implemented in a non-portable way.
+
+The choice of particular HIL interfaces is pretty important, and we
+have some general principles we follow:
+
+1. HIL implementations get to assume this HIL is the only way the
+   device will be used. As a result, it’s generally a bad idea to have
+   several HILs that provide different interfaces to similar
+   functionality, because it will not, in general, be possible for
+   multiple drivers to use different HILs for the same device
+   simultaneously.
+
+2. HIL implementations should be fairly general. If we have an
+   interface that doesn't work very well across different hardware, we
+   probably have the wrong interface - it’s either too high level, or
+   too low level, or it’s just not flexible enough. But HILs shouldn’t
+   generally be designed to optimize for particular applications or
+   hardware, and definitely not for a particular combination of
+   applications and hardware. If there are cases where that is really
+   truly necessary, you can always implement a driver that is chip or
+   board specific, and circumvents the HILs entirely.
+
+### Split-phase operation
+
+While processes are time sliced and preemptive in Tock, the kernel is
+not. Everything is run-to-completion. That’s an important design
+choice because it allows the kernel to avoid allocating lots of stacks
+for lots of tasks, and it makes it possible to reason more simply
+about static and other shared variables.
+
+As a result, by design, all I/O operations have to be asynchronous, so
+that the kernel can be reasonably counted on to operate in a timely
+manner. We do this using TinyOS style split-phase callbacks because
+they are resolved statically and it avoids the need to allocate
+closures.
+
+Drivers are indeed more cumbersome to write than with a blocking API,
+however, this is a conscious choice to favor overall safety of the
+kernel (e.g. avoiding running out of memory or preventing other code
+from running on time) over functional correctness of individual
+drivers (because they might be more error-prone, not because they
+can’t be written correctly).
+
+There are cases where we violate this. For example, the SAM4L’s GPIO
+controller may take up to 5 cycles to become ready between
+operations. Technically, according to this principle, the GPIO driver
+should therefore be split-phase to wait on the ready condition, but we
+know it’ll take longer to set that up than to just spin on the ready
+bit, so we just spin for at most a handful of cycles. But those cases
+are rare.
