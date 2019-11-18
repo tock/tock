@@ -4,10 +4,12 @@
 pub mod alarm;
 pub mod console;
 pub mod crc;
+pub mod debug_writer;
 pub mod isl29035;
 pub mod nrf51822;
 pub mod process_console;
 pub mod rng;
+pub mod spi;
 
 /// Same as `static_init!()` but without actually creating the static buffer.
 /// The static buffer must be passed in.

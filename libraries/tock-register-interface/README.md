@@ -104,6 +104,7 @@ register_structs! {
     Registers {
         (0x000 => foo: ReadOnly<u8>),
         (0x008 => bar: ReadOnly<u8>),
+        (0x009 => @END),
     }
 }
 ```
@@ -119,6 +120,33 @@ struct Registers {
     bar: ReadOnly<u32>,
 }
 ```
+
+By default, the visibility of the generated structs and fields is private. You
+can make them public using the `pub` keyword, just before the struct name or the
+field identifier.
+
+For example, the following call to the macro:
+
+```rust
+register_structs! {
+    pub Registers {
+        (0x000 => foo: ReadOnly<u32>),
+        (0x004 => pub bar: ReadOnly<u32>),
+        (0x008 => @END),
+    }
+}
+```
+
+will generate the following struct.
+
+```rust
+#[repr(C)]
+pub struct Registers {
+    foo: ReadOnly<u32>,
+    pub bar: ReadOnly<u32>,
+}
+```
+
 ## Defining bitfields
 
 Bitfields are defined through the `register_bitfields!` macro:

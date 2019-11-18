@@ -10,13 +10,11 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
-use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::gpio;
-use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 use kernel::Platform;
 #[allow(unused_imports)]
@@ -28,9 +26,6 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 pub mod io;
 #[allow(dead_code)]
 mod test_take_map_cell;
-
-static mut SPI_READ_BUF: [u8; 64] = [0; 64];
-static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
 // State for loading and holding applications.
 
@@ -232,6 +227,7 @@ pub unsafe fn reset_handler() {
     let process_console =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Initialize USART3 for UART for the nRF serialization link.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -321,31 +317,13 @@ pub unsafe fn reset_handler() {
     );
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
-    // Initialize and enable SPI HAL
-    // Set up an SPI MUX, so there can be multiple clients
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
-    );
-
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-
-    // Create a virtualized client for SPI system call interface
-    // CS line is CS0
-    let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-        VirtualSpiMasterDevice::new(mux_spi, 0)
-    );
-
-    // Create the SPI system call capsule, passing the client
-    let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
-        capsules::spi::Spi::new(syscall_spi_device)
-    );
-
-    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
-    syscall_spi_device.set_client(spi_syscalls);
+    // SPI
+    // Set up a SPI MUX, so there can be multiple clients.
+    let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI)
+        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
+    // Create the SPI system call capsule.
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(mux_spi, 0)
+        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
     let led_pins = static_init!(
@@ -516,25 +494,6 @@ pub unsafe fn reset_handler() {
         crc: crc,
         dac: dac,
     };
-
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let ring_buffer = static_init!(
-        RingBuffer<'static, u8>,
-        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
-    );
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     // Reset the nRF and setup the UART bus.
     hail.nrf51822.reset();
