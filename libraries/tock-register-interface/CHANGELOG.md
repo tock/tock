@@ -2,6 +2,11 @@
 
 ## master
 
+ - #1428
+   - Implement `mask()` for `FieldValue<u16>` which seems to have been 
+     skipped at some point.
+   - Implement `read()` for `FieldValue` so that individual fields
+     can be extracted from a register `FieldValue` representation.
  - #1461: Update `register_structs` macro to support flexible visibility of each
    struct and each field. Also revert to private structs by default.
 

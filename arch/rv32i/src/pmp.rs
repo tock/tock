@@ -1,5 +1,7 @@
 //! Implementation of the physical memory protection unit (PMP).
 
+use core::fmt;
+
 use crate::csr;
 use kernel;
 use kernel::mpu;
@@ -18,6 +20,12 @@ impl Default for PMPConfig {
     /// number of regions on the arty chip
     fn default() -> PMPConfig {
         PMPConfig { regions: 4 }
+    }
+}
+
+impl fmt::Display for PMPConfig {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }
 

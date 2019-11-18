@@ -507,6 +507,11 @@ impl<R: RegisterLongName> FieldValue<u8, R> {
     pub fn mask(self) -> u8 {
         self.mask as u8
     }
+
+    #[inline]
+    pub fn read(&self, field: Field<u8, R>) -> u8 {
+        (self.value & (field.mask << field.shift)) >> field.shift
+    }
 }
 
 impl<R: RegisterLongName> From<FieldValue<u8, R>> for u8 {
@@ -522,6 +527,16 @@ impl<R: RegisterLongName> FieldValue<u16, R> {
             value: (value << shift) & (mask << shift),
             associated_register: PhantomData,
         }
+    }
+
+    /// Get the raw bitmask represented by this FieldValue.
+    pub fn mask(self) -> u16 {
+        self.mask as u16
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<u16, R>) -> u16 {
+        (self.value & (field.mask << field.shift)) >> field.shift
     }
 }
 
@@ -544,6 +559,11 @@ impl<R: RegisterLongName> FieldValue<u32, R> {
     pub fn mask(self) -> u32 {
         self.mask as u32
     }
+
+    #[inline]
+    pub fn read(&self, field: Field<u32, R>) -> u32 {
+        (self.value & (field.mask << field.shift)) >> field.shift
+    }
 }
 
 impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
@@ -564,6 +584,11 @@ impl<R: RegisterLongName> FieldValue<u64, R> {
     /// Get the raw bitmask represented by this FieldValue.
     pub fn mask(self) -> u64 {
         self.mask as u64
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<u64, R>) -> u64 {
+        (self.value & (field.mask << field.shift)) >> field.shift
     }
 }
 
