@@ -6,4 +6,5 @@
 #![crate_name = "ibex"]
 #![crate_type = "rlib"]
 
+pub mod plic;
 pub mod uart;
