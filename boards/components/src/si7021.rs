@@ -1,17 +1,18 @@
-//! Components for the SI7021 on the imix board.
+//! Components for the SI7021 Temperature/Humidity Sensor.
 //!
 //! This provides three Components, SI7021Component, which provides
 //! access to the SI7021 over I2C, TemperatureComponent, which
 //! provides a temperature system call driver, and HumidityComponent,
 //! which provides a humidity system call driver. SI7021Component is
-//! a paremeter to both TemperatureComponent and HumidityComponent.
+//! a parameter to both TemperatureComponent and HumidityComponent.
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
-//! let temp = TemperatureComponent::new(si7021).finalize(());
-//! let humidity = HumidityComponent::new(si7021).finalize(());
+//! let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40).finalize(
+//!     components::si7021_component_helper!(sam4l::ast::Ast));
+//! let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
+//! let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -28,40 +29,61 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 
-pub struct SI7021Component {
-    i2c_mux: &'static MuxI2C<'static>,
-    alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+use crate::static_init_half;
+
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! si7021_component_helper {
+    ($A:ty) => {{
+        use capsules::si7021::SI7021;
+        static mut BUF1: Option<VirtualMuxAlarm<'static, $A>> = None;
+        static mut BUF2: Option<SI7021<'static, VirtualMuxAlarm<'static, $A>>> = None;
+        (&mut BUF1, &mut BUF2)
+    };};
 }
 
-impl SI7021Component {
+pub struct SI7021Component<A: 'static + time::Alarm<'static>> {
+    i2c_mux: &'static MuxI2C<'static>,
+    alarm_mux: &'static MuxAlarm<'static, A>,
+    i2c_address: u8,
+}
+
+impl<A: 'static + time::Alarm<'static>> SI7021Component<A> {
     pub fn new(
         i2c: &'static MuxI2C<'static>,
-        alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        alarm: &'static MuxAlarm<'static, A>,
+        i2c_address: u8,
     ) -> Self {
         SI7021Component {
             i2c_mux: i2c,
             alarm_mux: alarm,
+            i2c_address: i2c_address,
         }
     }
 }
 
 static mut I2C_BUF: [u8; 14] = [0; 14];
 
-impl Component for SI7021Component {
-    type StaticInput = ();
-    type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>;
+impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
+    type StaticInput = (
+        &'static mut Option<VirtualMuxAlarm<'static, A>>,
+        &'static mut Option<SI7021<'static, VirtualMuxAlarm<'static, A>>>,
+    );
+    type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, 0x40));
-        let si7021_alarm = static_init!(
-            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+        let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, self.i2c_address));
+        let si7021_alarm = static_init_half!(
+            static_buffer.0,
+            VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
-        let si7021 = static_init!(
-            SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        let si7021 = static_init_half!(
+            static_buffer.1,
+            SI7021<'static, VirtualMuxAlarm<'static, A>>,
             SI7021::new(si7021_i2c, si7021_alarm, &mut I2C_BUF)
         );
 
@@ -71,16 +93,16 @@ impl Component for SI7021Component {
     }
 }
 
-pub struct TemperatureComponent {
+pub struct TemperatureComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
 }
 
-impl TemperatureComponent {
+impl<A: 'static + time::Alarm<'static>> TemperatureComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        si: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    ) -> TemperatureComponent {
+        si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
+    ) -> TemperatureComponent<A> {
         TemperatureComponent {
             board_kernel: board_kernel,
             si7021: si,
@@ -88,7 +110,7 @@ impl TemperatureComponent {
     }
 }
 
-impl Component for TemperatureComponent {
+impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<A> {
     type StaticInput = ();
     type Output = &'static TemperatureSensor<'static>;
 
@@ -105,16 +127,16 @@ impl Component for TemperatureComponent {
     }
 }
 
-pub struct HumidityComponent {
+pub struct HumidityComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
 }
 
-impl HumidityComponent {
+impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        si: &'static SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    ) -> HumidityComponent {
+        si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
+    ) -> HumidityComponent<A> {
         HumidityComponent {
             board_kernel: board_kernel,
             si7021: si,
@@ -122,7 +144,7 @@ impl HumidityComponent {
     }
 }
 
-impl Component for HumidityComponent {
+impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<A> {
     type StaticInput = ();
     type Output = &'static HumiditySensor<'static>;
 
