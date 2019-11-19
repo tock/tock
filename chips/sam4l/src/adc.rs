@@ -603,6 +603,32 @@ impl Adc {
             ReturnCode::SUCCESS
         }
     }
+
+    /// Disables the ADC so that the chip can return to deep sleep
+    fn disable(&self) {
+        let regs: &AdcRegisters = &*self.registers;
+
+        // disable ADC
+        regs.cr.write(Control::DIS::SET);
+
+        // wait until status is disabled
+        let mut timeout = 10000;
+        while regs.sr.is_set(Status::EN) {
+            timeout -= 1;
+            if timeout == 0 {
+                // ADC never disabled
+                return;
+            }
+        }
+
+        // disable bandgap and reference buffers
+        regs.cr
+            .write(Control::BGREQDIS::SET + Control::REFBUFDIS::SET);
+
+        self.enabled.set(false);
+        scif::generic_clock_disable(scif::GenericClock::GCLK10);
+        pm::disable_clock(Clock::PBA(PBAClock::ADCIFE));
+    }
 }
 
 /// Implements an ADC capable reading ADC samples on any channel.
@@ -780,6 +806,9 @@ impl hil::adc::Adc for Adc {
 
             // reset the ADC peripheral
             regs.cr.write(Control::SWRST::SET);
+
+            // disable the ADC
+            self.disable();
 
             // stop DMA transfer if going. This should safely return a None if
             // the DMA was not being used
