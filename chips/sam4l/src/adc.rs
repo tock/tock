@@ -616,13 +616,14 @@ impl Adc {
         while regs.sr.is_set(Status::EN) {
             timeout -= 1;
             if timeout == 0 {
-                // ADC never disabled 
+                // ADC never disabled
                 return;
             }
         }
 
         // disable bandgap and reference buffers
-        regs.cr.write(Control::BGREQDIS::SET + Control::REFBUFDIS::SET);
+        regs.cr
+            .write(Control::BGREQDIS::SET + Control::REFBUFDIS::SET);
 
         self.enabled.set(false);
         scif::generic_clock_disable(scif::GenericClock::GCLK10);
