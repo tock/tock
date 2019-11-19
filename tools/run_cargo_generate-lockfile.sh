@@ -5,8 +5,6 @@
 #
 # Author: Brad Campbell <bradjc5@gmail.com>
 
-FAIL=0
-
 set -e
 
 # Verify that we're running in the base directory
@@ -18,10 +16,9 @@ fi
 
 for f in $(find . | grep Cargo.toml); do
 	pushd $(dirname $f) > /dev/null
-	cargo generate-lockfile || let FAIL=FAIL+1
+	cargo generate-lockfile
 	popd > /dev/null
 done
 
 echo "Generated or updated all Cargo.lock files."
 echo "Because of the .gitignore file this will not show any changed files."
-
