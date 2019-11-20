@@ -435,8 +435,9 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    let udp_lowpan_test =
-        udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
+    // Only include to run kernel tests, do not include during normal operation
+    /*let udp_lowpan_test =
+    udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);*/
 
     let imix = Imix {
         pconsole,
@@ -489,7 +490,7 @@ pub unsafe fn reset_handler() {
 
     debug!("Initialization complete. Entering main loop");
 
-    udp_lowpan_test.start();
+    //udp_lowpan_test.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

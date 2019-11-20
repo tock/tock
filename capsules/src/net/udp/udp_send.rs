@@ -1,9 +1,19 @@
-//! This file contains the definition and implementation for a simple UDP
+//! This file contains the definition and implementation for a virtualized UDP
 //! sending interface. The [UDPSender](trait.UDPSender.html) trait provides
-//! an interface for upper layer to send a UDP packet, and the
-//! [UDPSendClient](trait.UDPSendClient.html) trait is implemented by the
-//! upper layer to allow them to receive the `send_done` callback once
+//! an interface for kernel capsules to send a UDP packet, and the
+//! [UDPSendClient](trait.UDPSendClient.html) trait is implemented by
+//! upper layer clients to allow them to receive `send_done` callbacks once
 //! transmission has completed.
+//! In order to virtualize between both apps and kernel capsules, this file
+//! uses a MuxUdpSender which treats the userspace UDP driver as a kernel capsule
+//! with a special capability that allows it to bind to arbitrary ports. Therefore
+//! the correctness of port binding / packet transmission/delivery is also dependent
+//! on the port binding logic in the driver being correct.
+//! The MuxUdpSender acts as a FIFO queue for transmitted packets, with each capsule being allowed
+//! a single outstanding / unsent packet at a time.
+//! Because the userspace driver is viewed by the MuxUdpSender as being a single capsule,
+//! the userspace driver must queue app packets on its own, as it can only pass a single
+//! packet to the MuxUdpSender queue at a time.
 
 use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;

@@ -580,8 +580,13 @@ impl<'a> Driver for UDPDriver<'a> {
                             });
                         }
                         // Check bound ports in the kernel.
-                        if self.port_table.is_bound(requested_addr.port) {
-                            addr_already_bound = true;
+                        match self.port_table.is_bound(requested_addr.port) {
+                            Ok(bound) => {
+                                addr_already_bound = bound;
+                            }
+                            Err(_) => {
+                                return ReturnCode::FAIL;
+                            } //error in port table
                         }
                         // Also check the bound port table here.
                         if addr_already_bound {

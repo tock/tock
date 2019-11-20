@@ -1,5 +1,9 @@
 //! This file contains the definition and implementation for the UDP reception
-//! interface.
+//! interface. It follows the same virtualization model as that described in `udp_send.rs`,
+//! except that no queueing is needed because received packets are immediately dispatched to the
+//! appropriate capsule / app. Once again, port binding for userspace apps is managed seperately
+//! by the UDP userspace driver, which must correctly check bindings of kernel apps to ensure
+//! correctness when dispatching received packets to the appropriate client.
 
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::IP6Header;

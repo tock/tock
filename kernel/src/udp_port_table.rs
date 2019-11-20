@@ -166,22 +166,20 @@ impl UdpPortTable {
         });
     }
 
-    pub fn is_bound(&self, port: u16) -> bool {
-        // TODO: return error if self.user_ports is empty!!!!!
+    pub fn is_bound(&self, port: u16) -> Result<bool, ()> {
         // First, check the user bindings.
-        if self.user_ports.is_none() {}
-        // TODO: Change is_bound to return ReturnCode or Result so we can
-        // seperately handle error case of user_ports not existing.
-        // Currently, if user_ports doesnt exist we just pretend that
-        // the requested port is already bound.
+        if self.user_ports.is_none() {
+            return Err(());
+        }
         let user_bound = self
             .user_ports
             .map_or(true, |port_query| port_query.is_bound(port));
         if self.user_ports.is_none() {}
         if user_bound {
-            return true;
+            return Ok(true);
         };
-        self.port_array
+        let ret = self
+            .port_array
             .map(|table| {
                 let mut port_exists = false;
                 for i in 0..MAX_NUM_BOUND_PORTS {
@@ -197,7 +195,8 @@ impl UdpPortTable {
                 }
                 port_exists
             })
-            .unwrap()
+            .unwrap();
+        Ok(ret)
     }
 
     // On success, a UdpPortBinding is returned. On failure, the same
@@ -207,20 +206,25 @@ impl UdpPortTable {
         socket: UdpPortSocket,
         port: u16,
     ) -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
-        if self.is_bound(port) {
-            Err(socket)
-        } else {
-            self.port_array
-                .map(|table| {
-                    table[socket.idx] = Some(PortEntry::Port(port));
-                    let binding_pair = (
-                        UdpSenderBinding::new(socket.idx, port),
-                        UdpReceiverBinding::new(socket.idx, port),
-                    );
-                    // Add socket to the linked list.
-                    Ok(binding_pair)
-                })
-                .unwrap()
+        match self.is_bound(port) {
+            Ok(bound) => {
+                if bound {
+                    Err(socket)
+                } else {
+                    self.port_array
+                        .map(|table| {
+                            table[socket.idx] = Some(PortEntry::Port(port));
+                            let binding_pair = (
+                                UdpSenderBinding::new(socket.idx, port),
+                                UdpReceiverBinding::new(socket.idx, port),
+                            );
+                            // Add socket to the linked list.
+                            Ok(binding_pair)
+                        })
+                        .unwrap()
+                }
+            }
+            Err(_) => Err(socket),
         }
     }
 
@@ -230,7 +234,6 @@ impl UdpPortTable {
         &'static self,
         sender_binding: UdpSenderBinding,
         receiver_binding: UdpReceiverBinding,
-        /*cap: &capabilities::UDPBindCapability*/
     ) -> Result<UdpPortSocket, (UdpSenderBinding, UdpReceiverBinding)> {
         // Verfify that the indices match up
         if sender_binding.idx != receiver_binding.idx {
