@@ -77,6 +77,9 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     // unbinds currently bound to port and binds to passed port.
     pub fn bind(&self, src_port: u16) {
         self.src_port.set(src_port);
+        if self.udp_sender.is_bound() != self.udp_receiver.is_bound() {
+            debug!("Error: bindings should match.");
+        }
         match self.udp_sender.is_bound() {
             true => {
                 match self.port_table.unbind(

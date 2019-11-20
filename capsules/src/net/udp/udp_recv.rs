@@ -139,7 +139,7 @@ impl<'a> UDPReceiver<'a> {
         self.binding.take()
     }
 
-    fn is_bound(&self) -> bool {
+    pub fn is_bound(&self) -> bool {
         self.binding.is_some()
     }
 
