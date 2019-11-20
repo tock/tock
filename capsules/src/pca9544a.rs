@@ -32,7 +32,8 @@ use kernel::hil::i2c;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x80002;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Pca9544a as usize;
 
 pub static mut BUFFER: [u8; 5] = [0; 5];
 
@@ -53,14 +54,14 @@ enum ControlField {
 }
 
 pub struct PCA9544A<'a> {
-    i2c: &'a i2c::I2CDevice,
+    i2c: &'a dyn i2c::I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
     callback: OptionalCell<Callback>,
 }
 
 impl PCA9544A<'a> {
-    pub fn new(i2c: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
+    pub fn new(i2c: &'a dyn i2c::I2CDevice, buffer: &'static mut [u8]) -> PCA9544A<'a> {
         PCA9544A {
             i2c: i2c,
             state: Cell::new(State::Idle),

@@ -96,7 +96,7 @@ use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
-use kernel::hil::uart::{self, Client, UART};
+use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
@@ -111,13 +111,12 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 // characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
-pub struct ProcessConsole<'a, U: UART, C: ProcessManagementCapability> {
-    uart: &'a U,
+pub struct ProcessConsole<'a, C: ProcessManagementCapability> {
+    uart: &'a dyn uart::UartData<'a>,
     tx_in_progress: Cell<bool>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
-    baud_rate: u32,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
     running: Cell<bool>,
@@ -125,23 +124,21 @@ pub struct ProcessConsole<'a, U: UART, C: ProcessManagementCapability> {
     capability: C,
 }
 
-impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
+impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
     pub fn new(
-        uart: &'a U,
-        baud_rate: u32,
+        uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
         kernel: &'static Kernel,
         capability: C,
-    ) -> ProcessConsole<'a, U, C> {
+    ) -> ProcessConsole<'a, C> {
         ProcessConsole {
             uart: uart,
             tx_in_progress: Cell::new(false),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
-            baud_rate: baud_rate,
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
             running: Cell::new(false),
@@ -150,22 +147,13 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
         }
     }
 
-    pub fn initialize(&self) {
-        self.uart.configure(uart::UARTParameters {
-            baud_rate: self.baud_rate,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
-    }
-
     pub fn start(&self) -> ReturnCode {
         if self.running.get() == false {
             self.rx_buffer.take().map(|buffer| {
                 self.rx_in_progress.set(true);
-                self.uart.receive(buffer, 1);
+                self.uart.receive_buffer(buffer, 1);
                 self.running.set(true);
-                debug!("Starting process console");
+                //debug!("Starting process console");
             });
         }
         ReturnCode::SUCCESS
@@ -286,7 +274,7 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 buffer[0] = byte;
-                self.uart.transmit(buffer, 1);
+                self.uart.transmit_buffer(buffer, 1);
             });
             ReturnCode::SUCCESS
         }
@@ -302,24 +290,31 @@ impl<U: UART, C: ProcessManagementCapability> ProcessConsole<'a, U, C> {
                 for i in 0..len {
                     buffer[i] = bytes[i];
                 }
-                self.uart.transmit(buffer, len);
+                self.uart.transmit_buffer(buffer, len);
             });
             ReturnCode::SUCCESS
         }
     }
 }
 
-impl<U: UART, C: ProcessManagementCapability> Client for ProcessConsole<'a, U, C> {
-    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+impl<'a, C: ProcessManagementCapability> uart::TransmitClient for ProcessConsole<'a, C> {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
     }
-
-    fn receive_complete(&self, read_buf: &'static mut [u8], rx_len: usize, error: uart::Error) {
+}
+impl<'a, C: ProcessManagementCapability> uart::ReceiveClient for ProcessConsole<'a, C> {
+    fn received_buffer(
+        &self,
+        read_buf: &'static mut [u8],
+        rx_len: usize,
+        _rcode: ReturnCode,
+        error: uart::Error,
+    ) {
         let mut execute = false;
-        if error == uart::Error::CommandComplete {
+        if error == uart::Error::None {
             match rx_len {
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
@@ -353,7 +348,7 @@ impl<U: UART, C: ProcessManagementCapability> Client for ProcessConsole<'a, U, C
             };
         }
         self.rx_in_progress.set(true);
-        self.uart.receive(read_buf, 1);
+        self.uart.receive_buffer(read_buf, 1);
         if execute {
             self.read_command();
         }

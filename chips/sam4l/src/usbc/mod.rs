@@ -12,7 +12,8 @@ use core::ptr;
 use core::slice;
 use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{
-    register_bitfields, FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
+    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
+    WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::debug as debugln;
@@ -239,7 +240,7 @@ pub struct Usbc<'a> {
     descriptors: [Endpoint; N_ENDPOINTS],
     state: OptionalCell<State>,
     requests: [Cell<Requests>; N_ENDPOINTS],
-    client: Option<&'a hil::usb::Client>,
+    client: Option<&'a dyn hil::usb::Client>,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -379,8 +380,8 @@ pub struct Bank {
     // (they may be placed anywhere in memory),
     // but the register interface provides the volatile
     // read/writes and bitfields that we need.
-    pub packet_size: ReadWrite<u32, PacketSize::Register>,
-    pub control_status: ReadWrite<u32, ControlStatus::Register>,
+    pub packet_size: InMemoryRegister<u32, PacketSize::Register>,
+    pub control_status: InMemoryRegister<u32, ControlStatus::Register>,
 
     _reserved: u32,
 }
@@ -389,8 +390,8 @@ impl Bank {
     pub const fn new() -> Bank {
         Bank {
             addr: VolatileCell::new(ptr::null_mut()),
-            packet_size: ReadWrite::new(0),
-            control_status: ReadWrite::new(0),
+            packet_size: InMemoryRegister::new(0),
+            control_status: InMemoryRegister::new(0),
             _reserved: 0,
         }
     }
@@ -446,7 +447,7 @@ impl Usbc<'a> {
     }
 
     /// Set a client to receive data from the USBC
-    pub fn set_client(&mut self, client: &'a hil::usb::Client) {
+    pub fn set_client(&mut self, client: &'a dyn hil::usb::Client) {
         self.client = Some(client);
     }
 
@@ -771,7 +772,7 @@ impl Usbc<'a> {
             });
 
             // Reset our record of the device state
-            *device_state = Default::default();
+            *device_state = DeviceState::default();
 
             // Reconfigure and initialize endpoints
             for i in 0..N_ENDPOINTS {
@@ -884,7 +885,6 @@ impl Usbc<'a> {
             }
             EndpointState::Disabled => {
                 debug1!("Ignoring interrupt for disabled endpoint {}", endpoint);
-                return;
             }
         }
     }
@@ -1431,8 +1431,8 @@ impl hil::usb::UsbController for Usbc<'a> {
         match self.get_state() {
             State::Reset => self._enable(Mode::Device {
                 speed: speed,
-                config: Default::default(),
-                state: Default::default(),
+                config: DeviceConfig::default(),
+                state: DeviceState::default(),
             }),
             _ => client_err!("Already enabled"),
         }

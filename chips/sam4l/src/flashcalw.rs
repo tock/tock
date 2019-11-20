@@ -406,7 +406,7 @@ pub struct FLASHCALW {
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
-    client: OptionalCell<&'static hil::flash::Client<FLASHCALW>>,
+    client: OptionalCell<&'static dyn hil::flash::Client<FLASHCALW>>,
     current_state: Cell<FlashState>,
     buffer: TakeCell<'static, Sam4lPage>,
 }

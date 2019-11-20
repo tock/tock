@@ -1,7 +1,7 @@
 //! Data structure to store a list of userspace applications.
 
 use core::marker::PhantomData;
-use core::mem::size_of;
+use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
 use core::ptr::{write, write_volatile, Unique};
 
@@ -9,6 +9,7 @@ use crate::callback::AppId;
 use crate::process::Error;
 use crate::sched::Kernel;
 
+/// Region of process memory reserved for the kernel.
 pub struct Grant<T: Default> {
     crate kernel: &'static Kernel,
     grant_num: usize,
@@ -87,15 +88,16 @@ impl Allocator {
             self.appid
                 .kernel
                 .process_map_or(Err(Error::NoSuchApp), self.appid.idx(), |process| {
-                    process
-                        .alloc(size_of::<T>())
-                        .map_or(Err(Error::OutOfMemory), |arr| {
+                    process.alloc(size_of::<T>(), align_of::<T>()).map_or(
+                        Err(Error::OutOfMemory),
+                        |arr| {
                             let ptr = arr.as_mut_ptr() as *mut T;
                             // We use `ptr::write` to avoid `Drop`ping the uninitialized memory in
                             // case `T` implements the `Drop` trait.
                             write(ptr, data);
                             Ok(Owned::new(ptr, self.appid))
-                        })
+                        },
+                    )
                 })
         }
     }
@@ -201,16 +203,18 @@ impl<T: Default> Grant<T> {
                     // If the pointer at that location is NULL then the grant
                     // memory needs to be allocated.
                     let new_grant = if (*ctr_ptr).is_null() {
-                        process.alloc(size_of::<T>()).map(|root_arr| {
-                            let root_ptr = root_arr.as_mut_ptr() as *mut T;
-                            // Initialize the grant contents using ptr::write, to
-                            // ensure that we don't try to drop the contents of
-                            // uninitialized memory when T implements Drop.
-                            write(root_ptr, Default::default());
-                            // Record the location in the grant pointer.
-                            write_volatile(ctr_ptr, root_ptr);
-                            root_ptr
-                        })
+                        process
+                            .alloc(size_of::<T>(), align_of::<T>())
+                            .map(|root_arr| {
+                                let root_ptr = root_arr.as_mut_ptr() as *mut T;
+                                // Initialize the grant contents using ptr::write, to
+                                // ensure that we don't try to drop the contents of
+                                // uninitialized memory when T implements Drop.
+                                write(root_ptr, Default::default());
+                                // Record the location in the grant pointer.
+                                write_volatile(ctr_ptr, root_ptr);
+                                root_ptr
+                            })
                     } else {
                         Some(*ctr_ptr)
                     };

@@ -3,7 +3,7 @@ use core::panic::PanicInfo;
 use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, UART};
+use kernel::hil::uart;
 
 use crate::PROCESSES;
 
@@ -18,15 +18,19 @@ impl Write for Writer {
         let uart = unsafe { &mut cc26x2::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
-            uart.configure(uart::UARTParameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-            });
+            uart::Configure::configure(
+                uart,
+                uart::Parameters {
+                    baud_rate: 115200,
+                    stop_bits: uart::StopBits::One,
+                    parity: uart::Parity::None,
+                    hw_flow_control: false,
+                    width: uart::Width::Eight,
+                },
+            );
         }
         for c in s.bytes() {
-            uart.send_byte(c);
+            uart.write(c as u32);
             while !uart.tx_fifo_not_full() {}
         }
         Ok(())

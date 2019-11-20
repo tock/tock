@@ -39,7 +39,6 @@ const SPI_MX25R6435F_WRITE_PROTECT_PIN: usize = 22;
 const SPI_MX25R6435F_HOLD_PIN: usize = 23;
 
 /// UART Writer
-#[macro_use]
 pub mod io;
 
 // State for loading and holding applications.
@@ -52,7 +51,7 @@ const NUM_PROCS: usize = 8;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 245760] = [0; 245760];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] =
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -68,27 +67,82 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 13],
+        [&'static dyn kernel::hil::gpio::InterruptValuePin; 13],
         [
-            &nrf5x::gpio::PORT[3], // Bottom right header on DK board
-            &nrf5x::gpio::PORT[4],
-            &nrf5x::gpio::PORT[28],
-            &nrf5x::gpio::PORT[29],
-            &nrf5x::gpio::PORT[30],
-            &nrf5x::gpio::PORT[10], // Top right header on DK board
-            &nrf5x::gpio::PORT[9],
-            &nrf5x::gpio::PORT[8],
-            &nrf5x::gpio::PORT[7],
-            &nrf5x::gpio::PORT[6],
-            &nrf5x::gpio::PORT[5],
-            &nrf5x::gpio::PORT[1],
-            &nrf5x::gpio::PORT[0],
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[3])
+            )
+            .finalize(), // Bottom right header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[4])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[28])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[29])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[30])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[10])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[9])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[8])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[7])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[6])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[5])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[1])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[0])
+            )
+            .finalize(),
         ]
     );
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(
+            &'static dyn kernel::hil::gpio::Pin,
+            capsules::led::ActivationMode
+        ); 4],
         [
             (
                 &nrf5x::gpio::PORT[LED1_PIN],
@@ -110,26 +164,49 @@ pub unsafe fn reset_handler() {
     );
 
     let button_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
+        [(
+            &'static dyn kernel::hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); 4],
         [
             (
-                &nrf5x::gpio::PORT[BUTTON1_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON1_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ), // 13
             (
-                &nrf5x::gpio::PORT[BUTTON2_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON2_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ), // 14
             (
-                &nrf5x::gpio::PORT[BUTTON3_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON3_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ), // 15
             (
-                &nrf5x::gpio::PORT[BUTTON4_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON4_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ), // 16
         ]
     );
+
+    for &(btn, _) in button_pins.iter() {
+        btn.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    }
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -149,6 +226,7 @@ pub unsafe fn reset_handler() {
             SPI_MX25R6435F_HOLD_PIN,
         )),
         button_pins,
+        true,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

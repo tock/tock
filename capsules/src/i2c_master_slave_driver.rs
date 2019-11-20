@@ -24,7 +24,7 @@ pub static mut BUFFER3: [u8; 256] = [0; 256];
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::I2C_MASTER_SLAVE as usize;
+pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -43,7 +43,7 @@ enum MasterAction {
 }
 
 pub struct I2CMasterSlaveDriver<'a> {
-    i2c: &'a hil::i2c::I2CMasterSlave,
+    i2c: &'a dyn hil::i2c::I2CMasterSlave,
     listening: Cell<bool>,
     master_action: Cell<MasterAction>, // Whether we issued a write or read as master
     master_buffer: TakeCell<'static, [u8]>,
@@ -54,7 +54,7 @@ pub struct I2CMasterSlaveDriver<'a> {
 
 impl I2CMasterSlaveDriver<'a> {
     pub fn new(
-        i2c: &'a hil::i2c::I2CMasterSlave,
+        i2c: &'a dyn hil::i2c::I2CMasterSlave,
         master_buffer: &'static mut [u8],
         slave_buffer1: &'static mut [u8],
         slave_buffer2: &'static mut [u8],

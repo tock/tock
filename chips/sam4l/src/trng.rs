@@ -47,7 +47,7 @@ const BASE_ADDRESS: StaticRef<TrngRegisters> =
 
 pub struct Trng<'a> {
     regs: StaticRef<TrngRegisters>,
-    client: OptionalCell<&'a entropy::Client32>,
+    client: OptionalCell<&'a dyn entropy::Client32>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
@@ -64,9 +64,6 @@ impl Trng<'a> {
     pub fn handle_interrupt(&self) {
         let regs = &*self.regs;
 
-        if !regs.imr.is_set(Interrupt::DATRDY) {
-            return;
-        }
         regs.idr.write(Interrupt::DATRDY::SET);
 
         self.client.map(|client| {
@@ -113,7 +110,7 @@ impl entropy::Entropy32<'a> for Trng<'a> {
         ReturnCode::FAIL
     }
 
-    fn set_client(&'a self, client: &'a entropy::Client32) {
+    fn set_client(&'a self, client: &'a dyn entropy::Client32) {
         self.client.set(client);
     }
 }

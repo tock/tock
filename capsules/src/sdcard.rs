@@ -46,7 +46,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::SD_CARD as usize;
+pub const DRIVER_NUM: usize = driver::NUM::SdCard as usize;
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:
@@ -57,8 +57,8 @@ pub static mut TXBUFFER: [u8; 515] = [0; 515];
 pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
-pub struct SDCard<'a, A: hil::time::Alarm> {
-    spi: &'a hil::spi::SpiMasterDevice,
+pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
+    spi: &'a dyn hil::spi::SpiMasterDevice,
     state: Cell<SpiState>,
     after_state: Cell<SpiState>,
 
@@ -69,12 +69,12 @@ pub struct SDCard<'a, A: hil::time::Alarm> {
     is_initialized: Cell<bool>,
     card_type: Cell<SDCardType>,
 
-    detect_pin: Cell<Option<&'static hil::gpio::Pin>>,
+    detect_pin: Cell<Option<&'static dyn hil::gpio::InterruptPin>>,
 
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
 
-    client: OptionalCell<&'static SDCardClient>,
+    client: OptionalCell<&'static dyn SDCardClient>,
     client_buffer: TakeCell<'static, [u8]>,
     client_offset: Cell<usize>,
 }
@@ -190,7 +190,7 @@ pub trait SDCardClient {
 }
 
 /// Functions for initializing and accessing an SD card
-impl<A: hil::time::Alarm> SDCard<'a, A> {
+impl<A: hil::time::Alarm<'a>> SDCard<'a, A> {
     /// Create a new SD card interface
     ///
     /// spi - virtualized SPI to use for communication with SD card
@@ -202,9 +202,9 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// rxbuffer - buffer for holding SPI read data, at least 515 bytes in
     ///     length
     pub fn new(
-        spi: &'a hil::spi::SpiMasterDevice,
+        spi: &'a dyn hil::spi::SpiMasterDevice,
         alarm: &'a A,
-        detect_pin: Option<&'static hil::gpio::Pin>,
+        detect_pin: Option<&'static dyn hil::gpio::InterruptPin>,
         txbuffer: &'static mut [u8; 515],
         rxbuffer: &'static mut [u8; 515],
     ) -> SDCard<'a, A> {
@@ -1201,7 +1201,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
     /// watches SD card detect pin for changes, sends callback on change
     pub fn detect_changes(&self) {
         self.detect_pin.get().map(|pin| {
-            pin.enable_interrupt(0, hil::gpio::InterruptMode::EitherEdge);
+            pin.enable_interrupts(hil::gpio::InterruptEdge::EitherEdge);
         });
     }
 
@@ -1330,7 +1330,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
 }
 
 /// Handle callbacks from the SPI peripheral
-impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
+impl<A: hil::time::Alarm<'a>> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -1345,15 +1345,15 @@ impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
 }
 
 /// Handle callbacks from the timer
-impl<A: hil::time::Alarm> hil::time::Client for SDCard<'a, A> {
+impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for SDCard<'a, A> {
     fn fired(&self) {
         self.process_alarm_states();
     }
 }
 
 /// Handle callbacks from the card detection pin
-impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
-    fn fired(&self, _: usize) {
+impl<A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
+    fn fired(&self) {
         // check if there was an open transaction with the sd card
         if self.alarm_state.get() != AlarmState::Idle || self.state.get() != SpiState::Idle {
             // something was running when this occurred. Kill the transaction and
@@ -1370,7 +1370,7 @@ impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
 
         // disable additional interrupts
         self.detect_pin.get().map(|pin| {
-            pin.disable_interrupt();
+            pin.disable_interrupts();
         });
 
         // run a timer for 500 ms in order to let the sd card settle
@@ -1385,7 +1385,7 @@ impl<A: hil::time::Alarm> hil::gpio::Client for SDCard<'a, A> {
 /// This is used if the SDCard is going to be attached directly to userspace
 /// syscalls. SDCardDriver can be ignored if another capsule is going to build
 /// off of the SDCard instead
-pub struct SDCardDriver<'a, A: hil::time::Alarm> {
+pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
     sdcard: &'a SDCard<'a, A>,
     app: MapCell<App>,
     kernel_buf: TakeCell<'static, [u8]>,
@@ -1403,7 +1403,7 @@ struct App {
 pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
 
 /// Functions for SDCardDriver
-impl<A: hil::time::Alarm> SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
     /// Create new SD card userland interface
     ///
     /// sdcard - SDCard interface to provide application access to
@@ -1423,7 +1423,7 @@ impl<A: hil::time::Alarm> SDCardDriver<'a, A> {
 }
 
 /// Handle callbacks from SDCard
-impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.app.map(|app| {
             app.callback.map(|mut cb| {
@@ -1488,7 +1488,7 @@ impl<A: hil::time::Alarm> SDCardClient for SDCardDriver<'a, A> {
 }
 
 /// Connections to userspace syscalls
-impl<A: hil::time::Alarm> Driver for SDCardDriver<'a, A> {
+impl<A: hil::time::Alarm<'a>> Driver for SDCardDriver<'a, A> {
     fn allow(
         &self,
         _appid: AppId,

@@ -184,7 +184,7 @@ fn nhc_to_ip6_nh(nhc: u8) -> Result<u8, ()> {
 /// non-compressed next headers are not written, so the remaining `buf.len()
 /// - consumed` bytes must still be copied over to `buf`.
 pub fn compress<'a>(
-    ctx_store: &ContextStore,
+    ctx_store: &dyn ContextStore,
     ip6_packet: &'a IP6Packet<'a>,
     src_mac_addr: MacAddress,
     dst_mac_addr: MacAddress,
@@ -544,7 +544,7 @@ fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usiz
         //buf[*written..*written + 4].copy_from_slice(&udp_header[0..4]);
         *written += 4;
     }
-    return udp_port_nhc;
+    udp_port_nhc
 }
 
 // NOTE: We currently only support (or intend to support) carrying the UDP
@@ -600,7 +600,7 @@ fn compress_udp_checksum(udp_header: &UDPHeader, buf: &mut [u8], written: &mut u
 /// * `written` is the number of uncompressed header bytes written into
 /// `out_buf`.
 pub fn decompress(
-    ctx_store: &ContextStore,
+    ctx_store: &dyn ContextStore,
     buf: &[u8],
     src_mac_addr: MacAddress,
     dst_mac_addr: MacAddress,
@@ -820,7 +820,7 @@ pub fn decompress(
 }
 
 fn decompress_cie(
-    ctx_store: &ContextStore,
+    ctx_store: &dyn ContextStore,
     iphc_header: u8,
     buf: &[u8],
     consumed: &mut usize,
@@ -878,7 +878,7 @@ fn decompress_nh(iphc_header: u8, buf: &[u8], consumed: &mut usize) -> (bool, u8
         next_header = buf[*consumed];
         *consumed += 1;
     }
-    return (is_nhc, next_header);
+    (is_nhc, next_header)
 }
 
 fn decompress_hl(

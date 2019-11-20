@@ -1,3 +1,5 @@
+//! Support for IEEE 802.15.4.
+
 pub mod device;
 pub mod framer;
 pub mod mac;

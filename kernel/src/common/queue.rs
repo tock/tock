@@ -18,4 +18,9 @@ pub trait Queue<T> {
 
     /// Remove all elements from the ring buffer.
     fn empty(&mut self);
+
+    /// Retains only the elements that satisfy the predicate.
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&T) -> bool;
 }

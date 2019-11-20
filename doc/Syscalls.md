@@ -31,6 +31,7 @@ tutorial on how to use them in drivers or applications.
 - [The Context Switch](#the-context-switch)
   * [Context Switch Interface](#context-switch-interface)
   * [Cortex-M Architecture Details](#cortex-m-architecture-details)
+  * [RISC-V Architecture Details](#risc-v-architecture-details)
 - [How System Calls Connect to Drivers](#how-system-calls-connect-to-drivers)
 - [Allocated Driver Numbers](#allocated-driver-numbers)
 
@@ -83,7 +84,7 @@ In Tock, a process can be in one of three states:
 
 ## Startup
 
-Upon process initialization, a single function call task is added to it's
+Upon process initialization, a single function call task is added to its
 callback queue. The function is determined by the ENTRY point in the process
 TBF header (typically the `_start` symbol) and is passed the following
 arguments in registers `r0` - `r3`:
@@ -149,7 +150,15 @@ None.
 ### 1: Subscribe
 
 Subscribe assigns callback functions to be executed in response to various
-events. A null pointer to a callback disables a previously set callback.
+events.
+
+A callback function is uniquely identified by the pair (`driver`,
+`subscribe_number`), a.k.a. *callback ID*. When calling `subscribe`, if there
+are any pending callbacks for this callback ID, they are removed from the queue
+before the new callback function is bound to the callback ID.
+
+Passing a null pointer callback function disables a previously set callback
+(besides flushing pending callbacks for this callback ID).
 
 ```rust
 subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> ReturnCode as u32
@@ -171,7 +180,6 @@ arguments.
 
 #### Return
 
- - `EINVAL` if the callback pointer is NULL.
  - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
  - `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
  - Other return codes based on the specific driver.
@@ -312,6 +320,59 @@ On the next `switch_to_user` call, the application will resume execution based
 on the process stack pointer, which points to the instruction after the system
 call that switched execution to the kernel.
 
+Syscalls may clobber userspace memory, as the kernel may write to buffers
+previously given to it using Allow. The kernel will not clobber any userspace
+registers except for the return value register (`r0`). However, Yield must be
+treated as clobbering more registers, as it can call a callback in userspace
+before returning. This callback can clobber r0-r3, r12, and lr. See [this
+comment](https://github.com/tock/libtock-c/blob/f5004277ec88c2afe8f473a06b74aa2faba70d68/libtock/tock.c#L49)
+in the libtock-c syscall code for more information about Yield.
+
+### RISC-V Architecture Details
+
+Tock assumes that a RISC-V platform that supports context switching has two
+privilege modes: machine mode and user mode.
+
+The RISC-V architecture provides very lean support for context switching,
+providing significant flexibility in software on how to support context
+switches. The hardware guarantees the following will happen during a context
+switch: when switching from kernel mode to user mode by calling the `mret`
+instruction, the PC is set to the value in the `mepc` CSR, and the privilege
+mode is set to the value in the `MPP` bits of the `mstatus` CSR. When switching
+from user mode to kernel mode using the `ecall` instruction, the PC of the
+`ecall` instruction is saved to the `mepc` CSR, the correct bits are set in the
+`mcause` CSR, and the privilege mode is restored to machine mode. The kernel can
+store 32 bits of state in the `mscratch` CSR.
+
+Tock handles context switching using the following process. When switching to
+userland, all register contents are saved to the kernel's stack. Additionally, a
+pointer to a per-process struct of stored process state and the PC of where in
+the kernel to resume executing after the app switches back to kernel mode are
+stored to the kernel's stack. Then, the PC of the app to start executing is put
+into the `mepc` CSR, the kernel stack pointer is saved in `mscratch`, and the
+previous contents of the app's registers from the per-process stored state
+struct are copied back into the registers. Then `mret` is called to switch to
+user mode and begin executing the app.
+
+When the app calls a syscall, it uses the `ecall` instruction. This causes the
+trap handler to execute. The trap handler checks `mscratch`, and if the value is
+nonzero then it contains the stack pointer of the kernel and this trap must have
+happened while the system was executing an application. Then, the kernel stack
+pointer from `mscratch` is used to find the pointer to the stored state struct,
+and all app registers are saved. The trap handler also saves the app PC from the
+`mepc` CSR and the `mcause` CSR. It then loads the kernel address of where to
+resume the context switching code to `mepc` and calls `mret` to exit the trap
+handler. Back in the context switching code, the kernel restores its registers
+from its stack. Then, using the contents of `mcause` the kernel decides why the
+application stopped executing, and if it was a syscall which syscall the app
+called. Returning the context switch reason ends the context switching process.
+
+All values for the syscall functions are passed in registers `a0-a4`. No values
+are stored to the application stack. The return value for syscalls is set in a0.
+In most syscalls the kernel will not clobber any userspace registers except for
+this return value register (`a0`). However, the `yield()` syscall results in a
+callback getting run in the app. This can clobber all caller saved registers, as
+well as the return address (`ra`) register.
 
 ## How System Calls Connect to Drivers
 
@@ -359,3 +420,7 @@ will get routed to the console, and all other driver numbers will return
 ## Allocated Driver Numbers
 
 All documented drivers are in the [doc/syscalls](syscalls/README.md) folder.
+
+The `with_driver()` function takes an argument `driver_num` to identify the
+driver. `driver_num` whose highest bit is set is private and can be used by
+out-of-tree drivers.

@@ -275,7 +275,7 @@ const ACIFC_BASE: StaticRef<AcifcRegisters> =
     unsafe { StaticRef::new(0x40040000 as *const AcifcRegisters) };
 
 pub struct Acifc<'a> {
-    client: Cell<Option<&'a analog_comparator::Client>>,
+    client: Cell<Option<&'a dyn analog_comparator::Client>>,
 }
 
 /// Implement constructor for struct Acifc
@@ -294,7 +294,7 @@ impl<'a> Acifc<'a> {
         pm::disable_clock(pm::Clock::PBA(pm::PBAClock::ACIFC));
     }
 
-    pub fn set_client(&self, client: &'a analog_comparator::Client) {
+    pub fn set_client(&self, client: &'a dyn analog_comparator::Client) {
         self.client.set(Some(client));
     }
 
@@ -478,7 +478,7 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
             self.disable();
             panic!("PANIC! Please choose a comparator (value of ac) that this chip supports");
         }
-        return result;
+        result
     }
 
     /// Start interrupt-based comparisons
@@ -489,24 +489,24 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
         if channel.chan_num == 0 {
             // Enable interrupts.
             regs.ier.write(Interrupt::ACINT0::SET);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else if channel.chan_num == 1 {
             // Repeat the same for ac == 1
             regs.ier.write(Interrupt::ACINT1::SET);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else if channel.chan_num == 2 {
             // Repeat the same for ac == 2
             regs.ier.write(Interrupt::ACINT2::SET);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else if channel.chan_num == 3 {
             // Repeat the same for ac == 3
             regs.ier.write(Interrupt::ACINT3::SET);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else {
             // Should never get here, just making sure
             self.disable();
             debug!("Please choose a comparator (value of ac) that this chip supports");
-            return ReturnCode::EINVAL;
+            ReturnCode::EINVAL
         }
     }
 
@@ -517,24 +517,24 @@ impl<'a> analog_comparator::AnalogComparator for Acifc<'a> {
         if channel.chan_num == 0 {
             // Disable interrupts.
             regs.ier.write(Interrupt::ACINT0::CLEAR);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else if channel.chan_num == 1 {
             // Repeat the same for ac == 1
             regs.ier.write(Interrupt::ACINT1::CLEAR);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else if channel.chan_num == 2 {
             // Repeat the same for ac == 2
             regs.ier.write(Interrupt::ACINT2::CLEAR);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else if channel.chan_num == 3 {
             // Repeat the same for ac == 3
             regs.ier.write(Interrupt::ACINT3::CLEAR);
-            return ReturnCode::SUCCESS;
+            ReturnCode::SUCCESS
         } else {
             // Should never get here, just making sure
             self.disable();
             debug!("Please choose a comparator (value of ac) that this chip supports");
-            return ReturnCode::EINVAL;
+            ReturnCode::EINVAL
         }
     }
 }

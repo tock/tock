@@ -225,7 +225,7 @@ enum State {
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
     registers: StaticRef<CrccuRegisters>,
-    client: Option<&'a crc::Client>,
+    client: Option<&'a dyn crc::Client>,
     state: Cell<State>,
     alg: Cell<CrcAlg>,
 
@@ -275,12 +275,12 @@ impl Crccu<'a> {
     }
 
     /// Set a client to receive results from the CRCCU
-    pub fn set_client(&mut self, client: &'a crc::Client) {
+    pub fn set_client(&mut self, client: &'a dyn crc::Client) {
         self.client = Some(client);
     }
 
     /// Get the client currently receiving results from the CRCCU
-    fn get_client(&self) -> Option<&'a crc::Client> {
+    fn get_client(&self) -> Option<&'a dyn crc::Client> {
         self.client
     }
 
@@ -302,7 +302,7 @@ impl Crccu<'a> {
         let t = s % 512;
         let u = 512 - t;
         let d = s + u;
-        return d as *mut Descriptor;
+        d as *mut Descriptor
     }
 
     /// Handle an interrupt from the CRCCU
@@ -393,7 +393,7 @@ impl crc::CRC for Crccu<'a> {
         // Enable DMA channel
         regs.dmaen.write(DmaEnable::DMAEN::SET);
 
-        return ReturnCode::SUCCESS;
+        ReturnCode::SUCCESS
     }
 
     fn disable(&self) {

@@ -16,7 +16,8 @@ const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x30001;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct DeviceDescriptor {
@@ -168,7 +169,7 @@ impl Default for App {
 
 pub struct RadioDriver<'a> {
     /// Underlying MAC device, possibly multiplexed
-    mac: &'a device::MacDevice<'a>,
+    mac: &'a dyn device::MacDevice<'a>,
 
     /// List of (short address, long address) pairs representing IEEE 802.15.4
     /// neighbors.
@@ -193,7 +194,7 @@ pub struct RadioDriver<'a> {
 
 impl RadioDriver<'a> {
     pub fn new(
-        mac: &'a device::MacDevice<'a>,
+        mac: &'a dyn device::MacDevice<'a>,
         grant: Grant<App>,
         kernel_tx: &'static mut [u8],
     ) -> RadioDriver<'a> {
@@ -445,8 +446,9 @@ impl RadioDriver<'a> {
                     .app_write
                     .take()
                     .as_ref()
-                    .map(|payload| frame.append_payload(payload.as_ref()))
-                    .unwrap_or(ReturnCode::EINVAL);
+                    .map_or(ReturnCode::EINVAL, |payload| {
+                        frame.append_payload(payload.as_ref())
+                    });
                 if result != ReturnCode::SUCCESS {
                     return result;
                 }
@@ -481,7 +483,7 @@ impl RadioDriver<'a> {
     #[inline]
     fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
-            .map(|appid| {
+            .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
                     self.perform_tx_sync(appid)
                 } else {
@@ -489,7 +491,6 @@ impl RadioDriver<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::SUCCESS)
     }
 }
 
@@ -708,7 +709,7 @@ impl Driver for RadioDriver<'a> {
                     })
             }),
             17 => self.do_with_cfg(appid, 8, |cfg| {
-                let mut new_neighbor: DeviceDescriptor = Default::default();
+                let mut new_neighbor: DeviceDescriptor = DeviceDescriptor::default();
                 new_neighbor.short_addr = arg1 as u16;
                 new_neighbor.long_addr.copy_from_slice(cfg);
                 self.add_neighbor(new_neighbor)
@@ -750,8 +751,9 @@ impl Driver for RadioDriver<'a> {
                 KeyDescriptor::decode(cfg)
                     .done()
                     .and_then(|(_, new_key)| self.add_key(new_key))
-                    .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
-                    .unwrap_or(ReturnCode::EINVAL)
+                    .map_or(ReturnCode::EINVAL, |index| ReturnCode::SuccessWithValue {
+                        value: index + 1,
+                    })
             }),
             25 => self.remove_key(arg1),
             26 => {

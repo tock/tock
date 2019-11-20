@@ -52,22 +52,38 @@ impl AppId {
     }
 }
 
+/// Type to uniquely identify a callback subscription across all drivers.
+///
+/// This contains the driver number and the subscribe number within the driver.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct CallbackId {
+    pub driver_num: usize,
+    pub subscribe_num: usize,
+}
+
 /// Type for calling a callback in a process.
 ///
 /// This is essentially a wrapper around a function pointer.
 #[derive(Clone, Copy)]
 pub struct Callback {
     app_id: AppId,
+    callback_id: CallbackId,
     appdata: usize,
     fn_ptr: NonNull<*mut ()>,
 }
 
 impl Callback {
-    crate fn new(appid: AppId, appdata: usize, fn_ptr: NonNull<*mut ()>) -> Callback {
+    crate fn new(
+        app_id: AppId,
+        callback_id: CallbackId,
+        appdata: usize,
+        fn_ptr: NonNull<*mut ()>,
+    ) -> Callback {
         Callback {
-            app_id: appid,
-            appdata: appdata,
-            fn_ptr: fn_ptr,
+            app_id,
+            callback_id,
+            appdata,
+            fn_ptr,
         }
     }
 
@@ -84,6 +100,7 @@ impl Callback {
             .kernel
             .process_map_or(false, self.app_id.idx(), |process| {
                 process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                    source: process::FunctionCallSource::Driver(self.callback_id),
                     argument0: r0,
                     argument1: r1,
                     argument2: r2,

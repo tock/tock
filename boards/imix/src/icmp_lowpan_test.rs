@@ -33,8 +33,8 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
 
@@ -61,10 +61,10 @@ pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_S
 
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 
-pub struct LowpanICMPTest<'a, A: time::Alarm> {
+pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     alarm: A,
     test_counter: Cell<usize>,
-    icmp_sender: &'a ICMP6Sender<'a>,
+    icmp_sender: &'a dyn ICMP6Sender<'a>,
 }
 
 pub unsafe fn initialize_all(
@@ -92,7 +92,7 @@ pub unsafe fn initialize_all(
         )
     );
 
-    let sixlowpan_state = sixlowpan as &SixlowpanState;
+    let sixlowpan_state = sixlowpan as &dyn SixlowpanState;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
     let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
@@ -149,7 +149,7 @@ pub unsafe fn initialize_all(
     icmp_lowpan_test
 }
 
-impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
+impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     for LowpanICMPTest<'a, A>
 {
     fn send_done(&self, result: ReturnCode) {
@@ -166,8 +166,8 @@ impl<'a, A: time::Alarm> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     }
 }
 
-impl<A: time::Alarm> LowpanICMPTest<'a, A> {
-    pub fn new(alarm: A, icmp_sender: &'a ICMP6Sender<'a>) -> LowpanICMPTest<'a, A> {
+impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
+    pub fn new(alarm: A, icmp_sender: &'a dyn ICMP6Sender<'a>) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
             alarm: alarm,
             test_counter: Cell::new(0),
@@ -223,7 +223,7 @@ impl<A: time::Alarm> LowpanICMPTest<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm> time::Client for LowpanICMPTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanICMPTest<'a, A> {
     fn fired(&self) {
         self.run_test_and_increment();
     }

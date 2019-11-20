@@ -4,7 +4,7 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm, concat_idents, const_fn, core_intrinsics, try_from)]
+#![feature(asm, concat_idents, const_fn, core_intrinsics)]
 #![feature(in_band_lifetimes)]
 #![no_std]
 
@@ -20,7 +20,9 @@ pub mod chip;
 pub mod crccu;
 pub mod dac;
 pub mod dma;
+pub mod eic;
 pub mod flashcalw;
+pub mod gloc;
 pub mod gpio;
 pub mod i2c;
 pub mod nvic;

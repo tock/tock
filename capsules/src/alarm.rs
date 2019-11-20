@@ -6,7 +6,7 @@ use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::ALARM as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
@@ -29,14 +29,14 @@ impl Default for AlarmData {
     }
 }
 
-pub struct AlarmDriver<'a, A: Alarm> {
+pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
     app_alarm: Grant<AlarmData>,
     prev: Cell<u32>,
 }
 
-impl<A: Alarm> AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> AlarmDriver<'a, A> {
     pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
@@ -71,7 +71,7 @@ impl<A: Alarm> AlarmDriver<'a, A> {
     }
 }
 
-impl<A: Alarm> Driver for AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
@@ -162,7 +162,7 @@ fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
 }
 
-impl<A: Alarm> time::Client for AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
         self.app_alarm.each(|alarm| {

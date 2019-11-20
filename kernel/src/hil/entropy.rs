@@ -43,15 +43,15 @@
 //! use kernel::hil::entropy::Client32;
 //! use kernel::hil::time::Alarm;
 //! use kernel::hil::time::Frequency;
-//! use kernel::hil::time::Client;
+//! use kernel::hil::time::AlarmClient;
 //! use kernel::ReturnCode;
 //!
-//! struct EntropyTest<'a, A: 'a + Alarm> {
+//! struct EntropyTest<'a, A: 'a + Alarm<'a>> {
 //!     entropy: &'a Entropy32 <'a>,
 //!     alarm: &'a A
 //! }
 //!
-//! impl<'a, A: Alarm> EntropyTest<'a, A> {
+//! impl<'a, A: Alarm<'a>> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let interval = 1 * <A::Frequency>::frequency();
 //!         let tics = self.alarm.now().wrapping_add(interval);
@@ -59,13 +59,13 @@
 //!     }
 //! }
 //!
-//! impl<'a, A: Alarm> Client for EntropyTest<'a, A> {
+//! impl<'a, A: Alarm<'a>> AlarmClient for EntropyTest<'a, A> {
 //!     fn fired(&self) {
 //!         self.entropy.get();
 //!     }
 //! }
 //!
-//! impl<'a, A: Alarm> Client32 for EntropyTest<'a, A> {
+//! impl<'a, A: Alarm<'a>> Client32 for EntropyTest<'a, A> {
 //!     fn entropy_available(&self,
 //!                          entropy: &mut Iterator<Item = u32>,
 //!                          error: ReturnCode) -> hil::entropy::Continue {
@@ -123,7 +123,7 @@ pub trait Entropy32<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&'a self, _: &'a Client32);
+    fn set_client(&'a self, _: &'a dyn Client32);
 }
 
 /// An [Entropy32](trait.Entropy32.html) client
@@ -148,7 +148,11 @@ pub trait Client32 {
     /// If `entropy_available` is triggered after a call to `cancel()`
     /// then error MUST be ECANCEL and `entropy` MAY contain bits of
     /// entropy.
-    fn entropy_available(&self, entropy: &mut Iterator<Item = u32>, error: ReturnCode) -> Continue;
+    fn entropy_available(
+        &self,
+        entropy: &mut dyn Iterator<Item = u32>,
+        error: ReturnCode,
+    ) -> Continue;
 }
 
 /// An 8-bit entropy generator.
@@ -180,7 +184,7 @@ pub trait Entropy8<'a> {
     fn cancel(&self) -> ReturnCode;
 
     /// Set the client to receive `entropy_available` callbacks.
-    fn set_client(&'a self, _: &'a Client8);
+    fn set_client(&'a self, _: &'a dyn Client8);
 }
 
 /// An [Entropy8](trait.Entropy8.html) client
@@ -205,5 +209,9 @@ pub trait Client8 {
     /// If `entropy_available` is triggered after a call to `cancel()`
     /// then error MUST be ECANCEL and `entropy` MAY contain bits of
     /// entropy.
-    fn entropy_available(&self, entropy: &mut Iterator<Item = u8>, error: ReturnCode) -> Continue;
+    fn entropy_available(
+        &self,
+        entropy: &mut dyn Iterator<Item = u8>,
+        error: ReturnCode,
+    ) -> Continue;
 }

@@ -3,9 +3,10 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::Callback;
+use crate::callback::{Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
+use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
@@ -27,7 +28,7 @@ pub struct Kernel {
     /// outstanding callbacks and processes in the Running state.
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static process::ProcessType>],
+    processes: &'static [Option<&'static dyn process::ProcessType>],
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
@@ -40,7 +41,7 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    pub fn new(processes: &'static [Option<&'static process::ProcessType>]) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
@@ -72,7 +73,7 @@ impl Kernel {
     /// reference to the process.
     crate fn process_map_or<F, R>(&self, default: R, process_index: usize, closure: F) -> R
     where
-        F: FnOnce(&process::ProcessType) -> R,
+        F: FnOnce(&dyn process::ProcessType) -> R,
     {
         if process_index > self.processes.len() {
             return default;
@@ -84,7 +85,7 @@ impl Kernel {
     /// processes and call the closure on every process that exists.
     crate fn process_each<F>(&self, closure: F)
     where
-        F: Fn(&process::ProcessType),
+        F: Fn(&dyn process::ProcessType),
     {
         for process in self.processes.iter() {
             match process {
@@ -102,10 +103,10 @@ impl Kernel {
     /// requires a `ProcessManagementCapability` to use.
     pub fn process_each_capability<F>(
         &'static self,
-        _capability: &capabilities::ProcessManagementCapability,
+        _capability: &dyn capabilities::ProcessManagementCapability,
         closure: F,
     ) where
-        F: Fn(usize, &process::ProcessType),
+        F: Fn(usize, &dyn process::ProcessType),
     {
         for (i, process) in self.processes.iter().enumerate() {
             match process {
@@ -123,7 +124,7 @@ impl Kernel {
     /// of the array of processes will stop.
     crate fn process_until<F>(&self, closure: F) -> ReturnCode
     where
-        F: Fn(&process::ProcessType) -> ReturnCode,
+        F: Fn(&dyn process::ProcessType) -> ReturnCode,
     {
         for process in self.processes.iter() {
             match process {
@@ -157,7 +158,7 @@ impl Kernel {
     /// `MemoryAllocationCapability` capability.
     pub fn create_grant<T: Default>(
         &'static self,
-        _capability: &capabilities::MemoryAllocationCapability,
+        _capability: &dyn capabilities::MemoryAllocationCapability,
     ) -> Grant<T> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
@@ -205,23 +206,29 @@ impl Kernel {
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC>,
-        _capability: &capabilities::MainLoopCapability,
+        _capability: &dyn capabilities::MainLoopCapability,
     ) {
         loop {
             unsafe {
                 chip.service_pending_interrupts();
+                DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 for p in self.processes.iter() {
                     p.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
-                    if chip.has_pending_interrupts() {
+                    if chip.has_pending_interrupts()
+                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                    {
                         break;
                     }
                 }
 
                 chip.atomic(|| {
-                    if !chip.has_pending_interrupts() && self.processes_blocked() {
+                    if !chip.has_pending_interrupts()
+                        && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                        && self.processes_blocked()
+                    {
                         chip.sleep();
                     }
                 });
@@ -233,14 +240,14 @@ impl Kernel {
         &self,
         platform: &P,
         chip: &C,
-        process: &process::ProcessType,
+        process: &dyn process::ProcessType,
         ipc: Option<&crate::ipc::IPC>,
     ) {
         let appid = process.appid();
         let systick = chip.systick();
         systick.reset();
         systick.set_timer(KERNEL_TICK_DURATION_US);
-        systick.enable(true);
+        systick.enable(false);
 
         loop {
             if chip.has_pending_interrupts() {
@@ -271,29 +278,35 @@ impl Kernel {
                             // Let process deal with it as appropriate.
                             process.set_fault_state();
                         }
-                        Some(ContextSwitchReason::SyscallFired) => {
+                        Some(ContextSwitchReason::SyscallFired { syscall }) => {
                             // Handle each of the syscalls.
-                            match process.get_syscall() {
-                                Some(Syscall::MEMOP { operand, arg0 }) => {
+                            match syscall {
+                                Syscall::MEMOP { operand, arg0 } => {
                                     let res = memop::memop(process, operand, arg0);
                                     process.set_syscall_return_value(res.into());
                                 }
-                                Some(Syscall::YIELD) => {
+                                Syscall::YIELD => {
                                     process.set_yielded_state();
-                                    process.pop_syscall_stack_frame();
 
                                     // There might be already enqueued callbacks
                                     continue;
                                 }
-                                Some(Syscall::SUBSCRIBE {
+                                Syscall::SUBSCRIBE {
                                     driver_number,
                                     subdriver_number,
                                     callback_ptr,
                                     appdata,
-                                }) => {
+                                } => {
+                                    let callback_id = CallbackId {
+                                        driver_num: driver_number,
+                                        subscribe_num: subdriver_number,
+                                    };
+                                    process.remove_pending_callbacks(callback_id);
+
                                     let callback_ptr = NonNull::new(callback_ptr);
-                                    let callback = callback_ptr
-                                        .map(|ptr| Callback::new(appid, appdata, ptr.cast()));
+                                    let callback = callback_ptr.map(|ptr| {
+                                        Callback::new(appid, callback_id, appdata, ptr.cast())
+                                    });
 
                                     let res =
                                         platform.with_driver(
@@ -307,12 +320,12 @@ impl Kernel {
                                         );
                                     process.set_syscall_return_value(res.into());
                                 }
-                                Some(Syscall::COMMAND {
+                                Syscall::COMMAND {
                                     driver_number,
                                     subdriver_number,
                                     arg0,
                                     arg1,
-                                }) => {
+                                } => {
                                     let res =
                                         platform.with_driver(
                                             driver_number,
@@ -325,12 +338,12 @@ impl Kernel {
                                         );
                                     process.set_syscall_return_value(res.into());
                                 }
-                                Some(Syscall::ALLOW {
+                                Syscall::ALLOW {
                                     driver_number,
                                     subdriver_number,
                                     allow_address,
                                     allow_size,
-                                }) => {
+                                } => {
                                     let res = platform.with_driver(driver_number, |driver| {
                                         match driver {
                                             Some(d) => {
@@ -346,7 +359,6 @@ impl Kernel {
                                     });
                                     process.set_syscall_return_value(res.into());
                                 }
-                                _ => {}
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
@@ -365,14 +377,15 @@ impl Kernel {
                         }
                     }
                 }
-                process::State::Yielded => match process.dequeue_task() {
+                process::State::Yielded | process::State::Unstarted => match process.dequeue_task()
+                {
                     // If the process is yielded it might be waiting for a
                     // callback. If there is a task scheduled for this process
                     // go ahead and set the process to execute it.
                     None => break,
                     Some(cb) => match cb {
                         Task::FunctionCall(ccb) => {
-                            process.push_function_call(ccb);
+                            process.set_process_function(ccb);
                         }
                         Task::IPC((otherapp, ipc_type)) => {
                             ipc.map_or_else(

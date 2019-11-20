@@ -127,7 +127,7 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static EverythingClient>,
+    client: OptionalCell<&'static dyn EverythingClient>,
 }
 
 /// Memory mapped registers for the ADC.
@@ -491,14 +491,19 @@ impl Adc {
 
             self.enabled.set(true);
 
+            // configure the ADC max speed and reference select
+            let mut cfg_val = Configuration::SPEED::ksps300 + Configuration::REFSEL::VccX0p5;
+
             // First, enable the clocks
-            // Both the ADCIFE clock and GCLK10 are needed
-            let mut clock_divisor;
+            // Both the ADCIFE clock and GCLK10 are needed,
+            // but the GCLK10 source depends on the requested sampling frequency
 
             // turn on ADCIFE bus clock. Already set to the same frequency
             // as the CPU clock
             pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
-            // the maximum sampling frequency with the RC clocks is 1/32th of their clock
+
+            // Now, determine the prescalar.
+            // The maximum sampling frequency with the RC clocks is 1/32th of their clock
             // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
             // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
             if frequency <= 113600 / 32 {
@@ -521,9 +526,10 @@ impl Adc {
                     max_freq = 113600 / 32;
                 }
                 let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
-                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
-                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                let divisor_pow2 = math::closest_power_of_two(divisor);
+                let clock_divisor = cmp::min(math::log_base_two(divisor_pow2), 7);
                 self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
+                cfg_val += Configuration::PRESCAL.val(clock_divisor);
             } else {
                 // CPU clock
                 self.cpu_clock.set(true);
@@ -537,16 +543,15 @@ impl Adc {
                 // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
                 let cpu_frequency = pm::get_system_frequency();
                 let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
-                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
-                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                let divisor_pow2 = math::closest_power_of_two(divisor);
+                let clock_divisor = cmp::min(
+                    math::log_base_two(divisor_pow2).checked_sub(2).unwrap_or(0),
+                    7,
+                );
                 self.adc_clk_freq
                     .set(cpu_frequency / (1 << (clock_divisor + 2)));
+                cfg_val += Configuration::PRESCAL.val(clock_divisor);
             }
-
-            // configure the ADC
-            let mut cfg_val = Configuration::PRESCAL.val(clock_divisor)
-                + Configuration::SPEED::ksps300
-                + Configuration::REFSEL::VccX0p5;
 
             if self.cpu_clock.get() {
                 cfg_val += Configuration::CLKSEL::ApbClock
@@ -598,6 +603,32 @@ impl Adc {
             ReturnCode::SUCCESS
         }
     }
+
+    /// Disables the ADC so that the chip can return to deep sleep
+    fn disable(&self) {
+        let regs: &AdcRegisters = &*self.registers;
+
+        // disable ADC
+        regs.cr.write(Control::DIS::SET);
+
+        // wait until status is disabled
+        let mut timeout = 10000;
+        while regs.sr.is_set(Status::EN) {
+            timeout -= 1;
+            if timeout == 0 {
+                // ADC never disabled
+                return;
+            }
+        }
+
+        // disable bandgap and reference buffers
+        regs.cr
+            .write(Control::BGREQDIS::SET + Control::REFBUFDIS::SET);
+
+        self.enabled.set(false);
+        scif::generic_clock_disable(scif::GenericClock::GCLK10);
+        pm::disable_clock(Clock::PBA(PBAClock::ADCIFE));
+    }
 }
 
 /// Implements an ADC capable reading ADC samples on any channel.
@@ -615,7 +646,7 @@ impl hil::adc::Adc for Adc {
         let res = self.config_and_enable(1000);
 
         if res != ReturnCode::SUCCESS {
-            return res;
+            res
         } else if !self.enabled.get() {
             ReturnCode::EOFF
         } else if self.active.get() {
@@ -665,7 +696,7 @@ impl hil::adc::Adc for Adc {
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
-            return res;
+            res
         } else if !self.enabled.get() {
             ReturnCode::EOFF
         } else if self.active.get() {
@@ -776,6 +807,9 @@ impl hil::adc::Adc for Adc {
             // reset the ADC peripheral
             regs.cr.write(Control::SWRST::SET);
 
+            // disable the ADC
+            self.disable();
+
             // stop DMA transfer if going. This should safely return a None if
             // the DMA was not being used
             let dma_buffer = self.rx_dma.map_or(None, |rx_dma| {
@@ -846,7 +880,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
-            return (res, Some(buffer1), Some(buffer2));
+            (res, Some(buffer1), Some(buffer2))
         } else if !self.enabled.get() {
             (ReturnCode::EOFF, Some(buffer1), Some(buffer2))
         } else if self.active.get() {

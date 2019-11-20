@@ -75,7 +75,7 @@ impl<A: AES128CCM<'a>> Test<'a, A> {
                 return false;
             }
         }
-        return true;
+        true
     }
 
     fn trigger_test(&self) {

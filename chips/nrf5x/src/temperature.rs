@@ -105,7 +105,7 @@ register_bitfields! [u32,
 
 pub struct Temp {
     registers: StaticRef<TempRegisters>,
-    client: OptionalCell<&'static kernel::hil::sensors::TemperatureClient>,
+    client: OptionalCell<&'static dyn kernel::hil::sensors::TemperatureClient>,
 }
 
 pub static mut TEMP: Temp = Temp::new();
@@ -158,7 +158,7 @@ impl kernel::hil::sensors::TemperatureDriver for Temp {
         kernel::ReturnCode::SUCCESS
     }
 
-    fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
+    fn set_client(&self, client: &'static dyn kernel::hil::sensors::TemperatureClient) {
         self.client.set(client);
     }
 }

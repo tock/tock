@@ -107,7 +107,7 @@ pub trait UDPRecvClient {
 /// received packets up to whatever app layer client assigns itself
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
-    client: OptionalCell<&'a UDPRecvClient>,
+    client: OptionalCell<&'a dyn UDPRecvClient>,
     binding: MapCell<UdpReceiverBinding>,
     next: ListLink<'a, UDPReceiver<'a>>,
 }
@@ -127,7 +127,7 @@ impl<'a> UDPReceiver<'a> {
         }
     }
 
-    pub fn set_client(&self, client: &'a UDPRecvClient) {
+    pub fn set_client(&self, client: &'a dyn UDPRecvClient) {
         self.client.set(client);
     }
 

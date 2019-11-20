@@ -47,7 +47,7 @@ pub struct UdpPortSocket {
 /// handle to userspace port bindings in the UDP driver.
 pub struct UdpPortTable {
     port_array: TakeCell<'static, [Option<PortEntry>]>,
-    user_ports: OptionalCell<&'static PortQuery>,
+    user_ports: OptionalCell<&'static dyn PortQuery>,
 }
 
 impl fmt::Debug for UdpPortTable {
@@ -125,7 +125,7 @@ impl UdpPortTable {
         }
     }
 
-    pub unsafe fn set_user_ports(&self, user_ports_ref: &'static PortQuery) {
+    pub unsafe fn set_user_ports(&self, user_ports_ref: &'static dyn PortQuery) {
         self.user_ports.replace(user_ports_ref);
     }
 
@@ -169,9 +169,7 @@ impl UdpPortTable {
     pub fn is_bound(&self, port: u16) -> bool {
         // TODO: return error if self.user_ports is empty!!!!!
         // First, check the user bindings.
-        if self.user_ports.is_none() {
-            debug!("empty user ports.");
-        }
+        if self.user_ports.is_none() {}
         // TODO: Change is_bound to return ReturnCode or Result so we can
         // seperately handle error case of user_ports not existing.
         // Currently, if user_ports doesnt exist we just pretend that
@@ -179,9 +177,7 @@ impl UdpPortTable {
         let user_bound = self
             .user_ports
             .map_or(true, |port_query| port_query.is_bound(port));
-        if self.user_ports.is_none() {
-            debug!("I am gone.");
-        }
+        if self.user_ports.is_none() {}
         if user_bound {
             return true;
         };

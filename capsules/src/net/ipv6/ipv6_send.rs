@@ -47,7 +47,7 @@ pub trait IP6Sender<'a> {
     /// # Arguments
     /// `client` - Client that implements the `IP6SendClient` trait to receive the
     /// `send_done` callback
-    fn set_client(&self, client: &'a IP6SendClient);
+    fn set_client(&self, client: &'a dyn IP6SendClient);
 
     /// This method sets the source address for packets sent from the
     /// `IP6Sender` instance.
@@ -88,7 +88,7 @@ pub trait IP6Sender<'a> {
 
 /// This struct is a specific implementation of the `IP6Sender` trait. This
 /// struct sends the packet using 6LoWPAN over a generic `MacDevice` object.
-pub struct IP6SendStruct<'a, A: time::Alarm> {
+pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     // We want the ip6_packet field to be a TakeCell so that it is easy to mutate
     ip6_packet: TakeCell<'static, IP6Packet<'static>>,
     alarm: &'a A, // Alarm so we can introduce a small delay between fragments to ensure
@@ -98,14 +98,14 @@ pub struct IP6SendStruct<'a, A: time::Alarm> {
     gateway: Cell<MacAddress>,
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
-    radio: &'a MacDevice<'a>,
+    radio: &'a dyn MacDevice<'a>,
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
-    client: OptionalCell<&'a IP6SendClient>,
+    client: OptionalCell<&'a dyn IP6SendClient>,
 }
 
-impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
-    fn set_client(&self, client: &'a IP6SendClient) {
+impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
+    fn set_client(&self, client: &'a dyn IP6SendClient) {
         self.client.set(client);
     }
 
@@ -140,13 +140,13 @@ impl<A: time::Alarm> IP6Sender<'a> for IP6SendStruct<'a, A> {
     }
 }
 
-impl<A: time::Alarm> IP6SendStruct<'a, A> {
+impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     pub fn new(
         ip6_packet: &'static mut IP6Packet<'static>,
         alarm: &'a A,
         tx_buf: &'static mut [u8],
         sixlowpan: TxState<'a>,
-        radio: &'a MacDevice<'a>,
+        radio: &'a dyn MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
     ) -> IP6SendStruct<'a, A> {
@@ -236,7 +236,7 @@ impl<A: time::Alarm> IP6SendStruct<'a, A> {
     }
 }
 
-impl<A: time::Alarm> time::Client for IP6SendStruct<'a, A> {
+impl<A: time::Alarm<'a>> time::AlarmClient for IP6SendStruct<'a, A> {
     fn fired(&self) {
         let result = self.send_next_fragment();
         if result != ReturnCode::SUCCESS {
@@ -245,7 +245,7 @@ impl<A: time::Alarm> time::Client for IP6SendStruct<'a, A> {
     }
 }
 
-impl<A: time::Alarm> TxClient for IP6SendStruct<'a, A> {
+impl<A: time::Alarm<'a>> TxClient for IP6SendStruct<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.tx_buf.replace(tx_buf);
         if result != ReturnCode::SUCCESS {

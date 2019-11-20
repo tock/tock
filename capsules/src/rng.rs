@@ -27,7 +27,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::RNG as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 
 #[derive(Default)]
 pub struct App {
@@ -38,13 +38,13 @@ pub struct App {
 }
 
 pub struct RngDriver<'a> {
-    rng: &'a Rng<'a>,
+    rng: &'a dyn Rng<'a>,
     apps: Grant<App>,
     getting_randomness: Cell<bool>,
 }
 
 impl RngDriver<'a> {
-    pub fn new(rng: &'a Rng<'a>, grant: Grant<App>) -> RngDriver<'a> {
+    pub fn new(rng: &'a dyn Rng<'a>, grant: Grant<App>) -> RngDriver<'a> {
         RngDriver {
             rng: rng,
             apps: grant,
@@ -56,7 +56,7 @@ impl RngDriver<'a> {
 impl<'a> rng::Client for RngDriver<'a> {
     fn randomness_available(
         &self,
-        randomness: &mut Iterator<Item = u32>,
+        randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> rng::Continue {
         let mut done = true;
@@ -203,12 +203,12 @@ impl<'a> Driver for RngDriver<'a> {
 }
 
 pub struct Entropy32ToRandom<'a> {
-    egen: &'a Entropy32<'a>,
-    client: OptionalCell<&'a rng::Client>,
+    egen: &'a dyn Entropy32<'a>,
+    client: OptionalCell<&'a dyn rng::Client>,
 }
 
 impl Entropy32ToRandom<'a> {
-    pub fn new(egen: &'a Entropy32<'a>) -> Entropy32ToRandom<'a> {
+    pub fn new(egen: &'a dyn Entropy32<'a>) -> Entropy32ToRandom<'a> {
         Entropy32ToRandom {
             egen: egen,
             client: OptionalCell::empty(),
@@ -225,7 +225,7 @@ impl Rng<'a> for Entropy32ToRandom<'a> {
         self.egen.cancel()
     }
 
-    fn set_client(&'a self, client: &'a rng::Client) {
+    fn set_client(&'a self, client: &'a dyn rng::Client) {
         self.egen.set_client(self);
         self.client.set(client);
     }
@@ -234,7 +234,7 @@ impl Rng<'a> for Entropy32ToRandom<'a> {
 impl entropy::Client32 for Entropy32ToRandom<'a> {
     fn entropy_available(
         &self,
-        entropy: &mut Iterator<Item = u32>,
+        entropy: &mut dyn Iterator<Item = u32>,
         error: ReturnCode,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
@@ -255,7 +255,7 @@ impl entropy::Client32 for Entropy32ToRandom<'a> {
     }
 }
 
-struct Entropy32ToRandomIter<'a>(&'a mut Iterator<Item = u32>);
+struct Entropy32ToRandomIter<'a>(&'a mut dyn Iterator<Item = u32>);
 
 impl Iterator for Entropy32ToRandomIter<'a> {
     type Item = u32;
@@ -266,14 +266,14 @@ impl Iterator for Entropy32ToRandomIter<'a> {
 }
 
 pub struct Entropy8To32<'a> {
-    egen: &'a Entropy8<'a>,
-    client: OptionalCell<&'a entropy::Client32>,
+    egen: &'a dyn Entropy8<'a>,
+    client: OptionalCell<&'a dyn entropy::Client32>,
     count: Cell<usize>,
     bytes: Cell<u32>,
 }
 
 impl Entropy8To32<'a> {
-    pub fn new(egen: &'a Entropy8<'a>) -> Entropy8To32<'a> {
+    pub fn new(egen: &'a dyn Entropy8<'a>) -> Entropy8To32<'a> {
         Entropy8To32 {
             egen: egen,
             client: OptionalCell::empty(),
@@ -300,7 +300,7 @@ impl Entropy32<'a> for Entropy8To32<'a> {
         self.egen.cancel()
     }
 
-    fn set_client(&'a self, client: &'a entropy::Client32) {
+    fn set_client(&'a self, client: &'a dyn entropy::Client32) {
         self.egen.set_client(self);
         self.client.set(client);
     }
@@ -309,7 +309,7 @@ impl Entropy32<'a> for Entropy8To32<'a> {
 impl entropy::Client8 for Entropy8To32<'a> {
     fn entropy_available(
         &self,
-        entropy: &mut Iterator<Item = u8>,
+        entropy: &mut dyn Iterator<Item = u8>,
         error: ReturnCode,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
@@ -363,14 +363,14 @@ impl Iterator for Entropy8To32Iter<'a, 'b> {
 }
 
 pub struct Entropy32To8<'a> {
-    egen: &'a Entropy32<'a>,
-    client: OptionalCell<&'a entropy::Client8>,
+    egen: &'a dyn Entropy32<'a>,
+    client: OptionalCell<&'a dyn entropy::Client8>,
     entropy: Cell<u32>,
     bytes_consumed: Cell<usize>,
 }
 
 impl Entropy32To8<'a> {
-    pub fn new(egen: &'a Entropy32<'a>) -> Entropy32To8<'a> {
+    pub fn new(egen: &'a dyn Entropy32<'a>) -> Entropy32To8<'a> {
         Entropy32To8 {
             egen: egen,
             client: OptionalCell::empty(),
@@ -397,7 +397,7 @@ impl Entropy8<'a> for Entropy32To8<'a> {
         self.egen.cancel()
     }
 
-    fn set_client(&'a self, client: &'a entropy::Client8) {
+    fn set_client(&'a self, client: &'a dyn entropy::Client8) {
         self.egen.set_client(self);
         self.client.set(client);
     }
@@ -406,7 +406,7 @@ impl Entropy8<'a> for Entropy32To8<'a> {
 impl entropy::Client32 for Entropy32To8<'a> {
     fn entropy_available(
         &self,
-        entropy: &mut Iterator<Item = u32>,
+        entropy: &mut dyn Iterator<Item = u32>,
         error: ReturnCode,
     ) -> entropy::Continue {
         self.client.map_or(entropy::Continue::Done, |client| {
@@ -449,13 +449,13 @@ impl Iterator for Entropy32To8Iter<'a, 'b> {
 }
 
 pub struct SynchronousRandom<'a> {
-    rgen: &'a Rng<'a>,
+    rgen: &'a dyn Rng<'a>,
     seed: Cell<u32>,
 }
 
 #[allow(dead_code)]
 impl SynchronousRandom<'a> {
-    fn new(rgen: &'a Rng<'a>) -> SynchronousRandom {
+    fn new(rgen: &'a dyn Rng<'a>) -> SynchronousRandom {
         SynchronousRandom {
             rgen: rgen,
             seed: Cell::new(0),
@@ -492,7 +492,7 @@ impl Random<'a> for SynchronousRandom<'a> {
 impl Client for SynchronousRandom<'a> {
     fn randomness_available(
         &self,
-        randomness: &mut Iterator<Item = u32>,
+        randomness: &mut dyn Iterator<Item = u32>,
         _error: ReturnCode,
     ) -> Continue {
         match randomness.next() {

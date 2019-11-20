@@ -23,10 +23,10 @@ pub const DST_ADDR: IPAddr = IPAddr([
 pub const PAYLOAD_LEN: usize = 192;
 pub const SEND_INTERVAL_SECONDS: u32 = 5;
 
-pub struct MockUdp<'a, A: Alarm> {
+pub struct MockUdp<'a, A: Alarm<'a>> {
     id: u16,
     pub alarm: &'a A,
-    udp_sender: &'a UDPSender<'a>,
+    udp_sender: &'a dyn UDPSender<'a>,
     udp_receiver: &'a UDPReceiver<'a>,
     port_table: &'static UdpPortTable,
     udp_dgram: MapCell<Buffer<'static, u8>>,
@@ -35,11 +35,11 @@ pub struct MockUdp<'a, A: Alarm> {
     send_loop: Cell<bool>,
 }
 
-impl<'a, A: Alarm> MockUdp<'a, A> {
+impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     pub fn new(
         id: u16,
         alarm: &'a A,
-        udp_sender: &'a UDPSender<'a>,
+        udp_sender: &'a dyn UDPSender<'a>,
         udp_receiver: &'a UDPReceiver<'a>,
         port_table: &'static UdpPortTable,
         udp_dgram: Buffer<'static, u8>,
@@ -154,7 +154,7 @@ impl<'a, A: Alarm> MockUdp<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> time::Client for MockUdp<'a, A> {
+impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
     fn fired(&self) {
         if self.send_loop.get() {
             self.send(self.id);
@@ -162,7 +162,7 @@ impl<'a, A: Alarm> time::Client for MockUdp<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> UDPSendClient for MockUdp<'a, A> {
+impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
     fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
@@ -176,7 +176,7 @@ impl<'a, A: Alarm> UDPSendClient for MockUdp<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> UDPRecvClient for MockUdp<'a, A> {
+impl<'a, A: Alarm<'a>> UDPRecvClient for MockUdp<'a, A> {
     fn receive(
         &self,
         src_addr: IPAddr,
@@ -186,7 +186,7 @@ impl<'a, A: Alarm> UDPRecvClient for MockUdp<'a, A> {
         payload: &[u8],
     ) {
         debug!(
-            "[MOCK_UDP {:?}] Received packet from {:?}:{:?}, contents: {:?}",
+            "[MOCK_UDP {:?}] Received packet from {:?}:{:?}, contents: {:?}\n",
             self.id, src_addr, src_port, payload
         );
     }

@@ -20,11 +20,11 @@ use kernel::ReturnCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
-    ip_sender: &'a IP6Sender<'a>,
+    ip_sender: &'a dyn IP6Sender<'a>,
 }
 
 impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
-    pub fn new(ip6_sender: &'a IP6Sender<'a>) -> MuxUdpSender<'a, T> {
+    pub fn new(ip6_sender: &'a dyn IP6Sender<'a>) -> MuxUdpSender<'a, T> {
         // similar to UdpSendStruct new()
         MuxUdpSender {
             sender_list: List::new(),
@@ -138,7 +138,7 @@ pub trait UDPSender<'a> {
     /// # Arguments
     /// `client` - Implementation of `UDPSendClient` to be set as the client
     /// for the `UDPSender` instance
-    fn set_client(&self, client: &'a UDPSendClient);
+    fn set_client(&self, client: &'a dyn UDPSendClient);
 
     /// This function constructs a `UDPHeader` and sends the payload to the
     /// provided destination IP address and
@@ -180,7 +180,7 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         src_port: u16,
         buf: Buffer<'static, u8>,
-        driver_send_cap: &UdpDriverSendCapability,
+        driver_send_cap: &dyn UdpDriverSendCapability,
     ) -> Result<(), Buffer<'static, u8>>;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
@@ -213,7 +213,7 @@ pub trait UDPSender<'a> {
 /// forwards packets to (and receives callbacks from).
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     udp_mux_sender: &'a MuxUdpSender<'a, T>,
-    client: OptionalCell<&'a UDPSendClient>,
+    client: OptionalCell<&'a dyn UDPSendClient>,
     next: ListLink<'a, UDPSendStruct<'a, T>>,
     tx_buffer: MapCell<Buffer<'static, u8>>,
     next_dest: Cell<IPAddr>,
@@ -230,7 +230,7 @@ impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<
 /// Below is the implementation of the `UDPSender` traits for the
 /// `UDPSendStruct`.
 impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
-    fn set_client(&self, client: &'a UDPSendClient) {
+    fn set_client(&self, client: &'a dyn UDPSendClient) {
         self.client.set(client);
     }
 
@@ -262,7 +262,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dst_port: u16,
         src_port: u16,
         buf: Buffer<'static, u8>,
-        _driver_send_cap: &UdpDriverSendCapability,
+        _driver_send_cap: &dyn UdpDriverSendCapability,
     ) -> Result<(), Buffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
@@ -302,7 +302,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
-        udp_mux_sender: &'a MuxUdpSender<'a, T> /*binding: UdpSenderBinding*/
+        udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpSenderBinding*/
     ) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,

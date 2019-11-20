@@ -11,37 +11,50 @@ HIL Support
 
 <!--START OF HIL SUPPORT-->
 
-| HIL                    | cc26x2 | nrf52 | sam4l |
-|------------------------|--------|-------|-------|
-| AES128                 |        | ✓     | ✓     |
-| AES128CBC              |        |       | ✓     |
-| AES128Ctr              |        | ✓     | ✓     |
-| Adc                    |        | ✓     | ✓     |
-| AdcHighSpeed           |        |       | ✓     |
-| Alarm                  | ✓      | ✓     | ✓     |
-| AnalogComparator       |        |       | ✓     |
-| BleAdvertisementDriver |        | ✓     |       |
-| BleConfig              |        | ✓     |       |
-| CRC                    |        |       | ✓     |
-| Controller             |        | ✓     | ✓     |
-| DacChannel             |        |       | ✓     |
-| Entropy32              | ✓      | ✓     | ✓     |
-| Flash                  |        | ✓     | ✓     |
-| Frequency              | ✓      | ✓     |       |
-| I2CMaster              | ✓      | ✓     | ✓     |
-| I2CMasterSlave         |        |       | ✓     |
-| I2CSlave               |        |       | ✓     |
-| Pin                    | ✓      | ✓     | ✓     |
-| PinCtl                 | ✓      | ✓     | ✓     |
-| Pwm                    |        | ✓     |       |
-| SpiMaster              |        | ✓     | ✓     |
-| SpiSlave               |        |       | ✓     |
-| TemperatureDriver      |        | ✓     |       |
-| Time                   | ✓      | ✓     | ✓     |
-| UART                   | ✓      | ✓     | ✓     |
-| UARTReceiveAdvanced    |        |       | ✓     |
-| UsbController          |        |       | ✓     |
-| Watchdog               |        |       | ✓     |
+| HIL                                     | arty_e21 | cc26x2 | e310x | nrf52 | sam4l | stm32f4xx |
+|-----------------------------------------|----------|--------|-------|-------|-------|-----------|
+| adc::Adc                                |          |        |       | ✓     | ✓     |           |
+| adc::AdcHighSpeed                       |          |        |       |       | ✓     |           |
+| analog_comparator::AnalogComparator     |          |        |       |       | ✓     |           |
+| ble_advertising::BleAdvertisementDriver |          |        |       | ✓     |       |           |
+| ble_advertising::BleConfig              |          |        |       | ✓     |       |           |
+| crc::CRC                                |          |        |       |       | ✓     |           |
+| dac::DacChannel                         |          |        |       |       | ✓     |           |
+| eic::ExternalInterruptController        |          |        |       |       | ✓     |           |
+| entropy::Entropy32                      |          | ✓      |       | ✓     | ✓     |           |
+| flash::Flash                            |          |        |       | ✓     | ✓     |           |
+| gpio::Input                             | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::Interrupt                         | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::InterruptPin                      | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::Output                            | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| gpio::Pin                               | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| i2c::I2CMaster                          |          | ✓      |       | ✓     | ✓     |           |
+| i2c::I2CMasterSlave                     |          |        |       |       | ✓     |           |
+| i2c::I2CSlave                           |          |        |       |       | ✓     |           |
+| mod::Controller                         |          |        |       | ✓     | ✓     |           |
+| pwm::Pwm                                |          |        |       | ✓     |       |           |
+| radio::Radio                            |          |        |       | ✓     |       |           |
+| radio::RadioConfig                      |          |        |       | ✓     |       |           |
+| radio::RadioData                        |          |        |       | ✓     |       |           |
+| sensors::TemperatureDriver              |          |        |       | ✓     |       |           |
+| spi::SpiMaster                          |          |        |       | ✓     | ✓     | ✓         |
+| spi::SpiSlave                           |          |        |       |       | ✓     |           |
+| symmetric_encryption::AES128            |          |        |       | ✓     | ✓     |           |
+| symmetric_encryption::AES128CBC         |          |        |       | ✓     | ✓     |           |
+| symmetric_encryption::AES128CCM         |          |        |       | ✓     |       |           |
+| symmetric_encryption::AES128Ctr         |          |        |       | ✓     | ✓     |           |
+| time::Alarm                             |          | ✓      |       | ✓     | ✓     | ✓         |
+| time::Frequency                         |          | ✓      |       | ✓     |       |           |
+| time::Time                              |          | ✓      |       | ✓     | ✓     | ✓         |
+| uart::Configure                         | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| uart::Receive                           | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| uart::ReceiveAdvanced                   |          |        |       |       | ✓     |           |
+| uart::Transmit                          | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| uart::Uart                              | ✓        | ✓      | ✓     | ✓     | ✓     | ✓         |
+| uart::UartAdvanced                      |          |        |       |       | ✓     |           |
+| uart::UartData                          | ✓        | ✓      | ✓     | ✓     |       | ✓         |
+| usb::UsbController                      |          |        |       |       | ✓     |           |
+| watchdog::Watchdog                      |          |        |       |       | ✓     |           |
 
 <!--END OF HIL SUPPORT-->
 

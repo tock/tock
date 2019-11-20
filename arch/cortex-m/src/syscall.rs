@@ -74,94 +74,72 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
-    /// Get the syscall that the process called.
-    unsafe fn get_syscall(&self, stack_pointer: *const usize) -> Option<kernel::syscall::Syscall> {
-        // Get the four values that are passed with the syscall.
-        let r0 = read_volatile(stack_pointer.offset(0));
-        let r1 = read_volatile(stack_pointer.offset(1));
-        let r2 = read_volatile(stack_pointer.offset(2));
-        let r3 = read_volatile(stack_pointer.offset(3));
+    unsafe fn initialize_new_process(
+        &self,
+        stack_pointer: *const usize,
+        stack_size: usize,
+        _state: &mut Self::StoredState,
+    ) -> Result<*const usize, ()> {
+        // The first time a process runs it has no stack and we have to create
+        // a new stack frame for the svc handler to have "returned from".
 
-        // Get the actual SVC number.
-        let pcptr = read_volatile((stack_pointer as *const *const u16).offset(6));
-        let svc_instr = read_volatile(pcptr.offset(-1));
-        let svc_num = (svc_instr & 0xff) as u8;
-        match svc_num {
-            0 => Some(kernel::syscall::Syscall::YIELD),
-            1 => Some(kernel::syscall::Syscall::SUBSCRIBE {
-                driver_number: r0,
-                subdriver_number: r1,
-                callback_ptr: r2 as *mut (),
-                appdata: r3,
-            }),
-            2 => Some(kernel::syscall::Syscall::COMMAND {
-                driver_number: r0,
-                subdriver_number: r1,
-                arg0: r2,
-                arg1: r3,
-            }),
-            3 => Some(kernel::syscall::Syscall::ALLOW {
-                driver_number: r0,
-                subdriver_number: r1,
-                allow_address: r2 as *mut u8,
-                allow_size: r3,
-            }),
-            4 => Some(kernel::syscall::Syscall::MEMOP {
-                operand: r0,
-                arg0: r1,
-            }),
-            _ => None,
+        // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
+        let svc_frame_size = 32;
+
+        // Make sure there's enough room on the stack for the initial kernel frame
+        if stack_size < svc_frame_size {
+            // Not enough room on the stack to add a frame.
+            return Err(());
         }
+
+        // Allocate the kernel frame
+        Ok((stack_pointer as *mut usize).offset(-8))
     }
 
-    unsafe fn set_syscall_return_value(&self, stack_pointer: *const usize, return_value: isize) {
+    unsafe fn set_syscall_return_value(
+        &self,
+        stack_pointer: *const usize,
+        _state: &mut Self::StoredState,
+        return_value: isize,
+    ) {
         // For the Cortex-M arch we set this in the same place that r0 was
         // passed.
         let sp = stack_pointer as *mut isize;
         write_volatile(sp, return_value);
     }
 
-    unsafe fn pop_syscall_stack_frame(
+    /// When the process calls `svc` to enter the kernel, the hardware
+    /// automatically pushes a stack frame that will be unstacked when the
+    /// kernel returns to the process. In the special case of process startup,
+    /// `initialize_new_process` sets up an empty stack frame and stored state
+    /// as if an `svc` had been called.
+    ///
+    /// Here, we modify this stack frame such that the process resumes at the
+    /// beginning of the callback function that we want the process to run. We
+    /// place the originally intended return addess in the link register so
+    /// that when the function completes execution continues.
+    ///
+    /// In effect, this converts `svc` into `bl callback`.
+    unsafe fn set_process_function(
         &self,
         stack_pointer: *const usize,
+        _remaining_stack_memory: usize,
         state: &mut CortexMStoredState,
-    ) -> *mut usize {
-        state.yield_pc = read_volatile(stack_pointer.offset(6));
-        state.psr = read_volatile(stack_pointer.offset(7));
-        (stack_pointer as *mut usize).offset(8)
-    }
-
-    unsafe fn push_function_call(
-        &self,
-        stack_pointer: *const usize,
-        remaining_stack_memory: usize,
         callback: kernel::procs::FunctionCall,
-        state: &CortexMStoredState,
     ) -> Result<*mut usize, *mut usize> {
-        // We need 32 bytes to add this frame. Ensure that there are 32 bytes
-        // available on the stack.
-        if remaining_stack_memory < 32 {
-            // Not enough room on the stack to add a frame. Return an error
-            // and where the stack would be to help with debugging.
-            Err((stack_pointer as *mut usize).offset(-8))
-        } else {
-            // Fill in initial stack expected by SVC handler
-            // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
-            let stack_bottom = (stack_pointer as *mut usize).offset(-8);
-            write_volatile(stack_bottom.offset(7), state.psr);
-            write_volatile(stack_bottom.offset(6), callback.pc | 1);
+        // Notes:
+        //  - Instruction addresses require `|1` to indicate thumb code
+        //  - Stack offset 4 is R12, which the syscall interface ignores
+        let stack_bottom = stack_pointer as *mut usize;
+        write_volatile(stack_bottom.offset(7), state.psr); //......... -> APSR
+        write_volatile(stack_bottom.offset(6), callback.pc | 1); //... -> PC
+        write_volatile(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
+        write_volatile(stack_bottom.offset(3), callback.argument3); // -> R3
+        write_volatile(stack_bottom.offset(2), callback.argument2); // -> R2
+        write_volatile(stack_bottom.offset(1), callback.argument1); // -> R1
+        write_volatile(stack_bottom.offset(0), callback.argument0); // -> R0
 
-            // Set the LR register to the saved PC so the callback returns to
-            // wherever wait was called. Set lowest bit to one because of THUMB
-            // instruction requirements.
-            write_volatile(stack_bottom.offset(5), state.yield_pc | 0x1);
-            write_volatile(stack_bottom, callback.argument0);
-            write_volatile(stack_bottom.offset(1), callback.argument1);
-            write_volatile(stack_bottom.offset(2), callback.argument2);
-            write_volatile(stack_bottom.offset(3), callback.argument3);
-
-            Ok(stack_bottom)
-        }
+        Ok(stack_bottom)
     }
 
     unsafe fn switch_to_process(
@@ -194,7 +172,34 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
         } else if syscall_fired == 1 {
-            kernel::syscall::ContextSwitchReason::SyscallFired
+            // Save these fields after a syscall. If this is a synchronous
+            // syscall (i.e. we return a value to the app immediately) then this
+            // will have no effect. If we are doing something like `yield()`,
+            // however, then we need to have this state.
+            state.yield_pc = read_volatile(new_stack_pointer.offset(6));
+            state.psr = read_volatile(new_stack_pointer.offset(7));
+
+            // Get the syscall arguments and return them along with the syscall.
+            // It's possible the app did something invalid, in which case we put
+            // the app in the fault state.
+            let r0 = read_volatile(new_stack_pointer.offset(0));
+            let r1 = read_volatile(new_stack_pointer.offset(1));
+            let r2 = read_volatile(new_stack_pointer.offset(2));
+            let r3 = read_volatile(new_stack_pointer.offset(3));
+
+            // Get the actual SVC number.
+            let pcptr = read_volatile((new_stack_pointer as *const *const u16).offset(6));
+            let svc_instr = read_volatile(pcptr.offset(-1));
+            let svc_num = (svc_instr & 0xff) as u8;
+
+            // Use the helper function to convert these raw values into a Tock
+            // `Syscall` type.
+            let syscall = kernel::syscall::arguments_to_syscall(svc_num, r0, r1, r2, r3);
+
+            match syscall {
+                Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
+                None => kernel::syscall::ContextSwitchReason::Fault,
+            }
         } else if systick_expired == 1 {
             kernel::syscall::ContextSwitchReason::TimesliceExpired
         } else {
@@ -206,7 +211,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         (new_stack_pointer as *mut usize, switch_reason)
     }
 
-    unsafe fn fault_fmt(&self, writer: &mut Write) {
+    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
         let _ccr = SCB_REGISTERS[0];
         let cfsr = SCB_REGISTERS[1];
         let hfsr = SCB_REGISTERS[2];
@@ -388,7 +393,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         stack_pointer: *const usize,
         state: &CortexMStoredState,
-        writer: &mut Write,
+        writer: &mut dyn Write,
     ) {
         let r0 = read_volatile(stack_pointer.offset(0));
         let r1 = read_volatile(stack_pointer.offset(1));
@@ -450,7 +455,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let _ = writer.write_fmt(format_args!(
             "\
              \r\n EPSR: ICI.IT {:#04x}\
-             \r\n       ThumbBit {} {}",
+             \r\n       ThumbBit {} {}\r\n",
             ici_it,
             thumb_bit,
             if thumb_bit {

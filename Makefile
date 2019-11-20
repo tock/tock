@@ -19,6 +19,7 @@ usage:
 	@echo "   allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "     alldoc: Builds Tock documentation for all boards"
 	@echo "         ci: Run all continuous integration tests"
+	@echo "      clean: Clean all builds"
 	@echo "     format: Runs the rustfmt tool on all kernel sources"
 	@echo "  formatall: Runs all formatting tools"
 	@echo "       list: Lists available boards"
@@ -43,6 +44,7 @@ ci-travis:
 	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
+	@./tools/check_wildcard_imports.sh
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
@@ -52,9 +54,9 @@ ci-travis:
 	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@CI=true $(MAKE) allcheck
-	@printf "$$(tput bold)****************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: DocTests *$$(tput sgr0)\n"
-	@printf "$$(tput bold)****************$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Kernel *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@cd kernel && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Compilation *$$(tput sgr0)\n"
@@ -83,9 +85,17 @@ ci-netlify:
 .PHONY: ci
 ci: ci-travis ci-netlify
 
+.PHONY: clean
+clean:
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean $$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@cd kernel && echo "$$(tput bold)Clean kernel" && cargo clean
+	@cd libraries/tock-cells && echo "$$(tput bold)Clean libraries/tock-cells" && cargo clean
+	@cd libraries/tock-register-interface && echo "$$(tput bold)Clean libraries/tock-register-interface" && cargo clean
+
 .PHONY: fmt format formatall
 fmt format formatall:
 	@./tools/run_cargo_fmt.sh
+	@./tools/check_wildcard_imports.sh
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:

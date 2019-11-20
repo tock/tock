@@ -1,10 +1,11 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
 [![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
-[![irc](https://img.shields.io/badge/irc-%23tock-lightgrey.svg)](https://kiwiirc.com/client/irc.freenode.net/tock)
+[![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
-distrustful applications on Cortex-M based embedded platforms. Tock's design
+distrustful applications on Cortex-M and RISC-V based embedded platforms.
+Tock's design
 centers around protection, both from potentially malicious applications and
 from device drivers. Tock uses two mechanisms to protect different components
 of the operating system. First, the kernel and device drivers are written in
@@ -34,7 +35,8 @@ system to compile Tock.
 
 Head to the [hardware page](https://www.tockos.org/hardware/)
 to learn about the hardware platforms Tock supports. Also check out the
-[workshop-style courses](doc/courses) to get started running apps with TockOS.
+[Tock Book](https://book.tockos.org) for a step-by-step introduction to getting
+Tock up and running.
 
 Find example applications that run on top of the Tock kernel written in both
 [Rust](https://github.com/tock/libtock-rs) and
@@ -61,10 +63,11 @@ post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 
 You can also browse our
-[email group](https://groups.google.com/forum/#!forum/tock-dev) 
-and our [Slack](https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LTg4YzE1MTkwYzI0YjhjNjA0YWExOGY2ZGYwNjQ2YmFiZjdhOTdlMzY0YTBiYTA2YTRlYzMyZTI1MDdmMTgwMzc) to see
+[email group](https://groups.google.com/forum/#!forum/tock-dev)
+and our [Slack][slack] to see
 discussions on Tock development.
 
+[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 
 License
 -------
@@ -81,3 +84,26 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
+
+## Contributors
+
+The Tock Project Developers include dozens of contributors, some on behalf of
+their university, company, or organization. The most up to date list of contributors is available in the git
+history: `git shortlog -s -n`.
+
+Organizations that have contributed code to Tock include:
+
+  * Stanford University
+  * Princeton University
+  * University of California, Berkeley
+  * University of Virginia
+  * University of Michigan
+  * Chalmers University
+  * Google
+  * Helium
+  * Atihita
+  * MIT
+  * MIT Lincoln Laboratory
+
+_Note: the above list may be incomplete. If your organization has supported you in
+contributing to Tock, and wish to be acknowledged, please update this list accordingly._

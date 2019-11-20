@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Builds all of the board documentation into doc/rustdoc.
+# The list of boards to build documentation for is generated from
+# list_boards.sh.
+
 set -e
 
 # Parse a search-index.js file to get the known crates.
@@ -16,10 +20,11 @@ function add_board {
 	echo "Building docs for $BOARD"
 	pushd boards/$BOARD > /dev/null
 	make doc
+	TARGET=`make -s show-target`
 	popd > /dev/null
 
 	EXISTING_CRATES=$(get_known_crates doc/rustdoc/search-index.js)
-	BUILT_CRATES=$(get_known_crates boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js)
+	BUILT_CRATES=$(get_known_crates boards/$BOARD/target/$TARGET/doc/search-index.js)
 
 	# Get any new crates.
 	NEW_CRATES=" ${BUILT_CRATES[*]} "
@@ -29,10 +34,10 @@ function add_board {
 
 	# Copy those crates over.
 	for item in ${NEW_CRATES[@]}; do
-		cp -r boards/$BOARD/target/thumb*-none-eabi*/doc/$item doc/rustdoc/
+		cp -r boards/$BOARD/target/$TARGET/doc/$item doc/rustdoc/
 
 		# Add the line to the search-index.js file.
-		grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/thumb*-none-eabi*/doc/search-index.js >> doc/rustdoc/search-index.js
+		grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/$TARGET/doc/search-index.js >> doc/rustdoc/search-index.js
 
 		# Then need to move `initSearch(searchIndex);` to the bottom.
 		#
@@ -47,21 +52,31 @@ function add_board {
 	done
 }
 
+function build_all_docs {
+    # Need to build one board to get things started.
+    BOARD=$1
+    shift
+    echo "Building docs for $BOARD"
+    pushd boards/$BOARD > /dev/null
+    make doc
+    TARGET=`make -s show-target`
+    popd > /dev/null
+    cp -r boards/$BOARD/target/$TARGET/doc doc/rustdoc
+    ## Now can do all the rest.
+    for BOARD in $*
+    do
+        echo "Now building for $BOARD"
+        add_board $BOARD
+    done
+}
+
 # Delete any old docs
 rm -rf doc/rustdoc
 
-# Need to build one board to get things started.
-echo "Building docs for hail"
-pushd boards/hail > /dev/null
-make doc
-popd > /dev/null
-cp -r boards/hail/target/thumbv7em-none-eabi/doc doc/rustdoc
-
-# Now can do all the rest.
-add_board imix
-add_board nordic/nrf52dk
-add_board nordic/nrf52840dk
-add_board launchxl
+# Get a list of all boards
+ALL_BOARDS=$(./tools/list_boards.sh)
+# Build documentation for all of them
+build_all_docs $ALL_BOARDS
 
 # Temporary redirect rule
 # https://www.netlify.com/docs/redirects/

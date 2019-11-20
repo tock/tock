@@ -5,15 +5,20 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
-use kernel::hil::gpio::Pin;
+use kernel::hil::gpio::{
+    Configure, InterruptValuePin, InterruptValueWrapper, InterruptWithValue, Output, Pin,
+};
 use kernel::hil::rng::Rng;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf5x::rtc::Rtc;
+
+use nrf52dk_base::nrf52_components::ble::BLEComponent;
 
 const LED1_PIN: usize = 26;
 const LED2_PIN: usize = 22;
@@ -27,7 +32,6 @@ const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 19;
 
 /// UART Writer
-#[macro_use]
 pub mod io;
 
 // State for loading and holding applications.
@@ -40,7 +44,8 @@ const NUM_PROCS: usize = 4;
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
-static mut PROCESSES: [Option<&'static kernel::procs::ProcessType>; NUM_PROCS] = [None; NUM_PROCS];
+static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
+    [None; NUM_PROCS];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -51,31 +56,33 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
-        nrf52::radio::Radio,
-        VirtualMuxAlarm<'static, Rtc>,
+        nrf52::ble_radio::Radio,
+        VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
-    button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, UartDevice<'static>>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static>,
+    console: &'static capsules::console::Console<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static>,
+    led: &'static capsules::led::LED<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
-    alarm:
-        &'static capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
+    alarm: &'static capsules::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
+    >,
     gpio_async:
         &'static capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
     light: &'static capsules::ambient_light::AmbientLight<'static>,
     buzzer: &'static capsules::buzzer_driver::Buzzer<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
     >,
 }
 
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&kernel::Driver>) -> R,
+        F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -112,29 +119,84 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 14],
+        [&'static dyn kernel::hil::gpio::InterruptValuePin; 14],
         [
-            &nrf5x::gpio::PORT[3], // Bottom right header on DK board
-            &nrf5x::gpio::PORT[4],
-            &nrf5x::gpio::PORT[28],
-            &nrf5x::gpio::PORT[29],
-            &nrf5x::gpio::PORT[30],
-            // &nrf5x::gpio::PORT[31], // -----
-            &nrf5x::gpio::PORT[12], // Top mid header on DK board
-            &nrf5x::gpio::PORT[11], // -----
-            &nrf5x::gpio::PORT[27], // Top left header on DK board
-            &nrf5x::gpio::PORT[26],
-            &nrf5x::gpio::PORT[2],
-            &nrf5x::gpio::PORT[25],
-            &nrf5x::gpio::PORT[24],
-            &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22], // -----
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[3])
+            )
+            .finalize(), // Bottom right header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[4])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[28])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[29])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[30])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[12])
+            )
+            .finalize(), // Top mid header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[11])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[27])
+            )
+            .finalize(), // Top left header on DK board
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[26])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[2])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[25])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[24])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[23])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[22])
+            )
+            .finalize(),
         ]
     );
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&'static dyn Pin, capsules::led::ActivationMode); 4],
         [
             (
                 &nrf5x::gpio::PORT[LED1_PIN],
@@ -157,26 +219,42 @@ pub unsafe fn reset_handler() {
 
     // Setup GPIO pins that correspond to buttons
     let button_pins = static_init!(
-        [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
+        [(&'static dyn InterruptValuePin, capsules::button::GpioMode); 4],
         [
             // 13
             (
-                &nrf5x::gpio::PORT[BUTTON1_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON1_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             // 14
             (
-                &nrf5x::gpio::PORT[BUTTON2_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON2_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             // 15
             (
-                &nrf5x::gpio::PORT[BUTTON3_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON3_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
             // 16
             (
-                &nrf5x::gpio::PORT[BUTTON4_PIN],
+                static_init!(
+                    kernel::hil::gpio::InterruptValueWrapper,
+                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON4_PIN])
+                )
+                .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
             ),
         ]
@@ -202,7 +280,7 @@ pub unsafe fn reset_handler() {
     // GPIO Pins
     //
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
+        capsules::gpio::GPIO<'static>,
         capsules::gpio::GPIO::new(
             gpio_pins,
             board_kernel.create_grant(&memory_allocation_capability)
@@ -216,7 +294,7 @@ pub unsafe fn reset_handler() {
     // LEDs
     //
     let led = static_init!(
-        capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+        capsules::led::LED<'static>,
         capsules::led::LED::new(led_pins)
     );
 
@@ -224,15 +302,14 @@ pub unsafe fn reset_handler() {
     // Buttons
     //
     let button = static_init!(
-        capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
+        capsules::button::Button<'static>,
         capsules::button::Button::new(
             button_pins,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
     for &(btn, _) in button_pins.iter() {
-        use kernel::hil::gpio::PinCtl;
-        btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
+        btn.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
         btn.set_client(button);
     }
 
@@ -245,7 +322,7 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC)
     );
-    rtc.set_client(mux_alarm);
+    hil::time::Alarm::set_client(rtc, mux_alarm);
 
     //
     // Timer/Alarm
@@ -268,7 +345,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    alarm_driver_virtual_alarm.set_client(alarm);
+    hil::time::Alarm::set_client(alarm_driver_virtual_alarm, alarm);
 
     //
     // RTT and Console and `debug!()`
@@ -299,7 +376,7 @@ pub unsafe fn reset_handler() {
             &mut capsules::segger_rtt::DOWN_BUFFER
         )
     );
-    virtual_alarm_rtt.set_client(rtt);
+    hil::time::Alarm::set_client(virtual_alarm_rtt, rtt);
 
     //
     // Virtual UART
@@ -310,46 +387,13 @@ pub unsafe fn reset_handler() {
         MuxUart<'static>,
         MuxUart::new(rtt, &mut capsules::virtual_uart::RX_BUF, 115200)
     );
-    kernel::hil::uart::UART::set_client(rtt, uart_mux);
+    kernel::hil::uart::Transmit::set_transmit_client(rtt, uart_mux);
+    kernel::hil::uart::Receive::set_receive_client(rtt, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-
-    // Create the console object for apps to printf()
-    let console = static_init!(
-        capsules::console::Console<UartDevice>,
-        capsules::console::Console::new(
-            console_uart,
-            115200,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::uart::UART::set_client(console_uart, console);
-
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-
-    // Create the debugger object that handles calls to `debug!()`
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
-    );
-    hil::uart::UART::set_client(debugger_uart, debugger);
-
-    // Create the wrapper which helps with rust ownership rules.
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     //
     // I2C Devices
@@ -367,6 +411,16 @@ pub unsafe fn reset_handler() {
     nrf52::i2c::TWIM0.set_client(i2c_mux);
 
     // Configure the MCP23017. Device address 0x20.
+    let mcp_pin0 = static_init!(
+        InterruptValueWrapper,
+        InterruptValueWrapper::new(&nrf5x::gpio::PORT[11])
+    )
+    .finalize();
+    let mcp_pin1 = static_init!(
+        InterruptValueWrapper,
+        InterruptValueWrapper::new(&nrf5x::gpio::PORT[12])
+    )
+    .finalize();
     let mcp23017_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
         capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x40)
@@ -375,16 +429,16 @@ pub unsafe fn reset_handler() {
         capsules::mcp230xx::MCP230xx<'static>,
         capsules::mcp230xx::MCP230xx::new(
             mcp23017_i2c,
-            Some(&nrf5x::gpio::PORT[11]),
-            Some(&nrf5x::gpio::PORT[12]),
+            Some(mcp_pin0),
+            Some(mcp_pin1),
             &mut capsules::mcp230xx::BUFFER,
             8,
             2
         )
     );
     mcp23017_i2c.set_client(mcp23017);
-    nrf5x::gpio::PORT[11].set_client(mcp23017);
-    nrf5x::gpio::PORT[12].set_client(mcp23017);
+    mcp_pin0.set_client(mcp23017);
+    mcp_pin1.set_client(mcp23017);
 
     //
     // GPIO Extenders
@@ -408,35 +462,8 @@ pub unsafe fn reset_handler() {
     // BLE
     //
 
-    // Virtual alarm for the BLE stack
-    let ble_radio_virtual_alarm = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-
-    // Setup the BLE radio object that implements the BLE stack
-    let ble_radio = static_init!(
-        capsules::ble_advertising_driver::BLE<
-            'static,
-            nrf52::radio::Radio,
-            VirtualMuxAlarm<'static, Rtc>,
-        >,
-        capsules::ble_advertising_driver::BLE::new(
-            &mut nrf52::radio::RADIO,
-            board_kernel.create_grant(&memory_allocation_capability),
-            &mut capsules::ble_advertising_driver::BUF,
-            ble_radio_virtual_alarm
-        )
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_receive_client(
-        &nrf52::radio::RADIO,
-        ble_radio,
-    );
-    kernel::hil::ble_advertising::BleAdvertisementDriver::set_transmit_client(
-        &nrf52::radio::RADIO,
-        ble_radio,
-    );
-    ble_radio_virtual_alarm.set_client(ble_radio);
+    let ble_radio =
+        BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());
 
     //
     // Temperature
@@ -530,7 +557,7 @@ pub unsafe fn reset_handler() {
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    virtual_alarm_buzzer.set_client(buzzer);
+    hil::time::Alarm::set_client(virtual_alarm_buzzer, buzzer);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.

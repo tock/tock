@@ -106,7 +106,7 @@ use kernel::ReturnCode;
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::BLE_ADVERTISING as usize;
+pub const DRIVER_NUM: usize = driver::NUM::BleAdvertising as usize;
 
 /// Advertisement Buffer
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
@@ -234,46 +234,39 @@ impl App {
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
         B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-        A: kernel::hil::time::Alarm,
+        A: kernel::hil::time::Alarm<'a>,
     {
-        self.adv_data
-            .as_ref()
-            .map(|adv_data| {
-                ble.kernel_tx
-                    .take()
-                    .map(|kernel_tx| {
-                        let adv_data_len =
-                            cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
-                        let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
-                        let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
-                        {
-                            let (header, payload) = kernel_tx.split_at_mut(2);
-                            header[0] = self.pdu_type;
-                            match self.pdu_type {
-                                ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
-                                    // Set TxAdd because AdvA field is going to be a "random"
-                                    // address
-                                    header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
-                                }
-                                _ => {}
-                            }
-                            // The LENGTH field is 6-bits wide, so make sure to truncate it
-                            header[1] = (payload_len & 0x3f) as u8;
-
-                            let (adva, data) = payload.split_at_mut(6);
-                            adva.copy_from_slice(&self.address);
-                            data[..adv_data_len].copy_from_slice(adv_data_corrected);
+        self.adv_data.as_ref().map_or(ReturnCode::FAIL, |adv_data| {
+            ble.kernel_tx.take().map_or(ReturnCode::FAIL, |kernel_tx| {
+                let adv_data_len = cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
+                let adv_data_corrected = &adv_data.as_ref()[..adv_data_len];
+                let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
+                {
+                    let (header, payload) = kernel_tx.split_at_mut(2);
+                    header[0] = self.pdu_type;
+                    match self.pdu_type {
+                        ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
+                            // Set TxAdd because AdvA field is going to be a "random"
+                            // address
+                            header[0] |= 1 << ADV_HEADER_TXADD_OFFSET;
                         }
-                        let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
-                        let result = ble
-                            .radio
-                            .transmit_advertisement(kernel_tx, total_len, channel);
-                        ble.kernel_tx.replace(result);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::FAIL)
+                        _ => {}
+                    }
+                    // The LENGTH field is 6-bits wide, so make sure to truncate it
+                    header[1] = (payload_len & 0x3f) as u8;
+
+                    let (adva, data) = payload.split_at_mut(6);
+                    adva.copy_from_slice(&self.address);
+                    data[..adv_data_len].copy_from_slice(adv_data_corrected);
+                }
+                let total_len = cmp::min(PACKET_LENGTH, payload_len + 2);
+                let result = ble
+                    .radio
+                    .transmit_advertisement(kernel_tx, total_len, channel);
+                ble.kernel_tx.replace(result);
+                ReturnCode::SUCCESS
             })
-            .unwrap_or(ReturnCode::FAIL)
+        })
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -303,7 +296,7 @@ impl App {
 pub struct BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm,
+    A: kernel::hil::time::Alarm<'a>,
 {
     radio: &'a B,
     busy: Cell<bool>,
@@ -317,7 +310,7 @@ where
 impl<B, A> BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm,
+    A: kernel::hil::time::Alarm<'a>,
 {
     pub fn new(
         radio: &'a B,
@@ -366,10 +359,10 @@ where
 }
 
 // Timer alarm
-impl<B, A> kernel::hil::time::Client for BLE<'a, B, A>
+impl<B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm,
+    A: kernel::hil::time::Alarm<'a>,
 {
     // When an alarm is fired, we find which apps have expired timers. Expired
     // timers indicate a desire to perform some operation (e.g. start an
@@ -438,7 +431,7 @@ where
 impl<B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm,
+    A: kernel::hil::time::Alarm<'a>,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         self.receiving_app.map(|appid| {
@@ -505,7 +498,7 @@ where
 impl<B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm,
+    A: kernel::hil::time::Alarm<'a>,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
@@ -546,7 +539,7 @@ where
 impl<B, A> kernel::Driver for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm,
+    A: kernel::hil::time::Alarm<'a>,
 {
     fn command(
         &self,
@@ -606,7 +599,7 @@ where
                             && app.process_status != Some(BLEState::AdvertisingIdle)
                         {
                             match data as u8 {
-                                tx_power @ 0...10 | tx_power @ 0xec...0xff => {
+                                tx_power @ 0..=10 | tx_power @ 0xec..=0xff => {
                                     // query the underlying chip if the power level is supported
                                     let status = self.radio.set_tx_power(tx_power);
                                     if let ReturnCode::SUCCESS = status {

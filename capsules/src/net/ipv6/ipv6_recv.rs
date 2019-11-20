@@ -31,21 +31,21 @@ pub trait IP6RecvClient {
     fn receive(&self, header: IP6Header, payload: &[u8]);
 }
 
-/// Currently only one implemetation of this trait should exist,
+/// Currently only one implementation of this trait should exist,
 /// as we do not multiplex received packets based on the address.
 /// The receiver receives IP packets destined for any local address.
 /// The receiver should drop any packets with destination addresses
 /// that are not among the local addresses of this device.
 pub trait IP6Receiver<'a> {
-    fn set_client(&self, client: &'a IP6RecvClient);
+    fn set_client(&self, client: &'a dyn IP6RecvClient);
 }
 
 pub struct IP6RecvStruct<'a> {
-    client: OptionalCell<&'a IP6RecvClient>,
+    client: OptionalCell<&'a dyn IP6RecvClient>,
 }
 
 impl<'a> IP6Receiver<'a> for IP6RecvStruct<'a> {
-    fn set_client(&self, client: &'a IP6RecvClient) {
+    fn set_client(&self, client: &'a dyn IP6RecvClient) {
         self.client.set(client);
     }
 }

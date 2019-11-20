@@ -10,17 +10,18 @@
 //! ```
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0x00000006;
+use crate::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Dac as usize;
 
 use kernel::hil;
 use kernel::{AppId, Driver, ReturnCode};
 
 pub struct Dac<'a> {
-    dac: &'a hil::dac::DacChannel,
+    dac: &'a dyn hil::dac::DacChannel,
 }
 
 impl Dac<'a> {
-    pub fn new(dac: &'a hil::dac::DacChannel) -> Dac<'a> {
+    pub fn new(dac: &'a dyn hil::dac::DacChannel) -> Dac<'a> {
         Dac { dac: dac }
     }
 }
@@ -35,7 +36,7 @@ impl Driver for Dac<'a> {
     /// - `2`: Set the output to `data1`, a scaled output value.
     fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => return ReturnCode::SUCCESS,
+            0 /* check if present */ => ReturnCode::SUCCESS,
 
             // enable the dac
             1 => self.dac.initialize(),
@@ -43,7 +44,7 @@ impl Driver for Dac<'a> {
             // set the dac output
             2 => self.dac.set_value(data),
 
-            _ => return ReturnCode::ENOSUPPORT,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

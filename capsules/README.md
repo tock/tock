@@ -73,6 +73,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 
 - **[ADC](src/adc.rs)**: Individual and continuous samples.
 - **[Alarm](src/alarm.rs)**: Oneshot and periodic timers.
+- **[Analog Comparator](src/analog_comparator.rs)**: Voltage comparison.
 - **[CRC](src/crc.rs)**: CRC calculation.
 - **[DAC](src/dac.rs)**: Digital to analog conversion.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
@@ -137,5 +138,7 @@ various elements of Tock.
 
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
+- **[Low-Level Debug](src/low_level_debug)**: Provides system calls for
+  low-level debugging tasks, such as debugging toolchain and relocation issues.
 - **[Process Console](src/process_console.rs)**: Provide a UART console to
   inspect the status of process and stop/start them.

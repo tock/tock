@@ -52,7 +52,7 @@ use kernel::{AppId, Callback, Driver};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::LTC294X as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Ltc294x as usize;
 
 pub static mut BUFFER: [u8; 20] = [0; 20];
 
@@ -128,18 +128,18 @@ pub trait LTC294XClient {
 
 /// Implementation of a driver for the LTC294X coulomb counters.
 pub struct LTC294X<'a> {
-    i2c: &'a i2c::I2CDevice,
-    interrupt_pin: Option<&'a gpio::Pin>,
+    i2c: &'a dyn i2c::I2CDevice,
+    interrupt_pin: Option<&'a dyn gpio::InterruptPin>,
     model: Cell<ChipModel>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static LTC294XClient>,
+    client: OptionalCell<&'static dyn LTC294XClient>,
 }
 
 impl LTC294X<'a> {
     pub fn new(
-        i2c: &'a i2c::I2CDevice,
-        interrupt_pin: Option<&'a gpio::Pin>,
+        i2c: &'a dyn i2c::I2CDevice,
+        interrupt_pin: Option<&'a dyn gpio::InterruptPin>,
         buffer: &'static mut [u8],
     ) -> LTC294X<'a> {
         LTC294X {
@@ -157,7 +157,7 @@ impl LTC294X<'a> {
 
         self.interrupt_pin.map(|interrupt_pin| {
             interrupt_pin.make_input();
-            interrupt_pin.enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+            interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
         });
     }
 
@@ -394,7 +394,7 @@ impl i2c::I2CClient for LTC294X<'a> {
 }
 
 impl gpio::Client for LTC294X<'a> {
-    fn fired(&self, _: usize) {
+    fn fired(&self) {
         self.client.map(|client| {
             client.interrupt();
         });

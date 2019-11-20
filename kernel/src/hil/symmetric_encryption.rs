@@ -24,7 +24,7 @@ pub trait AES128<'a> {
     fn disable(&self);
 
     /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, client: &'a Client<'a>);
+    fn set_client(&'a self, client: &'a dyn Client<'a>);
 
     /// Set the encryption key.
     /// Returns `EINVAL` if length is not `AES128_KEY_SIZE`
@@ -110,7 +110,7 @@ pub const CCM_NONCE_LENGTH: usize = 13;
 
 pub trait AES128CCM<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, client: &'a CCMClient);
+    fn set_client(&'a self, client: &'a dyn CCMClient);
 
     /// Set the key to be used for CCM encryption
     fn set_key(&self, key: &[u8]) -> ReturnCode;

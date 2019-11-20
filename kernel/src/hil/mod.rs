@@ -5,6 +5,7 @@ pub mod analog_comparator;
 pub mod ble_advertising;
 pub mod crc;
 pub mod dac;
+pub mod eic;
 pub mod entropy;
 pub mod flash;
 pub mod gpio;

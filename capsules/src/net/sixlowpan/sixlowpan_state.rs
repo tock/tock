@@ -297,9 +297,9 @@ fn is_fragment(packet: &[u8]) -> bool {
 
 pub trait SixlowpanState<'a> {
     fn next_dgram_tag(&self) -> u16;
-    fn get_ctx_store(&self) -> &ContextStore;
+    fn get_ctx_store(&self) -> &dyn ContextStore;
     fn add_rx_state(&self, rx_state: &'a RxState<'a>);
-    fn set_rx_client(&'a self, client: &'a SixlowpanRxClient);
+    fn set_rx_client(&'a self, client: &'a dyn SixlowpanRxClient);
 }
 
 /// Tracks the compression state for a single IPv6 packet.
@@ -324,7 +324,7 @@ pub struct TxState<'a> {
     busy: Cell<bool>,
     // We need a reference to sixlowpan to compute and increment
     // the global dgram_tag value
-    sixlowpan: &'a SixlowpanState<'a>,
+    sixlowpan: &'a dyn SixlowpanState<'a>,
 }
 
 impl TxState<'a> {
@@ -334,7 +334,7 @@ impl TxState<'a> {
     ///
     /// `sixlowpan` - A reference to a `SixlowpanState` object, which contains
     /// global state for the entire Sixlowpan layer.
-    pub fn new(sixlowpan: &'a SixlowpanState<'a>) -> TxState<'a> {
+    pub fn new(sixlowpan: &'a dyn SixlowpanState<'a>) -> TxState<'a> {
         TxState {
             // Externally setable fields
             src_pan: Cell::new(0),
@@ -412,7 +412,7 @@ impl TxState<'a> {
         &self,
         ip6_packet: &'b IP6Packet<'b>,
         frag_buf: &'static mut [u8],
-        radio: &MacDevice,
+        radio: &dyn MacDevice,
     ) -> Result<(bool, Frame), (ReturnCode, &'static mut [u8])> {
         // This consumes frag_buf
         let frame = radio
@@ -456,7 +456,7 @@ impl TxState<'a> {
         &self,
         ip6_packet: &'b IP6Packet<'b>,
         frame: Frame,
-        ctx_store: &ContextStore,
+        ctx_store: &dyn ContextStore,
     ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
         self.busy.set(true);
         self.dgram_size.set(ip6_packet.get_total_len());
@@ -468,7 +468,7 @@ impl TxState<'a> {
         &self,
         ip6_packet: &'b IP6Packet<'b>,
         mut frame: Frame,
-        ctx_store: &ContextStore,
+        ctx_store: &dyn ContextStore,
     ) -> Result<Frame, (ReturnCode, &'static mut [u8])> {
         // Here, we assume that the compressed headers fit in the first MTU
         // fragment. This is consistent with RFC 6282.
@@ -576,7 +576,7 @@ impl TxState<'a> {
             // functionality should be fixed in the future.
             let mut headers = [0 as u8; 60];
             ip6_packet.encode(&mut headers);
-            frame.append_payload(&mut headers[dgram_offset..dgram_offset + headers_to_write]);
+            frame.append_payload(&headers[dgram_offset..dgram_offset + headers_to_write]);
             payload_len -= headers_to_write;
             dgram_offset += headers_to_write;
         }
@@ -716,7 +716,7 @@ impl RxState<'a> {
         payload_len: usize,
         dgram_size: u16,
         dgram_offset: usize,
-        ctx_store: &ContextStore,
+        ctx_store: &dyn ContextStore,
     ) -> Result<bool, ReturnCode> {
         let mut packet = self.packet.take().ok_or(ReturnCode::ENOMEM)?;
         let uncompressed_len = if dgram_offset == 0 {
@@ -753,7 +753,7 @@ impl RxState<'a> {
         }
     }
 
-    fn end_receive(&self, client: Option<&'a SixlowpanRxClient>, result: ReturnCode) {
+    fn end_receive(&self, client: Option<&'a dyn SixlowpanRxClient>, result: ReturnCode) {
         self.busy.set(false);
         self.bitmap.map(|bitmap| bitmap.clear());
         self.start_time.set(0);
@@ -783,18 +783,18 @@ impl RxState<'a> {
 ///
 /// Finally, `set_client` controls the client that will receive transmission
 /// completion and reception callbacks.
-pub struct Sixlowpan<'a, A: time::Alarm, C: ContextStore> {
+pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
     pub ctx_store: C,
     clock: &'a A,
     tx_dgram_tag: Cell<u16>,
-    rx_client: Cell<Option<&'a SixlowpanRxClient>>,
+    rx_client: Cell<Option<&'a dyn SixlowpanRxClient>>,
 
     // Receive state
     rx_states: List<'a, RxState<'a>>,
 }
 
 // This function is called after receiving a frame
-impl<A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
@@ -815,7 +815,7 @@ impl<A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     }
 }
 
-impl<A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
     fn next_dgram_tag(&self) -> u16 {
         // Increment dgram_tag
         let dgram_tag = if (self.tx_dgram_tag.get() + 1) == 0 {
@@ -827,7 +827,7 @@ impl<A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C>
         dgram_tag
     }
 
-    fn get_ctx_store(&self) -> &ContextStore {
+    fn get_ctx_store(&self) -> &dyn ContextStore {
         &self.ctx_store
     }
 
@@ -841,12 +841,12 @@ impl<A: time::Alarm, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C>
 
     /// Sets the [SixlowpanClient](trait.SixlowpanClient.html) that will receive
     /// transmission completion and new packet reception callbacks.
-    fn set_rx_client(&'a self, client: &'a SixlowpanRxClient) {
+    fn set_rx_client(&'a self, client: &'a dyn SixlowpanRxClient) {
         self.rx_client.set(Some(client));
     }
 }
 
-impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// Creates a new `Sixlowpan`
     ///
     /// # Arguments
@@ -910,51 +910,49 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
             .rx_states
             .iter()
             .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
-        rx_state
-            .map(|state| {
-                state.start_receive(
+        rx_state.map_or((None, ReturnCode::ENOMEM), |state| {
+            state.start_receive(
+                src_mac_addr,
+                dst_mac_addr,
+                payload_len as u16,
+                0,
+                self.clock.now(),
+            );
+            // The packet buffer should *always* be there; in particular,
+            // since this state is not busy, it must have the packet buffer.
+            // Otherwise, we are in an inconsistent state and can fail.
+            let mut packet = state.packet.take().expect(
+                "Error: `packet` in RxState struct is `None` \
+                 in call to `receive_single_packet`.",
+            );
+            if is_lowpan(payload) {
+                let decompressed = sixlowpan_compression::decompress(
+                    &self.ctx_store,
+                    &payload[0..payload_len as usize],
                     src_mac_addr,
                     dst_mac_addr,
-                    payload_len as u16,
+                    &mut packet,
                     0,
-                    self.clock.now(),
+                    false,
                 );
-                // The packet buffer should *always* be there; in particular,
-                // since this state is not busy, it must have the packet buffer.
-                // Otherwise, we are in an inconsistent state and can fail.
-                let mut packet = state.packet.take().expect(
-                    "Error: `packet` in RxState struct is `None` \
-                     in call to `receive_single_packet`.",
-                );
-                if is_lowpan(payload) {
-                    let decompressed = sixlowpan_compression::decompress(
-                        &self.ctx_store,
-                        &payload[0..payload_len as usize],
-                        src_mac_addr,
-                        dst_mac_addr,
-                        &mut packet,
-                        0,
-                        false,
-                    );
-                    match decompressed {
-                        Ok((consumed, written)) => {
-                            let remaining = payload_len - consumed;
-                            packet[written..written + remaining]
-                                .copy_from_slice(&payload[consumed..consumed + remaining]);
-                            // Want dgram_size to contain decompressed size of packet
-                            state.dgram_size.set((written + remaining) as u16);
-                        }
-                        Err(_) => {
-                            return (None, ReturnCode::FAIL);
-                        }
+                match decompressed {
+                    Ok((consumed, written)) => {
+                        let remaining = payload_len - consumed;
+                        packet[written..written + remaining]
+                            .copy_from_slice(&payload[consumed..consumed + remaining]);
+                        // Want dgram_size to contain decompressed size of packet
+                        state.dgram_size.set((written + remaining) as u16);
                     }
-                } else {
-                    packet[0..payload_len].copy_from_slice(&payload[0..payload_len]);
+                    Err(_) => {
+                        return (None, ReturnCode::FAIL);
+                    }
                 }
-                state.packet.replace(packet);
-                (Some(state), ReturnCode::SUCCESS)
-            })
-            .unwrap_or((None, ReturnCode::ENOMEM))
+            } else {
+                packet[0..payload_len].copy_from_slice(&payload[0..payload_len]);
+            }
+            state.packet.replace(packet);
+            (Some(state), ReturnCode::SUCCESS)
+        })
     }
 
     // This function returns an Err if an error occurred, returns Ok(Some(RxState))
@@ -996,31 +994,29 @@ impl<A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                 return (None, ReturnCode::ENOMEM);
             }
         }
-        rx_state
-            .map(|state| {
-                // Returns true if the full packet is reassembled
-                let res = state.receive_next_frame(
-                    frag_payload,
-                    payload_len,
-                    dgram_size,
-                    dgram_offset,
-                    &self.ctx_store,
-                );
-                match res {
-                    // Some error occurred
-                    Err(_) => (Some(state), ReturnCode::FAIL),
-                    Ok(complete) => {
-                        if complete {
-                            // Packet fully reassembled
-                            (Some(state), ReturnCode::SUCCESS)
-                        } else {
-                            // Packet not fully reassembled
-                            (None, ReturnCode::SUCCESS)
-                        }
+        rx_state.map_or((None, ReturnCode::ENOMEM), |state| {
+            // Returns true if the full packet is reassembled
+            let res = state.receive_next_frame(
+                frag_payload,
+                payload_len,
+                dgram_size,
+                dgram_offset,
+                &self.ctx_store,
+            );
+            match res {
+                // Some error occurred
+                Err(_) => (Some(state), ReturnCode::FAIL),
+                Ok(complete) => {
+                    if complete {
+                        // Packet fully reassembled
+                        (Some(state), ReturnCode::SUCCESS)
+                    } else {
+                        // Packet not fully reassembled
+                        (None, ReturnCode::SUCCESS)
                     }
                 }
-            })
-            .unwrap_or((None, ReturnCode::ENOMEM))
+            }
+        })
     }
 
     #[allow(dead_code)]

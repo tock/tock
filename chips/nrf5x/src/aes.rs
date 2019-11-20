@@ -121,7 +121,7 @@ register_bitfields! [u32,
 
 pub struct AesECB<'a> {
     registers: StaticRef<AesEcbRegisters>,
-    client: OptionalCell<&'a kernel::hil::symmetric_encryption::Client<'a>>,
+    client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'a, [u8]>,
     output: TakeCell<'a, [u8]>,
@@ -263,7 +263,7 @@ impl kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         self.disable_interrupts();
     }
 
-    fn set_client(&'a self, client: &'a symmetric_encryption::Client<'a>) {
+    fn set_client(&'a self, client: &'a dyn symmetric_encryption::Client<'a>) {
         self.client.set(client);
     }
 
@@ -335,5 +335,40 @@ impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
     fn set_mode_aes128ctr(&self, _encrypting: bool) {
         ()
+    }
+}
+
+impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'a> {
+    fn set_mode_aes128cbc(&self, _encrypting: bool) {
+        ()
+    }
+}
+//TODO: replace this placeholder with a proper implementation of the AES system
+impl kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
+    /// Set the client instance which will receive `crypt_done()` callbacks
+    fn set_client(&'a self, _client: &'a dyn kernel::hil::symmetric_encryption::CCMClient) {}
+
+    /// Set the key to be used for CCM encryption
+    fn set_key(&self, _key: &[u8]) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    /// Set the nonce (length NONCE_LENGTH) to be used for CCM encryption
+    fn set_nonce(&self, _nonce: &[u8]) -> ReturnCode {
+        ReturnCode::SUCCESS
+    }
+
+    /// Try to begin the encryption/decryption process
+    fn crypt(
+        &self,
+        _buf: &'static mut [u8],
+        _a_off: usize,
+        _m_off: usize,
+        _m_len: usize,
+        _mic_len: usize,
+        _confidential: bool,
+        _encrypting: bool,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
+        (ReturnCode::SUCCESS, None)
     }
 }

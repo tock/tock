@@ -202,7 +202,7 @@ pub enum BitmodeValue {
     Size32Bits = 3,
 }
 
-pub static mut TIMER0: Timer = Timer::new(0);
+pub static mut TIMER0: TimerAlarm = TimerAlarm::new(0);
 pub static mut ALARM1: TimerAlarm = TimerAlarm::new(1);
 pub static mut TIMER2: Timer = Timer::new(2);
 
@@ -213,7 +213,7 @@ pub trait CompareClient {
 
 pub struct Timer {
     registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'static CompareClient>,
+    client: OptionalCell<&'static dyn CompareClient>,
 }
 
 impl Timer {
@@ -224,7 +224,7 @@ impl Timer {
         }
     }
 
-    pub fn set_client(&self, client: &'static CompareClient) {
+    pub fn set_client(&self, client: &'static dyn CompareClient) {
         self.client.set(client);
     }
 
@@ -258,9 +258,9 @@ impl Timer {
     }
 }
 
-pub struct TimerAlarm {
+pub struct TimerAlarm<'a> {
     registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'static hil::time::Client>,
+    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
 // CC0 is used for capture
@@ -270,8 +270,8 @@ const ALARM_COMPARE: usize = 1;
 const ALARM_INTERRUPT_BIT: registers::Field<u32, Inte::Register> = Inte::COMPARE1;
 const ALARM_INTERRUPT_BIT_SET: registers::FieldValue<u32, Inte::Register> = Inte::COMPARE1::SET;
 
-impl TimerAlarm {
-    const fn new(instance: usize) -> TimerAlarm {
+impl TimerAlarm<'a> {
+    const fn new(instance: usize) -> TimerAlarm<'a> {
         TimerAlarm {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),
@@ -280,11 +280,9 @@ impl TimerAlarm {
 
     fn clear_alarm(&self) {
         self.registers.events_compare[ALARM_COMPARE].write(Event::READY::CLEAR);
+        self.registers.tasks_stop.write(Task::ENABLE::SET);
+        self.registers.tasks_clear.write(Task::ENABLE::SET);
         self.disable_interrupts();
-    }
-
-    pub fn set_client(&self, client: &'static hil::time::Client) {
-        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
@@ -315,27 +313,36 @@ impl TimerAlarm {
     }
 }
 
-impl hil::time::Time for TimerAlarm {
+impl hil::time::Time for TimerAlarm<'a> {
     type Frequency = hil::time::Freq16KHz;
+
+    fn now(&self) -> u32 {
+        self.value()
+    }
+
+    fn max_tics(&self) -> u32 {
+        core::u32::MAX
+    }
+}
+
+impl hil::time::Alarm<'a> for TimerAlarm<'a> {
+    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+        self.client.set(client);
+    }
 
     fn disable(&self) {
         self.disable_interrupts();
     }
 
-    fn is_armed(&self) -> bool {
+    fn is_enabled(&self) -> bool {
         self.interrupts_enabled()
-    }
-}
-
-impl hil::time::Alarm for TimerAlarm {
-    fn now(&self) -> u32 {
-        self.value()
     }
 
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
+        self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
         self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
-        self.clear_alarm();
+        self.registers.tasks_start.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
 

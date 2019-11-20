@@ -106,7 +106,7 @@ register_bitfields! [u32,
 
 pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
-    client: OptionalCell<&'a entropy::Client32>,
+    client: OptionalCell<&'a dyn entropy::Client32>,
     index: Cell<usize>,
     randomness: Cell<u32>,
 }
@@ -131,7 +131,7 @@ impl Trng<'a> {
 
         match self.index.get() {
             // fetch more data need 4 bytes because the capsule requires that
-            e @ 0...3 => {
+            e @ 0..=3 => {
                 // 3 lines below to change data in Cell, perhaps it can be done more nicely
                 let mut rn = self.randomness.get();
                 // 1 byte randomness
@@ -217,7 +217,7 @@ impl<'a> entropy::Entropy32<'a> for Trng<'a> {
         ReturnCode::FAIL
     }
 
-    fn set_client(&'a self, client: &'a entropy::Client32) {
+    fn set_client(&'a self, client: &'a dyn entropy::Client32) {
         self.client.set(client);
     }
 }

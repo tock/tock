@@ -20,9 +20,7 @@ use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
 use kernel::ReturnCode;
-// n.b. This is a fairly "C"-like interface presently. Ideally it should move
-// over to the Tock register interface eventually, but this code does work as
-// written. Do not follow this as an example when implementing new code.
+
 use crate::rf233_const::CSMA_SEED_1;
 use crate::rf233_const::IRQ_MASK;
 use crate::rf233_const::PHY_CC_CCA_MODE_CS_OR_ED;
@@ -37,9 +35,6 @@ use crate::rf233_const::TRX_TRAC_CHANNEL_ACCESS_FAILURE;
 use crate::rf233_const::TRX_TRAC_MASK;
 use crate::rf233_const::XAH_CTRL_0;
 use crate::rf233_const::XAH_CTRL_1;
-
-use kernel::debug;
-const INTERRUPT_ID: usize = 0x2154;
 
 #[allow(non_camel_case_types, dead_code)]
 #[derive(Copy, Clone, PartialEq)]
@@ -203,18 +198,17 @@ pub struct RF233<'a, S: spi::SpiMasterDevice> {
     sleep_pending: Cell<bool>,
     wake_pending: Cell<bool>,
     power_client_pending: Cell<bool>,
-    reset_pin: &'a gpio::Pin,
-    sleep_pin: &'a gpio::Pin,
-    irq_pin: &'a gpio::Pin,
-    irq_ctl: &'a gpio::PinCtl,
+    reset_pin: &'a dyn gpio::Pin,
+    sleep_pin: &'a dyn gpio::Pin,
+    irq_pin: &'a dyn gpio::InterruptPin,
     state: Cell<InternalState>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     tx_len: Cell<u8>,
-    tx_client: OptionalCell<&'static radio::TxClient>,
-    rx_client: OptionalCell<&'static radio::RxClient>,
-    cfg_client: OptionalCell<&'static radio::ConfigClient>,
-    power_client: OptionalCell<&'static radio::PowerClient>,
+    tx_client: OptionalCell<&'static dyn radio::TxClient>,
+    rx_client: OptionalCell<&'static dyn radio::RxClient>,
+    cfg_client: OptionalCell<&'static dyn radio::ConfigClient>,
+    power_client: OptionalCell<&'static dyn radio::PowerClient>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
@@ -249,31 +243,31 @@ fn setting_to_power(setting: u8) -> i8 {
 
 fn power_to_setting(power: i8) -> u8 {
     if (power >= 4) {
-        return 0x00;
+        0x00
     } else if (power >= 3) {
-        return 0x03;
+        0x03
     } else if (power >= 2) {
-        return 0x05;
+        0x05
     } else if (power >= 1) {
-        return 0x06;
+        0x06
     } else if (power >= 0) {
-        return 0x07;
+        0x07
     } else if (power >= -1) {
-        return 0x08;
+        0x08
     } else if (power >= -2) {
-        return 0x09;
+        0x09
     } else if (power >= -3) {
-        return 0x0A;
+        0x0A
     } else if (power >= -4) {
-        return 0x0B;
+        0x0B
     } else if (power >= -6) {
-        return 0x0C;
+        0x0C
     } else if (power >= -8) {
-        return 0x0D;
+        0x0D
     } else if (power >= -12) {
-        return 0x0E;
+        0x0E
     } else {
-        return 0x0F;
+        0x0F
     }
 }
 
@@ -477,9 +471,10 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::START_TURNING_OFF => {
                 self.irq_pin.make_input();
                 self.irq_pin.clear();
-                self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
                 self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
+                    .set_floating_state(gpio::FloatingState::PullNone);
+                self.irq_pin
+                    .enable_interrupts(gpio::InterruptEdge::RisingEdge);
 
                 self.state_transition_write(
                     RF233Register::TRX_CTRL_1,
@@ -685,6 +680,7 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                     self.power_client.map(|p| {
                         p.changed(self.radio_on.get());
                     });
+                    self.irq_pin.disable_interrupts(); // Lets MCU sleep
                 }
             }
             // Do nothing; a call to start() is required to restart radio
@@ -694,6 +690,8 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
                 // Toggle the sleep pin to take the radio out of sleep mode into
                 // InternalState::TRX_OFF, then transition directly to RX_AACK_ON.
                 self.sleep_pin.clear();
+                self.irq_pin
+                    .enable_interrupts(gpio::InterruptEdge::RisingEdge);
                 self.state_transition_write(
                     RF233Register::TRX_STATE,
                     RF233TrxCmd::RX_AACK_ON as u8,
@@ -1020,20 +1018,17 @@ impl<S: spi::SpiMasterDevice> spi::SpiMasterClient for RF233<'a, S> {
 }
 
 impl<S: spi::SpiMasterDevice> gpio::Client for RF233<'a, S> {
-    fn fired(&self, identifier: usize) {
-        if identifier == INTERRUPT_ID {
-            self.handle_interrupt();
-        }
+    fn fired(&self) {
+        self.handle_interrupt();
     }
 }
 
 impl<S: spi::SpiMasterDevice> RF233<'a, S> {
     pub fn new(
         spi: &'a S,
-        reset: &'a gpio::Pin,
-        sleep: &'a gpio::Pin,
-        irq: &'a gpio::Pin,
-        ctl: &'a gpio::PinCtl,
+        reset: &'a dyn gpio::Pin,
+        sleep: &'a dyn gpio::Pin,
+        irq: &'a dyn gpio::InterruptPin,
         channel: u8,
     ) -> RF233<'a, S> {
         RF233 {
@@ -1041,7 +1036,6 @@ impl<S: spi::SpiMasterDevice> RF233<'a, S> {
             reset_pin: reset,
             sleep_pin: sleep,
             irq_pin: irq,
-            irq_ctl: ctl,
             radio_on: Cell::new(false),
             transmitting: Cell::new(false),
             receiving: Cell::new(false),
@@ -1253,11 +1247,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
         self.state.get() != InternalState::READY && self.state.get() != InternalState::SLEEP
     }
 
-    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+    fn set_config_client(&self, client: &'static dyn radio::ConfigClient) {
         self.cfg_client.set(client);
     }
 
-    fn set_power_client(&self, client: &'static radio::PowerClient) {
+    fn set_power_client(&self, client: &'static dyn radio::PowerClient) {
         self.power_client.set(client);
     }
 
@@ -1336,11 +1330,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioConfig for RF233<'a, S> {
 }
 
 impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
-    fn set_transmit_client(&self, client: &'static radio::TxClient) {
+    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'static dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);
     }
@@ -1359,12 +1353,11 @@ impl<S: spi::SpiMasterDevice> radio::RadioData for RF233<'a, S> {
         let frame_len = frame_len + radio::MFR_SIZE;
 
         if !self.radio_on.get() {
-            debug!("Radio off.");
             return (ReturnCode::EOFF, Some(spi_buf));
         } else if self.tx_buf.is_some() || self.transmitting.get() {
             return (ReturnCode::EBUSY, Some(spi_buf));
         } else if radio::PSDU_OFFSET + frame_len >= spi_buf.len() {
-            // Not enough room for CRg
+            // Not enough room for CRC
             return (ReturnCode::ESIZE, Some(spi_buf));
         }
 

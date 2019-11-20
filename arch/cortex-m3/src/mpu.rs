@@ -1,7 +1,8 @@
 //! Implementation of the memory protection unit for the Cortex-M3 and
-//! Cortex-M4..
+//! Cortex-M4.
 
 use core::cmp;
+use core::fmt;
 use kernel;
 use kernel::common::math;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
@@ -150,6 +151,42 @@ impl Default for CortexMConfig {
                 CortexMRegion::empty(7),
             ],
         }
+    }
+}
+
+impl fmt::Display for CortexMConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\r\n Cortex-M MPU")?;
+        for (i, region) in self.regions.iter().enumerate() {
+            if let Some(location) = region.location() {
+                let access_bits = region.attributes().read(RegionAttributes::AP);
+                let access_str = match access_bits {
+                    0b000 => "NoAccess",
+                    0b001 => "PrivilegedOnly",
+                    0b010 => "UnprivilegedReadOnly",
+                    0b011 => "ReadWrite",
+                    0b100 => "Reserved",
+                    0b101 => "PrivilegedOnlyReadOnly",
+                    0b110 => "ReadOnly",
+                    0b111 => "ReadOnlyAlias",
+                    _ => "ERR",
+                };
+                write!(
+                    f,
+                    "\
+                     \r\n  Region {}: base:{:>width$x}, length: {} bytes; {} ({:#x})",
+                    i,
+                    location.0 as usize,
+                    location.1,
+                    access_str,
+                    access_bits,
+                    width = 10,
+                )?;
+            } else {
+                write!(f, "\r\n  Region {}: Unused", i)?;
+            }
+        }
+        write!(f, "\r\n")
     }
 }
 
@@ -407,11 +444,6 @@ impl kernel::mpu::MPU for MPU {
                 region_start = start;
                 region_size = size;
             }
-        }
-
-        // Cortex-M regions can't be greater than 4 GB.
-        if math::log_base_two(region_size as u32) >= 32 {
-            return None;
         }
 
         // Check that our logical region fits in memory.

@@ -6,6 +6,8 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded).
 
+/// Syscall number
+use crate::driver;
 use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
@@ -20,8 +22,7 @@ use kernel::capabilities::UdpDriverSendCapability;
 use kernel::common::cells::MapCell;
 use kernel::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x30002;
+pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UDPEndpoint {
@@ -73,7 +74,7 @@ pub struct App {
 #[allow(dead_code)]
 pub struct UDPDriver<'a> {
     /// UDP sender
-    sender: &'a UDPSender<'a>,
+    sender: &'a dyn UDPSender<'a>,
 
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
@@ -91,18 +92,18 @@ pub struct UDPDriver<'a> {
 
     kernel_buffer: MapCell<Buffer<'static, u8>>,
 
-    driver_send_cap: &'static UdpDriverSendCapability,
+    driver_send_cap: &'static dyn UdpDriverSendCapability,
 }
 
 impl<'a> UDPDriver<'a> {
     pub fn new(
-        sender: &'a UDPSender<'a>,
+        sender: &'a dyn UDPSender<'a>,
         grant: Grant<App>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortTable,
         kernel_buffer: Buffer<'static, u8>,
-        driver_send_cap: &'static UdpDriverSendCapability,
+        driver_send_cap: &'static dyn UdpDriverSendCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
@@ -304,7 +305,7 @@ impl<'a> UDPDriver<'a> {
     #[inline]
     fn do_next_tx_immediate(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
-            .map(|appid| {
+            .map_or(ReturnCode::SUCCESS, |appid| {
                 if appid == new_appid {
                     let sync_result = self.perform_tx_sync(appid);
                     if sync_result == ReturnCode::SUCCESS {
@@ -316,7 +317,6 @@ impl<'a> UDPDriver<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or(ReturnCode::SUCCESS)
     }
 
     #[inline]
@@ -585,15 +585,15 @@ impl<'a> Driver for UDPDriver<'a> {
                         }
                         // Also check the bound port table here.
                         if addr_already_bound {
-                            return ReturnCode::EBUSY;
+                            ReturnCode::EBUSY
                         } else {
                             requested_addr_opt = Some(requested_addr);
                             // If this point is reached, the requested addr is free and valid
                             app.bound_port = requested_addr_opt;
-                            return ReturnCode::SUCCESS;
+                            ReturnCode::SUCCESS
                         }
                     } else {
-                        return ReturnCode::EINVAL;
+                        ReturnCode::EINVAL
                     }
                 })
             }

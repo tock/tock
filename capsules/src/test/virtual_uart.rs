@@ -3,9 +3,9 @@
 use crate::virtual_uart::UartDevice;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
-use kernel::hil;
-use kernel::hil::uart::Client;
-use kernel::hil::uart::UART;
+use kernel::hil::uart;
+use kernel::hil::uart::Receive;
+use kernel::ReturnCode;
 
 pub struct TestVirtualUartReceive {
     device: &'static UartDevice<'static>,
@@ -24,24 +24,35 @@ impl TestVirtualUartReceive {
         let buf = self.buffer.take().unwrap();
         let len = buf.len();
         debug!("Starting receive of length {}", len);
-        self.device.receive(buf, len);
+        let (err, _opt) = self.device.receive_buffer(buf, len);
+        if err != ReturnCode::SUCCESS {
+            panic!(
+                "Calling receive_buffer() in virtual_uart test failed: {:?}",
+                err
+            );
+        }
     }
 }
 
-impl Client for TestVirtualUartReceive {
-    fn transmit_complete(&self, _tx_buffer: &'static mut [u8], _error: hil::uart::Error) {}
-
-    fn receive_complete(
+impl uart::ReceiveClient for TestVirtualUartReceive {
+    fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
         rx_len: usize,
-        error: hil::uart::Error,
+        rcode: ReturnCode,
+        _error: uart::Error,
     ) {
-        debug!("Virtual uart read complete: {:?}: ", error);
+        debug!("Virtual uart read complete: {:?}: ", rcode);
         for i in 0..rx_len {
             debug!("{:02x} ", rx_buffer[i]);
         }
         debug!("Starting receive of length {}", rx_len);
-        self.device.receive(rx_buffer, rx_len);
+        let (err, _opt) = self.device.receive_buffer(rx_buffer, rx_len);
+        if err != ReturnCode::SUCCESS {
+            panic!(
+                "Calling receive_buffer() in virtual_uart test failed: {:?}",
+                err
+            );
+        }
     }
 }

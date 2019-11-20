@@ -4,11 +4,10 @@
 //! registers and bitfields.
 //!
 //! ```rust
-//! # #[macro_use]
-//! # extern crate tock_registers;
 //! # fn main() {}
 //!
 //! use tock_registers::registers::{ReadOnly, ReadWrite};
+//! use tock_registers::register_bitfields;
 //!
 //! // Register maps are specified like this:
 //! #[repr(C)]
@@ -53,6 +52,12 @@
 //! Author
 //! ------
 //! - Shane Leonard <shanel@stanford.edu>
+
+// The register interface uses `+` in a way that is fine for bitfields, but
+// looks unusual (and perhaps problematic) to a linter. We just ignore those
+// lints for this file.
+#![allow(clippy::suspicious_op_assign_impl)]
+#![allow(clippy::suspicious_arithmetic_impl)]
 
 use core::fmt;
 use core::marker::PhantomData;
@@ -108,31 +113,33 @@ pub trait TryFromValue<V> {
 }
 
 /// Read/Write registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct ReadWrite<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 /// Read-only registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct ReadOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 /// Write-only registers.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
 pub struct WriteOnly<T: IntLike, R: RegisterLongName = ()> {
     value: T,
     associated_register: PhantomData<R>,
 }
 
 impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
-    pub const fn new(value: T) -> Self {
-        ReadWrite {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn get(&self) -> T {
         unsafe { ::core::ptr::read_volatile(&self.value) }
@@ -193,13 +200,6 @@ impl<T: IntLike, R: RegisterLongName> ReadWrite<T, R> {
 }
 
 impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
-    pub const fn new(value: T) -> Self {
-        ReadOnly {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn get(&self) -> T {
         unsafe { ::core::ptr::read_volatile(&self.value) }
@@ -239,13 +239,6 @@ impl<T: IntLike, R: RegisterLongName> ReadOnly<T, R> {
 }
 
 impl<T: IntLike, R: RegisterLongName> WriteOnly<T, R> {
-    pub const fn new(value: T) -> Self {
-        WriteOnly {
-            value: value,
-            associated_register: PhantomData,
-        }
-    }
-
     #[inline]
     pub fn set(&self, value: T) {
         unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
@@ -348,6 +341,82 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
     }
 }
 
+/// In memory volatile register.
+// To successfully alias this structure onto hardware registers in memory, this
+// struct must be exactly the size of the `T`.
+#[repr(transparent)]
+pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
+    value: T,
+    associated_register: PhantomData<R>,
+}
+
+impl<T: IntLike, R: RegisterLongName> InMemoryRegister<T, R> {
+    pub const fn new(value: T) -> Self {
+        InMemoryRegister {
+            value: value,
+            associated_register: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn get(&self) -> T {
+        unsafe { ::core::ptr::read_volatile(&self.value) }
+    }
+
+    #[inline]
+    pub fn set(&self, value: T) {
+        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<T, R>) -> T {
+        (self.get() & (field.mask << field.shift)) >> field.shift
+    }
+
+    #[inline]
+    pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(&self, field: Field<T, R>) -> Option<E> {
+        let val: T = self.read(field);
+
+        E::try_from(val)
+    }
+
+    #[inline]
+    pub fn extract(&self) -> LocalRegisterCopy<T, R> {
+        LocalRegisterCopy::new(self.get())
+    }
+
+    #[inline]
+    pub fn write(&self, field: FieldValue<T, R>) {
+        self.set(field.value);
+    }
+
+    #[inline]
+    pub fn modify(&self, field: FieldValue<T, R>) {
+        let reg: T = self.get();
+        self.set((reg & !field.mask) | field.value);
+    }
+
+    #[inline]
+    pub fn modify_no_read(&self, original: LocalRegisterCopy<T, R>, field: FieldValue<T, R>) {
+        self.set((original.get() & !field.mask) | field.value);
+    }
+
+    #[inline]
+    pub fn is_set(&self, field: Field<T, R>) -> bool {
+        self.read(field) != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_any(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask != T::zero()
+    }
+
+    #[inline]
+    pub fn matches_all(&self, field: FieldValue<T, R>) -> bool {
+        self.get() & field.mask == field.value
+    }
+}
+
 /// Specific section of a register.
 #[derive(Copy, Clone)]
 pub struct Field<T: IntLike, R: RegisterLongName> {
@@ -438,6 +507,11 @@ impl<R: RegisterLongName> FieldValue<u8, R> {
     pub fn mask(self) -> u8 {
         self.mask as u8
     }
+
+    #[inline]
+    pub fn read(&self, field: Field<u8, R>) -> u8 {
+        (self.value & (field.mask << field.shift)) >> field.shift
+    }
 }
 
 impl<R: RegisterLongName> From<FieldValue<u8, R>> for u8 {
@@ -453,6 +527,16 @@ impl<R: RegisterLongName> FieldValue<u16, R> {
             value: (value << shift) & (mask << shift),
             associated_register: PhantomData,
         }
+    }
+
+    /// Get the raw bitmask represented by this FieldValue.
+    pub fn mask(self) -> u16 {
+        self.mask as u16
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<u16, R>) -> u16 {
+        (self.value & (field.mask << field.shift)) >> field.shift
     }
 }
 
@@ -475,6 +559,11 @@ impl<R: RegisterLongName> FieldValue<u32, R> {
     pub fn mask(self) -> u32 {
         self.mask as u32
     }
+
+    #[inline]
+    pub fn read(&self, field: Field<u32, R>) -> u32 {
+        (self.value & (field.mask << field.shift)) >> field.shift
+    }
 }
 
 impl<R: RegisterLongName> From<FieldValue<u32, R>> for u32 {
@@ -495,6 +584,11 @@ impl<R: RegisterLongName> FieldValue<u64, R> {
     /// Get the raw bitmask represented by this FieldValue.
     pub fn mask(self) -> u64 {
         self.mask as u64
+    }
+
+    #[inline]
+    pub fn read(&self, field: Field<u64, R>) -> u64 {
+        (self.value & (field.mask << field.shift)) >> field.shift
     }
 }
 

@@ -1,25 +1,13 @@
 //! `udp_lowpan_test.rs`: Kernel test suite for the UDP/6LoWPAN stack
 //!
 //! This file tests port binding and sending and receiving messages from kernel space.
-//! It has several different test modes.
+//! It has several different test modes. Each test uses the same radio initialization code,
+//! but is started with a different function. A description of these tests and the expected output
+//! follows.
 //!
-//! The first, called by start(),
-//! instantiates two capsules that use the UDP stack, and tests various
-//! binding and sending orders to ensure that port binding and sending
-//! is enforced as expected.
-//! The messages sent are long enough to require multiple fragments. The payload of each message
-//! is all 0's.
+//! To use this test suite, insert the below code into `boards/imix/src/main.rs` as follows:
 //!
-//! start_rx() runs a test where an app and a userspace capsule both attempt UDP reception on
-//! different ports.
-//!
-//! start_with_app() tests port binding virtualization between both apps and capsules.
-//!
-//! start_dual_rx() tests multiple capsules attempting to bind to different ports and receive
-//! messages in quick succession.
-//!
-//! To use this test suite, insert the code into `boards/imix/src/main.rs` as follows:
-//!
+//!```
 //! ...
 //! // Radio initialization code
 //! ...
@@ -31,6 +19,26 @@
 //! // Imix initialization
 //! ...
 //! udp_lowpan_test.start();
+//!```
+//!
+//! Different Initialization functions (pick one):
+//!
+//! start(),
+//! instantiates two capsules that use the UDP stack, and tests various
+//! binding and sending orders to ensure that port binding and sending
+//! is enforced as expected.
+//! The messages sent are long enough to require multiple fragments. The payload of each message
+//! is all 0's.
+//!
+//! start_rx() runs a test where an app and a userspace capsule both verify correctness of port
+//! binding across userspace apps and capsules, and then both attempt UDP reception on
+//! different ports.
+//!
+//! start_with_app() tests port binding virtualization between both apps and capsules, and triggers
+//! simultaneous sends in apps and capsules to test queueing when both apps and capsules are used.
+//!
+//! start_dual_rx() tests multiple capsules attempting to bind to different ports and receive
+//! messages in quick succession, to test in-kernel distribution of received packets.
 //!
 //! Depending on the test you want to run, replace the call to start() with calls to
 //! start_rx(), start_dual_rx(), or start_with_app().
@@ -38,20 +46,77 @@
 //! set of kernel tests, some of which require additional boards or that userland
 //! apps be flashed simultaneously.
 //!
+//! start() is an in-kernel only test. Its expected output follows:
+//! -------------------------------------------------------------------------------
+//! Running test 0:
+//! send_fail test passed
+//! Running test 1:
+//! port_table_test passed
+//! Running test 2:
+//! port_table_test2 passed
+//! Running test 3:
+//! send_test executed, look at printed results once callbacks arrive
+//! Mock UDP done sending. Result: SUCCESS
+//!
+//! Mock UDP done sending. Result: SUCCESS
+//!
+//! All UDP kernel tests complete.
+//! -------------------------------------------------------------------------------
+//!
 //! start_with_app() should be used alongside the userland app `examples/tests/udp/udp_virt_app_kernel`
+//!
+//! start_with_app() expected output:
+//! -------------------------------------------------------------------------------
+//! [UDP VIRT] Starting Kernel Coop UDP Test App.
+//! bind_test passed
+//! send_test executed, look at printed results once callbacks arrive
+//! Mock UDP done sending. Result: SUCCESS
+//!
+//! Mock UDP done sending. Result: SUCCESS
+//!
+//! App part of app/kernel test successful!
+//! -------------------------------------------------------------------------------
+//!
 //! start_rx() should be run alongside the userland app
 //! `examples/tests/udp/udp_virt_rx_tests/app1`. It also requires that a second board with the
 //! normal kernel (no tests) be running simultaneously with both userland apps in
 //! `examples/tests/udp/udp_virt_app_tests/` flashed on this second board. Press reset on the
 //! second board at least 2 seconds after running `tockloader listen` on the receiving board to run
 //! this test.
+//!
+//! start_rx() expected output:
+//! -------------------------------------------------------------------------------
+//! [UDP_RCV_APP1]: Rcvd UDP Packet from: 0001:0203:0405:0607:0809:0a0b:0c0d:0e0f : 26411
+//! Packet Payload: Hello World - App1
+//!
+//! [MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):22222, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
+//!
+//! [UDP_RCV_APP1]: Rcvd UDP Packet from: 0001:0203:0405:0607:0809:0a0b:0c0d:0e0f : 20480
+//! Packet Payload: Hello World - App1
+//!
+//! [MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):81, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
+//! -------------------------------------------------------------------------------
+//!
 //! start_dual_rx() has the same instructions as start_rx(), but it should be run with no userspace
 //! apps on the receiving board. This test also requires additional changes to main.rs --
 //! serial_num_bottom_16 must be replaced with 49138 for this to work. main.rs includes comments
-//! showing what should be included and excluded to run this final test.
+//! showing what should be included and excluded to run this final test. (Normally userspace apps
+//! would set the appropriate src mac address of the board under test, but for in-kernel only tests
+//! we do not currently expose this functionality to capsules).
+//!
+//! start_dual_rx() expected output:
+//! -------------------------------------------------------------------------------
+//![MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):11111, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 49, 10]
+//!
+//! [MOCK_UDP 2] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):22222, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
+//!
+//! [MOCK_UDP 1] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):80, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 49, 10]
+//!
+//! [MOCK_UDP 2] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):81, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
+//! -------------------------------------------------------------------------------
 
-use super::components::mock_udp::MockUDPComponent;
-use super::components::mock_udp2::MockUDPComponent2;
+use super::imix_components::mock_udp::MockUDPComponent;
+use super::imix_components::mock_udp2::MockUDPComponent2;
 use capsules::mock_udp::MockUdp;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
@@ -60,17 +125,18 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::udp_port_table::UdpPortTable;
 use kernel::ReturnCode;
 
 pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
+static mut UDP_PAYLOAD: [u8; PAYLOAD_LEN] = [0; PAYLOAD_LEN]; //Becomes payload of UDP packet
 
 const UDP_HDR_SIZE: usize = 8;
-const PAYLOAD_LEN: usize = super::components::udp_mux::PAYLOAD_LEN;
+const PAYLOAD_LEN: usize = super::imix_components::udp_mux::PAYLOAD_LEN;
 static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
@@ -82,7 +148,7 @@ enum TestMode {
     DualRxMode,
 }
 
-pub struct LowpanTest<'a, A: time::Alarm> {
+pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     alarm: &'a A,
     test_counter: Cell<usize>,
     port_table: &'static UdpPortTable,
@@ -90,7 +156,7 @@ pub struct LowpanTest<'a, A: time::Alarm> {
     mock_udp2: &'a MockUdp<'a, A>,
     test_mode: Cell<TestMode>,
 }
-//TODO: Initialize UDP sender/send_done client in initialize all
+
 pub unsafe fn initialize_all(
     udp_send_mux: &'static MuxUdpSender<
         'static,
@@ -112,7 +178,7 @@ pub unsafe fn initialize_all(
         1, //id
         3, //dst_port
     )
-    .finalize();
+    .finalize(());
 
     let mock_udp2 = MockUDPComponent2::new(
         udp_send_mux,
@@ -123,7 +189,7 @@ pub unsafe fn initialize_all(
         2, //id
         4, //dst_port
     )
-    .finalize();
+    .finalize(());
 
     let udp_lowpan_test = static_init!(
         LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
@@ -143,7 +209,7 @@ pub unsafe fn initialize_all(
     udp_lowpan_test
 }
 
-impl<'a, A: time::Alarm> LowpanTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     pub fn new(
         alarm: &'a A,
         port_table: &'static UdpPortTable,
@@ -348,7 +414,7 @@ impl<'a, A: time::Alarm> LowpanTest<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm> time::Client for LowpanTest<'a, A> {
+impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
     fn fired(&self) {
         self.run_test_and_increment();
     }

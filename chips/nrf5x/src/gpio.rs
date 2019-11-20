@@ -4,7 +4,6 @@
 //! * Philip Levis <pal@cs.stanford.edu>
 //! * Date: August 18, 2016
 
-use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadWrite};
@@ -330,8 +329,7 @@ register_bitfields! [u32,
 
 pub struct GPIOPin {
     pin: u8,
-    client_data: Cell<usize>,
-    client: OptionalCell<&'static hil::gpio::Client>,
+    client: OptionalCell<&'static dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
@@ -340,52 +338,87 @@ impl GPIOPin {
     const fn new(pin: u8) -> GPIOPin {
         GPIOPin {
             pin: pin,
-            client_data: Cell::new(0),
             client: OptionalCell::empty(),
             gpio_registers: GPIO_BASE,
             gpiote_registers: GPIOTE_BASE,
         }
     }
 
-    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.set(client);
-    }
-
     pub fn write_config(&self, config: FieldValue<u32, PinConfig::Register>) {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.pin_cnf[self.pin as usize].write(config);
     }
-}
 
-impl hil::gpio::PinCtl for GPIOPin {
-    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
-        let pin_config = match mode {
-            hil::gpio::InputMode::PullUp => PinConfig::PULL::Pullup,
-            hil::gpio::InputMode::PullDown => PinConfig::PULL::Pulldown,
-            hil::gpio::InputMode::PullNone => PinConfig::PULL::Disabled,
-        };
-        self.write_config(pin_config);
+    pub fn read_config(&self) -> Option<PinConfig::PULL::Value> {
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.pin_cnf[self.pin as usize].read_as_enum(PinConfig::PULL)
     }
 }
 
-impl hil::gpio::Pin for GPIOPin {
-    fn make_output(&self) {
+impl hil::gpio::Configure for GPIOPin {
+    fn set_floating_state(&self, mode: hil::gpio::FloatingState) {
+        let pin_config = match mode {
+            hil::gpio::FloatingState::PullUp => PinConfig::PULL::Pullup,
+            hil::gpio::FloatingState::PullDown => PinConfig::PULL::Pulldown,
+            hil::gpio::FloatingState::PullNone => PinConfig::PULL::Disabled,
+        };
+        self.write_config(pin_config);
+    }
+
+    fn floating_state(&self) -> hil::gpio::FloatingState {
+        let pin_config = self.read_config();
+        match pin_config {
+            Some(PinConfig::PULL::Value::Pullup) => hil::gpio::FloatingState::PullUp,
+            Some(PinConfig::PULL::Value::Pulldown) => hil::gpio::FloatingState::PullDown,
+            Some(PinConfig::PULL::Value::Disabled) => hil::gpio::FloatingState::PullNone,
+            None => hil::gpio::FloatingState::PullNone,
+        }
+    }
+
+    fn make_output(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.dirset.set(1 << self.pin);
+        hil::gpio::Configuration::Output
+    }
+
+    fn disable_output(&self) -> hil::gpio::Configuration {
+        self.make_input()
     }
 
     // Configuration constants stolen from
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
-    fn make_input(&self) {
+    fn make_input(&self) -> hil::gpio::Configuration {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.dirclr.set(1 << self.pin);
+        hil::gpio::Configuration::Input
     }
 
-    // Not clk
-    fn disable(&self) {
-        hil::gpio::PinCtl::set_input_mode(self, hil::gpio::InputMode::PullNone);
+    fn disable_input(&self) -> hil::gpio::Configuration {
+        self.make_output()
     }
 
+    fn configuration(&self) -> hil::gpio::Configuration {
+        let gpio_regs = &*self.gpio_registers;
+        if gpio_regs.dirclr.get() & 1 << self.pin == 0 {
+            hil::gpio::Configuration::Input
+        } else {
+            hil::gpio::Configuration::Output
+        }
+    }
+
+    fn deactivate_to_low_power(&self) {
+        GPIOPin::set_floating_state(self, hil::gpio::FloatingState::PullNone);
+    }
+}
+
+impl hil::gpio::Input for GPIOPin {
+    fn read(&self) -> bool {
+        let gpio_regs = &*self.gpio_registers;
+        gpio_regs.in_.get() & (1 << self.pin) != 0
+    }
+}
+
+impl hil::gpio::Output for GPIOPin {
     fn set(&self) {
         let gpio_regs = &*self.gpio_registers;
         gpio_regs.outset.set(1 << self.pin);
@@ -396,23 +429,37 @@ impl hil::gpio::Pin for GPIOPin {
         gpio_regs.outclr.set(1 << self.pin);
     }
 
-    fn toggle(&self) {
+    fn toggle(&self) -> bool {
         let gpio_regs = &*self.gpio_registers;
-        gpio_regs.out.set((1 << self.pin) ^ gpio_regs.out.get());
+        let result = (1 << self.pin) ^ gpio_regs.out.get();
+        gpio_regs.out.set(result);
+        result & (1 << self.pin) != 0
+    }
+}
+
+impl hil::gpio::Pin for GPIOPin {}
+
+impl hil::gpio::Interrupt for GPIOPin {
+    fn set_client(&self, client: &'static dyn hil::gpio::Client) {
+        self.client.set(client);
     }
 
-    fn read(&self) -> bool {
-        let gpio_regs = &*self.gpio_registers;
-        gpio_regs.in_.get() & (1 << self.pin) != 0
+    fn is_pending(&self) -> bool {
+        if let Ok(channel) = self.find_channel(self.pin) {
+            let regs = &*self.gpiote_registers;
+            let ev = &regs.event_in[channel];
+            ev.matches_any(EventsIn::EVENT::Ready)
+        } else {
+            false
+        }
     }
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         if let Ok(channel) = self.allocate_channel() {
-            self.client_data.set(client_data);
             let polarity = match mode {
-                hil::gpio::InterruptMode::EitherEdge => Config::POLARITY::Toggle,
-                hil::gpio::InterruptMode::RisingEdge => Config::POLARITY::LoToHi,
-                hil::gpio::InterruptMode::FallingEdge => Config::POLARITY::HiToLo,
+                hil::gpio::InterruptEdge::EitherEdge => Config::POLARITY::Toggle,
+                hil::gpio::InterruptEdge::RisingEdge => Config::POLARITY::LoToHi,
+                hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
             };
             let regs = &*self.gpiote_registers;
             regs.config[channel]
@@ -423,7 +470,7 @@ impl hil::gpio::Pin for GPIOPin {
         }
     }
 
-    fn disable_interrupt(&self) {
+    fn disable_interrupts(&self) {
         if let Ok(channel) = self.find_channel(self.pin) {
             let regs = &*self.gpiote_registers;
             regs.config[channel]
@@ -432,6 +479,8 @@ impl hil::gpio::Pin for GPIOPin {
         }
     }
 }
+
+impl hil::gpio::InterruptPin for GPIOPin {}
 
 impl GPIOPin {
     /// Allocate a GPIOTE channel
@@ -455,12 +504,12 @@ impl GPIOPin {
                 return Ok(i);
             }
         }
-        return Err(());
+        Err(())
     }
 
     fn handle_interrupt(&self) {
         self.client.map(|client| {
-            client.fired(self.client_data.get());
+            client.fired();
         });
     }
 }

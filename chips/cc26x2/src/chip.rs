@@ -1,6 +1,6 @@
 use crate::gpio;
 use crate::i2c;
-use crate::peripheral_interrupts::NVIC_IRQ;
+use crate::peripheral_interrupts::NvicIrq;
 use crate::rtc;
 use crate::uart;
 use cortexm4::{self, nvic};
@@ -13,12 +13,14 @@ pub struct Cc26X2 {
 }
 
 impl Cc26X2 {
-    pub unsafe fn new() -> Cc26X2 {
+    // internal HFREQ is 40_000_000 Hz
+    // but if you are using an external HFREQ to derive systick, you will want to input value here (in Hz)
+    pub unsafe fn new(hfreq: u32) -> Cc26X2 {
         Cc26X2 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The systick clocks with 48MHz by default
-            systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
+            systick: cortexm4::systick::SysTick::new_with_calibration(hfreq),
         }
     }
 }
@@ -43,15 +45,15 @@ impl kernel::Chip for Cc26X2 {
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
-                let irq = NVIC_IRQ::from_u32(interrupt)
-                    .expect("Pending IRQ flag not enumerated in NVIQ_IRQ");
+                let irq = NvicIrq::from_u32(interrupt)
+                    .expect("Pending IRQ flag not enumerated in NviqIrq");
                 match irq {
-                    NVIC_IRQ::GPIO => gpio::PORT.handle_interrupt(),
-                    NVIC_IRQ::AON_RTC => rtc::RTC.handle_interrupt(),
-                    NVIC_IRQ::UART0 => uart::UART0.handle_interrupt(),
-                    NVIC_IRQ::I2C0 => i2c::I2C0.handle_interrupt(),
+                    NvicIrq::Gpio => gpio::PORT.handle_interrupt(),
+                    NvicIrq::AonRtc => rtc::RTC.handle_interrupt(),
+                    NvicIrq::Uart0 => uart::UART0.handle_interrupt(),
+                    NvicIrq::I2c0 => i2c::I2C0.handle_interrupt(),
                     // We need to ignore JTAG events since some debuggers emit these
-                    NVIC_IRQ::AON_PROG => (),
+                    NvicIrq::AonProg => (),
                     _ => panic!("Unhandled interrupt {:?}", irq),
                 }
                 let n = nvic::Nvic::new(interrupt);

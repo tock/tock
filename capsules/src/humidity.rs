@@ -53,7 +53,7 @@ use kernel::{AppId, Callback, Driver, Grant};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::HUMIDITY as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Humidity as usize;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum HumidityCommand {
@@ -68,13 +68,16 @@ pub struct App {
 }
 
 pub struct HumiditySensor<'a> {
-    driver: &'a hil::sensors::HumidityDriver,
+    driver: &'a dyn hil::sensors::HumidityDriver,
     apps: Grant<App>,
     busy: Cell<bool>,
 }
 
 impl HumiditySensor<'a> {
-    pub fn new(driver: &'a hil::sensors::HumidityDriver, grant: Grant<App>) -> HumiditySensor<'a> {
+    pub fn new(
+        driver: &'a dyn hil::sensors::HumidityDriver,
+        grant: Grant<App>,
+    ) -> HumiditySensor<'a> {
         HumiditySensor {
             driver: driver,
             apps: grant,
