@@ -7,19 +7,14 @@
 
 use kernel::common::cells::VolatileCell;
 
-#[cfg(not(feature = "nrf52840"))]
-const NUM_PORTS: usize = 1;
-#[cfg(feature = "nrf52840")]
+// Note: only the nrf52840 has two ports, but we create two ports to avoid
+// gating this code by a feature.
 const NUM_PORTS: usize = 2;
 
 const PIN_PER_PORT: usize = 32;
 
 // Keep track of which pins has a `Pinmux` been created for.
-static mut USED_PINS: [VolatileCell<u32>; NUM_PORTS] = [
-    VolatileCell::new(0),
-    #[cfg(feature = "nrf52840")]
-    VolatileCell::new(0),
-];
+static mut USED_PINS: [VolatileCell<u32>; NUM_PORTS] = [VolatileCell::new(0), VolatileCell::new(0)];
 
 /// An opaque wrapper around a configurable pin.
 #[derive(Copy, Clone)]
