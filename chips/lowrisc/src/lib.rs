@@ -7,4 +7,5 @@
 #![crate_name = "lowrisc"]
 #![crate_type = "rlib"]
 
+pub mod gpio;
 pub mod uart;
