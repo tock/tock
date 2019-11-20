@@ -275,6 +275,7 @@ pub unsafe fn reset_handler() {
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
+        &nrf52832::gpio::PORT,
         gpio_pins,
         LED1_PIN,
         LED2_PIN,

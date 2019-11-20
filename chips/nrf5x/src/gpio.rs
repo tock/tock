@@ -16,11 +16,6 @@ const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
 
-#[cfg(not(feature = "nrf52840"))]
-const NUM_PINS: usize = 32;
-#[cfg(feature = "nrf52840")]
-const NUM_PINS: usize = 48;
-
 const GPIO_PER_PORT: usize = 32;
 
 const GPIOTE_BASE: StaticRef<GpioteRegisters> =
@@ -342,38 +337,9 @@ pub enum Pin {
     P0_08, P0_09, P0_10, P0_11, P0_12, P0_13, P0_14, P0_15,
     P0_16, P0_17, P0_18, P0_19, P0_20, P0_21, P0_22, P0_23,
     P0_24, P0_25, P0_26, P0_27, P0_28, P0_29, P0_30, P0_31,
-    #[cfg(feature = "nrf52840")]
-    P1_00,
-    #[cfg(feature = "nrf52840")]
-    P1_01,
-    #[cfg(feature = "nrf52840")]
-    P1_02,
-    #[cfg(feature = "nrf52840")]
-    P1_03,
-    #[cfg(feature = "nrf52840")]
-    P1_04,
-    #[cfg(feature = "nrf52840")]
-    P1_05,
-    #[cfg(feature = "nrf52840")]
-    P1_06,
-    #[cfg(feature = "nrf52840")]
-    P1_07,
-    #[cfg(feature = "nrf52840")]
-    P1_08,
-    #[cfg(feature = "nrf52840")]
-    P1_09,
-    #[cfg(feature = "nrf52840")]
-    P1_10,
-    #[cfg(feature = "nrf52840")]
-    P1_11,
-    #[cfg(feature = "nrf52840")]
-    P1_12,
-    #[cfg(feature = "nrf52840")]
-    P1_13,
-    #[cfg(feature = "nrf52840")]
-    P1_14,
-    #[cfg(feature = "nrf52840")]
-    P1_15,
+    // Pins only on nrf52840.
+    P1_00, P1_01, P1_02, P1_03, P1_04, P1_05, P1_06, P1_07,
+    P1_08, P1_09, P1_10, P1_11, P1_12, P1_13, P1_14, P1_15,
 }
 
 pub struct GPIOPin {
@@ -385,7 +351,7 @@ pub struct GPIOPin {
 }
 
 impl GPIOPin {
-    const fn new(pin: Pin) -> GPIOPin {
+    pub const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
             pin: ((pin as usize) % GPIO_PER_PORT) as u8,
             port: ((pin as usize) / GPIO_PER_PORT) as u8,
@@ -572,7 +538,7 @@ impl GPIOPin {
 }
 
 pub struct Port {
-    pins: [GPIOPin; NUM_PINS],
+    pub pins: &'static mut [GPIOPin],
 }
 
 impl Index<usize> for Port {
@@ -607,72 +573,3 @@ impl Port {
         }
     }
 }
-
-pub static mut PORT: Port = Port {
-    pins: [
-        GPIOPin::new(Pin::P0_00),
-        GPIOPin::new(Pin::P0_01),
-        GPIOPin::new(Pin::P0_02),
-        GPIOPin::new(Pin::P0_03),
-        GPIOPin::new(Pin::P0_04),
-        GPIOPin::new(Pin::P0_05),
-        GPIOPin::new(Pin::P0_06),
-        GPIOPin::new(Pin::P0_07),
-        GPIOPin::new(Pin::P0_08),
-        GPIOPin::new(Pin::P0_09),
-        GPIOPin::new(Pin::P0_10),
-        GPIOPin::new(Pin::P0_11),
-        GPIOPin::new(Pin::P0_12),
-        GPIOPin::new(Pin::P0_13),
-        GPIOPin::new(Pin::P0_14),
-        GPIOPin::new(Pin::P0_15),
-        GPIOPin::new(Pin::P0_16),
-        GPIOPin::new(Pin::P0_17),
-        GPIOPin::new(Pin::P0_18),
-        GPIOPin::new(Pin::P0_19),
-        GPIOPin::new(Pin::P0_20),
-        GPIOPin::new(Pin::P0_21),
-        GPIOPin::new(Pin::P0_22),
-        GPIOPin::new(Pin::P0_23),
-        GPIOPin::new(Pin::P0_24),
-        GPIOPin::new(Pin::P0_25),
-        GPIOPin::new(Pin::P0_26),
-        GPIOPin::new(Pin::P0_27),
-        GPIOPin::new(Pin::P0_28),
-        GPIOPin::new(Pin::P0_29),
-        GPIOPin::new(Pin::P0_30),
-        GPIOPin::new(Pin::P0_31),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_00),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_01),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_02),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_03),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_04),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_05),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_06),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_07),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_08),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_09),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_10),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_11),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_12),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_13),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_14),
-        #[cfg(feature = "nrf52840")]
-        GPIOPin::new(Pin::P1_15),
-    ],
-};

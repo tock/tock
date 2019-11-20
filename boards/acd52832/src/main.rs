@@ -629,7 +629,10 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let chip = static_init!(nrf52832::chip::NRF52, nrf52832::chip::NRF52::new());
+    let chip = static_init!(
+        nrf52832::chip::NRF52,
+        nrf52832::chip::NRF52::new(&nrf52832::gpio::PORT)
+    );
 
     nrf52832::gpio::PORT[31].make_output();
     nrf52832::gpio::PORT[31].clear();
