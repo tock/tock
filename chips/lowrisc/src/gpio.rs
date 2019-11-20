@@ -37,7 +37,7 @@ pub struct GpioRegisters {
 }
 
 register_bitfields![u32,
-	pins [
+	pub pins [
 	    pin0 0,
 	    pin1 1,
 	    pin2 2,

@@ -9,6 +9,7 @@
 mod interrupts;
 
 pub mod chip;
+pub mod gpio;
 pub mod plic;
 pub mod timer;
 pub mod uart;
