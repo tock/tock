@@ -85,12 +85,14 @@ SECTIONS
          * shouldn't have any effect.
          */
         KEEP(*(.riscv.start));
-        /* For RISC-V we need the `_start_trap` function to be 64 byte aligned,
+        /* For RISC-V we need the `_start_trap` function to be 256 byte aligned,
          * and that function is at the start of the .riscv.trap section. If that
          * function does not exist (as for non-RISC-V platforms) then we do not
          * need any unusual alignment.
+         * The allignment is implementation specific, so we currently use 256 to
+         * work with the lowRISC CPUs.
          */
-        . = DEFINED(_start_trap) ? ALIGN(64) : ALIGN(1);
+        . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
         KEEP(*(.riscv.trap));
 
         /* .text and .rodata hold most program code and immutable constants */
