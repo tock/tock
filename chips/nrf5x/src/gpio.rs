@@ -511,7 +511,7 @@ impl GPIOPin {
                 return Ok(i);
             }
         }
-        return Err(());
+        Err(())
     }
 
     fn handle_interrupt(&self) {

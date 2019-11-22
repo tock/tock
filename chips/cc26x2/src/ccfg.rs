@@ -69,37 +69,8 @@ pub struct RegisterInitializer {
     pub bl_config: ReadWrite<u32, BlConfig::Register>,
 }
 
-impl Registers {
-    pub const fn new(init: RegisterInitializer) -> Registers {
-        Registers {
-            ext_lf_clk: init.ext_lf_clk,
-            mode_conf1: init.mode_conf1,
-            size_and_dis_flags: ReadWrite::new(0x0058FFFE),
-            mode_conf0: init.mode_conf0,
-            _volt_load0: ReadOnly::new(0xFFFFFFFF),
-            _volt_load1: ReadOnly::new(0xFFFFFFFF),
-            _rtc_offset: ReadOnly::new(0xFFFFFFFF),
-            _freq_offset: ReadOnly::new(0xFFFFFFFF),
-            iee_mac0: ReadWrite::new(0xFFFFFFFF),
-            iee_mac1: ReadWrite::new(0xFFFFFFFF),
-            iee_ble0: ReadWrite::new(0xFFFFFFFF),
-            iee_ble1: ReadWrite::new(0xFFFFFFFF),
-            bl_config: init.bl_config,
-            erase_config: ReadWrite::new(0xFFFFFFFF),
-            ti_options: ReadOnly::new(0xFFFFFF00),
-            tap_dap0: ReadOnly::new(0xFFC5C5C5),
-            tap_dap1: ReadOnly::new(0xFFC5C5C5),
-            image_valid: ReadOnly::new(0x00000000),
-            ccfg_prot_31_0: ReadWrite::new(0xFFFFFFFF),
-            ccfg_prot_63_32: ReadWrite::new(0xFFFFFFFF),
-            ccfg_prot_95_64: ReadWrite::new(0xFFFFFFFF),
-            ccfg_prot_127_96: ReadWrite::new(0xFFFFFFFF),
-        }
-    }
-}
-
 register_bitfields![
-    u8,
+    u32,
     ExtLfClk [
         // Unsigned value pin selection
         DIO OFFSET(24) NUMBITS(8) [],

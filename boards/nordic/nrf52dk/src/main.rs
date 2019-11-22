@@ -92,7 +92,6 @@ const SPI_MISO: usize = 23;
 const SPI_CLK: usize = 24;
 
 /// UART Writer
-#[macro_use]
 pub mod io;
 
 // FIXME: Ideally this should be replaced with Rust's builtin tests by conditional compilation
@@ -276,6 +275,7 @@ pub unsafe fn reset_handler() {
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &None,
         button_pins,
+        false,
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,

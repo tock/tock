@@ -41,13 +41,14 @@ impl BLEComponent {
 }
 
 impl Component for BLEComponent {
+    type StaticInput = ();
     type Output = &'static capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >;
 
-    unsafe fn finalize(&mut self) -> Self::Output {
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ble_radio_virtual_alarm = static_init!(
@@ -62,7 +63,7 @@ impl Component for BLEComponent {
                 VirtualMuxAlarm<'static, Rtc>,
             >,
             capsules::ble_advertising_driver::BLE::new(
-                &mut nrf52::ble_radio::RADIO,
+                &nrf52::ble_radio::RADIO,
                 self.board_kernel.create_grant(&grant_cap),
                 &mut capsules::ble_advertising_driver::BUF,
                 ble_radio_virtual_alarm

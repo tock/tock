@@ -38,15 +38,15 @@
 //! ```
 
 use core::cell::Cell;
-use core::cmp::{self, min};
 use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
 use core::ptr;
-use core::slice;
 use core::str;
 
 use crate::common::cells::NumericCellExt;
 use crate::common::cells::{MapCell, TakeCell};
+use crate::common::queue::Queue;
+use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::process::ProcessType;
 use crate::ReturnCode;
@@ -105,7 +105,7 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     // Print version of the kernel
     let _ = writer.write_fmt(format_args!(
         "\tKernel version {}\r\n",
-        env!("TOCK_KERNEL_VERSION")
+        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
     ));
 }
 
@@ -210,11 +210,7 @@ pub struct DebugWriter {
     // The buffer that is passed to the writing mechanism.
     output_buffer: TakeCell<'static, [u8]>,
     // An internal buffer that is used to hold debug!() calls as they come in.
-    internal_buffer: TakeCell<'static, [u8]>,
-    head: Cell<usize>,
-    tail: Cell<usize>,
-    // How many bytes are being written on the current publish_str call.
-    active_len: Cell<usize>,
+    internal_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
     // Number of debug!() calls.
     count: Cell<usize>,
 }
@@ -250,16 +246,13 @@ impl DebugWriter {
     pub fn new(
         uart: &'static dyn hil::uart::Transmit,
         out_buffer: &'static mut [u8],
-        internal_buffer: &'static mut [u8],
+        internal_buffer: &'static mut RingBuffer<'static, u8>,
     ) -> DebugWriter {
         DebugWriter {
             uart: uart,
             output_buffer: TakeCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),
-            head: Cell::new(0),       // first valid index in output_buffer
-            tail: Cell::new(0),       // one past last valid index (wraps to 0)
-            active_len: Cell::new(0), // how big is the current transaction?
-            count: Cell::new(0),      // how many debug! calls
+            count: Cell::new(0), // how many debug! calls
         }
     }
 
@@ -271,118 +264,48 @@ impl DebugWriter {
         self.count.get()
     }
 
-    /// Convenience method that writes (end-start) bytes from bytes into the
-    /// internal debug buffer.
-    fn write_buffer(&self, start: usize, end: usize, bytes: &[u8]) {
-        if end < start {
-            panic!("wb bounds: start {} end {} bytes {:?}", start, end, bytes);
-        }
-        self.internal_buffer.map(|in_buffer| {
-            for (dst, src) in in_buffer[start..end].iter_mut().zip(bytes.iter()) {
-                *dst = *src;
-            }
-        });
-    }
-
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible.
     fn publish_str(&self) {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
-        self.output_buffer.take().map(|out_buffer| {
-            let head = self.head.get();
-            let tail = self.tail.get();
-            let len = self
-                .internal_buffer
-                .map_or(0, |internal_buffer| internal_buffer.len());
+        self.internal_buffer.map(|ring_buffer| {
+            if let Some(out_buffer) = self.output_buffer.take() {
+                let mut count = 0;
 
-            // Want to write everything from tail inclusive to head
-            // exclusive
-            let (start, end) = if tail > head {
-                // Need to pass subscribe a contiguous buffer, so first
-                // write from tail to end of buffer. The completion
-                // callback will see that the buffer's not empty and
-                // call again to write the rest (tail will be 0)
-                let start = tail;
-                let end = len;
-                (start, end)
-            } else if tail < head {
-                let start = tail;
-                let end = head;
-                (start, end)
-            } else {
-                panic!("Consistency error: publish empty buffer?")
-            };
-
-            // Check that we aren't writing a segment larger than the output
-            // buffer.
-            let real_end = start + cmp::min(end - start, out_buffer.len());
-
-            self.internal_buffer.map(|internal_buffer| {
-                for (dst, src) in out_buffer
-                    .iter_mut()
-                    .zip(internal_buffer[start..real_end].iter())
-                {
-                    *dst = *src;
+                for dst in out_buffer.iter_mut() {
+                    match ring_buffer.dequeue() {
+                        Some(src) => {
+                            *dst = src;
+                            count += 1;
+                        }
+                        None => {
+                            break;
+                        }
+                    }
                 }
-            });
 
-            // Transmit the data in the output buffer.
-            let out_len = real_end - start;
-            let (rval, opt) = self.uart.transmit_buffer(out_buffer, out_len);
-            match rval {
-                ReturnCode::SUCCESS => {
-                    // Set the outgoing length
-                    self.active_len.set(out_len);
-                }
-                _ => {
-                    self.output_buffer.replace(opt.unwrap());
+                if count != 0 {
+                    // Transmit the data in the output buffer.
+                    let (_rval, opt) = self.uart.transmit_buffer(out_buffer, count);
+                    self.output_buffer.put(opt);
                 }
             }
         });
     }
 
-    fn extract(&self) -> Option<(usize, usize, &mut [u8])> {
-        self.internal_buffer
-            .take()
-            .map(|buf| (self.head.get(), self.tail.get(), buf))
+    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
+        self.internal_buffer.take()
     }
 }
 
 impl hil::uart::TransmitClient for DebugWriter {
-    fn transmitted_buffer(&self, buffer: &'static mut [u8], tx_len: usize, _rcode: ReturnCode) {
+    fn transmitted_buffer(&self, buffer: &'static mut [u8], _tx_len: usize, _rcode: ReturnCode) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
 
-        // Mark how many bytes outstanding so we don't overwrite buffer
-        // in transmit calls.
-        let goal_length = self.active_len.get();
-        let remainder = goal_length - tx_len;
-        self.active_len.set(remainder);
-
-        let len = self
-            .internal_buffer
-            .map_or(0, |internal_buffer| internal_buffer.len());
-        let head = self.head.get();
-        let mut tail = self.tail.get();
-
-        //panic!("Tail: {}, head: {}, tx_len: {}, rcode: {:?}", tail, head, tx_len, _rcode);
-
-        // Increment the tail with how many bytes were written to the output
-        // mechanism, and wrap if needed.
-        tail += tx_len;
-        if tail > len {
-            tail = tail - len;
-        }
-
-        if head == tail {
-            // Empty. As an optimization, reset the head and tail pointers to 0
-            // to maximize the buffer length available before fragmentation
-            self.head.set(0);
-            self.tail.set(0);
-        } else {
+        if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
             // Buffer not empty, go around again
-            self.tail.set(tail);
             self.publish_str();
         }
     }
@@ -407,100 +330,36 @@ impl DebugWriterWrapper {
         });
     }
 
-    fn extract(&self) -> Option<(usize, usize, &mut [u8])> {
+    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
         self.dw.map_or(None, |dw| dw.extract())
     }
 }
 
 impl Write for DebugWriterWrapper {
     fn write_str(&mut self, s: &str) -> Result {
-        // Circular buffer.
-        //
-        // Note, we don't use the kernel's RingBuffer here because we want
-        // slightly different semantics. Specifically, we need to be able
-        // to take *contiguous* slices of the buffer and pass them around,
-        // we're also okay with fragmenting if we're inserting a slice over
-        // the internal wraparound, but we need to handle that case manually
-        //
-        //  - head points to the index of the first valid place to write
-        //  - tail points one past the index of the last open place to write
-        //  -> head == tail implies buffer is empty
-        //  -> there's no "full/empty" bit, so the effective buffer size is -1
-
+        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw.map(|dw| {
-            let mut head = dw.head.get();
-            let tail = dw.tail.get();
-            let len = dw.internal_buffer.map_or(0, |buffer| buffer.len());
-
-            let remaining_bytes = if head >= tail {
+            dw.internal_buffer.map(|ring_buffer| {
                 let bytes = s.as_bytes();
 
-                // First write from current head to end of buffer in memory
-                let mut backside_len = len - head;
-                if tail == 0 {
-                    // Handle special case where tail has just wrapped to 0,
-                    // so we can't let the head point to 0 as well
-                    backside_len -= 1;
-                }
+                let available_len_for_msg =
+                    ring_buffer.available_len().saturating_sub(FULL_MSG.len());
 
-                let written = if backside_len != 0 {
-                    let start = head;
-                    let end = head + backside_len;
-                    dw.write_buffer(start, end, bytes);
-                    min(end - start, bytes.len())
+                if available_len_for_msg >= bytes.len() {
+                    for &b in bytes {
+                        ring_buffer.enqueue(b);
+                    }
                 } else {
-                    0
-                };
-
-                // Advance and possibly wrap the head
-                head += written;
-                if head == len {
-                    head = 0;
+                    for &b in &bytes[..available_len_for_msg] {
+                        ring_buffer.enqueue(b);
+                    }
+                    // When the buffer is close to full, print a warning and drop the current
+                    // string.
+                    for &b in FULL_MSG {
+                        ring_buffer.enqueue(b);
+                    }
                 }
-                &bytes[written..]
-            } else {
-                s.as_bytes()
-            };
-
-            // At this point, either
-            //  o head < tail
-            //  o head = len-1, tail = 0 (buffer full edge case)
-            //  o there are no more bytes to write
-
-            if remaining_bytes.len() != 0 {
-                // Now write from the head up to tail
-                let start = head;
-                let end = tail;
-                if (tail == 0) && (head == len - 1) {
-                    let active = dw.active_len.get();
-                    panic!(
-                        "Debug buffer full. Head {} tail {} len {} active {} remaining {}",
-                        head,
-                        tail,
-                        len,
-                        active,
-                        remaining_bytes.len()
-                    );
-                }
-                if remaining_bytes.len() > end - start {
-                    let active = dw.active_len.get();
-                    panic!(
-                        "Debug buffer out of room. Head {} tail {} len {} active {} remaining {}",
-                        head,
-                        tail,
-                        len,
-                        active,
-                        remaining_bytes.len()
-                    );
-                }
-                dw.write_buffer(start, end, remaining_bytes);
-                let written = min(end - start, remaining_bytes.len());
-
-                // head cannot wrap here
-                head += written;
-            }
-
-            dw.head.set(head);
+            });
         });
 
         Ok(())
@@ -586,24 +445,18 @@ impl Default for Debug {
 pub unsafe fn flush<W: Write>(writer: &mut W) {
     let debug_writer = get_debug_writer();
 
-    if let Some((head, mut tail, buffer)) = debug_writer.extract() {
-        if head != tail {
+    if let Some(ring_buffer) = debug_writer.extract() {
+        if ring_buffer.has_elements() {
             let _ = writer.write_str(
                 "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
             );
 
-            if tail > head {
-                let start = buffer.as_mut_ptr().add(tail);
-                let len = buffer.len();
-                let slice = slice::from_raw_parts(start, len);
+            let (left, right) = ring_buffer.as_slices();
+            if let Some(slice) = left {
                 let s = str::from_utf8_unchecked(slice);
                 let _ = writer.write_str(s);
-                tail = 0;
             }
-            if tail != head {
-                let start = buffer.as_mut_ptr().add(tail);
-                let len = head - tail;
-                let slice = slice::from_raw_parts(start, len);
+            if let Some(slice) = right {
                 let s = str::from_utf8_unchecked(slice);
                 let _ = writer.write_str(s);
             }

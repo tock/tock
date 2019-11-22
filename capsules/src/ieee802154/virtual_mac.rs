@@ -104,12 +104,14 @@ impl MuxMac<'a> {
             let (result, mbuf) = self.mac.transmit(frame);
             // If a buffer is returned, the transmission failed,
             // otherwise it succeeded.
-            mbuf.map(|buf| {
-                node.send_done(buf, false, result);
-            })
-            .unwrap_or_else(|| {
-                self.inflight.set(node);
-            });
+            mbuf.map_or_else(
+                || {
+                    self.inflight.set(node);
+                },
+                |buf| {
+                    node.send_done(buf, false, result);
+                },
+            )
         }
     }
 

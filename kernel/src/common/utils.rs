@@ -65,7 +65,6 @@ macro_rules! storage_volume {
 ///
 /// ```ignore
 /// use kernel::capabilities::ProcessManagementCapability;
-/// #[macro_use(create_capability)]
 /// use kernel;
 ///
 /// let process_mgmt_cap = create_capability!(ProcessManagementCapability);

@@ -50,6 +50,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 | ✓ | 0x00005       | [ADC](00005_adc.md)         | Sample analog-to-digital converter pins    |
 |   | 0x00006       | DAC                         | Digital to analog converter                |
 |   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator       |
+|   | 0x00008       | [Low-Level Debug](00008_low_level_debug.md) | Low-level debugging tools  |
 
 ### Kernel
 

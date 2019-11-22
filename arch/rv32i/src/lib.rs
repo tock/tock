@@ -16,7 +16,6 @@
 pub mod clic;
 pub mod csr;
 pub mod machine_timer;
-pub mod plic;
 pub mod pmp;
 pub mod support;
 pub mod syscall;

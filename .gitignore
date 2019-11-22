@@ -48,3 +48,7 @@ doc/rustdoc
 [._]sw[a-p]
 
 /.idea
+
+# Cargo.lock files have a lot of noisy churn during development. Instead they
+# are manually included for releases.
+Cargo.lock

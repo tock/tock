@@ -1,10 +1,10 @@
 use kernel;
 use kernel::debug;
 use rv32i;
-use rv32i::machine_timer;
 
 use crate::gpio;
 use crate::interrupts;
+use crate::timer;
 use crate::uart;
 
 extern "C" {
@@ -169,7 +169,7 @@ impl kernel::Chip for ArtyExx {
         unsafe {
             while let Some(interrupt) = self.clic.next_pending() {
                 match interrupt {
-                    interrupts::MTIP => machine_timer::MACHINETIMER.handle_interrupt(),
+                    interrupts::MTIP => timer::MACHINETIMER.handle_interrupt(),
 
                     interrupts::GPIO0 => gpio::PORT[3].handle_interrupt(),
                     interrupts::GPIO1 => gpio::PORT[3].handle_interrupt(),

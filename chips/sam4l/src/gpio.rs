@@ -173,7 +173,7 @@ impl Port {
 
 /// Port A
 pub static mut PA: Port = Port {
-    port: unsafe { StaticRef::new((BASE_ADDRESS + 0 * SIZE) as *const GpioRegisters) },
+    port: unsafe { StaticRef::new(BASE_ADDRESS as *const GpioRegisters) },
     pins: [
         GPIOPin::new(Pin::PA00),
         GPIOPin::new(Pin::PA01),

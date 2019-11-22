@@ -52,6 +52,7 @@ pub trait Client {
 pub enum CtrlSetupResult {
     /// The Setup request was handled successfully
     Ok,
+    OkSetAddress,
 
     // The Setup request cannot be handled; abort this transfer with STALL
     ErrBadLength,
@@ -62,7 +63,10 @@ pub enum CtrlSetupResult {
     ErrNoDeviceQualifier,
     ErrInvalidDeviceIndex,
     ErrInvalidConfigurationIndex,
+    ErrInvalidInterfaceIndex,
     ErrInvalidStringIndex,
+
+    ErrGeneric,
 }
 
 pub enum CtrlInResult {

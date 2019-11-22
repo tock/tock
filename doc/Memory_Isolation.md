@@ -102,8 +102,9 @@ through the use of `allow` syscalls. This gives capsules read/write access to
 the process's memory for use with a specific capsule operation.
 
 Processes can communicate with each other through an [inter-process
-communication (IPC) mechanism](tutorials/05_ipc.md). To use IPC, processes
-specify a buffer in their RAM to use as a shared buffer, and then notify the
-kernel that they would like to share this buffer with other processes. Then,
-other users of this IPC mechanism are allowed to read and write this buffer.
-Outside of IPC, a process is never able to read or write other processes' RAM.
+communication (IPC) mechanism](https://book.tockos.org/tutorials/05_ipc.html).
+To use IPC, processes specify a buffer in their RAM to use as a shared buffer,
+and then notify the kernel that they would like to share this buffer with other
+processes. Then, other users of this IPC mechanism are allowed to read and write
+this buffer. Outside of IPC, a process is never able to read or write other
+processes' RAM.
