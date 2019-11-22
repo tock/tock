@@ -28,10 +28,13 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn systick_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn systick_handler() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
     asm!(
@@ -51,10 +54,13 @@ pub unsafe extern "C" fn systick_handler() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn generic_isr() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn generic_isr() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
@@ -114,10 +120,13 @@ pub unsafe extern "C" fn generic_isr() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn svc_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn svc_handler() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
     asm!(
@@ -147,12 +156,16 @@ pub unsafe extern "C" fn svc_handler() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, _process_got: *const u8) -> *mut u8 {
-    user_stack as *mut u8
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn switch_to_user(
+    _user_stack: *const u8,
+    _process_regs: &mut [usize; 8],
+) -> *const usize {
+    unimplemented!()
 }
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
 /// r0 is top of user stack, r1 is reference to `CortexMStoredState.regs`
 pub unsafe extern "C" fn switch_to_user(
@@ -182,7 +195,7 @@ pub unsafe extern "C" fn switch_to_user(
     user_stack
 }
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     use core::intrinsics::offset;
@@ -327,10 +340,13 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn hard_fault_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn hard_fault_handler() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;

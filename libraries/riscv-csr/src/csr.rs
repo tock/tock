@@ -31,7 +31,7 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
         }
     }
 
-    #[cfg(target_os = "none")]
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     #[inline]
     pub fn get(&self) -> T {
         let r: T;
@@ -39,18 +39,19 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
         r
     }
 
-    #[cfg(not(target_os = "none"))]
-    pub fn get(&self) -> T {
-        unimplemented!()
-    }
-
-    #[cfg(target_os = "none")]
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     #[inline]
     pub fn set(&self, val_to_set: T) {
         unsafe { asm!("csrw $0, $1" :: "i"(self.value), "r"(val_to_set) :: "volatile") }
     }
 
-    #[cfg(not(target_os = "none"))]
+    // Mock implementations for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub fn get(&self) -> T {
+        unimplemented!()
+    }
+
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     pub fn set(&self, _val_to_set: T) {
         unimplemented!()
     }

@@ -16,12 +16,15 @@ extern "C" {
 }
 
 unsafe extern "C" fn unhandled_interrupt() {
-    'loop0: loop {}
+    loop {}
 }
 
-#[cfg_attr(target_os = "none", link_section = ".vectors")]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
 // used Ensures that the symbol is kept until the final binary
-#[cfg_attr(target_os = "none", used)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 54] = [
     _estack,
     reset_handler,

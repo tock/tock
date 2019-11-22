@@ -24,10 +24,13 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn generic_isr() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn generic_isr() {
+    unimplemented!()
+}
 
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
@@ -73,19 +76,19 @@ _ggeneric_isr_no_stacking:
      *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
      * */
     /* r3 = &NVIC.ICER[r0 / 32] */
-	ldr	r2, NVICICER     /* r2 = &NVIC.ICER */
-	lsrs	r3, r0, #5   /* r3 = r0 / 32 */
-	lsls	r3, r3, #2   /* ICER is word-sized, so multiply offset by 4 */
-	adds	r3, r3, r2   /* r3 = r2 + r3 */
+    ldr r2, NVICICER     /* r2 = &NVIC.ICER */
+    lsrs r3, r0, #5   /* r3 = r0 / 32 */
+    lsls r3, r3, #2   /* ICER is word-sized, so multiply offset by 4 */
+    adds r3, r3, r2   /* r3 = r2 + r3 */
 
     /* r2 = 1 << (r0 & 31) */
-	movs	r2, #31      /* r2 = 31 */
-	ands	r0, r2       /* r0 = r0 & r2 */
-	subs	r2, r2, #30  /* r2 = r2 - 30 i.e. r2 = 1 */
-	lsls	r2, r2, r0   /* r2 = 1 << r0 */
+    movs r2, #31      /* r2 = 31 */
+    ands r0, r2       /* r0 = r0 & r2 */
+    subs r2, r2, #30  /* r2 = r2 - 30 i.e. r2 = 1 */
+    lsls r2, r2, r0   /* r2 = 1 << r0 */
 
     /* *r3 = r2 */
-	str	r2, [r3]
+    str r2, [r3]
     bx lr /* return here since we have extra words in the assembly */
 
 .align 4
@@ -98,6 +101,13 @@ MEXC_RETURN_PSP:
     : : : : "volatile");
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn svc_handler() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
     asm!(
@@ -124,6 +134,16 @@ EXC_RETURN_PSP:
   : : : : "volatile"  );
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn switch_to_user(
+    _user_stack: *const u8,
+    _process_regs: &mut [usize; 8],
+) -> *mut u8 {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
 pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const u8,
@@ -184,6 +204,7 @@ struct HardFaultStackedRegisters {
     xpsr: u32,
 }
 
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     use core::intrinsics::offset;
@@ -215,6 +236,13 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
          : "volatile");
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn hard_fault_handler() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;
