@@ -50,6 +50,10 @@ ci-travis:
 	@cd libraries/tock-cells && CI=true cargo test
 	@cd libraries/tock-register-interface && CI=true cargo test
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Archs *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Test $$f"; cd arch/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Chips *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Test $$f"; cd chips/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
@@ -90,8 +94,9 @@ ci: ci-travis ci-netlify
 
 .PHONY: clean
 clean:
-	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean $$f"; cd "chips/$$f" && cargo clean || exit 1; cd ../..; done
-	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean $$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
+	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Clean arch/$$f"; cd "arch/$$f" && cargo clean || exit 1; cd ../..; done
+	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Clean chips/$$f"; cd "chips/$$f" && cargo clean || exit 1; cd ../..; done
+	@for f in `./tools/list_boards.sh`; do echo "$$(tput bold)Clean boards/$$f"; $(MAKE) -C "boards/$$f" clean || exit 1; done
 	@cd kernel && echo "$$(tput bold)Clean kernel" && cargo clean
 	@cd libraries/tock-cells && echo "$$(tput bold)Clean libraries/tock-cells" && cargo clean
 	@cd libraries/tock-register-interface && echo "$$(tput bold)Clean libraries/tock-register-interface" && cargo clean
