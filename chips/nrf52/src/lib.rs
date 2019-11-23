@@ -20,4 +20,6 @@ pub mod uart;
 pub mod uicr;
 
 pub use crate::crt1::init;
-pub use nrf5x::{aes, gpio, pinmux, rtc, temperature, trng};
+pub use nrf5x::{
+    aes, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer, trng,
+};
