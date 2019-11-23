@@ -103,8 +103,6 @@ pub unsafe fn reset_handler() {
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
 
-    // Need to enable all interrupts for Tock Kernel
-    chip.enable_plic_interrupts();
     // enable interrupts globally
     csr::CSR
         .mie
