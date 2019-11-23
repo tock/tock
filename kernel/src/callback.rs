@@ -3,6 +3,7 @@
 use core::fmt;
 use core::ptr::NonNull;
 
+use crate::config;
 use crate::process;
 use crate::sched::Kernel;
 
@@ -109,19 +110,20 @@ impl Callback {
                     pc: self.fn_ptr.as_ptr() as usize,
                 }))
             });
-        #[cfg(feature = "strace")]
-        debug!(
-            "[{}] schedule[{:x}:{:x}] @{:x}({:x}, {:x}, {:x}, {:x}) = {}",
-            self.app_id.idx(),
-            self.callback_id.driver_num,
-            self.callback_id.subscribe_num,
-            self.fn_ptr.as_ptr() as usize,
-            r0,
-            r1,
-            r2,
-            self.appdata,
-            res
-        );
+        if config::CONFIG.strace {
+            debug!(
+                "[{}] schedule[{:x}:{:x}] @{:x}({:x}, {:x}, {:x}, {:x}) = {}",
+                self.app_id.idx(),
+                self.callback_id.driver_num,
+                self.callback_id.subscribe_num,
+                self.fn_ptr.as_ptr() as usize,
+                r0,
+                r1,
+                r2,
+                self.appdata,
+                res
+            );
+        }
         res
     }
 }

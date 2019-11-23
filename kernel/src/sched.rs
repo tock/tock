@@ -7,6 +7,7 @@ use crate::callback::{Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
+use crate::config;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
@@ -283,19 +284,21 @@ impl Kernel {
                             match syscall {
                                 Syscall::MEMOP { operand, arg0 } => {
                                     let res = memop::memop(process, operand, arg0);
-                                    #[cfg(feature = "strace")]
-                                    debug!(
-                                        "[{}] memop({:x}, {:x}) = {:x}",
-                                        appid.idx(),
-                                        operand,
-                                        arg0,
-                                        usize::from(res)
-                                    );
+                                    if config::CONFIG.strace {
+                                        debug!(
+                                            "[{}] memop({:x}, {:x}) = {:x}",
+                                            appid.idx(),
+                                            operand,
+                                            arg0,
+                                            usize::from(res)
+                                        );
+                                    }
                                     process.set_syscall_return_value(res.into());
                                 }
                                 Syscall::YIELD => {
-                                    #[cfg(feature = "strace")]
-                                    debug!("[{}] yield", appid.idx());
+                                    if config::CONFIG.strace {
+                                        debug!("[{}] yield", appid.idx());
+                                    }
                                     process.set_yielded_state();
 
                                     // There might be already enqueued callbacks
@@ -327,16 +330,17 @@ impl Kernel {
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
-                                    #[cfg(feature = "strace")]
-                                    debug!(
-                                        "[{}] subscribe({:x}, {:x}, @{:x}, {:x}) = {:x}",
-                                        appid.idx(),
-                                        driver_number,
-                                        subdriver_number,
-                                        callback_ptr as usize,
-                                        appdata,
-                                        usize::from(res)
-                                    );
+                                    if config::CONFIG.strace {
+                                        debug!(
+                                            "[{}] subscribe({:x}, {:x}, @{:x}, {:x}) = {:x}",
+                                            appid.idx(),
+                                            driver_number,
+                                            subdriver_number,
+                                            callback_ptr as usize,
+                                            appdata,
+                                            usize::from(res)
+                                        );
+                                    }
                                     process.set_syscall_return_value(res.into());
                                 }
                                 Syscall::COMMAND {
@@ -355,16 +359,17 @@ impl Kernel {
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
-                                    #[cfg(feature = "strace")]
-                                    debug!(
-                                        "[{}] cmd({:x}, {:x}, {:x}, {:x}) = {:x}",
-                                        appid.idx(),
-                                        driver_number,
-                                        subdriver_number,
-                                        arg0,
-                                        arg1,
-                                        usize::from(res)
-                                    );
+                                    if config::CONFIG.strace {
+                                        debug!(
+                                            "[{}] cmd({:x}, {:x}, {:x}, {:x}) = {:x}",
+                                            appid.idx(),
+                                            driver_number,
+                                            subdriver_number,
+                                            arg0,
+                                            arg1,
+                                            usize::from(res)
+                                        );
+                                    }
                                     process.set_syscall_return_value(res.into());
                                 }
                                 Syscall::ALLOW {
@@ -386,16 +391,17 @@ impl Kernel {
                                             None => ReturnCode::ENODEVICE,
                                         }
                                     });
-                                    #[cfg(feature = "strace")]
-                                    debug!(
-                                        "[{}] allow({:x}, {:x}, @{:x}, {:x}) = {:x}",
-                                        appid.idx(),
-                                        driver_number,
-                                        subdriver_number,
-                                        allow_address as usize,
-                                        allow_size,
-                                        usize::from(res)
-                                    );
+                                    if config::CONFIG.strace {
+                                        debug!(
+                                            "[{}] allow({:x}, {:x}, @{:x}, {:x}) = {:x}",
+                                            appid.idx(),
+                                            driver_number,
+                                            subdriver_number,
+                                            allow_address as usize,
+                                            allow_size,
+                                            usize::from(res)
+                                        );
+                                    }
                                     process.set_syscall_return_value(res.into());
                                 }
                             }
@@ -424,16 +430,17 @@ impl Kernel {
                     None => break,
                     Some(cb) => match cb {
                         Task::FunctionCall(ccb) => {
-                            #[cfg(feature = "strace")]
-                            debug!(
-                                "[{}] function_call @{:x}({:x}, {:x}, {:x}, {:x})",
-                                appid.idx(),
-                                ccb.pc,
-                                ccb.argument0,
-                                ccb.argument1,
-                                ccb.argument2,
-                                ccb.argument3,
-                            );
+                            if config::CONFIG.strace {
+                                debug!(
+                                    "[{}] function_call @{:x}({:x}, {:x}, {:x}, {:x})",
+                                    appid.idx(),
+                                    ccb.pc,
+                                    ccb.argument0,
+                                    ccb.argument1,
+                                    ccb.argument2,
+                                    ccb.argument3,
+                                );
+                            }
                             process.set_process_function(ccb);
                         }
                         Task::IPC((otherapp, ipc_type)) => {
