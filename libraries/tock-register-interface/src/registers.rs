@@ -344,6 +344,7 @@ impl<R: RegisterLongName> From<LocalRegisterCopy<u64, R>> for u64 {
 /// In memory volatile register.
 // To successfully alias this structure onto hardware registers in memory, this
 // struct must be exactly the size of the `T`.
+#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct InMemoryRegister<T: IntLike, R: RegisterLongName = ()> {
     value: T,
