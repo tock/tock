@@ -11,7 +11,7 @@ use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 
 mod timer_test;
 
@@ -84,9 +84,9 @@ pub unsafe fn reset_handler() {
     let chip = static_init!(arty_e21::chip::ArtyExx, arty_e21::chip::ArtyExx::new());
     chip.initialize();
 
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = capabilities::ProcessManagementCapability::new();
+    let main_loop_cap = capabilities::MainLoopCapability::new();
+    let memory_allocation_cap = capabilities::MemoryAllocationCapability::new();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
