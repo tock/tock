@@ -19,7 +19,6 @@ use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::static_init;
 
@@ -45,7 +44,7 @@ impl Component for ConsoleComponent {
     type Output = &'static console::Console<'static>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = capabilities::MemoryAllocationCapability::new();
 
         // Create virtual device for console.
         let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));

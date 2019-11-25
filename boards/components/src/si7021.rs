@@ -29,7 +29,6 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::time::{self, Alarm};
 use kernel::{static_init, static_init_half};
@@ -117,7 +116,7 @@ impl<A: 'static + time::Alarm<'static>> Component for TemperatureComponent<A> {
     type Output = &'static TemperatureSensor<'static>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = capabilities::MemoryAllocationCapability::new();
 
         let temp = static_init!(
             TemperatureSensor<'static>,
@@ -151,7 +150,7 @@ impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<A> {
     type Output = &'static HumiditySensor<'static>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = capabilities::MemoryAllocationCapability::new();
 
         let hum = static_init!(
             HumiditySensor<'static>,

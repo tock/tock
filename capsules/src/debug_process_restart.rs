@@ -28,28 +28,28 @@ use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::gpio;
 use kernel::Kernel;
 
-pub struct DebugProcessRestart<C: ProcessManagementCapability> {
+pub struct DebugProcessRestart {
     kernel: &'static Kernel,
-    capability: C,
+    capability: ProcessManagementCapability,
 }
 
-impl<'a, C: ProcessManagementCapability> DebugProcessRestart<C> {
+impl DebugProcessRestart {
     pub fn new(
         kernel: &'static Kernel,
-        pin: &'a dyn gpio::InterruptPin,
-        cap: C,
-    ) -> DebugProcessRestart<C> {
+        pin: &dyn gpio::InterruptPin,
+        cap: ProcessManagementCapability,
+    ) -> Self {
         pin.make_input();
         pin.enable_interrupts(gpio::InterruptEdge::RisingEdge);
 
-        DebugProcessRestart {
+        Self {
             kernel: kernel,
             capability: cap,
         }
     }
 }
 
-impl<'a, C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<C> {
+impl gpio::Client for DebugProcessRestart {
     fn fired(&self) {
         self.kernel.hardfault_all_apps(&self.capability);
     }

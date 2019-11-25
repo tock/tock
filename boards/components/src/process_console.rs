@@ -39,12 +39,9 @@ impl ProcessConsoleComponent {
     }
 }
 
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
-
 impl Component for ProcessConsoleComponent {
     type StaticInput = ();
-    type Output = &'static process_console::ProcessConsole<'static, Capability>;
+    type Output = &'static process_console::ProcessConsole<'static>;
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
@@ -52,14 +49,14 @@ impl Component for ProcessConsoleComponent {
         console_uart.setup();
 
         let console = static_init!(
-            process_console::ProcessConsole<'static, Capability>,
+            process_console::ProcessConsole<'static>,
             process_console::ProcessConsole::new(
                 console_uart,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
                 &mut process_console::COMMAND_BUF,
                 self.board_kernel,
-                Capability,
+                capabilities::ProcessManagementCapability::new(),
             )
         );
         hil::uart::Transmit::set_transmit_client(console_uart, console);

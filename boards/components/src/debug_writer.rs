@@ -15,7 +15,6 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::virtual_uart::{MuxUart, UartDevice};
-use kernel::capabilities;
 use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
@@ -30,9 +29,6 @@ impl DebugWriterComponent {
         DebugWriterComponent { uart_mux: uart_mux }
     }
 }
-
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl Component for DebugWriterComponent {
     type StaticInput = ();

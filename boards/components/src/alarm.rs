@@ -21,7 +21,6 @@ use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::time;
 use kernel::static_init_half;
 
@@ -63,7 +62,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
     type Output = &'static AlarmDriver<'static, VirtualMuxAlarm<'static, A>>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = capabilities::MemoryAllocationCapability::new();
 
         let virtual_alarm1 = static_init_half!(
             static_buffer.0,

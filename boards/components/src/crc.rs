@@ -20,7 +20,6 @@ use core::mem::MaybeUninit;
 use capsules::crc;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::static_init_half;
 
@@ -54,7 +53,7 @@ impl<C: 'static + hil::crc::CRC> Component for CrcComponent<C> {
     type Output = &'static crc::Crc<'static, C>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = capabilities::MemoryAllocationCapability::new();
 
         let crc = static_init_half!(
             static_buffer,
