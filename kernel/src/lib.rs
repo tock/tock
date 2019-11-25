@@ -20,9 +20,8 @@ pub mod debug;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
+pub mod net;
 pub mod syscall;
-#[macro_use]
-pub mod udp_port_table;
 
 mod callback;
 mod driver;

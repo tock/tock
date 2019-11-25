@@ -7,6 +7,3 @@ edition = "2018"
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
-#line below for "pub in" doesn't work b/c cyclic dependency
-#capsules = { path = "../capsules" }
-

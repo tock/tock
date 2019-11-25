@@ -18,9 +18,9 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::capabilities::UdpDriverSendCapability;
+use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
-use kernel::udp_port_table::{PortQuery, UdpPortTable};
+use kernel::net::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
@@ -92,7 +92,7 @@ pub struct UDPDriver<'a> {
 
     kernel_buffer: MapCell<Buffer<'static, u8>>,
 
-    driver_send_cap: &'static dyn UdpDriverSendCapability,
+    driver_send_cap: &'static dyn UdpDriverCapability,
 }
 
 impl<'a> UDPDriver<'a> {
@@ -103,7 +103,7 @@ impl<'a> UDPDriver<'a> {
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortTable,
         kernel_buffer: Buffer<'static, u8>,
-        driver_send_cap: &'static dyn UdpDriverSendCapability,
+        driver_send_cap: &'static dyn UdpDriverCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,

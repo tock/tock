@@ -117,18 +117,18 @@
 
 use super::imix_components::mock_udp::MockUDPComponent;
 use super::imix_components::mock_udp2::MockUDPComponent2;
-use capsules::mock_udp::MockUdp;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
+use capsules::test::udp::MockUdp;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
+use kernel::net::udp_port_table::UdpPortTable;
 use kernel::static_init;
-use kernel::udp_port_table::UdpPortTable;
 use kernel::ReturnCode;
 
 pub const TEST_DELAY_MS: u32 = 2000;

@@ -13,7 +13,7 @@ use crate::net::udp::udp::UDPHeader;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::udp_port_table::{PortQuery, UdpReceiverBinding};
+use kernel::net::udp_port_table::{PortQuery, UdpReceiverBinding};
 
 pub struct MuxUdpReceiver<'a> {
     rcvr_list: List<'a, UDPReceiver<'a>>,

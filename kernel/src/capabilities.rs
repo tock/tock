@@ -58,7 +58,11 @@ pub unsafe trait MainLoopCapability {}
 /// memory, for example by creating grants.
 pub unsafe trait MemoryAllocationCapability {}
 
-/// The `UdpDriverSendCapability` capability allows the holder to send
-/// using the `driver_send_to()` function in udp_send.rs, which does
-/// not require being bound to a single port.
-pub unsafe trait UdpDriverSendCapability {}
+/// The `UdpDriverCapability` capability allows the holder to use
+/// two functions only allowed by the UDP driver.
+/// The first `driver_send_to()` function in udp_send.rs, which does
+/// not require being bound to a single port, since the driver manages port
+/// bindings for apps on its own. The second is the `set_user_ports()` function
+/// in `udp_port_table.rs`, which gives the UDP port table a reference to
+/// the UDP driver so that it can check which ports have been bound by apps.
+pub unsafe trait UdpDriverCapability {}

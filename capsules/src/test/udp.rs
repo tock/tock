@@ -1,4 +1,5 @@
 //! Capsule used for testing in-kernel port binding, sending, and receiving.
+//!
 //! This capsule takes in a src port on which to receive/send from and a dst port to send to.
 //! It binds to the src port and sends packets to the dst port. Any UDP packets received on the
 //! src port are printed to the console, along with the address/port combo they were sent from.
@@ -11,7 +12,7 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::udp_port_table::UdpPortTable;
+use kernel::net::udp_port_table::UdpPortTable;
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([

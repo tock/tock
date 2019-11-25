@@ -21,11 +21,11 @@ use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
 use core::cell::Cell;
-use kernel::capabilities::UdpDriverSendCapability;
+use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::udp_port_table::UdpSenderBinding;
+use kernel::net::udp_port_table::UdpSenderBinding;
 use kernel::ReturnCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
@@ -190,7 +190,7 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         src_port: u16,
         buf: Buffer<'static, u8>,
-        driver_send_cap: &dyn UdpDriverSendCapability,
+        driver_send_cap: &dyn UdpDriverCapability,
     ) -> Result<(), Buffer<'static, u8>>;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
@@ -272,7 +272,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dst_port: u16,
         src_port: u16,
         buf: Buffer<'static, u8>,
-        _driver_send_cap: &dyn UdpDriverSendCapability,
+        _driver_send_cap: &dyn UdpDriverCapability,
     ) -> Result<(), Buffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);

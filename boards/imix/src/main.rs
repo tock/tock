@@ -23,7 +23,7 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
-use kernel::udp_port_table::UdpPortTable;
+use kernel::net::udp_port_table::UdpPortTable;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 

@@ -1,30 +1,66 @@
-//! UDP port table implementation for enforcing port binding. This table is
-//! checked when packets are sent/received by a UDPSendStruct/UDPReceiver.
-//! UdpPortBinding provides an opaque descriptor object that allows the holder
-//! interact with the bound port table. Only the holder of the UdpPortBinding
-//! object can interact with its own corresponding location in the bound port
-//! table. In order to bind to a particular port as sending/receiving, one must
-//! obtain the corresponding sender/receiving binding from UdpPortBinding.
+//! In-kernel structure for tracking UDP ports bound by capsules.
+//!
+//! When kernel capsules wish to send or receive UDP packets, the UDP sending / receiving
+//! capsules will only allow this if the capsule has bound to the port it wishes to
+//! send from / receive on. Binding to a port is accompished via calls on the
+//! `UdpPortTable` struct defined in this file. Calls to bind on this table enforce that only
+//! one capsule can be bound to a given port at any time. Once capsules succesfully bind
+//! using this table, they receive back binding structures (`UdpSenderBinding`/`UdpReceiverBinding`)
+//! that act as proof that the holder
+//! is bound to that port. These structures can only be created within this file, and calls
+//! to unbind must consume these structures, enforcing this invariant.
+//! The UDP tx/rx capsules require these bindings be passed in order to send/receive on a given
+//! port. Seperate bindings are used for sending and receiving because the UdpReceiver must
+//! hold onto the binding for as long as a capsule wishes to receive packets on a port, so
+//! a seperate binding must be available to enable sending packets on a port while
+//! listening on the same port.
+//!
+//! To reduce the size of data structures required for this task, a fixed size
+//! array is used to store bindings in the kernel. This means that a limited
+//! number of bindings can be stored at any point in time. Reserving a slot
+//! in this table is done by requesting a socket, which represents a reserved slot.
+//! These sockets are then used to request bindings on a particular port.
+//!
+//! This file only stores information about which ports are bound by capsules.
+//! The files `udp_send.rs` and `udp_recv.rs` enforce that only capsules possessing
+//! the correct bindings can actually send / recv on a given port.
+//!
+//! Userspace port bindings are managed seperately by the userspace UDP driver
+//! (`capsules/src/net/udp/driver.rs`), because apps can be dynamically added or
+//! removed. Bindings for userspace apps are stored in the grant regions of each app,
+//! such that removing an app automatically unbinds it. This file is able to query the
+//! userspace UDP driver to check which ports are bound, and vice-versa, such that
+//! exclusive access to ports between userspace apps and capsules is still enforced.
+
+use crate::capabilities::UdpDriverCapability;
 use crate::returncode::ReturnCode;
 use core::fmt;
 use tock_cells::optional_cell::OptionalCell;
 use tock_cells::take_cell::TakeCell;
 
-//#![allow(dead_code)]
-const MAX_NUM_BOUND_PORTS: usize = 16;
+// Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
+// can save a small amount of memory, and slightly reduces the overhead of iterating through the
+// table to check whether a port is already bound.
+const MAX_NUM_BOUND_PORTS: usize = 5;
 
-/// The PortEntry struct is stored in the table and conveys what port is bound
+/// The PortEntry struct is stored in the PORT_TABLE and conveys what port is bound
 /// at the given index if one is bound. If no port is bound, the value stored
-/// at location is Unbound.
+/// at that location in the table is Unbound.
 #[derive(Clone, Copy, PartialEq)]
 pub enum PortEntry {
     Port(u16),
     Unbound,
 }
 
-// We need Option<PortEntry> to distinguish between the case in which we have
-// a UdpPortSocket that is not bound to a port and an index where there is no
-// UdpPortSocket allocated.
+// Rather than require a data structure with 65535 slots (number of UDP ports), we
+// use a structure that can hold up to 16 port bindings. Any given capsule can bind
+// at most one port. When a capsule obtains a socket, it is assigned a slot in this table.
+// MAX_NUM_BOUND_PORTS represents the total number of capsules that can bind to different
+// ports simultaneously within the Tock kernel.
+// Each slot in the table tracks one socket that has been given to a capsule. If no
+// slots in the table are free, no slots remain to be given out. If a socket is used to bind to
+// a port, the port that is bound is saved in the slot to ensure that subsequent bindings do
+// not also attempt to bind that port number.
 static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 
 /// The PortQuery trait enables the UdpPortTable to query the userspace bound
@@ -34,7 +70,7 @@ pub trait PortQuery {
 }
 
 /// A UdpPortSocket provides a handle into the bound port table. When binding to
-/// a port, the socket is consumed and stored inside a UdpPortBinding. When
+/// a port, the socket is consumed and Udp{Sender, Receiver}Binding structs are returned. When
 /// undbinding, the socket is returned and can be used to bind to other ports.
 #[derive(Debug)]
 pub struct UdpPortSocket {
@@ -42,7 +78,7 @@ pub struct UdpPortSocket {
     port_table: &'static UdpPortTable,
 }
 
-/// The UdpPortTable maintains a reference the port_array, which manages what
+/// The UdpPortTable maintains a reference to the port_array, which manages what
 /// ports are bound at any given moment, and user_ports, which provides a
 /// handle to userspace port bindings in the UDP driver.
 pub struct UdpPortTable {
@@ -125,13 +161,22 @@ impl UdpPortTable {
         }
     }
 
-    pub unsafe fn set_user_ports(&self, user_ports_ref: &'static dyn PortQuery) {
+    // This function is called to set a reference to the UDP driver, so that the ports
+    // bound by applications can be queried from within this file.
+    pub fn set_user_ports(
+        &self,
+        user_ports_ref: &'static dyn PortQuery,
+        _driver_cap: &dyn UdpDriverCapability,
+    ) {
         self.user_ports.replace(user_ports_ref);
     }
 
+    /// Called by capsules that would like to eventually be able to bind to a
+    /// UDP port. This call will succeed unless MAX_NUM_BOUND_PORTS capsules
+    /// have already bound to a port.
     pub fn create_socket(&'static self) -> Result<UdpPortSocket, ReturnCode> {
         self.port_array
-            .map(|table| {
+            .map_or(Err(ReturnCode::ENOSUPPORT), |table| {
                 let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
@@ -145,27 +190,24 @@ impl UdpPortTable {
                 }
                 result
             })
-            .expect("failed to create socket")
     }
 
-    pub fn destroy_socket(&self, socket: &mut UdpPortSocket) {
-        self.port_array.map(|table| {
-            // only free slot if it is unbound! Current design means that drop is also called
-            // when port table consumes socket on call to bind(), but dont want to drop the
-            // bindings. Alternate approach is to have port table store the sockets in the port
-            // table itself rather than consuming sockets on bind() and creating them on unbind(),
-            // but this approach would bloat the size of the table
-            match table[socket.idx] {
-                Some(entry) => {
-                    if entry == PortEntry::Unbound {
-                        table[socket.idx] = None;
-                    }
+    /// Called when sockets are dropped to free their slots in the table.
+    /// The slot in the table is only freed if the socket that is dropped is
+    /// unbound. If the slot is bound, the socket is being dropped after a call to
+    /// bind(), and the slot in the table should remain reserved.
+    fn destroy_socket(&self, socket: &mut UdpPortSocket) {
+        self.port_array.map(|table| match table[socket.idx] {
+            Some(entry) => {
+                if entry == PortEntry::Unbound {
+                    table[socket.idx] = None;
                 }
-                _ => {}
             }
+            _ => {}
         });
     }
 
+    /// Check if a given port is already bound, by either an app or capsule.
     pub fn is_bound(&self, port: u16) -> Result<bool, ()> {
         // First, check the user bindings.
         if self.user_ports.is_none() {
@@ -199,8 +241,10 @@ impl UdpPortTable {
         Ok(ret)
     }
 
-    // On success, a UdpPortBinding is returned. On failure, the same
-    // UdpPortSocket is returned.
+    /// Called by capsules that have already reserved a socket to attempt to bind to
+    /// a UDP port. The socket is passed by value.
+    /// On success, bindings is returned. On failure, the same
+    /// UdpPortSocket is returned.
     pub fn bind(
         &self,
         socket: UdpPortSocket,
@@ -228,8 +272,8 @@ impl UdpPortTable {
         }
     }
 
-    /// Disassociate the port from the given binding. Return the socket that was
-    /// contained within the binding object.
+    /// Disassociate the port from the given binding. Return the socket associated
+    /// with the passed bindings. On Err, return the passed bindings.
     pub fn unbind(
         &'static self,
         sender_binding: UdpSenderBinding,

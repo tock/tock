@@ -12,8 +12,8 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
+use kernel::net::udp_port_table::UdpPortTable;
 use kernel::static_init;
-use kernel::udp_port_table::UdpPortTable;
 
 pub struct MockUDPComponent {
     // TODO: consider putting bound_port_table in a TakeCell
@@ -56,7 +56,7 @@ impl MockUDPComponent {
 
 impl Component for MockUDPComponent {
     type StaticInput = ();
-    type Output = &'static capsules::mock_udp::MockUdp<
+    type Output = &'static capsules::test::udp::MockUdp<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >;
@@ -81,8 +81,8 @@ impl Component for MockUDPComponent {
             VirtualMuxAlarm::new(self.alarm_mux)
         );
         let mock_udp = static_init!(
-            capsules::mock_udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            capsules::mock_udp::MockUdp::new(
+            capsules::test::udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+            capsules::test::udp::MockUdp::new(
                 self.id,
                 udp_alarm,
                 udp_send,

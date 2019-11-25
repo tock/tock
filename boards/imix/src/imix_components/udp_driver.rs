@@ -18,7 +18,7 @@
 
 // Author: Hudson Ayers <hayers@stanford.edu>
 // Author: Armin Namavari <arminn@stanford.edu>
-// Last Modified: 6/4/2019
+// Last Modified: 11/25/2019
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
@@ -29,7 +29,7 @@ use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use kernel::udp_port_table::UdpPortTable;
+use kernel::net::udp_port_table::UdpPortTable;
 use kernel::{create_capability, static_init};
 
 use kernel;
@@ -90,12 +90,12 @@ impl Component for UDPDriverComponent {
             >,
             UDPSendStruct::new(self.udp_send_mux)
         );
-        // TODO: make a macro for this
+        // Can't use create_capability bc need capability to have a static lifetime
+        // so that UDP driver can use it as needed
         struct DriverCap;
-        unsafe impl capabilities::UdpDriverSendCapability for DriverCap {}
-        static DRIVER_SEND_CAP: DriverCap = DriverCap;
+        unsafe impl capabilities::UdpDriverCapability for DriverCap {}
+        static DRIVER_CAP: DriverCap = DriverCap;
 
-        //        static driver_send_cap: capabilities::UdpDriverSendCapability = create_capability!(capabilities::UdpDriverSendCapability);
         let udp_driver = static_init!(
             capsules::net::udp::UDPDriver<'static>,
             capsules::net::udp::UDPDriver::new(
@@ -105,20 +105,15 @@ impl Component for UDPDriverComponent {
                 PAYLOAD_LEN,
                 self.port_table,
                 capsules::net::buffer::Buffer::new(&mut DRIVER_BUF),
-                &DRIVER_SEND_CAP,
+                &DRIVER_CAP,
             )
         );
-        //);
         udp_send.set_client(udp_driver);
-        self.port_table.set_user_ports(udp_driver);
+        self.port_table.set_user_ports(udp_driver, &DRIVER_CAP);
 
         let udp_driver_rcvr = static_init!(UDPReceiver<'static>, UDPReceiver::new());
         self.udp_recv_mux.set_driver(udp_driver);
-        self.udp_recv_mux.add_client(udp_driver_rcvr); // This should change, as the udp_mux directly calls
-                                                       // receive on the driver itself, and we
-                                                       // should make it that way for all capsules
-                                                       // that receive from the mux_rcvr
-
+        self.udp_recv_mux.add_client(udp_driver_rcvr);
         udp_driver
     }
 }
