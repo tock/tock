@@ -48,12 +48,30 @@
 /// The `ProcessManagementCapability` allows the holder to control
 /// process execution, such as related to creating, restarting, and
 /// otherwise managing processes.
-pub unsafe trait ProcessManagementCapability {}
+pub struct ProcessManagementCapability(());
+
+impl ProcessManagementCapability {
+    pub unsafe fn new() -> Self {
+        Self(())
+    }
+}
 
 /// The `MainLoopCapability` capability allows the holder to start executing
 /// the main scheduler loop in Tock.
-pub unsafe trait MainLoopCapability {}
+pub struct MainLoopCapability(());
+
+impl MainLoopCapability {
+    pub unsafe fn new() -> Self {
+        Self(())
+    }
+}
 
 /// The `MemoryAllocationCapability` capability allows the holder to allocate
 /// memory, for example by creating grants.
-pub unsafe trait MemoryAllocationCapability {}
+pub struct MemoryAllocationCapability(());
+
+impl MemoryAllocationCapability {
+    pub unsafe fn new() -> Self {
+        Self(())
+    }
+}

@@ -35,7 +35,7 @@ pub fn load_processes<C: Chip>(
     app_memory: &mut [u8],
     procs: &'static mut [Option<&'static dyn ProcessType>],
     fault_response: FaultResponse,
-    _capability: &dyn ProcessManagementCapability,
+    _capability: &ProcessManagementCapability,
 ) {
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();

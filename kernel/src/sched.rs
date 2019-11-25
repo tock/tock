@@ -103,7 +103,7 @@ impl Kernel {
     /// requires a `ProcessManagementCapability` to use.
     pub fn process_each_capability<F>(
         &'static self,
-        _capability: &dyn capabilities::ProcessManagementCapability,
+        _capability: &capabilities::ProcessManagementCapability,
         closure: F,
     ) where
         F: Fn(usize, &dyn process::ProcessType),
@@ -158,7 +158,7 @@ impl Kernel {
     /// `MemoryAllocationCapability` capability.
     pub fn create_grant<T: Default>(
         &'static self,
-        _capability: &dyn capabilities::MemoryAllocationCapability,
+        _capability: &capabilities::MemoryAllocationCapability,
     ) -> Grant<T> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
@@ -192,7 +192,7 @@ impl Kernel {
     /// function. This restricts general capsules from being able to call this
     /// function, since capsules should not be able to arbitrarily restart all
     /// apps.
-    pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
+    pub fn hardfault_all_apps(&self, _c: &capabilities::ProcessManagementCapability) {
         for p in self.processes.iter() {
             p.map(|process| {
                 process.set_fault_state();
@@ -206,7 +206,7 @@ impl Kernel {
         platform: &P,
         chip: &C,
         ipc: Option<&ipc::IPC>,
-        _capability: &dyn capabilities::MainLoopCapability,
+        _capability: &capabilities::MainLoopCapability,
     ) {
         loop {
             unsafe {
