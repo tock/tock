@@ -522,7 +522,7 @@ impl GPIOPin {
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = &*self.gpiote_registers;
         for (i, ch) in regs.config.iter().enumerate() {
-            let encoded_pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
+            let encoded_pin = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
             if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
             }
