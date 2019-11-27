@@ -15,7 +15,9 @@ static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        debug!("{}", s);
+        unsafe {
+            e310x::uart::UART0.transmit_sync(s.as_bytes());
+        }
         Ok(())
     }
 }
@@ -36,5 +38,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_red = &mut led::LedLow::new(&mut e310x::gpio::PORT[22]);
     let writer = &mut WRITER;
+
     debug::panic(&mut [led_red], writer, pi, &rv32i::support::nop, &PROCESSES)
 }

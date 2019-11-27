@@ -22,7 +22,6 @@ use kernel::hil;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
-use kernel::hil::spi::SpiMaster;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -30,10 +29,13 @@ use kernel::{create_capability, debug, debug_gpio, static_init};
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
 use components::crc::CrcComponent;
+use components::debug_writer::DebugWriterComponent;
 use components::isl29035::AmbientLightComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
+use components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
+use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::analog_comparator::AcComponent;
 use imix_components::button::ButtonComponent;
@@ -43,15 +45,12 @@ use imix_components::led::LedComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::si7021::{HumidityComponent, SI7021Component, TemperatureComponent};
-use imix_components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::udp_6lowpan::UDPComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
 ///
 /// Note: Use of this module will trample any other USART3 configuration.
-#[macro_use]
 pub mod io;
 
 // Unit Tests for drivers.
@@ -315,6 +314,7 @@ pub unsafe fn reset_handler() {
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
@@ -337,21 +337,20 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
         .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm).finalize(());
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
+        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
     let temp = TemperatureComponent::new(board_kernel, si7021).finalize(());
     let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
     let ninedof = NineDofComponent::new(board_kernel, mux_i2c, &sam4l::gpio::PC[13]).finalize(());
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::SpiHw>,
-        MuxSpiMaster::new(&sam4l::spi::SPI)
-    );
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
+    let mux_spi = components::spi::SpiMuxComponent::new(&sam4l::spi::SPI)
+        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
 
-    let spi_syscalls = SpiSyscallComponent::new(mux_spi).finalize(());
-    let rf233_spi = SpiComponent::new(mux_spi).finalize(());
+    let spi_syscalls = SpiSyscallComponent::new(mux_spi, 3)
+        .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
+    let rf233_spi = SpiComponent::new(mux_spi, 3)
+        .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
     let rf233 = RF233Component::new(
         rf233_spi,
         &sam4l::gpio::PA[09], // reset

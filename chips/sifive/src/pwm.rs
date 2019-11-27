@@ -7,12 +7,13 @@ use kernel::common::StaticRef;
 pub struct PwmRegisters {
     /// PWM Configuration Register
     cfg: ReadWrite<u32, cfg::Register>,
+    _reserved0: [u8; 4],
     /// Counter Register
     count: ReadWrite<u32>,
-    _reserved0: [u8; 8],
+    _reserved1: [u8; 4],
     /// Scaled Halfword Counter Register
     pwms: ReadWrite<u32>,
-    _reserved1: [u8; 12],
+    _reserved2: [u8; 12],
     /// Compare Register
     cmp0: ReadWrite<u32>,
     /// Compare Register

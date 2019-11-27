@@ -103,7 +103,7 @@ specifications for internal interfaces and tutorials.
 
 - **kernel**: contains microcontroller-independent kernel code,
 such as the scheduler, processes, and memory management. This directory
-and arch are were where all core kernel code reside.
+and arch are where all core kernel code reside.
 
 - **libraries**: contains libraries that we use internally and share
 externally. Several primitives have been created for Tock that we think could

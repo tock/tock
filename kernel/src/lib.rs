@@ -14,10 +14,8 @@
 #![no_std]
 
 pub mod capabilities;
-#[macro_use]
 pub mod common;
 pub mod component;
-#[macro_use]
 pub mod debug;
 pub mod hil;
 pub mod introspection;
