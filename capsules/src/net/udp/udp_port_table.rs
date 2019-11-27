@@ -32,16 +32,15 @@
 //! userspace UDP driver to check which ports are bound, and vice-versa, such that
 //! exclusive access to ports between userspace apps and capsules is still enforced.
 
-use crate::capabilities::UdpDriverCapability;
-use crate::returncode::ReturnCode;
 use core::fmt;
-use tock_cells::optional_cell::OptionalCell;
-use tock_cells::take_cell::TakeCell;
+use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
+use kernel::common::cells::{OptionalCell, TakeCell};
+use kernel::ReturnCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the
 // table to check whether a port is already bound.
-const MAX_NUM_BOUND_PORTS: usize = 5;
+pub const MAX_NUM_BOUND_PORTS: usize = 5;
 
 /// The PortEntry struct is stored in the PORT_TABLE and conveys what port is bound
 /// at the given index if one is bound. If no port is bound, the value stored
@@ -51,17 +50,6 @@ pub enum PortEntry {
     Port(u16),
     Unbound,
 }
-
-// Rather than require a data structure with 65535 slots (number of UDP ports), we
-// use a structure that can hold up to 16 port bindings. Any given capsule can bind
-// at most one port. When a capsule obtains a socket, it is assigned a slot in this table.
-// MAX_NUM_BOUND_PORTS represents the total number of capsules that can bind to different
-// ports simultaneously within the Tock kernel.
-// Each slot in the table tracks one socket that has been given to a capsule. If no
-// slots in the table are free, no slots remain to be given out. If a socket is used to bind to
-// a port, the port that is bound is saved in the slot to ensure that subsequent bindings do
-// not also attempt to bind that port number.
-static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 
 /// The PortQuery trait enables the UdpPortTable to query the userspace bound
 /// ports in the UDP driver. The UDP driver struct implements this trait.
@@ -152,11 +140,13 @@ impl UdpReceiverBinding {
 }
 
 impl UdpPortTable {
-    // Mark new as unsafe so that the port table is only generated in trusted
-    // code.
-    pub unsafe fn new() -> UdpPortTable {
+    // Require capability so that the port table is only created by kernel
+    pub fn new(
+        _cap: &dyn CreatePortTableCapability,
+        used_kernel_ports: &'static mut [Option<PortEntry>],
+    ) -> UdpPortTable {
         UdpPortTable {
-            port_array: TakeCell::new(&mut PORT_TABLE),
+            port_array: TakeCell::new(used_kernel_ports),
             user_ports: OptionalCell::empty(),
         }
     }

@@ -6,13 +6,13 @@
 //! Example use of this capsule can be found in `udp_lowpan_test.rs` in the Imix board directory.
 
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::udp::udp_port_table::UdpPortTable;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::buffer::Buffer;
 use kernel::common::cells::MapCell;
 use kernel::hil::time::{self, Alarm, Frequency};
-use kernel::net::udp_port_table::UdpPortTable;
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([

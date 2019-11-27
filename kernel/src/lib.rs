@@ -20,7 +20,6 @@ pub mod debug;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
-pub mod net;
 pub mod syscall;
 
 mod callback;

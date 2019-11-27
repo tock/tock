@@ -66,3 +66,9 @@ pub unsafe trait MemoryAllocationCapability {}
 /// in `udp_port_table.rs`, which gives the UDP port table a reference to
 /// the UDP driver so that it can check which ports have been bound by apps.
 pub unsafe trait UdpDriverCapability {}
+
+/// The `CreatePortTableCapability` capability allows the holder to instantiate a new
+/// copy of the UdpPortTable struct. There should only ever be one instance of this struct,
+/// so this capability should not be distributed to capsules at all, as the port table should only be
+/// instantiated once by the kernel
+pub unsafe trait CreatePortTableCapability {}

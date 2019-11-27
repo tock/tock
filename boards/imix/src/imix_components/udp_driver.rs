@@ -26,11 +26,11 @@
 use capsules;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules::net::udp::udp_port_table::UdpPortTable;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use kernel::net::udp_port_table::UdpPortTable;
 use kernel::{create_capability, static_init};
 
 use kernel;

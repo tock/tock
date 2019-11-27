@@ -12,10 +12,10 @@ use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
+use capsules::net::udp::udp_port_table::UdpPortTable;
 use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
-use kernel::net::udp_port_table::UdpPortTable;
 use kernel::static_init;
 
 pub struct MockUDPComponent2 {

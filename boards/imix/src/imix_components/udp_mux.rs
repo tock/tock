@@ -35,15 +35,17 @@ use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
+use capsules::net::udp::udp_port_table::{PortEntry, UdpPortTable, MAX_NUM_BOUND_PORTS};
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::static_init;
-
 use kernel;
+use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
+use kernel::static_init;
 use sam4l;
 
 // The UDP stack requires exactly one of several packet buffers:
@@ -61,6 +63,17 @@ static mut SIXLOWPAN_RX_BUF: [u8; 1280] = [0x00; 1280];
 pub const PAYLOAD_LEN: usize = 200; //The max size UDP message that can be sent by userspace apps or capsules
 const UDP_HDR_SIZE: usize = 8;
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
+// Rather than require a data structure with 65535 slots (number of UDP ports), we
+// use a structure that can hold up to 16 port bindings. Any given capsule can bind
+// at most one port. When a capsule obtains a socket, it is assigned a slot in this table.
+// MAX_NUM_BOUND_PORTS represents the total number of capsules that can bind to different
+// ports simultaneously within the Tock kernel.
+// Each slot in the table tracks one socket that has been given to a capsule. If no
+// slots in the table are free, no slots remain to be given out. If a socket is used to bind to
+// a port, the port that is bound is saved in the slot to ensure that subsequent bindings do
+// not also attempt to bind that port number.
+static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
 
 pub struct UDPMuxComponent {
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
@@ -102,6 +115,7 @@ impl Component for UDPMuxComponent {
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
         &'static MuxUdpReceiver<'static>,
+        &'static UdpPortTable,
     );
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
@@ -198,6 +212,13 @@ impl Component for UDPMuxComponent {
             MuxUdpSender::new(ip_send)
         );
         ip_send.set_client(udp_send_mux);
-        (udp_send_mux, udp_recv_mux)
+
+        let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
+        let udp_port_table = static_init!(
+            UdpPortTable,
+            UdpPortTable::new(&create_table_cap, &mut PORT_TABLE)
+        );
+
+        (udp_send_mux, udp_recv_mux, udp_port_table)
     }
 }

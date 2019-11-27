@@ -23,7 +23,6 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
-use kernel::net::udp_port_table::UdpPortTable;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
@@ -411,9 +410,7 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let udp_port_table = static_init!(UdpPortTable, UdpPortTable::new());
-
-    let (udp_send_mux, udp_recv_mux) = UDPMuxComponent::new(
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
