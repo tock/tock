@@ -96,6 +96,11 @@ pub struct Uicr {
 }
 
 #[derive(Copy, Clone, PartialEq)]
+/// Output voltage from REG0 regulator stage.
+/// The value is board dependent (e.g. the nRF52840dk board uses 1.8V
+/// whereas the nRF52840-Dongle requires 3.0V to light its LEDs).
+/// When a chip is out of the factory or fully erased, the default value (7)
+/// will output 1.8V.
 pub enum RegOut0 {
     V1_8 = 0,
     V2_1 = 1,
@@ -116,7 +121,7 @@ impl From<u32> for RegOut0 {
             4 => RegOut0::V3_0,
             5 => RegOut0::V3_3,
             7 => RegOut0::DEFAULT,
-            _ => RegOut0::V1_8, // Default voltage
+            _ => RegOut0::DEFAULT, // Invalid value, fall back to DEFAULT
         }
     }
 }
