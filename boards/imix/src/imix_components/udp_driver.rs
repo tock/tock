@@ -1,6 +1,7 @@
 //! Component to initialize the userland UDP driver.
 //!
-//! This provides one Component, UDPDriverComponent. This component
+//! This provides one Component, UDPDriverComponent. This component initializes a userspace
+//! UDP driver that allows apps to use the UDP stack.
 //!
 //! Usage
 //! -----
@@ -104,7 +105,7 @@ impl Component for UDPDriverComponent {
                 self.interface_list,
                 PAYLOAD_LEN,
                 self.port_table,
-                capsules::net::buffer::Buffer::new(&mut DRIVER_BUF),
+                kernel::common::buffer::Buffer::new(&mut DRIVER_BUF),
                 &DRIVER_CAP,
             )
         );

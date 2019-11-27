@@ -1,4 +1,7 @@
-//! Component to test in kernel udp
+//! Component to test in kernel udp.
+//!
+//! Duplicate of mock_udp.rs. Can't call original component twice because it uses static_init!()
+//! so have to rely on duplicate files.
 
 // Author: Hudson Ayers <hayers@stanford.edu>
 
@@ -15,7 +18,7 @@ use kernel::hil::time::Alarm;
 use kernel::net::udp_port_table::UdpPortTable;
 use kernel::static_init;
 
-pub struct MockUDPComponent {
+pub struct MockUDPComponent2 {
     // TODO: consider putting bound_port_table in a TakeCell
     udp_send_mux: &'static MuxUdpSender<
         'static,
@@ -29,7 +32,7 @@ pub struct MockUDPComponent {
     dst_port: u16,
 }
 
-impl MockUDPComponent {
+impl MockUDPComponent2 {
     pub fn new(
         udp_send_mux: &'static MuxUdpSender<
             'static,
@@ -41,8 +44,8 @@ impl MockUDPComponent {
         udp_payload: &'static mut [u8],
         id: u16,
         dst_port: u16,
-    ) -> MockUDPComponent {
-        MockUDPComponent {
+    ) -> MockUDPComponent2 {
+        MockUDPComponent2 {
             udp_send_mux: udp_send_mux,
             udp_recv_mux: udp_recv_mux,
             bound_port_table: bound_port_table,
@@ -54,7 +57,7 @@ impl MockUDPComponent {
     }
 }
 
-impl Component for MockUDPComponent {
+impl Component for MockUDPComponent2 {
     type StaticInput = ();
     type Output = &'static capsules::test::udp::MockUdp<
         'static,
@@ -88,7 +91,7 @@ impl Component for MockUDPComponent {
                 udp_send,
                 udp_recv,
                 self.bound_port_table,
-                capsules::net::buffer::Buffer::new(
+                kernel::common::buffer::Buffer::new(
                     self.udp_payload.take().expect("missing payload")
                 ),
                 self.dst_port,

@@ -8,7 +8,6 @@
 
 /// Syscall number
 use crate::driver;
-use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
@@ -19,6 +18,7 @@ use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
+use kernel::common::buffer::Buffer;
 use kernel::common::cells::MapCell;
 use kernel::net::udp_port_table::{PortQuery, UdpPortTable};
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};

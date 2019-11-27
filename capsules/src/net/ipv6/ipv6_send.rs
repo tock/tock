@@ -17,12 +17,12 @@
 // interface.
 
 use crate::ieee802154::device::{MacDevice, TxClient};
-use crate::net::buffer::Buffer;
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
+use kernel::common::buffer::Buffer;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::debug;
 use kernel::hil::time::{self, Frequency};

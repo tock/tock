@@ -15,13 +15,13 @@
 //! the userspace driver must queue app packets on its own, as it can only pass a single
 //! packet to the MuxUdpSender queue at a time.
 
-use crate::net::buffer::Buffer;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
 use core::cell::Cell;
 use kernel::capabilities::UdpDriverCapability;
+use kernel::common::buffer::Buffer;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;

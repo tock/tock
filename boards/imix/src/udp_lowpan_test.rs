@@ -115,8 +115,8 @@
 //! [MOCK_UDP 2] Received packet from IPAddr([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]):81, contents: [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 45, 32, 65, 112, 112, 50, 10]
 //! -------------------------------------------------------------------------------
 
-use super::imix_components::mock_udp::MockUDPComponent;
-use super::imix_components::mock_udp2::MockUDPComponent2;
+use super::imix_components::test::mock_udp::MockUDPComponent;
+use super::imix_components::test::mock_udp2::MockUDPComponent2;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;

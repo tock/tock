@@ -3,7 +3,6 @@
 //! This provides one Component, UDPMuxComponent. This component
 //! exposes a MuxUdpSender that other components can implement
 //! UDPSenders on top of to use the UDP/6Lowpan stack.
-//! TODO: Virtualize reception in this same way.
 //!
 //! Usage
 //! -----

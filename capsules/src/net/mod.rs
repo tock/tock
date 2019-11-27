@@ -5,7 +5,6 @@ pub mod sixlowpan;
 pub mod util;
 #[macro_use]
 pub mod stream;
-pub mod buffer;
 pub mod icmpv6;
 pub mod ieee802154;
 pub mod ipv6;
