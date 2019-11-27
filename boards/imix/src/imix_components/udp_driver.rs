@@ -26,7 +26,7 @@
 use capsules;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::udp::udp_port_table::UdpPortTable;
+use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
@@ -50,7 +50,7 @@ pub struct UDPDriverComponent {
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
-    port_table: &'static UdpPortTable,
+    port_table: &'static UdpPortManager,
     interface_list: &'static [IPAddr],
 }
 
@@ -62,7 +62,7 @@ impl UDPDriverComponent {
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
         udp_recv_mux: &'static MuxUdpReceiver<'static>,
-        port_table: &'static UdpPortTable,
+        port_table: &'static UdpPortManager,
         interface_list: &'static [IPAddr],
     ) -> UDPDriverComponent {
         UDPDriverComponent {

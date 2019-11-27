@@ -118,7 +118,7 @@
 use super::imix_components::test::mock_udp::MockUDPComponent;
 use super::imix_components::test::mock_udp2::MockUDPComponent2;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::udp::udp_port_table::UdpPortTable;
+use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::test::udp::MockUdp;
@@ -151,7 +151,7 @@ enum TestMode {
 pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     alarm: &'a A,
     test_counter: Cell<usize>,
-    port_table: &'static UdpPortTable,
+    port_table: &'static UdpPortManager,
     mock_udp1: &'a MockUdp<'a, A>,
     mock_udp2: &'a MockUdp<'a, A>,
     test_mode: Cell<TestMode>,
@@ -163,7 +163,7 @@ pub unsafe fn initialize_all(
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
-    port_table: &'static UdpPortTable,
+    port_table: &'static UdpPortManager,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
@@ -212,7 +212,7 @@ pub unsafe fn initialize_all(
 impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     pub fn new(
         alarm: &'a A,
-        port_table: &'static UdpPortTable,
+        port_table: &'static UdpPortManager,
         mock_udp1: &'static MockUdp<'a, A>,
         mock_udp2: &'static MockUdp<'a, A>,
     ) -> LowpanTest<'a, A> {

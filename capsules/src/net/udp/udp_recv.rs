@@ -10,7 +10,7 @@ use crate::net::ipv6::ipv6::IP6Header;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;
 use crate::net::udp::driver::UDPDriver;
 use crate::net::udp::udp::UDPHeader;
-use crate::net::udp::udp_port_table::{PortQuery, UdpReceiverBinding};
+use crate::net::udp::udp_port_table::{PortQuery, UdpPortBindingRx};
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
@@ -112,7 +112,7 @@ pub trait UDPRecvClient {
 /// as the UDPRecvClient held by this UDPReciever.
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a dyn UDPRecvClient>,
-    binding: MapCell<UdpReceiverBinding>,
+    binding: MapCell<UdpPortBindingRx>,
     next: ListLink<'a, UDPReceiver<'a>>,
 }
 
@@ -135,7 +135,7 @@ impl<'a> UDPReceiver<'a> {
         self.client.set(client);
     }
 
-    pub fn get_binding(&self) -> Option<UdpReceiverBinding> {
+    pub fn get_binding(&self) -> Option<UdpPortBindingRx> {
         self.binding.take()
     }
 
@@ -143,7 +143,7 @@ impl<'a> UDPReceiver<'a> {
         self.binding.is_some()
     }
 
-    pub fn set_binding(&self, binding: UdpReceiverBinding) -> Option<UdpReceiverBinding> {
+    pub fn set_binding(&self, binding: UdpPortBindingRx) -> Option<UdpPortBindingRx> {
         self.binding.replace(binding)
     }
 }

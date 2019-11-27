@@ -6,7 +6,7 @@
 //! Example use of this capsule can be found in `udp_lowpan_test.rs` in the Imix board directory.
 
 use crate::net::ipv6::ip_utils::IPAddr;
-use crate::net::udp::udp_port_table::UdpPortTable;
+use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
@@ -29,7 +29,7 @@ pub struct MockUdp<'a, A: Alarm<'a>> {
     pub alarm: &'a A,
     udp_sender: &'a dyn UDPSender<'a>,
     udp_receiver: &'a UDPReceiver<'a>,
-    port_table: &'static UdpPortTable,
+    port_table: &'static UdpPortManager,
     udp_dgram: MapCell<Buffer<'static, u8>>,
     src_port: Cell<u16>,
     dst_port: Cell<u16>,
@@ -42,7 +42,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         alarm: &'a A,
         udp_sender: &'a dyn UDPSender<'a>,
         udp_receiver: &'a UDPReceiver<'a>,
-        port_table: &'static UdpPortTable,
+        port_table: &'static UdpPortManager,
         udp_dgram: Buffer<'static, u8>,
         dst_port: u16,
     ) -> MockUdp<'a, A> {

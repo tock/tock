@@ -35,7 +35,7 @@ use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::ipv6::ipv6_send::IP6Sender;
 use capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
 use capsules::net::udp::udp::UDPHeader;
-use capsules::net::udp::udp_port_table::{PortEntry, UdpPortTable, MAX_NUM_BOUND_PORTS};
+use capsules::net::udp::udp_port_table::{SocketBindingEntry, UdpPortManager, MAX_NUM_BOUND_PORTS};
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -73,7 +73,8 @@ static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_H
 // slots in the table are free, no slots remain to be given out. If a socket is used to bind to
 // a port, the port that is bound is saved in the slot to ensure that subsequent bindings do
 // not also attempt to bind that port number.
-static mut PORT_TABLE: [Option<PortEntry>; MAX_NUM_BOUND_PORTS] = [None; MAX_NUM_BOUND_PORTS];
+static mut USED_KERNEL_PORTS: [Option<SocketBindingEntry>; MAX_NUM_BOUND_PORTS] =
+    [None; MAX_NUM_BOUND_PORTS];
 
 pub struct UDPMuxComponent {
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
@@ -115,7 +116,7 @@ impl Component for UDPMuxComponent {
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
         &'static MuxUdpReceiver<'static>,
-        &'static UdpPortTable,
+        &'static UdpPortManager,
     );
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
@@ -215,8 +216,8 @@ impl Component for UDPMuxComponent {
 
         let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
         let udp_port_table = static_init!(
-            UdpPortTable,
-            UdpPortTable::new(&create_table_cap, &mut PORT_TABLE)
+            UdpPortManager,
+            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS)
         );
 
         (udp_send_mux, udp_recv_mux, udp_port_table)

@@ -12,7 +12,7 @@ use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-use capsules::net::udp::udp_port_table::UdpPortTable;
+use capsules::net::udp::udp_port_table::UdpPortManager;
 use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
@@ -25,7 +25,7 @@ pub struct MockUDPComponent2 {
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     >,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
-    bound_port_table: &'static UdpPortTable,
+    bound_port_table: &'static UdpPortManager,
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
     udp_payload: TakeCell<'static, [u8]>,
     id: u16,
@@ -39,7 +39,7 @@ impl MockUDPComponent2 {
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
         udp_recv_mux: &'static MuxUdpReceiver<'static>,
-        bound_port_table: &'static UdpPortTable,
+        bound_port_table: &'static UdpPortManager,
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
         udp_payload: &'static mut [u8],
         id: u16,

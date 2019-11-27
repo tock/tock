@@ -19,7 +19,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::udp::udp::UDPHeader;
-use crate::net::udp::udp_port_table::UdpSenderBinding;
+use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use core::cell::Cell;
 use kernel::capabilities::UdpDriverCapability;
 use kernel::common::buffer::Buffer;
@@ -152,7 +152,7 @@ pub trait UDPSender<'a> {
 
     /// This function constructs a `UDPHeader` and sends the payload to the
     /// provided destination IP address and
-    /// destination port from the src port contained in the UdpSenderBinding.
+    /// destination port from the src port contained in the UdpPortBindingTx.
     ///
     /// # Arguments
     /// `dest` - IPv6 address to send the UDP packet to
@@ -211,11 +211,11 @@ pub trait UDPSender<'a> {
         buf: Buffer<'static, u8>,
     ) -> Result<(), Buffer<'static, u8>>;
 
-    fn get_binding(&self) -> Option<UdpSenderBinding>;
+    fn get_binding(&self) -> Option<UdpPortBindingTx>;
 
     fn is_bound(&self) -> bool;
 
-    fn set_binding(&self, binding: UdpSenderBinding) -> Option<UdpSenderBinding>;
+    fn set_binding(&self, binding: UdpPortBindingTx) -> Option<UdpPortBindingTx>;
 }
 
 /// This is a specific instantiation of the `UDPSender` trait. Note
@@ -228,7 +228,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     tx_buffer: MapCell<Buffer<'static, u8>>,
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
-    binding: MapCell<UdpSenderBinding>,
+    binding: MapCell<UdpPortBindingTx>,
 }
 
 impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
@@ -297,7 +297,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         }
     }
 
-    fn get_binding(&self) -> Option<UdpSenderBinding> {
+    fn get_binding(&self) -> Option<UdpPortBindingTx> {
         self.binding.take()
     }
 
@@ -305,14 +305,14 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.binding.is_some()
     }
 
-    fn set_binding(&self, binding: UdpSenderBinding) -> Option<UdpSenderBinding> {
+    fn set_binding(&self, binding: UdpPortBindingTx) -> Option<UdpPortBindingTx> {
         self.binding.replace(binding)
     }
 }
 
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
-        udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpSenderBinding*/
+        udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpPortBindingTx*/
     ) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,

@@ -3,9 +3,9 @@
 //! When kernel capsules wish to send or receive UDP packets, the UDP sending / receiving
 //! capsules will only allow this if the capsule has bound to the port it wishes to
 //! send from / receive on. Binding to a port is accompished via calls on the
-//! `UdpPortTable` struct defined in this file. Calls to bind on this table enforce that only
+//! `UdpPortManager` struct defined in this file. Calls to bind on this table enforce that only
 //! one capsule can be bound to a given port at any time. Once capsules succesfully bind
-//! using this table, they receive back binding structures (`UdpSenderBinding`/`UdpReceiverBinding`)
+//! using this table, they receive back binding structures (`UdpPortBindingTx`/`UdpPortBindingRx`)
 //! that act as proof that the holder
 //! is bound to that port. These structures can only be created within this file, and calls
 //! to unbind must consume these structures, enforcing this invariant.
@@ -42,56 +42,56 @@ use kernel::ReturnCode;
 // table to check whether a port is already bound.
 pub const MAX_NUM_BOUND_PORTS: usize = 5;
 
-/// The PortEntry struct is stored in the PORT_TABLE and conveys what port is bound
+/// The SocketBindingEntry struct is stored in the PORT_TABLE and conveys what port is bound
 /// at the given index if one is bound. If no port is bound, the value stored
 /// at that location in the table is Unbound.
 #[derive(Clone, Copy, PartialEq)]
-pub enum PortEntry {
+pub enum SocketBindingEntry {
     Port(u16),
     Unbound,
 }
 
-/// The PortQuery trait enables the UdpPortTable to query the userspace bound
+/// The PortQuery trait enables the UdpPortManager to query the userspace bound
 /// ports in the UDP driver. The UDP driver struct implements this trait.
 pub trait PortQuery {
     fn is_bound(&self, port: u16) -> bool;
 }
 
-/// A UdpPortSocket provides a handle into the bound port table. When binding to
+/// A UdpSocket provides a handle into the bound port table. When binding to
 /// a port, the socket is consumed and Udp{Sender, Receiver}Binding structs are returned. When
 /// undbinding, the socket is returned and can be used to bind to other ports.
 #[derive(Debug)]
-pub struct UdpPortSocket {
+pub struct UdpSocket {
     idx: usize,
-    port_table: &'static UdpPortTable,
+    port_table: &'static UdpPortManager,
 }
 
-/// The UdpPortTable maintains a reference to the port_array, which manages what
+/// The UdpPortManager maintains a reference to the port_array, which manages what
 /// ports are bound at any given moment, and user_ports, which provides a
 /// handle to userspace port bindings in the UDP driver.
-pub struct UdpPortTable {
-    port_array: TakeCell<'static, [Option<PortEntry>]>,
+pub struct UdpPortManager {
+    port_array: TakeCell<'static, [Option<SocketBindingEntry>]>,
     user_ports: OptionalCell<&'static dyn PortQuery>,
 }
 
-impl fmt::Debug for UdpPortTable {
+impl fmt::Debug for UdpPortManager {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[Port Table]")
     }
 }
 
-impl UdpPortSocket {
+impl UdpSocket {
     // important that this function is not public. If it were, capsules could
     // obtain access to ports bound by other capsules
-    fn new(idx: usize, pt: &'static UdpPortTable) -> UdpPortSocket {
-        UdpPortSocket {
+    fn new(idx: usize, pt: &'static UdpPortManager) -> UdpSocket {
+        UdpSocket {
             idx: idx,
             port_table: pt,
         }
     }
 }
 
-impl Drop for UdpPortSocket {
+impl Drop for UdpSocket {
     fn drop(&mut self) {
         self.port_table.destroy_socket(self);
     }
@@ -100,7 +100,7 @@ impl Drop for UdpPortSocket {
 /// An opaque descriptor that allows the holder to obtain a binding on a port
 /// for receiving UDP packets.
 #[derive(Debug)]
-pub struct UdpReceiverBinding {
+pub struct UdpPortBindingRx {
     idx: usize,
     port: u16,
 }
@@ -108,14 +108,14 @@ pub struct UdpReceiverBinding {
 /// An opaque descriptor that allows the holder to obtain a binding on a port
 /// for sending UDP packets.
 #[derive(Debug)]
-pub struct UdpSenderBinding {
+pub struct UdpPortBindingTx {
     idx: usize,
     port: u16,
 }
 
-impl UdpSenderBinding {
-    fn new(idx: usize, port: u16) -> UdpSenderBinding {
-        UdpSenderBinding {
+impl UdpPortBindingTx {
+    fn new(idx: usize, port: u16) -> UdpPortBindingTx {
+        UdpPortBindingTx {
             idx: idx,
             port: port,
         }
@@ -126,9 +126,9 @@ impl UdpSenderBinding {
     }
 }
 
-impl UdpReceiverBinding {
-    fn new(idx: usize, port: u16) -> UdpReceiverBinding {
-        UdpReceiverBinding {
+impl UdpPortBindingRx {
+    fn new(idx: usize, port: u16) -> UdpPortBindingRx {
+        UdpPortBindingRx {
             idx: idx,
             port: port,
         }
@@ -139,13 +139,13 @@ impl UdpReceiverBinding {
     }
 }
 
-impl UdpPortTable {
+impl UdpPortManager {
     // Require capability so that the port table is only created by kernel
     pub fn new(
         _cap: &dyn CreatePortTableCapability,
-        used_kernel_ports: &'static mut [Option<PortEntry>],
-    ) -> UdpPortTable {
-        UdpPortTable {
+        used_kernel_ports: &'static mut [Option<SocketBindingEntry>],
+    ) -> UdpPortManager {
+        UdpPortManager {
             port_array: TakeCell::new(used_kernel_ports),
             user_ports: OptionalCell::empty(),
         }
@@ -164,15 +164,15 @@ impl UdpPortTable {
     /// Called by capsules that would like to eventually be able to bind to a
     /// UDP port. This call will succeed unless MAX_NUM_BOUND_PORTS capsules
     /// have already bound to a port.
-    pub fn create_socket(&'static self) -> Result<UdpPortSocket, ReturnCode> {
+    pub fn create_socket(&'static self) -> Result<UdpSocket, ReturnCode> {
         self.port_array
             .map_or(Err(ReturnCode::ENOSUPPORT), |table| {
-                let mut result: Result<UdpPortSocket, ReturnCode> = Err(ReturnCode::FAIL);
+                let mut result: Result<UdpSocket, ReturnCode> = Err(ReturnCode::FAIL);
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
                         None => {
-                            result = Ok(UdpPortSocket::new(i, &self));
-                            table[i] = Some(PortEntry::Unbound);
+                            result = Ok(UdpSocket::new(i, &self));
+                            table[i] = Some(SocketBindingEntry::Unbound);
                             break;
                         }
                         _ => (),
@@ -186,10 +186,10 @@ impl UdpPortTable {
     /// The slot in the table is only freed if the socket that is dropped is
     /// unbound. If the slot is bound, the socket is being dropped after a call to
     /// bind(), and the slot in the table should remain reserved.
-    fn destroy_socket(&self, socket: &mut UdpPortSocket) {
+    fn destroy_socket(&self, socket: &mut UdpSocket) {
         self.port_array.map(|table| match table[socket.idx] {
             Some(entry) => {
-                if entry == PortEntry::Unbound {
+                if entry == SocketBindingEntry::Unbound {
                     table[socket.idx] = None;
                 }
             }
@@ -216,7 +216,7 @@ impl UdpPortTable {
                 let mut port_exists = false;
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
-                        Some(PortEntry::Port(p)) => {
+                        Some(SocketBindingEntry::Port(p)) => {
                             if p == port {
                                 port_exists = true;
                                 break;
@@ -234,12 +234,12 @@ impl UdpPortTable {
     /// Called by capsules that have already reserved a socket to attempt to bind to
     /// a UDP port. The socket is passed by value.
     /// On success, bindings is returned. On failure, the same
-    /// UdpPortSocket is returned.
+    /// UdpSocket is returned.
     pub fn bind(
         &self,
-        socket: UdpPortSocket,
+        socket: UdpSocket,
         port: u16,
-    ) -> Result<(UdpSenderBinding, UdpReceiverBinding), UdpPortSocket> {
+    ) -> Result<(UdpPortBindingTx, UdpPortBindingRx), UdpSocket> {
         match self.is_bound(port) {
             Ok(bound) => {
                 if bound {
@@ -247,10 +247,10 @@ impl UdpPortTable {
                 } else {
                     self.port_array
                         .map(|table| {
-                            table[socket.idx] = Some(PortEntry::Port(port));
+                            table[socket.idx] = Some(SocketBindingEntry::Port(port));
                             let binding_pair = (
-                                UdpSenderBinding::new(socket.idx, port),
-                                UdpReceiverBinding::new(socket.idx, port),
+                                UdpPortBindingTx::new(socket.idx, port),
+                                UdpPortBindingRx::new(socket.idx, port),
                             );
                             // Add socket to the linked list.
                             Ok(binding_pair)
@@ -266,18 +266,18 @@ impl UdpPortTable {
     /// with the passed bindings. On Err, return the passed bindings.
     pub fn unbind(
         &'static self,
-        sender_binding: UdpSenderBinding,
-        receiver_binding: UdpReceiverBinding,
-    ) -> Result<UdpPortSocket, (UdpSenderBinding, UdpReceiverBinding)> {
+        sender_binding: UdpPortBindingTx,
+        receiver_binding: UdpPortBindingRx,
+    ) -> Result<UdpSocket, (UdpPortBindingTx, UdpPortBindingRx)> {
         // Verfify that the indices match up
         if sender_binding.idx != receiver_binding.idx {
             return Err((sender_binding, receiver_binding));
         }
         let idx = sender_binding.idx;
         self.port_array.map(|table| {
-            table[idx] = Some(PortEntry::Unbound);
+            table[idx] = Some(SocketBindingEntry::Unbound);
         });
         // Search the list and return the appropriate socket
-        Ok(UdpPortSocket::new(idx, &self))
+        Ok(UdpSocket::new(idx, &self))
     }
 }

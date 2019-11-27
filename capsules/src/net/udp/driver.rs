@@ -12,7 +12,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
-use crate::net::udp::udp_port_table::{PortQuery, UdpPortTable};
+use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
 use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
@@ -88,7 +88,7 @@ pub struct UDPDriver<'a> {
     max_tx_pyld_len: usize,
 
     /// UDP bound port table (manages kernel bindings)
-    port_table: &'static UdpPortTable,
+    port_table: &'static UdpPortManager,
 
     kernel_buffer: MapCell<Buffer<'static, u8>>,
 
@@ -101,7 +101,7 @@ impl<'a> UDPDriver<'a> {
         grant: Grant<App>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
-        port_table: &'static UdpPortTable,
+        port_table: &'static UdpPortManager,
         kernel_buffer: Buffer<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
     ) -> UDPDriver<'a> {
