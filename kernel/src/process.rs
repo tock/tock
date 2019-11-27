@@ -10,6 +10,7 @@ use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::MapCell;
 use crate::common::{Queue, RingBuffer};
 use crate::config;
+use crate::debug;
 use crate::mem::{AppSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;

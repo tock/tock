@@ -4,6 +4,7 @@ use core::fmt;
 use core::ptr::NonNull;
 
 use crate::config;
+use crate::debug;
 use crate::process;
 use crate::sched::Kernel;
 

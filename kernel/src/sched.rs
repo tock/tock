@@ -8,6 +8,7 @@ use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
 use crate::config;
+use crate::debug;
 use crate::grant::Grant;
 use crate::ipc;
 use crate::memop;
