@@ -15,7 +15,7 @@ static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut nrf52::uart::UARTE0 };
+        let uart = unsafe { &mut nrf52840::uart::UARTE0 };
         if !self.initialized {
             self.initialized = true;
             uart.configure(uart::Parameters {
@@ -43,7 +43,7 @@ impl Write for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
     const LED1_PIN: usize = 13;
-    let led = &mut led::LedLow::new(&mut nrf5x::gpio::PORT[LED1_PIN]);
+    let led = &mut led::LedLow::new(&mut nrf52840::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
     debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
 }

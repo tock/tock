@@ -15,16 +15,18 @@ pub struct NRF52 {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
+    gpio_port: &'static nrf5x::gpio::Port,
 }
 
 impl NRF52 {
-    pub unsafe fn new() -> NRF52 {
+    pub unsafe fn new(gpio_port: &'static nrf5x::gpio::Port) -> NRF52 {
         NRF52 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             // The NRF52's systick is uncalibrated, but is clocked from the
             // 64Mhz CPU clock.
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+            gpio_port,
         }
     }
 }
@@ -56,7 +58,7 @@ impl kernel::Chip for NRF52 {
                 } else if let Some(interrupt) = nvic::next_pending() {
                     match interrupt {
                         peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
-                        peripheral_interrupts::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
+                        peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
                         peripheral_interrupts::RADIO => {
                             match (
                                 ieee802154_radio::RADIO.is_enabled(),

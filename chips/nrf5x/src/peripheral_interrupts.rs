@@ -47,3 +47,11 @@ pub const RTC2: u32 = 36;
 pub const I2S: u32 = 37;
 #[cfg(feature = "nrf52")]
 pub const FPU: u32 = 38;
+
+// Interrupts specific to nrf52840.
+pub const USBD: u32 = 39;
+pub const UART1: u32 = 40;
+pub const QSPI: u32 = 41;
+pub const CRYPTOCELL: u32 = 42;
+pub const PWM3: u32 = 45;
+pub const SPIM3: u32 = 47;

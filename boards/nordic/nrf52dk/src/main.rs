@@ -122,69 +122,69 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 #[no_mangle]
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
-    nrf52::init();
+    nrf52832::init();
 
     let gpio_pins = static_init!(
         [&'static dyn kernel::hil::gpio::InterruptValuePin; 12],
         [
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[3])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[3])
             )
             .finalize(), // Bottom right header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[4])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[4])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[28])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[28])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[29])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[29])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[30])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[30])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[31])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[31])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[12])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[12])
             )
             .finalize(), // Top mid header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[11])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[11])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[27])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[27])
             )
             .finalize(), // Top left header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[26])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[26])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[2])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[2])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[25])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[25])
             )
             .finalize(),
         ]
@@ -198,19 +198,19 @@ pub unsafe fn reset_handler() {
         ); 4],
         [
             (
-                &nrf5x::gpio::PORT[LED1_PIN],
+                &nrf52832::gpio::PORT[LED1_PIN],
                 capsules::led::ActivationMode::ActiveLow
             ),
             (
-                &nrf5x::gpio::PORT[LED2_PIN],
+                &nrf52832::gpio::PORT[LED2_PIN],
                 capsules::led::ActivationMode::ActiveLow
             ),
             (
-                &nrf5x::gpio::PORT[LED3_PIN],
+                &nrf52832::gpio::PORT[LED3_PIN],
                 capsules::led::ActivationMode::ActiveLow
             ),
             (
-                &nrf5x::gpio::PORT[LED4_PIN],
+                &nrf52832::gpio::PORT[LED4_PIN],
                 capsules::led::ActivationMode::ActiveLow
             ),
         ]
@@ -225,7 +225,9 @@ pub unsafe fn reset_handler() {
             (
                 static_init!(
                     kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON1_PIN])
+                    kernel::hil::gpio::InterruptValueWrapper::new(
+                        &nrf52832::gpio::PORT[BUTTON1_PIN]
+                    )
                 )
                 .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
@@ -233,7 +235,9 @@ pub unsafe fn reset_handler() {
             (
                 static_init!(
                     kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON2_PIN])
+                    kernel::hil::gpio::InterruptValueWrapper::new(
+                        &nrf52832::gpio::PORT[BUTTON2_PIN]
+                    )
                 )
                 .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
@@ -241,7 +245,9 @@ pub unsafe fn reset_handler() {
             (
                 static_init!(
                     kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON3_PIN])
+                    kernel::hil::gpio::InterruptValueWrapper::new(
+                        &nrf52832::gpio::PORT[BUTTON3_PIN]
+                    )
                 )
                 .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
@@ -249,7 +255,9 @@ pub unsafe fn reset_handler() {
             (
                 static_init!(
                     kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(&nrf5x::gpio::PORT[BUTTON4_PIN])
+                    kernel::hil::gpio::InterruptValueWrapper::new(
+                        &nrf52832::gpio::PORT[BUTTON4_PIN]
+                    )
                 )
                 .finalize(),
                 capsules::button::GpioMode::LowWhenPressed
@@ -266,6 +274,7 @@ pub unsafe fn reset_handler() {
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
+        &nrf52832::gpio::PORT,
         gpio_pins,
         LED1_PIN,
         LED2_PIN,

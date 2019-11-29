@@ -22,6 +22,5 @@ components = { path = "../components" }
 cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-nrf52 = { path = "../../chips/nrf52" }
-nrf5x = { path = "../../chips/nrf5x" }
+nrf52832 = { path = "../../chips/nrf52832" }
 nrf52dk_base = { path = "../nordic/nrf52dk_base" }

@@ -126,6 +126,7 @@ impl kernel::Platform for Platform {
 pub unsafe fn setup_board(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: usize,
+    gpio_port: &'static nrf5x::gpio::Port,
     gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
     debug_pin1_index: usize,
     debug_pin2_index: usize,
@@ -164,9 +165,9 @@ pub unsafe fn setup_board(
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&nrf5x::gpio::PORT[debug_pin1_index]),
-        Some(&nrf5x::gpio::PORT[debug_pin2_index]),
-        Some(&nrf5x::gpio::PORT[debug_pin3_index]),
+        Some(&gpio_port[debug_pin1_index]),
+        Some(&gpio_port[debug_pin2_index]),
+        Some(&gpio_port[debug_pin3_index]),
     );
 
     let gpio = static_init!(
@@ -284,7 +285,7 @@ pub unsafe fn setup_board(
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
             capsules::virtual_spi::VirtualSpiMasterDevice::new(
                 mux_spi,
-                &nrf5x::gpio::PORT[driver.chip_select]
+                &gpio_port[driver.chip_select]
             )
         );
         // Create an alarm for this chip.
@@ -305,8 +306,8 @@ pub unsafe fn setup_board(
                 mx25r6435f_virtual_alarm,
                 &mut capsules::mx25r6435f::TXBUFFER,
                 &mut capsules::mx25r6435f::RXBUFFER,
-                Some(&nrf5x::gpio::PORT[driver.write_protect_pin]),
-                Some(&nrf5x::gpio::PORT[driver.hold_pin])
+                Some(&gpio_port[driver.write_protect_pin]),
+                Some(&gpio_port[driver.hold_pin])
             )
         );
         mx25r6435f_spi.set_client(mx25r6435f);
@@ -383,7 +384,7 @@ pub unsafe fn setup_board(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new());
+    let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new(gpio_port));
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
