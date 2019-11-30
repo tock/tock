@@ -70,13 +70,14 @@ macro_rules! storage_volume {
 /// let process_mgmt_cap = create_capability!(ProcessManagementCapability);
 /// ```
 ///
-/// This helper macro can only be called in an `unsafe` block, and is used by
-/// trusted code to generate a capability that it can either use or pass to
-/// another module.
+/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
+/// and is used by trusted code to generate a capability that it can either use
+/// or pass to another module.
 #[macro_export]
 macro_rules! create_capability {
     ($T:ty) => {{
         struct Cap;
+        #[allow(unsafe_code)]
         unsafe impl $T for Cap {}
         Cap
     };};
