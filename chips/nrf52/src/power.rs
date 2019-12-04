@@ -69,7 +69,7 @@ register_structs! {
         /// RAMx power control registers
         /// - Address: 0x900 - 0x980 (<= nRF52832)
         /// - Address: 0x900 - 0x990 (>= nRF52833)
-        (0x900 => ram: [Ram; NUM_RAM_BANKS]),
+        (0x900 => ram: [RamPowerRegisters; NUM_RAM_BANKS]),
         (0x990 => @END),
     },
 
