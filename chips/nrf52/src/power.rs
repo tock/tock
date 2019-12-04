@@ -73,7 +73,7 @@ register_structs! {
         (0x990 => @END),
     },
 
-    Ram {
+    RamPowerRegisters {
         /// RAMn power control register.
         /// The RAM size will vary depending on product variant, and the
         /// RAMn register will only be present if the corresponding RAM AHB
@@ -230,8 +230,13 @@ register_bitfields! [u32,
     ]
 ];
 
+// The USB state machine needs to be notified of power events (USB detected, USB
+// removed, USB power ready) in order to be initialized and shut down properly.
+// These events come from the power management registers of this module; that's
+// this has a USB client to notify.
 pub struct Power<'a> {
     registers: StaticRef<PowerRegisters>,
+    // A client to which to notify USB plug-in/plug-out/power-ready events.
     usb_client: OptionalCell<&'a dyn PowerClient>,
 }
 
@@ -332,19 +337,11 @@ impl<'a> Power<'a> {
     }
 
     pub fn is_vbus_present(&self) -> bool {
-        match self.registers.usbregstatus.read(UsbRegStatus::VBUSDETECT) {
-            0 => false,
-            1 => true,
-            _ => unreachable!(),
-        }
+        self.registers.usbregstatus.is_set(UsbRegStatus::VBUSDETECT)
     }
 
     pub fn is_usb_power_ready(&self) -> bool {
-        match self.registers.usbregstatus.read(UsbRegStatus::OUTPUTRDY) {
-            0 => false,
-            1 => true,
-            _ => unreachable!(),
-        }
+        self.registers.usbregstatus.is_set(UsbRegStatus::OUTPUTRDY)
     }
 }
 
