@@ -101,7 +101,7 @@ pub struct Uicr {
 /// whereas the nRF52840-Dongle requires 3.0V to light its LEDs).
 /// When a chip is out of the factory or fully erased, the default value (7)
 /// will output 1.8V.
-pub enum RegOut0 {
+pub enum Regulator0Output {
     V1_8 = 0,
     V2_1 = 1,
     V2_4 = 2,
@@ -111,17 +111,17 @@ pub enum RegOut0 {
     DEFAULT = 7,
 }
 
-impl From<u32> for RegOut0 {
+impl From<u32> for Regulator0Output {
     fn from(val: u32) -> Self {
         match val & 7 {
-            0 => RegOut0::V1_8,
-            1 => RegOut0::V2_1,
-            2 => RegOut0::V2_4,
-            3 => RegOut0::V2_7,
-            4 => RegOut0::V3_0,
-            5 => RegOut0::V3_3,
-            7 => RegOut0::DEFAULT,
-            _ => RegOut0::DEFAULT, // Invalid value, fall back to DEFAULT
+            0 => Regulator0Output::V1_8,
+            1 => Regulator0Output::V2_1,
+            2 => Regulator0Output::V2_4,
+            3 => Regulator0Output::V2_7,
+            4 => Regulator0Output::V3_0,
+            5 => Regulator0Output::V3_3,
+            7 => Regulator0Output::DEFAULT,
+            _ => Regulator0Output::DEFAULT, // Invalid value, fall back to DEFAULT
         }
     }
 }
@@ -151,13 +151,13 @@ impl Uicr {
         self.registers.pselreset1.get() as usize
     }
 
-    pub fn set_vout(&self, vout: RegOut0) {
+    pub fn set_vout(&self, vout: Regulator0Output) {
         let regs = &*self.registers;
         regs.regout0.modify(RegOut::VOUT.val(vout as u32));
     }
 
-    pub fn get_vout(&self) -> RegOut0 {
-        RegOut0::from(self.registers.regout0.read(RegOut::VOUT))
+    pub fn get_vout(&self) -> Regulator0Output {
+        Regulator0Output::from(self.registers.regout0.read(RegOut::VOUT))
     }
 
     pub fn set_nfc_pins_protection(&self, protected: bool) {

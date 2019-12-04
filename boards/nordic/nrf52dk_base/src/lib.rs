@@ -11,7 +11,7 @@ use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use nrf52::uicr::RegOut0;
+use nrf52::uicr::Regulator0Output;
 use nrf5x::rtc::Rtc;
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -146,7 +146,7 @@ pub unsafe fn setup_board(
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
-    reg_vout: RegOut0,
+    reg_vout: Regulator0Output,
     nfc_as_gpios: bool,
 ) {
     // Make non-volatile memory writable and activate the reset button
