@@ -318,6 +318,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           li   t1, 8          // 8 is the index of ECALL from U mode.
           beq  t0, t1, _ecall // Check if we did an ECALL and handle it
                               // correctly.
+            
+        _check_ecall_m_mode:
+          li   t1, 11          // 11 is the index of ECALL from M mode.
+          beq  t0, t1, _ecall  // analagous to _check_ecall_umode but included to support hifive1 board
+                               // only applicable to the hifive1 rev a board/FE310-G0000 chip, 
+                               // which only has machine mode.
+                              
+
 
         _check_exception:
           li   $0, 2          // If we get here, the only other option is an

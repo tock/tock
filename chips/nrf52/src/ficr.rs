@@ -130,6 +130,8 @@ register_bitfields! [u32,
         PART OFFSET(0) NUMBITS(32) [
             /// nRF52832
             N52832 = 0x52832,
+            /// nRF52833
+            N52833 = 0x52833,
             /// nRF52840
             N52840 = 0x52840,
             /// Unspecified
@@ -163,6 +165,8 @@ register_bitfields! [u32,
             AACB = 0x41414342,
             /// ABBA
             ABBA = 0x41424241,
+            /// AAD0
+            AAD0 = 0x41414430,
             /// AAE0
             AAE0 = 0x41414530,
             /// BAAA
@@ -245,6 +249,7 @@ enum Variant {
     AACA = 0x41414341,
     AACB = 0x41414342,
     ABBA = 0x41424241,
+    AAD0 = 0x41414430,
     AAE0 = 0x41414530,
     BAAA = 0x42414141,
     CAAA = 0x43414141,
@@ -255,6 +260,7 @@ enum Variant {
 #[repr(u32)]
 enum Part {
     N52832 = 0x52832,
+    N52833 = 0x52833,
     N52840 = 0x52840,
     Unspecified = 0xffffffff,
 }
@@ -307,6 +313,7 @@ impl Ficr {
         let regs = &*self.registers;
         match regs.info_part.get() {
             0x52832 => Part::N52832,
+            0x52833 => Part::N52833,
             0x52840 => Part::N52840,
             _ => Part::Unspecified,
         }
@@ -325,6 +332,7 @@ impl Ficr {
             0x41414341 => Variant::AACA,
             0x41414342 => Variant::AACB,
             0x41424241 => Variant::ABBA,
+            0x41414430 => Variant::AAD0,
             0x41414530 => Variant::AAE0,
             0x42414141 => Variant::BAAA,
             0x43414141 => Variant::CAAA,

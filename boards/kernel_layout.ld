@@ -252,6 +252,7 @@ SECTIONS
         PROVIDE(__global_pointer$ = . + 0x800);
 
         *(.ramfunc .ramfunc.*);
+        *(.sdata .sdata.* .gnu.linkonce.r.*)
         *(.data .data.*);
 
         . = ALIGN(4);

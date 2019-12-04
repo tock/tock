@@ -16,11 +16,13 @@ const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
 
+const GPIO_PER_PORT: usize = 32;
+
 const GPIOTE_BASE: StaticRef<GpioteRegisters> =
     unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
 
-const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x50000000 as *const GpioRegisters) };
+const GPIO_BASE_ADDRESS: usize = 0x50000000;
+const GPIO_SIZE: usize = 0x300;
 
 /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
 /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
@@ -95,7 +97,6 @@ struct GpioRegisters {
     #[cfg(feature = "nrf51")]
     /// Reserved
     _reserved2: [u32; 120],
-    #[cfg(feature = "nrf52")]
     /// Latch register indicating what GPIO pins that have met the criteria set in the
     /// PIN_CNF\[n\].SENSE
     /// - Address: 0x520 - 0x524
@@ -105,8 +106,8 @@ struct GpioRegisters {
     /// - Address: 0x524 - 0x528
     #[cfg(feature = "nrf52")]
     detect_mode: ReadWrite<u32, DetectMode::Register>,
-    #[cfg(feature = "nrf52")]
     /// Reserved
+    #[cfg(feature = "nrf52")]
     _reserved2: [u32; 118],
     /// Configuration of GPIO pins
     pin_cnf: [ReadWrite<u32, PinConfig::Register>; 32],
@@ -297,8 +298,10 @@ register_bitfields! [u32,
             Task = 3
         ],
         /// GPIO number associated with SET\[n\], CLR\[n\] and OUT\[n\] tasks
-        /// and IN\[n\] event
-        PSEL OFFSET(8) NUMBITS(5) [],
+        /// and IN\[n\] event. Only 5 bits are used but they are followed by 1 bit
+        /// indicating the port. This allows us to abstract the port away as each port
+        /// is defined for 32 pins.
+        PSEL OFFSET(8) NUMBITS(6) [],
         /// When In task mode: Operation to be performed on output
         /// when OUT\[n\] task is triggered. When In event mode: Operation
         /// on input that shall trigger IN\[n\] event
@@ -327,19 +330,38 @@ register_bitfields! [u32,
     ]
 ];
 
+#[derive(Copy, Clone)]
+#[rustfmt::skip]
+pub enum Pin {
+    P0_00, P0_01, P0_02, P0_03, P0_04, P0_05, P0_06, P0_07,
+    P0_08, P0_09, P0_10, P0_11, P0_12, P0_13, P0_14, P0_15,
+    P0_16, P0_17, P0_18, P0_19, P0_20, P0_21, P0_22, P0_23,
+    P0_24, P0_25, P0_26, P0_27, P0_28, P0_29, P0_30, P0_31,
+    // Pins only on nrf52840.
+    P1_00, P1_01, P1_02, P1_03, P1_04, P1_05, P1_06, P1_07,
+    P1_08, P1_09, P1_10, P1_11, P1_12, P1_13, P1_14, P1_15,
+}
+
 pub struct GPIOPin {
     pin: u8,
+    port: u8,
     client: OptionalCell<&'static dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
 }
 
 impl GPIOPin {
-    const fn new(pin: u8) -> GPIOPin {
+    pub const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
-            pin: pin,
+            pin: ((pin as usize) % GPIO_PER_PORT) as u8,
+            port: ((pin as usize) / GPIO_PER_PORT) as u8,
             client: OptionalCell::empty(),
-            gpio_registers: GPIO_BASE,
+            gpio_registers: unsafe {
+                StaticRef::new(
+                    (GPIO_BASE_ADDRESS + ((pin as usize) / GPIO_PER_PORT) * GPIO_SIZE)
+                        as *const GpioRegisters,
+                )
+            },
             gpiote_registers: GPIOTE_BASE,
         }
     }
@@ -462,8 +484,8 @@ impl hil::gpio::Interrupt for GPIOPin {
                 hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
             };
             let regs = &*self.gpiote_registers;
-            regs.config[channel]
-                .write(Config::MODE::Event + Config::PSEL.val(self.pin as u32) + polarity);
+            let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
+            regs.config[channel].write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
             regs.intenset.set(1 << channel);
         } else {
             debug!("No available GPIOTE interrupt channels");
@@ -500,11 +522,12 @@ impl GPIOPin {
     fn find_channel(&self, pin: u8) -> Result<usize, ()> {
         let regs = &*self.gpiote_registers;
         for (i, ch) in regs.config.iter().enumerate() {
-            if ch.matches_all(Config::PSEL.val(pin as u32)) {
+            let encoded_pin = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
+            if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
             }
         }
-        return Err(());
+        Err(())
     }
 
     fn handle_interrupt(&self) {
@@ -515,7 +538,7 @@ impl GPIOPin {
 }
 
 pub struct Port {
-    pins: [GPIOPin; 32],
+    pub pins: &'static mut [GPIOPin],
 }
 
 impl Index<usize> for Port {
@@ -550,40 +573,3 @@ impl Port {
         }
     }
 }
-
-pub static mut PORT: Port = Port {
-    pins: [
-        GPIOPin::new(0),
-        GPIOPin::new(1),
-        GPIOPin::new(2),
-        GPIOPin::new(3),
-        GPIOPin::new(4),
-        GPIOPin::new(5),
-        GPIOPin::new(6),
-        GPIOPin::new(7),
-        GPIOPin::new(8),
-        GPIOPin::new(9),
-        GPIOPin::new(10),
-        GPIOPin::new(11),
-        GPIOPin::new(12),
-        GPIOPin::new(13),
-        GPIOPin::new(14),
-        GPIOPin::new(15),
-        GPIOPin::new(16),
-        GPIOPin::new(17),
-        GPIOPin::new(18),
-        GPIOPin::new(19),
-        GPIOPin::new(20),
-        GPIOPin::new(21),
-        GPIOPin::new(22),
-        GPIOPin::new(23),
-        GPIOPin::new(24),
-        GPIOPin::new(25),
-        GPIOPin::new(26),
-        GPIOPin::new(27),
-        GPIOPin::new(28),
-        GPIOPin::new(29),
-        GPIOPin::new(30),
-        GPIOPin::new(31),
-    ],
-};

@@ -1,7 +1,7 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
 [![Build Status](https://travis-ci.org/tock/tock.svg?branch=master)](https://travis-ci.org/tock/tock)
-[![irc](https://img.shields.io/badge/irc-%23tock-lightgrey.svg)](https://kiwiirc.com/client/irc.freenode.net/tock)
+[![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 
 Tock is an embedded operating system designed for running multiple concurrent, mutually
 distrustful applications on Cortex-M and RISC-V based embedded platforms.
@@ -64,9 +64,10 @@ post series highlights what's new in Tock. Also, follow
 
 You can also browse our
 [email group](https://groups.google.com/forum/#!forum/tock-dev)
-and our [Slack](https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk) to see
+and our [Slack][slack] to see
 discussions on Tock development.
 
+[slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 
 License
 -------
@@ -101,6 +102,8 @@ Organizations that have contributed code to Tock include:
   * Google
   * Helium
   * Atihita
+  * MIT
+  * MIT Lincoln Laboratory
 
 _Note: the above list may be incomplete. If your organization has supported you in
 contributing to Tock, and wish to be acknowledged, please update this list accordingly._

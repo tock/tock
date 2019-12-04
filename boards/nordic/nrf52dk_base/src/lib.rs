@@ -7,12 +7,12 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
-use nrf5x::rtc::Rtc;
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
@@ -88,7 +88,7 @@ pub struct Platform {
     ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     // The nRF52dk does not have the flash chip on it, so we make this optional.
     nonvolatile_storage:
@@ -127,6 +127,7 @@ impl kernel::Platform for Platform {
 pub unsafe fn setup_board(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: usize,
+    gpio_port: &'static nrf52::gpio::Port,
     gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
     debug_pin1_index: usize,
     debug_pin2_index: usize,
@@ -212,9 +213,9 @@ pub unsafe fn setup_board(
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&nrf5x::gpio::PORT[debug_pin1_index]),
-        Some(&nrf5x::gpio::PORT[debug_pin2_index]),
-        Some(&nrf5x::gpio::PORT[debug_pin3_index]),
+        Some(&gpio_port[debug_pin1_index]),
+        Some(&gpio_port[debug_pin2_index]),
+        Some(&gpio_port[debug_pin3_index]),
     );
 
     let gpio = static_init!(
@@ -248,16 +249,16 @@ pub unsafe fn setup_board(
         pin.set_client(button);
     }
 
-    let rtc = &nrf5x::rtc::RTC;
+    let rtc = &nrf52::rtc::RTC;
     rtc.start();
     let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC)
+        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC)
     );
     hil::time::Alarm::set_client(rtc, mux_alarm);
 
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(nrf5x::rtc::Rtc));
+        .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = static_init!(
@@ -272,46 +273,17 @@ pub unsafe fn setup_board(
     hil::uart::Transmit::set_transmit_client(&nrf52::uart::UARTE0, uart_mux);
     hil::uart::Receive::set_receive_client(&nrf52::uart::UARTE0, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-
     nrf52::uart::UARTE0.initialize(
-        nrf5x::pinmux::Pinmux::new(uart_pins.txd as u32),
-        nrf5x::pinmux::Pinmux::new(uart_pins.rxd as u32),
-        nrf5x::pinmux::Pinmux::new(uart_pins.cts as u32),
-        nrf5x::pinmux::Pinmux::new(uart_pins.rts as u32),
+        nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
+        nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
+        nrf52::pinmux::Pinmux::new(uart_pins.cts as u32),
+        nrf52::pinmux::Pinmux::new(uart_pins.rts as u32),
     );
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-    kernel::hil::uart::Transmit::set_transmit_client(console_uart, console);
-    kernel::hil::uart::Receive::set_receive_client(console_uart, console);
 
-    // Create virtual device for kernel debug.
-    let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
-    debugger_uart.setup();
-    let debugger = static_init!(
-        kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
-
-    let debug_wrapper = static_init!(
-        kernel::debug::DebugWriterWrapper,
-        kernel::debug::DebugWriterWrapper::new(debugger)
-    );
-    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     let ble_radio =
         BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize(());
@@ -332,13 +304,13 @@ pub unsafe fn setup_board(
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
-            &mut nrf5x::temperature::TEMP,
+            &nrf52::temperature::TEMP,
             board_kernel.create_grant(&memory_allocation_capability)
         )
     );
-    kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
+    kernel::hil::sensors::TemperatureDriver::set_client(&nrf52::temperature::TEMP, temp);
 
-    let rng = components::rng::RngComponent::new(board_kernel, &nrf5x::trng::TRNG).finalize(());
+    let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
     // SPI
     let mux_spi = static_init!(
@@ -348,9 +320,9 @@ pub unsafe fn setup_board(
     hil::spi::SpiMaster::set_client(&nrf52::spi::SPIM0, mux_spi);
     hil::spi::SpiMaster::init(&nrf52::spi::SPIM0);
     nrf52::spi::SPIM0.configure(
-        nrf5x::pinmux::Pinmux::new(spi_pins.mosi as u32),
-        nrf5x::pinmux::Pinmux::new(spi_pins.miso as u32),
-        nrf5x::pinmux::Pinmux::new(spi_pins.clk as u32),
+        nrf52::pinmux::Pinmux::new(spi_pins.mosi as u32),
+        nrf52::pinmux::Pinmux::new(spi_pins.miso as u32),
+        nrf52::pinmux::Pinmux::new(spi_pins.clk as u32),
     );
 
     let nonvolatile_storage: Option<
@@ -361,12 +333,12 @@ pub unsafe fn setup_board(
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
             capsules::virtual_spi::VirtualSpiMasterDevice::new(
                 mux_spi,
-                &nrf5x::gpio::PORT[driver.chip_select]
+                &gpio_port[driver.chip_select]
             )
         );
         // Create an alarm for this chip.
         let mx25r6435f_virtual_alarm = static_init!(
-            VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+            VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
             VirtualMuxAlarm::new(mux_alarm)
         );
         // Setup the actual MX25R6435F driver.
@@ -374,16 +346,16 @@ pub unsafe fn setup_board(
             capsules::mx25r6435f::MX25R6435F<
                 'static,
                 capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-                nrf5x::gpio::GPIOPin,
-                VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+                nrf52::gpio::GPIOPin,
+                VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
             >,
             capsules::mx25r6435f::MX25R6435F::new(
                 mx25r6435f_spi,
                 mx25r6435f_virtual_alarm,
                 &mut capsules::mx25r6435f::TXBUFFER,
                 &mut capsules::mx25r6435f::RXBUFFER,
-                Some(&nrf5x::gpio::PORT[driver.write_protect_pin]),
-                Some(&nrf5x::gpio::PORT[driver.hold_pin])
+                Some(&gpio_port[driver.write_protect_pin]),
+                Some(&gpio_port[driver.hold_pin])
             )
         );
         mx25r6435f_spi.set_client(mx25r6435f);
@@ -397,8 +369,8 @@ pub unsafe fn setup_board(
                 capsules::mx25r6435f::MX25R6435F<
                     'static,
                     capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>,
-                    nrf5x::gpio::GPIOPin,
-                    VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+                    nrf52::gpio::GPIOPin,
+                    VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
                 >,
             >,
             capsules::nonvolatile_to_pages::NonvolatileToPages::new(
@@ -460,7 +432,7 @@ pub unsafe fn setup_board(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new());
+    let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new(gpio_port));
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);

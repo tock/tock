@@ -7,6 +7,8 @@
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::ring_buffer::RingBuffer;
+use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
@@ -109,45 +111,20 @@ pub unsafe fn reset_handler() {
     hil::uart::Transmit::set_transmit_client(&arty_e21::uart::UART0, uart_mux);
     hil::uart::Receive::set_receive_client(&arty_e21::uart::UART0, uart_mux);
 
-    // Create a UartDevice for the console.
-    let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    console_uart.setup();
-    let console = static_init!(
-        capsules::console::Console<'static>,
-        capsules::console::Console::new(
-            console_uart,
-            &mut capsules::console::WRITE_BUF,
-            &mut capsules::console::READ_BUF,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::uart::Transmit::set_transmit_client(console_uart, console);
-    hil::uart::Receive::set_receive_client(console_uart, console);
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&rv32i::machine_timer::MACHINETIMER)
+        MuxAlarm::new(&arty_e21::timer::MACHINETIMER)
     );
-    hil::time::Alarm::set_client(&rv32i::machine_timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_client(&arty_e21::timer::MACHINETIMER, mux_alarm);
 
     // Alarm
-    let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        VirtualMuxAlarm::new(mux_alarm)
+    let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm).finalize(
+        components::alarm_component_helper!(rv32i::machine_timer::MachineTimer),
     );
-    let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        >,
-        capsules::alarm::AlarmDriver::new(
-            virtual_alarm_user,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    hil::time::Alarm::set_client(virtual_alarm_user, alarm);
 
     // TEST for timer
     //
@@ -259,13 +236,13 @@ pub unsafe fn reset_handler() {
     // Create virtual device for kernel debug.
     let debugger_uart = static_init!(UartDevice, UartDevice::new(uart_mux, false));
     debugger_uart.setup();
+    let ring_buffer = static_init!(
+        RingBuffer<'static, u8>,
+        RingBuffer::new(&mut kernel::debug::INTERNAL_BUF)
+    );
     let debugger = static_init!(
         kernel::debug::DebugWriter,
-        kernel::debug::DebugWriter::new(
-            debugger_uart,
-            &mut kernel::debug::OUTPUT_BUF,
-            &mut kernel::debug::INTERNAL_BUF,
-        )
+        kernel::debug::DebugWriter::new(debugger_uart, &mut kernel::debug::OUTPUT_BUF, ring_buffer)
     );
     hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 

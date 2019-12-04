@@ -779,7 +779,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&mut config);
+                    self.chip.mpu().configure_mpu(&config);
                     Ok(old_break)
                 }
             })
@@ -975,12 +975,12 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
         let sram_grant_start = self.kernel_memory_break.get() as usize;
         let sram_heap_end = self.app_break.get() as usize;
-        let sram_heap_start = self.debug.map_or(ptr::null(), |debug| {
-            debug.app_heap_start_pointer.unwrap_or(ptr::null())
-        }) as usize;
-        let sram_stack_start = self.debug.map_or(ptr::null(), |debug| {
-            debug.app_stack_start_pointer.unwrap_or(ptr::null())
-        }) as usize;
+        let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
+            debug.app_heap_start_pointer.map(|p| p as usize)
+        });
+        let sram_stack_start: Option<usize> = self.debug.map_or(None, |debug| {
+            debug.app_stack_start_pointer.map(|p| p as usize)
+        });
         let sram_stack_bottom =
             self.debug
                 .map_or(ptr::null(), |debug| debug.min_stack_pointer) as usize;
@@ -988,27 +988,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
         // SRAM sizes
         let sram_grant_size = sram_end - sram_grant_start;
-        let sram_heap_size = sram_heap_end - sram_heap_start;
-        let sram_data_size = sram_heap_start - sram_stack_start;
-        let sram_stack_size = sram_stack_start - sram_stack_bottom;
         let sram_grant_allocated = sram_end - sram_grant_start;
-        let sram_heap_allocated = sram_grant_start - sram_heap_start;
-        let sram_stack_allocated = sram_stack_start - sram_start;
-        let sram_data_allocated = sram_data_size as usize;
-
-        // checking on sram
-        let mut sram_grant_error_str = "          ";
-        if sram_grant_size > sram_grant_allocated {
-            sram_grant_error_str = " EXCEEDED!"
-        }
-        let mut sram_heap_error_str = "          ";
-        if sram_heap_size > sram_heap_allocated {
-            sram_heap_error_str = " EXCEEDED!"
-        }
-        let mut sram_stack_error_str = "          ";
-        if sram_stack_size > sram_stack_allocated {
-            sram_stack_error_str = " EXCEEDED!"
-        }
 
         // application statistics
         let events_queued = self.tasks.map_or(0, |tasks| tasks.len());
@@ -1032,7 +1012,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
         let _ = match last_syscall {
             Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}", syscall)),
-            None => writer.write_fmt(format_args!(" Last Syscall: None")),
+            None => writer.write_str(" Last Syscall: None"),
         };
 
         let _ = writer.write_fmt(format_args!(
@@ -1044,12 +1024,84 @@ impl<C: Chip> ProcessType for Process<'a, C> {
              \r\n             │ ▼ Grant      {:6} | {:6}{}\
              \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ Unused\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
-             \r\n  {:#010X} ┼─────────────────────────────────────────── R\
-             \r\n             │ Data         {:6} | {:6}               A\
-             \r\n  {:#010X} ┼─────────────────────────────────────────── M\
-             \r\n             │ ▼ Stack      {:6} | {:6}{}\
+             \r\n  {:#010X} ┼───────────────────────────────────────────",
+            sram_end,
+            sram_grant_size,
+            sram_grant_allocated,
+            exceeded_check(sram_grant_size, sram_grant_allocated),
+            sram_grant_start,
+            sram_heap_end,
+        ));
+
+        match sram_heap_start {
+            Some(sram_heap_start) => {
+                let sram_heap_size = sram_heap_end - sram_heap_start;
+                let sram_heap_allocated = sram_grant_start - sram_heap_start;
+
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
+                     \r\n  {:#010X} ┼─────────────────────────────────────────── R",
+                    sram_heap_size,
+                    sram_heap_allocated,
+                    exceeded_check(sram_heap_size, sram_heap_allocated),
+                    sram_heap_start,
+                ));
+            }
+            None => {
+                let _ = writer.write_str(
+                    "\
+                     \r\n             │ ▲ Heap            ? |      ?               S\
+                     \r\n  ?????????? ┼─────────────────────────────────────────── R",
+                );
+            }
+        }
+
+        match (sram_heap_start, sram_stack_start) {
+            (Some(sram_heap_start), Some(sram_stack_start)) => {
+                let sram_data_size = sram_heap_start - sram_stack_start;
+                let sram_data_allocated = sram_data_size as usize;
+
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\n             │ Data         {:6} | {:6}               A",
+                    sram_data_size, sram_data_allocated,
+                ));
+            }
+            _ => {
+                let _ = writer.write_str(
+                    "\
+                     \r\n             │ Data              ? |      ?               A",
+                );
+            }
+        }
+
+        match sram_stack_start {
+            Some(sram_stack_start) => {
+                let sram_stack_size = sram_stack_start - sram_stack_bottom;
+                let sram_stack_allocated = sram_stack_start - sram_start;
+
+                let _ = writer.write_fmt(format_args!(
+                    "\
+                     \r\n  {:#010X} ┼─────────────────────────────────────────── M\
+                     \r\n             │ ▼ Stack      {:6} | {:6}{}",
+                    sram_stack_start,
+                    sram_stack_size,
+                    sram_stack_allocated,
+                    exceeded_check(sram_stack_size, sram_stack_allocated),
+                ));
+            }
+            None => {
+                let _ = writer.write_str(
+                    "\
+                     \r\n  ?????????? ┼─────────────────────────────────────────── M\
+                     \r\n             │ ▼ Stack           ? |      ?",
+                );
+            }
+        }
+
+        let _ = writer.write_fmt(format_args!(
+            "\
              \r\n  {:#010X} ┼───────────────────────────────────────────\
              \r\n             │ Unused\
              \r\n  {:#010X} ┴───────────────────────────────────────────\
@@ -1060,22 +1112,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
              \r\n             │ Protected    {:6}                        S\
              \r\n  {:#010X} ┴─────────────────────────────────────────── H\
              \r\n",
-            sram_end,
-            sram_grant_size,
-            sram_grant_allocated,
-            sram_grant_error_str,
-            sram_grant_start,
-            sram_heap_end,
-            sram_heap_size,
-            sram_heap_allocated,
-            sram_heap_error_str,
-            sram_heap_start,
-            sram_data_size,
-            sram_data_allocated,
-            sram_stack_start,
-            sram_stack_size,
-            sram_stack_allocated,
-            sram_stack_error_str,
             sram_stack_bottom,
             sram_start,
             flash_end,
@@ -1091,12 +1127,25 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             writer,
         );
 
+        // Display the current state of the MPU for this process.
+        self.mpu_config.map(|config| {
+            let _ = writer.write_fmt(format_args!("{}", config));
+        });
+
         let _ = writer.write_fmt(format_args!(
             "\
              \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
              \r\nin the app's folder and open the .lst file.\r\n\r\n",
             sram_start, flash_init_fn
         ));
+    }
+}
+
+fn exceeded_check(size: usize, allocated: usize) -> &'static str {
+    if size > allocated {
+        " EXCEEDED!"
+    } else {
+        "          "
     }
 }
 

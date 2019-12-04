@@ -44,6 +44,7 @@ ci-travis:
 	@printf "$$(tput bold)* CI: Formatting *$$(tput sgr0)\n"
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
+	@./tools/check_wildcard_imports.sh
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
@@ -94,6 +95,7 @@ clean:
 .PHONY: fmt format formatall
 fmt format formatall:
 	@./tools/run_cargo_fmt.sh
+	@./tools/check_wildcard_imports.sh
 
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
