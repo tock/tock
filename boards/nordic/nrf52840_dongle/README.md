@@ -20,11 +20,11 @@ make flash in this directory to install a fresh kernel.
 ## Programming user-level applications
 You can program an application via JTAG using `tockloader`:
 
-    ```shell
-    $ cd libtock-c/examples/<app>
-    $ make
-    $ tockloader install --jlink --board nrf52dk
-    ```
+```shell
+$ cd libtock-c/examples/<app>
+$ make
+$ tockloader install --jlink --board nrf52dk
+```
 
 ## Debugging
 
