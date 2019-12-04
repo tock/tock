@@ -1,7 +1,7 @@
-Platform-Specific Instructions: nRF52840-DK
+Platform-Specific Instructions: nRF52840-Dongle
 ===================================
 
-The [nRF52840 Dongle](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
+The [nRF52840 Dongle](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
 is a platform based around the nRF52840, an SoC with an ARM Cortex-M4 and a BLE radio.
 The kit is uses a USB key form factor and includes 1 button, 1 red LED and 1 RGB LED.
 
@@ -20,7 +20,7 @@ make flash in this directory to install a fresh kernel.
 ## Programming user-level applications
 You can program an application via JTAG using `tockloader`:
 
-    ```bash
+    ```shell
     $ cd libtock-c/examples/<app>
     $ make
     $ tockloader install --jlink --board nrf52dk
