@@ -241,7 +241,11 @@ pub struct Power<'a> {
 }
 
 pub enum MainVoltage {
+    // Normal voltage mode, when supply voltage is connected to both the VDD and
+    // VDDH pins (so that VDD equals VDDH).
     Normal = 0,
+    // High voltage mode, when supply voltage is only connected to the VDDH pin,
+    // and the VDD pin is not connected to any voltage supply.
     High = 1,
 }
 
