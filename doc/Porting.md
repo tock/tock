@@ -88,9 +88,30 @@ In addition to kernel code, boards also require some support files. These
 specify metadata such as the board name, how to load code onto the board, and
 anything special that userland applications may need for this board.
 
-#### Panic's
+#### `panic!`s (aka `io.rs`)
 
-_TODO: Describe `io.rs` and how panic's behave / expectations._
+Each board must author a custom routine to handle `panic!`s. Most `panic!`
+machinery is handled by the Tock kernel, but the board author must provide
+some minimalist access to hardware interfaces, specifically LEDs and/or UART.
+
+As a first step, it is simplest to just get LED-based `panic!` working. Have
+your `panic!` handler set up a prominent LED and then call
+[kernel::debug::panic_blink_forever](https://docs.tockos.org/kernel/debug/fn.panic_blink_forever.html).
+
+If UART is available, the kernel is capable of printing a lot of very helpful
+additional debugging information. However, as we are in a `panic!` situation,
+it's important to strip this down to a minimalist implementation. In particular,
+the supplied UART must be synchronous (note that this in contrast to the rest of
+the kernel UART interfaces, which are all asynchronous). Usually implementing a
+very simple `Writer` that simply writes one byte at a time directly to the UART
+is easiest/best. It is not important that `panic!` UART writer be efficient.
+You can then replace the call to
+[kernel::debug::panic_blink_forever](https://docs.tockos.org/kernel/debug/fn.panic_blink_forever.html)
+with a call to
+[kernel::debug::panic](https://docs.tockos.org/kernel/debug/fn.panic.html).
+
+For largely historical reasons, panic implementations for all boards live in
+a file named `io.rs` adjacent to the board's `main.rs` file.
 
 #### Board Cargo.toml, build.rs
 
