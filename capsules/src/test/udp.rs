@@ -10,8 +10,8 @@ use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
-use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::MapCell;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{debug, ReturnCode};
 

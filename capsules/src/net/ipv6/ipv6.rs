@@ -71,7 +71,7 @@ use crate::net::stream::{decode_bytes, decode_u16, decode_u8};
 use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::udp::UDPHeader;
-use kernel::common::buffer::LeasableBuffer;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::ReturnCode;
 

@@ -19,8 +19,8 @@ use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
-use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::MapCell;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 

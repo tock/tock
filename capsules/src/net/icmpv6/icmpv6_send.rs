@@ -11,8 +11,8 @@ use crate::net::icmpv6::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::TransportHeader;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
-use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::OptionalCell;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::ReturnCode;
 
 /// A trait for a client of an `ICMP6Sender`.
