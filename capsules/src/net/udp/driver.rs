@@ -19,7 +19,7 @@ use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::capabilities::UdpDriverCapability;
-use kernel::common::buffer::Buffer;
+use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::MapCell;
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
@@ -90,7 +90,7 @@ pub struct UDPDriver<'a> {
     /// UDP bound port table (manages kernel bindings)
     port_table: &'static UdpPortManager,
 
-    kernel_buffer: MapCell<Buffer<'static, u8>>,
+    kernel_buffer: MapCell<LeasableBuffer<'static, u8>>,
 
     driver_send_cap: &'static dyn UdpDriverCapability,
 }
@@ -102,7 +102,7 @@ impl<'a> UDPDriver<'a> {
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,
-        kernel_buffer: Buffer<'static, u8>,
+        kernel_buffer: LeasableBuffer<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
@@ -611,7 +611,7 @@ impl<'a> Driver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
+    fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

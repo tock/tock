@@ -10,7 +10,7 @@ use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
-use kernel::common::buffer::Buffer;
+use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::MapCell;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::{debug, ReturnCode};
@@ -30,7 +30,7 @@ pub struct MockUdp<'a, A: Alarm<'a>> {
     udp_sender: &'a dyn UDPSender<'a>,
     udp_receiver: &'a UDPReceiver<'a>,
     port_table: &'static UdpPortManager,
-    udp_dgram: MapCell<Buffer<'static, u8>>,
+    udp_dgram: MapCell<LeasableBuffer<'static, u8>>,
     src_port: Cell<u16>,
     dst_port: Cell<u16>,
     send_loop: Cell<bool>,
@@ -43,7 +43,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         udp_sender: &'a dyn UDPSender<'a>,
         udp_receiver: &'a UDPReceiver<'a>,
         port_table: &'static UdpPortManager,
-        udp_dgram: Buffer<'static, u8>,
+        udp_dgram: LeasableBuffer<'static, u8>,
         dst_port: u16,
     ) -> MockUdp<'a, A> {
         MockUdp {
@@ -167,7 +167,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
-    fn send_done(&self, result: ReturnCode, mut dgram: Buffer<'static, u8>) {
+    fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
         self.udp_dgram.replace(dgram);

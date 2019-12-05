@@ -22,7 +22,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
-use kernel::common::buffer::Buffer;
+use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::debug;
 use kernel::hil::time::{self, Frequency};
@@ -82,7 +82,7 @@ pub trait IP6Sender<'a> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &Buffer<'static, u8>,
+        payload: &LeasableBuffer<'static, u8>,
     ) -> ReturnCode;
 }
 
@@ -126,7 +126,7 @@ impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &Buffer<'static, u8>,
+        payload: &LeasableBuffer<'static, u8>,
     ) -> ReturnCode {
         self.sixlowpan.init(
             self.src_mac_addr,
@@ -168,7 +168,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         &self,
         dst_addr: IPAddr,
         transport_header: TransportHeader,
-        payload: &Buffer<'static, u8>,
+        payload: &LeasableBuffer<'static, u8>,
     ) {
         self.ip6_packet.map_or_else(
             || {

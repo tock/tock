@@ -71,7 +71,7 @@ use crate::net::stream::{decode_bytes, decode_u16, decode_u8};
 use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::udp::UDPHeader;
-use kernel::common::buffer::Buffer;
+use kernel::common::buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::ReturnCode;
 
@@ -349,7 +349,7 @@ impl IPPayload<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &Buffer<'static, u8>,
+        payload: &LeasableBuffer<'static, u8>,
     ) -> (u8, u16) {
         if self.payload.len() < payload.len() {
             debug!("Error in set_payload for ipv6_packet");
@@ -379,7 +379,7 @@ impl IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `buf` - Buffer to write the serialized `IPPayload` to
+    /// `buf` - LeasableBuffer to write the serialized `IPPayload` to
     /// `offset` - Current offset into the buffer
     ///
     /// # Return Value
@@ -505,7 +505,7 @@ impl IP6Packet<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &Buffer<'static, u8>,
+        payload: &LeasableBuffer<'static, u8>,
     ) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);

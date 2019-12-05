@@ -51,7 +51,7 @@ use sam4l;
 // The UDP stack requires exactly one of several packet buffers:
 //
 //   1. RF233_BUF: buffer the IP6_Sender uses to pass frames to the radio after fragmentation
-//   2. SIXLOWPAN_RX_BUF: Buffer to hold full IP packets after they are decompressed by 6LoWPAN
+//   2. SIXLOWPAN_RX_BUF: LeasableBuffer to hold full IP packets after they are decompressed by 6LoWPAN
 //   3. udp_dgram: The payload of the IP6_Packet, which holds full IP Packets before they are tx'd.
 //
 //   Additionally, every capsule using the stack needs an additional buffer to craft packets for

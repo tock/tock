@@ -105,7 +105,7 @@ impl Component for UDPDriverComponent {
                 self.interface_list,
                 PAYLOAD_LEN,
                 self.port_table,
-                kernel::common::buffer::Buffer::new(&mut DRIVER_BUF),
+                kernel::common::buffer::LeasableBuffer::new(&mut DRIVER_BUF),
                 &DRIVER_CAP,
             )
         );

@@ -22,7 +22,7 @@ use crate::net::udp::udp::UDPHeader;
 use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use core::cell::Cell;
 use kernel::capabilities::UdpDriverCapability;
-use kernel::common::buffer::Buffer;
+use kernel::common::buffer::LeasableBuffer;
 use kernel::common::cells::{MapCell, OptionalCell};
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
@@ -134,7 +134,7 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
 /// has completed sending the requested packet. Note that the
 /// `UDPSender::set_client` method must be called to set the client.
 pub trait UDPSendClient {
-    fn send_done(&self, result: ReturnCode, dgram: Buffer<'static, u8>);
+    fn send_done(&self, result: ReturnCode, dgram: LeasableBuffer<'static, u8>);
 }
 
 /// This trait represents the bulk of the UDP functionality. The two
@@ -168,8 +168,8 @@ pub trait UDPSender<'a> {
         dest: IPAddr,
         dst_port: u16,
         //src_port: u16,
-        buf: Buffer<'static, u8>,
-    ) -> Result<(), Buffer<'static, u8>>;
+        buf: LeasableBuffer<'static, u8>,
+    ) -> Result<(), LeasableBuffer<'static, u8>>;
 
     /// This function is identical to `send_to()` except that it takes in
     /// an explicit src_port instead of a binding. This allows it to be used
@@ -189,9 +189,9 @@ pub trait UDPSender<'a> {
         dest: IPAddr,
         dst_port: u16,
         src_port: u16,
-        buf: Buffer<'static, u8>,
+        buf: LeasableBuffer<'static, u8>,
         driver_send_cap: &dyn UdpDriverCapability,
-    ) -> Result<(), Buffer<'static, u8>>;
+    ) -> Result<(), LeasableBuffer<'static, u8>>;
 
     /// This function constructs an IP packet from the completed `UDPHeader`
     /// and buffer, and sends it to the provided IP address
@@ -208,8 +208,8 @@ pub trait UDPSender<'a> {
         &'a self,
         dest: IPAddr,
         udp_header: UDPHeader,
-        buf: Buffer<'static, u8>,
-    ) -> Result<(), Buffer<'static, u8>>;
+        buf: LeasableBuffer<'static, u8>,
+    ) -> Result<(), LeasableBuffer<'static, u8>>;
 
     fn get_binding(&self) -> Option<UdpPortBindingTx>;
 
@@ -225,7 +225,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     udp_mux_sender: &'a MuxUdpSender<'a, T>,
     client: OptionalCell<&'a dyn UDPSendClient>,
     next: ListLink<'a, UDPSendStruct<'a, T>>,
-    tx_buffer: MapCell<Buffer<'static, u8>>,
+    tx_buffer: MapCell<LeasableBuffer<'static, u8>>,
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
     binding: MapCell<UdpPortBindingTx>,
@@ -248,8 +248,8 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         &'a self,
         dest: IPAddr,
         dst_port: u16,
-        buf: Buffer<'static, u8>,
-    ) -> Result<(), Buffer<'static, u8>> {
+        buf: LeasableBuffer<'static, u8>,
+    ) -> Result<(), LeasableBuffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         match self.binding.take() {
@@ -271,9 +271,9 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dest: IPAddr,
         dst_port: u16,
         src_port: u16,
-        buf: Buffer<'static, u8>,
+        buf: LeasableBuffer<'static, u8>,
         _driver_send_cap: &dyn UdpDriverCapability,
-    ) -> Result<(), Buffer<'static, u8>> {
+    ) -> Result<(), LeasableBuffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
@@ -284,8 +284,8 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         &'a self,
         dest: IPAddr,
         mut udp_header: UDPHeader,
-        buf: Buffer<'static, u8>,
-    ) -> Result<(), Buffer<'static, u8>> {
+        buf: LeasableBuffer<'static, u8>,
+    ) -> Result<(), LeasableBuffer<'static, u8>> {
         udp_header.set_len((buf.len() + udp_header.get_hdr_size()) as u16);
         let transport_header = TransportHeader::UDP(udp_header);
         self.tx_buffer.replace(buf);
