@@ -88,7 +88,7 @@ In addition to kernel code, boards also require some support files. These
 specify metadata such as the board name, how to load code onto the board, and
 anything special that userland applications may need for this board.
 
-#### Panic's (aka `io.rs`)
+#### `panic!`s (aka `io.rs`)
 
 Each board must author a custom routine to handle `panic!`s. Most `panic!`
 machinery is handled by the Tock kernel, but the board author must provide
