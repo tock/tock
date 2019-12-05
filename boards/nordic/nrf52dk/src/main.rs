@@ -288,5 +288,7 @@ pub unsafe fn reset_handler() {
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
+        nrf52832::uicr::Regulator0Output::DEFAULT,
+        false,
     );
 }

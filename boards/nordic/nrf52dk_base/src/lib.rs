@@ -12,6 +12,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use nrf52::rtc::Rtc;
+use nrf52::uicr::Regulator0Output;
 
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
@@ -146,15 +147,62 @@ pub unsafe fn setup_board(
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
+    reg_vout: Regulator0Output,
+    nfc_as_gpios: bool,
 ) {
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52::uicr::Uicr::new();
-    nrf52::nvmc::NVMC.erase_uicr();
+
+    // Check if we need to erase UICR memory to re-program it
+    // This only needs to be done when a bit needs to be flipped from 0 to 1.
+    let mut erase_uicr = (!uicr.get_psel0_reset_pin() & button_rst_pin != 0)
+        | (!uicr.get_psel1_reset_pin() & button_rst_pin != 0)
+        | (!(uicr.get_vout() as u32) & (reg_vout as u32) != 0);
+
+    // Only enabling the NFC pin protection requires an erase.
+    if nfc_as_gpios {
+        erase_uicr |= !uicr.is_nfc_pins_protection_enabled();
+    }
+
+    if erase_uicr {
+        nrf52::nvmc::NVMC.erase_uicr();
+    }
+
     nrf52::nvmc::NVMC.configure_writeable();
     while !nrf52::nvmc::NVMC.is_ready() {}
-    uicr.set_psel0_reset_pin(button_rst_pin);
-    while !nrf52::nvmc::NVMC.is_ready() {}
-    uicr.set_psel1_reset_pin(button_rst_pin);
+
+    let mut needs_soft_reset: bool = false;
+
+    // Configure reset pins
+    if uicr.get_psel0_reset_pin() != button_rst_pin {
+        uicr.set_psel0_reset_pin(button_rst_pin);
+        while !nrf52::nvmc::NVMC.is_ready() {}
+        needs_soft_reset = true;
+    }
+    if uicr.get_psel1_reset_pin() != button_rst_pin {
+        uicr.set_psel1_reset_pin(button_rst_pin);
+        while !nrf52::nvmc::NVMC.is_ready() {}
+        needs_soft_reset = true;
+    }
+
+    // Configure voltage regulator output
+    if uicr.get_vout() != reg_vout {
+        uicr.set_vout(reg_vout);
+        while !nrf52::nvmc::NVMC.is_ready() {}
+        needs_soft_reset = true;
+    }
+
+    // Check if we need to free the NFC pins for GPIO
+    if nfc_as_gpios {
+        uicr.set_nfc_pins_protection(true);
+        while !nrf52::nvmc::NVMC.is_ready() {}
+        needs_soft_reset = true;
+    }
+
+    // Any modification of UICR needs a soft reset for the changes to be taken into account.
+    if needs_soft_reset {
+        cortexm4::scb::reset();
+    }
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
