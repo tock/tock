@@ -7,7 +7,14 @@ The kit is uses a USB key form factor and includes 1 button, 1 red LED and 1 RGB
 
 ## Getting Started
 
-First, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
+To program the nRF52840 Dongle with Tock, you will need a JLink JTAG device and the
+appropriate cables. An example setup is:
+
+- [JLink JTAG Device](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)
+- [ARM to TagConnect Adapter](https://www.digikey.com/product-detail/en/tag-connect-llc/TC2050-ARM2010/TC2050-ARM2010-ND/3528170)
+- [10pin TagConnect Cable](https://www.digikey.com/product-detail/en/tag-connect-llc/TC2050-IDC-NL/TC2050-IDC-NL-ND/2605367)
+
+Then, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
 
 JTAG is the preferred method to program. The development kit has the JTAG pins exposed either
 through the half-moons pads or, below the PCB, on a Tag-Connect TC2050 connector footprint.
