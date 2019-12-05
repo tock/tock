@@ -6,9 +6,6 @@
 /// initialize the array to the value given and return a `&'static mut`
 /// reference to it.
 ///
-/// If `std::mem::size_of<T>` ever becomes a `const` function then `static_init`
-/// will be optimized to save up to a word of memory for every use.
-///
 /// # Safety
 ///
 /// As this macro will write directly to a global area without acquiring a lock
@@ -19,18 +16,16 @@
 #[macro_export]
 macro_rules! static_init {
     ($T:ty, $e:expr) => {
-        // Ideally we could use mem::size_of<$T>, uninitialized or zerod here
-        // instead of having an `Option`, however that is not currently possible
-        // in Rust, so in some cases we're wasting up to a word.
         {
-            use core::{mem, ptr};
+            use core::mem::MaybeUninit;
             // Statically allocate a read-write buffer for the value, write our
             // initial value into it (without dropping the initial zeros) and
             // return a reference to it.
-            static mut BUF: Option<$T> = None;
-            let tmp : &'static mut $T = mem::transmute(&mut BUF);
-            ptr::write(tmp as *mut $T, $e);
-            tmp
+            static mut BUF: MaybeUninit<$T> = MaybeUninit::uninit();
+            BUF.as_mut_ptr().write($e);
+            // TODO: use MaybeUninit::get_mut() once that is stabilized (see
+            // https://github.com/rust-lang/rust/issues/63568).
+            &mut *BUF.as_mut_ptr() as &'static mut $T
         };
     }
 }
