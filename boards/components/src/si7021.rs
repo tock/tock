@@ -20,6 +20,8 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
+use core::mem::MaybeUninit;
+
 use capsules::humidity::HumiditySensor;
 use capsules::si7021::SI7021;
 use capsules::temperature::TemperatureSensor;
@@ -30,17 +32,17 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::time::{self, Alarm};
-use kernel::static_init;
-
-use crate::static_init_half;
+use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! si7021_component_helper {
     ($A:ty) => {{
         use capsules::si7021::SI7021;
-        static mut BUF1: Option<VirtualMuxAlarm<'static, $A>> = None;
-        static mut BUF2: Option<SI7021<'static, VirtualMuxAlarm<'static, $A>>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
+        static mut BUF2: MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, $A>>> =
+            MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
 }
@@ -69,8 +71,8 @@ static mut I2C_BUF: [u8; 14] = [0; 14];
 
 impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
     type StaticInput = (
-        &'static mut Option<VirtualMuxAlarm<'static, A>>,
-        &'static mut Option<SI7021<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, A>>>,
     );
     type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, A>>;
 

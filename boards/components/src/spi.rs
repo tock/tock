@@ -27,18 +27,20 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
+use core::mem::MaybeUninit;
+
 use capsules::spi::Spi;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::component::Component;
 use kernel::hil::spi;
-
-use crate::static_init_half;
+use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! spi_mux_component_helper {
     ($S:ty) => {{
-        static mut BUF: Option<MuxSpiMaster<'static, $S>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF: MaybeUninit<MuxSpiMaster<'static, $S>> = MaybeUninit::uninit();
         &mut BUF
     };};
 }
@@ -47,8 +49,10 @@ macro_rules! spi_mux_component_helper {
 macro_rules! spi_syscall_component_helper {
     ($S:ty) => {{
         use capsules::spi::Spi;
-        static mut BUF1: Option<VirtualSpiMasterDevice<'static, $S>> = None;
-        static mut BUF2: Option<Spi<'static, VirtualSpiMasterDevice<'static, $S>>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF1: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
+        static mut BUF2: MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, $S>>> =
+            MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
 }
@@ -56,7 +60,8 @@ macro_rules! spi_syscall_component_helper {
 #[macro_export]
 macro_rules! spi_component_helper {
     ($S:ty) => {{
-        static mut BUF: Option<VirtualSpiMasterDevice<'static, $S>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
         &mut BUF
     };};
 }
@@ -82,7 +87,7 @@ impl<S: 'static + spi::SpiMaster> SpiMuxComponent<S> {
 }
 
 impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
-    type StaticInput = &'static mut Option<MuxSpiMaster<'static, S>>;
+    type StaticInput = &'static mut MaybeUninit<MuxSpiMaster<'static, S>>;
     type Output = &'static MuxSpiMaster<'static, S>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
@@ -110,8 +115,8 @@ impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
 
 impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
     type StaticInput = (
-        &'static mut Option<VirtualSpiMasterDevice<'static, S>>,
-        &'static mut Option<Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
+        &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
+        &'static mut MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
     );
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
@@ -148,7 +153,7 @@ impl<S: 'static + spi::SpiMaster> SpiComponent<S> {
 }
 
 impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
-    type StaticInput = &'static mut Option<VirtualSpiMasterDevice<'static, S>>;
+    type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
