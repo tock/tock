@@ -69,8 +69,8 @@ impl Component for Ieee802154Component {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let aes_ccm = static_init!(
-            capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
-            capsules::aes_ccm::AES128CCM::new(&nrf5x::aes::AESECB, &mut CRYPT_BUF)
+            capsules::aes_ccm::AES128CCM<'static, nrf52::aes::AesECB<'static>>,
+            capsules::aes_ccm::AES128CCM::new(&nrf52::aes::AESECB, &mut CRYPT_BUF)
         );
 
         // Keeps the radio on permanently; pass-through layer
@@ -85,7 +85,7 @@ impl Component for Ieee802154Component {
             capsules::ieee802154::framer::Framer<
                 'static,
                 AwakeMac<'static, nrf52::ieee802154_radio::Radio>,
-                capsules::aes_ccm::AES128CCM<'static, nrf5x::aes::AesECB<'static>>,
+                capsules::aes_ccm::AES128CCM<'static, nrf52::aes::AesECB<'static>>,
             >,
             capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
         );

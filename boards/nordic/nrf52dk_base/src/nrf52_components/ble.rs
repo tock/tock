@@ -11,7 +11,7 @@
 use capsules;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 
-use nrf5x::rtc::Rtc;
+use nrf52::rtc::Rtc;
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -23,14 +23,14 @@ use kernel::{create_capability, static_init};
 pub struct BLEComponent {
     board_kernel: &'static kernel::Kernel,
     radio: &'static nrf52::ble_radio::Radio,
-    mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc<'static>>,
+    mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 }
 
 impl BLEComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         radio: &'static nrf52::ble_radio::Radio,
-        mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
+        mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
     ) -> BLEComponent {
         BLEComponent {
             board_kernel: board_kernel,
@@ -52,7 +52,7 @@ impl Component for BLEComponent {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ble_radio_virtual_alarm = static_init!(
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
             capsules::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm)
         );
 

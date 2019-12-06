@@ -4,6 +4,7 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::i2c;
 use crate::ieee802154_radio;
 use crate::nvmc;
+use crate::power;
 use crate::spi;
 use crate::uart;
 use cortexm4::{self, nvic};
@@ -59,6 +60,7 @@ impl kernel::Chip for NRF52 {
                     match interrupt {
                         peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
                         peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
+                        peripheral_interrupts::POWER_CLOCK => power::POWER.handle_interrupt(),
                         peripheral_interrupts::RADIO => {
                             match (
                                 ieee802154_radio::RADIO.is_enabled(),
