@@ -42,7 +42,7 @@ impl Write for Writer {
 /// Panic handler
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52 DK LEDs (see back of board)
-    const LED1_PIN: usize = 17;
+    const LED1_PIN: usize = nrf52832::gpio::Pin::P0_17 as usize;
     let led = &mut led::LedLow::new(&mut nrf52832::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
     debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
