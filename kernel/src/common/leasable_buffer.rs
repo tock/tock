@@ -12,6 +12,7 @@
 //!  and `reset()` will be called once the `LeasableBuffer` is returned via a callback
 //!
 //!  ```rust
+//! # use kernel::common::leasable_buffer::LeasableBuffer;
 //!
 //! let mut internal = ['a', 'b', 'c', 'd'];
 //! let original_base_addr = internal.as_ptr();
