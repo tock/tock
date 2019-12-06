@@ -71,26 +71,26 @@ use nrf52832::gpio::Pin;
 use nrf52dk_base::{SpiPins, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
-const LED1_PIN: usize = Pin::P0_17 as usize;
-const LED2_PIN: usize = Pin::P0_18 as usize;
-const LED3_PIN: usize = Pin::P0_19 as usize;
-const LED4_PIN: usize = Pin::P0_20 as usize;
+const LED1_PIN: Pin = Pin::P0_17;
+const LED2_PIN: Pin = Pin::P0_18;
+const LED3_PIN: Pin = Pin::P0_19;
+const LED4_PIN: Pin = Pin::P0_20;
 
 // The nRF52 DK buttons (see back of board)
-const BUTTON1_PIN: usize = Pin::P0_13 as usize;
-const BUTTON2_PIN: usize = Pin::P0_14 as usize;
-const BUTTON3_PIN: usize = Pin::P0_15 as usize;
-const BUTTON4_PIN: usize = Pin::P0_16 as usize;
-const BUTTON_RST_PIN: usize = Pin::P0_21 as usize;
+const BUTTON1_PIN: Pin = Pin::P0_13;
+const BUTTON2_PIN: Pin = Pin::P0_14;
+const BUTTON3_PIN: Pin = Pin::P0_15;
+const BUTTON4_PIN: Pin = Pin::P0_16;
+const BUTTON_RST_PIN: Pin = Pin::P0_21;
 
-const UART_RTS: usize = Pin::P0_05 as usize;
-const UART_TXD: usize = Pin::P0_06 as usize;
-const UART_CTS: usize = Pin::P0_07 as usize;
-const UART_RXD: usize = Pin::P0_08 as usize;
+const UART_RTS: Pin = Pin::P0_05;
+const UART_TXD: Pin = Pin::P0_06;
+const UART_CTS: Pin = Pin::P0_07;
+const UART_RXD: Pin = Pin::P0_08;
 
-const SPI_MOSI: usize = Pin::P0_22 as usize;
-const SPI_MISO: usize = Pin::P0_23 as usize;
-const SPI_CLK: usize = Pin::P0_24 as usize;
+const SPI_MOSI: Pin = Pin::P0_22;
+const SPI_MISO: Pin = Pin::P0_23;
+const SPI_CLK: Pin = Pin::P0_24;
 
 /// UART Writer
 pub mod io;
@@ -131,88 +131,64 @@ pub unsafe fn reset_handler() {
             // Bottom right header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_03 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_03])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_04 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_04])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_28 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_28])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_29 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_29])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_30 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_30])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_31 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_31])
             )
             .finalize(),
             // Top mid header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_12 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_12])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_11 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_11])
             )
             .finalize(),
             // Top left header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_27 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_27])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_26 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_26])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_02 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_02])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52832::gpio::PORT[Pin::P0_25 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_25])
             )
             .finalize(),
         ]

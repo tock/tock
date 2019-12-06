@@ -3,8 +3,11 @@
 //! Minimal implementation to support activation of the reset button on
 //! nRF52-DK.
 
+use enum_primitive::cast::FromPrimitive;
 use kernel::common::registers::{register_bitfields, ReadWrite};
 use kernel::common::StaticRef;
+
+use crate::gpio::Pin;
 
 const UICR_BASE: StaticRef<UicrRegisters> =
     unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
@@ -133,22 +136,22 @@ impl Uicr {
         }
     }
 
-    pub fn set_psel0_reset_pin(&self, pin: usize) {
+    pub fn set_psel0_reset_pin(&self, pin: Pin) {
         let regs = &*self.registers;
         regs.pselreset0.set(pin as u32);
     }
 
-    pub fn get_psel0_reset_pin(&self) -> usize {
-        self.registers.pselreset0.get() as usize
+    pub fn get_psel0_reset_pin(&self) -> Pin {
+        Pin::from_u32(self.registers.pselreset0.get()).unwrap_or(Pin::P0_00)
     }
 
-    pub fn set_psel1_reset_pin(&self, pin: usize) {
+    pub fn set_psel1_reset_pin(&self, pin: Pin) {
         let regs = &*self.registers;
         regs.pselreset1.set(pin as u32);
     }
 
-    pub fn get_psel1_reset_pin(&self) -> usize {
-        self.registers.pselreset1.get() as usize
+    pub fn get_psel1_reset_pin(&self) -> Pin {
+        Pin::from_u32(self.registers.pselreset1.get()).unwrap_or(Pin::P0_00)
     }
 
     pub fn set_vout(&self, vout: Regulator0Output) {

@@ -11,6 +11,7 @@ use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use nrf52::gpio::Pin;
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
 
@@ -27,13 +28,13 @@ const PAN_ID: u16 = 0xABCD;
 /// Pins for SPI for the flash chip MX25R6435F
 #[derive(Debug)]
 pub struct SpiMX25R6435FPins {
-    chip_select: usize,
-    write_protect_pin: usize,
-    hold_pin: usize,
+    chip_select: Pin,
+    write_protect_pin: Pin,
+    hold_pin: Pin,
 }
 
 impl SpiMX25R6435FPins {
-    pub fn new(chip_select: usize, write_protect_pin: usize, hold_pin: usize) -> Self {
+    pub fn new(chip_select: Pin, write_protect_pin: Pin, hold_pin: Pin) -> Self {
         Self {
             chip_select,
             write_protect_pin,
@@ -45,13 +46,13 @@ impl SpiMX25R6435FPins {
 /// Pins for the SPI driver
 #[derive(Debug)]
 pub struct SpiPins {
-    mosi: usize,
-    miso: usize,
-    clk: usize,
+    mosi: Pin,
+    miso: Pin,
+    clk: Pin,
 }
 
 impl SpiPins {
-    pub fn new(mosi: usize, miso: usize, clk: usize) -> Self {
+    pub fn new(mosi: Pin, miso: Pin, clk: Pin) -> Self {
         Self { mosi, miso, clk }
     }
 }
@@ -59,14 +60,14 @@ impl SpiPins {
 /// Pins for the UART
 #[derive(Debug)]
 pub struct UartPins {
-    rts: usize,
-    txd: usize,
-    cts: usize,
-    rxd: usize,
+    rts: Pin,
+    txd: Pin,
+    cts: Pin,
+    rxd: Pin,
 }
 
 impl UartPins {
-    pub fn new(rts: usize, txd: usize, cts: usize, rxd: usize) -> Self {
+    pub fn new(rts: Pin, txd: Pin, cts: Pin, rxd: Pin) -> Self {
         Self { rts, txd, cts, rxd }
     }
 }
@@ -126,12 +127,12 @@ impl kernel::Platform for Platform {
 #[inline]
 pub unsafe fn setup_board(
     board_kernel: &'static kernel::Kernel,
-    button_rst_pin: usize,
+    button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
     gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
-    debug_pin1_index: usize,
-    debug_pin2_index: usize,
-    debug_pin3_index: usize,
+    debug_pin1_index: Pin,
+    debug_pin2_index: Pin,
+    debug_pin3_index: Pin,
     led_pins: &'static mut [(
         &'static dyn kernel::hil::gpio::Pin,
         capsules::led::ActivationMode,
@@ -155,8 +156,8 @@ pub unsafe fn setup_board(
 
     // Check if we need to erase UICR memory to re-program it
     // This only needs to be done when a bit needs to be flipped from 0 to 1.
-    let mut erase_uicr = (!uicr.get_psel0_reset_pin() & button_rst_pin != 0)
-        | (!uicr.get_psel1_reset_pin() & button_rst_pin != 0)
+    let mut erase_uicr = (!(uicr.get_psel0_reset_pin() as usize) & (button_rst_pin as usize) != 0)
+        | (!(uicr.get_psel1_reset_pin() as usize) & (button_rst_pin as usize) != 0)
         | (!(uicr.get_vout() as u32) & (reg_vout as u32) != 0);
 
     // Only enabling the NFC pin protection requires an erase.
