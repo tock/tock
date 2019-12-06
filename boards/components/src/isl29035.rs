@@ -23,6 +23,8 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
+use core::mem::MaybeUninit;
+
 use capsules::ambient_light::AmbientLight;
 use capsules::isl29035::Isl29035;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -33,17 +35,17 @@ use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::time;
 use kernel::hil::time::Alarm;
-use kernel::static_init;
-
-use crate::static_init_half;
+use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! isl29035_component_helper {
     ($A:ty) => {{
         use capsules::isl29035::Isl29035;
-        static mut BUF1: Option<VirtualMuxAlarm<'static, $A>> = None;
-        static mut BUF2: Option<Isl29035<'static, VirtualMuxAlarm<'static, $A>>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
+        static mut BUF2: MaybeUninit<Isl29035<'static, VirtualMuxAlarm<'static, $A>>> =
+            MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
 }
@@ -72,8 +74,8 @@ static mut I2C_BUF: [u8; 3] = [0; 3];
 
 impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
     type StaticInput = (
-        &'static mut Option<VirtualMuxAlarm<'static, A>>,
-        &'static mut Option<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
     );
 
     type Output = &'static Isl29035<'static, VirtualMuxAlarm<'static, A>>;
@@ -118,8 +120,8 @@ impl<A: 'static + time::Alarm<'static>> AmbientLightComponent<A> {
 
 impl<A: 'static + time::Alarm<'static>> Component for AmbientLightComponent<A> {
     type StaticInput = (
-        &'static mut Option<VirtualMuxAlarm<'static, A>>,
-        &'static mut Option<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
     );
     type Output = &'static AmbientLight<'static>;
 

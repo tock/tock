@@ -15,22 +15,25 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
+use core::mem::MaybeUninit;
+
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::time;
-
-use crate::static_init_half;
+use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! alarm_component_helper {
     ($A:ty) => {{
         use capsules::alarm::AlarmDriver;
-        static mut BUF1: Option<VirtualMuxAlarm<'static, $A>> = None;
-        static mut BUF2: Option<AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
+        static mut BUF2: MaybeUninit<AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>> =
+            MaybeUninit::uninit();
         (&mut BUF1, &mut BUF2)
     };};
 }
@@ -54,8 +57,8 @@ impl<A: 'static + time::Alarm<'static>> AlarmDriverComponent<A> {
 
 impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
     type StaticInput = (
-        &'static mut Option<VirtualMuxAlarm<'static, A>>,
-        &'static mut Option<AlarmDriver<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<AlarmDriver<'static, VirtualMuxAlarm<'static, A>>>,
     );
     type Output = &'static AlarmDriver<'static, VirtualMuxAlarm<'static, A>>;
 

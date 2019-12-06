@@ -22,12 +22,25 @@ macro_rules! static_init {
             // initial value into it (without dropping the initial zeros) and
             // return a reference to it.
             static mut BUF: MaybeUninit<$T> = MaybeUninit::uninit();
-            BUF.as_mut_ptr().write($e);
-            // TODO: use MaybeUninit::get_mut() once that is stabilized (see
-            // https://github.com/rust-lang/rust/issues/63568).
-            &mut *BUF.as_mut_ptr() as &'static mut $T
+            $crate::static_init_half!(&mut BUF, $T, $e)
         };
     }
+}
+
+/// Same as `static_init!()` but without actually creating the static buffer.
+/// The static buffer must be passed in.
+#[macro_export]
+macro_rules! static_init_half {
+    ($B:expr, $T:ty, $e:expr) => {
+        {
+            use core::mem::MaybeUninit;
+            let buf: &'static mut MaybeUninit<$T> = $B;
+            buf.as_mut_ptr().write($e);
+            // TODO: use MaybeUninit::get_mut() once that is stabilized (see
+            // https://github.com/rust-lang/rust/issues/63568).
+            &mut *buf.as_mut_ptr() as &'static mut $T
+        }
+    };
 }
 
 /// Allocates space in the kernel image for on-chip non-volatile storage.
