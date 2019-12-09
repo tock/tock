@@ -211,12 +211,15 @@ are portable interfaces that are implemented in a non-portable way.
 The choice of particular HIL interfaces is pretty important, and we
 have some general principles we follow:
 
-1. HIL implementations get to assume this HIL is the only way the
-   device will be used. As a result, Tock tries to avoid having
-   several HILs that provide different interfaces to similar
-   resources, because it will not, in general, be possible for
-   multiple drivers to use different HILs for the same device
-   simultaneously.
+1. HIL implementations get to assume this HIL is the only way the device will be
+   used. As a result, Tock tries to avoid having several HILs that provide
+   different interfaces to similar resources, because it will not, in general,
+   be possible for multiple drivers to use different HILs for the same device
+   simultaneously. For example, an ADC HIL could have two versions: one that
+   only takes single samples and one that allows for repeated, periodic samples.
+   If the two interfaces are used simultaneously, likely one would corrupt the
+   settings of the other, and at least one of the interfaces would not function
+   correctly.
 
 2. HIL implementations should be fairly general. If we have an interface that
    doesn't work very well across different hardware, we probably have the wrong
