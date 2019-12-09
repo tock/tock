@@ -141,8 +141,8 @@ impl Uicr {
         regs.pselreset0.set(pin as u32);
     }
 
-    pub fn get_psel0_reset_pin(&self) -> Pin {
-        Pin::from_u32(self.registers.pselreset0.get()).unwrap_or(Pin::P0_00)
+    pub fn get_psel0_reset_pin(&self) -> Option<Pin> {
+        Pin::from_u32(self.registers.pselreset0.get())
     }
 
     pub fn set_psel1_reset_pin(&self, pin: Pin) {
@@ -150,8 +150,8 @@ impl Uicr {
         regs.pselreset1.set(pin as u32);
     }
 
-    pub fn get_psel1_reset_pin(&self) -> Pin {
-        Pin::from_u32(self.registers.pselreset1.get()).unwrap_or(Pin::P0_00)
+    pub fn get_psel1_reset_pin(&self) -> Option<Pin> {
+        Pin::from_u32(self.registers.pselreset1.get())
     }
 
     pub fn set_vout(&self, vout: Regulator0Output) {

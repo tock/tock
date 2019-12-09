@@ -156,9 +156,12 @@ pub unsafe fn setup_board(
 
     // Check if we need to erase UICR memory to re-program it
     // This only needs to be done when a bit needs to be flipped from 0 to 1.
-    let mut erase_uicr = (!(uicr.get_psel0_reset_pin() as usize) & (button_rst_pin as usize) != 0)
-        | (!(uicr.get_psel1_reset_pin() as usize) & (button_rst_pin as usize) != 0)
-        | (!(uicr.get_vout() as u32) & (reg_vout as u32) != 0);
+    let psel0_reset: u32 = uicr.get_psel0_reset_pin().map_or(0, |pin| pin as u32);
+    let psel1_reset: u32 = uicr.get_psel1_reset_pin().map_or(0, |pin| pin as u32);
+    let mut erase_uicr = ((!psel0_reset & (button_rst_pin as u32))
+        | (!psel1_reset & (button_rst_pin as u32))
+        | (!(uicr.get_vout() as u32) & (reg_vout as u32)))
+        != 0;
 
     // Only enabling the NFC pin protection requires an erase.
     if nfc_as_gpios {
@@ -175,12 +178,18 @@ pub unsafe fn setup_board(
     let mut needs_soft_reset: bool = false;
 
     // Configure reset pins
-    if uicr.get_psel0_reset_pin() != button_rst_pin {
+    if uicr
+        .get_psel0_reset_pin()
+        .map_or(true, |pin| pin != button_rst_pin)
+    {
         uicr.set_psel0_reset_pin(button_rst_pin);
         while !nrf52::nvmc::NVMC.is_ready() {}
         needs_soft_reset = true;
     }
-    if uicr.get_psel1_reset_pin() != button_rst_pin {
+    if uicr
+        .get_psel1_reset_pin()
+        .map_or(true, |pin| pin != button_rst_pin)
+    {
         uicr.set_psel1_reset_pin(button_rst_pin);
         while !nrf52::nvmc::NVMC.is_ready() {}
         needs_soft_reset = true;
