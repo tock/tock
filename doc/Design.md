@@ -1,6 +1,22 @@
 Tock Design
 ===========
 
+<!-- npm i -g markdown-toc; markdown-toc -i Userland.md -->
+
+<!-- toc -->
+
+- [Architecture](#architecture)
+  * [Capsules](#capsules)
+  * [Processes](#processes)
+    + [Memory Layout](#memory-layout)
+  * [Grants](#grants)
+- [In-Kernel Design Principles](#in-kernel-design-principles)
+  * [Role of HILs](#role-of-hils)
+  * [Split-phase Operation](#split-phase-operation)
+  * [No External Dependencies](#no-external-dependencies)
+
+<!-- tocstop -->
+
 Most operating systems provide isolation between components using a process-like
 abstraction: each component is given it's own slice of the system memory (for
 it's stack, heap, data) that is not accessible by other components. Processes
@@ -143,19 +159,26 @@ dereferencing. Unlike shared buffers, which can only be a buffer type in a
 capsule, granted memory can be defined as any type. Therefore, processes cannot
 access this memory since doing so might violate type-safety.
 
-## Some in-kernel design principles
+## In-Kernel Design Principles
+
+To help meet Tock's goals, encourage portability across hardware, and ensure a
+sustainable operating system, several design principles have emerged over time
+for the Tock kernel. These are general principles that new contributions to the
+kernel should try to uphold. However, these principles have been informed by
+Tock's development, and will likely continue to evolve as Tock and the Rust
+ecosystem evolve.
 
 ### Role of HILs
 
 Generally, the Tock kernel is structured into three layers:
 
 1. Chip-specific drivers: these typically live in a crate in the
-   `chips` subdirectory, or an equivalent crate in an different repo
-   (e.g. the Titan port is out of tree but it’s `h1b` create is the
-   equivalent here). These drivers have implements that are specific
-   to the hardware particular to a certain microcontroller. Ideally,
+   `chips` subdirectory, or an equivalent crate in an different repository
+   (e.g. the Titan port is out of tree but its `h1b` create is the
+   equivalent here). These drivers have implementations that are specific
+   to the hardware of a particular microcontroller. Ideally,
    their implementation is fairly simple, and they merely adhere to a
-   common interface (a HIL). That’s not always the case, but that’s
+   common interface (a HIL). That's not always the case, but that's
    the ideal.
 
 2. Chip-agnostic, portable, peripheral drivers and subsystems. These
@@ -170,8 +193,10 @@ Generally, the Tock kernel is structured into three layers:
    the system call interfaces, and are often even more abstracted from
    the hardware than (2) - for example, the temperature sensor system
    call driver can use any temperature sensor, including several
-   implemented as portable peripheral drivers. We don’t have many
-   examples of this, but the system call interface is another point of
+   implemented as portable peripheral drivers.
+
+
+   The system call interface is another point of
    standardization that can be implemented in various ways. So it’s
    perfectly reasonable to have several implementations of the same
    system call interface that use completely different hardware
@@ -187,47 +212,86 @@ The choice of particular HIL interfaces is pretty important, and we
 have some general principles we follow:
 
 1. HIL implementations get to assume this HIL is the only way the
-   device will be used. As a result, it’s generally a bad idea to have
+   device will be used. As a result, Tock tries to avoid having
    several HILs that provide different interfaces to similar
-   functionality, because it will not, in general, be possible for
+   resources, because it will not, in general, be possible for
    multiple drivers to use different HILs for the same device
    simultaneously.
 
-2. HIL implementations should be fairly general. If we have an
-   interface that doesn't work very well across different hardware, we
-   probably have the wrong interface - it’s either too high level, or
-   too low level, or it’s just not flexible enough. But HILs shouldn’t
-   generally be designed to optimize for particular applications or
-   hardware, and definitely not for a particular combination of
-   applications and hardware. If there are cases where that is really
-   truly necessary, you can always implement a driver that is chip or
-   board specific, and circumvents the HILs entirely.
+2. HIL implementations should be fairly general. If we have an interface that
+   doesn't work very well across different hardware, we probably have the wrong
+   interface - it's either too high level, or too low level, or it’s just not
+   flexible enough. But HILs shouldn't generally be designed to optimize for
+   particular applications or hardware, and definitely not for a particular
+   combination of applications and hardware. If there are cases where that is
+   really truly necessary, a driver can be very chip or board specific and
+   circumvent the HILs entirely.
 
-### Split-phase operation
+    Sometimes there are useful interfaces that some chips can provide natively,
+    while other chips lack the necessary hardware support, but the functionality
+    could be emulated in some way. In these cases, Tock sometimes uses
+    "advanced" traits in HILs that enable a chip to expose its more
+    sophisticated features while not requiring that all implementors of the HIL
+    have to implement the function. For example, the UART HIL includes a
+    `ReceiveAdvanced` trait that includes a special function
+    `receive_automatic()` which receives bytes on the UART until a pause between
+    bytes is detected. This is supported directly by the SAM4L hardware, but can
+    also be emulated using timers and GPIO interrupts. By including this in an
+    advanced trait capsules can still use the interface but other UART
+    implementations that do not have that required feature do not have to
+    implement it.
+
+### Split-phase Operation
 
 While processes are time sliced and preemptive in Tock, the kernel is
-not. Everything is run-to-completion. That’s an important design
+not. Everything is run-to-completion. That is an important design
 choice because it allows the kernel to avoid allocating lots of stacks
 for lots of tasks, and it makes it possible to reason more simply
 about static and other shared variables.
 
-As a result, by design, all I/O operations have to be asynchronous, so
-that the kernel can be reasonably counted on to operate in a timely
-manner. We do this using TinyOS style split-phase callbacks because
-they are resolved statically and it avoids the need to allocate
-closures.
+Therefore, all I/O operations in the Tock kernel are asynchronous and
+non-blocking. A method call starts an operation and returns immediately. When
+the operation completes, the struct implementing the operation calls a callback.
+Tock uses callbacks rather than closures because closures typically require
+dynamic memory allocation, which the kernel avoids and does not generally
+support.
 
-Drivers are indeed more cumbersome to write than with a blocking API,
-however, this is a conscious choice to favor overall safety of the
-kernel (e.g. avoiding running out of memory or preventing other code
-from running on time) over functional correctness of individual
-drivers (because they might be more error-prone, not because they
-can’t be written correctly).
+This design does add complexity when writing drivers as a blocking API is
+generally simpler to use. However, this is a conscious choice to favor overall
+safety of the kernel (e.g. avoiding running out of memory or preventing other
+code from running on time) over functional correctness of individual drivers
+(because they might be more error-prone, not because they cannot be written
+correctly).
 
-There are cases where we violate this. For example, the SAM4L’s GPIO
-controller may take up to 5 cycles to become ready between
-operations. Technically, according to this principle, the GPIO driver
-should therefore be split-phase to wait on the ready condition, but we
-know it’ll take longer to set that up than to just spin on the ready
-bit, so we just spin for at most a handful of cycles. But those cases
-are rare.
+There are limited cases when the kernel can briefly block. For example, the
+SAM4L's GPIO controller can take up to 5 cycles to become ready between
+operations. Technically, a completely asynchronous driver would make this
+split-phase: the operation returns immediately, and issues a callback when it
+completes. However, because just setting up the callback will take more than 5
+cycles, spinning for 5 cycles is not only simpler, it's also cheaper. The
+implementation therefore spins for a handful of cycles before returning, such
+that the operation is synchronous. These cases are rare, though: the operation
+has to be so fast that it's not worth allowing other code to run during the
+delay.
+
+### No External Dependencies
+
+Tock chooses to not use any external libraries for any of the crates in the
+kernel. This is done to promote safety, as auditing the Tock code only requires
+inspecting the code in the Tock repository. Tock tries to be very specific with
+its use of `unsafe`, and tries to ensure that when it is used it is clear as to
+why. With external dependencies it would be significantly more challenging to
+ensure that uses of `unsafe` are valid, particularly as external libraries
+evolve.
+
+We also realize, however, that external libraries can be very useful. Tock's
+compromise has been to pull in specific portions of libraries into the
+`libraries` folder. This puts the library's source in the same repository, while
+keeping the library as a clearly separate crate. We do try to limit how often
+this happens.
+
+In the future, we hope that `cargo` and other Rust tools make it significantly
+easier to audit and manage dependencies. For example, cargo currently has no
+mechanism to emit an error if a dependency uses `unsafe`. If new tools emerge
+that help ensure that dependent code is safe, Tock would likely be able to
+leverage external dependencies.
