@@ -4,6 +4,7 @@ use cortexm4;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
+use nrf52840::gpio::Pin;
 
 use crate::PROCESSES;
 
@@ -42,7 +43,7 @@ impl Write for Writer {
 /// Panic handler
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840 Dongle LEDs (see back of board)
-    const LED1_PIN: usize = nrf52840::gpio::Pin::P0_06 as usize;
+    const LED1_PIN: Pin = Pin::P0_06;
     let led = &mut led::LedLow::new(&mut nrf52840::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
     debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
