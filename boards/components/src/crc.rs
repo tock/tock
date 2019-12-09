@@ -15,20 +15,22 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
+use core::mem::MaybeUninit;
+
 use capsules::crc;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-
-use crate::static_init_half;
+use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! crc_component_helper {
     ($C:ty) => {{
         use capsules::crc;
-        static mut BUF: Option<crc::Crc<'static, $C>> = None;
+        use core::mem::MaybeUninit;
+        static mut BUF: MaybeUninit<crc::Crc<'static, $C>> = MaybeUninit::uninit();
         &mut BUF
     };};
 }
@@ -48,7 +50,7 @@ impl<C: 'static + hil::crc::CRC> CrcComponent<C> {
 }
 
 impl<C: 'static + hil::crc::CRC> Component for CrcComponent<C> {
-    type StaticInput = &'static mut Option<crc::Crc<'static, C>>;
+    type StaticInput = &'static mut MaybeUninit<crc::Crc<'static, C>>;
     type Output = &'static crc::Crc<'static, C>;
 
     unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
