@@ -420,7 +420,10 @@ impl hil::gpio::Configure for GPIOPin {
     }
 
     fn disable_input(&self) -> hil::gpio::Configuration {
-        self.make_output()
+        // GPIOs are either inputs or outputs on this chip. To "disable" input
+        // would cause this pin to start driving, which is likely undesired, so
+        // this function is a no-op.
+        self.configuration()
     }
 
     fn configuration(&self) -> hil::gpio::Configuration {
