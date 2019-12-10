@@ -21,7 +21,41 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::static_init;
+
+pub struct UartMuxComponent {
+    uart: &'static dyn uart::Uart<'static>,
+    baud_rate: u32,
+}
+
+impl UartMuxComponent {
+    pub fn new(uart: &'static dyn uart::Uart<'static>, baud_rate: u32) -> UartMuxComponent {
+        UartMuxComponent { uart, baud_rate }
+    }
+}
+
+impl Component for UartMuxComponent {
+    type StaticInput = ();
+    type Output = &'static MuxUart<'static>;
+
+    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+        let uart_mux = static_init!(
+            MuxUart<'static>,
+            MuxUart::new(
+                self.uart,
+                &mut capsules::virtual_uart::RX_BUF,
+                self.baud_rate,
+            )
+        );
+
+        uart_mux.initialize();
+        hil::uart::Transmit::set_transmit_client(self.uart, uart_mux);
+        hil::uart::Receive::set_receive_client(self.uart, uart_mux);
+
+        uart_mux
+    }
+}
 
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
