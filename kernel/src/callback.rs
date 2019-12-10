@@ -111,7 +111,7 @@ impl Callback {
                     pc: self.fn_ptr.as_ptr() as usize,
                 }))
             });
-        if config::CONFIG.strace {
+        if config::CONFIG.trace_syscalls {
             debug!(
                 "[{}] schedule[{:x}:{:x}] @{:x}({:x}, {:x}, {:x}, {:x}) = {}",
                 self.app_id.idx(),

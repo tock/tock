@@ -285,7 +285,7 @@ impl Kernel {
                             match syscall {
                                 Syscall::MEMOP { operand, arg0 } => {
                                     let res = memop::memop(process, operand, arg0);
-                                    if config::CONFIG.strace {
+                                    if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{}] memop({:x}, {:x}) = {:x}",
                                             appid.idx(),
@@ -297,7 +297,7 @@ impl Kernel {
                                     process.set_syscall_return_value(res.into());
                                 }
                                 Syscall::YIELD => {
-                                    if config::CONFIG.strace {
+                                    if config::CONFIG.trace_syscalls {
                                         debug!("[{}] yield", appid.idx());
                                     }
                                     process.set_yielded_state();
@@ -331,7 +331,7 @@ impl Kernel {
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
-                                    if config::CONFIG.strace {
+                                    if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{}] subscribe({:x}, {:x}, @{:x}, {:x}) = {:x}",
                                             appid.idx(),
@@ -360,7 +360,7 @@ impl Kernel {
                                                 None => ReturnCode::ENODEVICE,
                                             },
                                         );
-                                    if config::CONFIG.strace {
+                                    if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{}] cmd({:x}, {:x}, {:x}, {:x}) = {:x}",
                                             appid.idx(),
@@ -392,7 +392,7 @@ impl Kernel {
                                             None => ReturnCode::ENODEVICE,
                                         }
                                     });
-                                    if config::CONFIG.strace {
+                                    if config::CONFIG.trace_syscalls {
                                         debug!(
                                             "[{}] allow({:x}, {:x}, @{:x}, {:x}) = {:x}",
                                             appid.idx(),
@@ -431,7 +431,7 @@ impl Kernel {
                     None => break,
                     Some(cb) => match cb {
                         Task::FunctionCall(ccb) => {
-                            if config::CONFIG.strace {
+                            if config::CONFIG.trace_syscalls {
                                 debug!(
                                     "[{}] function_call @{:x}({:x}, {:x}, {:x}, {:x})",
                                     appid.idx(),

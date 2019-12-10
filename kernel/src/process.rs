@@ -532,7 +532,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 },
                 _ => true,
             });
-            if config::CONFIG.strace {
+            if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
                 debug!(
                     "[{}] remove_pending_callbacks[{:x}:{:x}] = {} callback(s) removed",
