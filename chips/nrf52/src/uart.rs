@@ -125,8 +125,11 @@ register_bitfields! [u32,
 
     /// Pin select
     Psel [
-        // Pin number
-        PIN OFFSET(0) NUMBITS(5),
+        // Pin number. MSB is actually the port indicator, but since we number
+        // pins sequentially the binary representation of the pin number has
+        // the port bit set correctly. So, for simplicity we just treat the
+        // pin number as a 6 bit field.
+        PIN OFFSET(0) NUMBITS(6),
         // Connect/Disconnect
         CONNECT OFFSET(31) NUMBITS(1)
     ],
