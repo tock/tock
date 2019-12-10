@@ -67,29 +67,30 @@
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 
+use nrf52832::gpio::Pin;
 use nrf52dk_base::{SpiPins, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
-const LED1_PIN: usize = 17;
-const LED2_PIN: usize = 18;
-const LED3_PIN: usize = 19;
-const LED4_PIN: usize = 20;
+const LED1_PIN: Pin = Pin::P0_17;
+const LED2_PIN: Pin = Pin::P0_18;
+const LED3_PIN: Pin = Pin::P0_19;
+const LED4_PIN: Pin = Pin::P0_20;
 
 // The nRF52 DK buttons (see back of board)
-const BUTTON1_PIN: usize = 13;
-const BUTTON2_PIN: usize = 14;
-const BUTTON3_PIN: usize = 15;
-const BUTTON4_PIN: usize = 16;
-const BUTTON_RST_PIN: usize = 21;
+const BUTTON1_PIN: Pin = Pin::P0_13;
+const BUTTON2_PIN: Pin = Pin::P0_14;
+const BUTTON3_PIN: Pin = Pin::P0_15;
+const BUTTON4_PIN: Pin = Pin::P0_16;
+const BUTTON_RST_PIN: Pin = Pin::P0_21;
 
-const UART_RTS: usize = 5;
-const UART_TXD: usize = 6;
-const UART_CTS: usize = 7;
-const UART_RXD: usize = 8;
+const UART_RTS: Pin = Pin::P0_05;
+const UART_TXD: Pin = Pin::P0_06;
+const UART_CTS: Pin = Pin::P0_07;
+const UART_RXD: Pin = Pin::P0_08;
 
-const SPI_MOSI: usize = 22;
-const SPI_MISO: usize = 23;
-const SPI_CLK: usize = 24;
+const SPI_MOSI: Pin = Pin::P0_22;
+const SPI_MISO: Pin = Pin::P0_23;
+const SPI_CLK: Pin = Pin::P0_24;
 
 /// UART Writer
 pub mod io;
@@ -127,64 +128,67 @@ pub unsafe fn reset_handler() {
     let gpio_pins = static_init!(
         [&'static dyn kernel::hil::gpio::InterruptValuePin; 12],
         [
+            // Bottom right header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[3])
-            )
-            .finalize(), // Bottom right header on DK board
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[4])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_03])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[28])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_04])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[29])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_28])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[30])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_29])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[31])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_30])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[12])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_31])
             )
-            .finalize(), // Top mid header on DK board
+            .finalize(),
+            // Top mid header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[11])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_12])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[27])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_11])
             )
-            .finalize(), // Top left header on DK board
+            .finalize(),
+            // Top left header on DK board
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[26])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_27])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[2])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_26])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[25])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_02])
+            )
+            .finalize(),
+            static_init!(
+                kernel::hil::gpio::InterruptValueWrapper,
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_25])
             )
             .finalize(),
         ]

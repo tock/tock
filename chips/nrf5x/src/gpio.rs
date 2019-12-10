@@ -5,6 +5,8 @@
 //! * Date: August 18, 2016
 
 use core::ops::{Index, IndexMut};
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadWrite};
 use kernel::common::StaticRef;
@@ -330,16 +332,18 @@ register_bitfields! [u32,
     ]
 ];
 
-#[derive(Copy, Clone)]
-#[rustfmt::skip]
-pub enum Pin {
-    P0_00, P0_01, P0_02, P0_03, P0_04, P0_05, P0_06, P0_07,
-    P0_08, P0_09, P0_10, P0_11, P0_12, P0_13, P0_14, P0_15,
-    P0_16, P0_17, P0_18, P0_19, P0_20, P0_21, P0_22, P0_23,
-    P0_24, P0_25, P0_26, P0_27, P0_28, P0_29, P0_30, P0_31,
-    // Pins only on nrf52840.
-    P1_00, P1_01, P1_02, P1_03, P1_04, P1_05, P1_06, P1_07,
-    P1_08, P1_09, P1_10, P1_11, P1_12, P1_13, P1_14, P1_15,
+enum_from_primitive! {
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    #[rustfmt::skip]
+    pub enum Pin {
+        P0_00, P0_01, P0_02, P0_03, P0_04, P0_05, P0_06, P0_07,
+        P0_08, P0_09, P0_10, P0_11, P0_12, P0_13, P0_14, P0_15,
+        P0_16, P0_17, P0_18, P0_19, P0_20, P0_21, P0_22, P0_23,
+        P0_24, P0_25, P0_26, P0_27, P0_28, P0_29, P0_30, P0_31,
+        // Pins only on nrf52840.
+        P1_00, P1_01, P1_02, P1_03, P1_04, P1_05, P1_06, P1_07,
+        P1_08, P1_09, P1_10, P1_11, P1_12, P1_13, P1_14, P1_15,
+    }
 }
 
 pub struct GPIOPin {
@@ -541,17 +545,17 @@ pub struct Port {
     pub pins: &'static mut [GPIOPin],
 }
 
-impl Index<usize> for Port {
+impl Index<Pin> for Port {
     type Output = GPIOPin;
 
-    fn index(&self, index: usize) -> &GPIOPin {
-        &self.pins[index]
+    fn index(&self, index: Pin) -> &GPIOPin {
+        &self.pins[index as usize]
     }
 }
 
-impl IndexMut<usize> for Port {
-    fn index_mut(&mut self, index: usize) -> &mut GPIOPin {
-        &mut self.pins[index]
+impl IndexMut<Pin> for Port {
+    fn index_mut(&mut self, index: Pin) -> &mut GPIOPin {
+        &mut self.pins[index as usize]
     }
 }
 

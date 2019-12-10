@@ -14,23 +14,23 @@ use nrf52840::gpio::Pin;
 use nrf52dk_base::{SpiPins, UartPins};
 
 // The nRF52840 Dongle LEDs
-const LED1_PIN: usize = Pin::P0_06 as usize;
-const LED2_R_PIN: usize = Pin::P0_08 as usize;
-const LED2_G_PIN: usize = Pin::P1_09 as usize;
-const LED2_B_PIN: usize = Pin::P0_12 as usize;
+const LED1_PIN: Pin = Pin::P0_06;
+const LED2_R_PIN: Pin = Pin::P0_08;
+const LED2_G_PIN: Pin = Pin::P1_09;
+const LED2_B_PIN: Pin = Pin::P0_12;
 
 // The nRF52840 Dongle button
-const BUTTON_PIN: usize = Pin::P1_06 as usize;
-const BUTTON_RST_PIN: usize = Pin::P0_18 as usize;
+const BUTTON_PIN: Pin = Pin::P1_06;
+const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: usize = Pin::P0_13 as usize;
-const UART_TXD: usize = Pin::P0_15 as usize;
-const UART_CTS: usize = Pin::P0_17 as usize;
-const UART_RXD: usize = Pin::P0_20 as usize;
+const UART_RTS: Pin = Pin::P0_13;
+const UART_TXD: Pin = Pin::P0_15;
+const UART_CTS: Pin = Pin::P0_17;
+const UART_RXD: Pin = Pin::P0_20;
 
-const SPI_MOSI: usize = Pin::P1_01 as usize;
-const SPI_MISO: usize = Pin::P1_02 as usize;
-const SPI_CLK: usize = Pin::P1_04 as usize;
+const SPI_MOSI: Pin = Pin::P1_01;
+const SPI_MISO: Pin = Pin::P1_02;
+const SPI_CLK: Pin = Pin::P1_04;
 
 /// UART Writer
 pub mod io;
@@ -67,172 +67,124 @@ pub unsafe fn reset_handler() {
             // Left side of the USB plug
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_13 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_13])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_15 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_15])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_17 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_17])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_20 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_20])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_22 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_22])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_24 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_24])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_00 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_00])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_09 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_09])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_10 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_10])
             )
             .finalize(),
             // Right side of the USB plug
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_31 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_31])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_29 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_29])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_02 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_02])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_15 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_15])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_13 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_13])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_10 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_10])
             )
             .finalize(),
             // Below the PCB
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_26 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_26])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_04 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_04])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_11 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_11])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P0_14 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_14])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_11 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_11])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_07 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_07])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_01 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_01])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_04 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_04])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    &nrf52840::gpio::PORT[Pin::P1_02 as usize]
-                )
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_02])
             )
             .finalize(),
         ]

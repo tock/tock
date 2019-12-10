@@ -10,26 +10,25 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
-use kernel::hil::gpio::{
-    Configure, InterruptValuePin, InterruptValueWrapper, InterruptWithValue, Output, Pin,
-};
+use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
 use kernel::hil::rng::Rng;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
+use nrf52832::gpio::Pin;
 use nrf52832::rtc::Rtc;
 
 use nrf52dk_base::nrf52_components::ble::BLEComponent;
 
-const LED1_PIN: usize = 26;
-const LED2_PIN: usize = 22;
-const LED3_PIN: usize = 23;
-const LED4_PIN: usize = 24;
+const LED1_PIN: Pin = Pin::P0_26;
+const LED2_PIN: Pin = Pin::P0_22;
+const LED3_PIN: Pin = Pin::P0_23;
+const LED4_PIN: Pin = Pin::P0_24;
 
-const BUTTON1_PIN: usize = 25;
-const BUTTON2_PIN: usize = 14;
-const BUTTON3_PIN: usize = 15;
-const BUTTON4_PIN: usize = 16;
-const BUTTON_RST_PIN: usize = 19;
+const BUTTON1_PIN: Pin = Pin::P0_25;
+const BUTTON2_PIN: Pin = Pin::P0_14;
+const BUTTON3_PIN: Pin = Pin::P0_15;
+const BUTTON4_PIN: Pin = Pin::P0_16;
+const BUTTON_RST_PIN: Pin = Pin::P0_19;
 
 /// UART Writer
 pub mod io;
@@ -119,76 +118,41 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 14],
+        [&'static dyn kernel::hil::gpio::InterruptValuePin; 7],
         [
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[3])
-            )
-            .finalize(), // Bottom right header on DK board
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[4])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_25])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[28])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_26])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[29])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_27])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[30])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_28])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[12])
-            )
-            .finalize(), // Top mid header on DK board
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[11])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_29])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[27])
-            )
-            .finalize(), // Top left header on DK board
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[26])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_30])
             )
             .finalize(),
             static_init!(
                 kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[2])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[25])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[24])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[23])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[22])
+                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_31])
             )
             .finalize(),
         ]
@@ -196,7 +160,7 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static dyn Pin, capsules::led::ActivationMode); 4],
+        [(&'static dyn hil::gpio::Pin, capsules::led::ActivationMode); 4],
         [
             (
                 &nrf52832::gpio::PORT[LED1_PIN],
@@ -219,7 +183,10 @@ pub unsafe fn reset_handler() {
 
     // Setup GPIO pins that correspond to buttons
     let button_pins = static_init!(
-        [(&'static dyn InterruptValuePin, capsules::button::GpioMode); 4],
+        [(
+            &'static dyn hil::gpio::InterruptValuePin,
+            capsules::button::GpioMode
+        ); 4],
         [
             // 13
             (
@@ -420,13 +387,13 @@ pub unsafe fn reset_handler() {
 
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(
-        InterruptValueWrapper,
-        InterruptValueWrapper::new(&nrf52832::gpio::PORT[11])
+        hil::gpio::InterruptValueWrapper,
+        hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_11])
     )
     .finalize();
     let mcp_pin1 = static_init!(
-        InterruptValueWrapper,
-        InterruptValueWrapper::new(&nrf52832::gpio::PORT[12])
+        hil::gpio::InterruptValueWrapper,
+        hil::gpio::InterruptValueWrapper::new(&nrf52832::gpio::PORT[Pin::P0_12])
     )
     .finalize();
     let mcp23017_i2c = static_init!(
@@ -599,8 +566,8 @@ pub unsafe fn reset_handler() {
         nrf52832::chip::NRF52::new(&nrf52832::gpio::PORT)
     );
 
-    nrf52832::gpio::PORT[31].make_output();
-    nrf52832::gpio::PORT[31].clear();
+    nrf52832::gpio::PORT[Pin::P0_31].make_output();
+    nrf52832::gpio::PORT[Pin::P0_31].clear();
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52832::ficr::FICR_INSTANCE);
