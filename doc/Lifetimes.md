@@ -22,6 +22,16 @@ Next we'll discuss how Rust's notion of lifetimes maps to the lifetimes of
 values in Tock and how this affects the use of different types of values in the
 kernel.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Lifetimes.md -->
+
+<!-- toc -->
+
+- [Rust lifetimes](#rust-lifetimes)
+- [Buffer management](#buffer-management)
+- [Circular dependencies](#circular-dependencies)
+
+<!-- tocstop -->
+
 ## Rust lifetimes
 
 Each reference (called a _borrow_) in Rust has _lifetime_ associated with its

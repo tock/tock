@@ -6,6 +6,17 @@ Tock master repository.
 
 _It is a work in progress. Comments and pull requests are appreciated!_
 
+<!-- npm i -g markdown-toc; markdown-toc -i OutOfTree.md -->
+
+<!-- toc -->
+
+- [Overview](#overview)
+- [Structure](#structure)
+- [Boards](#boards)
+- [Everything Else](#everything-else)
+- [Examples](#examples)
+
+<!-- tocstop -->
 
 Overview
 --------

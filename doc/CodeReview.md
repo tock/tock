@@ -5,6 +5,17 @@
 This document describes how the Tock core team merges pull requests for and
 makes releases of the main Tock repository.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Abstract.md -->
+
+<!-- toc -->
+
+- [1. Introduction](#1-introduction)
+- [2. Pull Requests](#2-pull-requests)
+- [3. Reviews](#3-reviews)
+- [4. Release process](#4-release-process)
+
+<!-- tocstop -->
+
 ## 1. Introduction
 
 As Tock supports more chips and services, changes to core interfaces or
