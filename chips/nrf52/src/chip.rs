@@ -13,8 +13,8 @@ use kernel::debug;
 use nrf5x::peripheral_interrupts;
 
 pub trait InterruptServiceTrait {
-    // Service an interrupt, if supported by this chip. If this interrupt number is not supported,
-    // return false.
+    /// Service an interrupt, if supported by this chip. If this interrupt number is not supported,
+    /// return false.
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
 }
 
