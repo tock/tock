@@ -275,6 +275,10 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let interrupt_service = static_init!(
+        nrf52832::chip::InterruptService,
+        nrf52832::chip::InterruptService::new(&nrf52832::gpio::PORT)
+    );
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
@@ -294,5 +298,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         nrf52832::uicr::Regulator0Output::DEFAULT,
         false,
+        interrupt_service,
     );
 }
