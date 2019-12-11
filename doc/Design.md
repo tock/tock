@@ -338,3 +338,58 @@ not explicitly been granted the capability from calling the protected API.
 To promote the principle of least privilege, capabilities are relatively
 fine-grained and provide narrow access to specific APIs. This means that
 generally new APIs will require defining new capabilities.
+
+### Ease of Use and Understanding
+
+Whenever possible, Tock's design optimizes to lower the barrier for new users or
+developers to understand and use Tock. Sometimes, this means intentionally
+making a design choice that prioritizes readability or clarity over performance.
+
+As an example, Tock generally avoids using Rust's
+[features](https://doc.rust-lang.org/1.0.0/book/conditional-compilation.html)
+and `#[cfg()]` attribute to enable conditional compilation. While using a set of
+features can lead to optimizing exactly what code should be included when the
+kernel is built, it also makes it very difficult for users unfamiliar with the
+features to decide which features to enable and when. Likely, these users will
+use the default configuration, reducing the benefit of having the features
+available. Also, conditional compilation makes it very difficult to understand
+exactly what version of the kernel is running on any particular board as the
+features can substantially change what code is running. Finally, the non-default
+options are unlikely to be tested as robustly as the default configuration,
+leading to versions of the kernel which are no longer available.
+
+Tock also tries to ensure Tock "just works" for users. This manifests by trying
+to minimize the number of steps to get Tock running. The build system uses
+`make` which is familiar to many developers, and just running `make` in a board
+folder will compile the kernel. The most supported boards (Hail and imix) can
+then be programmed by just running `make program`. Installing an app just
+requires one more command: `tockloader install blink`. Tockloader will continue
+to expand to support the ease-of-use with Tock. Now, "just works" is a design
+goal that Tock is not completely meeting. But, future design decisions should
+continue to encourage Tock to "just work".
+
+### Demonstrated Features
+
+Tock discourages adding functionality to the kernel unless a clear use case has
+been established. For example, adding a red-black tree implementation to
+`kernel/src/common` might be useful in the future for some new Tock feature.
+However, that would be unlikely to be merged without a use case inside of the
+kernel that motivates needing a red-black tree. This general principle provides
+a starting point for evaluating new features in pull requests.
+
+Requiring a use case also makes the code more likely to be tested and used, as
+well as updated as other internal kernel APIs change.
+
+### Merge Aggressively, Archive Unabashedly
+
+As an experimental embedded operating system with roots in academic research,
+Tock is likely to receive contributions of new, risky, experimental, or narrowly
+focused code that may or may not be useful for the long-term growth of Tock.
+Rather than use a "holding" or "contribution" repository for new, experimental
+code, Tock tries to merge new features into mainline Tock. This both eases the
+maintenance burden of the code (it doesn't have to be maintained out-of-tree)
+and makes the feature more visible.
+
+However, not all features catch on, or are completed, or prove useful, and having the
+code in mainline Tock becomes an overall maintenance burden. In these cases, Tock
+will move the code to an archive repository.
