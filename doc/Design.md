@@ -215,11 +215,11 @@ have some general principles we follow:
    used. As a result, Tock tries to avoid having several HILs that provide
    different interfaces to similar resources, because it will not, in general,
    be possible for multiple drivers to use different HILs for the same device
-   simultaneously. For example, an ADC HIL could have two versions: one that
-   only takes single samples and one that allows for repeated, periodic samples.
-   If the two interfaces are used simultaneously, likely one would corrupt the
-   settings of the other, and at least one of the interfaces would not function
-   correctly.
+   simultaneously. For example, two separate HIL traits could exist for the ADC:
+   one that only provides single samples and one that allows for repeated,
+   periodic samples. If the two interfaces provide access to the same hardware
+   and are used simultaneously, likely one would corrupt the settings of the
+   other, and at least one of the interfaces would not function correctly.
 
 2. HIL implementations should be fairly general. If we have an interface that
    doesn't work very well across different hardware, we probably have the wrong
@@ -298,3 +298,43 @@ easier to audit and manage dependencies. For example, cargo currently has no
 mechanism to emit an error if a dependency uses `unsafe`. If new tools emerge
 that help ensure that dependent code is safe, Tock would likely be able to
 leverage external dependencies.
+
+### Using `unsafe` and Capabilities
+
+Tock attempts to minimize the amount of unsafe code in the kernel. Of course,
+there are a number of operations that the kernel must do which fundamentally
+violate Rust's memory safety guarantees, and we try to compartmentalize these
+operations and explain how to use them in an ultimately safe manner.
+
+For operations that violate Rust safety, Tock marks the functions, structs, and
+traits as `unsafe`. This restricts the crates that can use these elements.
+Generally, Tock tries to make it clear where an unsafe operation is occurring by
+requiring the `unsafe` keyword be present. For example, with memory-mapped
+input/output (MMIO) registers, casting an arbitrary pointer to a struct that
+represents those registers violates memory safety unless the register map and
+address are verified to be correct. To denote this, doing the cast is clearly
+marked as `unsafe`. However, once the cast is complete, accessing those
+registers no longer violates memory safety. Therefore, using the registers does
+not require the `unsafe` keyword.
+
+Not all potentially dangerous code violates Rust's safety model, however. For
+example, stopping a process from running on the board does not violate
+language-level safety, but is still a potentially problematic operation from a
+security and system reliability standpoint, as not all kernel code should be
+able halt arbitrary processes (in particular, untrusted capsules should not have
+this access to this API). One way to restrict access to these types of functions
+would be to re-use the `unsafe` mechanism, since cargo will emit a warning if
+code that is prohibited from using `unsafe` attempts to invoke an `unsafe`
+function. However, this muddles the use of unsafe, and makes it difficult to
+understand if code potentially violates safety or is a restricted API.
+
+Instead, Tock uses
+[capabilities](../Soundness.md#capabilities-restricting-access-to-certain-functions-and-operations)
+to restrict access to important APIs. As such, any public APIs inside the kernel
+that should be very restricted in what other code can use them should require a
+specific capability in their function signatures. This prevents code that has
+not explicitly been granted the capability from calling the protected API.
+
+To promote the principle of least privilege, capabilities are relatively
+fine-grained and provide narrow access to specific APIs. This means that
+generally new APIs will require defining new capabilities.
