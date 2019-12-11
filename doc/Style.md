@@ -4,6 +4,13 @@ Tock Style
 This document overviews some stylistic conventions that Tock generally adheres
 to.
 
+## Code Style
+
+Tock uses [rustfmt](https://github.com/rust-lang/rustfmt) for source code style
+and formatting. In general, all of Tock's code is formatted according to the
+`rustfmt` defaults. There are a few exceptions, but these should generally be
+avoided.
+
 ## Commenting
 
 Rust includes three types of comments: `//`, `///`, and `//!`. Tock uses all
