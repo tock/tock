@@ -35,6 +35,7 @@ Tock Guides
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Debugging Help](debugging)** - Guides for various debugging techniques.
+- **[Style](Style.md)** - Stylistic aspects of Tock code.
 
 ### Management of Tock
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
