@@ -2,8 +2,8 @@
 
 ## Abstract
 
-This document describes how the Tock core team merges pull requests for and
-makes releases of the main Tock repository.
+This document describes how the Tock [core team](../CoreTeam.md) merges pull
+requests for and makes releases of the main Tock repository.
 
 ## 1. Introduction
 
@@ -25,7 +25,8 @@ team. Pull requests fall into two categories:
    Examples of upkeep requests involve bug fixes, documentation (that isn't
    specification), or minor reimplementations of existing modules.
 1. **Significant pull requests** involve new modules, significant
-   re-implementations, new traits, or changes to the build system.
+   re-implementations, new traits, new kernel components or changes to the build
+   system.
 
 Whether a pull request is upkeep or significant is based not only on the
 magnitude of the change but also what sort of code is changed. For example,
@@ -76,27 +77,25 @@ Comment" vote and a "Request Changes" is considered a "Discuss". If, after
 discussion, non-trivial changes are necessary for the pull request, the review
 window is re-started after the changes are made.
 
-The members of the core team are:
- * Niklas Adolfsson - [niklasad1](https://github.com/niklasad1)
- * Hudson Ayers - [hudson-ayers](https://github.com/hudson-ayers)
- * Brad Campbell - [bradjc](https://github.com/bradjc)
- * Branden Ghena - [brghena](https://github.com/brghena)
- * Philip Levis - [phil-levis](https://github.com/phil-levis)
- * Amit Levy - [alevy](https://github.com/alevy)
- * Pat Pannuto - [ppannuto](https://github.com/ppannuto)
+## 4. Release Process
 
-## 4. Release process
+Tock releases are milestone-based, with a rough expectation that a new release
+of Tock would occur every 3-12 months. Before a release, a set of issues are
+tagged with the `release-blocker` tag, and the release will be tested when all
+of the release-blocker issues are closed. One week before the intended release
+date, all new pull requests are put on hold, and everyone uses/tests the
+software using the established testing process. Bug fixes for the release are
+marked as such (in the title) and applied quickly. Once the release is ready,
+the core team makes a branch with the release number and pull request reviews
+restart.
 
-Having periodic stable releases makes it easier for users to install
-and track changes to Tock. Our intention is to release approximately
-every two months, at the beginning of even months. One week before
-the intended release date, all new pull requests are put on hold, and
-everyone uses/tests the software using the established testing process.
-Bug fixes for the release are marked as such (in the title) and applied
-quickly. Once the release is ready, the core team makes a branch with
-the release number and pull request reviews restart.
-
-Release branches are named 'release-n-mon-year'.
-For example, 'release-0.1-Feb-2018'.
+Release branches are named `release-[version]`. For example, 'release-1.4.1'.
 
 Patches may be made against release branches to fix bugs.
+
+Note, previously Tock operated with a time-based release policy with the goal of
+creating a release every two months. The intent was these periodic stable
+releases would make it easier for users to install and track changes to Tock.
+However, the overhead of keeping to that schedule was too daunting to make the
+releases reliably timed, and if often did not fit well with the inclusion of
+major features which might be in-flight at a release point.

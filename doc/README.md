@@ -37,5 +37,6 @@ Tock Guides
 - **[Debugging Help](debugging)** - Guides for various debugging techniques.
 
 ### Management of Tock
+- **[Core Team](CoreTeam.md)** - Tock core team members and information.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 
