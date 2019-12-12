@@ -14,6 +14,10 @@ Tock Design
   * [Role of HILs](#role-of-hils)
   * [Split-phase Operation](#split-phase-operation)
   * [No External Dependencies](#no-external-dependencies)
+  * [Using `unsafe` and Capabilities](#using-unsafe-and-capabilities)
+  * [Ease of Use and Understanding](#ease-of-use-and-understanding)
+  * [Demonstrated Features](#demonstrated-features)
+  * [Merge Aggressively, Archive Unabashedly](#merge-aggressively-archive-unabashedly)
 
 <!-- tocstop -->
 
