@@ -33,7 +33,7 @@ const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultRespons
 
 // RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+static mut APP_MEMORY: [u8; 5 * 1024] = [0; 5 * 1024];
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -44,6 +44,10 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
     console: &'static capsules::console::Console<'static>,
+    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+        'static,
+        capsules::virtual_uart::UartDevice<'static>,
+    >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
@@ -59,6 +63,7 @@ impl Platform for HiFive1 {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -166,6 +171,8 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
+    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
+
     debug!("HiFive1 initialization complete. Entering main loop");
 
     extern "C" {
@@ -178,6 +185,7 @@ pub unsafe fn reset_handler() {
     let hifive1 = HiFive1 {
         console: console,
         alarm: alarm,
+        lldb: lldb,
     };
 
     kernel::procs::load_processes(
