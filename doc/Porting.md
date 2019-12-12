@@ -8,20 +8,29 @@ _It is a work in progress. Comments and pull requests are appreciated!_
 Overview
 --------
 
-At a high level, to port Tock to a new microcontroller, you need to write a new
-"chip" crate and a new "board" crate (porting to a new board with an already
-supported microcontroller just needs a new "board" crate). The chip crate
-implements the traits found in `kernel/src/hil` for controllers (e.g.  the
-UART, GPIO, alarms, etc) and the board crate stitches capsules together with
-the chip crates (e.g. assigning pins, baud rates, etc).
+At a high level, to port Tock to a new platform you will need to create a new
+"board" as a crate, as well as potentially add additional "chip" and "arch"
+crates. The board crate specifies the exact resources available on a hardware
+platform by stitches capsules together with the chip crates (e.g. assigning
+pins, setting baud rates, allocating hardware peripherals etc.). The chip crate
+implements the peripheral drivers (e.g. UART, GPIO, alarms, etc.) for a specific
+microcontroller by implementing the traits found in `kernel/src/hil`. If your
+platform uses a microncontroller already supported by Tock then you can use the
+existing chip crate. The arch crate implements the low-level code for a specific
+hardware architecture (e.g. what happens when the chip first boots and how
+system calls are implemented).
 
+Crate Details
+-------------
 
-`arch` Crate
-------------
+This section includes more details on what is required to implement each type of
+crate for a new hardware platform.
+
+### `arch` Crate
 
 Tock currently supports the ARM Cortex-M0, Cortex-M3, and Cortex M4, and the
-riscv32imac architectures. There is not much
-architecture-specific code in Tock, the list is pretty much:
+riscv32imac architectures. There is not much architecture-specific code in Tock,
+the list is pretty much:
 
  - Syscall entry/exit
  - Interrupt configuration
@@ -39,8 +48,7 @@ If you are interested in porting Tock to a new architecture, it's likely best
 to reach out to us via email or Slack before digging in too deep.
 
 
-`chip` Crate
-------------
+### `chip` Crate
 
 The `chip` crate is specific to a particular microcontroller, but should attempt
 to be general towards a family of microcontrollers. For example, support for the
@@ -68,27 +76,37 @@ Implement something like `kernel::hil::UART` for your chip, then submit a pull
 request. Pick a new peripheral and repeat!
 
 
-`board` Crate
--------------
+### `board` Crate
 
 The `board` crate, in `boards/src`, is specific to a physical hardware platform.
 The board file essentially configures the kernel to support the specific
 hardware setup. This includes instantiating drivers for sensors, mapping
 communication buses to those sensors, configuring GPIO pins, etc.
 
-Initializing a board is a bit obtuse and verbose right now, we have some plans
-for how to improve the process, but in the short term the best bet is to start
-from an existing board's `main.rs` file and adapt it. Initially, you will
-likely want to delete most of the capsules and add them slowly as you get
-things working.
+Tock is leveraging "components" for setting up board crates. Components are
+contained structs that include all of the setup code for a particular driver,
+and only require boards to pass in the specific options that are unique to the
+particular platform. For example:
 
-### Board Support
+```rust
+let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
+    .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
+```
+
+instantiates the component for an ambient light sensor. Board initiation should
+be largely done using components, but not all components have been created yet,
+so board files are generally a mix of components and verbose driver
+instantiation. The best bet is to start from an existing board's `main.rs` file
+and adapt it. Initially, you will likely want to delete most of the capsules and
+add them slowly as you get things working.
+
+#### Board Support
 
 In addition to kernel code, boards also require some support files. These
 specify metadata such as the board name, how to load code onto the board, and
 anything special that userland applications may need for this board.
 
-#### `panic!`s (aka `io.rs`)
+##### `panic!`s (aka `io.rs`)
 
 Each board must author a custom routine to handle `panic!`s. Most `panic!`
 machinery is handled by the Tock kernel, but the board author must provide
@@ -113,7 +131,7 @@ with a call to
 For largely historical reasons, panic implementations for all boards live in
 a file named `io.rs` adjacent to the board's `main.rs` file.
 
-#### Board Cargo.toml, build.rs
+##### Board Cargo.toml, build.rs
 
 Every board crate must author a top-level manifest, `Cargo.toml`. In general,
 you can probably simply copy this from another board, modifying the board name
@@ -121,7 +139,7 @@ and author(s) as appropriate. Note that Tock also includes a build script,
 `build.rs`, that you should also copy. The build script simply adds a
 dependency on the kernel layout.
 
-#### Board Makefile
+##### Board Makefile
 
 There is a Makefile in the root of every board crate, at a minimum, the board
 Makefile must include:
@@ -140,7 +158,7 @@ In general, you should not need to
 dig into this Makefile -- if something doesn't seem to be working, hop on slack
 and ask.
 
-##### Getting the built kernel onto a board
+###### Getting the built kernel onto a board
 
 In addition to building the kernel, the board Makefile should include rules
 for getting code onto the board. This will naturally be fairly board-specific,
@@ -165,16 +183,47 @@ that explains how to program the board:
         exit 1
 ```
 
-### Loading Apps
+##### Board README
+
+Every board must have a `README.md` file included in the top level of the crate.
+This file must:
+
+- Provide links to information about the platform and how to purchase/acquire
+  the platform. If there are different versions of the platform the version used
+  in testing should be clearly specified.
+- Include an overview on how to program the hardware, including any additional
+  dependencies that are required.
+
+#### Loading Apps
 
 Ideally, [Tockloader](https://github.com/tock/tockloader) will support loading
 apps on to your board (perhaps with some flags set to specific values). If that
 is not the case, please create an issue on the Tockloader repo so we can update
 the tool to support loading code onto your board.
 
-### Common Pitfalls
+#### Common Pitfalls
 
 - Make sure you are careful when setting up the board `main.rs` file. In
   particular, it is important to ensure that all of the required `set_client`
   functions for capsules are called so that callbacks are not lost. Forgetting
   these often results in the platform looking like it doesn't do anything.
+
+
+Adding a Platform to Tock Repository
+------------------------------------
+
+After creating a new platform, we would be thrilled to have it included in
+mainline Tock. However, Tock has a few guidelines for the minimum requirements
+of a board that is merged into the main Tock repository:
+
+1. The hardware must be widely available. Generally that means the hardware
+   platform can be purchased online.
+2. The port of Tock to the platform must include at least:
+    - `Console` support so that `debug!()` and `printf()` work.
+    - Timer support.
+    - GPIO support with interrupt functionality.
+3. The contributor must be willing to maintain the platform, at least initially,
+   and help test the platform for future releases.
+
+With these requirements met we should be able to merge the platform into Tock
+relatively quickly.
