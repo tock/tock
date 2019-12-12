@@ -150,7 +150,7 @@ pub unsafe fn setup_board(
     app_fault_response: kernel::procs::FaultResponse,
     reg_vout: Regulator0Output,
     nfc_as_gpios: bool,
-    interrupt_service: &'static dyn nrf52::chip::InterruptServiceTrait,
+    interrupt_service: &'static dyn nrf52::chip::InterruptService,
 ) {
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52::uicr::Uicr::new();

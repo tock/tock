@@ -562,8 +562,8 @@ pub unsafe fn reset_handler() {
     };
 
     let interrupt_service = static_init!(
-        nrf52832::chip::InterruptService,
-        nrf52832::chip::InterruptService::new(&nrf52832::gpio::PORT)
+        nrf52832::chip::Nrf52832InterruptService,
+        nrf52832::chip::Nrf52832InterruptService::new(&nrf52832::gpio::PORT)
     );
     let chip = static_init!(
         nrf52832::chip::NRF52,

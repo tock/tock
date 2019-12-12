@@ -220,8 +220,8 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let interrupt_service = static_init!(
-        nrf52840::chip::InterruptService,
-        nrf52840::chip::InterruptService::new(&nrf52840::gpio::PORT)
+        nrf52840::chip::Nrf52840InterruptService,
+        nrf52840::chip::Nrf52840InterruptService::new(&nrf52840::gpio::PORT)
     );
     nrf52dk_base::setup_board(
         board_kernel,

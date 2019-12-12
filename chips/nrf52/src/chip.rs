@@ -12,7 +12,7 @@ use kernel::common::deferred_call;
 use kernel::debug;
 use nrf5x::peripheral_interrupts;
 
-pub trait InterruptServiceTrait {
+pub trait InterruptService {
     /// Service an interrupt, if supported by this chip. If this interrupt number is not supported,
     /// return false.
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
@@ -22,11 +22,11 @@ pub struct NRF52 {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
-    interrupt_service: &'static dyn InterruptServiceTrait,
+    interrupt_service: &'static dyn InterruptService,
 }
 
 impl NRF52 {
-    pub unsafe fn new(interrupt_service: &'static dyn InterruptServiceTrait) -> NRF52 {
+    pub unsafe fn new(interrupt_service: &'static dyn InterruptService) -> NRF52 {
         NRF52 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
@@ -38,17 +38,17 @@ impl NRF52 {
     }
 }
 
-pub struct InterruptService {
+pub struct Nrf52InterruptService {
     gpio_port: &'static nrf5x::gpio::Port,
 }
 
-impl InterruptService {
-    pub unsafe fn new(gpio_port: &'static nrf5x::gpio::Port) -> InterruptService {
-        InterruptService { gpio_port }
+impl Nrf52InterruptService {
+    pub unsafe fn new(gpio_port: &'static nrf5x::gpio::Port) -> Nrf52InterruptService {
+        Nrf52InterruptService { gpio_port }
     }
 }
 
-impl InterruptServiceTrait for InterruptService {
+impl InterruptService for Nrf52InterruptService {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),

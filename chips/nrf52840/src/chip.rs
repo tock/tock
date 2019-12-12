@@ -1,19 +1,19 @@
 use crate::peripheral_interrupts;
-use nrf52::chip::InterruptServiceTrait;
+use nrf52::chip::InterruptService;
 
-pub struct InterruptService {
-    nrf52: nrf52::chip::InterruptService,
+pub struct Nrf52840InterruptService {
+    nrf52: nrf52::chip::Nrf52InterruptService,
 }
 
-impl InterruptService {
-    pub unsafe fn new(gpio_port: &'static nrf52::gpio::Port) -> InterruptService {
-        InterruptService {
-            nrf52: nrf52::chip::InterruptService::new(gpio_port),
+impl Nrf52840InterruptService {
+    pub unsafe fn new(gpio_port: &'static nrf52::gpio::Port) -> Nrf52840InterruptService {
+        Nrf52840InterruptService {
+            nrf52: nrf52::chip::Nrf52InterruptService::new(gpio_port),
         }
     }
 }
 
-impl InterruptServiceTrait for InterruptService {
+impl InterruptService for Nrf52840InterruptService {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             peripheral_interrupts::USBD => nrf52::usbd::USBD.handle_interrupt(),
