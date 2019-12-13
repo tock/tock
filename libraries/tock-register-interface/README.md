@@ -58,9 +58,7 @@ register_structs! {
 }
 ```
 
-This generates a C-style struct of the following form. Unit tests are also
-generated to make sure that the offsets and padding are consistent with the
-actual fields in the struct, and that alignment is correct.
+This generates a C-style struct of the following form.
 
 ```rust
 #[repr(C)]
@@ -89,6 +87,21 @@ struct Registers {
 
     // Etc.
 }
+```
+
+By default, `std` unit tests for the struct are generated as well (that is,
+tests attributed with `#[test]`). The unit tests make sure that the offsets and
+padding are consistent with the actual fields in the struct, and that alignment
+is correct.
+
+Since those tests would break compilation in `custom-test-frameworks`
+environments, it is possible to opt out of the test generation. To do so, add
+the following cargo feature:
+
+```toml
+[dependencies.tock-registers]
+version = "0.4.x"
+features = ["no_std_unit_tests"]
 ```
 
 WARNING: For now, the **unit tests checking offsets and alignments are not yet

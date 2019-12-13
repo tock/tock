@@ -325,6 +325,7 @@ macro_rules! test_fields {
     };
 }
 
+#[cfg(not(feature = "no_std_unit_tests"))]
 #[macro_export]
 macro_rules! register_structs {
     {
@@ -350,5 +351,20 @@ macro_rules! register_structs {
             }
         )*
         }
+    };
+}
+
+#[cfg(feature = "no_std_unit_tests")]
+#[macro_export]
+macro_rules! register_structs {
+    {
+        $(
+            $(#[$attr:meta])*
+            $vis_struct:vis $name:ident {
+                $( $fields:tt )*
+            }
+        ),*
+    } => {
+        $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name { $($fields)* } ); )*
     };
 }
