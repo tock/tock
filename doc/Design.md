@@ -396,4 +396,4 @@ and makes the feature more visible.
 
 However, not all features catch on, or are completed, or prove useful, and having the
 code in mainline Tock becomes an overall maintenance burden. In these cases, Tock
-will move the code to an archive repository.
+will move the code to an [archive repository](https://github.com/tock/tock-archive/).
