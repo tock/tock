@@ -234,19 +234,19 @@ have some general principles we follow:
    really truly necessary, a driver can be very chip or board specific and
    circumvent the HILs entirely.
 
-    Sometimes there are useful interfaces that some chips can provide natively,
-    while other chips lack the necessary hardware support, but the functionality
-    could be emulated in some way. In these cases, Tock sometimes uses
-    "advanced" traits in HILs that enable a chip to expose its more
-    sophisticated features while not requiring that all implementors of the HIL
-    have to implement the function. For example, the UART HIL includes a
-    `ReceiveAdvanced` trait that includes a special function
-    `receive_automatic()` which receives bytes on the UART until a pause between
-    bytes is detected. This is supported directly by the SAM4L hardware, but can
-    also be emulated using timers and GPIO interrupts. By including this in an
-    advanced trait capsules can still use the interface but other UART
-    implementations that do not have that required feature do not have to
-    implement it.
+   Sometimes there are useful interfaces that some chips can provide natively,
+   while other chips lack the necessary hardware support, but the functionality
+   could be emulated in some way. In these cases, Tock sometimes uses
+   "advanced" traits in HILs that enable a chip to expose its more
+   sophisticated features while not requiring that all implementors of the HIL
+   have to implement the function. For example, the UART HIL includes a
+   `ReceiveAdvanced` trait that includes a special function
+   `receive_automatic()` which receives bytes on the UART until a pause between
+   bytes is detected. This is supported directly by the SAM4L hardware, but can
+   also be emulated using timers and GPIO interrupts. By including this in an
+   advanced trait capsules can still use the interface but other UART
+   implementations that do not have that required feature do not have to
+   implement it.
 
 ### Split-phase Operation
 
