@@ -99,3 +99,58 @@ releases would make it easier for users to install and track changes to Tock.
 However, the overhead of keeping to that schedule was too daunting to make the
 releases reliably timed, and if often did not fit well with the inclusion of
 major features which might be in-flight at a release point.
+
+## Other Tock Repositories
+
+This document covers the procedure of the core Tock repository
+([tock/tock](https://github.com/tock/tock)). However, there are several other
+repositories that are part of the greater Tock project.
+
+### Userland Repositories
+
+Tock has two userland environments that are heavily developed and supported:
+
+ - [tock/libtock-c](https://github.com/tock/libtock-c) The C/C++ runtime was
+   the first runtime developed. It is fairly stable at this point and sees
+   primarily maintenance support as needed. Its development process follows
+   the main tock repository, with the same core team.
+ - [tock/libtock-rs](https://github.com/tock/libtock-rs) The Rust runtime is an
+   active work-in-progress. While basic application scenarios work, there are
+   still major architectural changes coming as it converges. Thus, the Rust
+   runtime follows a slightly less formal model to allow it to move faster.
+   Primary owners of the Rust runtime are:
+    - @alevy
+    - @Woyten
+    - @torfmaster
+    - @jrvanwhy
+   However the Tock core working group reserves the right to make final
+   authoritative decisions if need merits.
+
+### Tertiary Repositories
+
+Tock has several additional smaller support repositories. These generally do
+not have any formal contribution guidelines beyond pull requests and approval
+from the primary maintainer(s). Any member of the core working group can merge
+PRs in these repositories, however, generally things are deferred to the owner
+of the component.
+
+ - [tock/book](https://github.com/tock/book) Getting start guide and tutorials
+   for Tock.
+   Primarily maintained by @alevy and @bradjc (Dec 2019).
+ - [tock/elf2tab](https://github.com/tock/elf2tab) Tool to convert apps from
+   `.elf` to Tock Application Bundles aka `.tab`s.
+   Primarily maintained by @bradjc (Dec 2019).
+ - [tock/tockloader](https://github.com/tock/tockloader) Tool for loading Tock
+   kernel and applications onto hardware boards.
+   Primarily maintained by @bradjc (Dec 2019).
+ - [tock/tock-archive](https://github.com/tock/tock-archive) Components of Tock
+   (often hardware platforms) no longer under active development.
+   Maintained by the core working group (Dec 2019).
+ - [tock/tock-bootloader](https://github.com/tock/tock-bootloader) Utility for
+   flashing apps via USB; works with tockloader.
+   Primarily maintained by @bradjc (Dec 2019).
+ - [tock/tock-www](https://github.com/tock/tock-www) The tockos.org website.
+   Primarily maintained by @alevy and @ppannuto (Dec 2019).
+
+Other repositories under [tock/](https://github.com/tock) are either
+experimental or archived.
