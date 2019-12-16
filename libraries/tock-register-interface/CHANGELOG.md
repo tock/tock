@@ -2,6 +2,10 @@
 
 ## master
 
+ - #1489
+   - Make `register_structs!` unit test generation opt-out, so that
+     `custom-test-frameworks` environments can disable them.
+
  - #1481
    - Add `#[derive(Copy, Clone)]` to InMemoryRegister.
 

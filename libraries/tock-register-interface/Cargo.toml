@@ -13,3 +13,6 @@ edition = "2018"
 
 [badges]
 travis-ci = { repository = "tock/tock", branch = "master" }
+
+[features]
+no_std_unit_tests = []
