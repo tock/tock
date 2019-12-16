@@ -25,8 +25,8 @@ team. Pull requests fall into two categories:
    Examples of upkeep requests involve bug fixes, documentation (that isn't
    specification), or minor reimplementations of existing modules.
 1. **Significant pull requests** involve new modules, significant
-   re-implementations, new traits, new kernel components or changes to the build
-   system.
+   re-implementations, new traits, new kernel components, or changes to the
+   build system.
 
 Whether a pull request is upkeep or significant is based not only on the
 magnitude of the change but also what sort of code is changed. For example,
