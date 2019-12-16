@@ -45,11 +45,11 @@ three in line with their usage in Rust code more generally.
   general usage example. These comments will also be used for automatic
   documentation generation.
 
-    The first line of a `//!` comment will be used as a descriptive tagline, and
-    as such should be short and provide essentially a subtitle for the code file
-    (where the file name acts as the title). Generally the first line should be
-    no more than 80 characters. To identify the tagline, the second line of the
-    comment should just be `//!` with no other text.
+  The first line of a `//!` comment will be used as a descriptive tagline, and
+  as such should be short and provide essentially a subtitle for the code file
+  (where the file name acts as the title). Generally the first line should be
+  no more than 80 characters. To identify the tagline, the second line of the
+  comment should just be `//!` with no other text.
 
 Both `///` and `//!` comments support Markdown.
 
