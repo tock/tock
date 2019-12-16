@@ -4,6 +4,17 @@ Tock Style
 This document overviews some stylistic conventions that Tock generally adheres
 to.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Style.md -->
+
+<!-- toc -->
+
+- [Code Style](#code-style)
+- [Commenting](#commenting)
+  * [Example: mycapsule.rs](#example-mycapsulers)
+- [Using Descriptive Names](#using-descriptive-names)
+
+<!-- tocstop -->
+
 ## Code Style
 
 Tock uses [rustfmt](https://github.com/rust-lang/rustfmt) for source code style
