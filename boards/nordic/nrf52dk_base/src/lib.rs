@@ -286,8 +286,8 @@ pub unsafe fn setup_board(
     nrf52::uart::UARTE0.initialize(
         nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
         nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-        nrf52::pinmux::Pinmux::new(uart_pins.cts as u32),
-        nrf52::pinmux::Pinmux::new(uart_pins.rts as u32),
+        Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
+        Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
     );
 
     // Setup the console.

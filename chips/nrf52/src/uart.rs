@@ -125,8 +125,11 @@ register_bitfields! [u32,
 
     /// Pin select
     Psel [
-        // Pin number
-        PIN OFFSET(0) NUMBITS(5),
+        // Pin number. MSB is actually the port indicator, but since we number
+        // pins sequentially the binary representation of the pin number has
+        // the port bit set correctly. So, for simplicity we just treat the
+        // pin number as a 6 bit field.
+        PIN OFFSET(0) NUMBITS(6),
         // Connect/Disconnect
         CONNECT OFFSET(31) NUMBITS(1)
     ],
@@ -200,14 +203,32 @@ impl<'a> Uarte<'a> {
         &self,
         txd: pinmux::Pinmux,
         rxd: pinmux::Pinmux,
-        cts: pinmux::Pinmux,
-        rts: pinmux::Pinmux,
+        cts: Option<pinmux::Pinmux>,
+        rts: Option<pinmux::Pinmux>,
     ) {
         let regs = &*self.registers;
         regs.pseltxd.write(Psel::PIN.val(txd.into()));
         regs.pselrxd.write(Psel::PIN.val(rxd.into()));
-        regs.pselcts.write(Psel::PIN.val(cts.into()));
-        regs.pselrts.write(Psel::PIN.val(rts.into()));
+        cts.map_or_else(
+            || {
+                // If no CTS pin is provided, then we need to mark it as
+                // disconnected in the register.
+                regs.pselcts.write(Psel::CONNECT::SET);
+            },
+            |c| {
+                regs.pselcts.write(Psel::PIN.val(c.into()));
+            },
+        );
+        rts.map_or_else(
+            || {
+                // If no RTS pin is provided, then we need to mark it as
+                // disconnected in the register.
+                regs.pselrts.write(Psel::CONNECT::SET);
+            },
+            |r| {
+                regs.pselrts.write(Psel::PIN.val(r.into()));
+            },
+        );
 
         self.enable_uart();
     }
