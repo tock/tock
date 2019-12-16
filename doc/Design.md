@@ -1,7 +1,7 @@
 Tock Design
 ===========
 
-<!-- npm i -g markdown-toc; markdown-toc -i Userland.md -->
+<!-- npm i -g markdown-toc; markdown-toc -i Design.md -->
 
 <!-- toc -->
 
