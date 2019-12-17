@@ -7,6 +7,8 @@
 //! -----
 //!
 //! ```
+//! # use kernel::static_init;
+//!
 //! let mux_pwm = static_init!(
 //!     capsules::virtual_pwm::MuxPwm<'static, nrf52::pwm::Pwm>,
 //!     capsules::virtual_pwm::MuxPwm::new(&nrf52::pwm::PWM0)

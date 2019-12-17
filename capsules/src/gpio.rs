@@ -12,6 +12,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let gpio_pins = static_init!(
 //!     [&'static sam4l::gpio::GPIOPin; 4],
 //!     [&sam4l::gpio::PB[14],

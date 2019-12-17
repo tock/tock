@@ -6,13 +6,15 @@
 //! You need a device that provides the `hil::sensors::NineDof` trait.
 //!
 //! ```rust
+//! # use kernel::{hil, static_init};
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
-//!     capsules::ninedof::NineDof::new(fxos8700, grant_ninedof));
+//!     capsules::ninedof::NineDof::new(fxos8700, board_kernel.create_grant(&grant_ninedof));
+//!
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 

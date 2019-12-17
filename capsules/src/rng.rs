@@ -11,9 +11,11 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let rng = static_init!(
 //!         capsules::rng::RngDriver<'static, sam4l::trng::Trng>,
-//!         capsules::rng::RngDriver::new(&sam4l::trng::TRNG, kernel::Grant::create()));
+//!         capsules::rng::RngDriver::new(&sam4l::trng::TRNG, board_kernel.create_grant(&grant_cap)));
 //! sam4l::trng::TRNG.set_client(rng);
 //! ```
 

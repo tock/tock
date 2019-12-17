@@ -13,12 +13,15 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::{hil, static_init};
+//! # use capsules::virtual_uart::{MuxUart, UartDevice};
+//!
 //! // Create a shared UART channel for the console and for kernel debug.
 //! let uart_mux = static_init!(
 //!     MuxUart<'static>,
 //!     MuxUart::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
-//! )
+//! );
 //! hil::uart::UART::set_receive_client(&sam4l::usart::USART0, uart_mux);
 //! hil::uart::UART::set_transmit_client(&sam4l::usart::USART0, uart_mux);
 //!
@@ -26,13 +29,12 @@
 //! let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
 //! console_uart.setup(); // This is important!
 //! let console = static_init!(
-//!     capsules::console::Console<UartDevice>,
+//!     capsules::console::Console<'static>,
 //!     capsules::console::Console::new(
 //!         console_uart,
-//!         115200,
 //!         &mut capsules::console::WRITE_BUF,
 //!         &mut capsules::console::READ_BUF,
-//!         kernel::Grant::create()
+//!         board_kernel.create_grant(&grant_cap)
 //!     )
 //! );
 //! hil::uart::UART::set_transmit_client(console_uart, console);

@@ -9,6 +9,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x1e));
 //! let fxos8700 = static_init!(
 //!     capsules::fxos8700cq::Fxos8700cq<'static>,

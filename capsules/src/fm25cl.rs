@@ -15,6 +15,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // Create a SPI device for this chip.
 //! let fm25cl_spi = static_init!(
 //!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>,

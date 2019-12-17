@@ -8,6 +8,10 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::{hil, static_init};
+//! # use capsules::nrf51822_serialization;
+//! # use capsules::nrf51822_serialization::Nrf51822Serialization;
+//!
 //! let nrf_serialization = static_init!(
 //!     Nrf51822Serialization<usart::USART>,
 //!     Nrf51822Serialization::new(&usart::USART3,

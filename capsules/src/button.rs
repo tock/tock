@@ -8,12 +8,14 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let button_pins = static_init!(
 //!     [&'static sam4l::gpio::GPIOPin; 1],
 //!     [&sam4l::gpio::PA[16]]);
 //! let button = static_init!(
-//!     capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::button::Button::new(button_pins, kernel::Grant::create()));
+//!     capsules::button::Button<'static>,
+//!     capsules::button::Button::new(button_pins, board_kernel.create_grant(&grant_cap)));
 //! for btn in button_pins.iter() {
 //!     btn.set_client(button);
 //! }

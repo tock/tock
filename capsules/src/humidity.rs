@@ -39,10 +39,12 @@
 //! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,
-//!                                                kernel::Grant::create()));
+//!                                                board_kernel.create_grant(&grant_cap)));
 //! kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 //! ```
 

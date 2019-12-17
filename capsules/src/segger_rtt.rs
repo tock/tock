@@ -5,18 +5,22 @@
 //! the host uses a JTAG connection to read the messages out of the chip's
 //! memory.
 //!
-//!	Receiving RTT Messages
-//!	----------------------
+//! Receiving RTT Messages
+//! ----------------------
 //!
-//!	With the jlink tools, reciving RTT messages is a two step process. First,
-//!	open a JTAG connection with a command like:
+//! With the jlink tools, reciving RTT messages is a two step process. First,
+//! open a JTAG connection with a command like:
 //!
-//!         $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
+//! ```shell
+//! $ JLinkExe -device nrf52 -if swd -speed 1000 -autoconnect 1
+//! ```
 //!
-//!	Then, use the `JLinkRTTClient` tool in a different terminal to print the
-//!	messages:
+//! Then, use the `JLinkRTTClient` tool in a different terminal to print the
+//! messages:
 //!
-//!         $ JLinkRTTClient
+//! ```shell
+//! $ JLinkRTTClient
+//! ```
 //!
 //! Notes
 //! -----
@@ -34,25 +38,22 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
 //! pub struct Platform {
 //!     // Other fields omitted for clarity
-//!     console: &'static capsules::console::Console<
-//!         'static,
-//!         capsules::segger_rtt::SeggerRtt<
-//!             'static,
-//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-//!         >,
-//!     >,
+//!     console: &'static capsules::console::Console<'static>,
 //! }
 //! ```
 //!
 //! In `reset_handler()`:
 //!
-//! ```
+//! ```rust
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
 //! let virtual_alarm_rtt = static_init!(
-//!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-//!     capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+//!     VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
+//!     VirtualMuxAlarm::new(mux_alarm)
 //! );
 //!
 //! let rtt_memory = static_init!(
@@ -72,18 +73,12 @@
 //! virtual_alarm_rtt.set_client(rtt);
 //!
 //! let console = static_init!(
-//!     capsules::console::Console<
-//!         'static,
-//!         capsules::segger_rtt::SeggerRtt<
-//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-//!         >,
-//!     >,
+//!     capsules::console::Console<'static>,
 //!     capsules::console::Console::new(
 //!         rtt,
-//!         0, // Baud rate is meaningless with RTT
 //!         &mut capsules::console::WRITE_BUF,
 //!         &mut capsules::console::READ_BUF,
-//!         kernel::Grant::create()
+//!         board_kernel.create_grant(&grant_cap)
 //!     )
 //! );
 //! kernel::hil::uart::UART::set_client(rtt, console);

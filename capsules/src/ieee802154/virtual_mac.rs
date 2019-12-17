@@ -12,6 +12,8 @@
 //! -----
 //!
 //! ```
+//! # use kernel::static_init;
+//!
 //! // Create the mux.
 //! let mux_mac = static_init!(
 //!     capsules::ieee802154::virtual_mac::MuxMac<'static>,

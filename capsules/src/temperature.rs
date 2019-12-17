@@ -39,6 +39,7 @@
 //! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
 //! ```rust
+//! # use kernel::static_init;
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_temperature = board_kernel.create_grant(&grant_cap);
@@ -46,7 +47,8 @@
 //! let temp = static_init!(
 //!        capsules::temperature::TemperatureSensor<'static>,
 //!        capsules::temperature::TemperatureSensor::new(si7021,
-//!                                                 grant_temperature));
+//!                                                 board_kernel.create_grant(&grant_cap)));
+//!
 //! kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 //! ```
 

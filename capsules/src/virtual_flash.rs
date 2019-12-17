@@ -12,6 +12,8 @@
 //! -----
 //!
 //! ```
+//! # use kernel::{hil, static_init};
+//!
 //! // Create the mux.
 //! let mux_flash = static_init!(
 //!     capsules::virtual_flash::MuxFlash<'static, sam4l::flashcalw::FLASHCALW>,
