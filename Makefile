@@ -64,13 +64,17 @@ ci-travis:
 	@printf "$$(tput bold)*************$$(tput sgr0)\n"
 	@for f in `./tools/list_chips.sh`; do echo "$$(tput bold)Test $$f"; cd chips/$$f; CI=true TOCK_KERNEL_VERSION=ci_test cargo test || exit 1; cd ../..; done
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
-	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
-	@printf "$$(tput bold)**************$$(tput sgr0)\n"
-	@CI=true $(MAKE) allcheck
-	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Kernel *$$(tput sgr0)\n"
 	@printf "$$(tput bold)**************$$(tput sgr0)\n"
 	@cd kernel && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Capsules *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@cd capsules && CI=true TOCK_KERNEL_VERSION=ci_test cargo test
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Syntax *$$(tput sgr0)\n"
+	@printf "$$(tput bold)**************$$(tput sgr0)\n"
+	@CI=true $(MAKE) allcheck
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Compilation *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*******************$$(tput sgr0)\n"
