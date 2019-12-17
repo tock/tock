@@ -20,7 +20,9 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust
+//! # use kernel::{hil, static_init};
+//!
 //! sam4l::flashcalw::FLASH_CONTROLLER.configure();
 //! pub static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //! let nv_to_page = static_init!(

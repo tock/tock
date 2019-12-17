@@ -63,19 +63,24 @@
 //! timer to perform events and not block the entire kernel
 //!
 //! ```rust
-//!     let ble_radio = static_init!(
-//!     nrf5x::ble_advertising_driver::BLE
-//!     <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
-//!     nrf5x::ble_advertising_driver::BLE::new(
-//!         &mut nrf52::radio::RADIO,
-//!     kernel::Grant::create(),
-//!         &mut nrf5x::ble_advertising_driver::BUF,
-//!         ble_radio_virtual_alarm));
-//!    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_rx_client(&nrf52::radio::RADIO,
-//!                                                                      ble_radio);
-//!    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_tx_client(&nrf52::radio::RADIO,
-//!                                                                      ble_radio);
-//!    ble_radio_virtual_alarm.set_client(ble_radio);
+//! # use kernel::static_init;
+//! # use capsules::virtual_alarm::VirtualMuxAlarm;
+//!
+//! let ble_radio = static_init!(
+//! nrf5x::ble_advertising_driver::BLE<
+//!     'static,
+//!     nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>
+//! >,
+//! nrf5x::ble_advertising_driver::BLE::new(
+//!     &mut nrf52::radio::RADIO,
+//!     board_kernel.create_grant(&grant_cap),
+//!     &mut nrf5x::ble_advertising_driver::BUF,
+//!     ble_radio_virtual_alarm));
+//! nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_rx_client(&nrf52::radio::RADIO,
+//!                                                                   ble_radio);
+//! nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_tx_client(&nrf52::radio::RADIO,
+//!                                                                   ble_radio);
+//! ble_radio_virtual_alarm.set_client(ble_radio);
 //! ```
 //!
 //! ### Authors

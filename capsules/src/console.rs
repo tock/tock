@@ -6,13 +6,16 @@
 //! You need a device that provides the `hil::uart::UART` trait.
 //!
 //! ```rust
+//! # use kernel::static_init;
+//! # use capsules::console::Console;
+//!
 //! let console = static_init!(
 //!     Console<usart::USART>,
 //!     Console::new(&usart::USART0,
 //!                  115200,
 //!                  &mut console::WRITE_BUF,
 //!                  &mut console::READ_BUF,
-//!                  kernel::Grant::create()));
+//!                  board_kernel.create_grant(&grant_cap)));
 //! hil::uart::UART::set_client(&usart::USART0, console);
 //! ```
 //!

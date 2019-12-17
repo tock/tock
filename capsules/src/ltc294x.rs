@@ -27,6 +27,8 @@
 //! Here is a sample usage of this capsule in a board's main.rs file:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! let ltc294x_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64));

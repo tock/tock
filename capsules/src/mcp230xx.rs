@@ -26,27 +26,29 @@
 //! Example usage:
 //!
 //! ```rust
+//! # use kernel::static_init;
+//!
 //! // Configure the MCP230xx. Device address 0x20.
-//! let mcp23008_i2c = static_init!(
+//! let mcp230xx_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20));
-//! let mcp23008 = static_init!(
+//! let mcp230xx = static_init!(
 //!     capsules::mcp230xx::MCP230xx<'static>,
-//!     capsules::mcp230xx::MCP230xx::new(mcp23008_i2c,
+//!     capsules::mcp230xx::MCP230xx::new(mcp230xx_i2c,
 //!                                       Some(&sam4l::gpio::PA[04]),
 //!                                       None,
-//!                                       &mut capsules::mcp23008::BUFFER,
+//!                                       &mut capsules::mcp230xx::BUFFER,
 //!                                       8, // How many pins in a bank
 //!                                       1, // How many pin banks on the chip
 //!                                       ));
-//! mcp23008_i2c.set_client(mcp23008);
-//! sam4l::gpio::PA[04].set_client(mcp23008);
+//! mcp230xx_i2c.set_client(mcp230xx);
+//! sam4l::gpio::PA[04].set_client(mcp230xx);
 //!
 //! // Create an array of the GPIO extenders so we can pass them to an
 //! // administrative layer that provides a single interface to them all.
 //! let async_gpio_ports = static_init!(
 //!     [&'static capsules::mcp230xx::MCP230xx; 1],
-//!     [mcp23008]);
+//!     [mcp230xx]);
 //!
 //! // `gpio_async` is the object that manages all of the extenders.
 //! let gpio_async = static_init!(

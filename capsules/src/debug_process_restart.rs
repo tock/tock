@@ -7,6 +7,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::{capabilities, static_init};
+//!
 //! struct ProcessMgmtCap;
 //! unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
 //! let debug_process_restart = static_init!(
