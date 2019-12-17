@@ -1,48 +1,109 @@
 //! Cortex-M NVIC
+//!
+//! Most NVIC configuration is in the NVIC registers:
+//! <https://developer.arm.com/docs/100165/0201/nested-vectored-interrupt-controller/nvic-programmers-model/table-of-nvic-registers>
+//!
+//! Also part of the NVIC conceptually is the ICTR, which in older versions of
+//! the ARM ARM was listed in the "Summary of system control and ID registers
+//! not in the SCB" and newer ARM ARMs just file it in its own little private
+//! sub-section with the NVIC documentation. Seems a configuration register
+//! without a home, so we include it in the NVIC files as it's conceptually here.
+//! <https://developer.arm.com/docs/ddi0337/latest/nested-vectored-interrupt-controller/nvic-programmers-model/interrupt-controller-type-register-ictr>
 
-use kernel::common::cells::VolatileCell;
+use kernel::common::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
 
-#[repr(C)]
-// Registers for the NVIC
-struct NvicRegisters {
-    // Interrupt set-enable
-    iser: [VolatileCell<u32>; 8],
-    _reserved1: [u32; 24],
-    // Interrupt clear-enable
-    icer: [VolatileCell<u32>; 8],
-    _reserved2: [u32; 24],
-    // Interrupt set-pending (and read pending state)
-    ispr: [VolatileCell<u32>; 8],
-    _reserved3: [VolatileCell<u32>; 24],
-    // Interrupt clear-pending (and read pending state)
-    icpr: [VolatileCell<u32>; 8],
+register_structs! {
+    /// NVIC Registers.
+    ///
+    /// Note this generic interface exposes all possible NVICs. Most cores will
+    /// not implement all NVIC_XXXX registers. If you need to find the number
+    /// of NVICs dynamically, consult `ICTR.INTLINESNUM`.
+    NvicRegisters {
+        /// Interrupt Controller Type Register
+        (0x004 => ictr: ReadOnly<u32, InterruptControllerType::Register>),
+
+        /// Interrupt Set-Enable Registers
+        (0x100 => iser: [ReadWrite<u32, NvicSetClear::Register>; 32]),
+
+        /// Interrupt Clear-Enable Registers
+        (0x180 => icer: [ReadWrite<u32, NvicSetClear::Register>; 32]),
+
+        /// Interrupt Set-Pending Registers
+        (0x200 => ispr: [ReadWrite<u32, NvicSetClear::Register>; 32]),
+
+        /// Interrupt Clear-Pending Registers
+        (0x280 => icpr: [ReadWrite<u32, NvicSetClear::Register>; 32]),
+
+        /// Interrupt Active Bit Registers
+        (0x300 => iabr: [ReadWrite<u32, NvicSetClear::Register>; 32]),
+
+        (0x380 => _reserved0),
+
+        /// Interrupt Priority Registers
+        (0x400 => ipr: [ReadWrite<u32, NvicInterruptPriority::Register>; 252]),
+
+        (0x7f0 => @END),
+    }
 }
 
-// NVIC base address
-const NVIC_BASE_ADDRESS: StaticRef<NvicRegisters> =
-    unsafe { StaticRef::new(0xe000e100 as *const NvicRegisters) };
+register_bitfields![u32,
+    InterruptControllerType [
+        /// Total number of interrupt lines in groups of 32
+        INTLINESNUM     OFFSET(0)   NUMBITS(4)
+    ],
+
+    NvicSetClear [
+        /// For register NVIC_XXXXn, access interrupt (m+(32*n)).
+        ///  - m takes the values from 31 to 0, except for NVIC_XXXX15, where:
+        ///     - m takes the values from 15 to 0
+        ///     - register bits[31:16] are reserved, RAZ/WI
+        BITS            OFFSET(0)   NUMBITS(32)
+    ],
+
+    NvicInterruptPriority [
+        /// For register NVIC_IPRn, priority of interrupt number 4n+3.
+        PRI_N3          OFFSET(24)  NUMBITS(8),
+
+        /// For register NVIC_IPRn, priority of interrupt number 4n+2.
+        PRI_N2          OFFSET(16)  NUMBITS(8),
+
+        /// For register NVIC_IPRn, priority of interrupt number 4n+1.
+        PRI_N1          OFFSET(8)   NUMBITS(8),
+
+        /// For register NVIC_IPRn, priority of interrupt number 4n.
+        PRI_N0          OFFSET(0)   NUMBITS(8)
+    ]
+];
+
+/// The NVIC peripheral in MMIO space.
+const NVIC: StaticRef<NvicRegisters> =
+    unsafe { StaticRef::new(0xe000e000 as *const NvicRegisters) };
+
+/// Number of valid NVIC_XXXX registers. Note this is a ceiling on the number
+/// of available interrupts (as this is the number of banks of 32), but the
+/// actual number may be less. See NVIC and ICTR documentation for more detail.
+fn number_of_nvic_registers() -> usize {
+    (NVIC.ictr.read(InterruptControllerType::INTLINESNUM) + 1) as usize
+}
 
 /// Clear all pending interrupts
 pub unsafe fn clear_all_pending() {
-    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
-    for icpr in nvic.icpr.iter() {
+    for icpr in NVIC.icpr.iter().take(number_of_nvic_registers()) {
         icpr.set(!0)
     }
 }
 
 /// Enable all interrupts
 pub unsafe fn enable_all() {
-    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
-    for icer in nvic.iser.iter() {
+    for icer in NVIC.iser.iter().take(number_of_nvic_registers()) {
         icer.set(!0)
     }
 }
 
 /// Disable all interrupts
 pub unsafe fn disable_all() {
-    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
-    for icer in nvic.icer.iter() {
+    for icer in NVIC.icer.iter().take(number_of_nvic_registers()) {
         icer.set(!0)
     }
 }
@@ -50,9 +111,12 @@ pub unsafe fn disable_all() {
 /// Get the index (0-240) the lowest number pending interrupt, or `None` if none
 /// are pending.
 pub unsafe fn next_pending() -> Option<u32> {
-    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
-
-    for (block, ispr) in nvic.ispr.iter().enumerate() {
+    for (block, ispr) in NVIC
+        .ispr
+        .iter()
+        .take(number_of_nvic_registers())
+        .enumerate()
+    {
         let ispr = ispr.get();
 
         // If there are any high bits there is a pending interrupt
@@ -66,9 +130,11 @@ pub unsafe fn next_pending() -> Option<u32> {
 }
 
 pub unsafe fn has_pending() -> bool {
-    let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
-
-    nvic.ispr.iter().fold(0, |i, ispr| ispr.get() | i) != 0
+    NVIC.ispr
+        .iter()
+        .take(number_of_nvic_registers())
+        .fold(0, |i, ispr| ispr.get() | i)
+        != 0
 }
 
 /// An opaque wrapper for a single NVIC interrupt.
@@ -88,25 +154,22 @@ impl Nvic {
 
     /// Enable the interrupt
     pub fn enable(&self) {
-        let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
         let idx = self.0 as usize;
 
-        nvic.iser[idx / 32].set(1 << (self.0 & 31));
+        NVIC.iser[idx / 32].set(1 << (self.0 & 31));
     }
 
     /// Disable the interrupt
     pub fn disable(&self) {
-        let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
         let idx = self.0 as usize;
 
-        nvic.icer[idx / 32].set(1 << (self.0 & 31));
+        NVIC.icer[idx / 32].set(1 << (self.0 & 31));
     }
 
     /// Clear pending state
     pub fn clear_pending(&self) {
-        let nvic: StaticRef<NvicRegisters> = NVIC_BASE_ADDRESS;
         let idx = self.0 as usize;
 
-        nvic.icpr[idx / 32].set(1 << (self.0 & 31));
+        NVIC.icpr[idx / 32].set(1 << (self.0 & 31));
     }
 }
