@@ -42,6 +42,14 @@ pub fn load_processes<C: Chip>(
     let mut apps_in_flash_ptr = start_of_flash;
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
+
+    debug!(
+        "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
+        start_of_flash as usize,
+        app_memory_ptr as usize,
+        app_memory_ptr as usize + app_memory_size
+    );
+
     for i in 0..procs.len() {
         unsafe {
             let (process, flash_offset, memory_offset) = Process::create(
@@ -52,6 +60,15 @@ pub fn load_processes<C: Chip>(
                 app_memory_size,
                 fault_response,
                 i,
+            );
+
+            debug!(
+                "Loaded process[{}] from flash={:#010X} into sram=[{:#010X}:{:#010X}] = {:?}",
+                i,
+                apps_in_flash_ptr as usize,
+                app_memory_ptr as usize,
+                app_memory_ptr as usize + memory_offset,
+                process.map(|p| p.get_process_name())
             );
 
             if process.is_none() {
