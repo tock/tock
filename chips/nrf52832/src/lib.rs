@@ -6,3 +6,4 @@ pub use nrf52::{
 };
 pub mod chip;
 pub mod gpio;
+pub mod interrupt_service;

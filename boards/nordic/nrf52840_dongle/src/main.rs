@@ -9,8 +9,8 @@
 
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
-
 use nrf52840::gpio::Pin;
+use nrf52840::interrupt_service::Nrf52840InterruptService;
 use nrf52dk_base::{SpiPins, UartPins};
 
 // The nRF52840 Dongle LEDs
@@ -238,9 +238,14 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let interrupt_service = static_init!(
-        nrf52840::chip::Nrf52840InterruptService,
-        nrf52840::chip::Nrf52840InterruptService::new(&nrf52840::gpio::PORT)
+        Nrf52840InterruptService,
+        Nrf52840InterruptService::new(&nrf52840::gpio::PORT)
     );
+    let chip = static_init!(
+        nrf52840::chip::NRF52<Nrf52840InterruptService>,
+        nrf52840::chip::NRF52::new(interrupt_service)
+    );
+
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
@@ -260,6 +265,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         nrf52840::uicr::Regulator0Output::V3_0,
         false,
-        interrupt_service,
+        chip,
     );
 }

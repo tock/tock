@@ -66,8 +66,8 @@
 
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
-
 use nrf52832::gpio::Pin;
+use nrf52832::interrupt_service::Nrf52832InterruptService;
 use nrf52dk_base::{SpiPins, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
@@ -276,9 +276,14 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let interrupt_service = static_init!(
-        nrf52832::chip::Nrf52832InterruptService,
-        nrf52832::chip::Nrf52832InterruptService::new(&nrf52832::gpio::PORT)
+        Nrf52832InterruptService,
+        Nrf52832InterruptService::new(&nrf52832::gpio::PORT)
     );
+    let chip = static_init!(
+        nrf52832::chip::NRF52<Nrf52832InterruptService>,
+        nrf52832::chip::NRF52::new(interrupt_service)
+    );
+
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
@@ -298,6 +303,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         nrf52832::uicr::Regulator0Output::DEFAULT,
         false,
-        interrupt_service,
+        chip,
     );
 }
