@@ -443,13 +443,6 @@ pub unsafe fn setup_board<I: 'static + nrf52::interrupt_service::InterruptServic
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    /*
-    let chip = static_init!(
-        nrf52::chip::NRF52<I>,
-        nrf52::chip::NRF52::<I>::new(interrupt_service)
-    );
-    */
-
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 

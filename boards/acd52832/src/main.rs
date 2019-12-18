@@ -15,7 +15,6 @@ use kernel::hil::rng::Rng;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
-use nrf52832::interrupt_service::Nrf52832InterruptService;
 use nrf52832::rtc::Rtc;
 
 use nrf52dk_base::nrf52_components::ble::BLEComponent;
@@ -562,14 +561,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
-    let interrupt_service = static_init!(
-        Nrf52832InterruptService,
-        Nrf52832InterruptService::new(&nrf52832::gpio::PORT)
-    );
-    let chip = static_init!(
-        nrf52832::chip::NRF52<Nrf52832InterruptService>,
-        nrf52832::chip::NRF52::new(interrupt_service)
-    );
+    let chip = nrf52832::chip::new();
 
     nrf52832::gpio::PORT[Pin::P0_31].make_output();
     nrf52832::gpio::PORT[Pin::P0_31].clear();
