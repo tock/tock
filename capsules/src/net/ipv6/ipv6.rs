@@ -72,7 +72,6 @@ use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::udp::UDPHeader;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::debug;
 use kernel::ReturnCode;
 
 pub const UDP_HDR_LEN: usize = 8;
@@ -303,13 +302,14 @@ impl IP6Header {
 /// This defines the currently supported `TransportHeader` types. The contents
 /// of each header is encapsulated by the enum type. Note that this definition
 /// of `TransportHeader`s means that recursive headers are not supported.
-#[derive(Copy, Clone)] // TODO: is this ok?
+/// As of now, there is no support for sending raw IP packets without a transport header.
+/// Currently we accept the overhead of copying these structs in/out of an OptionalCell
+/// in `udp_send.rs`.
+#[derive(Copy, Clone)]
 pub enum TransportHeader {
     UDP(UDPHeader),
     TCP(TCPHeader),
     ICMP(ICMP6Header),
-    // TODO: Need a length in RawIPPacket for the buffer in TransportHeader
-    /* Raw(RawIPPacket<'a>), */
 }
 
 /// The `IPPayload` struct contains a `TransportHeader` and a mutable buffer
@@ -351,13 +351,9 @@ impl IPPayload<'a> {
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
     ) -> (u8, u16) {
-        if self.payload.len() < payload.len() {
-            debug!("Error in set_payload for ipv6_packet");
-        }
         for i in 0..payload.len() {
             self.payload[i] = payload[i];
         }
-        //self.payload[..payload.len()].copy_from_slice(payload.as_ptr());
         match transport_header {
             TransportHeader::UDP(mut udp_header) => {
                 let length = (payload.len() + udp_header.get_hdr_size()) as u16;

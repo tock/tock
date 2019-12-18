@@ -6,8 +6,6 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded).
 
-/// Syscall number
-use crate::driver;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
@@ -22,6 +20,8 @@ use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
