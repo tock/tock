@@ -5,6 +5,8 @@ use crate::ReturnCode;
 pub trait Time<W = u32> {
     type Frequency: Frequency;
 
+    type TimerWrappingOps: TimerWrappingOps;
+
     /// Returns the current time in hardware clock units.
     fn now(&self) -> W;
 
@@ -174,4 +176,53 @@ pub trait Timer<'a, W = u32>: Time<W> {
 pub trait TimerClient {
     /// Callback signaled when the timer's clock reaches the specified interval.
     fn fired(&self);
+}
+
+/// The `TimerWrappingOps` trait is used to abstract the timer
+/// addition and subtraction operations in order to support timers of
+/// different bit lengths. Currently implementations exists for 32-bit
+/// and 24-bit timers.
+pub trait TimerWrappingOps {
+    /// Add timer tics
+    ///
+    /// For 24-bit timers, the `x` and `y` values cannot exceed `2^24
+    /// - 1`.
+    fn wrapping_add(x: u32, y: u32) -> u32;
+
+    /// Subtract timer tics
+    ///
+    /// For 24-bit timers, the `x` and `y` values cannot exceed `2^24
+    /// - 1`.
+    fn wrapping_sub(x: u32, y: u32) -> u32;
+}
+
+/// 32-bit `TimerWrappingOps`
+#[derive(Debug)]
+pub struct Timer32Bit;
+
+impl TimerWrappingOps for Timer32Bit {
+    fn wrapping_add(x: u32, y: u32) -> u32 {
+        x.wrapping_add(y)
+    }
+
+    fn wrapping_sub(x: u32, y: u32) -> u32 {
+        x.wrapping_sub(y)
+    }
+}
+
+/// 24-bit `TimerWrappingOps`
+#[derive(Debug)]
+pub struct Timer24Bit;
+
+/// Maximum value that a 24-bit timer can have
+const TIMER_24_BIT_MAX_VALUE: u32 = (1 << 24) - 1;
+
+impl TimerWrappingOps for Timer24Bit {
+    fn wrapping_add(x: u32, y: u32) -> u32 {
+        (x + y) & TIMER_24_BIT_MAX_VALUE
+    }
+
+    fn wrapping_sub(x: u32, y: u32) -> u32 {
+        x.wrapping_sub(y) & TIMER_24_BIT_MAX_VALUE
+    }
 }
