@@ -3,7 +3,7 @@ use crate::net::ipv6::ip_utils::{compute_udp_checksum, ip6_nh, IPAddr};
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::udp::udp::UDPHeader;
 use crate::net::util;
-use crate::net::util::{slice_to_u16, u16_to_slice};
+use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 use core::mem;
@@ -529,11 +529,11 @@ fn compress_udp_ports(udp_header: &UDPHeader, buf: &mut [u8], written: &mut usiz
         // Source port compressed to 8 bits, destination port uncompressed
         udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG;
         buf[*written] = (src_port & !nhc::UDP_8BIT_PORT_MASK) as u8;
-        u16_to_slice(dst_port.to_be(), &mut buf[*written + 1..*written + 3]);
+        u16_to_network_slice(dst_port.to_be(), &mut buf[*written + 1..*written + 3]);
         *written += 3;
     } else if (dst_port & nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
         udp_port_nhc |= nhc::UDP_DST_PORT_FLAG;
-        u16_to_slice(src_port.to_be(), &mut buf[*written..*written + 2]);
+        u16_to_network_slice(src_port.to_be(), &mut buf[*written..*written + 2]);
         buf[*written + 3] = (dst_port & !nhc::UDP_8BIT_PORT_MASK) as u8;
         *written += 3;
     } else {
@@ -724,9 +724,9 @@ pub fn decompress(
                 // to_be(), because src_port.to_be() returns the src_port in little endian..
                 // Accordingly, the udp_length must also be written in little endian for this
                 // to work.
-                u16_to_slice(src_port.to_be(), &mut next_headers[0..2]);
-                u16_to_slice(dst_port.to_be(), &mut next_headers[2..4]);
-                u16_to_slice(udp_length, &mut next_headers[4..6]);
+                u16_to_network_slice(src_port.to_be(), &mut next_headers[0..2]);
+                u16_to_network_slice(dst_port.to_be(), &mut next_headers[2..4]);
+                u16_to_network_slice(udp_length, &mut next_headers[4..6]);
                 // Need to fill in header values before computing the checksum
                 let udp_checksum = decompress_udp_checksum(
                     nhc_header,
@@ -737,7 +737,7 @@ pub fn decompress(
                     &mut consumed,
                     is_fragment,
                 );
-                u16_to_slice(udp_checksum.to_be(), &mut next_headers[6..8]);
+                u16_to_network_slice(udp_checksum.to_be(), &mut next_headers[6..8]);
 
                 written += 8;
                 break;
@@ -1136,18 +1136,18 @@ fn decompress_udp_ports(udp_nhc: u8, buf: &[u8], consumed: &mut usize) -> (u16, 
         // Source port is compressed to 8 bits
         src_port = nhc::UDP_8BIT_PORT | (buf[*consumed] as u16);
         // Destination port is uncompressed
-        dst_port = u16::from_be(slice_to_u16(&buf[*consumed + 1..*consumed + 3]));
+        dst_port = u16::from_be(network_slice_to_u16(&buf[*consumed + 1..*consumed + 3]));
         *consumed += 3;
     } else if dst_compressed {
         // Source port is uncompressed
-        src_port = u16::from_be(slice_to_u16(&buf[*consumed..*consumed + 2]));
+        src_port = u16::from_be(network_slice_to_u16(&buf[*consumed..*consumed + 2]));
         // Destination port is compressed to 8 bits
         dst_port = nhc::UDP_8BIT_PORT | (buf[*consumed + 2] as u16);
         *consumed += 3;
     } else {
         // Both ports are uncompressed
-        src_port = u16::from_be(slice_to_u16(&buf[*consumed..*consumed + 2]));
-        dst_port = u16::from_be(slice_to_u16(&buf[*consumed + 2..*consumed + 4]));
+        src_port = u16::from_be(network_slice_to_u16(&buf[*consumed..*consumed + 2]));
+        dst_port = u16::from_be(network_slice_to_u16(&buf[*consumed + 2..*consumed + 4]));
         *consumed += 4;
     }
     (src_port, dst_port)
@@ -1181,7 +1181,7 @@ fn decompress_udp_checksum(
             None => 0, //Will be dropped  by IP layer
         }
     } else {
-        let checksum = u16::from_be(slice_to_u16(&buf[*consumed..*consumed + 2]));
+        let checksum = u16::from_be(network_slice_to_u16(&buf[*consumed..*consumed + 2]));
         *consumed += 2;
         checksum
     }

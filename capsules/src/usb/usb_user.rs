@@ -28,7 +28,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::hil;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
-/// Syscall number
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
 

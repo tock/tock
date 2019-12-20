@@ -231,7 +231,7 @@ use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use crate::net::ipv6::ipv6::IP6Packet;
 use crate::net::sixlowpan::sixlowpan_compression;
 use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
-use crate::net::util::{slice_to_u16, u16_to_slice};
+use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::{MapCell, TakeCell};
@@ -270,9 +270,9 @@ fn set_frag_hdr(
     } else {
         lowpan_frag::FRAGN_HDR
     };
-    u16_to_slice(dgram_size, &mut hdr[0..2]);
+    u16_to_network_slice(dgram_size, &mut hdr[0..2]);
     hdr[0] = mask | (hdr[0] & !mask);
-    u16_to_slice(dgram_tag, &mut hdr[2..4]);
+    u16_to_network_slice(dgram_tag, &mut hdr[2..4]);
     if !is_frag1 {
         hdr[4] = (dgram_offset / 8) as u8;
     }
@@ -284,8 +284,8 @@ fn get_frag_hdr(hdr: &[u8]) -> (bool, u16, u16, usize) {
         _ => false,
     };
     // Zero out upper bits
-    let dgram_size = slice_to_u16(&hdr[0..2]) & !(0xf << 12);
-    let dgram_tag = slice_to_u16(&hdr[2..4]);
+    let dgram_size = network_slice_to_u16(&hdr[0..2]) & !(0xf << 12);
+    let dgram_tag = network_slice_to_u16(&hdr[2..4]);
     let dgram_offset = if is_frag1 { 0 } else { hdr[4] };
     (is_frag1, dgram_size, dgram_tag, (dgram_offset as usize) * 8)
 }

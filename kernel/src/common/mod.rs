@@ -17,6 +17,7 @@ pub mod registers {
 
 pub mod deferred_call;
 pub mod dynamic_deferred_call;
+pub mod leasable_buffer;
 pub mod list;
 pub mod math;
 pub mod peripherals;

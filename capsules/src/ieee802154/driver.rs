@@ -15,7 +15,6 @@ use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
-/// Syscall number
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 

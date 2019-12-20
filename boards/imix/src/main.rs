@@ -45,7 +45,8 @@ use imix_components::led::LedComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
-use imix_components::udp_6lowpan::UDPComponent;
+use imix_components::udp_driver::UDPDriverComponent;
+use imix_components::udp_mux::UDPMuxComponent;
 use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
@@ -382,8 +383,14 @@ pub unsafe fn reset_handler() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (radio_driver, mux_mac) =
-        RadioComponent::new(board_kernel, rf233, PAN_ID, serial_num_bottom_16).finalize(());
+    let (radio_driver, mux_mac) = RadioComponent::new(
+        board_kernel,
+        rf233,
+        PAN_ID,
+        serial_num_bottom_16, //comment out for dual rx test only
+                              //49138, //comment in for dual rx test only
+    )
+    .finalize(());
 
     let usb_driver = UsbComponent::new(board_kernel).finalize(());
     let nonvolatile_storage = NonvolatileStorageComponent::new(board_kernel).finalize(());
@@ -403,17 +410,31 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let udp_driver = UDPComponent::new(
-        board_kernel,
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        src_mac_from_serial_num,
+        src_mac_from_serial_num, //comment out for dual rx test only
+        //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
     )
     .finalize(());
+
+    // UDP driver initialization happens here
+    let udp_driver = UDPDriverComponent::new(
+        board_kernel,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+    )
+    .finalize(());
+
+    // Only include to run kernel tests, do not include during normal operation
+    //let udp_lowpan_test =
+    //    udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux, udp_port_table, mux_alarm);
 
     let imix = Imix {
         pconsole,
@@ -465,6 +486,9 @@ pub unsafe fn reset_handler() {
     // aes_test::run_aes128_cbc();
 
     debug!("Initialization complete. Entering main loop");
+
+    // Include below to run udp tests
+    //udp_lowpan_test.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

@@ -3,6 +3,7 @@ this file defines the structure of the TCPHeader and TCPPacket structs
 so that TCPPacket can be included for clarity as part of the
 TransportPacket enum */
 
+#[derive(Copy, Clone)]
 pub struct TCPHeader {
     pub src_port: u16,
     pub dst_port: u16,

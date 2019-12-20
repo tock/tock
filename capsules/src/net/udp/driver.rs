@@ -10,13 +10,17 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
-use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
+use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
+use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
+use crate::net::util::host_slice_to_u16;
 use core::cell::Cell;
 use core::{cmp, mem};
+use kernel::capabilities::UdpDriverCapability;
+use kernel::common::cells::MapCell;
+use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 
-/// Syscall number
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
@@ -72,9 +76,6 @@ pub struct UDPDriver<'a> {
     /// UDP sender
     sender: &'a dyn UDPSender<'a>,
 
-    /// UDP receiver
-    receiver: &'a UDPReceiver<'a>,
-
     /// Grant of apps that use this radio driver.
     apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
@@ -85,23 +86,34 @@ pub struct UDPDriver<'a> {
 
     /// Maximum length payload that an app can transmit via this driver
     max_tx_pyld_len: usize,
+
+    /// UDP bound port table (manages kernel bindings)
+    port_table: &'static UdpPortManager,
+
+    kernel_buffer: MapCell<LeasableBuffer<'static, u8>>,
+
+    driver_send_cap: &'static dyn UdpDriverCapability,
 }
 
 impl<'a> UDPDriver<'a> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
-        receiver: &'a UDPReceiver<'a>,
         grant: Grant<App>,
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
+        port_table: &'static UdpPortManager,
+        kernel_buffer: LeasableBuffer<'static, u8>,
+        driver_send_cap: &'static dyn UdpDriverCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,
-            receiver: receiver,
             apps: grant,
             current_app: Cell::new(None),
             interface_list: interface_list,
             max_tx_pyld_len: max_tx_pyld_len,
+            port_table: port_table,
+            kernel_buffer: MapCell::new(kernel_buffer),
+            driver_send_cap: driver_send_cap,
         }
     }
 
@@ -242,13 +254,32 @@ impl<'a> UDPDriver<'a> {
             let dst_port = addr_ports[1].port;
             let src_port = addr_ports[0].port;
 
-            // Send UDP payload. Payload will be copied into IP6Packet in kernel mem.
+            // Send UDP payload. Copy payload into packet buffer held by this driver, then queue
+            // it on the udp_mux.
             let result = app
                 .app_write
                 .as_ref()
                 .map_or(ReturnCode::ENOMEM, |payload| {
-                    self.sender
-                        .send_to(dst_addr, dst_port, src_port, payload.as_ref())
+                    self.kernel_buffer
+                        .take()
+                        .map_or(ReturnCode::ENOMEM, |mut kernel_buffer| {
+                            kernel_buffer[0..payload.len()].copy_from_slice(payload.as_ref());
+                            kernel_buffer.slice(0..payload.len());
+                            match self.sender.driver_send_to(
+                                dst_addr,
+                                dst_port,
+                                src_port,
+                                kernel_buffer,
+                                self.driver_send_cap,
+                            ) {
+                                Ok(_) => ReturnCode::SUCCESS,
+                                Err(mut buf) => {
+                                    buf.reset();
+                                    self.kernel_buffer.replace(buf);
+                                    ReturnCode::FAIL
+                                }
+                            }
+                        })
                 });
             if result == ReturnCode::SUCCESS {
                 self.current_app.set(Some(appid));
@@ -304,7 +335,7 @@ impl<'a> UDPDriver<'a> {
 
             let pair = UDPEndpoint {
                 addr: addr,
-                port: ((p[0] as u16) << 8) + (p[1] as u16),
+                port: host_slice_to_u16(p),
             };
             Some(pair)
         }
@@ -331,14 +362,28 @@ impl<'a> Driver for UDPDriver<'a> {
     ) -> ReturnCode {
         match allow_num {
             0 | 1 | 2 | 3 => self.do_with_app(appid, |app| {
+                let mut success = true;
                 match allow_num {
                     0 => app.app_read = slice,
-                    1 => app.app_write = slice,
+                    1 => match slice {
+                        Some(s) => {
+                            if s.len() > self.max_tx_pyld_len {
+                                success = false;
+                            } else {
+                                app.app_write = Some(s);
+                            }
+                        }
+                        None => {}
+                    },
                     2 => app.app_cfg = slice,
                     3 => app.app_rx_cfg = slice,
                     _ => {}
                 }
-                ReturnCode::SUCCESS
+                if success {
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EINVAL //passed tx buffer too long
+                }
             }),
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -386,7 +431,8 @@ impl<'a> Driver for UDPDriver<'a> {
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
-    /// - `2`: Transmit payload returns EBUSY is this process already has a pending tx.
+    /// - `2`: Transmit payload.
+    ///        Returns EBUSY is this process already has a pending tx.
     ///        Returns EINVAL if no valid buffer has been loaded into the write buffer,
     ///        or if the config buffer is the wrong length, or if the destination and source
     ///        port/address pairs cannot be parsed.
@@ -498,7 +544,7 @@ impl<'a> Driver for UDPDriver<'a> {
                         return ReturnCode::EINVAL;
                     }
                     if requested_addr_opt.is_some() {
-                        let requested_addr = requested_addr_opt.unwrap();
+                        let requested_addr = requested_addr_opt.expect("missing address.");
                         // If zero address, close any already bound socket
                         if requested_addr.is_zero() {
                             app.rx_callback = None;
@@ -516,11 +562,15 @@ impl<'a> Driver for UDPDriver<'a> {
                             return ReturnCode::EINVAL;
                         }
                         let mut addr_already_bound = false;
+                        // This checks the bound ports in the other grants.
+                        // This code needs to be replicated in the bound port
+                        // table when checking the userspace apps.
                         for app in self.apps.iter() {
                             app.enter(|other_app, _| {
                                 if other_app.bound_port.is_some() {
                                     let other_addr_opt = other_app.bound_port.clone();
-                                    let other_addr = other_addr_opt.unwrap();
+                                    let other_addr =
+                                        other_addr_opt.expect("Missing other address.");
                                     if other_addr.port == requested_addr.port {
                                         if other_addr.addr == requested_addr.addr {
                                             addr_already_bound = true;
@@ -529,6 +579,16 @@ impl<'a> Driver for UDPDriver<'a> {
                                 }
                             });
                         }
+                        // Check bound ports in the kernel.
+                        match self.port_table.is_bound(requested_addr.port) {
+                            Ok(bound) => {
+                                addr_already_bound = bound;
+                            }
+                            Err(_) => {
+                                return ReturnCode::FAIL;
+                            } //error in port table
+                        }
+                        // Also check the bound port table here.
                         if addr_already_bound {
                             ReturnCode::EBUSY
                         } else {
@@ -551,7 +611,10 @@ impl<'a> Driver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: ReturnCode) {
+    fn send_done(&self, result: ReturnCode, mut dgram: LeasableBuffer<'static, u8>) {
+        // Replace the returned kernel buffer. Now we can send the next msg.
+        dgram.reset();
+        self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
                 app.tx_callback
@@ -610,5 +673,24 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                 });
             }
         });
+    }
+}
+
+impl<'a> PortQuery for UDPDriver<'a> {
+    // Returns true if |port| is bound (on any iface), false otherwise.
+    fn is_bound(&self, port: u16) -> bool {
+        let mut port_bound = false;
+        for app in self.apps.iter() {
+            app.enter(|other_app, _| {
+                if other_app.bound_port.is_some() {
+                    let other_addr_opt = other_app.bound_port.clone();
+                    let other_addr = other_addr_opt.expect("Missing other_addr");
+                    if other_addr.port == port {
+                        port_bound = true;
+                    }
+                }
+            });
+        }
+        port_bound
     }
 }
