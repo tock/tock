@@ -1,17 +1,21 @@
-//! Component for Console, the generic serial interface.
+//! Components for Console, the generic serial interface, and for multiplexed access
+//! to UART.
 //!
-//! This provides one Component, ConsoleComponent, which implements a buffered
-//! read/write console over a serial port. For example, this is typically USART3
-//! (the DEBUG USB connector) on imix.
+//!
+//! This provides two Components, `ConsoleComponent`, which implements a buffered
+//! read/write console over a serial port, and `UartMuxComponent`, which provides
+//! multiplexed access to hardware UART. As an example, the serial port used for
+//! console on Imix is typically USART3 (the DEBUG USB connector).
 //!
 //! Usage
 //! -----
 //! ```rust
+//! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3, 115200).finalize(());
 //! let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
+// Last modified: 12/21/2019
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 

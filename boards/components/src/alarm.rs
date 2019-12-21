@@ -1,17 +1,22 @@
-//! Component for hardware timer Alarms.
+//! Components for hardware timer Alarms.
 //!
-//! This provides one component, `AlarmDriverComponent`, which provides
-//! an alarm system call interface.
+//! This provides two components, `AlarmMuxComponent`, which provides a
+//! multiplexed interface to a hardware alarm, and `AlarmDriverComponent`,
+//! which provides an alarm system call interface.
 //!
 //! Usage
 //! -----
 //! ```rust
+//! let ast = &sam4l::ast::AST;
+//! let mux_alarm = components::alarm::AlarmMuxComponent::new(ast)
+//!     .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
+//! ast.configure(mux_alarm);
 //! let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
-//!        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+//!     .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 6/20/2018
+// Last modified: 12/21/2019
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
