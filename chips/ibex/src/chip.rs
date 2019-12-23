@@ -1,5 +1,7 @@
 //! High-level setup and interrupt mapping for the chip.
 
+use core::hint::unreachable_unchecked;
+
 use kernel;
 use kernel::debug;
 use rv32i;
@@ -233,4 +235,67 @@ pub unsafe extern "C" fn start_trap_rust() {
 #[export_name = "_disable_interrupt_trap_handler"]
 pub extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {
     disable_interrupt_cause();
+}
+
+pub unsafe fn configure_trap_handler() {
+    // The Ibex CPU does not support non-vectored trap entries.
+    csr::CSR.mtvec.write(
+        csr::mtvec::mtvec::trap_addr.val(_start_trap_vectored as u32 >> 2)
+            + csr::mtvec::mtvec::mode::Vectored,
+    )
+}
+
+#[link_section = ".riscv.trap_vectored"]
+#[export_name = "_start_trap_vectored"]
+#[naked]
+pub extern "C" fn _start_trap_vectored() -> ! {
+    unsafe {
+        // According to the Ibex user manual:
+        // [NMI has interrupt ID 31, i.e., it has the highest priority of all
+        // interrupts and the core jumps to the trap-handler base address (in
+        // mtvec) plus 0x7C to handle the NMI.
+        //
+        // Below are 32 (non-compressed) jumps to cover the entire possible
+        // range of vectored traps.
+        #[cfg(all(target_arch = "riscv32", target_os = "none"))]
+        asm!("
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+        "
+        :
+        :
+        :
+        : "volatile");
+        unreachable_unchecked()
+    }
 }

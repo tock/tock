@@ -93,6 +93,7 @@ SECTIONS
          * work with the lowRISC CPUs.
          */
         . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
+        KEEP(*(.riscv.trap_vectored));
         KEEP(*(.riscv.trap));
 
         /* .text and .rodata hold most program code and immutable constants */

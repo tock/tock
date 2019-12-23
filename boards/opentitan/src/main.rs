@@ -72,8 +72,8 @@ impl Platform for OpenTitan {
 pub unsafe fn reset_handler() {
     // Basic setup of the platform.
     rv32i::init_memory();
-    // only machine mode
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    // Ibex-specific handler
+    ibex::chip::configure_trap_handler();
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
