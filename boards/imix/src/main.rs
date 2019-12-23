@@ -12,13 +12,11 @@ mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
@@ -26,11 +24,12 @@ use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
-use components::alarm::AlarmDriverComponent;
-use components::console::ConsoleComponent;
+use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
+use components::console::{ConsoleComponent, UartMuxComponent};
 use components::crc::CrcComponent;
 use components::debug_writer::DebugWriterComponent;
 use components::isl29035::AmbientLightComponent;
+use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
@@ -41,7 +40,6 @@ use imix_components::analog_comparator::AcComponent;
 use imix_components::button::ButtonComponent;
 use imix_components::fxos8700::NineDofComponent;
 use imix_components::gpio::GpioComponent;
-use imix_components::led::LedComponent;
 use imix_components::nonvolatile_storage::NonvolatileStorageComponent;
 use imix_components::radio::RadioComponent;
 use imix_components::rf233::RF233Component;
@@ -298,20 +296,7 @@ pub unsafe fn reset_handler() {
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &sam4l::usart::USART3,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART3, uart_mux);
-    hil::uart::Receive::set_receive_client(&sam4l::usart::USART3, uart_mux);
-
+    let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3, 115200).finalize(());
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());
@@ -323,10 +308,8 @@ pub unsafe fn reset_handler() {
 
     // # TIMER
     let ast = &sam4l::ast::AST;
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST)
-    );
+    let mux_alarm = AlarmMuxComponent::new(ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
@@ -364,7 +347,14 @@ pub unsafe fn reset_handler() {
     let adc = AdcComponent::new().finalize(());
     let gpio = GpioComponent::new(board_kernel).finalize(());
 
-    let led = LedComponent::new().finalize(());
+    const NUM_LEDS: usize = 1;
+    let led = LedsComponent::new().finalize(components::led_component_helper!(
+        NUM_LEDS,
+        [(
+            &sam4l::gpio::PC[10],
+            capsules::led::ActivationMode::ActiveHigh
+        ),]
+    ));
     let button = ButtonComponent::new(board_kernel).finalize(());
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
         .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));

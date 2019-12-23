@@ -10,13 +10,46 @@
 //! )).finalize(());
 //! ```
 
-
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules;
 use kernel::component::Component;
 use kernel::hil::gpio::Pin;
 use kernel::static_init;
+
+#[macro_export]
+macro_rules! led_component_helper {
+    ($N:expr, $P:expr) => {{
+        use kernel::static_init;
+        static_init!(
+            [(
+                &'static dyn kernel::hil::gpio::Pin,
+                capsules::led::ActivationMode
+            ); $N],
+            $P
+        )
+    };};
+}
+
+pub struct LedsComponent {}
+
+impl LedsComponent {
+    pub fn new() -> LedsComponent {
+        LedsComponent {}
+    }
+}
+
+impl Component for LedsComponent {
+    type StaticInput = &'static [(
+        &'static dyn kernel::hil::gpio::Pin,
+        capsules::led::ActivationMode,
+    )];
+    type Output = &'static capsules::led::LED<'static>;
+
+    unsafe fn finalize(&mut self, pins: Self::StaticInput) -> Self::Output {
+        static_init!(capsules::led::LED<'static>, capsules::led::LED::new(pins))
+    }
+}
 
 pub struct LedsThree {
     led0: (&'static dyn Pin, capsules::led::ActivationMode),
