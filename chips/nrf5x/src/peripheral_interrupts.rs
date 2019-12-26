@@ -18,6 +18,7 @@ pub const CCM_AAR: u32 = 15;
 pub const WDT: u32 = 16;
 pub const RTC1: u32 = 17;
 pub const QDEC: u32 = 18;
+pub const COMP: u32 = 19;
 pub const LPCOMP: u32 = 19;
 pub const SWI0: u32 = 20;
 pub const SWI1: u32 = 21;

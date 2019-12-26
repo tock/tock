@@ -1,3 +1,4 @@
+use crate::acomp;
 use crate::adc;
 use crate::ble_radio;
 use crate::i2c;
@@ -68,6 +69,7 @@ impl Nrf52InterruptService {
 impl InterruptService for Nrf52InterruptService {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            peripheral_interrupts::COMP => acomp::ACOMP.handle_interrupt(),
             peripheral_interrupts::ECB => nrf5x::aes::AESECB.handle_interrupt(),
             peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             peripheral_interrupts::POWER_CLOCK => power::POWER.handle_interrupt(),
