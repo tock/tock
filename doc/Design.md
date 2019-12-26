@@ -15,8 +15,8 @@ kernel. As a result, isolation is (more or less) free in terms of resource
 consumption at the expense of preemptive scheduling (so a malicious component
 could block the system by, e.g., spinning in an infinite loop).
 
-To first order, all component in Tock, including those in the kernel, are
-mutually distrustful. Inside the kernel Tock, achieves this with a
+To first order, all components in Tock, including those in the kernel, are
+mutually distrustful. Inside the kernel, Tock achieves this with a
 language-based isolation abstraction called _capsules_ that incurs no memory or
 computation overhead. In user-space, Tock uses (more-or-less) a traditional
 process model where process are isolated from the kernel and each other using
