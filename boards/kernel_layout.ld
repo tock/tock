@@ -177,9 +177,9 @@ SECTIONS
      * Align on 512 bytes since that is the page size.
      * Volumes within this region are allocated with the
      * storage_volume! macro in utils.rs. */
-    . = ALIGN(512);
     .storage :
     {
+      . = ALIGN(512);
       _sstorage = .;
       *(.storage* storage*)
       _estorage = .;

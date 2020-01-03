@@ -52,7 +52,7 @@ macro_rules! static_init_half {
 /// Non-volatile storage abstractions can then refer to the block of
 /// allocate flash in terms of the name of the volume. For example,
 ///
-/// `storage_volume(LOG, 32);`
+/// `storage_volume!(LOG, 32);`
 ///
 /// will allocate 32kB of space in the flash and define a symbol LOG
 /// at the start address of that flash region. The intention is that
@@ -65,6 +65,7 @@ macro_rules! storage_volume {
     ($N:ident, $kB:expr) => {
         #[link_section = ".storage"]
         #[used]
+	#[no_mangle]
         pub static $N: [u8; $kB * 1024] = [0x00; $kB * 1024];
     };
 }
