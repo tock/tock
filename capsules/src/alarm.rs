@@ -192,3 +192,31 @@ impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    pub fn alarm_before_systick_wrap_expired() {
+        assert_eq!(super::has_expired(2u32, 3u32, 1u32), true);
+    }
+
+    #[test]
+    pub fn alarm_before_systick_wrap_not_expired() {
+        assert_eq!(super::has_expired(3u32, 2u32, 1u32), false);
+    }
+
+    #[test]
+    pub fn alarm_after_systick_wrap_expired() {
+        assert_eq!(super::has_expired(1u32, 2u32, 3u32), true);
+    }
+
+    #[test]
+    pub fn alarm_after_systick_wrap_time_before_systick_wrap_not_expired() {
+        assert_eq!(super::has_expired(1u32, 4u32, 3u32), false);
+    }
+
+    #[test]
+    pub fn alarm_after_systick_wrap_time_after_systick_wrap_not_expired() {
+        assert_eq!(super::has_expired(1u32, 0u32, 3u32), false);
+    }
+}
