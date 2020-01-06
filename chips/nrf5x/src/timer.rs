@@ -25,7 +25,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{self, register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::time::{Alarm, AlarmClient, Freq16KHz, Ticks, Ticks32Bits, Time};
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [
@@ -260,7 +260,7 @@ impl Timer {
 
 pub struct TimerAlarm<'a> {
     registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn AlarmClient>,
 }
 
 // CC0 is used for capture
@@ -313,20 +313,17 @@ impl TimerAlarm<'a> {
     }
 }
 
-impl hil::time::Time for TimerAlarm<'a> {
-    type Frequency = hil::time::Freq16KHz;
+impl Time for TimerAlarm<'a> {
+    type Ticks = Ticks32Bits;
+    type Frequency = Freq16KHz;
 
-    fn now(&self) -> u32 {
-        self.value()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.value())
     }
 }
 
-impl hil::time::Alarm<'a> for TimerAlarm<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl Alarm<'a> for TimerAlarm<'a> {
+    fn set_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
 
@@ -338,15 +335,15 @@ impl hil::time::Alarm<'a> for TimerAlarm<'a> {
         self.interrupts_enabled()
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, tics: Self::Ticks) {
         self.disable_interrupts();
         self.registers.bitmode.write(Bitmode::BITMODE::Bit32);
-        self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics));
+        self.registers.cc[ALARM_COMPARE].write(CC::CC.val(tics.into_u32()));
         self.registers.tasks_start.write(Task::ENABLE::SET);
         self.enable_interrupts();
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.cc[ALARM_COMPARE].read(CC::CC)
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.cc[ALARM_COMPARE].read(CC::CC))
     }
 }

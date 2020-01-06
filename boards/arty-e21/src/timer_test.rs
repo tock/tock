@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use kernel::debug;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{Alarm, AlarmClient};
 
 pub struct TimerTest<'a, A: Alarm<'a>> {
     alarm: &'a A,
@@ -14,13 +14,11 @@ impl<A: Alarm<'a>> TimerTest<'a, A> {
 
     pub fn start(&self) {
         debug!("starting");
-        let start = self.alarm.now();
-        let exp = start + 99999;
-        self.alarm.set_alarm(exp);
+        self.alarm.set_alarm_from_now(A::Ticks::from(99999));
     }
 }
 
-impl<A: Alarm<'a>> time::AlarmClient for TimerTest<'a, A> {
+impl<A: Alarm<'a>> AlarmClient for TimerTest<'a, A> {
     fn fired(&self) {
         debug!("timer!!");
     }

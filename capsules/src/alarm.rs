@@ -1,7 +1,8 @@
 //! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
-use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::common::cells::OptionalCell;
+use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -9,19 +10,19 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 
 #[derive(Copy, Clone, Debug)]
-enum Expiration {
+enum Expiration<T: Ticks> {
     Disabled,
-    Abs(u32),
+    Abs(T),
 }
 
 #[derive(Copy, Clone)]
-pub struct AlarmData {
-    expiration: Expiration,
+pub struct AlarmData<T: Ticks> {
+    expiration: Expiration<T>,
     callback: Option<Callback>,
 }
 
-impl Default for AlarmData {
-    fn default() -> AlarmData {
+impl<T: Ticks> Default for AlarmData<T> {
+    fn default() -> AlarmData<T> {
         AlarmData {
             expiration: Expiration::Disabled,
             callback: None,
@@ -32,42 +33,40 @@ impl Default for AlarmData {
 pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_alarm: Grant<AlarmData>,
-    prev: Cell<u32>,
+    app_alarm: Grant<AlarmData<A::Ticks>>,
+    prev: OptionalCell<A::Ticks>,
 }
 
 impl<A: Alarm<'a>> AlarmDriver<'a, A> {
-    pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
+    pub const fn new(alarm: &'a A, grant: Grant<AlarmData<A::Ticks>>) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
             app_alarm: grant,
-            prev: Cell::new(0),
+            prev: OptionalCell::empty(),
         }
     }
 
-    fn reset_active_alarm(&self, now: u32) -> Option<u32> {
+    fn reset_active_alarm(&self, now: A::Ticks) -> Option<A::Ticks> {
         self.prev.set(now);
-        let mut next_alarm = u32::max_value();
-        let mut next_dist = u32::max_value();
+        let mut next_alarm = None;
         for alarm in self.app_alarm.iter() {
             alarm.enter(|alarm, _| match alarm.expiration {
-                Expiration::Abs(exp) => {
-                    let t_dist = exp.wrapping_sub(now);
-                    if next_dist > t_dist {
-                        next_alarm = exp;
-                        next_dist = t_dist;
+                Expiration::Abs(exp) => match next_alarm {
+                    None => next_alarm = Some(exp),
+                    Some(next) => {
+                        if A::Ticks::expired(now, next, exp) {
+                            next_alarm = Some(exp);
+                        }
                     }
-                }
+                },
                 Expiration::Disabled => {}
             });
         }
-        if next_alarm != u32::max_value() {
-            self.alarm.set_alarm(next_alarm);
-            Some(next_alarm)
-        } else {
-            None
+        if let Some(next) = next_alarm {
+            self.alarm.set_alarm(next);
         }
+        next_alarm
     }
 }
 
@@ -116,17 +115,17 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         (ReturnCode::SuccessWithValue { value: freq }, false)
                     },
                     2 /* capture time */ => {
-                        (ReturnCode::SuccessWithValue { value: now as usize },
+                        (ReturnCode::SuccessWithValue { value: now.into_usize() },
                          false)
                     },
                     3 /* Stop */ => {
-                        let alarm_id = data as u32;
+                        let alarm_id = data;
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
                                 (ReturnCode::EALREADY, false)
                             },
-                            Expiration::Abs(exp) if exp != alarm_id => {
+                            Expiration::Abs(exp) if exp.into_usize() != alarm_id => {
                                 // Request to stop invalid alarm id
                                 (ReturnCode::EINVAL, false)
                             },
@@ -144,7 +143,7 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
                         if let Expiration::Disabled = td.expiration {
                             self.num_armed.set(self.num_armed.get() + 1);
                         }
-                        td.expiration = Expiration::Abs(time as u32);
+                        td.expiration = Expiration::Abs(A::Ticks::from(time as u32));
                         (ReturnCode::SuccessWithValue { value: time }, true)
                     },
                     _ => (ReturnCode::ENOSUPPORT, false)
@@ -158,22 +157,18 @@ impl<A: Alarm<'a>> Driver for AlarmDriver<'a, A> {
     }
 }
 
-fn has_expired(alarm: u32, now: u32, prev: u32) -> bool {
-    now.wrapping_sub(prev) >= alarm.wrapping_sub(prev)
-}
-
-impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
+impl<A: Alarm<'a>> AlarmClient for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
         self.app_alarm.each(|alarm| {
             if let Expiration::Abs(exp) = alarm.expiration {
-                let expired = has_expired(exp, now, self.prev.get());
+                let expired = A::Ticks::expired(self.prev.unwrap_or(A::Ticks::from(0)), now, exp);
                 if expired {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
                     alarm
                         .callback
-                        .map(|mut cb| cb.schedule(now as usize, exp as usize, 0));
+                        .map(|mut cb| cb.schedule(now.into_usize(), exp.into_usize(), 0));
                 }
             }
         });
@@ -184,7 +179,7 @@ impl<A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
             self.alarm.disable();
         } else if let Some(next_alarm) = self.reset_active_alarm(now) {
             let new_now = self.alarm.now();
-            if has_expired(next_alarm, new_now, now) {
+            if A::Ticks::expired(now, new_now, next_alarm) {
                 self.fired();
             }
         } else {

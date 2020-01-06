@@ -8,7 +8,7 @@ use crate::pm::{self, PBDClock};
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
+use kernel::hil::time::{Alarm, AlarmClient, Freq16KHz, Ticks, Ticks32Bits, Time};
 use kernel::hil::Controller;
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
@@ -166,7 +166,7 @@ const AST_ADDRESS: StaticRef<AstRegisters> =
 
 pub struct Ast<'a> {
     registers: StaticRef<AstRegisters>,
-    callback: OptionalCell<&'a dyn time::AlarmClient>,
+    callback: OptionalCell<&'a dyn AlarmClient>,
 }
 
 pub static mut AST: Ast<'static> = Ast {
@@ -175,9 +175,9 @@ pub static mut AST: Ast<'static> = Ast {
 };
 
 impl Controller for Ast<'a> {
-    type Config = &'static dyn time::AlarmClient;
+    type Config = &'static dyn AlarmClient;
 
-    fn configure(&self, client: &'a dyn time::AlarmClient) {
+    fn configure(&self, client: &'a dyn AlarmClient) {
         self.callback.set(client);
 
         pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
@@ -299,43 +299,40 @@ impl Ast<'a> {
 }
 
 impl Time for Ast<'a> {
+    type Ticks = Ticks32Bits;
     type Frequency = Freq16KHz;
 
-    fn now(&self) -> u32 {
-        self.get_counter()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.get_counter())
     }
 }
 
 impl Alarm<'a> for Ast<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+    fn set_client(&self, client: &'a dyn AlarmClient) {
         self.callback.set(client);
     }
 
-    fn set_alarm(&self, mut tics: u32) {
+    fn set_alarm(&self, mut tics: Self::Ticks) {
         let regs: &AstRegisters = &*self.registers;
-        let now = self.get_counter();
-        if tics.wrapping_sub(now) <= ALARM0_SYNC_TICS {
-            tics = now.wrapping_add(ALARM0_SYNC_TICS);
+        let now = self.now();
+        if tics.wrapping_sub(now).into_u32() <= ALARM0_SYNC_TICS {
+            tics = now.wrapping_add(Self::Ticks::from(ALARM0_SYNC_TICS));
         }
 
         // Clear any alarm event that may be pending before setting the new alarm.
         self.clear_alarm();
 
         while self.busy() {}
-        regs.ar0.write(Value::VALUE.val(tics));
+        regs.ar0.write(Value::VALUE.val(tics.into_u32()));
         while self.busy() {}
         self.enable_alarm_irq();
         self.enable();
     }
 
-    fn get_alarm(&self) -> u32 {
+    fn get_alarm(&self) -> Self::Ticks {
         let regs: &AstRegisters = &*self.registers;
         while self.busy() {}
-        regs.ar0.read(Value::VALUE)
+        Self::Ticks::from(regs.ar0.read(Value::VALUE))
     }
 
     fn disable(&self) {

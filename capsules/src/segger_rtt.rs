@@ -93,7 +93,6 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil;
-use kernel::hil::time::Frequency;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 
@@ -220,9 +219,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
 
                     // Start a short timer so that we get a callback and
                     // can issue the callback to the client.
-                    let interval = (100 as u32) * <A::Frequency>::frequency() / 1000000;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    self.alarm.set_alarm_from_now(A::ticks_from_us(100));
                 })
             });
             (ReturnCode::SUCCESS, None)

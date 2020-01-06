@@ -238,7 +238,7 @@ use kernel::common::cells::{MapCell, TakeCell};
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Frequency, Ticks};
 use kernel::ReturnCode;
 
 // Reassembly timeout in seconds
@@ -295,10 +295,10 @@ fn is_fragment(packet: &[u8]) -> bool {
     (mask == lowpan_frag::FRAGN_HDR) || (mask == lowpan_frag::FRAG1_HDR)
 }
 
-pub trait SixlowpanState<'a> {
+pub trait SixlowpanState<'a, T: Ticks> {
     fn next_dgram_tag(&self) -> u16;
     fn get_ctx_store(&self) -> &dyn ContextStore;
-    fn add_rx_state(&self, rx_state: &'a RxState<'a>);
+    fn add_rx_state(&self, rx_state: &'a RxState<'a, T>);
     fn set_rx_client(&'a self, client: &'a dyn SixlowpanRxClient);
 }
 
@@ -310,7 +310,7 @@ pub trait SixlowpanState<'a> {
 /// `TxState.next_fragment` until there are no more frames to compress.
 /// Note that the upper layer is responsible for sending the compressed
 /// frames; the `TxState` struct simply produces compressed MAC frames.
-pub struct TxState<'a> {
+pub struct TxState<'a, T: Ticks> {
     /// State for the current transmission
     pub dst_pan: Cell<PanID>, // Pub to allow for setting to broadcast PAN and back
     src_pan: Cell<PanID>,
@@ -324,17 +324,17 @@ pub struct TxState<'a> {
     busy: Cell<bool>,
     // We need a reference to sixlowpan to compute and increment
     // the global dgram_tag value
-    sixlowpan: &'a dyn SixlowpanState<'a>,
+    sixlowpan: &'a dyn SixlowpanState<'a, T>,
 }
 
-impl TxState<'a> {
+impl<T: Ticks> TxState<'a, T> {
     /// Creates a new `TxState`
     ///
     /// # Arguments
     ///
     /// `sixlowpan` - A reference to a `SixlowpanState` object, which contains
     /// global state for the entire Sixlowpan layer.
-    pub fn new(sixlowpan: &'a dyn SixlowpanState<'a>) -> TxState<'a> {
+    pub fn new(sixlowpan: &'a dyn SixlowpanState<'a, T>) -> TxState<'a, T> {
         TxState {
             // Externally setable fields
             src_pan: Cell::new(0),
@@ -623,7 +623,7 @@ impl TxState<'a> {
 /// keep track of ongoing packet reassemblies. The number of `RxState`s is the
 /// number of packets that can be reassembled at the same time. Generally,
 /// two `RxState`s are sufficient for normal-case operation.
-pub struct RxState<'a> {
+pub struct RxState<'a, T: Ticks> {
     packet: TakeCell<'static, [u8]>,
     bitmap: MapCell<Bitmap>,
     dst_mac_addr: Cell<MacAddress>,
@@ -634,25 +634,25 @@ pub struct RxState<'a> {
     // free to use for a new packet.
     busy: Cell<bool>,
     // The time when packet reassembly started for the current packet.
-    start_time: Cell<u32>,
+    start_time: Cell<T>,
 
-    next: ListLink<'a, RxState<'a>>,
+    next: ListLink<'a, RxState<'a, T>>,
 }
 
-impl ListNode<'a, RxState<'a>> for RxState<'a> {
-    fn next(&'a self) -> &'a ListLink<RxState<'a>> {
+impl<T: Ticks> ListNode<'a, RxState<'a, T>> for RxState<'a, T> {
+    fn next(&'a self) -> &'a ListLink<RxState<'a, T>> {
         &self.next
     }
 }
 
-impl RxState<'a> {
+impl<T: Ticks> RxState<'a, T> {
     /// Creates a new `RxState`
     ///
     /// # Arguments
     ///
     /// `packet` - A buffer for reassembling an IPv6 packet. Currently, we
     /// assume this to be 1280 bytes long (the minimum IPv6 MTU size).
-    pub fn new(packet: &'static mut [u8]) -> RxState<'a> {
+    pub fn new(packet: &'static mut [u8]) -> RxState<'a, T> {
         RxState {
             packet: TakeCell::new(packet),
             bitmap: MapCell::new(Bitmap::new()),
@@ -661,7 +661,7 @@ impl RxState<'a> {
             dgram_tag: Cell::new(0),
             dgram_size: Cell::new(0),
             busy: Cell::new(false),
-            start_time: Cell::new(0),
+            start_time: Cell::new(T::from(0)),
             next: ListLink::empty(),
         }
     }
@@ -682,8 +682,13 @@ impl RxState<'a> {
 
     // Checks if a given RxState is free or expired (and thus, can be freed).
     // This function implements the reassembly timeout for 6LoWPAN lazily.
-    fn is_busy(&self, frequency: u32, current_time: u32) -> bool {
-        let expired = current_time >= (self.start_time.get() + FRAG_TIMEOUT * frequency);
+    fn is_busy(&self, current_time: T, frequency: u32) -> bool {
+        let start_time = self.start_time.get();
+        let expired = T::expired(
+            start_time,
+            current_time,
+            start_time.wrapping_add(T::from(FRAG_TIMEOUT * frequency)),
+        );
         if expired {
             self.end_receive(None, ReturnCode::FAIL);
         }
@@ -696,7 +701,7 @@ impl RxState<'a> {
         dst_mac_addr: MacAddress,
         dgram_size: u16,
         dgram_tag: u16,
-        current_tics: u32,
+        current_tics: T,
     ) {
         self.dst_mac_addr.set(dst_mac_addr);
         self.src_mac_addr.set(src_mac_addr);
@@ -756,7 +761,7 @@ impl RxState<'a> {
     fn end_receive(&self, client: Option<&'a dyn SixlowpanRxClient>, result: ReturnCode) {
         self.busy.set(false);
         self.bitmap.map(|bitmap| bitmap.clear());
-        self.start_time.set(0);
+        self.start_time.set(T::from(0));
         client.map(move |client| {
             // Since packet is borrowed from the upper layer, failing to return it
             // in the callback represents a significant error that should never
@@ -790,7 +795,7 @@ pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
     rx_client: Cell<Option<&'a dyn SixlowpanRxClient>>,
 
     // Receive state
-    rx_states: List<'a, RxState<'a>>,
+    rx_states: List<'a, RxState<'a, A::Ticks>>,
 }
 
 // This function is called after receiving a frame
@@ -815,7 +820,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     }
 }
 
-impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A, C> {
+impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a, A::Ticks> for Sixlowpan<'a, A, C> {
     fn next_dgram_tag(&self) -> u16 {
         // Increment dgram_tag
         let dgram_tag = if (self.tx_dgram_tag.get() + 1) == 0 {
@@ -835,7 +840,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> SixlowpanState<'a> for Sixlowpan<'a, A
     ///
     /// Each [RxState](struct.RxState.html) struct allows an additional IPv6
     /// packet to be reassembled concurrently.
-    fn add_rx_state(&self, rx_state: &'a RxState<'a>) {
+    fn add_rx_state(&self, rx_state: &'a RxState<'a, A::Ticks>) {
         self.rx_states.push_head(rx_state);
     }
 
@@ -877,7 +882,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
         packet_len: usize,
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
-    ) -> (Option<&RxState<'a>>, ReturnCode) {
+    ) -> (Option<&RxState<'a, A::Ticks>>, ReturnCode) {
         if is_fragment(packet) {
             let (is_frag1, dgram_size, dgram_tag, dgram_offset) = get_frag_hdr(&packet[0..5]);
             let offset_to_payload = if is_frag1 {
@@ -905,7 +910,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
         payload_len: usize,
         src_mac_addr: MacAddress,
         dst_mac_addr: MacAddress,
-    ) -> (Option<&RxState<'a>>, ReturnCode) {
+    ) -> (Option<&RxState<'a, A::Ticks>>, ReturnCode) {
         let rx_state = self
             .rx_states
             .iter()
@@ -967,7 +972,7 @@ impl<A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
         dgram_size: u16,
         dgram_tag: u16,
         dgram_offset: usize,
-    ) -> (Option<&RxState<'a>>, ReturnCode) {
+    ) -> (Option<&RxState<'a, A::Ticks>>, ReturnCode) {
         // First try to find an rx_state in the middle of assembly
         let mut rx_state = self
             .rx_states

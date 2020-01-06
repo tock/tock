@@ -51,7 +51,6 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::cells::TakeCell;
 use kernel::debug;
 use kernel::hil;
-use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
@@ -377,9 +376,7 @@ impl<
                 self.txbuffer.replace(write_buffer);
                 // Datasheet says erase takes 58 ms on average. So we wait that
                 // long.
-                let interval = (58 as u32) * <A::Frequency>::frequency() / 1000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                self.alarm.set_alarm_from_now(A::ticks_from_ms(58));
             }
             State::EraseSectorCheckDone { operation } => {
                 read_buffer.map(move |read_buffer| {
@@ -473,9 +470,7 @@ impl<
                 self.txbuffer.replace(write_buffer);
                 // Datasheet says write page takes 3.2 ms on average. So we wait
                 // that long.
-                let interval = (3200 as u32) * <A::Frequency>::frequency() / 1000000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                self.alarm.set_alarm_from_now(A::ticks_from_us(3200));
             }
             State::WriteSectorWaitDone {
                 sector_index,

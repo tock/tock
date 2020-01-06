@@ -3,7 +3,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
+use kernel::hil::time::{Alarm, AlarmClient, Freq32KHz, Ticks, Ticks24Bits, Time};
 use kernel::hil::Controller;
 
 const RTC1_BASE: StaticRef<RtcRegisters> =
@@ -84,7 +84,7 @@ register_bitfields![u32,
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    callback: OptionalCell<&'a dyn time::AlarmClient>,
+    callback: OptionalCell<&'a dyn AlarmClient>,
 }
 
 pub static mut RTC: Rtc = Rtc {
@@ -93,9 +93,9 @@ pub static mut RTC: Rtc = Rtc {
 };
 
 impl Controller for Rtc<'a> {
-    type Config = &'a dyn time::AlarmClient;
+    type Config = &'a dyn AlarmClient;
 
-    fn configure(&self, client: &'a dyn time::AlarmClient) {
+    fn configure(&self, client: &'a dyn AlarmClient) {
         self.callback.set(client);
 
         // FIXME: what to do here?
@@ -132,32 +132,29 @@ impl Rtc<'a> {
 }
 
 impl Time for Rtc<'a> {
+    type Ticks = Ticks24Bits;
     type Frequency = Freq32KHz;
 
-    fn now(&self) -> u32 {
-        self.registers.counter.read(Counter::VALUE)
-    }
-
-    fn max_tics(&self) -> u32 {
-        (1 << 24) - 1
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.counter.read(Counter::VALUE))
     }
 }
 
 impl Alarm<'a> for Rtc<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+    fn set_client(&self, client: &'a dyn AlarmClient) {
         self.callback.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, tics: Self::Ticks) {
         // Similarly to the disable function, here we don't restart the timer
         // Instead, we just listen for it again
         self.registers.intenset.write(Inte::COMPARE0::SET);
-        self.registers.cc[0].write(Counter::VALUE.val(tics));
+        self.registers.cc[0].write(Counter::VALUE.val(tics.into_u32()));
         self.registers.events_compare[0].write(Event::READY::CLEAR);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.cc[0].read(Counter::VALUE)
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.cc[0].read(Counter::VALUE))
     }
 
     fn disable(&self) {

@@ -41,21 +41,17 @@
 //! use kernel::hil;
 //! use kernel::hil::entropy::Entropy32;
 //! use kernel::hil::entropy::Client32;
-//! use kernel::hil::time::Alarm;
-//! use kernel::hil::time::Frequency;
-//! use kernel::hil::time::AlarmClient;
+//! use kernel::hil::time::{Alarm, AlarmClient};
 //! use kernel::ReturnCode;
 //!
 //! struct EntropyTest<'a, A: 'a + Alarm<'a>> {
-//!     entropy: &'a Entropy32 <'a>,
+//!     entropy: &'a Entropy32<'a>,
 //!     alarm: &'a A
 //! }
 //!
 //! impl<'a, A: Alarm<'a>> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
-//!         let interval = 1 * <A::Frequency>::frequency();
-//!         let tics = self.alarm.now().wrapping_add(interval);
-//!         self.alarm.set_alarm(tics);
+//!         self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
 //!     }
 //! }
 //!
@@ -72,9 +68,7 @@
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
-//!                 let interval = 1 * <A::Frequency>::frequency();
-//!                 let tics = self.alarm.now().wrapping_add(interval);
-//!                 self.alarm.set_alarm(tics);
+//!                 self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
 //!                 hil::entropy::Continue::Done
 //!             },
 //!             None => hil::entropy::Continue::More

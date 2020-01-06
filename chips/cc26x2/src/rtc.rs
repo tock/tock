@@ -3,7 +3,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil::time::{self, Alarm, Frequency, Time};
+use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks, Ticks32Bits, Time};
 
 #[repr(C)]
 struct RtcRegisters {
@@ -62,7 +62,7 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    callback: OptionalCell<&'a dyn time::AlarmClient>,
+    callback: OptionalCell<&'a dyn AlarmClient>,
 }
 
 pub static mut RTC: Rtc<'static> = Rtc::new();
@@ -154,35 +154,32 @@ impl Frequency for RtcFreq {
 }
 
 impl Time for Rtc<'a> {
+    type Ticks = Ticks32Bits;
     type Frequency = RtcFreq;
 
-    fn now(&self) -> u32 {
-        self.read_counter()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.read_counter())
     }
 }
 
 impl Alarm<'a> for Rtc<'a> {
-    fn set_client(&self, client: &'a dyn time::AlarmClient) {
+    fn set_client(&self, client: &'a dyn AlarmClient) {
         self.callback.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, tics: Self::Ticks) {
         let regs = &*self.registers;
 
         regs.ctl.modify(Control::COMB_EV_MASK::Channel1);
-        regs.channel1_cmp.set(tics);
+        regs.channel1_cmp.set(tics.into_u32());
         regs.channel_ctl.modify(ChannelControl::CH1_EN::SET);
 
         regs.sync.get();
     }
 
-    fn get_alarm(&self) -> u32 {
+    fn get_alarm(&self) -> Self::Ticks {
         let regs = &*self.registers;
-        regs.channel1_cmp.get()
+        Self::Ticks::from(regs.channel1_cmp.get())
     }
 
     fn disable(&self) {

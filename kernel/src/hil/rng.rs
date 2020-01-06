@@ -49,38 +49,34 @@
 //!
 //! ```
 //! use kernel::hil;
-//! use kernel::hil::time::Frequency;
+//! use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 //! use kernel::ReturnCode;
 //!
-//! struct RngTest<'a, A: 'a + hil::time::Alarm<'a>> {
+//! struct RngTest<'a, A: 'a + Alarm<'a>> {
 //!     rng: &'a hil::rng::Rng<'a>,
 //!     alarm: &'a A
 //! }
 //!
-//! impl<'a, A: hil::time::Alarm<'a>> RngTest<'a, A> {
+//! impl<'a, A: Alarm<'a>> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
-//!         let interval = 1 * <A::Frequency>::frequency();
-//!         let tics = self.alarm.now().wrapping_add(interval);
-//!         self.alarm.set_alarm(tics);
+//!         self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
 //!     }
 //! }
 //!
-//! impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for RngTest<'a, A> {
+//! impl<'a, A: Alarm<'a>> AlarmClient for RngTest<'a, A> {
 //!     fn fired(&self) {
 //!         self.rng.get();
 //!     }
 //! }
 //!
-//! impl<'a, A: hil::time::Alarm<'a>> hil::rng::Client for RngTest<'a, A> {
+//! impl<'a, A: Alarm<'a>> hil::rng::Client for RngTest<'a, A> {
 //!     fn randomness_available(&self,
 //!                             randomness: &mut Iterator<Item = u32>,
 //!                             error: ReturnCode) -> hil::rng::Continue {
 //!         match randomness.next() {
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
-//!                 let interval = 1 * <A::Frequency>::frequency();
-//!                 let tics = self.alarm.now().wrapping_add(interval);
-//!                 self.alarm.set_alarm(tics);
+//!                 self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
 //!                 hil::rng::Continue::Done
 //!             },
 //!             None => hil::rng::Continue::More

@@ -126,8 +126,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::hil::time::Frequency;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::static_init;
 use kernel::ReturnCode;
 
@@ -148,7 +147,7 @@ enum TestMode {
     DualRxMode,
 }
 
-pub struct LowpanTest<'a, A: time::Alarm<'a>> {
+pub struct LowpanTest<'a, A: Alarm<'a>> {
     alarm: &'a A,
     test_counter: Cell<usize>,
     port_table: &'static UdpPortManager,
@@ -209,7 +208,7 @@ pub unsafe fn initialize_all(
     udp_lowpan_test
 }
 
-impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
+impl<'a, A: Alarm<'a>> LowpanTest<'a, A> {
     pub fn new(
         alarm: &'a A,
         port_table: &'static UdpPortManager,
@@ -246,9 +245,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 1000;
-        let next = self.alarm.now().wrapping_add(delta);
-        self.alarm.set_alarm(next);
+        self.alarm
+            .set_alarm_from_now(A::ticks_from_ms(TEST_DELAY_MS));
     }
 
     fn run_test_and_increment(&self) {
@@ -414,7 +412,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmClient for LowpanTest<'a, A> {
     fn fired(&self) {
         self.run_test_and_increment();
     }

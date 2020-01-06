@@ -12,7 +12,7 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
-use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks};
 use kernel::{debug, ReturnCode};
 
 pub const DST_ADDR: IPAddr = IPAddr([
@@ -63,11 +63,8 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     pub fn start_sending(&self) {
         // Set alarm bc if you try to send immediately there are initialization issues
         self.send_loop.set(true);
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(<A::Frequency>::frequency() * SEND_INTERVAL_SECONDS),
-        );
+        self.alarm
+            .set_alarm_from_now(A::ticks_from_seconds(SEND_INTERVAL_SECONDS));
     }
 
     pub fn stop_sending(&self) {
@@ -158,7 +155,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmClient for MockUdp<'a, A> {
     fn fired(&self) {
         if self.send_loop.get() {
             self.send(self.id);
@@ -172,11 +169,10 @@ impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
         dgram.reset();
         self.udp_dgram.replace(dgram);
         debug!("");
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(<A::Frequency>::frequency() * SEND_INTERVAL_SECONDS),
-        );
+        self.alarm
+            .set_alarm(self.alarm.now().wrapping_add(A::Ticks::from(
+                <A::Frequency>::frequency() * SEND_INTERVAL_SECONDS,
+            )));
     }
 }
 

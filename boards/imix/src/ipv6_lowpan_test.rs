@@ -52,8 +52,7 @@ use core::cell::Cell;
 use core::ptr;
 use kernel::debug;
 use kernel::hil::radio;
-use kernel::hil::time::Frequency;
-use kernel::hil::time::{self, Alarm};
+use kernel::hil::time::{Alarm, AlarmClient, Ticks32Bits};
 use kernel::static_init;
 use kernel::ReturnCode;
 
@@ -135,9 +134,9 @@ static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_H
 static mut IP6_DG_OPT: Option<IP6Packet> = None;
 //END changes
 
-pub struct LowpanTest<'a, A: time::Alarm<'a>> {
+pub struct LowpanTest<'a, A: Alarm<'a>> {
     alarm: A,
-    sixlowpan_tx: TxState<'a>,
+    sixlowpan_tx: TxState<'a, A::Ticks>,
     radio: &'a dyn MacDevice<'a>,
     test_counter: Cell<usize>,
 }
@@ -154,7 +153,10 @@ pub unsafe fn initialize_all(
         capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
-    let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
+    let default_rx_state = static_init!(
+        RxState<'static, Ticks32Bits>,
+        RxState::new(&mut RX_STATE_BUF)
+    );
 
     let sixlowpan = static_init!(
         Sixlowpan<'static, sam4l::ast::Ast<'static>, sixlowpan_compression::Context>,
@@ -169,7 +171,7 @@ pub unsafe fn initialize_all(
         )
     );
 
-    let sixlowpan_state = sixlowpan as &dyn SixlowpanState;
+    let sixlowpan_state = sixlowpan as &dyn SixlowpanState<Ticks32Bits>;
     let sixlowpan_tx = TxState::new(sixlowpan_state);
 
     sixlowpan_tx.init(SRC_MAC_ADDR, DST_MAC_ADDR, radio_mac.get_pan(), None);
@@ -225,9 +227,9 @@ pub unsafe fn initialize_all(
     lowpan_frag_test
 }
 
-impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
+impl<'a, A: Alarm<'a>> LowpanTest<'a, A> {
     pub fn new(
-        sixlowpan_tx: TxState<'a>,
+        sixlowpan_tx: TxState<'a, A::Ticks>,
         radio: &'a dyn MacDevice<'a>,
         alarm: A,
     ) -> LowpanTest<'a, A> {
@@ -245,9 +247,8 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn schedule_next(&self) {
-        let delta = (A::Frequency::frequency() * TEST_DELAY_MS) / 5000;
-        let next = self.alarm.now().wrapping_add(delta);
-        self.alarm.set_alarm(next);
+        self.alarm
+            .set_alarm_from_now(A::ticks_from_ms(TEST_DELAY_MS));
     }
 
     fn run_test_and_increment(&self) {
@@ -448,13 +449,13 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm<'a>> time::AlarmClient for LowpanTest<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmClient for LowpanTest<'a, A> {
     fn fired(&self) {
         self.run_test_and_increment();
     }
 }
 
-impl<'a, A: time::Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
+impl<'a, A: Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
     fn receive(&self, buf: &[u8], len: usize, retcode: ReturnCode) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
@@ -464,7 +465,7 @@ impl<'a, A: time::Alarm<'a>> SixlowpanRxClient for LowpanTest<'a, A> {
 }
 
 static mut ARRAY: [u8; 100] = [0x0; 100]; //used in introducing delay between frames
-impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
+impl<'a, A: Alarm<'a>> TxClient for LowpanTest<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], _acked: bool, result: ReturnCode) {
         match result {
             ReturnCode::SUCCESS => {}

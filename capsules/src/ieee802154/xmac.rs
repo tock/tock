@@ -82,7 +82,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
-use kernel::hil::time::{self, Alarm, Frequency, Time};
+use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 use kernel::ReturnCode;
 
 // Time the radio will remain awake listening for packets before sleeping.
@@ -194,25 +194,21 @@ impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
             // If we should delay sleep (completed RX), set timer accordingly
             if self.delay_sleep.get() {
                 self.state.set(XMacState::DELAY_SLEEP);
-                self.set_timer_ms::<A>(MAX_RX_SLEEP_DELAY_MS);
+                self.set_timer_ms(MAX_RX_SLEEP_DELAY_MS);
 
             // Otherwise, don't sleep if expecting a data packet or transmitting
             } else if !self.rx_pending.get() {
                 self.radio.stop();
                 self.state.set(XMacState::SLEEP);
-                self.set_timer_ms::<A>(self.sleep_time());
+                self.set_timer_ms(self.sleep_time());
             }
         }
     }
 
     // Sets the timer to fire a set number of milliseconds in the future based
     // on the current tick value.
-    fn set_timer_ms<T: Time>(&self, ms: u32) {
-        self.alarm.set_alarm(
-            self.alarm
-                .now()
-                .wrapping_add(((ms as f32 / 1000.0) * <T::Frequency>::frequency() as f32) as u32),
-        );
+    fn set_timer_ms(&self, ms: u32) {
+        self.alarm.set_alarm_from_now(A::ticks_from_ms(ms));
     }
 
     fn transmit_preamble(&self) {
@@ -326,10 +322,8 @@ impl<R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
                     // the callback and randomly determine the remaining time
                     // spent backing off.
                     let time_remaining_ms =
-                        (((self.alarm.get_alarm().wrapping_sub(self.alarm.now())) as f32
-                            / <A::Frequency>::frequency() as f32)
-                            * 1000.0) as u32;
-                    self.set_timer_ms::<A>(random % time_remaining_ms);
+                        A::ticks_to_ms(self.alarm.get_alarm().wrapping_sub(self.alarm.now()));
+                    self.set_timer_ms(random % time_remaining_ms);
                 }
                 rng::Continue::Done
             }
@@ -443,7 +437,7 @@ impl<R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
         // If the radio is on, start the preamble timer and start transmitting
         if self.radio.is_on() {
             self.state.set(XMacState::TX_PREAMBLE);
-            self.set_timer_ms::<A>(PREAMBLE_TX_MS);
+            self.set_timer_ms(PREAMBLE_TX_MS);
             self.transmit_preamble();
 
         // If the radio is currently sleeping, wake it and indicate that when
@@ -460,7 +454,7 @@ impl<R: radio::Radio, A: Alarm<'a>> Mac for XMac<'a, R, A> {
 
 // Core of the XMAC protocol - when the timer fires, the protocol state
 // indicates the next state/action to take.
-impl<R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
+impl<R: radio::Radio, A: Alarm<'a>> AlarmClient for XMac<'a, R, A> {
     fn fired(&self) {
         match self.state.get() {
             XMacState::SLEEP => {
@@ -470,7 +464,7 @@ impl<R: radio::Radio, A: Alarm<'a>> time::AlarmClient for XMac<'a, R, A> {
                     self.state.set(XMacState::STARTUP);
                     self.radio.start();
                 } else {
-                    self.set_timer_ms::<A>(WAKE_TIME_MS);
+                    self.set_timer_ms(WAKE_TIME_MS);
                     self.state.set(XMacState::AWAKE);
                 }
             }
@@ -510,11 +504,11 @@ impl<R: radio::Radio, A: Alarm<'a>> radio::PowerClient for XMac<'a, R, A> {
                 if self.tx_preamble_pending.get() {
                     self.tx_preamble_pending.set(false);
                     self.state.set(XMacState::TX_PREAMBLE);
-                    self.set_timer_ms::<A>(PREAMBLE_TX_MS);
+                    self.set_timer_ms(PREAMBLE_TX_MS);
                     self.transmit_preamble();
                 } else {
                     self.state.set(XMacState::AWAKE);
-                    self.set_timer_ms::<A>(WAKE_TIME_MS);
+                    self.set_timer_ms(WAKE_TIME_MS);
                 }
             }
         }
@@ -588,7 +582,7 @@ impl<R: radio::Radio, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
                                 // backoff for more than the Rng generation time.
                                 self.state.set(XMacState::TX_DELAY);
                                 self.rng.get();
-                                self.set_timer_ms::<A>(MAX_TX_BACKOFF_MS);
+                                self.set_timer_ms(MAX_TX_BACKOFF_MS);
                                 continue_sleep = false;
                             }
                         }

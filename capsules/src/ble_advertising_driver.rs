@@ -97,11 +97,12 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::marker::PhantomData;
 use kernel::common::cells::OptionalCell;
 use kernel::debug;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Alarm, AlarmClient, Ticks};
 use kernel::ReturnCode;
 
 /// Syscall driver number.
@@ -126,21 +127,21 @@ enum BLEState {
 }
 
 #[derive(Copy, Clone)]
-enum Expiration {
+enum Expiration<T: Ticks> {
     Disabled,
-    Abs(u32),
+    Abs(T),
 }
 
 #[derive(Copy, Clone)]
-struct AlarmData {
-    t0: u32,
-    expiration: Expiration,
+struct AlarmData<T: Ticks> {
+    t0: T,
+    expiration: Expiration<T>,
 }
 
-impl AlarmData {
-    fn new() -> AlarmData {
-        AlarmData {
-            t0: 0,
+impl<T: Ticks> AlarmData<T> {
+    fn new() -> Self {
+        Self {
+            t0: T::from(0),
             expiration: Expiration::Disabled,
         }
     }
@@ -162,9 +163,9 @@ const CONNECT_IND: AdvPduType = 0b0101;
 const ADV_SCAN_IND: AdvPduType = 0b0110;
 
 /// Process specific memory
-pub struct App {
+pub struct App<'a, A: Alarm<'a>> {
     process_status: Option<BLEState>,
-    alarm_data: AlarmData,
+    alarm_data: AlarmData<A::Ticks>,
 
     // Advertising meta-data
     adv_data: Option<kernel::AppSlice<kernel::Shared, u8>>,
@@ -182,11 +183,13 @@ pub struct App {
     // Scanning meta-data
     scan_buffer: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
+
+    _phantom: PhantomData<&'a ()>,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
+impl<'a, A: Alarm<'a>> Default for App<'a, A> {
+    fn default() -> Self {
+        Self {
             alarm_data: AlarmData::new(),
             adv_data: None,
             scan_buffer: None,
@@ -198,11 +201,12 @@ impl Default for App {
             advertisement_interval_ms: 200,
             // Just use any non-zero starting value by default
             random_nonce: 0xdeadbeef,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl App {
+impl<'a, A: Alarm<'a>> App<'a, A> {
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
     //
     // A static address is a 48-bit randomly generated address and shall meet the following
@@ -231,10 +235,9 @@ impl App {
         ReturnCode::SUCCESS
     }
 
-    fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
+    fn send_advertisement<B>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
         B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-        A: kernel::hil::time::Alarm<'a>,
     {
         self.adv_data.as_ref().map_or(ReturnCode::FAIL, |adv_data| {
             ble.kernel_tx.take().map_or(ReturnCode::FAIL, |kernel_tx| {
@@ -284,37 +287,37 @@ impl App {
     }
 
     // Set the next alarm for this app using the period and provided start time.
-    fn set_next_alarm<F: Frequency>(&mut self, now: u32) {
+    fn set_next_alarm(&mut self, now: A::Ticks) {
         self.alarm_data.t0 = now;
         let nonce = self.random_nonce() % 10;
 
-        let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
-        self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
+        let period = A::ticks_from_ms(self.advertisement_interval_ms + nonce);
+        self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period));
     }
 }
 
 pub struct BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: kernel::Grant<App>,
+    app: kernel::Grant<App<'a, A>>,
     kernel_tx: kernel::common::cells::TakeCell<'static, [u8]>,
     alarm: &'a A,
     sending_app: OptionalCell<kernel::AppId>,
     receiving_app: OptionalCell<kernel::AppId>,
 }
 
-impl<B, A> BLE<'a, B, A>
+impl<'a, B, A> BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
 {
     pub fn new(
         radio: &'a B,
-        container: kernel::Grant<App>,
+        container: kernel::Grant<App<'a, A>>,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
@@ -338,31 +341,31 @@ where
     // likely be chosen.
     fn reset_active_alarm(&self) {
         let now = self.alarm.now();
-        let mut next_alarm = u32::max_value();
-        let mut next_dist = u32::max_value();
+        let mut next_alarm = None;
         for app in self.app.iter() {
             app.enter(|app, _| match app.alarm_data.expiration {
-                Expiration::Abs(exp) => {
-                    let t_dist = exp.wrapping_sub(now);
-                    if next_dist > t_dist {
-                        next_alarm = exp;
-                        next_dist = t_dist;
+                Expiration::Abs(exp) => match next_alarm {
+                    None => next_alarm = Some(exp),
+                    Some(next) => {
+                        if A::Ticks::expired(now, next, exp) {
+                            next_alarm = Some(exp);
+                        }
                     }
-                }
+                },
                 Expiration::Disabled => {}
             });
         }
-        if next_alarm != u32::max_value() {
-            self.alarm.set_alarm(next_alarm);
+        if let Some(next) = next_alarm {
+            self.alarm.set_alarm(next);
         }
     }
 }
 
 // Timer alarm
-impl<B, A> kernel::hil::time::AlarmClient for BLE<'a, B, A>
+impl<B, A> AlarmClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
 {
     // When an alarm is fired, we find which apps have expired timers. Expired
     // timers indicate a desire to perform some operation (e.g. start an
@@ -381,8 +384,7 @@ where
 
         self.app.each(|app| {
             if let Expiration::Abs(exp) = app.alarm_data.expiration {
-                let expired =
-                    now.wrapping_sub(app.alarm_data.t0) >= exp.wrapping_sub(app.alarm_data.t0);
+                let expired = A::Ticks::expired(app.alarm_data.t0, now, exp);
                 if expired {
                     if self.busy.get() {
                         // The radio is currently busy, so we won't be able to start the
@@ -390,7 +392,7 @@ where
                         // operation for later. This is _kind_ of simulating actual
                         // on-air interference
                         debug!("BLE: operation delayed for app {:?}", app.appid());
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm(self.alarm.now());
                         return;
                     }
 
@@ -431,7 +433,7 @@ where
 impl<B, A> ble_advertising::RxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         self.receiving_app.map(|appid| {
@@ -483,7 +485,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
                         app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm(self.alarm.now());
                     }
                     // Invalid state => don't care
                     _ => (),
@@ -498,7 +500,7 @@ where
 impl<B, A> ble_advertising::TxClient for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-transmissions for invalid CRCs
@@ -524,7 +526,7 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
                         app.process_status = Some(BLEState::AdvertisingIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm(self.alarm.now());
                     }
                     // Invalid state => don't care
                     _ => (),
@@ -539,7 +541,7 @@ where
 impl<B, A> kernel::Driver for BLE<'a, B, A>
 where
     B: ble_advertising::BleAdvertisementDriver + ble_advertising::BleConfig,
-    A: kernel::hil::time::Alarm<'a>,
+    A: Alarm<'a>,
 {
     fn command(
         &self,
@@ -559,9 +561,9 @@ where
                             ADV_IND | ADV_NONCONN_IND | ADV_SCAN_IND => {
                                 app.pdu_type = pdu_type;
                                 app.process_status = Some(BLEState::AdvertisingIdle);
-                                app.random_nonce = self.alarm.now();
+                                app.random_nonce = self.alarm.now().into_u32();
                                 app.advertisement_interval_ms = cmp::max(20, interval as u32);
-                                app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                                app.set_next_alarm(self.alarm.now());
                                 self.reset_active_alarm();
                                 ReturnCode::SUCCESS
                             }
@@ -622,7 +624,7 @@ where
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
                         app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        app.set_next_alarm(self.alarm.now());
                         self.reset_active_alarm();
                         ReturnCode::SUCCESS
                     } else {

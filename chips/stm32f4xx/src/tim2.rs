@@ -3,7 +3,7 @@ use cortexm4::support::atomic;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::time::{Alarm, AlarmClient, Freq16KHz, Ticks, Ticks32Bits, Time};
 use kernel::ClockInterface;
 
 use crate::nvic;
@@ -307,7 +307,7 @@ const TIM2_BASE: StaticRef<Tim2Registers> =
 pub struct Tim2<'a> {
     registers: StaticRef<Tim2Registers>,
     clock: Tim2Clock,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn AlarmClient>,
     irqn: u32,
 }
 
@@ -356,18 +356,18 @@ impl Tim2<'a> {
     }
 }
 
-impl hil::time::Alarm<'a> for Tim2<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl Alarm<'a> for Tim2<'a> {
+    fn set_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
-        self.registers.ccr1.set(tics);
+    fn set_alarm(&self, tics: Self::Ticks) {
+        self.registers.ccr1.set(tics.into_u32());
         self.registers.dier.modify(DIER::CC1IE::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.ccr1.get()
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.ccr1.get())
     }
 
     fn disable(&self) {
@@ -386,15 +386,12 @@ impl hil::time::Alarm<'a> for Tim2<'a> {
     }
 }
 
-impl hil::time::Time for Tim2<'a> {
-    type Frequency = hil::time::Freq16KHz;
+impl Time for Tim2<'a> {
+    type Ticks = Ticks32Bits;
+    type Frequency = Freq16KHz;
 
-    fn now(&self) -> u32 {
-        self.registers.cnt.get()
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.cnt.get())
     }
 }
 

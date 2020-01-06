@@ -36,8 +36,7 @@
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c;
-use kernel::hil::time;
-use kernel::hil::time::Frequency;
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::ReturnCode;
 
 // Buffer to use for I2C messages
@@ -92,7 +91,7 @@ enum OnDeck {
     Humidity,
 }
 
-pub struct SI7021<'a, A: time::Alarm<'a>> {
+pub struct SI7021<'a, A: Alarm<'a>> {
     i2c: &'a dyn i2c::I2CDevice,
     alarm: &'a A,
     temp_callback: OptionalCell<&'static dyn kernel::hil::sensors::TemperatureClient>,
@@ -102,7 +101,7 @@ pub struct SI7021<'a, A: time::Alarm<'a>> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<A: time::Alarm<'a>> SI7021<'a, A> {
+impl<A: Alarm<'a>> SI7021<'a, A> {
     pub fn new(
         i2c: &'a dyn i2c::I2CDevice,
         alarm: &'a A,
@@ -133,10 +132,7 @@ impl<A: time::Alarm<'a>> SI7021<'a, A> {
     }
 
     fn init_measurement(&self, buffer: &'static mut [u8]) {
-        let interval = (20 as u32) * <A::Frequency>::frequency() / 1000;
-
-        let tics = self.alarm.now().wrapping_add(interval);
-        self.alarm.set_alarm(tics);
+        self.alarm.set_alarm_from_now(A::ticks_from_ms(20));
 
         // Now wait for timer to expire
         self.buffer.replace(buffer);
@@ -150,7 +146,7 @@ impl<A: time::Alarm<'a>> SI7021<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
+impl<A: Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectElectronicId1 => {
@@ -237,7 +233,7 @@ impl<A: time::Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
+impl<A: Alarm<'a>> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
     fn read_temperature(&self) -> kernel::ReturnCode {
         self.buffer.take().map_or_else(
             || {
@@ -265,7 +261,7 @@ impl<A: time::Alarm<'a>> kernel::hil::sensors::TemperatureDriver for SI7021<'a, 
     }
 }
 
-impl<A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
+impl<A: Alarm<'a>> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
     fn read_humidity(&self) -> kernel::ReturnCode {
         self.buffer.take().map_or_else(
             || {
@@ -293,7 +289,7 @@ impl<A: time::Alarm<'a>> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> 
     }
 }
 
-impl<A: time::Alarm<'a>> time::AlarmClient for SI7021<'a, A> {
+impl<A: Alarm<'a>> AlarmClient for SI7021<'a, A> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands

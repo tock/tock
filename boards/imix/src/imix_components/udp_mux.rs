@@ -44,7 +44,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio;
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{Alarm, Ticks32Bits};
 use kernel::static_init;
 use sam4l;
 
@@ -148,10 +148,10 @@ impl Component for UDPMuxComponent {
             )
         );
 
-        let sixlowpan_state = sixlowpan as &dyn sixlowpan_state::SixlowpanState;
+        let sixlowpan_state = sixlowpan as &dyn sixlowpan_state::SixlowpanState<Ticks32Bits>;
         let sixlowpan_tx = sixlowpan_state::TxState::new(sixlowpan_state);
         let default_rx_state = static_init!(
-            sixlowpan_state::RxState<'static>,
+            sixlowpan_state::RxState<'static, Ticks32Bits>,
             sixlowpan_state::RxState::new(&mut SIXLOWPAN_RX_BUF)
         );
         sixlowpan_state.add_rx_state(default_rx_state);

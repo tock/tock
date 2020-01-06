@@ -4,7 +4,7 @@ use crate::csr;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::common::StaticRef;
-use kernel::hil;
+use kernel::hil::time::{Alarm, AlarmClient, Freq32KHz, Ticks, Ticks32Bits, Time};
 
 #[repr(C)]
 pub struct MachineTimerRegisters {
@@ -25,7 +25,7 @@ register_bitfields![u64,
 
 pub struct MachineTimer<'a> {
     registers: StaticRef<MachineTimerRegisters>,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    client: OptionalCell<&'a dyn AlarmClient>,
 }
 
 impl MachineTimer<'a> {
@@ -53,32 +53,29 @@ impl MachineTimer<'a> {
     }
 }
 
-impl hil::time::Time for MachineTimer<'a> {
-    type Frequency = hil::time::Freq32KHz;
+impl Time for MachineTimer<'a> {
+    type Ticks = Ticks32Bits;
+    type Frequency = Freq32KHz;
 
-    fn now(&self) -> u32 {
-        self.registers.mtime.get() as u32
-    }
-
-    fn max_tics(&self) -> u32 {
-        core::u32::MAX
+    fn now(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.mtime.get() as u32)
     }
 }
 
-impl hil::time::Alarm<'a> for MachineTimer<'a> {
-    fn set_client(&self, client: &'a dyn hil::time::AlarmClient) {
+impl Alarm<'a> for MachineTimer<'a> {
+    fn set_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
 
-    fn set_alarm(&self, tics: u32) {
+    fn set_alarm(&self, tics: Self::Ticks) {
         self.registers
             .mtimecmp
-            .write(MTimeCmp::MTIMECMP.val(tics as u64));
+            .write(MTimeCmp::MTIMECMP.val(tics.into_u32() as u64));
         csr::CSR.mie.modify(csr::mie::mie::mtimer::SET);
     }
 
-    fn get_alarm(&self) -> u32 {
-        self.registers.mtimecmp.get() as u32
+    fn get_alarm(&self) -> Self::Ticks {
+        Self::Ticks::from(self.registers.mtimecmp.get() as u32)
     }
 
     fn disable(&self) {

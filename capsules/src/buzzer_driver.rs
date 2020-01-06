@@ -39,8 +39,8 @@
 use core::cmp;
 
 use kernel::common::cells::OptionalCell;
-use kernel::hil;
-use kernel::hil::time::Frequency;
+use kernel::hil::pwm::PwmPin;
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 
 /// Syscall driver number.
@@ -64,9 +64,9 @@ pub struct App {
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
-pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
+pub struct Buzzer<'a, A: Alarm<'a>> {
     // The underlying PWM generator to make the buzzer buzz.
-    pwm_pin: &'a dyn hil::pwm::PwmPin,
+    pwm_pin: &'a dyn PwmPin,
     // Alarm to stop the buzzer after some time.
     alarm: &'a A,
     // Per-app state.
@@ -77,9 +77,9 @@ pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
     max_duration_ms: usize,
 }
 
-impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
+impl<A: Alarm<'a>> Buzzer<'a, A> {
     pub fn new(
-        pwm_pin: &'a dyn hil::pwm::PwmPin,
+        pwm_pin: &'a dyn PwmPin,
         alarm: &'a A,
         max_duration_ms: usize,
         grant: Grant<App>,
@@ -136,9 +136,8 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                 }
 
                 // Now start a timer so we know when to stop the PWM.
-                let interval = (duration_ms as u32) * <A::Frequency>::frequency() / 1000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                self.alarm
+                    .set_alarm_from_now(A::ticks_from_ms(duration_ms as u32));
                 ReturnCode::SUCCESS
             }
         }
@@ -162,7 +161,7 @@ impl<A: hil::time::Alarm<'a>> Buzzer<'a, A> {
     }
 }
 
-impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
+impl<A: Alarm<'a>> AlarmClient for Buzzer<'a, A> {
     fn fired(&self) {
         // All we have to do is stop the PWM and check if there are any pending
         // uses of the buzzer.
@@ -180,7 +179,7 @@ impl<A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<A: hil::time::Alarm<'a>> Driver for Buzzer<'a, A> {
+impl<A: Alarm<'a>> Driver for Buzzer<'a, A> {
     /// Setup callbacks.
     ///
     /// ### `subscribe_num`

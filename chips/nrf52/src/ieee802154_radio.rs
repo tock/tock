@@ -7,7 +7,7 @@ use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::radio::{self, PowerClient};
-use kernel::hil::time::Alarm;
+use kernel::hil::time::{Alarm, Ticks32Bits};
 use kernel::ReturnCode;
 
 use crate::ppi;
@@ -796,8 +796,9 @@ impl Radio {
                 let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
                 unsafe {
                     ppi::PPI.enable(ppi::Channel::CH21::SET);
-                    nrf5x::timer::TIMER0
-                        .set_alarm(backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32));
+                    nrf5x::timer::TIMER0.set_alarm(Ticks32Bits::from(
+                        backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
+                    ));
                 }
             } else {
                 self.transmitting.set(false);

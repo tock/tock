@@ -29,7 +29,7 @@ use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
-use kernel::hil::time::{self, Frequency};
+use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::ReturnCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];
@@ -43,7 +43,7 @@ enum State {
     Disabling(usize),
 }
 
-pub struct Isl29035<'a, A: time::Alarm<'a>> {
+pub struct Isl29035<'a, A: Alarm<'a>> {
     i2c: &'a dyn I2CDevice,
     alarm: &'a A,
     state: Cell<State>,
@@ -51,7 +51,7 @@ pub struct Isl29035<'a, A: time::Alarm<'a>> {
     client: OptionalCell<&'a dyn AmbientLightClient>,
 }
 
-impl<A: time::Alarm<'a>> Isl29035<'a, A> {
+impl<A: Alarm<'a>> Isl29035<'a, A> {
     pub fn new(i2c: &'a dyn I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
         Isl29035 {
             i2c: i2c,
@@ -86,7 +86,7 @@ impl<A: time::Alarm<'a>> Isl29035<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> AmbientLight for Isl29035<'a, A> {
+impl<A: Alarm<'a>> AmbientLight for Isl29035<'a, A> {
     fn set_client(&self, client: &'static dyn AmbientLightClient) {
         self.client.set(client);
     }
@@ -97,7 +97,7 @@ impl<A: time::Alarm<'a>> AmbientLight for Isl29035<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
+impl<A: Alarm<'a>> AlarmClient for Isl29035<'a, A> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // Turn on i2c to send commands.
@@ -110,16 +110,14 @@ impl<A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
     }
 }
 
-impl<A: time::Alarm<'a>> I2CClient for Isl29035<'a, A> {
+impl<A: Alarm<'a>> I2CClient for Isl29035<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         // TODO(alevy): handle I2C errors
         match self.state.get() {
             State::Enabling => {
                 // Set a timer to wait for the conversion to be done.
                 // For 8 bits, thats 410 us (per Table 11 in the datasheet).
-                let interval = (410 as u32) * <A::Frequency>::frequency() / 1000000;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
+                self.alarm.set_alarm_from_now(A::ticks_from_us(410));
 
                 // Now wait for timer to expire
                 self.buffer.replace(buffer);
