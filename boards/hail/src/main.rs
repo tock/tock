@@ -335,6 +335,7 @@ pub unsafe fn reset_handler() {
         capsules::adc::Adc<'static, sam4l::adc::Adc>,
         capsules::adc::Adc::new(
             &sam4l::adc::ADC0,
+            board_kernel.create_grant(&memory_allocation_capability),
             adc_channels,
             &mut capsules::adc::ADC_BUFFER1,
             &mut capsules::adc::ADC_BUFFER2,
