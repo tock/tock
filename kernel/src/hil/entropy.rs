@@ -51,7 +51,7 @@
 //!
 //! impl<'a, A: Alarm<'a>> EntropyTest<'a, A> {
 //!     pub fn initialize(&self) {
-//!         self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
+//!         self.alarm.set_alarm_from_now(A::ticks_from_seconds(1));
 //!     }
 //! }
 //!
@@ -68,7 +68,7 @@
 //!         match entropy.next() {
 //!             Some(val) => {
 //!                 println!("Entropy {}", val);
-//!                 self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
+//!                 self.alarm.set_alarm_from_now(A::ticks_from_seconds(1));
 //!                 hil::entropy::Continue::Done
 //!             },
 //!             None => hil::entropy::Continue::More

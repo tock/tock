@@ -59,7 +59,7 @@
 //!
 //! impl<'a, A: Alarm<'a>> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
-//!         self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
+//!         self.alarm.set_alarm_from_now(A::ticks_from_seconds(1));
 //!     }
 //! }
 //!
@@ -76,7 +76,7 @@
 //!         match randomness.next() {
 //!             Some(random) => {
 //!                 println!("Rand {}", random);
-//!                 self.alarm.set_alarm_from_now(A::ticks_from_ms(1000));
+//!                 self.alarm.set_alarm_from_now(A::ticks_from_seconds(1));
 //!                 hil::rng::Continue::Done
 //!             },
 //!             None => hil::rng::Continue::More
