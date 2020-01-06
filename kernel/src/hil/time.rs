@@ -109,7 +109,7 @@ pub trait Alarm<'a>: Time {
     ///
     /// ```ignore
     /// let delta = 1337;
-    /// alarm.set_duration(delta);
+    /// alarm.set_alarm_from_now(delta);
     /// ```
     fn set_alarm_from_now(&self, duration: Self::Ticks) {
         self.set_alarm(self.now().wrapping_add(duration));
