@@ -209,25 +209,27 @@ Generally, the Tock kernel is structured into three layers:
    a different system call driver that implements the same system
    calls, rather than trying to fit USB into the UART HIL).
 
-The connective tissue between layers are the HILs. The HIL interfaces
-are portable interfaces that are implemented in a non-portable way.
+Because of their importance, the interfaces between these layers are a key part
+of Tock's design and implementation. These interfaces are called Tock's Hardware
+Interface Layer, or HIL. A HIL is a portable collection of Rust traits that can
+be implemented in either a portable or a non-portable way. An example of a
+non-portable implementation of a HIL is an Alarm that is implemented in terms of
+counter and compare registers of a specific chip, while an example of a portable
+implementation is a virtualization layer that multiplexes multiple Alarms top of
+a single underlying Alarm.
 
-The choice of particular HIL interfaces is pretty important, and we
-have some general principles we follow:
+A HIL consists of one or more Rust traits that are intended to be used together.
+In some cases, implementations may only implement a subset of a HIL's traits.
+For example the analog-to-digital (ADC) conversion HIL may have traits both for
+single and streams of samples. A particular implementation may only support
+single samples and so not implement the streaming traits.
 
-1. HIL implementations get to assume this HIL is the only way the device will be
-   used. As a result, Tock tries to avoid having several HILs that provide
-   different interfaces to similar resources, because it will not, in general,
-   be possible for multiple drivers to use different HILs for the same device
-   simultaneously. For example, two separate HIL traits could exist for the ADC:
-   one that only provides single samples and one that allows for repeated,
-   periodic samples. If the two interfaces provide access to the same hardware
-   and are used simultaneously, likely one would corrupt the settings of the
-   other, and at least one of the interfaces would not function correctly.
+The choice of particular HIL interfaces is pretty important, and we have some
+general principles we follow:
 
-2. HIL implementations should be fairly general. If we have an interface that
+1. HIL implementations should be fairly general. If we have an interface that
    doesn't work very well across different hardware, we probably have the wrong
-   interface - it's either too high level, or too low level, or it’s just not
+   interface - it's either too high level, or too low level, or it's just not
    flexible enough. But HILs shouldn't generally be designed to optimize for
    particular applications or hardware, and definitely not for a particular
    combination of applications and hardware. If there are cases where that is
@@ -247,6 +249,19 @@ have some general principles we follow:
    advanced trait capsules can still use the interface but other UART
    implementations that do not have that required feature do not have to
    implement it.
+
+2. A HIL implementation may assume it is the only way the device will be used.
+   As a result, Tock tries to avoid having more than one HIL for a particular
+   service or abstraction, because it will not, in general, be possible for the
+   kernel to support simultaneously using different HILs for the same device.
+   For example, suppose there were two different HILs for a UART with slightly
+   different APIs. The chip-specific implementation of each one will need to
+   read and write hardware registers and handle interrupts, so they cannot exist
+   simultaneously. By allowing a HIL to assume it is the only way the device
+   will be used, Tock allows HILs to precisely define their semantics without
+   having to worry about potential future conflicts or use cases.
+
+
 
 ### Split-phase Operation
 
