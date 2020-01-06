@@ -11,7 +11,7 @@ Overview
 At a high level, to port Tock to a new platform you will need to create a new
 "board" as a crate, as well as potentially add additional "chip" and "arch"
 crates. The board crate specifies the exact resources available on a hardware
-platform by stitches capsules together with the chip crates (e.g. assigning
+platform by stitching capsules together with the chip crates (e.g. assigning
 pins, setting baud rates, allocating hardware peripherals etc.). The chip crate
 implements the peripheral drivers (e.g. UART, GPIO, alarms, etc.) for a specific
 microcontroller by implementing the traits found in `kernel/src/hil`. If your
@@ -99,6 +99,10 @@ so board files are generally a mix of components and verbose driver
 instantiation. The best bet is to start from an existing board's `main.rs` file
 and adapt it. Initially, you will likely want to delete most of the capsules and
 add them slowly as you get things working.
+
+> Warning: Components are singletons, that is they may not be instantiated multiple
+> times. Components should only be instantiated in the reset handler to avoid
+> any multiple instantiations.
 
 #### Board Support
 
