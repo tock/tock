@@ -297,3 +297,175 @@ impl Ticks for Ticks24Bits {
         Self(Self::MAX_VALUE)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{Freq16MHz, Freq32KHz, Ticks, Ticks24Bits, Ticks32Bits, Time};
+
+    struct Time32Bits16MHz;
+    impl Time for Time32Bits16MHz {
+        type Ticks = Ticks32Bits;
+        type Frequency = Freq16MHz;
+
+        fn now(&self) -> Self::Ticks {
+            Self::Ticks::from(0)
+        }
+    }
+
+    struct Time32Bits32KHz;
+    impl Time for Time32Bits32KHz {
+        type Ticks = Ticks32Bits;
+        type Frequency = Freq32KHz;
+
+        fn now(&self) -> Self::Ticks {
+            Self::Ticks::from(0)
+        }
+    }
+
+    #[test]
+    fn test_ticks_from_seconds() {
+        assert_eq!(
+            Time32Bits16MHz::ticks_from_seconds(1).into_u32(),
+            16_000_000
+        );
+        assert_eq!(
+            Time32Bits16MHz::ticks_from_seconds(10).into_u32(),
+            160_000_000
+        );
+        assert_eq!(Time32Bits32KHz::ticks_from_seconds(1).into_u32(), 32_768);
+        assert_eq!(Time32Bits32KHz::ticks_from_seconds(10).into_u32(), 327_680);
+    }
+
+    #[test]
+    fn test_ticks_from_ms() {
+        assert_eq!(Time32Bits16MHz::ticks_from_ms(1).into_u32(), 16_000);
+        assert_eq!(Time32Bits16MHz::ticks_from_ms(10).into_u32(), 160_000);
+        assert_eq!(Time32Bits16MHz::ticks_from_ms(100).into_u32(), 1_600_000);
+        assert_eq!(Time32Bits32KHz::ticks_from_ms(1).into_u32(), 32);
+        assert_eq!(Time32Bits32KHz::ticks_from_ms(10).into_u32(), 327);
+        assert_eq!(Time32Bits32KHz::ticks_from_ms(100).into_u32(), 3_276);
+    }
+
+    #[test]
+    fn test_ticks_from_us() {
+        assert_eq!(Time32Bits16MHz::ticks_from_us(1).into_u32(), 16);
+        assert_eq!(Time32Bits16MHz::ticks_from_us(10).into_u32(), 160);
+        assert_eq!(Time32Bits16MHz::ticks_from_us(100).into_u32(), 1_600);
+        assert_eq!(Time32Bits32KHz::ticks_from_us(1).into_u32(), 0);
+        assert_eq!(Time32Bits32KHz::ticks_from_us(10).into_u32(), 0);
+        assert_eq!(Time32Bits32KHz::ticks_from_us(100).into_u32(), 3);
+    }
+
+    #[test]
+    fn test_ticks_to_ms() {
+        assert_eq!(Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(16_000)), 1);
+        assert_eq!(Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(160_000)), 10);
+        assert_eq!(
+            Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(1_600_000)),
+            100
+        );
+        assert_eq!(
+            Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(16_000_000)),
+            1000
+        );
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(32)), 0);
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(33)), 1);
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(327)), 9);
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(328)), 10);
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(3_276)), 99);
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(3_277)), 100);
+        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(32_767)), 999);
+        assert_eq!(
+            Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(32_768)),
+            1000
+        );
+    }
+
+    #[test]
+    fn test_expired_reference_zero() {
+        assert_eq!(
+            Ticks32Bits::expired(
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(1),
+                Ticks32Bits::from(0)
+            ),
+            true
+        );
+        assert_eq!(
+            Ticks32Bits::expired(
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(0xFFFFFFFF),
+                Ticks32Bits::from(0)
+            ),
+            true
+        );
+        assert_eq!(
+            Ticks32Bits::expired(
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(1),
+                Ticks32Bits::from(1)
+            ),
+            true
+        );
+        assert_eq!(
+            Ticks32Bits::expired(
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(1)
+            ),
+            false
+        );
+        assert_eq!(
+            Ticks32Bits::expired(
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(0),
+                Ticks32Bits::from(0xFFFFFFFF)
+            ),
+            false
+        );
+    }
+
+    #[test]
+    fn test_24bit_add() {
+        assert_eq!(
+            Ticks24Bits::from(1)
+                .wrapping_add(Ticks24Bits::from(2))
+                .into_u32(),
+            3
+        );
+        assert_eq!(
+            Ticks24Bits::from(0xFFFFFF)
+                .wrapping_add(Ticks24Bits::from(1))
+                .into_u32(),
+            0
+        );
+        assert_eq!(
+            Ticks24Bits::from(0xFFFFFF)
+                .wrapping_add(Ticks24Bits::from(123))
+                .into_u32(),
+            122
+        );
+    }
+
+    #[test]
+    fn test_24bit_sub() {
+        assert_eq!(
+            Ticks24Bits::from(1)
+                .wrapping_sub(Ticks24Bits::from(2))
+                .into_u32(),
+            0xFFFFFF
+        );
+        assert_eq!(
+            Ticks24Bits::from(0xFFFFFF)
+                .wrapping_sub(Ticks24Bits::from(1))
+                .into_u32(),
+            0xFFFFFE
+        );
+        assert_eq!(
+            Ticks24Bits::from(123)
+                .wrapping_sub(Ticks24Bits::from(122))
+                .into_u32(),
+            1
+        );
+    }
+}
