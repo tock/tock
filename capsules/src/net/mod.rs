@@ -11,3 +11,4 @@ pub mod ipv6;
 pub mod tcp;
 pub mod thread;
 pub mod udp;
+pub mod network_capabilities;
