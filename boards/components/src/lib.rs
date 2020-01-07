@@ -5,6 +5,8 @@
 pub mod gpio;
 #[macro_use]
 pub mod led;
+#[macro_use]
+pub mod button;
 
 pub mod alarm;
 pub mod console;
