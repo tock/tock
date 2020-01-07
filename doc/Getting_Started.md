@@ -16,6 +16,9 @@ developing Tock.
    the options with `tockloader` support to load applications, as that
    is the configuration that most examples and tutorials assume.
 
+   * Info about testing Tock on QEMU
+     * 01/07/2020 : Boards supported by Tock OS are not yet supported on QEMU at the moment.
+
 ### Super Quick Setup
 
 Nix:
