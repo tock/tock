@@ -36,10 +36,16 @@ pub struct UartMuxComponent {
 }
 
 impl UartMuxComponent {
-    pub fn new(uart: &'static dyn uart::Uart<'static>,
-               baud_rate: u32,
-               deferred_caller: &'static DynamicDeferredCall) -> UartMuxComponent {
-        UartMuxComponent { uart, baud_rate, deferred_caller }
+    pub fn new(
+        uart: &'static dyn uart::Uart<'static>,
+        baud_rate: u32,
+        deferred_caller: &'static DynamicDeferredCall,
+    ) -> UartMuxComponent {
+        UartMuxComponent {
+            uart,
+            baud_rate,
+            deferred_caller,
+        }
     }
 }
 
@@ -57,8 +63,12 @@ impl Component for UartMuxComponent {
                 self.deferred_caller,
             )
         );
-        uart_mux.initialize_callback_handle(self.deferred_caller.register(uart_mux).expect("no deferred call slot available for uart mux"));
-        
+        uart_mux.initialize_callback_handle(
+            self.deferred_caller
+                .register(uart_mux)
+                .expect("no deferred call slot available for uart mux"),
+        );
+
         uart_mux.initialize();
         hil::uart::Transmit::set_transmit_client(self.uart, uart_mux);
         hil::uart::Receive::set_receive_client(self.uart, uart_mux);

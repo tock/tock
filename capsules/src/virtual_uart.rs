@@ -43,12 +43,10 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::{List, ListLink, ListNode};
 use kernel::common::dynamic_deferred_call::{
-    DynamicDeferredCall,
-    DynamicDeferredCallClient,
-    DeferredCallHandle,
+    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
+use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::uart;
 use kernel::ReturnCode;
 
@@ -162,10 +160,12 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a dyn uart::Uart<'a>,
-               buffer: &'static mut [u8],
-               speed: u32,
-               deferred_caller: &'a DynamicDeferredCall) -> MuxUart<'a> {
+    pub fn new(
+        uart: &'a dyn uart::Uart<'a>,
+        buffer: &'static mut [u8],
+        speed: u32,
+        deferred_caller: &'a DynamicDeferredCall,
+    ) -> MuxUart<'a> {
         MuxUart {
             uart: uart,
             speed: speed,
@@ -174,7 +174,7 @@ impl<'a> MuxUart<'a> {
             buffer: TakeCell::new(buffer),
             completing_read: Cell::new(false),
             deferred_caller: deferred_caller,
-            handle: OptionalCell::empty(),            
+            handle: OptionalCell::empty(),
         }
     }
 
@@ -191,7 +191,7 @@ impl<'a> MuxUart<'a> {
     pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
         self.handle.replace(handle);
     }
-    
+
     fn do_next_op(&self) {
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
@@ -262,7 +262,7 @@ impl<'a> MuxUart<'a> {
     /// during the downcall). Please see
     ///
     /// https://github.com/tock/tock/issues/1496
-    
+
     fn do_next_op_async(&self) {
         self.handle.map(|handle| self.deferred_caller.set(*handle));
     }
@@ -273,7 +273,6 @@ impl<'a> DynamicDeferredCallClient for MuxUart<'a> {
         self.do_next_op();
     }
 }
-
 
 #[derive(Copy, Clone, PartialEq)]
 enum Operation {
@@ -439,5 +438,3 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         ReturnCode::FAIL
     }
 }
-
-

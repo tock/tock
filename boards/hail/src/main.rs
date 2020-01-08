@@ -11,10 +11,7 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{
-    DynamicDeferredCall,
-    DynamicDeferredCallClientState,
-};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::Controller;
@@ -207,22 +204,24 @@ pub unsafe fn reset_handler() {
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
 
-    let dynamic_deferred_call_clients = static_init!(
-        [DynamicDeferredCallClientState; 2],
-        Default::default());
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients));
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-    
+
     // Initialize USART0 for Uart
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux =
-        components::console::UartMuxComponent::new(&sam4l::usart::USART0,
-                                                   115200,
-                                                   dynamic_deferred_caller).finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &sam4l::usart::USART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART0, uart_mux);
