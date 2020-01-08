@@ -432,8 +432,6 @@ pub unsafe fn reset_handler() {
     // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
     // let debug_process_restart = static_init!(
     //     capsules::debug_process_restart::DebugProcessRestart<
-    //         'static,
-    //         sam4l::gpio::GPIOPin,
     //         ProcessMgmtCap,
     //     >,
     //     capsules::debug_process_restart::DebugProcessRestart::new(
