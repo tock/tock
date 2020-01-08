@@ -7,14 +7,12 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::gpio;
 use kernel::hil::Controller;
 use kernel::Platform;
 #[allow(unused_imports)]
@@ -209,14 +207,8 @@ pub unsafe fn reset_handler() {
     sam4l::usart::USART0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &sam4l::usart::USART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
+    let uart_mux =
+        components::console::UartMuxComponent::new(&sam4l::usart::USART0, 115200).finalize(());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&sam4l::usart::USART0, uart_mux);
@@ -238,11 +230,8 @@ pub unsafe fn reset_handler() {
             .finalize(());
 
     let ast = &sam4l::ast::AST;
-
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST)
-    );
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(ast)
+        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
 
     let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1));
@@ -294,58 +283,28 @@ pub unsafe fn reset_handler() {
         .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
-        ); 3],
-        [
-            (
-                &sam4l::gpio::PA[13],
-                capsules::led::ActivationMode::ActiveLow
-            ), // Red
-            (
-                &sam4l::gpio::PA[15],
-                capsules::led::ActivationMode::ActiveLow
-            ), // Green
-            (
-                &sam4l::gpio::PA[14],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-        ]
-    ); // Blue
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        (
+            &sam4l::gpio::PA[13],
+            capsules::led::ActivationMode::ActiveLow
+        ), // Red
+        (
+            &sam4l::gpio::PA[15],
+            capsules::led::ActivationMode::ActiveLow
+        ), // Green
+        (
+            &sam4l::gpio::PA[14],
+            capsules::led::ActivationMode::ActiveLow
+        ) // Blue
+    ));
 
     // BUTTONs
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PA[16])
-            )
-            .finalize(),
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            &sam4l::gpio::PA[16],
             capsules::button::GpioMode::LowWhenPressed
-        )]
+        )),
     );
-
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-    }
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -375,41 +334,13 @@ pub unsafe fn reset_handler() {
     let rng = components::rng::RngComponent::new(board_kernel, &sam4l::trng::TRNG).finalize(());
 
     // set GPIO driver controlling remaining GPIO pins
-    let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 4],
-        [
-            // D0
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[14])
-            )
-            .finalize(),
-            // D1
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[15])
-            )
-            .finalize(),
-            // D6
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[11])
-            )
-            .finalize(),
-            // D7
-            static_init!(
-                gpio::InterruptValueWrapper,
-                gpio::InterruptValueWrapper::new(&sam4l::gpio::PC[12])
-            )
-            .finalize(),
-        ]
-    );
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
+    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+        components::gpio_component_helper!(
+            &sam4l::gpio::PC[14], // DO
+            &sam4l::gpio::PC[15], // D1
+            &sam4l::gpio::PC[11], // D6
+            &sam4l::gpio::PC[12]  // D7
+        ),
     );
 
     // CRC

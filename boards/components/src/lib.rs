@@ -1,6 +1,13 @@
 #![no_std]
 #![feature(in_band_lifetimes)]
 
+#[macro_use]
+pub mod gpio;
+#[macro_use]
+pub mod led;
+#[macro_use]
+pub mod button;
+
 pub mod alarm;
 pub mod console;
 pub mod crc;
