@@ -1341,7 +1341,7 @@ impl<C: 'static + Chip> Process<'a, C> {
 
             // Handle any architecture-specific requirements for a new process
             let mut stored_state = process.stored_state.get();
-            match chip.userspace_kernel_boundary().initialize_new_process(
+            match chip.userspace_kernel_boundary().initialize_process(
                 process.sp(),
                 process.sp() as usize - process.memory.as_ptr() as usize,
                 &mut stored_state,

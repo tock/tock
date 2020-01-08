@@ -34,12 +34,17 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = RiscvimacStoredState;
 
-    unsafe fn initialize_new_process(
+    unsafe fn initialize_process(
         &self,
         stack_pointer: *const usize,
         _stack_size: usize,
         state: &mut Self::StoredState,
     ) -> Result<*const usize, ()> {
+        // Need to clear the stored state when initializing.
+        state.regs.iter_mut().for_each(|x| *x = 0);
+        state.pc = 0;
+        state.mcause = 0;
+
         // The first time the process runs we need to set the initial stack
         // pointer in the sp register.
         state.regs[1] = stack_pointer as usize;
@@ -318,13 +323,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           li   t1, 8          // 8 is the index of ECALL from U mode.
           beq  t0, t1, _ecall // Check if we did an ECALL and handle it
                               // correctly.
-            
+
         _check_ecall_m_mode:
           li   t1, 11          // 11 is the index of ECALL from M mode.
           beq  t0, t1, _ecall  // analagous to _check_ecall_umode but included to support hifive1 board
-                               // only applicable to the hifive1 rev a board/FE310-G0000 chip, 
+                               // only applicable to the hifive1 rev a board/FE310-G0000 chip,
                                // which only has machine mode.
-                              
+
 
 
         _check_exception:
