@@ -611,6 +611,34 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 self.app_break.set(self.original_app_break);
                 self.current_stack_pointer.set(self.original_stack_pointer);
 
+                // Handle any architecture-specific requirements for a process
+                // when it first starts (as it would when it is new).
+                let mut stored_state = self.stored_state.get();
+                let new_stack_pointer_res = unsafe {
+                    self.chip.userspace_kernel_boundary().initialize_process(
+                        self.sp(),
+                        self.sp() as usize - self.memory.as_ptr() as usize,
+                        &mut stored_state,
+                    )
+                };
+                match new_stack_pointer_res {
+                    Ok(new_stack_pointer) => {
+                        self.current_stack_pointer.set(new_stack_pointer as *mut u8);
+                        self.debug_set_max_stack_depth();
+                        self.stored_state.set(stored_state);
+                    }
+                    Err(_) => {
+                        // We couldn't initialize the architecture-specific
+                        // state for this process. This shouldn't happen since
+                        // the app was able to be started before, but at this
+                        // point the app is no longer valid. The best thing we
+                        // can do now is mark the app as still faulted and not
+                        // schedule it.
+                        self.state.set(State::Fault);
+                        return;
+                    }
+                };
+
                 // And queue up this app to be restarted.
                 let flash_protected_size = self.header.get_protected_size() as usize;
                 let flash_app_start = app_flash_address as usize + flash_protected_size;
