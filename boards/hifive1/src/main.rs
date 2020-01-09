@@ -13,8 +13,9 @@
 #![feature(asm)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
+                                            DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
@@ -38,7 +39,7 @@ static mut APP_MEMORY: [u8; 5 * 1024] = [0; 5 * 1024];
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x800] = [0; 0x800];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -96,6 +97,14 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 1], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&e310x::gpio::PORT[22]), // Red
@@ -115,19 +124,7 @@ pub unsafe fn reset_handler() {
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &e310x::uart::UART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&e310x::uart::UART0, uart_mux);
-    hil::uart::Receive::set_receive_client(&e310x::uart::UART0, uart_mux);
+    let uart_mux = components::console::UartMuxComponent::new(&e310x::uart::UART0, 115200, dynamic_deferred_caller).finalize(());
 
     // Initialize some GPIOs which are useful for debugging.
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);

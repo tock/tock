@@ -16,7 +16,8 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
+                                            DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::radio;
 #[allow(unused_imports)]
