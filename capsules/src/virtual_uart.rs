@@ -262,7 +262,6 @@ impl<'a> MuxUart<'a> {
     /// during the downcall). Please see
     ///
     /// https://github.com/tock/tock/issues/1496
-
     fn do_next_op_async(&self) {
         self.handle.map(|handle| self.deferred_caller.set(*handle));
     }
