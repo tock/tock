@@ -60,11 +60,9 @@ impl<T: ?Sized> Drop for Owned<T> {
     fn drop(&mut self) {
         unsafe {
             let data = self.data.as_ptr() as *mut u8;
-            self.appid
-                .kernel
-                .process_map_or((), self.appid.idx(), |process| {
-                    process.free(data);
-                });
+            self.appid.kernel.process_map_or((), self.appid, |process| {
+                process.free(data);
+            });
         }
     }
 }
@@ -87,7 +85,7 @@ impl Allocator {
         unsafe {
             self.appid
                 .kernel
-                .process_map_or(Err(Error::NoSuchApp), self.appid.idx(), |process| {
+                .process_map_or(Err(Error::NoSuchApp), self.appid, |process| {
                     process.alloc(size_of::<T>(), align_of::<T>()).map_or(
                         Err(Error::OutOfMemory),
                         |arr| {
@@ -145,7 +143,7 @@ impl<T: Default> Grant<T> {
 
     pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
         unsafe {
-            appid.kernel.process_map_or(None, appid.idx(), |process| {
+            appid.kernel.process_map_or(None, appid, |process| {
                 let cntr = *(process.grant_ptr(self.grant_num) as *mut *mut T);
                 if cntr.is_null() {
                     None
@@ -168,7 +166,7 @@ impl<T: Default> Grant<T> {
         unsafe {
             appid
                 .kernel
-                .process_map_or(Err(Error::NoSuchApp), appid.idx(), |process| {
+                .process_map_or(Err(Error::NoSuchApp), appid, |process| {
                     // Here is an example of how the grants are laid out in a
                     // process's memory:
                     //

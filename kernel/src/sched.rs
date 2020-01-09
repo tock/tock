@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::{Callback, CallbackId};
+use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -73,14 +73,14 @@ impl Kernel {
     /// not exist (i.e. it is `None` in the `processes` array) then `default`
     /// will be returned. Otherwise the closure will executed and passed a
     /// reference to the process.
-    crate fn process_map_or<F, R>(&self, default: R, process_index: usize, closure: F) -> R
+    crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        if process_index > self.processes.len() {
+        if appid.idx() > self.processes.len() {
             return default;
         }
-        self.processes[process_index].map_or(default, |process| closure(process))
+        self.processes[appid.idx()].map_or(default, |process| closure(process))
     }
 
     /// Run a closure on every valid process. This will iterate the array of
