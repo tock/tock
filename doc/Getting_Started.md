@@ -16,6 +16,9 @@ developing Tock.
    the options with `tockloader` support to load applications, as that
    is the configuration that most examples and tutorials assume.
 
+   * Info about testing Tock on QEMU
+     * 01/08/2020 : Among the boards supported by Tock, [SiFive HiFive1 RISC-V Board](../boards/hifive1/#running-in-qemu) can be tested in QEMU.
+
 ### Super Quick Setup
 
 Nix:
