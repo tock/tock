@@ -171,17 +171,35 @@ impl fmt::Display for CortexMConfig {
                     0b111 => "ReadOnlyAlias",
                     _ => "ERR",
                 };
+                let start = location.0 as usize;
                 write!(
                     f,
                     "\
-                     \r\n  Region {}: base:{:>width$x}, length: {} bytes; {} ({:#x})",
+                     \r\n  Region {}: [{:#010X}:{:#010X}], length: {} bytes; {} ({:#x})",
                     i,
-                    location.0 as usize,
+                    start,
+                    start + location.1,
                     location.1,
                     access_str,
                     access_bits,
-                    width = 10,
                 )?;
+                let subregion_bits = region.attributes().read(RegionAttributes::SRD);
+                let subregion_size = location.1 / 8;
+                for j in 0..8 {
+                    write!(
+                        f,
+                        "\
+                         \r\n    Sub-region {}: [{:#010X}:{:#010X}], {}",
+                        j,
+                        start + j * subregion_size,
+                        start + (j + 1) * subregion_size,
+                        if (subregion_bits >> j) & 1 == 0 {
+                            "Enabled"
+                        } else {
+                            "Disabled"
+                        },
+                    )?;
+                }
             } else {
                 write!(f, "\r\n  Region {}: Unused", i)?;
             }
