@@ -109,12 +109,12 @@ pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
 
 /// Functions to create, initialize, and interact with the ADC
 impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
-    /// Create a new Adc application interface
+    /// Create a new `Adc` application interface.
     ///
-    /// adc - ADC driver to provide application access to
-    /// channels - list of ADC channels usable by applications
-    /// adc_buf1 - buffer used to hold ADC samples
-    /// adc_buf2 - second buffer used when continuously sampling ADC
+    /// - `adc` - ADC driver to provide application access to
+    /// - `channels` - list of ADC channels usable by applications
+    /// - `adc_buf1` - buffer used to hold ADC samples
+    /// - `adc_buf2` - second buffer used when continuously sampling ADC
     pub fn new(
         adc: &'a A,
         grant: Grant<App>,
@@ -144,11 +144,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         }
     }
 
-    /// Store a buffer we've regained ownership of and return a handle to it
-    /// The handle can have `map` called on it in order to process the data in
-    /// the buffer
+    /// Store a buffer we've regained ownership of and return a handle to it.
+    /// The handle can have `map()` called on it in order to process the data in
+    /// the buffer.
     ///
-    /// buf - buffer to be stored
+    /// - `buf` - buffer to be stored
     fn replace_buffer(&self, buf: &'static mut [u16]) -> &TakeCell<'static, [u16]> {
         if self.adc_buf1.is_none() {
             self.adc_buf1.replace(buf);
@@ -162,9 +162,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         }
     }
 
-    /// Find a buffer to give to the ADC to store samples in
+    /// Find a buffer to give to the ADC to store samples in.
     ///
-    /// closure - function to run on the found buffer
+    /// - `closure` - function to run on the found buffer
     fn take_and_map_buffer<F: FnOnce(&'static mut [u16])>(&self, closure: F) {
         if self.adc_buf1.is_some() {
             self.adc_buf1.take().map(|val| {
@@ -181,9 +181,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         }
     }
 
-    /// Collect a single analog sample on a channel
+    /// Collect a single analog sample on a channel.
     ///
-    /// channel - index into `channels` array, which channel to sample
+    /// - `channel` - index into `channels` array, which channel to sample
     fn sample(&self, channel: usize) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
@@ -214,10 +214,10 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         ReturnCode::SUCCESS
     }
 
-    /// Collected repeated single analog samples on a channel
+    /// Collect repeated single analog samples on a channel.
     ///
-    /// channel - index into `channels` array, which channel to sample
-    /// frequency - number of samples per second to collect
+    /// - `channel` - index into `channels` array, which channel to sample
+    /// - `frequency` - number of samples per second to collect
     fn sample_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
@@ -248,12 +248,13 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         ReturnCode::SUCCESS
     }
 
-    /// Collect a buffer-full of analog samples
-    /// Samples are collected into the first app buffer provided. The number of
-    /// samples collected is equal to the size of the buffer "allowed"
+    /// Collect a buffer-full of analog samples.
     ///
-    /// channel - index into `channels` array, which channel to sample
-    /// frequency - number of samples per second to collect
+    /// Samples are collected into the first app buffer provided. The number of
+    /// samples collected is equal to the size of the buffer "allowed".
+    ///
+    /// - `channel` - index into `channels` array, which channel to sample
+    /// - `frequency` - number of samples per second to collect
     fn sample_buffer(&self, channel: usize, frequency: u32) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
@@ -343,13 +344,14 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         ret
     }
 
-    /// Collect analog samples continuously
+    /// Collect analog samples continuously.
+    ///
     /// Fills one "allowed" application buffer at a time and then swaps to
     /// filling the second buffer. Callbacks occur when the in use "allowed"
-    /// buffer fills
+    /// buffer fills.
     ///
-    /// channel - index into `channels` array, which channel to sample
-    /// frequency - number of samples per second to collect
+    /// - `channel` - index into `channels` array, which channel to sample
+    /// - `frequency` - number of samples per second to collect
     fn sample_buffer_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
         // only one sample at a time
         if self.active.get() {
@@ -455,9 +457,10 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
         ret
     }
 
-    /// Stops sampling the ADC
+    /// Stops sampling the ADC.
+    ///
     /// Any active operation by the ADC is canceled. No additional callbacks
-    /// will occur. Also retrieves buffers from the ADC (if any)
+    /// will occur. Also retrieves buffers from the ADC (if any).
     fn stop_sampling(&self) -> ReturnCode {
         if !self.active.get() || self.mode.get() == AdcMode::NoMode {
             // already inactive!
@@ -499,10 +502,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
 
 /// Callbacks from the ADC driver
 impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for Adc<'a, A> {
-    /// Single sample operation complete
-    /// Collects the sample and provides a callback to the application
+    /// Single sample operation complete.
     ///
-    /// sample - analog sample value
+    /// Collects the sample and provides a callback to the application.
+    ///
+    /// - `sample` - analog sample value
     fn sample_ready(&self, sample: u16) {
         let mut calledback = false;
         if self.active.get() && self.mode.get() == AdcMode::SingleSample {
@@ -556,12 +560,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
     /// Copies data over to application buffer, determines if more data is
     /// needed, and performs a callback to the application if ready. If
     /// continuously sampling, also swaps application buffers and continues
-    /// sampling when neccessary. If only filling a single buffer, stops
+    /// sampling when necessary. If only filling a single buffer, stops
     /// sampling operation when the application buffer is full.
     ///
-    /// buf - internal buffer filled with analog samples
-    /// length - number of valid samples in the buffer, guaranteed to be less
-    ///          than or equal to buffer length
+    /// - `buf` - internal buffer filled with analog samples
+    /// - `length` - number of valid samples in the buffer, guaranteed to be
+    ///   less than or equal to buffer length
     fn samples_ready(&self, buf: &'static mut [u16], length: usize) {
         // do we expect a buffer?
         if self.active.get()
@@ -835,11 +839,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 /// Implementations of application syscalls
 impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
     /// Provides access to a buffer from the application to store data in or
-    /// read data from
+    /// read data from.
     ///
-    /// _appid - application identifier, unused
-    /// allow_num - which allow call this is
-    /// slice - representation of application memory to copy data into
+    /// - `_appid` - application identifier, unused
+    /// - `allow_num` - which allow call this is
+    /// - `slice` - representation of application memory to copy data into
     fn allow(
         &self,
         appid: AppId,
@@ -886,10 +890,10 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         }
     }
 
-    /// Provides a callback which can be used to signal the application
+    /// Provides a callback which can be used to signal the application.
     ///
-    /// subscribe_num - which subscribe call this is
-    /// callback - callback object which can be scheduled to signal the
+    /// - `subscribe_num` - which subscribe call this is
+    /// - `callback` - callback object which can be scheduled to signal the
     ///            application
     fn subscribe(
         &self,
@@ -924,11 +928,11 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         }
     }
 
-    /// Method for the application to command or query this driver
+    /// Method for the application to command or query this driver.
     ///
-    /// command_num - which command call this is
-    /// data - value sent by the application, varying uses
-    /// _appid - application identifier, unused
+    /// - `command_num` - which command call this is
+    /// - `data` - value sent by the application, varying uses
+    /// - `_appid` - application identifier, unused
     fn command(
         &self,
         command_num: usize,
