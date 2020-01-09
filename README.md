@@ -69,6 +69,20 @@ discussions on Tock development.
 
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 
+
+Code of Conduct
+---------------
+
+The Tock project adheres to the Rust [Code of Conduct][coc].
+
+All contributors, community members, and visitors are expected to familiarize
+themselves with the Code of Conduct and to follow these standards in all
+Tock-affiliated environments, which includes but is not limited to
+repositories, chats, and meetup events. For moderation issues, please contact
+members of the @tock/core-wg.
+
+[coc]: https://www.rust-lang.org/conduct.html
+
 License
 -------
 
