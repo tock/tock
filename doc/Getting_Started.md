@@ -17,7 +17,7 @@ developing Tock.
    is the configuration that most examples and tutorials assume.
 
    * Info about testing Tock on QEMU
-     * 01/07/2020 : Boards supported by Tock OS are not yet supported on QEMU at the moment.
+     * 01/08/2020 : Among the boards supported by Tock, [SiFive HiFive1 RISC-V Board](../boards/hifive1/#running-in-qemu) can be tested in QEMU.
 
 ### Super Quick Setup
 
