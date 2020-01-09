@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ptr::NonNull;
 
-use crate::callback::{Callback, CallbackId};
+use crate::callback::{AppId, Callback, CallbackId};
 use crate::capabilities;
 use crate::common::cells::NumericCellExt;
 use crate::common::dynamic_deferred_call::DynamicDeferredCall;
@@ -29,6 +29,10 @@ pub struct Kernel {
     work: Cell<usize>,
     /// This holds a pointer to the static array of Process pointers.
     processes: &'static [Option<&'static dyn process::ProcessType>],
+    /// Value to keep track of how many process identifiers have been used. Each
+    /// new process will get the next process identifier and this will be
+    /// incremented.
+    process_identifier_max: Cell<usize>,
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can allocated pointers for each grant.
@@ -45,6 +49,7 @@ impl Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
+            process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
         }
@@ -71,14 +76,19 @@ impl Kernel {
     /// not exist (i.e. it is `None` in the `processes` array) then `default`
     /// will be returned. Otherwise the closure will executed and passed a
     /// reference to the process.
-    crate fn process_map_or<F, R>(&self, default: R, process_index: usize, closure: F) -> R
+    crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        if process_index > self.processes.len() {
-            return default;
-        }
-        self.processes[process_index].map_or(default, |process| closure(process))
+        // Find a process that matches the app id provided.
+        let process = self
+            .processes
+            .iter()
+            .find(|&&p| p.map_or(false, |p2| appid == p2.appid()));
+
+        // Run the closure on the process, dealing with the many options
+        // encountered along the way.
+        process.map_or(default, |p2| closure(p2.unwrap()))
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -143,6 +153,11 @@ impl Kernel {
     /// Return how many processes this board supports.
     crate fn number_of_process_slots(&self) -> usize {
         self.processes.len()
+    }
+
+    /// Create a new unique identifier for a process and return the identifier.
+    crate fn create_process_identifier(&self) -> usize {
+        self.process_identifier_max.get_and_increment()
     }
 
     /// Create a new grant. This is used in board initialization to setup grants

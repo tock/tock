@@ -49,7 +49,6 @@ pub fn load_processes<C: Chip>(
                 app_memory_ptr,
                 app_memory_size,
                 fault_response,
-                i,
             );
 
             if process.is_none() {
@@ -400,10 +399,13 @@ struct ProcessDebug {
 }
 
 pub struct Process<'a, C: 'static + Chip> {
-    /// Index of the process in the process table.
+    /// A unique identifier for this process.
     ///
-    /// Corresponds to AppId
-    app_idx: usize,
+    /// This is the value that is wrapped in `AppId`. It must be different for
+    /// every process, and if a process is ended and restarted it must change
+    /// as well. This uniqueness will invalidate old `AppId` references that
+    /// may be stored in capsules or elsewhere.
+    app_identifier: Cell<usize>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -497,7 +499,7 @@ pub struct Process<'a, C: 'static + Chip> {
 
 impl<C: Chip> ProcessType for Process<'a, C> {
     fn appid(&self) -> AppId {
-        AppId::new(self.kernel, self.app_idx)
+        AppId::new(self.kernel, self.app_identifier.get())
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
@@ -594,6 +596,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     debug.last_syscall = None;
                     debug.dropped_callback_count = 0;
                 });
+
+                // We need a new process identifier for this app since the
+                // restarted version is in effect a new process. This is also
+                // necessary to invalidate any stored `AppId`s that point to the
+                // old version of the app.
+                self.app_identifier
+                    .set(self.kernel.create_process_identifier());
 
                 // We are going to start this process over again, so need
                 // the init_fn location.
@@ -1166,7 +1175,6 @@ impl<C: 'static + Chip> Process<'a, C> {
         remaining_app_memory: *mut u8,
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
-        index: usize,
     ) -> (Option<&'static dyn ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
@@ -1291,7 +1299,9 @@ impl<C: 'static + Chip> Process<'a, C> {
             let mut process: &mut Process<C> =
                 &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
-            process.app_idx = index;
+            process
+                .app_identifier
+                .set(kernel.create_process_identifier());
             process.kernel = kernel;
             process.chip = chip;
             process.memory = app_memory;

@@ -151,15 +151,17 @@ impl Driver for IPC {
             process::IPCType::Client
         };
 
-        self.data
-            .kernel
-            .process_map_or(ReturnCode::EINVAL, target_id - 1, |target| {
+        self.data.kernel.process_map_or(
+            ReturnCode::EINVAL,
+            AppId::new(self.data.kernel, target_id - 1),
+            |target| {
                 let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
                 match ret {
                     true => ReturnCode::SUCCESS,
                     false => ReturnCode::FAIL,
                 }
-            })
+            },
+        )
     }
 
     /// allow enables processes to discover IPC services on the platform or
