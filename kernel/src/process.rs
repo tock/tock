@@ -451,6 +451,7 @@ pub struct Process<'a, C: 'static + Chip> {
 
     /// Pointer to high water mark for process buffers shared through `allow`
     allow_high_water_mark: Cell<*const u8>,
+    original_allow_high_water_mark: *const u8,
 
     /// Saved when the app switches to the kernel.
     current_stack_pointer: Cell<*const u8>,
@@ -610,6 +611,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // Reset other memory pointers.
                 self.app_break.set(self.original_app_break);
                 self.current_stack_pointer.set(self.original_stack_pointer);
+                self.allow_high_water_mark
+                    .set(self.original_allow_high_water_mark);
 
                 // Handle any architecture-specific requirements for a process
                 // when it first starts (as it would when it is new).
@@ -1321,6 +1324,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;
             process.allow_high_water_mark = Cell::new(remaining_app_memory);
+            process.original_allow_high_water_mark = remaining_app_memory;
             process.current_stack_pointer = Cell::new(initial_stack_pointer);
             process.original_stack_pointer = initial_stack_pointer;
 
