@@ -14,8 +14,7 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
-                                            DynamicDeferredCallClientState};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::Platform;
@@ -124,7 +123,12 @@ pub unsafe fn reset_handler() {
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&e310x::uart::UART0, 115200, dynamic_deferred_caller).finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &e310x::uart::UART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // Initialize some GPIOs which are useful for debugging.
     hil::gpio::Pin::make_output(&e310x::gpio::PORT[22]);

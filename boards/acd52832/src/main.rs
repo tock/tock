@@ -6,8 +6,7 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
-                                            DynamicDeferredCallClientState};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -30,7 +29,7 @@ const BUTTON2_PIN: Pin = Pin::P0_14;
 const BUTTON3_PIN: Pin = Pin::P0_15;
 const BUTTON4_PIN: Pin = Pin::P0_16;
 const BUTTON_RST_PIN: Pin = Pin::P0_19;
- 
+
 /// UART Writer
 pub mod io;
 
@@ -125,7 +124,6 @@ pub unsafe fn reset_handler() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    
     // GPIOs
     let gpio_pins = static_init!(
         [&'static dyn kernel::hil::gpio::InterruptValuePin; 7],
@@ -368,8 +366,8 @@ pub unsafe fn reset_handler() {
     //
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux =     
-        components::console::UartMuxComponent::new(rtt, 115200, dynamic_deferred_caller).finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(rtt, 115200, dynamic_deferred_caller)
+        .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

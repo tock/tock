@@ -14,8 +14,7 @@ use cc26x2::aon;
 use cc26x2::prcm;
 use cc26x2::pwm;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
-                                            DynamicDeferredCallClientState};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -170,7 +169,7 @@ pub unsafe fn reset_handler() {
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-    
+
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();
 
@@ -248,10 +247,12 @@ pub unsafe fn reset_handler() {
 
     // UART
     cc26x2::uart::UART0.initialize();
-    let uart_mux =
-        components::console::UartMuxComponent::new(&cc26x2::uart::UART0,
-                                                   115200,
-                                                   dynamic_deferred_caller).finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &cc26x2::uart::UART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

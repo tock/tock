@@ -8,8 +8,7 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
-                                            DynamicDeferredCallClientState};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use nrf52::gpio::Pin;
@@ -276,18 +275,21 @@ pub unsafe fn setup_board(
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-    
-    
+
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&nrf52::uart::UARTE0, 115200, dynamic_deferred_caller).finalize(());
-    
+    let uart_mux = components::console::UartMuxComponent::new(
+        &nrf52::uart::UARTE0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
+
     nrf52::uart::UARTE0.initialize(
         nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
         nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
         Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
         Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
     );
-
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

@@ -9,8 +9,7 @@
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall,
-                                            DynamicDeferredCallClientState};
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::time::Alarm;
@@ -191,7 +190,7 @@ pub unsafe fn reset_handler() {
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-    
+
     let chip = static_init!(
         stm32f4xx::chip::Stm32f4xx,
         stm32f4xx::chip::Stm32f4xx::new()
@@ -201,10 +200,12 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for kernel debug.
     stm32f4xx::usart::USART2.enable_clock();
-    let uart_mux =
-        components::console::UartMuxComponent::new(&stm32f4xx::usart::USART2,
-                                                   115200,
-                                                   dynamic_deferred_caller).finalize(());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &stm32f4xx::usart::USART2,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
