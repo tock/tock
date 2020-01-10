@@ -79,6 +79,10 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     button: &'static capsules::button::Button<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static>,
     led: &'static capsules::led::LED<'static>,
@@ -260,12 +264,8 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
 
     let rtc = &nrf52::rtc::RTC;
     rtc.start();
-    let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC)
-    );
-    hil::time::Alarm::set_client(rtc, mux_alarm);
-
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
+        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
@@ -291,6 +291,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
         Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
     );
+    let pconsole =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -434,6 +437,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         button: button,
         ble_radio: ble_radio,
         ieee802154_radio: ieee802154_radio,
+        pconsole: pconsole,
         console: console,
         led: led,
         gpio: gpio,
@@ -444,6 +448,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
+    platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 
