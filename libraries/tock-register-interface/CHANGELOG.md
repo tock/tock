@@ -1,6 +1,10 @@
 # Changelog
 
-## master
+## v0.5
+
+ - #1510
+   - Register visibility granularity: don't automatically make everything
+      `pub`, rather give creation macro callers visbility control.
 
  - #1489
    - Make `register_structs!` unit test generation opt-out, so that
@@ -14,6 +18,7 @@
      skipped at some point.
    - Implement `read()` for `FieldValue` so that individual fields
      can be extracted from a register `FieldValue` representation.
+
  - #1461: Update `register_structs` macro to support flexible visibility of each
    struct and each field. Also revert to private structs by default.
 
