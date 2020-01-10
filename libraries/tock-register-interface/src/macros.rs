@@ -119,12 +119,17 @@ macro_rules! register_bitmasks {
 #[macro_export]
 macro_rules! register_bitfields {
     {
-        $valtype:ty, $( $(#[$inner:meta])* $reg:ident $fields:tt ),*
+        $valtype:ty, $( $(#[$inner:meta])* $vis:vis $reg:ident $fields:tt ),*
     } => {
         $(
             #[allow(non_snake_case)]
             $(#[$inner])*
-            pub mod $reg {
+            $vis mod $reg {
+                // Visibility note: This is left always `pub` as it is not
+                // meaningful to restrict access to the `Register` element of
+                // the register module if the module itself is in scope
+                //
+                // (if you can access $reg, you can access $reg::Register)
                 #[derive(Clone, Copy)]
                 pub struct Register;
                 impl $crate::registers::RegisterLongName for Register {}

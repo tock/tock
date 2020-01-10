@@ -1,11 +1,11 @@
 use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
 
 register_bitfields![u32,
-mcause [
-    // only support 32 bit targets
-    isException OFFSET(31) NUMBITS(1) [],
-    reason OFFSET(0) NUMBITS(31) []
-]
+    pub mcause [
+        // only support 32 bit targets
+        isException OFFSET(31) NUMBITS(1) [],
+        reason OFFSET(0) NUMBITS(31) []
+    ]
 ];
 
 pub trait McauseHelpers {

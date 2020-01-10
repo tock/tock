@@ -80,13 +80,13 @@ pub struct Registers {
 
 register_bitfields![
     u32,
-    Cfg [
+    pub Cfg [
         BITS  OFFSET(0) NUMBITS(3) [
             _32 = 0x0,
             _16 = 0x4
         ]
     ],
-    Mode [
+    pub Mode [
         ACTION_ON_TIMOUT OFFSET(13) NUMBITS(3) [
             DISABLE = 0,
             TOGGLE = 0x1,
@@ -147,7 +147,7 @@ register_bitfields![
             CAPTURE = 0x3
         ]
     ],
-    Ctl [
+    pub Ctl [
         TIMER_B_PWM_OUTPUT_INVERT OFFSET(14) NUMBITS(1) [
             DISABLE = 0x0,
             ENABLE = 0x1
@@ -185,7 +185,7 @@ register_bitfields![
             ENABLE = 0x1
         ]
     ],
-    Sync [
+    pub Sync [
         _3 OFFSET(6) NUMBITS(2) [
             NONE = 0x0,
             TIMEOUT_TIMER_A = 0x1,
@@ -211,7 +211,7 @@ register_bitfields![
             TIMEOUT_BOTH_TIMERS = 0x3
         ]
     ],
-    Interrupt [
+    pub Interrupt [
         DMAB OFFSET(13) NUMBITS(1) [
             DISABLE = 0x0,
             ENABLE = 0x1
@@ -253,15 +253,15 @@ register_bitfields![
             ENABLE = 0x1
         ]
     ],
-    Prescale [
+    pub Prescale [
         // ratio is value written here plus one
         RATIO OFFSET(0) NUMBITS(8) []
     ],
-    PrescaleMSB [
+    pub PrescaleMSB [
         // "In 16-bit mode, this register holds bits 23 to 16" What?
         RATIO OFFSET(0) NUMBITS(8) []
     ],
-    Value32 [
+    pub Value32 [
         // "In 16-bit mode, this register holds bits 23 to 16" What?
         SET OFFSET(0) NUMBITS(32) []
     ]

@@ -2,13 +2,13 @@ use kernel::common::registers::{register_bitfields, LocalRegisterCopy};
 
 // stvec contains the address(es) of the trap handler
 register_bitfields![u32,
-stvec [
-    trap_addr OFFSET(2) NUMBITS(30) [],
-    mode OFFSET(0) NUMBITS(2) [
-        Direct = 0,
-        Vectored = 1
+    pub stvec [
+        trap_addr OFFSET(2) NUMBITS(30) [],
+        mode OFFSET(0) NUMBITS(2) [
+            Direct = 0,
+            Vectored = 1
+        ]
     ]
-]
 ];
 
 trait StvecHelpers {

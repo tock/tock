@@ -107,7 +107,7 @@ register_bitfields! [u32,
     Control [
         ENABLE OFFSET(0) NUMBITS(1)
     ],
-    Channel [
+    pub Channel [
          CH0 OFFSET(0) NUMBITS(1),
          CH1 OFFSET(1) NUMBITS(1),
          CH2 OFFSET(2) NUMBITS(1),
