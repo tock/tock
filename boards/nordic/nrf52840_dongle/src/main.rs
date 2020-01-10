@@ -235,7 +235,7 @@ pub unsafe fn reset_handler() {
     }
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-    let chip = nrf52840::chip::new();
+    let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
 
     nrf52dk_base::setup_board(
         board_kernel,

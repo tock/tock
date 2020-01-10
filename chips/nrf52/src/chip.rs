@@ -5,15 +5,15 @@ use cortexm4::{self, nvic};
 use kernel::common::deferred_call;
 use kernel::debug;
 
-pub struct NRF52<I: 'static + InterruptService> {
+pub struct NRF52<I: InterruptService> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     systick: cortexm4::systick::SysTick,
-    interrupt_service: &'static I,
+    interrupt_service: I,
 }
 
-impl<I: 'static + InterruptService> NRF52<I> {
-    pub unsafe fn new(interrupt_service: &'static I) -> NRF52<I> {
+impl<I: InterruptService> NRF52<I> {
+    pub unsafe fn new(interrupt_service: I) -> NRF52<I> {
         NRF52 {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
@@ -25,7 +25,7 @@ impl<I: 'static + InterruptService> NRF52<I> {
     }
 }
 
-impl<I: 'static + InterruptService> kernel::Chip for NRF52<I> {
+impl<I: InterruptService> kernel::Chip for NRF52<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type SysTick = cortexm4::systick::SysTick;

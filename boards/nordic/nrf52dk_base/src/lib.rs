@@ -125,7 +125,7 @@ impl kernel::Platform for Platform {
 
 /// Generic function for starting an nrf52dk board.
 #[inline]
-pub unsafe fn setup_board<I: 'static + nrf52::interrupt_service::InterruptService>(
+pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
