@@ -69,9 +69,9 @@
 //! Initialization complete. Entering main loop
 //! Hello World!
 //! list
-//! PID    Name    Quanta  Syscalls  Dropped Callbacks    State
-//! 00     blink        0       113                  0  Yielded
-//! 01     c_hello      0         8                  0  Yielded
+//! PID    Name    Quanta  Syscalls  Dropped Callbacks  Restarts    State
+//! 00     blink        0       113                  0         0  Yielded
+//! 01     c_hello      0         8                  0         0  Yielded
 //! ```
 //!
 //! To get a general view of the system, use the status command:
@@ -225,17 +225,18 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks    State");
+                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State");
                             self.kernel
                                 .process_each_capability(&self.capability, |i, proc| {
                                     let pname = proc.get_process_name();
                                     debug!(
-                                        "  {:02}\t{:<20}{:6}{:10}{:19}  {:?}",
+                                        "  {:02}\t{:<20}{:6}{:10}{:19}{:10}  {:?}",
                                         i,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
                                         proc.debug_dropped_callback_count(),
+                                        proc.debug_restart_count(),
                                         proc.get_state()
                                     );
                                 });
