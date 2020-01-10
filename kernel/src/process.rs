@@ -11,6 +11,7 @@ use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
+use crate::ipc;
 use crate::mem::{AppSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -402,16 +403,10 @@ pub enum FaultResponse {
     Stop,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum IPCType {
-    Service,
-    Client,
-}
-
 #[derive(Copy, Clone)]
 pub enum Task {
     FunctionCall(FunctionCall),
-    IPC((AppId, IPCType)),
+    IPC((AppId, ipc::IPCCallbackType)),
 }
 
 /// Enumeration to identify whether a function call comes directly from the
