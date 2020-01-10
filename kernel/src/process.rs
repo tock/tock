@@ -270,6 +270,52 @@ pub trait ProcessType {
     fn debug_syscall_called(&self);
 }
 
+/// Generic trait for implementing process restart policies.
+///
+/// This policy allows a board to specify how the kernel should decide whether
+/// to restart an app after it crashes.
+pub trait ProcessRestartPolicy {
+    /// Decide whether to restart the `process` or not.
+    ///
+    /// Returns `true` if the process should be restarted, `false` otherwise.
+    fn evaluate(&self, process: &dyn ProcessType) -> bool;
+}
+
+/// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
+/// whether to restart an app. If the app has been restarted more times than the
+/// threshold then the app will no longer be restarted.
+pub struct PrpThreshold {
+    threshold: usize,
+}
+
+impl PrpThreshold {
+    pub const fn new(threshold: usize) -> PrpThreshold {
+        PrpThreshold { threshold }
+    }
+}
+
+impl ProcessRestartPolicy for PrpThreshold {
+    fn evaluate(&self, process: &dyn ProcessType) -> bool {
+        process.debug_restart_count() <= self.threshold
+    }
+}
+
+/// Implementation of `ProcessRestartPolicy` that unconditionally restarts the
+/// app.
+pub struct PrpAlways {}
+
+impl PrpAlways {
+    pub const fn new() -> PrpAlways {
+        PrpAlways {}
+    }
+}
+
+impl ProcessRestartPolicy for PrpAlways {
+    fn evaluate(&self, _process: &dyn ProcessType) -> bool {
+        true
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     NoSuchApp,
@@ -317,7 +363,8 @@ pub enum State {
 
     /// The process is stopped, and it was stopped after it faulted. This
     /// basically means the app crashed, and the kernel decided to just stop it
-    /// and continue executing other things.
+    /// and continue executing other things. The process cannot be restarted
+    /// without being reset first.
     StoppedFaulted,
 
     /// The process has caused a fault.
@@ -336,7 +383,7 @@ pub enum State {
 /// app trying to access memory outside of its allowed regions) the system will
 /// trap back to the kernel, and the kernel has to decide what to do with the
 /// app at that point.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone)]
 pub enum FaultResponse {
     /// Generate a `panic!()` call and crash the entire system. This is useful
     /// for debugging applications as the error is displayed immediately after
@@ -346,7 +393,10 @@ pub enum FaultResponse {
     /// Attempt to cleanup and restart the app which caused the fault. This
     /// resets the app's memory to how it was when the app was started and
     /// schedules the app to run again from its init function.
-    Restart,
+    ///
+    /// The provided restart policy is used to determine whether to reset the
+    /// app, and can be specified on a per-app basis.
+    Restart(&'static dyn ProcessRestartPolicy),
 
     /// Stop the app by no longer scheduling it to run.
     Stop,
@@ -612,18 +662,22 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // process faulted. Panic and print status
                 panic!("Process {} had a fault", self.process_name);
             }
-            FaultResponse::Restart => {
-                // Remove the tasks that were scheduled for the app from the
-                // amount of work queue.
-                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-                for _ in 0..tasks_len {
-                    self.kernel.decrement_work();
-                }
+            FaultResponse::Restart(restart_policy) => {
+                // Start with the generic terminate operations. This frees state
+                // for this process and removes any pending tasks from the
+                // scheduler's queue.
+                self.terminate();
 
-                // And remove those tasks
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                });
+                // Decide what to do with this process. Should it be restarted?
+                // Or should we leave it in a stopped & faulted state? If the
+                // process is faulting too often we might not want to restart.
+                let should_restart = restart_policy.evaluate(self);
+
+                // If we are not going to restart the process then we can just
+                // leave it in the stopped faulted state.
+                if !should_restart {
+                    return;
+                }
 
                 // Update debug information
                 self.debug.map(|debug| {
@@ -634,6 +688,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     debug.syscall_count = 0;
                     debug.last_syscall = None;
                     debug.dropped_callback_count = 0;
+                    debug.timeslice_expiration_count = 0;
                 });
 
                 // We are going to start this process over again, so need
@@ -643,16 +698,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     app_flash_address.offset(self.header.get_init_function_offset() as isize)
                         as usize
                 };
-                self.state.set(State::Unstarted);
 
-                // Need to reset the grant region.
-                unsafe {
-                    self.grant_ptrs_reset();
-                }
+                // Reset memory pointers.
                 self.kernel_memory_break
                     .set(self.original_kernel_memory_break);
-
-                // Reset other memory pointers.
                 self.app_break.set(self.original_app_break);
                 self.current_stack_pointer.set(self.original_stack_pointer);
                 self.allow_high_water_mark
@@ -681,7 +730,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                         // point the app is no longer valid. The best thing we
                         // can do now is mark the app as still faulted and not
                         // schedule it.
-                        self.state.set(State::Fault);
+                        self.state.set(State::StoppedFaulted);
                         return;
                     }
                 };
@@ -690,8 +739,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 let flash_protected_size = self.header.get_protected_size() as usize;
                 let flash_app_start = app_flash_address as usize + flash_protected_size;
 
+                // Mark the state as `Unstarted` for the scheduler.
+                self.state.set(State::Unstarted);
+
+                // Enqueue the initial function.
                 self.tasks.map(|tasks| {
-                    tasks.empty();
                     tasks.enqueue(Task::FunctionCall(FunctionCall {
                         source: FunctionCallSource::Kernel,
                         pc: init_fn,
@@ -702,6 +754,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                     }));
                 });
 
+                // Mark that the process is ready to run.
                 self.kernel.increment_work();
             }
             FaultResponse::Stop => {
@@ -710,26 +763,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // all of the app's todo work it will not be scheduled, and
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
-
-                // Remove the tasks that were scheduled for the app from the
-                // amount of work queue.
-                let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-                for _ in 0..tasks_len {
-                    self.kernel.decrement_work();
-                }
-
-                // And remove those tasks
-                self.tasks.map(|tasks| {
-                    tasks.empty();
-                });
-
-                // Clear any grant regions this app has setup with any capsules.
-                unsafe {
-                    self.grant_ptrs_reset();
-                }
-
-                // Mark the app as stopped so the scheduler won't try to run it.
-                self.state.set(State::StoppedFaulted);
+                self.terminate();
             }
         }
     }
@@ -1506,6 +1540,35 @@ impl<C: 'static + Chip> Process<'a, C> {
         (None, 0, 0)
     }
 
+    /// Stop and clear a process's state.
+    ///
+    /// This will end the process, but does not reset it such that it could be
+    /// restarted and run again. This function instead frees grants and any
+    /// queued tasks for this process, but leaves the debug information about
+    /// the process and other state intact.
+    fn terminate(&self) {
+        // Remove the tasks that were scheduled for the app from the
+        // amount of work queue.
+        let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
+        for _ in 0..tasks_len {
+            self.kernel.decrement_work();
+        }
+
+        // And remove those tasks
+        self.tasks.map(|tasks| {
+            tasks.empty();
+        });
+
+        // Clear any grant regions this app has setup with any capsules.
+        unsafe {
+            self.grant_ptrs_reset();
+        }
+
+        // Mark the app as stopped so the scheduler won't try to run it.
+        self.state.set(State::StoppedFaulted);
+    }
+
+    /// Get the current stack pointer as a pointer.
     #[allow(clippy::cast_ptr_alignment)]
     fn sp(&self) -> *const usize {
         self.current_stack_pointer.get() as *const usize
