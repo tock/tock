@@ -6,7 +6,7 @@
 use crate::callback::{AppId, Callback};
 use crate::capabilities::MemoryAllocationCapability;
 use crate::driver::Driver;
-use crate::grant::Grant;
+use crate::grant::{Borrowed, Grant};
 use crate::mem::{AppSlice, Shared};
 use crate::process;
 use crate::returncode::ReturnCode;
@@ -15,23 +15,37 @@ use crate::sched::Kernel;
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
 
+/// Enum to mark which type of callback is scheduled for the IPC mechanism.
+#[derive(Copy, Clone, Debug)]
+pub enum IPCCallbackType {
+    /// Indicates that the callback is for the service callback handler this
+    /// process has setup.
+    Service,
+    /// Indicates that the callback is from a different service app and will
+    /// call one of the client callbacks setup by this process.
+    Client,
+}
+
+/// State that is stored in each process's grant region to support IPC.
+#[derive(Default)]
 struct IPCData {
+    /// An array of app identifiers where the app identifier at each index is
+    /// the app identifier for the items in the shared_memory and
+    /// client_callbacks arrays at that same index.
+    app_identifiers: [Option<usize>; 8],
+    /// An array of app slices that this application has shared with other
+    /// applications.
     shared_memory: [Option<AppSlice<Shared, u8>>; 8],
+    /// An array of callbacks this process has registered to receive callbacks
+    /// from other services.
     client_callbacks: [Option<Callback>; 8],
+    /// The callback setup by a service. Each process can only be one service.
     callback: Option<Callback>,
 }
 
-impl Default for IPCData {
-    fn default() -> IPCData {
-        IPCData {
-            shared_memory: [None, None, None, None, None, None, None, None],
-            client_callbacks: [None, None, None, None, None, None, None, None],
-            callback: None,
-        }
-    }
-}
-
+/// The IPC mechanism struct.
 pub struct IPC {
+    /// The grant regions for each process that holds the per-process IPC data.
     data: Grant<IPCData>,
 }
 
@@ -42,27 +56,79 @@ impl IPC {
         }
     }
 
-    pub unsafe fn schedule_callback(
+    /// Get the index in the `IPCData.app_identifiers` array corresponding
+    /// to this `app_identifier`.
+    fn find_app_identifier_index(
+        &self,
+        data: &mut Borrowed<IPCData>,
+        app_identifier: usize,
+    ) -> Option<usize> {
+        data.app_identifiers
+            .iter()
+            .position(|app_id_entry| app_id_entry.map_or(false, |aie| aie == app_identifier))
+    }
+
+    /// If the app_identifier is in the app_identifiers array, return that
+    /// index. Otherwise, get the first index in the `IPCData.app_identifiers`
+    /// array that is open.
+    fn find_index(&self, data: &mut Borrowed<IPCData>, app_identifier: usize) -> Option<usize> {
+        let index = data
+            .app_identifiers
+            .iter()
+            .position(|app_id_entry| app_id_entry.map_or(false, |aie| aie == app_identifier));
+
+        if index.is_none() {
+            data.app_identifiers
+                .iter()
+                .position(|app_id_entry| app_id_entry.is_none())
+        } else {
+            index
+        }
+    }
+
+    /// Schedule an IPC callback for a process. This is called by the main
+    /// scheduler loop if an IPC task was queued for the process.
+    crate unsafe fn schedule_callback(
         &self,
         appid: AppId,
         otherapp: AppId,
-        cb_type: process::IPCType,
+        cb_type: IPCCallbackType,
     ) {
         self.data
             .enter(appid, |mydata, _| {
                 let callback = match cb_type {
-                    process::IPCType::Service => mydata.callback,
-                    process::IPCType::Client => {
-                        *mydata.client_callbacks.get(otherapp.idx()).unwrap_or(&None)
+                    IPCCallbackType::Service => mydata.callback,
+                    IPCCallbackType::Client => {
+                        // Find the stored callback that corresponds to the
+                        // service running on the other app. Start by finding
+                        // the index in the grant arrays corresponding to the
+                        // service's app_identifier.
+                        let index = self.find_app_identifier_index(mydata, otherapp.idx());
+
+                        match index {
+                            Some(i) => *mydata.client_callbacks.get(i).unwrap_or(&None),
+                            None => None,
+                        }
                     }
                 };
                 callback.map_or((), |mut callback| {
                     self.data
                         .enter(otherapp, |otherdata, _| {
-                            if appid.idx() >= otherdata.shared_memory.len() {
-                                return;
-                            }
-                            match otherdata.shared_memory[appid.idx()] {
+                            // Get the index of this app in the other app's
+                            // grant arrays.
+                            let index = self.find_app_identifier_index(otherdata, appid.idx());
+
+                            // If that app shared a slice with us, get a
+                            // reference to it.
+                            let shared_slice = match index {
+                                Some(i) => &otherdata.shared_memory[i],
+                                None => &None,
+                            };
+
+                            // Make sure we have access to that slice and then
+                            // call the callback. If no slice was shared then
+                            // just call the callback.
+                            match shared_slice {
                                 Some(ref slice) => {
                                     slice.expose_to(appid);
                                     callback.schedule(
@@ -117,16 +183,37 @@ impl Driver for IPC {
             // Once subscribed, the client will receive callbacks when the
             // service process calls notify_client().
             svc_id => {
-                if svc_id - 1 >= 8 {
-                    ReturnCode::EINVAL /* Maximum of 8 IPC's exceeded */
-                } else {
-                    self.data
-                        .enter(app_id, |data, _| {
-                            data.client_callbacks[svc_id - 1] = callback;
-                            ReturnCode::SUCCESS
-                        })
-                        .unwrap_or(ReturnCode::EBUSY)
-                }
+                let app_identifier = svc_id - 1;
+
+                // Check if we are setting or unsetting a callback.
+                let unsetting = callback.is_none();
+
+                self.data
+                    .enter(app_id, |data, _| {
+                        // Check if this service is already in grant arrays, or
+                        // find an open slot.
+                        let index = self.find_index(data, app_identifier);
+
+                        match index {
+                            Some(i) => {
+                                data.app_identifiers[i] = Some(app_identifier);
+                                data.client_callbacks[i] = callback;
+
+                                if unsetting {
+                                    // Check if there is no app slice set for
+                                    // this service. If there isn't, then we can
+                                    // clear the app_identifier index as well.
+                                    if data.shared_memory[i].is_none() {
+                                        data.app_identifiers[i] = None;
+                                    }
+                                }
+
+                                ReturnCode::SUCCESS
+                            }
+                            None => ReturnCode::EINVAL,
+                        }
+                    })
+                    .unwrap_or(ReturnCode::EBUSY)
             }
         }
     }
@@ -146,9 +233,9 @@ impl Driver for IPC {
         appid: AppId,
     ) -> ReturnCode {
         let cb_type = if client_or_svc == 0 {
-            process::IPCType::Service
+            IPCCallbackType::Service
         } else {
-            process::IPCType::Client
+            IPCCallbackType::Client
         };
 
         self.data.kernel.process_map_or(
@@ -210,13 +297,33 @@ impl Driver for IPC {
         }
         self.data
             .enter(appid, |data, _| {
-                data.shared_memory.get_mut(target_id - 1).map_or(
-                    ReturnCode::EINVAL, /* Target process does not exist */
-                    |smem| {
-                        *smem = slice;
+                let app_identifier = target_id - 1;
+
+                // Check if we are setting or unsetting the app slice.
+                let unsetting = slice.is_none();
+
+                // Check if this service is already in grant arrays, or get an
+                // open slot.
+                let index = self.find_index(data, app_identifier);
+
+                match index {
+                    Some(i) => {
+                        data.app_identifiers[i] = Some(app_identifier);
+                        data.shared_memory[i] = slice;
+
+                        if unsetting {
+                            // Check if there is no app slice set for
+                            // this service. If there isn't, then we can
+                            // clear the app_identifier index as well.
+                            if data.client_callbacks[i].is_none() {
+                                data.app_identifiers[i] = None;
+                            }
+                        }
+
                         ReturnCode::SUCCESS
-                    },
-                )
+                    }
+                    None => ReturnCode::EINVAL,
+                }
             })
             .unwrap_or(ReturnCode::EBUSY)
     }
