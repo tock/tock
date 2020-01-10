@@ -24,6 +24,12 @@ extern "C" {
     fn _estack();
 }
 
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
@@ -40,9 +46,12 @@ unsafe extern "C" fn unhandled_interrupt() {
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
-#[link_section = ".vectors"]
-#[used]
-// ensures that the symbol is kept until the final binary
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 /// ARM Cortex M Vector Table
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Stack Pointer
@@ -79,8 +88,12 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     systick_handler,
 ];
 
-#[link_section = ".vectors"]
-#[used] // Ensures that the symbol is kept until the final binary
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]

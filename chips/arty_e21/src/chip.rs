@@ -38,6 +38,7 @@ impl ArtyExx {
     ///
     /// This needs to be replaced with a real PMP driver. See
     /// https://github.com/tock/tock/issues/1135
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn disable_pmp(&self) {
         asm!("
             // PMP PMP PMP
@@ -65,10 +66,17 @@ impl ArtyExx {
         : "volatile");
     }
 
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn disable_pmp(&self) {
+        unimplemented!()
+    }
+
     /// By default the machine timer is enabled and will trigger interrupts. To
     /// prevent that we can make the compare register very large to effectively
     /// stop the interrupt from triggering, and then the machine timer can be
     /// used later as needed.
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn disable_machine_timer(&self) {
         asm!("
             // Initialize machine timer mtimecmp to disable the machine timer
@@ -85,11 +93,18 @@ impl ArtyExx {
         : "volatile");
     }
 
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn disable_machine_timer(&self) {
+        unimplemented!()
+    }
+
     /// Setup the function that should run when a trap happens.
     ///
     /// This needs to be chip specific because how the CLIC works is configured
     /// when the trap handler address is specified in mtvec, and that is only
     /// valid for platforms with a CLIC.
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn configure_trap_handler(&self) {
         asm!("
             // The csrw instruction writes a Control and Status Register (CSR)
@@ -108,6 +123,12 @@ impl ArtyExx {
         :
         :
         : "volatile");
+    }
+
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    pub unsafe fn configure_trap_handler(&self) {
+        unimplemented!()
     }
 
     /// Generic helper initialize function to setup all of the chip specific
@@ -202,6 +223,7 @@ impl kernel::Chip for ArtyExx {
 /// For the arty-e21 this gets called when an interrupt occurs while the chip is
 /// in kernel mode. All we need to do is check which interrupt occurred and
 /// disable it.
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[export_name = "_start_trap_rust"]
 pub extern "C" fn start_trap_rust() {
     let mut mcause: i32;

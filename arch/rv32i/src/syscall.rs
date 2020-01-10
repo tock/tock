@@ -88,6 +88,17 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         Ok(stack_pointer as *mut usize)
     }
 
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    unsafe fn switch_to_process(
+        &self,
+        _stack_pointer: *const usize,
+        _state: &mut RiscvimacStoredState,
+    ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
+        unimplemented!()
+    }
+
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     unsafe fn switch_to_process(
         &self,
         _stack_pointer: *const usize,

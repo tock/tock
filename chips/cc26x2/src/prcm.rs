@@ -4,9 +4,9 @@
 //!
 //! PRCM manages different power domains on the boards, specifically:
 //!
-//!     * RF Power domain
-//!     * Serial Power domain
-//!     * Peripheral Power domain
+//! * RF Power domain
+//! * Serial Power domain
+//! * Peripheral Power domain
 //!
 //! It also manages the clocks attached to almost every peripheral, which needs to
 //! be enabled before usage.
