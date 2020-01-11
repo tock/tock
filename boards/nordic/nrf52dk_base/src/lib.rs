@@ -131,21 +131,15 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
-    gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
+    gpio: &'static capsules::gpio::GPIO<'static>,
     debug_pin1_index: Pin,
     debug_pin2_index: Pin,
     debug_pin3_index: Pin,
-    led_pins: &'static mut [(
-        &'static dyn kernel::hil::gpio::Pin,
-        capsules::led::ActivationMode,
-    )],
+    led: &'static capsules::led::LED<'static>,
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button_pins: &'static mut [(
-        &'static dyn kernel::hil::gpio::InterruptValuePin,
-        capsules::button::GpioMode,
-    )],
+    button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
@@ -230,37 +224,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         Some(&gpio_port[debug_pin2_index]),
         Some(&gpio_port[debug_pin3_index]),
     );
-
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
-
-    // LEDs
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
-
-    // Buttons
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-    }
 
     let rtc = &nrf52::rtc::RTC;
     rtc.start();
