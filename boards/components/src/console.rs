@@ -10,10 +10,11 @@
 //! Usage
 //! -----
 //! ```rust
-//! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3, 115200).finalize(());
+//! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3, 
+//!                                      115200, 
+//!                                      deferred_caller).finalize(());
 //! let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 //! ```
-
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
 
