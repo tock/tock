@@ -21,6 +21,7 @@ use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
+use crate::net::network_capabilities::{NetworkCapability};
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
@@ -83,6 +84,7 @@ pub trait IP6Sender<'a> {
         dst: IPAddr,
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> ReturnCode;
 }
 
@@ -127,6 +129,7 @@ impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         dst: IPAddr,
         transport_header: TransportHeader,
         payload: &LeasableBuffer<'static, u8>,
+        net_cap: &'static NetworkCapability,
     ) -> ReturnCode {
         self.sixlowpan.init(
             self.src_mac_addr,

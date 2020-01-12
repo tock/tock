@@ -38,6 +38,8 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_port_table::{SocketBindingEntry, UdpPortManager, MAX_NUM_BOUND_PORTS};
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
+use capsules::net::network_capabilities::{NetworkCapability};
+
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
 use kernel::capabilities;
@@ -84,6 +86,7 @@ pub struct UDPMuxComponent {
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    net_cap: &'static NetworkCapability,
 }
 
 impl UDPMuxComponent {
@@ -95,6 +98,7 @@ impl UDPMuxComponent {
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        net_cap: &'static NetworkCapability,
     ) -> UDPMuxComponent {
         UDPMuxComponent {
             mux_mac: mux_mac,
@@ -104,6 +108,7 @@ impl UDPMuxComponent {
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
             alarm_mux: alarm,
+            net_cap: net_cap,
         }
     }
 }
@@ -210,7 +215,7 @@ impl Component for UDPMuxComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            MuxUdpSender::new(ip_send)
+            MuxUdpSender::new(ip_send, self.net_cap)
         );
         ip_send.set_client(udp_send_mux);
 

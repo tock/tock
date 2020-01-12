@@ -7,6 +7,8 @@
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
+use capsules::net::network_capabilities::{NetworkCapability};
+
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use capsules::net::udp::udp_port_table::UdpPortManager;
@@ -27,6 +29,7 @@ pub struct MockUDPComponent {
     udp_payload: TakeCell<'static, [u8]>,
     id: u16,
     dst_port: u16,
+    net_cap: &'static NetworkCapability,
 }
 
 impl MockUDPComponent {
@@ -41,6 +44,7 @@ impl MockUDPComponent {
         udp_payload: &'static mut [u8],
         id: u16,
         dst_port: u16,
+        net_cap: &'static NetworkCapability,
     ) -> MockUDPComponent {
         MockUDPComponent {
             udp_send_mux: udp_send_mux,
@@ -50,6 +54,7 @@ impl MockUDPComponent {
             udp_payload: TakeCell::new(udp_payload),
             id: id,
             dst_port: dst_port,
+            net_cap: net_cap,
         }
     }
 }
@@ -92,6 +97,7 @@ impl Component for MockUDPComponent {
                     self.udp_payload.take().expect("missing payload")
                 ),
                 self.dst_port,
+                self.net_cap,
             )
         );
         udp_send.set_client(mock_udp);

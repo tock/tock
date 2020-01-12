@@ -72,3 +72,9 @@ pub unsafe trait UdpDriverCapability {}
 /// so this capability should not be distributed to capsules at all, as the port table should only be
 /// instantiated once by the kernel
 pub unsafe trait CreatePortTableCapability {}
+
+pub unsafe trait UdpVisCap {}
+
+pub unsafe trait IpVisCap {}
+
+pub unsafe trait NetCapCreateCap {}

@@ -9,6 +9,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
+use crate::net::network_capabilities::{NetworkCapability};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
@@ -34,6 +35,7 @@ pub struct MockUdp<'a, A: Alarm<'a>> {
     src_port: Cell<u16>,
     dst_port: Cell<u16>,
     send_loop: Cell<bool>,
+    net_cap: &'static NetworkCapability,
 }
 
 impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
@@ -45,6 +47,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         port_table: &'static UdpPortManager,
         udp_dgram: LeasableBuffer<'static, u8>,
         dst_port: u16,
+        net_cap: &'static NetworkCapability,
     ) -> MockUdp<'a, A> {
         MockUdp {
             id: id,
@@ -56,6 +59,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
             src_port: Cell::new(0), // invalid initial value
             dst_port: Cell::new(dst_port),
             send_loop: Cell::new(false),
+            net_cap: net_cap,
         }
     }
 
@@ -140,7 +144,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                 dgram.slice(0..2);
                 match self
                     .udp_sender
-                    .send_to(DST_ADDR, self.dst_port.get(), dgram)
+                    .send_to(DST_ADDR, self.dst_port.get(), dgram, self.net_cap)
                 {
                     Ok(_) => ReturnCode::SUCCESS,
                     Err(mut buf) => {

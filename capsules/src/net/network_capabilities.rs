@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use core::marker::PhantomData;
+use kernel::capabilities::{UdpVisCap, IpVisCap, NetCapCreateCap};
 
 const MAX_ADDR_SET_SIZE: usize = 16;
 const MAX_PORT_SET_SIZE: usize = 16;
@@ -54,11 +54,6 @@ impl PortRange {
 
 // Make the structs below implement an unsafe trait to make them only
 // constructable in trusted code.
-pub struct UdpVisCap {}
-
-pub struct IpVisCap {}
-
-pub struct NetCapCreateCap {}
 
 // TODO: remove copy eventually!!!!
 #[derive(Clone, Copy, PartialEq)]
@@ -72,7 +67,7 @@ pub struct NetworkCapability {
 
 impl NetworkCapability {
     pub fn new(remote_addrs: AddrRange, remote_ports: PortRange,
-        local_ports: PortRange, create_net_cap: &NetCapCreateCap)
+        local_ports: PortRange, create_net_cap: & dyn NetCapCreateCap)
         -> NetworkCapability {
             NetworkCapability {
                 remote_addrs: remote_addrs,
@@ -81,27 +76,27 @@ impl NetworkCapability {
             }
     }
 
-    pub fn get_range(&self, ip_cap: &IpVisCap) -> AddrRange {
+    pub fn get_range(&self, ip_cap: & dyn IpVisCap) -> AddrRange {
         self.remote_addrs
     }
 
-    pub fn remote_addr_valid(&self, remote_addr: u32, ip_cap: &IpVisCap) -> bool {
+    pub fn remote_addr_valid(&self, remote_addr: u32, ip_cap: & dyn IpVisCap) -> bool {
         self.remote_addrs.is_addr_valid(remote_addr)
     }
 
-    pub fn get_remote_ports(&self, udp_cap: &UdpVisCap) -> PortRange {
+    pub fn get_remote_ports(&self, udp_cap: & dyn UdpVisCap) -> PortRange {
         self.remote_ports
     }
 
-    pub fn get_local_ports(&self, udp_cap: &UdpVisCap) -> PortRange {
+    pub fn get_local_ports(&self, udp_cap: & dyn UdpVisCap) -> PortRange {
         self.local_ports
     }
 
-    pub fn remote_port_valid(&self, remote_port: u16, udp_cap: &UdpVisCap) -> bool {
+    pub fn remote_port_valid(&self, remote_port: u16, udp_cap: & dyn UdpVisCap) -> bool {
         self.remote_ports.is_port_valid(remote_port)
     }
 
-    pub fn local_port_valid(&self, local_port: u16, udp_cap: &UdpVisCap) -> bool {
+    pub fn local_port_valid(&self, local_port: u16, udp_cap: & dyn UdpVisCap) -> bool {
         self.local_ports.is_port_valid(local_port)
     }
     

@@ -17,6 +17,7 @@ use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::capabilities::{UdpVisCap, IpVisCap, NetCapCreateCap};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -25,6 +26,7 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
+use capsules::net::network_capabilities::*;
 
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
@@ -158,6 +160,20 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
+
+struct NetCapCreateCapStruct;
+unsafe impl NetCapCreateCap for NetCapCreateCapStruct {}
+
+struct UdpVisCapStruct;
+unsafe impl UdpVisCap for UdpVisCapStruct {}
+
+struct IpVisCapStruct;
+unsafe impl IpVisCap for IpVisCapStruct {}
+
+static mut CREATE_CAP: NetCapCreateCapStruct = NetCapCreateCapStruct;
+static mut UDP_VIS: UdpVisCapStruct = UdpVisCapStruct;
+static mut IP_VIS: IpVisCapStruct = IpVisCapStruct;
+
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -410,6 +426,11 @@ pub unsafe fn reset_handler() {
         ]
     );
 
+
+    let net_cap = static_init!(NetworkCapability,
+        NetworkCapability::new(AddrRange::Any, PortRange::Any,
+        PortRange::Any, &CREATE_CAP));
+
     let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
         DEFAULT_CTX_PREFIX_LEN,
@@ -419,6 +440,7 @@ pub unsafe fn reset_handler() {
         //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
+        net_cap,
     )
     .finalize(());
 
@@ -429,6 +451,7 @@ pub unsafe fn reset_handler() {
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
+        net_cap,
     )
     .finalize(());
 

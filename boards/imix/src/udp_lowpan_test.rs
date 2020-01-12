@@ -123,6 +123,7 @@ use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::test::udp::MockUdp;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::net::network_capabilities::{NetworkCapability};
 use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug;
@@ -165,6 +166,7 @@ pub unsafe fn initialize_all(
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
     port_table: &'static UdpPortManager,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
+    net_cap: &'static NetworkCapability,
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -177,6 +179,7 @@ pub unsafe fn initialize_all(
         &mut UDP_PAYLOAD1,
         1, //id
         3, //dst_port
+        net_cap,
     )
     .finalize(());
 
@@ -188,6 +191,7 @@ pub unsafe fn initialize_all(
         &mut UDP_PAYLOAD2,
         2, //id
         4, //dst_port
+        net_cap,
     )
     .finalize(());
 
