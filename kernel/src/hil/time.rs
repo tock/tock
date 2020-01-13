@@ -14,15 +14,11 @@ pub trait Time {
     }
 
     fn ticks_from_ms(ms: u32) -> Self::Ticks {
-        Self::Ticks::from(((ms as f32 / 1000.0) * Self::Frequency::frequency() as f32) as u32)
+        Self::Ticks::from(((ms as u64 * Self::Frequency::frequency() as u64) / 1000) as u32)
     }
 
     fn ticks_from_us(us: u32) -> Self::Ticks {
-        Self::Ticks::from(((us as f32 / 1000000.0) * Self::Frequency::frequency() as f32) as u32)
-    }
-
-    fn ticks_to_ms(ticks: Self::Ticks) -> u32 {
-        ((ticks.into_u32() as f32 / Self::Frequency::frequency() as f32) * 1000.0) as u32
+        Self::Ticks::from(((us as u64 * Self::Frequency::frequency() as u64) / 1_000_000) as u32)
     }
 }
 
@@ -354,31 +350,6 @@ mod test {
         assert_eq!(Time32Bits32KHz::ticks_from_us(1).into_u32(), 0);
         assert_eq!(Time32Bits32KHz::ticks_from_us(10).into_u32(), 0);
         assert_eq!(Time32Bits32KHz::ticks_from_us(100).into_u32(), 3);
-    }
-
-    #[test]
-    fn test_ticks_to_ms() {
-        assert_eq!(Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(16_000)), 1);
-        assert_eq!(Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(160_000)), 10);
-        assert_eq!(
-            Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(1_600_000)),
-            100
-        );
-        assert_eq!(
-            Time32Bits16MHz::ticks_to_ms(Ticks32Bits::from(16_000_000)),
-            1000
-        );
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(32)), 0);
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(33)), 1);
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(327)), 9);
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(328)), 10);
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(3_276)), 99);
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(3_277)), 100);
-        assert_eq!(Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(32_767)), 999);
-        assert_eq!(
-            Time32Bits32KHz::ticks_to_ms(Ticks32Bits::from(32_768)),
-            1000
-        );
     }
 
     #[test]

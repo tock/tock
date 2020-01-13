@@ -205,10 +205,14 @@ impl<R: radio::Radio, A: Alarm<'a>> XMac<'a, R, A> {
         }
     }
 
-    // Sets the timer to fire a set number of milliseconds in the future based
-    // on the current tick value.
+    // Sets the timer to fire a set number of milliseconds in the future.
     fn set_timer_ms(&self, ms: u32) {
-        self.alarm.set_alarm_from_now(A::ticks_from_ms(ms));
+        self.set_timer_ticks(A::ticks_from_ms(ms));
+    }
+
+    // Sets the timer to fire a set number of ticks in the future.
+    fn set_timer_ticks(&self, ticks: A::Ticks) {
+        self.alarm.set_alarm_from_now(ticks);
     }
 
     fn transmit_preamble(&self) {
@@ -321,9 +325,9 @@ impl<R: radio::Radio, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
                     // asynchronous, we account for the time spent waiting for
                     // the callback and randomly determine the remaining time
                     // spent backing off.
-                    let time_remaining_ms =
-                        A::ticks_to_ms(self.alarm.get_alarm().wrapping_sub(self.alarm.now()));
-                    self.set_timer_ms(random % time_remaining_ms);
+                    let time_remaining_ticks =
+                        self.alarm.get_alarm().wrapping_sub(self.alarm.now());
+                    self.set_timer_ticks(A::Ticks::from(random % time_remaining_ticks.into_u32()));
                 }
                 rng::Continue::Done
             }
