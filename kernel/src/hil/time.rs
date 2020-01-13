@@ -397,6 +397,15 @@ mod test {
     }
 
     #[test]
+    fn test_24bit_from() {
+        assert_eq!(Ticks24Bits::from(1).into_u32(), 1);
+        assert_eq!(Ticks24Bits::from(0x00FFFFFF).into_u32(), 0xFFFFFF);
+        assert_eq!(Ticks24Bits::from(0x01000000).into_u32(), 0);
+        assert_eq!(Ticks24Bits::from(0x12345678).into_u32(), 0x345678);
+        assert_eq!(Ticks24Bits::from(0xFFFFFFFF).into_u32(), 0xFFFFFF);
+    }
+
+    #[test]
     fn test_24bit_add() {
         assert_eq!(
             Ticks24Bits::from(1)
