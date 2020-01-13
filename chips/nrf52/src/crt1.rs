@@ -104,16 +104,16 @@ pub unsafe extern "C" fn init() {
 
     // Workaround for Errata 12
     // "COMP: Reference ladder not correctly callibrated" found at the Errate doc
-    *(0x40013540i32 as (*mut u32)) = (*(0x10000324i32 as (*mut u32)) & 0x1f00u32) >> 8i32;
+    *(0x40013540i32 as *mut u32) = (*(0x10000324i32 as *mut u32) & 0x1f00u32) >> 8i32;
 
     // Workaround for Errata 16
     // "System: RAM may be corrupt on wakeup from CPU IDLE" found at the Errata doc
-    *(0x4007c074i32 as (*mut u32)) = 3131961357u32;
+    *(0x4007c074i32 as *mut u32) = 3131961357u32;
 
     // Workaround for Errata 31
     // "CLOCK: Calibration values are not correctly loaded from FICR at reset"
     // found at the Errata doc
-    *(0x4000053ci32 as (*mut u32)) = (*(0x10000244i32 as (*mut u32)) & 0xe000u32) >> 13i32;
+    *(0x4000053ci32 as *mut u32) = (*(0x10000244i32 as *mut u32) & 0xe000u32) >> 13i32;
 
     // Only needed for preview hardware
     // // Workaround for Errata 32
@@ -130,14 +130,14 @@ pub unsafe extern "C" fn init() {
 
     // Workaround for Errata 37
     // "RADIO: Encryption engine is slow by default" found at the Errata document doc
-    *(0x400005a0i32 as (*mut u32)) = 0x3u32;
+    *(0x400005a0i32 as *mut u32) = 0x3u32;
 
     // Workaround for Errata 57
     // "NFCT: NFC Modulation amplitude" found at the Errata doc
-    *(0x40005610i32 as (*mut u32)) = 0x5u32;
-    *(0x40005688i32 as (*mut u32)) = 0x1u32;
-    *(0x40005618i32 as (*mut u32)) = 0x0u32;
-    *(0x40005614i32 as (*mut u32)) = 0x3fu32;
+    *(0x40005610i32 as *mut u32) = 0x5u32;
+    *(0x40005688i32 as *mut u32) = 0x1u32;
+    *(0x40005618i32 as *mut u32) = 0x0u32;
+    *(0x40005614i32 as *mut u32) = 0x3fu32;
 
     // Workaround for Errata 66
     // "TEMP: Linearity specification not met with default settings" found at the Errata doc
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn init() {
     // Workaround for Errata 108
     // "RAM: RAM content cannot be trusted upon waking up from System ON Idle
     // or System OFF mode" found at the Errata doc
-    *(0x40000ee4i32 as (*mut u32)) = *(0x10000258i32 as (*mut u32)) & 0x4fu32;
+    *(0x40000ee4i32 as *mut u32) = *(0x10000258i32 as *mut u32) & 0x4fu32;
 
     tock_rt0::init_data(&mut _etext, &mut _srelocate, &mut _erelocate);
     tock_rt0::zero_bss(&mut _szero, &mut _ezero);
