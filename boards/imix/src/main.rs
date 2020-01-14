@@ -22,6 +22,8 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
+use kernel::RoundRobinSched;
+use kernel::Scheduler;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
@@ -517,5 +519,11 @@ pub unsafe fn reset_handler() {
         &process_mgmt_cap,
     );
 
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
+    type SchedType = RoundRobinSched;
+    let proc_state = static_init!(
+        [Option<<SchedType as Scheduler>::ProcessState>; NUM_PROCS],
+        Default::default()
+    );
+    let scheduler = static_init!(SchedType, SchedType::new(board_kernel, proc_state));
+    scheduler.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

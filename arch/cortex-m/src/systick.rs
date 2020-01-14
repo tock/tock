@@ -132,6 +132,12 @@ impl kernel::SysTick for SysTick {
         value > tics
     }
 
+    fn get_value(&self) -> u32 {
+        let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT) as u64;
+        let hertz = self.hertz() as u64;
+        (tics * 1_000_000 / hertz) as u32
+    }
+
     fn overflowed(&self) -> bool {
         SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG)
     }
