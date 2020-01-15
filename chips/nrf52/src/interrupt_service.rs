@@ -35,7 +35,7 @@ use nrf5x::peripheral_interrupts;
 /// all three have specific interrupts they know how to handle, the flow would
 /// look like:
 ///
-/// ```
+/// ```ignore
 ///           +---->nrf52840
 ///           |        |
 ///           |        |
