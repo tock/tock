@@ -10,18 +10,20 @@
 //! Usage
 //! -----
 //! ```rust
-//! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3, 115200).finalize(());
+//! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3,
+//!                                      115200,
+//!                                      deferred_caller).finalize(());
 //! let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 //! ```
-
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 12/21/2019
+// Last modified: 1/08/2020
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
@@ -31,11 +33,20 @@ use kernel::static_init;
 pub struct UartMuxComponent {
     uart: &'static dyn uart::Uart<'static>,
     baud_rate: u32,
+    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl UartMuxComponent {
-    pub fn new(uart: &'static dyn uart::Uart<'static>, baud_rate: u32) -> UartMuxComponent {
-        UartMuxComponent { uart, baud_rate }
+    pub fn new(
+        uart: &'static dyn uart::Uart<'static>,
+        baud_rate: u32,
+        deferred_caller: &'static DynamicDeferredCall,
+    ) -> UartMuxComponent {
+        UartMuxComponent {
+            uart,
+            baud_rate,
+            deferred_caller,
+        }
     }
 }
 
@@ -50,7 +61,13 @@ impl Component for UartMuxComponent {
                 self.uart,
                 &mut capsules::virtual_uart::RX_BUF,
                 self.baud_rate,
+                self.deferred_caller,
             )
+        );
+        uart_mux.initialize_callback_handle(
+            self.deferred_caller
+                .register(uart_mux)
+                .expect("no deferred call slot available for uart mux"),
         );
 
         uart_mux.initialize();

@@ -7,15 +7,13 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use nrf52::gpio::Pin;
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
-
-use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
@@ -270,18 +268,21 @@ pub unsafe fn setup_board(
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
-    // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &nrf52::uart::UARTE0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
-    uart_mux.initialize();
-    hil::uart::Transmit::set_transmit_client(&nrf52::uart::UARTE0, uart_mux);
-    hil::uart::Receive::set_receive_client(&nrf52::uart::UARTE0, uart_mux);
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
+    // Create a shared UART channel for the console and for kernel debug.
+    let uart_mux = components::console::UartMuxComponent::new(
+        &nrf52::uart::UARTE0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     nrf52::uart::UARTE0.initialize(
         nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),

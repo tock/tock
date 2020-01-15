@@ -5,8 +5,8 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
@@ -115,6 +115,14 @@ pub unsafe fn reset_handler() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // GPIOs
     let gpio_pins = static_init!(
@@ -358,12 +366,8 @@ pub unsafe fn reset_handler() {
     //
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(rtt, &mut capsules::virtual_uart::RX_BUF, 115200)
-    );
-    kernel::hil::uart::Transmit::set_transmit_client(rtt, uart_mux);
-    kernel::hil::uart::Receive::set_receive_client(rtt, uart_mux);
+    let uart_mux = components::console::UartMuxComponent::new(rtt, 115200, dynamic_deferred_caller)
+        .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());

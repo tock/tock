@@ -16,6 +16,7 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::radio;
 #[allow(unused_imports)]
@@ -294,10 +295,20 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     sam4l::usart::USART3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3, 115200).finalize(());
+    let uart_mux =
+        UartMuxComponent::new(&sam4l::usart::USART3, 115200, dynamic_deferred_caller).finalize(());
+
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux).finalize(());
     let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     DebugWriterComponent::new(uart_mux).finalize(());
