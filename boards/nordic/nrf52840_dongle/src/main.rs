@@ -64,6 +64,7 @@ pub unsafe fn reset_handler() {
     // GPIOs
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
         components::gpio_component_helper!(
+            // left side of the USB plug
             &nrf52840::gpio::PORT[Pin::P0_13],
             &nrf52840::gpio::PORT[Pin::P0_15],
             &nrf52840::gpio::PORT[Pin::P0_17],
@@ -73,6 +74,7 @@ pub unsafe fn reset_handler() {
             &nrf52840::gpio::PORT[Pin::P1_00],
             &nrf52840::gpio::PORT[Pin::P0_09],
             &nrf52840::gpio::PORT[Pin::P0_10],
+            // right side of the USB plug
             &nrf52840::gpio::PORT[Pin::P0_31],
             &nrf52840::gpio::PORT[Pin::P0_29],
             &nrf52840::gpio::PORT[Pin::P0_02],
@@ -92,12 +94,10 @@ pub unsafe fn reset_handler() {
         ),
     );
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!(
-            (
-                &nrf52840::gpio::PORT[BUTTON_PIN],
-                capsules::button::GpioMode::LowWhenPressed
-            ) //16
-        ),
+        components::button_component_helper!((
+            &nrf52840::gpio::PORT[BUTTON_PIN],
+            capsules::button::GpioMode::LowWhenPressed
+        )),
     );
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(

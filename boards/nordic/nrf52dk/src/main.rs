@@ -128,14 +128,17 @@ pub unsafe fn reset_handler() {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
         components::gpio_component_helper!(
+            // Bottom right header on DK board
             &nrf52832::gpio::PORT[Pin::P0_03],
             &nrf52832::gpio::PORT[Pin::P0_04],
             &nrf52832::gpio::PORT[Pin::P0_28],
             &nrf52832::gpio::PORT[Pin::P0_29],
             &nrf52832::gpio::PORT[Pin::P0_30],
             &nrf52832::gpio::PORT[Pin::P0_31],
+            // Top mid header on DK board
             &nrf52832::gpio::PORT[Pin::P0_12],
             &nrf52832::gpio::PORT[Pin::P0_11],
+            // Top left header on DK board
             &nrf52832::gpio::PORT[Pin::P0_27],
             &nrf52832::gpio::PORT[Pin::P0_26],
             &nrf52832::gpio::PORT[Pin::P0_02],
