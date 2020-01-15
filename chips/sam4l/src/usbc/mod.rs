@@ -18,6 +18,7 @@ use kernel::common::registers::{
 use kernel::common::StaticRef;
 use kernel::debug as debugln;
 use kernel::hil;
+use kernel::hil::usb::TransferType;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or
@@ -240,17 +241,21 @@ pub struct Usbc<'a> {
     descriptors: [Endpoint; N_ENDPOINTS],
     state: OptionalCell<State>,
     requests: [Cell<Requests>; N_ENDPOINTS],
-    client: Option<&'a dyn hil::usb::Client>,
+    client: Option<&'a dyn hil::usb::Client<'a>>,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct Requests {
-    pub resume: bool,
+    pub resume_in: bool,
+    pub resume_out: bool,
 }
 
 impl Requests {
     pub const fn new() -> Self {
-        Requests { resume: false }
+        Requests {
+            resume_in: false,
+            resume_out: false,
+        }
     }
 }
 
@@ -447,7 +452,7 @@ impl Usbc<'a> {
     }
 
     /// Set a client to receive data from the USBC
-    pub fn set_client(&mut self, client: &'a dyn hil::usb::Client) {
+    pub fn set_client(&mut self, client: &'a dyn hil::usb::Client<'a>) {
         self.client = Some(client);
     }
 
@@ -694,7 +699,7 @@ impl Usbc<'a> {
         debug1!("Initialized endpoint {}", endpoint);
     }
 
-    fn _endpoint_resume(&self, endpoint: usize) {
+    fn _endpoint_resume_in(&self, endpoint: usize) {
         self.map_state(|state| match *state {
             State::Active(Mode::Device { ref mut state, .. }) => {
                 let endpoint_state = &mut state.endpoint_states[endpoint];
@@ -704,15 +709,29 @@ impl Usbc<'a> {
                         endpoint_enable_interrupts(endpoint, EndpointControl::TXINE::SET);
                         *endpoint_state = EndpointState::BulkIn(BulkInState::Init);
                     }
+                    // XXX: Add support for EndpointState::Interrupt*
+                    _ => debugln!("Ignoring superfluous resume_in"),
+                }
+            }
+            _ => debugln!("Ignoring inappropriate resume_in"),
+        });
+    }
+
+    fn _endpoint_resume_out(&self, endpoint: usize) {
+        self.map_state(|state| match *state {
+            State::Active(Mode::Device { ref mut state, .. }) => {
+                let endpoint_state = &mut state.endpoint_states[endpoint];
+                match *endpoint_state {
                     EndpointState::BulkOut(BulkOutState::Delay) => {
                         // Return to Init state
                         endpoint_enable_interrupts(endpoint, EndpointControl::RXOUTE::SET);
                         *endpoint_state = EndpointState::BulkOut(BulkOutState::Init);
                     }
-                    _ => debugln!("Ignoring superfluous resume"),
+                    // XXX: Add support for EndpointState::Interrupt*
+                    _ => debugln!("Ignoring superfluous resume_out"),
                 }
             }
-            _ => debugln!("Ignoring inappropriate resume"),
+            _ => debugln!("Ignoring inappropriate resume_out"),
         });
     }
 
@@ -720,11 +739,16 @@ impl Usbc<'a> {
         for endpoint in 0..N_ENDPOINTS {
             let mut requests = self.requests[endpoint].get();
 
-            if requests.resume {
-                self._endpoint_resume(endpoint);
-                requests.resume = false;
-                self.requests[endpoint].set(requests);
+            if requests.resume_in {
+                self._endpoint_resume_in(endpoint);
+                requests.resume_in = false;
             }
+            if requests.resume_out {
+                self._endpoint_resume_out(endpoint);
+                requests.resume_out = false;
+            }
+
+            self.requests[endpoint].set(requests);
         }
     }
 
@@ -1235,10 +1259,10 @@ impl Usbc<'a> {
 
                     let result = self.client.map(|c| {
                         // Allow client to consume the packet
-                        c.bulk_out(endpoint, packet_bytes)
+                        c.packet_out(TransferType::Bulk, endpoint, packet_bytes)
                     });
                     match result {
-                        Some(hil::usb::BulkOutResult::Ok) => {
+                        Some(hil::usb::OutResult::Ok) => {
                             // Acknowledge
                             usbc_regs().uestaclr[endpoint].write(EndpointStatus::RXOUT::SET);
 
@@ -1253,7 +1277,7 @@ impl Usbc<'a> {
 
                             // Remain in Init state
                         }
-                        Some(hil::usb::BulkOutResult::Delay) => {
+                        Some(hil::usb::OutResult::Delay) => {
                             // The client is not ready to consume data; wait for resume
 
                             endpoint_disable_interrupts(endpoint, EndpointControl::RXOUTE::SET);
@@ -1298,10 +1322,10 @@ impl Usbc<'a> {
 
                     let result = self.client.map(|c| {
                         // Allow client to write a packet payload to the buffer
-                        c.bulk_in(endpoint)
+                        c.packet_in(TransferType::Bulk, endpoint)
                     });
                     match result {
-                        Some(hil::usb::BulkInResult::Packet(packet_bytes)) => {
+                        Some(hil::usb::InResult::Packet(packet_bytes)) => {
                             // Acknowledge
                             usbc_regs().uestaclr[endpoint].write(EndpointStatus::TXIN::SET);
 
@@ -1322,7 +1346,7 @@ impl Usbc<'a> {
 
                             // Remain in Init state
                         }
-                        Some(hil::usb::BulkInResult::Delay) => {
+                        Some(hil::usb::InResult::Delay) => {
                             // The client is not ready to send data; wait for resume
 
                             endpoint_disable_interrupts(endpoint, EndpointControl::TXINE::SET);
@@ -1413,8 +1437,8 @@ fn endpoint_enable_interrupts(endpoint: usize, mask: FieldValue<u32, EndpointCon
     usbc_regs().ueconset[endpoint].write(mask);
 }
 
-impl hil::usb::UsbController for Usbc<'a> {
-    fn endpoint_set_buffer<'b>(&'b self, endpoint: usize, buf: &[VolatileCell<u8>]) {
+impl hil::usb::UsbController<'a> for Usbc<'a> {
+    fn endpoint_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
         if buf.len() != 8 {
             client_err!("Bad endpoint buffer size");
         }
@@ -1471,42 +1495,56 @@ impl hil::usb::UsbController for Usbc<'a> {
         );
     }
 
-    fn endpoint_ctrl_out_enable(&self, endpoint: usize) {
-        let endpoint_cfg = LocalRegisterCopy::new(From::from(
-            EndpointConfig::EPTYPE::Control
-                + EndpointConfig::EPDIR::Out
-                + EndpointConfig::EPSIZE::Bytes8
-                + EndpointConfig::EPBK::Single,
-        ));
+    fn endpoint_in_enable(&self, transfer_type: TransferType, endpoint: usize) {
+        let endpoint_cfg = match transfer_type {
+            TransferType::Control => {
+                panic!("There is no IN control endpoint");
+            }
+            TransferType::Bulk => LocalRegisterCopy::new(From::from(
+                EndpointConfig::EPTYPE::Bulk
+                    + EndpointConfig::EPDIR::In
+                    + EndpointConfig::EPSIZE::Bytes8
+                    + EndpointConfig::EPBK::Single,
+            )),
+            TransferType::Interrupt | TransferType::Isochronous => unimplemented!(),
+        };
 
         self._endpoint_enable(endpoint, endpoint_cfg)
     }
 
-    fn endpoint_bulk_in_enable(&self, endpoint: usize) {
-        let endpoint_cfg = LocalRegisterCopy::new(From::from(
-            EndpointConfig::EPTYPE::Bulk
-                + EndpointConfig::EPDIR::In
-                + EndpointConfig::EPSIZE::Bytes8
-                + EndpointConfig::EPBK::Single,
-        ));
+    fn endpoint_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
+        let endpoint_cfg = match transfer_type {
+            TransferType::Control => LocalRegisterCopy::new(From::from(
+                EndpointConfig::EPTYPE::Control
+                    + EndpointConfig::EPDIR::Out
+                    + EndpointConfig::EPSIZE::Bytes8
+                    + EndpointConfig::EPBK::Single,
+            )),
+            TransferType::Bulk => LocalRegisterCopy::new(From::from(
+                EndpointConfig::EPTYPE::Bulk
+                    + EndpointConfig::EPDIR::Out
+                    + EndpointConfig::EPSIZE::Bytes8
+                    + EndpointConfig::EPBK::Single,
+            )),
+            TransferType::Interrupt | TransferType::Isochronous => unimplemented!(),
+        };
 
         self._endpoint_enable(endpoint, endpoint_cfg)
     }
 
-    fn endpoint_bulk_out_enable(&self, endpoint: usize) {
-        let endpoint_cfg = LocalRegisterCopy::new(From::from(
-            EndpointConfig::EPTYPE::Bulk
-                + EndpointConfig::EPDIR::Out
-                + EndpointConfig::EPSIZE::Bytes8
-                + EndpointConfig::EPBK::Single,
-        ));
-
-        self._endpoint_enable(endpoint, endpoint_cfg)
+    fn endpoint_in_out_enable(&self, _transfer_type: TransferType, _endpoint: usize) {
+        unimplemented!()
     }
 
-    fn endpoint_bulk_resume(&self, endpoint: usize) {
+    fn endpoint_resume_in(&self, endpoint: usize) {
         let mut requests = self.requests[endpoint].get();
-        requests.resume = true;
+        requests.resume_in = true;
+        self.requests[endpoint].set(requests);
+    }
+
+    fn endpoint_resume_out(&self, endpoint: usize) {
+        let mut requests = self.requests[endpoint].get();
+        requests.resume_out = true;
         self.requests[endpoint].set(requests);
     }
 }
