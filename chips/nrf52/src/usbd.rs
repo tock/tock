@@ -572,6 +572,10 @@ impl<'a> Usbd<'a> {
             registers: USBD_BASE,
         }
     }
+
+    pub fn handle_interrupt(&self) {
+        // TODO
+    }
 }
 
 pub static mut USBD: Usbd<'static> = Usbd::new();

@@ -123,7 +123,7 @@ impl kernel::Platform for Platform {
 
 /// Generic function for starting an nrf52dk board.
 #[inline]
-pub unsafe fn setup_board(
+pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
@@ -148,6 +148,7 @@ pub unsafe fn setup_board(
     app_fault_response: kernel::procs::FaultResponse,
     reg_vout: Regulator0Output,
     nfc_as_gpios: bool,
+    chip: &'static nrf52::chip::NRF52<I>,
 ) {
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52::uicr::Uicr::new();
@@ -442,8 +443,6 @@ pub unsafe fn setup_board(
         nonvolatile_storage: nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
-
-    let chip = static_init!(nrf52::chip::NRF52, nrf52::chip::NRF52::new(gpio_port));
 
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
