@@ -1,7 +1,6 @@
 //! Tock specific `TakeCell` type for sharing references.
 
-use core::cell::UnsafeCell;
-use core::ptr;
+use core::cell::Cell;
 
 /// A shared reference to a mutable reference.
 ///
@@ -13,29 +12,32 @@ use core::ptr;
 /// operate on a borrow within a closure. Attempts to take the value from inside
 /// a `TakeCell` may fail by returning `None`.
 pub struct TakeCell<'a, T: 'a + ?Sized> {
-    val: UnsafeCell<Option<&'a mut T>>,
+    val: Cell<Option<&'a mut T>>,
 }
 
 impl<'a, T: ?Sized> TakeCell<'a, T> {
     pub const fn empty() -> TakeCell<'a, T> {
         TakeCell {
-            val: UnsafeCell::new(None),
+            val: Cell::new(None),
         }
     }
 
     /// Creates a new `TakeCell` containing `value`
     pub fn new(value: &'a mut T) -> TakeCell<'a, T> {
         TakeCell {
-            val: UnsafeCell::new(Some(value)),
+            val: Cell::new(Some(value)),
         }
     }
 
     pub fn is_none(&self) -> bool {
-        unsafe { (&*self.val.get()).is_none() }
+        let inner = self.take();
+        let return_val = inner.is_none();
+        self.val.set(inner);
+        return_val
     }
 
     pub fn is_some(&self) -> bool {
-        unsafe { (&*self.val.get()).is_some() }
+        !self.is_none()
     }
 
     /// Takes the mutable reference out of the `TakeCell` leaving a `None` in
@@ -57,30 +59,18 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// assert_eq!(y.take(), None);
     /// ```
     pub fn take(&self) -> Option<&'a mut T> {
-        unsafe {
-            let inner = &mut *self.val.get();
-            inner.take()
-        }
+        self.val.replace(None)
     }
 
     /// Stores `val` in the `TakeCell`
     pub fn put(&self, val: Option<&'a mut T>) {
-        let _ = self.take();
-        let ptr = self.val.get();
-        unsafe {
-            ptr::replace(ptr, val);
-        }
+        self.val.replace(val);
     }
 
     /// Replaces the contents of the `TakeCell` with `val`. If the cell was not
     /// empty, the previous value is returned, otherwise `None` is returned.
     pub fn replace(&self, val: &'a mut T) -> Option<&'a mut T> {
-        let prev = self.take();
-        let ptr = self.val.get();
-        unsafe {
-            ptr::replace(ptr, Some(val));
-        }
-        prev
+        self.val.replace(Some(val))
     }
 
     /// Allows `closure` to borrow the contents of the `TakeCell` if-and-only-if
