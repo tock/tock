@@ -48,6 +48,8 @@ use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
+use kernel::capabilities::IpVisCap;
+
 use sam4l;
 
 // The UDP stack requires exactly one of several packet buffers:
@@ -87,6 +89,7 @@ pub struct UDPMuxComponent {
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
     net_cap: &'static NetworkCapability,
+    ip_vis: &'static dyn IpVisCap,
 }
 
 impl UDPMuxComponent {
@@ -99,6 +102,7 @@ impl UDPMuxComponent {
         interface_list: &'static [IPAddr],
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
         net_cap: &'static NetworkCapability,
+        ip_vis: &'static dyn IpVisCap,
     ) -> UDPMuxComponent {
         UDPMuxComponent {
             mux_mac: mux_mac,
@@ -109,6 +113,7 @@ impl UDPMuxComponent {
             interface_list: interface_list,
             alarm_mux: alarm,
             net_cap: net_cap,
+            ip_vis: ip_vis,
         }
     }
 }
@@ -188,6 +193,7 @@ impl Component for UDPMuxComponent {
                 udp_mac,
                 self.dst_mac_addr,
                 self.src_mac_addr,
+                self.ip_vis,
             )
         );
         ipsender_virtual_alarm.set_client(ip_send);

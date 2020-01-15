@@ -28,6 +28,8 @@ use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::debug;
 use kernel::ReturnCode;
+use kernel::capabilities::UdpVisCap;
+
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
@@ -239,6 +241,7 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
     binding: MapCell<UdpPortBindingTx>,
+    udp_vis: &'static dyn UdpVisCap,
 }
 
 impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
@@ -265,7 +268,10 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         udp_header.set_dst_port(dst_port);
         match self.binding.take() {
             Some(binding) => {
-                if binding.get_port() == 0 {
+                if !net_cap.remote_port_valid(dst_port, self.udp_vis) ||
+                   !net_cap.local_port_valid(binding.get_port(), self.udp_vis) {
+                    Err(buf)
+                } else if binding.get_port() == 0 {
                     Err(buf)
                 } else {
                     udp_header.set_src_port(binding.get_port());
@@ -327,6 +333,7 @@ impl<T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
 impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
         udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpPortBindingTx*/
+        udp_vis: &'static dyn UdpVisCap,
     ) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
             udp_mux_sender: udp_mux_sender,
@@ -336,6 +343,7 @@ impl<T: IP6Sender<'a>> UDPSendStruct<'a, T> {
             next_dest: Cell::new(IPAddr::new()),
             next_th: OptionalCell::empty(),
             binding: MapCell::empty(),
+            udp_vis: udp_vis,
         }
     }
 }

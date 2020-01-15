@@ -131,6 +131,8 @@ use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
+use kernel::capabilities::UdpVisCap;
+
 
 pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
@@ -167,6 +169,7 @@ pub unsafe fn initialize_all(
     port_table: &'static UdpPortManager,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
     net_cap: &'static NetworkCapability,
+    udp_vis: &'static dyn UdpVisCap,
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -180,6 +183,7 @@ pub unsafe fn initialize_all(
         1, //id
         3, //dst_port
         net_cap,
+        udp_vis,
     )
     .finalize(());
 
@@ -192,6 +196,7 @@ pub unsafe fn initialize_all(
         2, //id
         4, //dst_port
         net_cap,
+        udp_vis,
     )
     .finalize(());
 
@@ -279,7 +284,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                 match test_id {
                     0 => self.capsule_send_fail(),
                     1 => self.port_table_test(),
-                    2 => self.port_table_test2(),
+                    2 => self.port_table_test(),//self.port_table_test2(),
                     3 => self.capsule_send_test(),
                     _ => return,
                 }

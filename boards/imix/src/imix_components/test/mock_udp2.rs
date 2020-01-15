@@ -19,6 +19,8 @@ use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
+use kernel::capabilities::UdpVisCap;
+
 
 pub struct MockUDPComponent2 {
     // TODO: consider putting bound_port_table in a TakeCell
@@ -33,6 +35,7 @@ pub struct MockUDPComponent2 {
     id: u16,
     dst_port: u16,
     net_cap: &'static NetworkCapability,
+    udp_vis: &'static dyn UdpVisCap,
 }
 
 impl MockUDPComponent2 {
@@ -48,6 +51,7 @@ impl MockUDPComponent2 {
         id: u16,
         dst_port: u16,
         net_cap: &'static NetworkCapability,
+        udp_vis: &'static dyn UdpVisCap,
     ) -> MockUDPComponent2 {
         MockUDPComponent2 {
             udp_send_mux: udp_send_mux,
@@ -58,6 +62,7 @@ impl MockUDPComponent2 {
             id: id,
             dst_port: dst_port,
             net_cap: net_cap,
+            udp_vis: udp_vis,
         }
     }
 }
@@ -78,7 +83,7 @@ impl Component for MockUDPComponent2 {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(self.udp_send_mux)
+            UDPSendStruct::new(self.udp_send_mux, self.udp_vis)
         );
 
         let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());

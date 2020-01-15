@@ -21,13 +21,15 @@ use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
-use crate::net::network_capabilities::{NetworkCapability};
+use crate::net::network_capabilities::NetworkCapability;
 use core::cell::Cell;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::time::{self, Frequency};
 use kernel::ReturnCode;
+use kernel::capabilities::IpVisCap;
+
 
 /// This trait must be implemented by upper layers in order to receive
 /// the `send_done` callback when a transmission has completed. The upper
@@ -104,6 +106,7 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     client: OptionalCell<&'a dyn IP6SendClient>,
+    ip_vis: &'static dyn IpVisCap,
 }
 
 impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
@@ -131,6 +134,9 @@ impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         payload: &LeasableBuffer<'static, u8>,
         net_cap: &'static NetworkCapability,
     ) -> ReturnCode {
+        if !net_cap.remote_addr_valid(dst, self.ip_vis) {
+            return ReturnCode::FAIL;
+        }
         self.sixlowpan.init(
             self.src_mac_addr,
             self.dst_mac_addr,
@@ -152,6 +158,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         radio: &'a dyn MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
+        ip_vis: &'static dyn IpVisCap,
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
@@ -164,6 +171,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
             dst_mac_addr: dst_mac_addr,
             src_mac_addr: src_mac_addr,
             client: OptionalCell::empty(),
+            ip_vis: ip_vis,
         }
     }
 

@@ -1,5 +1,6 @@
 use core::cell::Cell;
 use kernel::capabilities::{UdpVisCap, IpVisCap, NetCapCreateCap};
+use crate::net::ipv6::ip_utils::IPAddr;
 
 const MAX_ADDR_SET_SIZE: usize = 16;
 const MAX_PORT_SET_SIZE: usize = 16;
@@ -10,20 +11,19 @@ const MAX_NUM_CAPSULES: usize = 32;
 pub enum AddrRange { // TODO: change u32 to IPAddr type (inclusion weirdness?)
     Any, // Any address
     NoAddrs,
-    AddrSet([u32; MAX_ADDR_SET_SIZE]),
-    Range(u32, u32),
-    Addr(u32),
+    AddrSet([IPAddr; MAX_ADDR_SET_SIZE]),
+    Addr(IPAddr),
+    // TODO: add range for IP addrs.
 }
 
 impl AddrRange {
-    pub fn is_addr_valid(&self, addr: u32) -> bool {
+    pub fn is_addr_valid(&self, addr: IPAddr) -> bool {
         match self {
             AddrRange::Any => true,
             AddrRange::NoAddrs => false,
             AddrRange::AddrSet(allowed_addrs) =>
                 allowed_addrs.iter().any(|&a| a == addr),
-            AddrRange::Range(low, high) => (*low <= addr && addr <= *high),
-            AddrRange::Addr(allowed_addr) => addr == *allowed_addr,
+            AddrRange::Addr(allowed_addr) => addr == *allowed_addr, //TODO: refs?
         }
     }
 }
@@ -80,7 +80,8 @@ impl NetworkCapability {
         self.remote_addrs
     }
 
-    pub fn remote_addr_valid(&self, remote_addr: u32, ip_cap: & dyn IpVisCap) -> bool {
+    pub fn remote_addr_valid(&self, remote_addr: IPAddr, ip_cap: & dyn IpVisCap)
+        -> bool {
         self.remote_addrs.is_addr_valid(remote_addr)
     }
 

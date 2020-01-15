@@ -38,6 +38,7 @@ use kernel::{create_capability, static_init};
 use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::capabilities::UdpVisCap;
 use sam4l;
 
 const UDP_HDR_SIZE: usize = 8;
@@ -55,6 +56,7 @@ pub struct UDPDriverComponent {
     port_table: &'static UdpPortManager,
     interface_list: &'static [IPAddr],
     net_cap: &'static NetworkCapability,
+    udp_vis: &'static dyn UdpVisCap,
 }
 
 impl UDPDriverComponent {
@@ -68,6 +70,7 @@ impl UDPDriverComponent {
         port_table: &'static UdpPortManager,
         interface_list: &'static [IPAddr],
         net_cap: &'static NetworkCapability,
+        udp_vis: &'static dyn UdpVisCap,
     ) -> UDPDriverComponent {
         UDPDriverComponent {
             board_kernel: board_kernel,
@@ -76,6 +79,7 @@ impl UDPDriverComponent {
             port_table: port_table,
             interface_list: interface_list,
             net_cap: net_cap,
+            udp_vis: udp_vis,
         }
     }
 }
@@ -94,7 +98,7 @@ impl Component for UDPDriverComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(self.udp_send_mux)
+            UDPSendStruct::new(self.udp_send_mux, self.udp_vis)
         );
         // Can't use create_capability bc need capability to have a static lifetime
         // so that UDP driver can use it as needed

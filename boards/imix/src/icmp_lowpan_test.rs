@@ -39,6 +39,8 @@ use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
+use kernel::capabilities::IpVisCap;
+
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -74,6 +76,7 @@ pub unsafe fn initialize_all(
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
     net_cap: &'static NetworkCapability,
+    ip_vis: &'static dyn IpVisCap,
 ) -> &'static LowpanICMPTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -122,7 +125,8 @@ pub unsafe fn initialize_all(
             sixlowpan_tx,
             radio_mac,
             DST_MAC_ADDR,
-            SRC_MAC_ADDR
+            SRC_MAC_ADDR,
+            ip_vis
         )
     );
     radio_mac.set_transmit_client(ip6_sender);
@@ -142,7 +146,7 @@ pub unsafe fn initialize_all(
             //radio_mac,
             VirtualMuxAlarm::new(mux_alarm),
             icmp_send_struct,
-            net_cap,
+            net_cap
         )
     );
 
