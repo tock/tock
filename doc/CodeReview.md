@@ -12,7 +12,10 @@ requests for and makes releases of the main Tock repository.
 - [1. Introduction](#1-introduction)
 - [2. Pull Requests](#2-pull-requests)
 - [3. Reviews](#3-reviews)
-- [4. Release process](#4-release-process)
+- [4. Release Process](#4-release-process)
+- [Other Tock Repositories](#other-tock-repositories)
+  * [Userland Repositories](#userland-repositories)
+  * [Tertiary Repositories](#tertiary-repositories)
 
 <!-- tocstop -->
 
