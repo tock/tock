@@ -5,8 +5,9 @@
 #![feature(const_fn, in_band_lifetimes)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules::virtual_uart::UartDevice;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::common::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
@@ -90,6 +91,14 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&arty_e21::gpio::PORT[0]), // Red
@@ -98,18 +107,12 @@ pub unsafe fn reset_handler() {
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &arty_e21::uart::UART0,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-    uart_mux.initialize();
-
-    hil::uart::Transmit::set_transmit_client(&arty_e21::uart::UART0, uart_mux);
-    hil::uart::Receive::set_receive_client(&arty_e21::uart::UART0, uart_mux);
+    let uart_mux = components::console::UartMuxComponent::new(
+        &arty_e21::uart::UART0,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
 
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
 
