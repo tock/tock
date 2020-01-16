@@ -6,7 +6,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{write, write_volatile, Unique};
 
 use crate::callback::AppId;
-use crate::process::Error;
+use crate::process::{Error, ProcessType};
 use crate::sched::Kernel;
 
 /// Region of process memory reserved for the kernel.
@@ -244,33 +244,36 @@ impl<T: Default> Grant<T> {
         });
     }
 
+    /// Get an iterator over all processes and their active grant regions for
+    /// this particular grant.
     pub fn iter(&self) -> Iter<T> {
         Iter {
             grant: self,
-            index: 0,
-            len: self.kernel.number_of_process_slots(),
+            subiter: self.kernel.get_process_iter(),
         }
     }
 }
 
 pub struct Iter<'a, T: 'a + Default> {
     grant: &'a Grant<T>,
-    index: usize,
-    len: usize,
+    subiter: core::slice::Iter<'a, Option<&'a dyn ProcessType>>,
 }
 
 impl<T: Default> Iterator for Iter<'a, T> {
     type Item = AppliedGrant<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.index < self.len {
-            let idx = self.index;
-            self.index += 1;
-            let res = self.grant.grant(AppId::new(self.grant.kernel, idx));
-            if res.is_some() {
-                return res;
-            }
-        }
-        None
+        // Get the next `AppId` from the kernel processes array. There can be
+        // empty slots in the processes array, so we use `find_map()` to skip
+        // over those. Since the iterator itself is saved calling this function
+        // again will start where we left off.
+        let res = self
+            .subiter
+            .find_map(|pi| pi.map_or(None, |p| Some(p.appid())));
+
+        // Check if our find above returned another `AppId`, or if we hit the
+        // end of the iterator. If we found another app, try to access its grant
+        // region.
+        res.map_or(None, |app| self.grant.grant(app))
     }
 }
