@@ -4,6 +4,28 @@ Tock Getting Started Guide
 This covers how to install the toolchain on your platform to start using and
 developing Tock.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Getting_Started.md -->
+
+<!-- toc -->
+
+- [Requirements](#requirements)
+  * [Super Quick Setup](#super-quick-setup)
+  * [Installing Requirements](#installing-requirements)
+    + [Rust (nightly)](#rust-nightly)
+    + [Tockloader](#tockloader)
+- [Compiling the Kernel](#compiling-the-kernel)
+- [Loading the kernel onto a board](#loading-the-kernel-onto-a-board)
+  * [Installing `JLinkExe`](#installing-jlinkexe)
+  * [Installing `openocd`](#installing-openocd)
+  * [(Linux): Adding a `udev` rule](#linux-adding-a-udev-rule)
+- [Installing your first application](#installing-your-first-application)
+- [Compiling applications](#compiling-applications)
+- [Developing TockOS](#developing-tockos)
+  * [Formatting Rust source code](#formatting-rust-source-code)
+  * [Keeping build tools up to date](#keeping-build-tools-up-to-date)
+
+<!-- tocstop -->
+
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/)
