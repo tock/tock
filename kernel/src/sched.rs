@@ -99,6 +99,20 @@ impl Kernel {
         }
     }
 
+    /// Return an iterator for all of the items in the processes array on this
+    /// board.
+    ///
+    /// NOTE: This would be better if it returned an iterator to only processes.
+    /// While with `filter_map()` it is straightforward to create an object that
+    /// implements `Iterator` and only iterates over `Some(process)` items in
+    /// the processes array, Rust doesn't seem to support the types necessary to
+    /// actually make that work and be usable. Perhaps as
+    /// https://github.com/rust-lang/rust/issues/63066 progresses this will be
+    /// possible in the future.
+    crate fn get_process_iter(&self) -> core::slice::Iter<Option<&dyn process::ProcessType>> {
+        self.processes.iter()
+    }
+
     /// Run a closure on every valid process. This will iterate the
     /// array of processes and call the closure on every process that
     /// exists. Ths method is available outside the kernel crate but
@@ -140,11 +154,6 @@ impl Kernel {
             }
         }
         ReturnCode::FAIL
-    }
-
-    /// Return how many processes this board supports.
-    crate fn number_of_process_slots(&self) -> usize {
-        self.processes.len()
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
