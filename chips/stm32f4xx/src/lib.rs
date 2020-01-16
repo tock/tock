@@ -26,6 +26,12 @@ pub mod usart;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
@@ -52,9 +58,12 @@ extern "C" {
     fn reset_handler();
 }
 
-#[link_section = ".vectors"]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
 // used Ensures that the symbol is kept until the final binary
-#[used]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     reset_handler,
@@ -78,8 +87,9 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // Extracted from `CMSIS/Device/ST/STM32F4xx/Include/stm32f446xx.h`
 // NOTE: There are missing IRQn between 0 and 96
 #[cfg(feature = "stm32f446re")]
-#[link_section = ".irqs"]
-#[used] // Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 97] = [
     generic_isr,         // WWDG (0)
     generic_isr,         // PVD (1)
@@ -182,8 +192,9 @@ pub static IRQS: [unsafe extern "C" fn(); 97] = [
 
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg(feature = "stm32f429zi")]
-#[link_section = ".irqs"]
-#[used] // Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 91] = [
     generic_isr, // WWDG (0)
     generic_isr, // PVD (1)

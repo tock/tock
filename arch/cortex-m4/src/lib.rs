@@ -28,13 +28,16 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn systick_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn systick_handler() {
+    unimplemented!()
+}
 
 /// The `systick_handler` is called when the systick interrupt occurs, signaling
 /// that an application executed for longer than its timeslice. If this is
 /// called we want to return to the scheduler.
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
     asm!(
@@ -60,8 +63,11 @@ pub unsafe extern "C" fn systick_handler() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn generic_isr() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn generic_isr() {
+    unimplemented!()
+}
 
 /// All ISRs are caught by this handler. This must ensure the interrupt is
 /// disabled (per Tock's interrupt model) and then as quickly as possible resume
@@ -71,7 +77,7 @@ pub unsafe extern "C" fn generic_isr() {}
 ///
 /// If the ISR is called while an app is running, this will switch control to
 /// the kernel.
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn generic_isr() {
     asm!(
@@ -134,12 +140,15 @@ pub unsafe extern "C" fn generic_isr() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn svc_handler() {}
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn svc_handler() {
+    unimplemented!()
+}
 
 /// This is called after a `svc` instruction, both when switching to userspace
 /// and when userspace makes a system call.
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
     asm!(
@@ -181,15 +190,19 @@ pub unsafe extern "C" fn svc_handler() {
     : : : : "volatile" );
 }
 
-#[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, _process_got: *const u8) -> *mut u8 {
-    user_stack as *mut u8
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn switch_to_user(
+    _user_stack: *const u8,
+    _process_regs: &mut [usize; 8],
+) -> *const usize {
+    unimplemented!()
 }
 
 /// Assembly function called from `UserspaceKernelBoundary` to switch to an
 /// an application. This handles storing and restoring application state before
 /// and after the switch.
-#[cfg(target_os = "none")]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[no_mangle]
 pub unsafe extern "C" fn switch_to_user(
     mut user_stack: *const usize,
@@ -229,6 +242,7 @@ pub unsafe extern "C" fn switch_to_user(
     user_stack
 }
 
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(never)]
 unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     use core::intrinsics::offset;
@@ -373,6 +387,13 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     );
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn hard_fault_handler() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn hard_fault_handler() {
     let faulting_stack: *mut u32;

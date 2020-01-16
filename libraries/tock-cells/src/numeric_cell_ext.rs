@@ -1,4 +1,4 @@
-//! `NumericCellExt` extention trait for `Cell`s.
+//! `NumericCellExt` extension trait for `Cell`s.
 //!
 //! Adds a suite of convenience functions to `Cell`s that contain numeric
 //! types. Cells that contains types that can meaningfully execute arithmetic
@@ -31,6 +31,12 @@ where
 
     /// Subtract 1 from the stored value.
     fn decrement(&self);
+
+    /// Return the current value and then add 1 to the stored value.
+    fn get_and_increment(&self) -> T;
+
+    /// Return the current value and then subtract 1 from the stored value.
+    fn get_and_decrement(&self) -> T;
 }
 
 impl<T> NumericCellExt<T> for Cell<T>
@@ -51,5 +57,17 @@ where
 
     fn decrement(&self) {
         self.set(self.get() - T::from(1 as usize));
+    }
+
+    fn get_and_increment(&self) -> T {
+        let ret = self.get();
+        self.set(ret + T::from(1 as usize));
+        ret
+    }
+
+    fn get_and_decrement(&self) -> T {
+        let ret = self.get();
+        self.set(ret - T::from(1 as usize));
+        ret
     }
 }

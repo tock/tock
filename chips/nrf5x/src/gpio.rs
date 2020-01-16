@@ -17,6 +17,13 @@ use kernel::hil;
 const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;
+// Dummy value for testing on Travis-CI.
+#[cfg(all(
+    not(any(target_arch = "arm", target_os = "none")),
+    not(feature = "nrf51"),
+    not(feature = "nrf52"),
+))]
+const NUM_GPIOTE: usize = 4;
 
 const GPIO_PER_PORT: usize = 32;
 

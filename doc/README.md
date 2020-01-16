@@ -38,5 +38,6 @@ Tock Guides
 - **[Style](Style.md)** - Stylistic aspects of Tock code.
 
 ### Management of Tock
+- **[Core Team](CoreTeam.md)** - Tock core team members and information.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
 

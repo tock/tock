@@ -4,16 +4,16 @@
 //!
 //! HFCLK - High Frequency Clock:
 //!
-//!     * 64 MHz internal oscillator (HFINT)
-//!     * 64 MHz crystal oscillator, using 32 MHz external crystal (HFXO)
-//!     * The HFXO must be running to use the RADIO, NFC module or the calibration mechanism
-//!       associated with the 32.768 kHz RC oscillator.
+//! * 64 MHz internal oscillator (HFINT)
+//! * 64 MHz crystal oscillator, using 32 MHz external crystal (HFXO)
+//! * The HFXO must be running to use the RADIO, NFC module or the calibration mechanism
+//!   associated with the 32.768 kHz RC oscillator.
 //!
 //! LFCLK - Low Frequency Clock Source:
 //!
-//!     * 32.768 kHz RC oscillator (LFRC)
-//!     * 32.768 kHz crystal oscillator (LFXO)
-//!     * 32.768 kHz synthesized from HFCLK (LFSYNT)
+//! * 32.768 kHz RC oscillator (LFRC)
+//! * 32.768 kHz crystal oscillator (LFXO)
+//! * 32.768 kHz synthesized from HFCLK (LFSYNT)
 //!
 
 use kernel::common::cells::OptionalCell;

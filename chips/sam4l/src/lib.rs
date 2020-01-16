@@ -37,6 +37,12 @@ pub mod wdt;
 
 use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
+#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+unsafe extern "C" fn unhandled_interrupt() {
+    unimplemented!()
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
@@ -69,9 +75,12 @@ extern "C" {
     static mut _erelocate: u32;
 }
 
-#[link_section = ".vectors"]
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
 // used Ensures that the symbol is kept until the final binary
-#[used]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     reset_handler,
@@ -91,8 +100,12 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     systick_handler,     // SysTick
 ];
 
-#[link_section = ".vectors"]
-#[used] // Ensures that the symbol is kept until the final binary
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
+// used Ensures that the symbol is kept until the final binary
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 pub unsafe fn init() {

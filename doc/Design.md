@@ -1,6 +1,26 @@
 Tock Design
 ===========
 
+<!-- npm i -g markdown-toc; markdown-toc -i Design.md -->
+
+<!-- toc -->
+
+- [Architecture](#architecture)
+  * [Capsules](#capsules)
+  * [Processes](#processes)
+    + [Memory Layout](#memory-layout)
+  * [Grants](#grants)
+- [In-Kernel Design Principles](#in-kernel-design-principles)
+  * [Role of HILs](#role-of-hils)
+  * [Split-phase Operation](#split-phase-operation)
+  * [No External Dependencies](#no-external-dependencies)
+  * [Using `unsafe` and Capabilities](#using-unsafe-and-capabilities)
+  * [Ease of Use and Understanding](#ease-of-use-and-understanding)
+  * [Demonstrated Features](#demonstrated-features)
+  * [Merge Aggressively, Archive Unabashedly](#merge-aggressively-archive-unabashedly)
+
+<!-- tocstop -->
+
 Most operating systems provide isolation between components using a process-like
 abstraction: each component is given it's own slice of the system memory (for
 it's stack, heap, data) that is not accessible by other components. Processes
@@ -143,3 +163,252 @@ dereferencing. Unlike shared buffers, which can only be a buffer type in a
 capsule, granted memory can be defined as any type. Therefore, processes cannot
 access this memory since doing so might violate type-safety.
 
+## In-Kernel Design Principles
+
+To help meet Tock's goals, encourage portability across hardware, and ensure a
+sustainable operating system, several design principles have emerged over time
+for the Tock kernel. These are general principles that new contributions to the
+kernel should try to uphold. However, these principles have been informed by
+Tock's development, and will likely continue to evolve as Tock and the Rust
+ecosystem evolve.
+
+### Role of HILs
+
+Generally, the Tock kernel is structured into three layers:
+
+1. Chip-specific drivers: these typically live in a crate in the
+   `chips` subdirectory, or an equivalent crate in an different repository
+   (e.g. the Titan port is out of tree but its `h1b` create is the
+   equivalent here). These drivers have implementations that are specific
+   to the hardware of a particular microcontroller. Ideally,
+   their implementation is fairly simple, and they merely adhere to a
+   common interface (a HIL). That's not always the case, but that's
+   the ideal.
+
+2. Chip-agnostic, portable, peripheral drivers and subsystems. These
+   typically live in the `capsules` crate. These includes things like
+   the virtual alarms and virtual I2C stack, as well as drivers for
+   hardware peripherals not on the chip itself (e.g. sensors, radios,
+   etc). These drivers typically rely on the chip-specific drivers
+   through the HILs.
+
+3. System call drivers, also typically found in the `capsules`
+   crate. These are the drivers that implement a particular part of
+   the system call interfaces, and are often even more abstracted from
+   the hardware than (2) - for example, the temperature sensor system
+   call driver can use any temperature sensor, including several
+   implemented as portable peripheral drivers.
+
+
+   The system call interface is another point of
+   standardization that can be implemented in various ways. So it’s
+   perfectly reasonable to have several implementations of the same
+   system call interface that use completely different hardware
+   stacks, and therefore HILs and chip-specific drivers (e.g. a
+   console driver that operates over USB might just be implemented as
+   a different system call driver that implements the same system
+   calls, rather than trying to fit USB into the UART HIL).
+
+Because of their importance, the interfaces between these layers are a key part
+of Tock's design and implementation. These interfaces are called Tock's Hardware
+Interface Layer, or HIL. A HIL is a portable collection of Rust traits that can
+be implemented in either a portable or a non-portable way. An example of a
+non-portable implementation of a HIL is an Alarm that is implemented in terms of
+counter and compare registers of a specific chip, while an example of a portable
+implementation is a virtualization layer that multiplexes multiple Alarms top of
+a single underlying Alarm.
+
+A HIL consists of one or more Rust traits that are intended to be used together.
+In some cases, implementations may only implement a subset of a HIL's traits.
+For example the analog-to-digital (ADC) conversion HIL may have traits both for
+single and streams of samples. A particular implementation may only support
+single samples and so not implement the streaming traits.
+
+The choice of particular HIL interfaces is pretty important, and we have some
+general principles we follow:
+
+1. HIL implementations should be fairly general. If we have an interface that
+   doesn't work very well across different hardware, we probably have the wrong
+   interface - it's either too high level, or too low level, or it's just not
+   flexible enough. But HILs shouldn't generally be designed to optimize for
+   particular applications or hardware, and definitely not for a particular
+   combination of applications and hardware. If there are cases where that is
+   really truly necessary, a driver can be very chip or board specific and
+   circumvent the HILs entirely.
+
+   Sometimes there are useful interfaces that some chips can provide natively,
+   while other chips lack the necessary hardware support, but the functionality
+   could be emulated in some way. In these cases, Tock sometimes uses
+   "advanced" traits in HILs that enable a chip to expose its more
+   sophisticated features while not requiring that all implementors of the HIL
+   have to implement the function. For example, the UART HIL includes a
+   `ReceiveAdvanced` trait that includes a special function
+   `receive_automatic()` which receives bytes on the UART until a pause between
+   bytes is detected. This is supported directly by the SAM4L hardware, but can
+   also be emulated using timers and GPIO interrupts. By including this in an
+   advanced trait capsules can still use the interface but other UART
+   implementations that do not have that required feature do not have to
+   implement it.
+
+2. A HIL implementation may assume it is the only way the device will be used.
+   As a result, Tock tries to avoid having more than one HIL for a particular
+   service or abstraction, because it will not, in general, be possible for the
+   kernel to support simultaneously using different HILs for the same device.
+   For example, suppose there were two different HILs for a UART with slightly
+   different APIs. The chip-specific implementation of each one will need to
+   read and write hardware registers and handle interrupts, so they cannot exist
+   simultaneously. By allowing a HIL to assume it is the only way the device
+   will be used, Tock allows HILs to precisely define their semantics without
+   having to worry about potential future conflicts or use cases.
+
+
+
+### Split-phase Operation
+
+While processes are time sliced and preemptive in Tock, the kernel is
+not. Everything is run-to-completion. That is an important design
+choice because it allows the kernel to avoid allocating lots of stacks
+for lots of tasks, and it makes it possible to reason more simply
+about static and other shared variables.
+
+Therefore, all I/O operations in the Tock kernel are asynchronous and
+non-blocking. A method call starts an operation and returns immediately. When
+the operation completes, the struct implementing the operation calls a callback.
+Tock uses callbacks rather than closures because closures typically require
+dynamic memory allocation, which the kernel avoids and does not generally
+support.
+
+This design does add complexity when writing drivers as a blocking API is
+generally simpler to use. However, this is a conscious choice to favor overall
+safety of the kernel (e.g. avoiding running out of memory or preventing other
+code from running on time) over functional correctness of individual drivers
+(because they might be more error-prone, not because they cannot be written
+correctly).
+
+There are limited cases when the kernel can briefly block. For example, the
+SAM4L's GPIO controller can take up to 5 cycles to become ready between
+operations. Technically, a completely asynchronous driver would make this
+split-phase: the operation returns immediately, and issues a callback when it
+completes. However, because just setting up the callback will take more than 5
+cycles, spinning for 5 cycles is not only simpler, it's also cheaper. The
+implementation therefore spins for a handful of cycles before returning, such
+that the operation is synchronous. These cases are rare, though: the operation
+has to be so fast that it's not worth allowing other code to run during the
+delay.
+
+### No External Dependencies
+
+Tock chooses to not use any external libraries for any of the crates in the
+kernel. This is done to promote safety, as auditing the Tock code only requires
+inspecting the code in the Tock repository. Tock tries to be very specific with
+its use of `unsafe`, and tries to ensure that when it is used it is clear as to
+why. With external dependencies it would be significantly more challenging to
+ensure that uses of `unsafe` are valid, particularly as external libraries
+evolve.
+
+We also realize, however, that external libraries can be very useful. Tock's
+compromise has been to pull in specific portions of libraries into the
+`libraries` folder. This puts the library's source in the same repository, while
+keeping the library as a clearly separate crate. We do try to limit how often
+this happens.
+
+In the future, we hope that `cargo` and other Rust tools make it significantly
+easier to audit and manage dependencies. For example, cargo currently has no
+mechanism to emit an error if a dependency uses `unsafe`. If new tools emerge
+that help ensure that dependent code is safe, Tock would likely be able to
+leverage external dependencies.
+
+### Using `unsafe` and Capabilities
+
+Tock attempts to minimize the amount of unsafe code in the kernel. Of course,
+there are a number of operations that the kernel must do which fundamentally
+violate Rust's memory safety guarantees, and we try to compartmentalize these
+operations and explain how to use them in an ultimately safe manner.
+
+For operations that violate Rust safety, Tock marks the functions, structs, and
+traits as `unsafe`. This restricts the crates that can use these elements.
+Generally, Tock tries to make it clear where an unsafe operation is occurring by
+requiring the `unsafe` keyword be present. For example, with memory-mapped
+input/output (MMIO) registers, casting an arbitrary pointer to a struct that
+represents those registers violates memory safety unless the register map and
+address are verified to be correct. To denote this, doing the cast is clearly
+marked as `unsafe`. However, once the cast is complete, accessing those
+registers no longer violates memory safety. Therefore, using the registers does
+not require the `unsafe` keyword.
+
+Not all potentially dangerous code violates Rust's safety model, however. For
+example, stopping a process from running on the board does not violate
+language-level safety, but is still a potentially problematic operation from a
+security and system reliability standpoint, as not all kernel code should be
+able halt arbitrary processes (in particular, untrusted capsules should not have
+this access to this API). One way to restrict access to these types of functions
+would be to re-use the `unsafe` mechanism, since cargo will emit a warning if
+code that is prohibited from using `unsafe` attempts to invoke an `unsafe`
+function. However, this muddles the use of unsafe, and makes it difficult to
+understand if code potentially violates safety or is a restricted API.
+
+Instead, Tock uses
+[capabilities](../Soundness.md#capabilities-restricting-access-to-certain-functions-and-operations)
+to restrict access to important APIs. As such, any public APIs inside the kernel
+that should be very restricted in what other code can use them should require a
+specific capability in their function signatures. This prevents code that has
+not explicitly been granted the capability from calling the protected API.
+
+To promote the principle of least privilege, capabilities are relatively
+fine-grained and provide narrow access to specific APIs. This means that
+generally new APIs will require defining new capabilities.
+
+### Ease of Use and Understanding
+
+Whenever possible, Tock's design optimizes to lower the barrier for new users or
+developers to understand and use Tock. Sometimes, this means intentionally
+making a design choice that prioritizes readability or clarity over performance.
+
+As an example, Tock generally avoids using Rust's
+[features](https://doc.rust-lang.org/1.0.0/book/conditional-compilation.html)
+and `#[cfg()]` attribute to enable conditional compilation. While using a set of
+features can lead to optimizing exactly what code should be included when the
+kernel is built, it also makes it very difficult for users unfamiliar with the
+features to decide which features to enable and when. Likely, these users will
+use the default configuration, reducing the benefit of having the features
+available. Also, conditional compilation makes it very difficult to understand
+exactly what version of the kernel is running on any particular board as the
+features can substantially change what code is running. Finally, the non-default
+options are unlikely to be tested as robustly as the default configuration,
+leading to versions of the kernel which are no longer available.
+
+Tock also tries to ensure Tock "just works" for users. This manifests by trying
+to minimize the number of steps to get Tock running. The build system uses
+`make` which is familiar to many developers, and just running `make` in a board
+folder will compile the kernel. The most supported boards (Hail and imix) can
+then be programmed by just running `make program`. Installing an app just
+requires one more command: `tockloader install blink`. Tockloader will continue
+to expand to support the ease-of-use with Tock. Now, "just works" is a design
+goal that Tock is not completely meeting. But, future design decisions should
+continue to encourage Tock to "just work".
+
+### Demonstrated Features
+
+Tock discourages adding functionality to the kernel unless a clear use case has
+been established. For example, adding a red-black tree implementation to
+`kernel/src/common` might be useful in the future for some new Tock feature.
+However, that would be unlikely to be merged without a use case inside of the
+kernel that motivates needing a red-black tree. This general principle provides
+a starting point for evaluating new features in pull requests.
+
+Requiring a use case also makes the code more likely to be tested and used, as
+well as updated as other internal kernel APIs change.
+
+### Merge Aggressively, Archive Unabashedly
+
+As an experimental embedded operating system with roots in academic research,
+Tock is likely to receive contributions of new, risky, experimental, or narrowly
+focused code that may or may not be useful for the long-term growth of Tock.
+Rather than use a "holding" or "contribution" repository for new, experimental
+code, Tock tries to merge new features into mainline Tock. This both eases the
+maintenance burden of the code (it doesn't have to be maintained out-of-tree)
+and makes the feature more visible.
+
+However, not all features catch on, or are completed, or prove useful, and having the
+code in mainline Tock becomes an overall maintenance burden. In these cases, Tock
+will move the code to an [archive repository](https://github.com/tock/tock-archive/).

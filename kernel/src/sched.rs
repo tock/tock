@@ -279,6 +279,8 @@ impl Kernel {
                             process.set_fault_state();
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
+                            process.debug_syscall_called();
+
                             // Handle each of the syscalls.
                             match syscall {
                                 Syscall::MEMOP { operand, arg0 } => {

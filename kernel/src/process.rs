@@ -234,7 +234,11 @@ pub trait ProcessType {
     /// Returns how many times this process has exceeded its timeslice.
     fn debug_timeslice_expiration_count(&self) -> usize;
 
+    /// Increment the number of times the process has exceeded its timeslice.
     fn debug_timeslice_expired(&self);
+
+    /// Increment the number of times the process called a syscall.
+    fn debug_syscall_called(&self);
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -956,6 +960,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
     fn debug_timeslice_expired(&self) {
         self.debug
             .map(|debug| debug.timeslice_expiration_count += 1);
+    }
+
+    fn debug_syscall_called(&self) {
+        self.debug.map(|debug| debug.syscall_count += 1);
     }
 
     unsafe fn fault_fmt(&self, writer: &mut dyn Write) {

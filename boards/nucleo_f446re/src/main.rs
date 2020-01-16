@@ -8,11 +8,11 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
+use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
-use kernel::hil::{self, time::Alarm};
+use kernel::hil::time::Alarm;
 use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 
@@ -183,6 +183,13 @@ pub unsafe fn reset_handler() {
     setup_peripherals();
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
         stm32f4xx::chip::Stm32f4xx,
@@ -193,21 +200,16 @@ pub unsafe fn reset_handler() {
 
     // Create a shared UART channel for kernel debug.
     stm32f4xx::usart::USART2.enable_clock();
-    let mux_uart = static_init!(
-        MuxUart<'static>,
-        MuxUart::new(
-            &stm32f4xx::usart::USART2,
-            &mut capsules::virtual_uart::RX_BUF,
-            115200
-        )
-    );
-    mux_uart.initialize();
-    // `mux_uart.initialize()` configures the underlying USART, so we need to
+    let uart_mux = components::console::UartMuxComponent::new(
+        &stm32f4xx::usart::USART2,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(());
+
+    // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
     io::WRITER.set_initialized();
-
-    hil::uart::Transmit::set_transmit_client(&stm32f4xx::usart::USART2, mux_uart);
-    hil::uart::Receive::set_receive_client(&stm32f4xx::usart::USART2, mux_uart);
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -217,9 +219,9 @@ pub unsafe fn reset_handler() {
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup the console.
-    let console = components::console::ConsoleComponent::new(board_kernel, mux_uart).finalize(());
+    let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(mux_uart).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // // Setup the process inspection console
     // let process_console_uart = static_init!(UartDevice, UartDevice::new(mux_uart, true));

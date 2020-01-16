@@ -9,7 +9,6 @@
 
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
-
 use nrf52840::gpio::Pin;
 use nrf52dk_base::{SpiPins, UartPins};
 
@@ -236,6 +235,7 @@ pub unsafe fn reset_handler() {
     }
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
 
     nrf52dk_base::setup_board(
         board_kernel,
@@ -256,5 +256,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         nrf52840::uicr::Regulator0Output::V3_0,
         false,
+        chip,
     );
 }
