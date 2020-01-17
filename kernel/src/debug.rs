@@ -51,13 +51,25 @@ use crate::hil;
 use crate::process::ProcessType;
 use crate::ReturnCode;
 
+/// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
+/// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
+/// available).
+///
+/// Also, in our use cases, writes are infaillible, so the write function just doesn't return
+/// anything.
+///
+/// See also the tracking issue: https://github.com/rust-lang/rfcs/issues/2262
+pub trait IoWrite {
+    fn write(&mut self, buf: &[u8]);
+}
+
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
 
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic<L: hil::led::Led, W: Write>(
+pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite>(
     leds: &mut [&mut L],
     writer: &mut W,
     panic_info: &PanicInfo,
@@ -447,7 +459,7 @@ impl Default for Debug {
     }
 }
 
-pub unsafe fn flush<W: Write>(writer: &mut W) {
+pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
     let debug_writer = get_debug_writer();
 
     if let Some(ring_buffer) = debug_writer.extract() {
@@ -458,12 +470,10 @@ pub unsafe fn flush<W: Write>(writer: &mut W) {
 
             let (left, right) = ring_buffer.as_slices();
             if let Some(slice) = left {
-                let s = str::from_utf8_unchecked(slice);
-                let _ = writer.write_str(s);
+                writer.write(slice);
             }
             if let Some(slice) = right {
-                let s = str::from_utf8_unchecked(slice);
-                let _ = writer.write_str(s);
+                writer.write(slice);
             }
         }
     }
