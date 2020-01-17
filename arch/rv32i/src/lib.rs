@@ -324,7 +324,7 @@ pub extern "C" fn _start_trap() {
 
             // Need to set mstatus.MPP to 0b11 so that we stay in machine mode.
             csrr t0, 0x300    // CSR=0x300=mstatus
-            li   t1, 0x1808   // Load 0b11 to the MPP bits location in t1
+            li   t1, 0x1800   // Load 0b11 to the MPP bits location in t1
             or   t0, t0, t1   // Set the MPP bits to one
             csrw 0x300, t0    // CSR=0x300=mstatus
 
