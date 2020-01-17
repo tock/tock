@@ -33,7 +33,7 @@ macro_rules! button_component_helper {
                     (static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P))
                     .finalize(),
                     $M
-                    )
+                    ),
                 )*
             ]
         )

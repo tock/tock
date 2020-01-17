@@ -7,6 +7,7 @@
 #![no_main]
 #![deny(missing_docs)]
 
+use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -59,197 +60,79 @@ pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52840::init();
 
-    // GPIOs
-    let gpio_pins = static_init!(
-        [&'static dyn kernel::hil::gpio::InterruptValuePin; 24],
-        [
-            // Left side of the USB plug
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_13])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_15])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_17])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_20])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_22])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_24])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_00])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_09])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_10])
-            )
-            .finalize(),
-            // Right side of the USB plug
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_31])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_29])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_02])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_15])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_13])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_10])
-            )
-            .finalize(),
-            // Below the PCB
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_26])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_04])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_11])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P0_14])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_11])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_07])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_01])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_04])
-            )
-            .finalize(),
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[Pin::P1_02])
-            )
-            .finalize(),
-        ]
-    );
-
-    // LEDs
-    let led_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::Pin,
-            capsules::led::ActivationMode
-        ); 4],
-        [
-            (
-                &nrf52840::gpio::PORT[LED1_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf52840::gpio::PORT[LED2_R_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf52840::gpio::PORT[LED2_G_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-            (
-                &nrf52840::gpio::PORT[LED2_B_PIN],
-                capsules::led::ActivationMode::ActiveLow
-            ),
-        ]
-    );
-
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&nrf52840::gpio::PORT[BUTTON_PIN])
-            )
-            .finalize(),
-            capsules::button::GpioMode::LowWhenPressed
-        ),]
-    );
-
-    for &(btn, _) in button_pins.iter() {
-        btn.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
-    }
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    // GPIOs
+    let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
+        components::gpio_component_helper!(
+            // left side of the USB plug
+            &nrf52840::gpio::PORT[Pin::P0_13],
+            &nrf52840::gpio::PORT[Pin::P0_15],
+            &nrf52840::gpio::PORT[Pin::P0_17],
+            &nrf52840::gpio::PORT[Pin::P0_20],
+            &nrf52840::gpio::PORT[Pin::P0_22],
+            &nrf52840::gpio::PORT[Pin::P0_24],
+            &nrf52840::gpio::PORT[Pin::P1_00],
+            &nrf52840::gpio::PORT[Pin::P0_09],
+            &nrf52840::gpio::PORT[Pin::P0_10],
+            // right side of the USB plug
+            &nrf52840::gpio::PORT[Pin::P0_31],
+            &nrf52840::gpio::PORT[Pin::P0_29],
+            &nrf52840::gpio::PORT[Pin::P0_02],
+            &nrf52840::gpio::PORT[Pin::P1_15],
+            &nrf52840::gpio::PORT[Pin::P1_13],
+            &nrf52840::gpio::PORT[Pin::P1_10],
+            // Below the PCB
+            &nrf52840::gpio::PORT[Pin::P0_26],
+            &nrf52840::gpio::PORT[Pin::P0_04],
+            &nrf52840::gpio::PORT[Pin::P0_11],
+            &nrf52840::gpio::PORT[Pin::P0_14],
+            &nrf52840::gpio::PORT[Pin::P1_11],
+            &nrf52840::gpio::PORT[Pin::P1_07],
+            &nrf52840::gpio::PORT[Pin::P1_01],
+            &nrf52840::gpio::PORT[Pin::P1_04],
+            &nrf52840::gpio::PORT[Pin::P1_02]
+        ),
+    );
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            &nrf52840::gpio::PORT[BUTTON_PIN],
+            capsules::button::GpioMode::LowWhenPressed
+        )),
+    );
+
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        (
+            &nrf52840::gpio::PORT[LED1_PIN],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &nrf52840::gpio::PORT[LED2_R_PIN],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &nrf52840::gpio::PORT[LED2_G_PIN],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &nrf52840::gpio::PORT[LED2_B_PIN],
+            capsules::led::ActivationMode::ActiveLow
+        )
+    ));
     let chip = static_init!(nrf52840::chip::Chip, nrf52840::chip::new());
 
     nrf52dk_base::setup_board(
         board_kernel,
         BUTTON_RST_PIN,
         &nrf52840::gpio::PORT,
-        gpio_pins,
+        gpio,
         LED2_R_PIN,
         LED2_G_PIN,
         LED2_B_PIN,
-        led_pins,
+        led,
         &UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD),
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &None,
-        button_pins,
+        button,
         true,
         &mut APP_MEMORY,
         &mut PROCESSES,

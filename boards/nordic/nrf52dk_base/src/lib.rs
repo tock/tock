@@ -79,6 +79,10 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     button: &'static capsules::button::Button<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static>,
     led: &'static capsules::led::LED<'static>,
@@ -127,21 +131,15 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
-    gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
+    gpio: &'static capsules::gpio::GPIO<'static>,
     debug_pin1_index: Pin,
     debug_pin2_index: Pin,
     debug_pin3_index: Pin,
-    led_pins: &'static mut [(
-        &'static dyn kernel::hil::gpio::Pin,
-        capsules::led::ActivationMode,
-    )],
+    led: &'static capsules::led::LED<'static>,
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button_pins: &'static mut [(
-        &'static dyn kernel::hil::gpio::InterruptValuePin,
-        capsules::button::GpioMode,
-    )],
+    button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
@@ -227,45 +225,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         Some(&gpio_port[debug_pin3_index]),
     );
 
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
-
-    // LEDs
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
-
-    // Buttons
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-    }
-
     let rtc = &nrf52::rtc::RTC;
     rtc.start();
-    let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC)
-    );
-    hil::time::Alarm::set_client(rtc, mux_alarm);
-
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
+        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
@@ -291,6 +254,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
         Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
     );
+    let pconsole =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -434,6 +400,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         button: button,
         ble_radio: ble_radio,
         ieee802154_radio: ieee802154_radio,
+        pconsole: pconsole,
         console: console,
         led: led,
         gpio: gpio,
@@ -444,6 +411,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
+    platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 
