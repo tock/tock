@@ -80,15 +80,15 @@ impl Kernel {
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        // Find a process that matches the app id provided.
+        // Find a process that matches the app id provided, if one exists.
         let process = self
             .processes
             .iter()
-            .find(|&&p| p.map_or(false, |p2| appid == p2.appid()));
+            .find_map(|&p| p.map_or(None, |p2| if appid == p2.appid() { Some(p2) } else { None }));
 
-        // Run the closure on the process, dealing with the many options
-        // encountered along the way.
-        process.map_or(default, |p2| closure(p2.unwrap()))
+        // Return `default` if we couldn't find any matches, otherwise run the
+        // closure.
+        process.map_or(default, |p| closure(p))
     }
 
     /// Run a closure on every valid process. This will iterate the array of
