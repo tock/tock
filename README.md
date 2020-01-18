@@ -48,7 +48,7 @@ Find example applications that run on top of the Tock kernel written in both
 Read our [getting started guide](doc/Getting_Started.md) to get the correct
 version of the Rust compiler, then look through the `/kernel`, `/capsules`,
 `/chips`, and `/boards` directories. There are also generated [source code
-docs](https://docs.tockos.org/kernel/).
+docs](https://docs.tockos.org).
 
 We encourage contributions back to Tock and are happy to accept pull requests
 for anything from small documentation fixes to whole new platforms.
