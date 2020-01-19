@@ -148,7 +148,7 @@ debug-lst: target/$(TARGET)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS=--document-private-items $(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)$(CARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
 .PHONY: lst
 lst: target/$(TARGET)/release/$(PLATFORM).lst

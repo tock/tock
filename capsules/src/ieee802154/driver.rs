@@ -496,7 +496,7 @@ impl RadioDriver<'a> {
 impl framer::DeviceProcedure for RadioDriver<'a> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
-    fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])> {
+    fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
         self.neighbors.and_then(|neighbors| {
             neighbors[..self.num_neighbors.get()]
                 .iter()
@@ -513,7 +513,7 @@ impl framer::KeyProcedure for RadioDriver<'a> {
     /// Gets the key corresponding to the key that matches the given security
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
-    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
+    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
         self.keys.and_then(|keys| {
             keys[..self.num_keys.get()]
                 .iter()
