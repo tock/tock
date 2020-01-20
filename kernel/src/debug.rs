@@ -219,14 +219,6 @@ pub struct DebugWriter {
 /// needed so the debug!() macros have a reference to the object to use.
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
-// The sum of the OUTPUT_BUF and INTERNAL_BUF is set to 1024 bytes in order to avoid excessive
-// padding between kernel memory and application memory (which often needs to be aligned to at
-// least a 1kB boundary). This is not _semantically_ critical, but helps keep buffers on 1kB
-// boundaries in some cases. Of course, these definitions are only advisory, and individual boards
-// can choose to pass in their own buffers with different lengths.
-pub static mut OUTPUT_BUF: [u8; 64] = [0; 64];
-pub static mut INTERNAL_BUF: [u8; 1024 - 64] = [0; 1024 - 64];
-
 pub unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
     match ptr::read(&DEBUG_WRITER) {
         Some(x) => x,
