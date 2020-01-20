@@ -3,6 +3,7 @@ use core::panic::PanicInfo;
 use core::str;
 use e310x;
 use kernel::debug;
+use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
 use rv32i;
@@ -15,10 +16,16 @@ static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        unsafe {
-            e310x::uart::UART0.transmit_sync(s.as_bytes());
-        }
+        self.write(s.as_bytes());
         Ok(())
+    }
+}
+
+impl IoWrite for Writer {
+    fn write(&mut self, buf: &[u8]) {
+        unsafe {
+            e310x::uart::UART0.transmit_sync(buf);
+        }
     }
 }
 

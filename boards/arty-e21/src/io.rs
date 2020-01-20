@@ -3,6 +3,7 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
+use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
 use rv32i;
@@ -17,6 +18,12 @@ impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
         debug!("{}", s);
         Ok(())
+    }
+}
+
+impl IoWrite for Writer {
+    fn write(&mut self, buf: &[u8]) {
+        let _ = self.write_str(unsafe { str::from_utf8_unchecked(buf) });
     }
 }
 

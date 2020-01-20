@@ -4,6 +4,7 @@ use core::panic::PanicInfo;
 use cortexm4;
 
 use kernel::debug;
+use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
@@ -31,6 +32,13 @@ impl Writer {
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+impl IoWrite for Writer {
+    fn write(&mut self, buf: &[u8]) {
         let uart = unsafe { &mut stm32f4xx::usart::USART3 };
 
         if !self.initialized {
@@ -45,11 +53,9 @@ impl Write for Writer {
             });
         }
 
-        for c in s.bytes() {
+        for &c in buf {
             uart.send_byte(c);
         }
-
-        Ok(())
     }
 }
 
