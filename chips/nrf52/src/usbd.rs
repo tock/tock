@@ -4,7 +4,8 @@ use core::cell::Cell;
 use cortexm4::support::atomic;
 use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{
-    register_bitfields, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
+    register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
+    ReadWrite, WriteOnly,
 };
 use kernel::common::StaticRef;
 use kernel::debug;
@@ -52,41 +53,39 @@ macro_rules! internal_err {
     };
 }
 
-const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
-    unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
-
-const NUM_ENDPOINTS: usize = 8;
-
-#[repr(C)]
-struct ChipInfoRegisters {
-    /// Undocumented register indicating the model of the chip
-    /// - Address: 0x000 - 0x004
-    chip_model: ReadOnly<u32, ChipModel::Register>,
-    /// Undocumented register indicating the revision of the chip
-    /// - Address: 0x004 - 0x008
-    chip_revision: ReadOnly<u32, ChipRevision::Register>,
-}
-
 const CHIPINFO_BASE: StaticRef<ChipInfoRegisters> =
     unsafe { StaticRef::new(0x10000130 as *const ChipInfoRegisters) };
 
-#[repr(C)]
-struct UsbErrataRegisters {
-    /// Undocumented register - Errata 171
-    /// - Address: 0x000 - 0x004
-    reg0: ReadWrite<u32>,
-    _reserved1: [u32; 4],
-    /// Undocumented register - Errata 171
-    /// - Address: 0x014 - 0x018
-    reg14: WriteOnly<u32>,
-    _reserved2: [u32; 63],
-    /// Undocumented register - Errata 187
-    /// - Address: 0x114 - 0x118
-    reg114: WriteOnly<u32>,
-}
+const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
+    unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
 
 const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
     unsafe { StaticRef::new(0x4006EC00 as *const UsbErrataRegisters) };
+
+const NUM_ENDPOINTS: usize = 8;
+
+register_structs! {
+    ChipInfoRegisters {
+        /// Undocumented register indicating the model of the chip
+        (0x000 => chip_model: ReadOnly<u32, ChipModel::Register>),
+        /// Undocumented register indicating the revision of the chip
+        /// - Address: 0x004 - 0x008
+        (0x004 => chip_revision: ReadOnly<u32, ChipRevision::Register>),
+        (0x008 => @END),
+    },
+
+    UsbErrataRegisters {
+        /// Undocumented register - Errata 171
+        (0x000 => reg0: ReadWrite<u32>),
+        (0x004 => _reserved1),
+        /// Undocumented register - Errata 171
+        (0x014 => reg14: WriteOnly<u32>),
+        (0x018 => _reserved2),
+        /// Undocumented register - Errata 187
+        (0x114 => reg114: WriteOnly<u32>),
+        (0x118 => @END),
+    }
+}
 
 #[repr(C)]
 struct UsbdRegisters<'a> {
