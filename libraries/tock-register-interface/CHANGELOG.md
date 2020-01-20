@@ -1,5 +1,9 @@
 # Changelog
 
+## master
+
+ - #1554: Allow lifetime parameters for `register_structs! { Foo<'a> { ..`
+
 ## v0.5
 
  - #1510
