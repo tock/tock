@@ -356,7 +356,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    let adc = AdcComponent::new().finalize(());
+    let adc = AdcComponent::new(board_kernel).finalize(());
     let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
         &sam4l::gpio::PC[31],
         &sam4l::gpio::PC[30],
