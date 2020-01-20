@@ -60,7 +60,7 @@ const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
     unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
 
 const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
-    unsafe { StaticRef::new(0x4006EC00 as *const UsbErrataRegisters) };
+    unsafe { StaticRef::new(0x4006E000 as *const UsbErrataRegisters) };
 
 const NUM_ENDPOINTS: usize = 8;
 
@@ -75,15 +75,16 @@ register_structs! {
     },
 
     UsbErrataRegisters {
+        (0x000 => _reserved0),
         /// Undocumented register - Errata 171
-        (0x000 => reg0: ReadWrite<u32>),
-        (0x004 => _reserved1),
+        (0xC00 => reg_c00: ReadWrite<u32>),
+        (0xC04 => _reserved1),
         /// Undocumented register - Errata 171
-        (0x014 => reg14: WriteOnly<u32>),
-        (0x018 => _reserved2),
+        (0xC14 => reg_c14: WriteOnly<u32>),
+        (0xC18 => _reserved2),
         /// Undocumented register - Errata 187
-        (0x114 => reg114: WriteOnly<u32>),
-        (0x118 => @END),
+        (0xD14 => reg_d14: WriteOnly<u32>),
+        (0xD18 => @END),
     }
 }
 
@@ -777,12 +778,12 @@ impl<'a> Usbd<'a> {
         if self.has_errata_171() {
             unsafe {
                 atomic(|| {
-                    if USBERRATA_BASE.reg0.get() == 0 {
-                        USBERRATA_BASE.reg0.set(0x9375);
-                        USBERRATA_BASE.reg14.set(val);
-                        USBERRATA_BASE.reg0.set(0x9375);
+                    if USBERRATA_BASE.reg_c00.get() == 0 {
+                        USBERRATA_BASE.reg_c00.set(0x9375);
+                        USBERRATA_BASE.reg_c14.set(val);
+                        USBERRATA_BASE.reg_c00.set(0x9375);
                     } else {
-                        USBERRATA_BASE.reg14.set(val);
+                        USBERRATA_BASE.reg_c14.set(val);
                     }
                 });
             }
@@ -794,12 +795,12 @@ impl<'a> Usbd<'a> {
         if self.has_errata_187() {
             unsafe {
                 atomic(|| {
-                    if USBERRATA_BASE.reg0.get() == 0 {
-                        USBERRATA_BASE.reg0.set(0x9375);
-                        USBERRATA_BASE.reg114.set(val);
-                        USBERRATA_BASE.reg0.set(0x9375);
+                    if USBERRATA_BASE.reg_c00.get() == 0 {
+                        USBERRATA_BASE.reg_c00.set(0x9375);
+                        USBERRATA_BASE.reg_d14.set(val);
+                        USBERRATA_BASE.reg_c00.set(0x9375);
                     } else {
-                        USBERRATA_BASE.reg114.set(val);
+                        USBERRATA_BASE.reg_d14.set(val);
                     }
                 });
             }
