@@ -741,39 +741,59 @@ impl<'a> Usbd<'a> {
         }
     }
 
+    fn has_errata_166(&self) -> bool {
+        true
+    }
+
+    fn has_errata_171(&self) -> bool {
+        true
+    }
+
+    fn has_errata_187(&self) -> bool {
+        CHIPINFO_BASE
+            .chip_model
+            .matches_all(ChipModel::MODEL::NRF52840)
+            && match CHIPINFO_BASE.chip_revision.read_as_enum(ChipRevision::REV) {
+                Some(ChipRevision::REV::Value::REVB)
+                | Some(ChipRevision::REV::Value::REVC)
+                | Some(ChipRevision::REV::Value::REVD) => true,
+                Some(ChipRevision::REV::Value::REVA) | None => false,
+            }
+    }
+
+    fn has_errata_199(&self) -> bool {
+        true
+    }
+
     /// ISO double buffering not functional
     fn apply_errata_166(&self) {
-        self.registers.errata166_1.set(0x7e3);
-        self.registers.errata166_2.set(0x40);
+        if self.has_errata_166() {
+            self.registers.errata166_1.set(0x7e3);
+            self.registers.errata166_2.set(0x40);
+        }
     }
 
     /// USBD might not reach its active state.
     fn apply_errata_171(&self, val: u32) {
-        unsafe {
-            atomic(|| {
-                if USBERRATA_BASE.reg0.get() == 0 {
-                    USBERRATA_BASE.reg0.set(0x9375);
-                    USBERRATA_BASE.reg14.set(val);
-                    USBERRATA_BASE.reg0.set(0x9375);
-                } else {
-                    USBERRATA_BASE.reg14.set(val);
-                }
-            });
+        if self.has_errata_171() {
+            unsafe {
+                atomic(|| {
+                    if USBERRATA_BASE.reg0.get() == 0 {
+                        USBERRATA_BASE.reg0.set(0x9375);
+                        USBERRATA_BASE.reg14.set(val);
+                        USBERRATA_BASE.reg0.set(0x9375);
+                    } else {
+                        USBERRATA_BASE.reg14.set(val);
+                    }
+                });
+            }
         }
     }
 
     /// USB cannot be enabled
     fn apply_errata_187(&self, val: u32) {
-        if !CHIPINFO_BASE
-            .chip_model
-            .matches_all(ChipModel::MODEL::NRF52840)
-        {
-            return;
-        }
-        match CHIPINFO_BASE.chip_revision.read_as_enum(ChipRevision::REV) {
-            Some(ChipRevision::REV::Value::REVB)
-            | Some(ChipRevision::REV::Value::REVC)
-            | Some(ChipRevision::REV::Value::REVD) => unsafe {
+        if self.has_errata_187() {
+            unsafe {
                 atomic(|| {
                     if USBERRATA_BASE.reg0.get() == 0 {
                         USBERRATA_BASE.reg0.set(0x9375);
@@ -783,9 +803,14 @@ impl<'a> Usbd<'a> {
                         USBERRATA_BASE.reg114.set(val);
                     }
                 });
-            },
-            _ => (),
-        };
+            }
+        }
+    }
+
+    fn apply_errata_199(&self, val: u32) {
+        if self.has_errata_199() {
+            self.registers.errata199.set(val);
+        }
     }
 
     pub fn get_state(&self) -> UsbState {
@@ -808,6 +833,7 @@ impl<'a> Usbd<'a> {
         self.apply_errata_166();
         self.clear_pending_dma();
         self.state.set(UsbState::Initialized);
+        self.apply_errata_187(0);
     }
 
     // TODO: unused function
@@ -871,7 +897,8 @@ impl<'a> Usbd<'a> {
         // revisions >= C.
         //
         // If your chip isn't one of these, you will be alerted by these panics. You can disable
-        // them but will likely need to add the relevant errata to this implementation.
+        // them but will likely need to add the relevant errata to this implementation (errata 104,
+        // 154, 200).
         let chip_model = CHIPINFO_BASE.chip_model.get();
         if chip_model != u32::from(ChipModel::MODEL::NRF52840) {
             panic!(
@@ -950,12 +977,11 @@ impl<'a> Usbd<'a> {
         self.registers.enable.write(Usb::ENABLE::OFF);
         self.state.set(UsbState::Initialized);
         self.clear_pending_dma();
-        self.apply_errata_187(0);
     }
 
     fn clear_pending_dma(&self) {
         debug_packets!("clear_pending_dma()");
-        self.registers.errata199.set(0);
+        self.apply_errata_199(0);
         self.dma_pending.set(false);
     }
 
@@ -964,7 +990,7 @@ impl<'a> Usbd<'a> {
         if self.dma_pending.get() {
             internal_err!("Pending DMA already in flight");
         }
-        self.registers.errata199.set(0x82);
+        self.apply_errata_199(0x82);
         self.dma_pending.set(true);
     }
 
