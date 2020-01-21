@@ -113,8 +113,8 @@ impl Callback {
             });
         if config::CONFIG.trace_syscalls {
             debug!(
-                "[{}] schedule[{:x}:{:x}] @{:x}({:x}, {:x}, {:x}, {:x}) = {}",
-                self.app_id.idx(),
+                "[{:?}] schedule[{:x}:{:x}] @{:x}({:x}, {:x}, {:x}, {:x}) = {}",
+                self.app_id,
                 self.callback_id.driver_num,
                 self.callback_id.subscribe_num,
                 self.fn_ptr.as_ptr() as usize,

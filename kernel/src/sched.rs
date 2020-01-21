@@ -287,8 +287,8 @@ impl Kernel {
                                     let res = memop::memop(process, operand, arg0);
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{}] memop({:x}, {:x}) = {:x}",
-                                            appid.idx(),
+                                            "[{:?}] memop({:x}, {:x}) = {:x}",
+                                            appid,
                                             operand,
                                             arg0,
                                             usize::from(res)
@@ -298,7 +298,7 @@ impl Kernel {
                                 }
                                 Syscall::YIELD => {
                                     if config::CONFIG.trace_syscalls {
-                                        debug!("[{}] yield", appid.idx());
+                                        debug!("[{:?}] yield", appid);
                                     }
                                     process.set_yielded_state();
 
@@ -333,8 +333,8 @@ impl Kernel {
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{}] subscribe({:x}, {:x}, @{:x}, {:x}) = {:x}",
-                                            appid.idx(),
+                                            "[{:?}] subscribe({:x}, {:x}, @{:x}, {:x}) = {:x}",
+                                            appid,
                                             driver_number,
                                             subdriver_number,
                                             callback_ptr as usize,
@@ -362,8 +362,8 @@ impl Kernel {
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{}] cmd({:x}, {:x}, {:x}, {:x}) = {:x}",
-                                            appid.idx(),
+                                            "[{:?}] cmd({:x}, {:x}, {:x}, {:x}) = {:x}",
+                                            appid,
                                             driver_number,
                                             subdriver_number,
                                             arg0,
@@ -394,8 +394,8 @@ impl Kernel {
                                     });
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{}] allow({:x}, {:x}, @{:x}, {:x}) = {:x}",
-                                            appid.idx(),
+                                            "[{:?}] allow({:x}, {:x}, @{:x}, {:x}) = {:x}",
+                                            appid,
                                             driver_number,
                                             subdriver_number,
                                             allow_address as usize,
@@ -433,8 +433,8 @@ impl Kernel {
                         Task::FunctionCall(ccb) => {
                             if config::CONFIG.trace_syscalls {
                                 debug!(
-                                    "[{}] function_call @{:x}({:x}, {:x}, {:x}, {:x})",
-                                    appid.idx(),
+                                    "[{:?}] function_call @{:x}({:x}, {:x}, {:x}, {:x})",
+                                    appid,
                                     ccb.pc,
                                     ccb.argument0,
                                     ccb.argument1,
