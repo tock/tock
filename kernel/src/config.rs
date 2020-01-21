@@ -27,16 +27,16 @@
 ///
 /// To change the configuration, modify the relevant values in the `CONFIG` constant object defined
 /// at the end of this file.
-pub(crate) struct Config {
+crate struct Config {
     /// Whether the kernel should trace syscalls to the debug output.
     ///
     /// If enabled, the kernel will print a message in the debug output for each system call and
     /// callback, with details including the application ID, and system call or callback parameters.
-    pub(crate) trace_syscalls: bool,
+    crate trace_syscalls: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
 /// options are available in the kernel crate to be used for relevant configuration.
-pub(crate) const CONFIG: Config = Config {
+crate const CONFIG: Config = Config {
     trace_syscalls: false,
 };
