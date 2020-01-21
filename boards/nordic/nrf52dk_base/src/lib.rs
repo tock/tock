@@ -70,6 +70,15 @@ impl UartPins {
     }
 }
 
+pub enum UartChannel<'a> {
+    Pins(UartPins),
+    Rtt(
+        &'a mut [u8],
+        &'a mut [u8],
+        &'a mut capsules::segger_rtt::SeggerRttMemory<'a>,
+    ),
+}
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
@@ -136,7 +145,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     debug_pin2_index: Pin,
     debug_pin3_index: Pin,
     led: &'static capsules::led::LED<'static>,
-    uart_pins: &UartPins,
+    uart_channel: UartChannel<'static>,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button: &'static capsules::button::Button<'static>,
@@ -232,6 +241,38 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
+    let channel: &dyn kernel::hil::uart::Uart = match uart_channel {
+        UartChannel::Pins(uart_pins) => {
+            nrf52::uart::UARTE0.initialize(
+                nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
+                nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
+                Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
+                Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
+            );
+            &nrf52::uart::UARTE0
+        }
+        UartChannel::Rtt(up_buffer, down_buffer, rtt_memory) => {
+            // Virtual alarm for the Segger RTT communication channel
+            let virtual_alarm_rtt = static_init!(
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+                capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+            );
+
+            // RTT communication channel
+            let rtt = static_init!(
+                capsules::segger_rtt::SeggerRtt<VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+                capsules::segger_rtt::SeggerRtt::new(
+                    virtual_alarm_rtt,
+                    rtt_memory,
+                    up_buffer,
+                    down_buffer
+                )
+            );
+            hil::time::Alarm::set_client(virtual_alarm_rtt, rtt);
+            rtt
+        }
+    };
+
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
     let dynamic_deferred_caller = static_init!(
@@ -241,19 +282,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &nrf52::uart::UARTE0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(());
+    let uart_mux =
+        components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
+            .finalize(());
 
-    nrf52::uart::UARTE0.initialize(
-        nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
-        nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-        Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
-        Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
-    );
     let pconsole =
         components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
             .finalize(());

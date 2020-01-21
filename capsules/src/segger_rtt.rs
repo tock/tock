@@ -91,67 +91,69 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::common::cells::{OptionalCell, TakeCell};
+use core::marker::PhantomData;
+use kernel::common::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 
-/// Buffer for transmitting to the host.
-pub static mut UP_BUFFER: [u8; 1024] = [0; 1024];
-
-/// Buffer for receiving messages from the host.
-pub static mut DOWN_BUFFER: [u8; 32] = [0; 32];
-
 /// This structure is defined by the segger RTT protocol. It must exist in
 /// memory in exactly this form so that the segger JTAG tool can find it in the
 /// chip's memory and read and write messages to the appropriate buffers.
 #[repr(C)]
-pub struct SeggerRttMemory {
-    id: [u8; 16],
-    number_up_buffers: u32,
-    number_down_buffers: u32,
-    up_buffer: SeggerRttBuffer,
-    down_buffer: SeggerRttBuffer,
+pub struct SeggerRttMemory<'a> {
+    id: VolatileCell<[u8; 16]>,
+    number_up_buffers: VolatileCell<u32>,
+    number_down_buffers: VolatileCell<u32>,
+    pub up_buffer: SeggerRttBuffer<'a>,
+    down_buffer: SeggerRttBuffer<'a>,
 }
 
 #[repr(C)]
-pub struct SeggerRttBuffer {
-    name: *const u8, // Pointer to the name of this channel. Must be a 4 byte thin pointer.
-    buffer: *const u8, // Pointer to the buffer for this channel.
-    length: u32,
-    write_position: u32,
-    read_position: u32,
-    flags: u32,
+pub struct SeggerRttBuffer<'a> {
+    name: VolatileCell<*const u8>, // Pointer to the name of this channel. Must be a 4 byte thin pointer.
+    pub buffer: VolatileCell<*const u8>, // Pointer to the buffer for this channel.
+    pub length: VolatileCell<u32>,
+    pub write_position: VolatileCell<u32>,
+    read_position: VolatileCell<u32>,
+    flags: VolatileCell<u32>,
+    _lifetime: PhantomData<&'a [u8]>,
 }
 
-impl SeggerRttMemory {
-    pub fn new(
+impl SeggerRttMemory<'a> {
+    pub fn new_raw(
         up_buffer_name: &'a [u8],
-        up_buffer: &'static mut [u8],
-        down_buffer_name: &'static [u8],
-        down_buffer: &'static mut [u8],
-    ) -> SeggerRttMemory {
+        up_buffer_ptr: *const u8,
+        up_buffer_len: usize,
+        down_buffer_name: &'a [u8],
+        down_buffer_ptr: *const u8,
+        down_buffer_len: usize,
+    ) -> SeggerRttMemory<'a> {
         SeggerRttMemory {
+            // TODO: only write this ID when the object is fully initialized, to avoid having
+            // these bytes elsewhere in (flash) memory.
             // Must be "SEGGER RTT".
-            id: *b"SEGGER RTT\0\0\0\0\0\0",
-            number_up_buffers: 1,
-            number_down_buffers: 1,
+            id: VolatileCell::new(*b"SEGGER RTT\0\0\0\0\0\0"),
+            number_up_buffers: VolatileCell::new(1),
+            number_down_buffers: VolatileCell::new(1),
             up_buffer: SeggerRttBuffer {
-                name: up_buffer_name.as_ptr(),
-                buffer: up_buffer.as_ptr(),
-                length: 1024,
-                write_position: 0,
-                read_position: 0,
-                flags: 0,
+                name: VolatileCell::new(up_buffer_name.as_ptr()),
+                buffer: VolatileCell::new(up_buffer_ptr),
+                length: VolatileCell::new(up_buffer_len as u32),
+                write_position: VolatileCell::new(0),
+                read_position: VolatileCell::new(0),
+                flags: VolatileCell::new(0),
+                _lifetime: PhantomData,
             },
             down_buffer: SeggerRttBuffer {
-                name: down_buffer_name.as_ptr(),
-                buffer: down_buffer.as_ptr(),
-                length: 32,
-                write_position: 0,
-                read_position: 0,
-                flags: 0,
+                name: VolatileCell::new(down_buffer_name.as_ptr()),
+                buffer: VolatileCell::new(down_buffer_ptr),
+                length: VolatileCell::new(down_buffer_len as u32),
+                write_position: VolatileCell::new(0),
+                read_position: VolatileCell::new(0),
+                flags: VolatileCell::new(0),
+                _lifetime: PhantomData,
             },
         }
     }
@@ -159,9 +161,9 @@ impl SeggerRttMemory {
 
 pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
-    config: TakeCell<'a, SeggerRttMemory>,
-    up_buffer: TakeCell<'static, [u8]>,
-    _down_buffer: TakeCell<'static, [u8]>,
+    config: TakeCell<'a, SeggerRttMemory<'a>>,
+    up_buffer: TakeCell<'a, [u8]>,
+    _down_buffer: TakeCell<'a, [u8]>,
     client: OptionalCell<&'a dyn uart::TransmitClient>,
     client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
@@ -170,9 +172,9 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
 impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
     pub fn new(
         alarm: &'a A,
-        config: &'a mut SeggerRttMemory,
-        up_buffer: &'static mut [u8],
-        down_buffer: &'static mut [u8],
+        config: &'a mut SeggerRttMemory<'a>,
+        up_buffer: &'a mut [u8],
+        down_buffer: &'a mut [u8],
     ) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm: alarm,
@@ -205,15 +207,15 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                     // Copy the incoming data into the buffer. Once we increment
                     // the `write_position` the RTT listener will go ahead and read
                     // the message from us.
-                    let mut index = config.up_buffer.write_position as usize;
-                    let buffer_len = config.up_buffer.length as usize;
+                    let mut index = config.up_buffer.write_position.get() as usize;
+                    let buffer_len = config.up_buffer.length.get() as usize;
 
                     for i in 0..tx_len {
                         buffer[(i + index) % buffer_len] = tx_data[i];
                     }
 
                     index = (index + tx_len) % buffer_len;
-                    config.up_buffer.write_position = index as u32;
+                    config.up_buffer.write_position.set(index as u32);
                     self.tx_len.set(tx_len);
                     // Save the client buffer so we can pass it back with the callback.
                     self.client_buffer.replace(tx_data);
