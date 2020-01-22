@@ -316,7 +316,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!((
             &sam4l::gpio::PA[16],
             capsules::button::GpioMode::LowWhenPressed,
-            kernel::hil::gpio::FloatingState::PullUp
+            kernel::hil::gpio::FloatingState::PullNone
         )),
     );
 
