@@ -4,22 +4,25 @@ use core::hint::unreachable_unchecked;
 
 use kernel;
 use kernel::debug;
-use rv32i;
-use rv32i::csr;
+use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
+use rv32i::syscall::SysCall;
 
+use crate::gpio;
 use crate::interrupts;
 use crate::plic;
 use crate::timer;
 use crate::uart;
 
+pub const CHIP_FREQ: u32 = 50_000_000;
+
 pub struct Ibex {
-    userspace_kernel_boundary: rv32i::syscall::SysCall,
+    userspace_kernel_boundary: SysCall,
 }
 
 impl Ibex {
     pub unsafe fn new() -> Ibex {
         Ibex {
-            userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
+            userspace_kernel_boundary: SysCall::new(),
         }
     }
 
@@ -32,7 +35,7 @@ impl Ibex {
 
 impl kernel::Chip for Ibex {
     type MPU = ();
-    type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+    type UserspaceKernelBoundary = SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
@@ -43,29 +46,53 @@ impl kernel::Chip for Ibex {
         &()
     }
 
-    fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &SysCall {
         &self.userspace_kernel_boundary
     }
 
     fn service_pending_interrupts(&self) {
+        let mut handled_plic = false;
+
         unsafe {
-            while let Some(interrupt) = plic::next_pending() {
-                match interrupt {
-                    interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
-                        uart::UART0.handle_interrupt()
+            loop {
+                // Any pending timer interrupts handled first
+                let timer_fired = timer::TIMER.service_interrupts();
+
+                let mut plic_fired = false;
+                if let Some(interrupt) = plic::next_pending() {
+                    match interrupt {
+                        interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
+                            uart::UART0.handle_interrupt()
+                        }
+                        int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
+                            let pin = &gpio::PORT[(int_pin - interrupts::GPIO_PIN0) as usize];
+                            pin.handle_interrupt();
+                        }
+                        _ => debug!("Pidx {}", interrupt),
                     }
-                    _ => debug!("Pidx {}", interrupt),
+                    // Mark that we are done with this interrupt and the hardware
+                    // can clear it.
+                    plic::complete(interrupt);
+                    handled_plic = true;
+                    plic_fired = true;
                 }
 
-                // Mark that we are done with this interrupt and the hardware
-                // can clear it.
-                plic::complete(interrupt);
+                if !timer_fired && !plic_fired {
+                    // All pending interrupts have been handled
+                    break;
+                }
             }
+        }
+
+        if handled_plic {
+            // If any interrupts from the PLIC were handled, then external interrupts must be
+            // reenabled on the CPU.
+            CSR.mie.modify(mie::mext::SET);
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { plic::has_pending() }
+        unsafe { timer::TIMER.is_pending() || plic::has_pending() }
     }
 
     fn sleep(&self) {
@@ -82,139 +109,79 @@ impl kernel::Chip for Ibex {
     }
 }
 
-pub unsafe fn handle_trap() {
-    let cause = rv32i::csr::CSR.mcause.extract();
-
-    // if most sig bit is set, is interrupt
-    // strip off the msb
-    match rv32i::csr::mcause::McauseHelpers::cause(&cause) {
-        rv32i::csr::mcause::Trap::Interrupt(interrupt) => {
-            match interrupt {
-                rv32i::csr::mcause::Interrupt::MachineSoft => {
-                    debug!("encountered machine mode software interrupt");
-                }
-                rv32i::csr::mcause::Interrupt::UserSoft => (),
-                rv32i::csr::mcause::Interrupt::SupervisorSoft => (),
-
-                rv32i::csr::mcause::Interrupt::MachineTimer => {
-                    timer::MACHINETIMER.handle_interrupt();
-                }
-
-                // should never occur
-                rv32i::csr::mcause::Interrupt::UserTimer => (),
-                rv32i::csr::mcause::Interrupt::SupervisorTimer => (),
-
-                // this includes UART, GPIO pins, etc
-                rv32i::csr::mcause::Interrupt::MachineExternal => {
-                    // just send out a message that the interrupt occurred and complete it
-                    let ext_interrupt_wrapper = plic::next_pending();
-                    match ext_interrupt_wrapper {
-                        None => (),
-                        Some(ext_interrupt_id) => {
-                            plic::complete(ext_interrupt_id);
-                            plic::surpress_all();
-                        }
-                    }
-                }
-                // should never occur
-                rv32i::csr::mcause::Interrupt::UserExternal => (),
-                rv32i::csr::mcause::Interrupt::SupervisorExternal => (),
-
-                rv32i::csr::mcause::Interrupt::Unknown => {
-                    debug!("interrupt of unknown cause");
-                }
-            }
+fn handle_exception(exception: mcause::Exception, mtval: u32) {
+    match exception {
+        mcause::Exception::InstructionMisaligned => {
+            panic!("misaligned instruction {:x}\n", mtval);
         }
-        rv32i::csr::mcause::Trap::Exception(exception) => {
-            match exception {
-                // strip off the msb, pattern match
-                rv32i::csr::mcause::Exception::InstructionMisaligned => {
-                    panic!("misaligned instruction {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::InstructionFault => {
-                    panic!("instruction fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::IllegalInstruction => {
-                    panic!("illegal instruction {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::Breakpoint => {
-                    debug!("breakpoint\n");
-                }
-                rv32i::csr::mcause::Exception::LoadMisaligned => {
-                    panic!("misaligned load {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::LoadFault => {
-                    panic!("load fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::StoreMisaligned => {
-                    panic!("misaligned store {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::StoreFault => {
-                    panic!("store fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::UserEnvCall => (),
-                rv32i::csr::mcause::Exception::SupervisorEnvCall => (),
-                rv32i::csr::mcause::Exception::MachineEnvCall => {
-                    // GENERATED BY ECALL; should never happen....
-                    panic!("machine mode environment call\n");
-                }
-                rv32i::csr::mcause::Exception::InstructionPageFault => {
-                    panic!("instruction page fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::LoadPageFault => {
-                    panic!("load page fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::StorePageFault => {
-                    panic!("store page fault {:x}\n", rv32i::csr::CSR.mtval.get());
-                }
-                rv32i::csr::mcause::Exception::Unknown => {
-                    panic!("exception type unknown");
-                }
-            }
+        mcause::Exception::InstructionFault => {
+            panic!("instruction fault {:x}\n", mtval);
+        }
+        mcause::Exception::IllegalInstruction => {
+            panic!("illegal instruction {:x}\n", mtval);
+        }
+        mcause::Exception::Breakpoint => {
+            debug!("breakpoint\n");
+        }
+        mcause::Exception::LoadMisaligned => {
+            panic!("misaligned load {:x}\n", mtval);
+        }
+        mcause::Exception::LoadFault => {
+            panic!("load fault {:x}\n", mtval);
+        }
+        mcause::Exception::StoreMisaligned => {
+            panic!("misaligned store {:x}\n", mtval);
+        }
+        mcause::Exception::StoreFault => {
+            panic!("store fault {:x}\n", mtval);
+        }
+        mcause::Exception::UserEnvCall => (),
+        mcause::Exception::SupervisorEnvCall => (),
+        mcause::Exception::MachineEnvCall => {
+            // GENERATED BY ECALL; should never happen....
+            panic!("machine mode environment call\n");
+        }
+        mcause::Exception::InstructionPageFault => {
+            panic!("instruction page fault {:x}\n", mtval);
+        }
+        mcause::Exception::LoadPageFault => {
+            panic!("load page fault {:x}\n", mtval);
+        }
+        mcause::Exception::StorePageFault => {
+            panic!("store page fault {:x}\n", mtval);
+        }
+        mcause::Exception::Unknown => {
+            panic!("exception type unknown");
         }
     }
 }
 
-pub fn disable_interrupt_cause() {
-    let cause = rv32i::csr::CSR.mcause.extract();
+unsafe fn handle_interrupt(intr: mcause::Interrupt) {
+    match intr {
+        mcause::Interrupt::UserSoft
+        | mcause::Interrupt::UserTimer
+        | mcause::Interrupt::UserExternal => {
+            debug!("unexpected user-mode interrupt");
+        }
+        mcause::Interrupt::SupervisorExternal
+        | mcause::Interrupt::SupervisorTimer
+        | mcause::Interrupt::SupervisorSoft => {
+            debug!("unexpected supervisor-mode interrupt");
+        }
 
-    match rv32i::csr::mcause::McauseHelpers::cause(&cause) {
-        rv32i::csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
-            rv32i::csr::mcause::Interrupt::UserSoft => {
-                csr::CSR.mie.modify(csr::mie::mie::usoft::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::SupervisorSoft => {
-                csr::CSR.mie.modify(csr::mie::mie::ssoft::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::MachineSoft => {
-                csr::CSR.mie.modify(csr::mie::mie::msoft::CLEAR);
-            }
+        mcause::Interrupt::MachineSoft => {
+            CSR.mie.modify(mie::msoft::CLEAR);
+        }
+        mcause::Interrupt::MachineTimer => {
+            timer::TIMER.handle_isr();
+        }
+        mcause::Interrupt::MachineExternal => {
+            CSR.mie.modify(mie::mext::CLEAR);
+        }
 
-            rv32i::csr::mcause::Interrupt::UserTimer => {
-                csr::CSR.mie.modify(csr::mie::mie::utimer::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::SupervisorTimer => {
-                csr::CSR.mie.modify(csr::mie::mie::stimer::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::MachineTimer => {
-                csr::CSR.mie.modify(csr::mie::mie::mtimer::CLEAR);
-            }
-
-            rv32i::csr::mcause::Interrupt::UserExternal => {
-                csr::CSR.mie.modify(csr::mie::mie::uext::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::SupervisorExternal => {
-                csr::CSR.mie.modify(csr::mie::mie::sext::CLEAR);
-            }
-            rv32i::csr::mcause::Interrupt::MachineExternal => {
-                csr::CSR.mie.modify(csr::mie::mie::mext::CLEAR);
-            }
-
-            rv32i::csr::mcause::Interrupt::Unknown => {
-                debug!("interrupt of unknown cause");
-            }
-        },
-        rv32i::csr::mcause::Trap::Exception(_exception) => (),
+        mcause::Interrupt::Unknown => {
+            debug!("interrupt of unknown cause");
+        }
     }
 }
 
@@ -225,24 +192,40 @@ pub fn disable_interrupt_cause() {
 /// disable it.
 #[export_name = "_start_trap_rust"]
 pub unsafe extern "C" fn start_trap_rust() {
-    disable_interrupt_cause();
-    handle_trap();
+    let cause = CSR.mcause.extract();
+
+    match mcause::McauseHelpers::cause(&cause) {
+        mcause::Trap::Interrupt(interrupt) => {
+            handle_interrupt(interrupt);
+        }
+        mcause::Trap::Exception(exception) => {
+            handle_exception(exception, CSR.mtval.get());
+        }
+    }
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_handler"]
-pub extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {
-    disable_interrupt_cause();
+pub unsafe extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {
+    // TODO: reuse _mcause from above
+    let cause = CSR.mcause.extract();
+
+    match mcause::McauseHelpers::cause(&cause) {
+        mcause::Trap::Interrupt(interrupt) => {
+            handle_interrupt(interrupt);
+        }
+        _ => {
+            panic!("unexpected non-interrupt\n");
+        }
+    }
 }
 
 pub unsafe fn configure_trap_handler() {
     // The Ibex CPU does not support non-vectored trap entries.
-    csr::CSR.mtvec.write(
-        csr::mtvec::mtvec::trap_addr.val(_start_trap_vectored as u32 >> 2)
-            + csr::mtvec::mtvec::mode::Vectored,
-    )
+    CSR.mtvec
+        .write(mtvec::trap_addr.val(_start_trap_vectored as u32 >> 2) + mtvec::mode::Vectored)
 }
 
 #[link_section = ".riscv.trap_vectored"]
@@ -251,7 +234,7 @@ pub unsafe fn configure_trap_handler() {
 pub extern "C" fn _start_trap_vectored() -> ! {
     unsafe {
         // According to the Ibex user manual:
-        // [NMI has interrupt ID 31, i.e., it has the highest priority of all
+        // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
         // interrupts and the core jumps to the trap-handler base address (in
         // mtvec) plus 0x7C to handle the NMI.
         //

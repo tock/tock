@@ -46,7 +46,7 @@ struct OpenTitan {
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer<'static>>,
+        VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
     >,
 }
 
@@ -126,24 +126,24 @@ pub unsafe fn reset_handler() {
     hil::gpio::Pin::make_output(&ibex::gpio::PORT[10]);
     hil::gpio::Pin::set(&ibex::gpio::PORT[10]);
 
+    let alarm = &ibex::timer::TIMER;
+    alarm.setup();
+
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        MuxAlarm::new(&ibex::timer::MACHINETIMER)
+        MuxAlarm<'static, ibex::timer::RvTimer>,
+        MuxAlarm::new(alarm)
     );
-    hil::time::Alarm::set_client(&ibex::timer::MACHINETIMER, mux_alarm);
+    hil::time::Alarm::set_client(&ibex::timer::TIMER, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
+        VirtualMuxAlarm<'static, ibex::timer::RvTimer>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, rv32i::machine_timer::MachineTimer>,
-        >,
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, ibex::timer::RvTimer>>,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(&memory_allocation_cap)

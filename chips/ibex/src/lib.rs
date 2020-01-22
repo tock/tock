@@ -1,7 +1,7 @@
 //! Drivers and chip support for the Ibex soft core.
 
 #![feature(asm, concat_idents, const_fn, naked_functions)]
-#![feature(exclusive_range_pattern)]
+#![feature(in_band_lifetimes)]
 #![no_std]
 #![crate_name = "ibex"]
 #![crate_type = "rlib"]
