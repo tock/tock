@@ -81,18 +81,29 @@ pub enum ButtonState {
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
 pub struct Button<'a> {
-    pins: &'a [(&'a dyn gpio::InterruptValuePin, GpioMode)],
+    pins: &'a [(
+        &'a dyn gpio::InterruptValuePin,
+        GpioMode,
+        Option<gpio::FloatingState>,
+    )],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
 impl<'a> Button<'a> {
     pub fn new(
-        pins: &'a [(&'a dyn gpio::InterruptValuePin, GpioMode)],
+        pins: &'a [(
+            &'a dyn gpio::InterruptValuePin,
+            GpioMode,
+            Option<gpio::FloatingState>,
+        )],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
     ) -> Button<'a> {
-        for (i, &(pin, _)) in pins.iter().enumerate() {
+        for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
             pin.set_value(i as u32);
+            if let Some(state) = floating_state {
+                pin.set_floating_state(state);
+            }
         }
 
         Button {

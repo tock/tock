@@ -4,7 +4,7 @@ use crate::ReturnCode;
 use core::cell::Cell;
 
 /// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum FloatingState {
     PullUp,
     PullDown,

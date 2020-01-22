@@ -207,43 +207,20 @@ pub unsafe fn reset_handler() {
     );
 
     // BUTTONS
-    let button_pins = static_init!(
-        [(
-            &'static dyn gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 2],
-        [
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!(
             (
-                static_init!(
-                    gpio::InterruptValueWrapper,
-                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button1])
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
+                &cc26x2::gpio::PORT[pinmap.button1],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
             ),
             (
-                static_init!(
-                    gpio::InterruptValueWrapper,
-                    gpio::InterruptValueWrapper::new(&cc26x2::gpio::PORT[pinmap.button2])
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
+                &cc26x2::gpio::PORT[pinmap.button2],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
             )
-        ]
+        ),
     );
-
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-        pin.set_floating_state(hil::gpio::FloatingState::PullUp);
-    }
 
     // UART
     cc26x2::uart::UART0.initialize();

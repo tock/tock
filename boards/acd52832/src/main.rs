@@ -190,58 +190,6 @@ pub unsafe fn reset_handler() {
     );
 
     // Setup GPIO pins that correspond to buttons
-    let button_pins = static_init!(
-        [(
-            &'static dyn hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 4],
-        [
-            // 13
-            (
-                static_init!(
-                    kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(
-                        &nrf52832::gpio::PORT[BUTTON1_PIN]
-                    )
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
-            ),
-            // 14
-            (
-                static_init!(
-                    kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(
-                        &nrf52832::gpio::PORT[BUTTON2_PIN]
-                    )
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
-            ),
-            // 15
-            (
-                static_init!(
-                    kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(
-                        &nrf52832::gpio::PORT[BUTTON3_PIN]
-                    )
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
-            ),
-            // 16
-            (
-                static_init!(
-                    kernel::hil::gpio::InterruptValueWrapper,
-                    kernel::hil::gpio::InterruptValueWrapper::new(
-                        &nrf52832::gpio::PORT[BUTTON4_PIN]
-                    )
-                )
-                .finalize(),
-                capsules::button::GpioMode::LowWhenPressed
-            ),
-        ]
-    );
 
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
@@ -284,17 +232,34 @@ pub unsafe fn reset_handler() {
     //
     // Buttons
     //
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!(
+            // 13
+            (
+                &nrf52832::gpio::PORT[BUTTON1_PIN],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
+            ),
+            // 14
+            (
+                &nrf52832::gpio::PORT[BUTTON2_PIN],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
+            ),
+            // 15
+            (
+                &nrf52832::gpio::PORT[BUTTON3_PIN],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
+            ),
+            // 16
+            (
+                &nrf52832::gpio::PORT[BUTTON4_PIN],
+                capsules::button::GpioMode::LowWhenPressed,
+                hil::gpio::FloatingState::PullUp
+            )
+        ),
     );
-    for &(btn, _) in button_pins.iter() {
-        btn.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
-        btn.set_client(button);
-    }
 
     //
     // RTC for Timers

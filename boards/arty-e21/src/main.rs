@@ -169,30 +169,14 @@ pub unsafe fn reset_handler() {
     );
 
     // BUTTONs
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); 1],
-        [(
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(&arty_e21::gpio::PORT[4])
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!(
+            (
+                &arty_e21::gpio::PORT[4],
+                capsules::button::GpioMode::HighWhenPressed
             )
-            .finalize(),
-            capsules::button::GpioMode::HighWhenPressed
-        )]
+        ),
     );
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_cap)
-        )
-    );
-    for &(btn, _) in button_pins.iter() {
-        btn.set_client(button);
-    }
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
