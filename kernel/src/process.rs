@@ -9,6 +9,8 @@ use crate::callback::{AppId, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
 use crate::common::cells::MapCell;
 use crate::common::{Queue, RingBuffer};
+use crate::config;
+use crate::debug;
 use crate::mem::{AppSlice, Shared};
 use crate::platform::mpu::{self, MPU};
 use crate::platform::Chip;
@@ -524,6 +526,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn remove_pending_callbacks(&self, callback_id: CallbackId) {
         self.tasks.map(|tasks| {
+            let count_before = tasks.len();
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
                 // to `callback_id`.
@@ -533,6 +536,16 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 },
                 _ => true,
             });
+            if config::CONFIG.trace_syscalls {
+                let count_after = tasks.len();
+                debug!(
+                    "[{}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
+                    self.app_idx,
+                    callback_id.driver_num,
+                    callback_id.subscribe_num,
+                    count_before - count_after,
+                );
+            }
         });
     }
 

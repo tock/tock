@@ -25,6 +25,7 @@ Tock Guides
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
 - **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
+- **[Configuration](Configuration.md)** - Configuration options for the kernel.
 
 ### Interface Details
 - **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
