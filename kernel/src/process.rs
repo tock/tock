@@ -535,7 +535,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
                 debug!(
-                    "[{}] remove_pending_callbacks[{:x}:{:x}] = {} callback(s) removed",
+                    "[{}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
                     self.app_idx,
                     callback_id.driver_num,
                     callback_id.subscribe_num,
