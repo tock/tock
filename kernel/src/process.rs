@@ -43,12 +43,14 @@ pub fn load_processes<C: Chip>(
     let mut app_memory_ptr = app_memory.as_mut_ptr();
     let mut app_memory_size = app_memory.len();
 
-    debug!(
-        "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
-        start_of_flash as usize,
-        app_memory_ptr as usize,
-        app_memory_ptr as usize + app_memory_size
-    );
+    if config::CONFIG.debug_load_processes {
+        debug!(
+            "Loading processes from flash={:#010X} into sram=[{:#010X}:{:#010X}]",
+            start_of_flash as usize,
+            app_memory_ptr as usize,
+            app_memory_ptr as usize + app_memory_size
+        );
+    }
 
     for i in 0..procs.len() {
         unsafe {
@@ -62,14 +64,16 @@ pub fn load_processes<C: Chip>(
                 i,
             );
 
-            debug!(
-                "Loaded process[{}] from flash={:#010X} into sram=[{:#010X}:{:#010X}] = {:?}",
-                i,
-                apps_in_flash_ptr as usize,
-                app_memory_ptr as usize,
-                app_memory_ptr as usize + memory_offset,
-                process.map(|p| p.get_process_name())
-            );
+            if config::CONFIG.debug_load_processes {
+                debug!(
+                    "Loaded process[{}] from flash={:#010X} into sram=[{:#010X}:{:#010X}] = {:?}",
+                    i,
+                    apps_in_flash_ptr as usize,
+                    app_memory_ptr as usize,
+                    app_memory_ptr as usize + memory_offset,
+                    process.map(|p| p.get_process_name())
+                );
+            }
 
             if process.is_none() {
                 // We did not get a valid process, but we may have gotten a disabled

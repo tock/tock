@@ -33,10 +33,18 @@ crate struct Config {
     /// If enabled, the kernel will print a message in the debug output for each system call and
     /// callback, with details including the application ID, and system call or callback parameters.
     crate trace_syscalls: bool,
+
+    /// Whether the kernel should show debugging output when loading processes.
+    ///
+    /// If enabled, the kernel will show from which addresses processes are loaded in flash and
+    /// into which SRAM addresses. This can be useful to debug whether the kernel could
+    /// successfully load processes, and whether the allocated SRAM is as expected.
+    crate debug_load_processes: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are defined. These
 /// options are available in the kernel crate to be used for relevant configuration.
 crate const CONFIG: Config = Config {
     trace_syscalls: false,
+    debug_load_processes: false,
 };
