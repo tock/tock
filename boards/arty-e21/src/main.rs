@@ -170,12 +170,10 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
-        components::button_component_helper!(
-            (
-                &arty_e21::gpio::PORT[4],
-                capsules::button::GpioMode::HighWhenPressed
-            )
-        ),
+        components::button_component_helper!((
+            &arty_e21::gpio::PORT[4],
+            capsules::button::GpioMode::HighWhenPressed
+        )),
     );
 
     // set GPIO driver controlling remaining GPIO pins
