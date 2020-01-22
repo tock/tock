@@ -375,7 +375,7 @@ pub unsafe fn reset_handler() {
         components::button_component_helper!((
             &sam4l::gpio::PC[24],
             capsules::button::GpioMode::LowWhenPressed,
-            kernel::hil::gpio::FloatingState::PullUp
+            kernel::hil::gpio::FloatingState::PullNone
         )),
     );
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)
