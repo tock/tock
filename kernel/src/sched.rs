@@ -287,7 +287,7 @@ impl Kernel {
                                     let res = memop::memop(process, operand, arg0);
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] memop({}) [{:#x}, {:#x}]",
+                                            "[{:?}] memop({}, {:#x}) = {:#x}",
                                             appid,
                                             operand,
                                             arg0,
@@ -333,7 +333,7 @@ impl Kernel {
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] subscribe({}, {}, @{:#x}, {:#x}) ret: {:#x}",
+                                            "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x}",
                                             appid,
                                             driver_number,
                                             subdriver_number,
@@ -362,7 +362,7 @@ impl Kernel {
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] cmd({}, {}, {:#x}, {:#x}) ret: {:#x}",
+                                            "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x}",
                                             appid,
                                             driver_number,
                                             subdriver_number,
@@ -394,7 +394,7 @@ impl Kernel {
                                     });
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] allow({}, {}, @{:#x}, len:{}) ret: {:#x}",
+                                            "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x}",
                                             appid,
                                             driver_number,
                                             subdriver_number,
