@@ -7,7 +7,7 @@
 //!     components::button_component_helper!((
 //!         &sam4l::gpio::PC[24],
 //!         capsules::button::GpioMode::LowWhenPressed,
-//!         kernel::hil::gpio::FloatingState::PullDown,
+//!         kernel::hil::gpio::FloatingState::PullUp
 //!     )),
 //! );
 //! ```
@@ -28,33 +28,13 @@ macro_rules! button_component_helper {
         const NUM_BUTTONS: usize = count_expressions!($($P),+);
 
         static_init!(
-            [(&'static dyn kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode, Option<kernel::hil::gpio::FloatingState>); NUM_BUTTONS],
+            [(&'static dyn kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode, kernel::hil::gpio::FloatingState); NUM_BUTTONS],
             [
                 $(
                     (static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P))
                     .finalize(),
                     $M,
-                    Some($F)
-                    ),
-                )*
-            ]
-        )
-    };};
-
-    ($(($P:expr, $M:expr)),+ ) => {{
-        use kernel::static_init;
-        use kernel::count_expressions;
-        use kernel::hil::gpio::InterruptValueWrapper;
-        const NUM_BUTTONS: usize = count_expressions!($($P),+);
-
-        static_init!(
-            [(&'static dyn kernel::hil::gpio::InterruptValuePin, capsules::button::GpioMode, Option<kernel::hil::gpio::FloatingState>); NUM_BUTTONS],
-            [
-                $(
-                    (static_init!(InterruptValueWrapper, InterruptValueWrapper::new($P))
-                    .finalize(),
-                    $M,
-                    None
+                    $F
                     ),
                 )*
             ]
@@ -78,7 +58,7 @@ impl Component for ButtonComponent {
     type StaticInput = &'static [(
         &'static dyn kernel::hil::gpio::InterruptValuePin,
         capsules::button::GpioMode,
-        Option<kernel::hil::gpio::FloatingState>,
+        kernel::hil::gpio::FloatingState,
     )];
     type Output = &'static capsules::button::Button<'static>;
 

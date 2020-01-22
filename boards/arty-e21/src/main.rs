@@ -172,7 +172,8 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &arty_e21::gpio::PORT[4],
-            capsules::button::GpioMode::HighWhenPressed
+            capsules::button::GpioMode::HighWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
         )),
     );
 

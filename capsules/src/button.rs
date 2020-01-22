@@ -84,7 +84,7 @@ pub struct Button<'a> {
     pins: &'a [(
         &'a dyn gpio::InterruptValuePin,
         GpioMode,
-        Option<gpio::FloatingState>,
+        gpio::FloatingState,
     )],
     apps: Grant<(Option<Callback>, SubscribeMap)>,
 }
@@ -94,16 +94,14 @@ impl<'a> Button<'a> {
         pins: &'a [(
             &'a dyn gpio::InterruptValuePin,
             GpioMode,
-            Option<gpio::FloatingState>,
+            gpio::FloatingState,
         )],
         grant: Grant<(Option<Callback>, SubscribeMap)>,
     ) -> Button<'a> {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();
             pin.set_value(i as u32);
-            if let Some(state) = floating_state {
-                pin.set_floating_state(state);
-            }
+            pin.set_floating_state(floating_state);
         }
 
         Button {

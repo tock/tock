@@ -189,8 +189,6 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    // Setup GPIO pins that correspond to buttons
-
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
     nrf52832::nvmc::NVMC.erase_uicr();
