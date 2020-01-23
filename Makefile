@@ -93,6 +93,10 @@ ci-netlify:
 .PHONY: ci
 ci: ci-travis ci-netlify
 
+.PHONY: audit
+audit:
+	@for f in `./tools/list_lock.sh`; do echo "$$(tput bold)Auditing $$f"; (cd "$$f" && cargo audit || exit 1); done
+
 .PHONY: clean
 clean:
 	@for f in `./tools/list_archs.sh`; do echo "$$(tput bold)Clean arch/$$f"; cd "arch/$$f" && cargo clean || exit 1; cd ../..; done
