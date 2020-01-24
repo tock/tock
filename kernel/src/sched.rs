@@ -77,12 +77,36 @@ impl Kernel {
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        match appid.idx() {
-            Some(i) => {
-                self.processes[i].map_or(default, |process| closure(process))
-            }
+        match appid.index() {
+            Some(i) => self.processes[i].map_or(default, |process| closure(process)),
             None => default,
         }
+    }
+
+    /// Run a closure on a specific process if it exists. Look up the process
+    /// based on an app identifier. This requires searching through the array.
+    /// If a caller has an `AppId` that should be used instead to remove the
+    /// need for the search. If the process does not exist (i.e. it is `None` in
+    /// the `processes` array) then `default` will be returned. Otherwise the
+    /// closure will executed and passed a reference to the process.
+    crate fn process_identifier_map_or<F, R>(&self, default: R, identifier: usize, closure: F) -> R
+    where
+        F: FnOnce(&dyn process::ProcessType) -> R,
+    {
+        // Search the processes array for a matching app with the same identifier.
+        let process = self.processes.iter().find_map(|&p| {
+            p.map_or(None, |p2| {
+                if p2.appid().id() == identifier {
+                    Some(p2)
+                } else {
+                    None
+                }
+            })
+        });
+
+        // Return `default` if we couldn't find any matches, otherwise run the
+        // closure.
+        process.map_or(default, |p| closure(p))
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -156,6 +180,22 @@ impl Kernel {
             }
         }
         ReturnCode::FAIL
+    }
+
+    /// Find the index of the given app in the processes array based on its
+    /// identifier. This is useful if an app identifier is passed to the kernel
+    /// from somewhere (such as from userspace) that does not already know the
+    /// index of where that application's process state is stored.
+    crate fn lookup_app_index(&self, identifier: usize) -> Option<usize> {
+        self.processes.iter().enumerate().find_map(|(index, &p)| {
+            p.map_or(None, |p2| {
+                if p2.appid().id() == identifier {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+        })
     }
 
     /// Create a new grant. This is used in board initialization to setup grants

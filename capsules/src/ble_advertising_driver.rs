@@ -222,10 +222,10 @@ impl App {
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
         self.address = [
             0xf0,
-            (appid.idx() & 0xff) as u8,
-            ((appid.idx() << 8) & 0xff) as u8,
-            ((appid.idx() << 16) & 0xff) as u8,
-            ((appid.idx() << 24) & 0xff) as u8,
+            (appid.id() & 0xff) as u8,
+            ((appid.id() << 8) & 0xff) as u8,
+            ((appid.id() << 16) & 0xff) as u8,
+            ((appid.id() << 24) & 0xff) as u8,
             0xf0,
         ];
         ReturnCode::SUCCESS

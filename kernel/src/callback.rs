@@ -11,13 +11,28 @@ use crate::sched::Kernel;
 /// Userspace app identifier.
 #[derive(Clone, Copy)]
 pub struct AppId {
+    /// Reference to the main kernel struct. This is needed for checking on
+    /// certain properties of the referred app (like its editable bounds), but
+    /// also for checking that the index is valid.
     crate kernel: &'static Kernel,
-    idx: usize,
+    /// The index in the kernel.PROCESSES[] array where this app's state is
+    /// stored. This makes for fast lookup of the process and helps with
+    /// implementing IPC.
+    index: usize,
+    /// The unique identifier for this process. This can be used to refer to the
+    /// process in situations where a single number is required, for instance
+    /// when referring to specific applications across the syscall interface.
+    ///
+    /// The combination of (index, identifier) is used to check if the app this
+    /// `AppId` refers to is still valid. If the stored identifier in the
+    /// process at the given index does not match the value saved here, then the
+    /// process moved or otherwise ended, and this `AppId` is no longer valid.
+    identifier: usize,
 }
 
 impl PartialEq for AppId {
     fn eq(&self, other: &AppId) -> bool {
-        self.idx == other.idx
+        self.index == other.index && self.identifier == other.identifier
     }
 }
 
@@ -25,20 +40,44 @@ impl Eq for AppId {}
 
 impl fmt::Debug for AppId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.idx)
+        write!(f, "{}", self.identifier)
     }
 }
 
 impl AppId {
-    crate fn new(kernel: &'static Kernel, idx: usize) -> AppId {
+    crate fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> AppId {
         AppId {
             kernel: kernel,
-            idx: idx,
+            identifier: identifier,
+            index: index,
         }
     }
 
-    pub fn idx(&self) -> Option<usize> {
-        Some(self.idx)
+    /// Get the location of this app in the processes array.
+    ///
+    /// This will return `Some(index)` if the identifier stored in this `AppId`
+    /// matches the app saved at the known index. If the identifier does not
+    /// match then `None` will be returned.
+    crate fn index(&self) -> Option<usize> {
+        Some(self.index)
+    }
+
+    /// Get a `usize` unique identifier for the app this `AppId` refers to.
+    ///
+    /// This function should not generally be used, instead code should just use
+    /// the `AppId` object itself to refer to various apps on the system.
+    /// However, getting just a `usize` identifier is particularly useful when
+    /// referring to a specific app with things outside of the kernel, say for
+    /// userspace (e.g. IPC) or tockloader (e.g. for debugging) where a concrete
+    /// number is required.
+    ///
+    /// Note, this will always return the saved unique identifier for the app
+    /// originally referred to, even if that app no longer exists. For example,
+    /// the app may have restarted, or may have been ended or removed by the
+    /// kernel. Therefore, calling `id()` is _not_ a valid way to check
+    /// that an application still exists.
+    pub fn id(&self) -> usize {
+        self.identifier
     }
 
     /// Returns the full address of the start and end of the flash region that

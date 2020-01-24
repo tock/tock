@@ -470,10 +470,9 @@ struct ProcessDebug {
 }
 
 pub struct Process<'a, C: 'static + Chip> {
-    /// Index of the process in the process table.
-    ///
-    /// Corresponds to AppId
-    app_idx: usize,
+    /// Identifier of this process and the index of the process in the process
+    /// table.
+    app_id: AppId,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -573,7 +572,7 @@ pub struct Process<'a, C: 'static + Chip> {
 
 impl<C: Chip> ProcessType for Process<'a, C> {
     fn appid(&self) -> AppId {
-        AppId::new(self.kernel, self.app_idx)
+        self.app_id
     }
 
     fn enqueue_task(&self, task: Task) -> bool {
@@ -613,8 +612,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
                 debug!(
-                    "[{}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
-                    self.app_idx,
+                    "[{:?}] remove_pending_callbacks[{:#x}:{}] = {} callback(s) removed",
+                    self.app_id,
                     callback_id.driver_num,
                     callback_id.subscribe_num,
                     count_before - count_after,
@@ -1433,7 +1432,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             let mut process: &mut Process<C> =
                 &mut *(process_struct_memory_location as *mut Process<'static, C>);
 
-            process.app_idx = index;
+            process.app_id = AppId::new(kernel, index, index);
             process.kernel = kernel;
             process.chip = chip;
             process.memory = app_memory;
