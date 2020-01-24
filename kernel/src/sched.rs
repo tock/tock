@@ -77,10 +77,12 @@ impl Kernel {
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        if appid.idx() > self.processes.len() {
-            return default;
+        match appid.idx() {
+            Some(i) => {
+                self.processes[i].map_or(default, |process| closure(process))
+            }
+            None => default,
         }
-        self.processes[appid.idx()].map_or(default, |process| closure(process))
     }
 
     /// Run a closure on every valid process. This will iterate the array of

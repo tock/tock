@@ -37,8 +37,8 @@ impl AppId {
         }
     }
 
-    pub fn idx(&self) -> usize {
-        self.idx
+    pub fn idx(&self) -> Option<usize> {
+        Some(self.idx)
     }
 
     /// Returns the full address of the start and end of the flash region that
