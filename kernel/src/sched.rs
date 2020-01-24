@@ -198,6 +198,16 @@ impl Kernel {
         })
     }
 
+    /// Retrieve the app identifier for the process at the given index in the
+    /// processes array.
+    ///
+    /// If the process at that index does not exist return `None`.
+    crate fn lookup_app_identifier(&self, index: usize) -> Option<usize> {
+        self.processes.get(index).map_or(None, |p| {
+            p.map_or(None, |process| Some(process.appid().id()))
+        })
+    }
+
     /// Create a new grant. This is used in board initialization to setup grants
     /// that capsules use to interact with processes.
     ///

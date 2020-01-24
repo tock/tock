@@ -59,7 +59,16 @@ impl AppId {
     /// matches the app saved at the known index. If the identifier does not
     /// match then `None` will be returned.
     crate fn index(&self) -> Option<usize> {
-        Some(self.index)
+        // Do a lookup to make sure that the index we have is correct.
+        self.kernel
+            .lookup_app_identifier(self.index)
+            .map_or(None, |id| {
+                if id == self.identifier {
+                    Some(self.index)
+                } else {
+                    None
+                }
+            })
     }
 
     /// Get a `usize` unique identifier for the app this `AppId` refers to.
