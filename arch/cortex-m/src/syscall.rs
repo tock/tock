@@ -42,23 +42,11 @@ extern "C" {
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct CortexMStoredState {
     regs: [usize; 8],
     yield_pc: usize,
     psr: usize,
-}
-
-// Need a custom define for `default()` so we can set the initial PSR value.
-impl Default for CortexMStoredState {
-    fn default() -> CortexMStoredState {
-        CortexMStoredState {
-            regs: [0; 8],
-            yield_pc: 0,
-            // Set the Thumb bit and clear everything else
-            psr: 0x01000000,
-        }
-    }
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the Cortex-M non-floating point
@@ -74,12 +62,19 @@ impl SysCall {
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
-    unsafe fn initialize_new_process(
+    unsafe fn initialize_process(
         &self,
         stack_pointer: *const usize,
         stack_size: usize,
-        _state: &mut Self::StoredState,
+        state: &mut Self::StoredState,
     ) -> Result<*const usize, ()> {
+        // We need to initialize the stored state for the process here. This
+        // initialization can be called multiple times for a process, for
+        // example if the process is restarted.
+        state.regs.iter_mut().for_each(|x| *x = 0);
+        state.yield_pc = 0;
+        state.psr = 0x01000000; // Set the Thumb bit and clear everything else.
+
         // The first time a process runs it has no stack and we have to create
         // a new stack frame for the svc handler to have "returned from".
 

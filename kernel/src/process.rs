@@ -457,6 +457,7 @@ pub struct Process<'a, C: 'static + Chip> {
 
     /// Pointer to high water mark for process buffers shared through `allow`
     allow_high_water_mark: Cell<*const u8>,
+    original_allow_high_water_mark: *const u8,
 
     /// Saved when the app switches to the kernel.
     current_stack_pointer: Cell<*const u8>,
@@ -627,6 +628,36 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // Reset other memory pointers.
                 self.app_break.set(self.original_app_break);
                 self.current_stack_pointer.set(self.original_stack_pointer);
+                self.allow_high_water_mark
+                    .set(self.original_allow_high_water_mark);
+
+                // Handle any architecture-specific requirements for a process
+                // when it first starts (as it would when it is new).
+                let mut stored_state = self.stored_state.get();
+                let new_stack_pointer_res = unsafe {
+                    self.chip.userspace_kernel_boundary().initialize_process(
+                        self.sp(),
+                        self.sp() as usize - self.memory.as_ptr() as usize,
+                        &mut stored_state,
+                    )
+                };
+                match new_stack_pointer_res {
+                    Ok(new_stack_pointer) => {
+                        self.current_stack_pointer.set(new_stack_pointer as *mut u8);
+                        self.debug_set_max_stack_depth();
+                        self.stored_state.set(stored_state);
+                    }
+                    Err(_) => {
+                        // We couldn't initialize the architecture-specific
+                        // state for this process. This shouldn't happen since
+                        // the app was able to be started before, but at this
+                        // point the app is no longer valid. The best thing we
+                        // can do now is mark the app as still faulted and not
+                        // schedule it.
+                        self.state.set(State::Fault);
+                        return;
+                    }
+                };
 
                 // And queue up this app to be restarted.
                 let flash_protected_size = self.header.get_protected_size() as usize;
@@ -1314,6 +1345,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;
             process.allow_high_water_mark = Cell::new(remaining_app_memory);
+            process.original_allow_high_water_mark = remaining_app_memory;
             process.current_stack_pointer = Cell::new(initial_stack_pointer);
             process.original_stack_pointer = initial_stack_pointer;
 
@@ -1362,7 +1394,7 @@ impl<C: 'static + Chip> Process<'a, C> {
 
             // Handle any architecture-specific requirements for a new process
             let mut stored_state = process.stored_state.get();
-            match chip.userspace_kernel_boundary().initialize_new_process(
+            match chip.userspace_kernel_boundary().initialize_process(
                 process.sp(),
                 process.sp() as usize - process.memory.as_ptr() as usize,
                 &mut stored_state,
