@@ -169,9 +169,8 @@ pub extern "C" fn _start_trap() {
 
 
         _from_kernel:
-            // Read back the stack pointer that we temporarily stored in
-            // mscratch.
-            csrr sp, 0x340    // CSR=0x340=mscratch
+            // Swap back the zero value for the stack pointer in mscratch
+            csrrw sp, 0x340, sp // CSR=0x340=mscratch
 
             // Make room for the caller saved registers we need to restore after
             // running any trap handler code.
@@ -195,14 +194,10 @@ pub extern "C" fn _start_trap() {
             sw   a6, 14*4(sp)
             sw   a7, 15*4(sp)
 
-            // Jump to board-specific trap handler code. Likely this was and
+            // Jump to board-specific trap handler code. Likely this was an
             // interrupt and we want to disable a particular interrupt, but each
             // board/chip can customize this as needed.
             jal ra, _start_trap_rust
-
-            // set mstatus how we expect
-            li   t0, 0x1808
-            csrw 0x300, t0
 
             // Restore the registers from the stack.
             lw   ra, 0*4(sp)
@@ -324,7 +319,7 @@ pub extern "C" fn _start_trap() {
 
             // Need to set mstatus.MPP to 0b11 so that we stay in machine mode.
             csrr t0, 0x300    // CSR=0x300=mstatus
-            li   t1, 0x1808   // Load 0b11 to the MPP bits location in t1
+            li   t1, 0x1800   // Load 0b11 to the MPP bits location in t1
             or   t0, t0, t1   // Set the MPP bits to one
             csrw 0x300, t0    // CSR=0x300=mstatus
 
