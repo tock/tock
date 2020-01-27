@@ -21,7 +21,11 @@ import re
 # Static info of chip crates that just support other chips.
 SUBSUMES = {'nrf52': ['nrf5x'],
             'e310x': ['sifive'],
-            'arty_e21': ['sifive']}
+            'arty_e21': ['sifive'],
+            'nrf52840': ['nrf52', 'nrf5x'],
+            'nrf52832': ['nrf52', 'nrf5x'],
+            'lowrisc': ['ibex'],
+            }
 
 
 
