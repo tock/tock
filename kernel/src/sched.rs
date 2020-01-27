@@ -70,43 +70,37 @@ impl Kernel {
     }
 
     /// Run a closure on a specific process if it exists. If the process does
-    /// not exist (i.e. it is `None` in the `processes` array) then `default`
-    /// will be returned. Otherwise the closure will executed and passed a
-    /// reference to the process.
+    /// not exist (i.e. it is `None` in the `processes` array, or has stopped,
+    /// restarted, or been removed) then `default` will be returned. Otherwise
+    /// the closure will executed and passed a reference to the process.
     crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
     {
-        match appid.index() {
-            Some(i) => self.processes[i].map_or(default, |process| closure(process)),
-            None => default,
-        }
-    }
+        // We use the index in the `appid` so we can do a direct lookup.
+        // However, we are not guaranteed that the app still exists at that
+        // index in the processes array. To avoid additional overhead, we do the
+        // lookup and check here, rather than calling `.index()`.
+        let tentative_index = appid.index;
 
-    /// Run a closure on a specific process if it exists. Look up the process
-    /// based on an app identifier. This requires searching through the array.
-    /// If a caller has an `AppId` that should be used instead to remove the
-    /// need for the search. If the process does not exist (i.e. it is `None` in
-    /// the `processes` array) then `default` will be returned. Otherwise the
-    /// closure will executed and passed a reference to the process.
-    crate fn process_identifier_map_or<F, R>(&self, default: R, identifier: usize, closure: F) -> R
-    where
-        F: FnOnce(&dyn process::ProcessType) -> R,
-    {
-        // Search the processes array for a matching app with the same identifier.
-        let process = self.processes.iter().find_map(|&p| {
-            p.map_or(None, |p2| {
-                if p2.appid().id() == identifier {
-                    Some(p2)
-                } else {
-                    None
-                }
+        // Get the process at that index, and if it matches, run the closure
+        // on it.
+        self.processes
+            .get(tentative_index)
+            .map_or(None, |process_entry| {
+                // Check if there is any process state here, or if the entry is
+                // `None`.
+                process_entry.map_or(None, |process| {
+                    // Check that the process stored here matches the identifier
+                    // in the `appid`.
+                    if process.appid() == appid {
+                        Some(closure(process))
+                    } else {
+                        None
+                    }
+                })
             })
-        });
-
-        // Return `default` if we couldn't find any matches, otherwise run the
-        // closure.
-        process.map_or(default, |p| closure(p))
+            .unwrap_or(default)
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -182,15 +176,15 @@ impl Kernel {
         ReturnCode::FAIL
     }
 
-    /// Find the index of the given app in the processes array based on its
-    /// identifier. This is useful if an app identifier is passed to the kernel
-    /// from somewhere (such as from userspace) that does not already know the
-    /// index of where that application's process state is stored.
-    crate fn lookup_app_index(&self, identifier: usize) -> Option<usize> {
-        self.processes.iter().enumerate().find_map(|(index, &p)| {
+    /// Retrieve the `AppId` of the given app based on its identifier. This is
+    /// useful if an app identifier is passed to the kernel from somewhere (such
+    /// as from userspace) and needs to be expanded to a full `AppId` for use
+    /// with other APIs.
+    crate fn lookup_app_by_identifier(&self, identifier: usize) -> Option<AppId> {
+        self.processes.iter().find_map(|&p| {
             p.map_or(None, |p2| {
                 if p2.appid().id() == identifier {
-                    Some(index)
+                    Some(p2.appid())
                 } else {
                     None
                 }
@@ -198,13 +192,16 @@ impl Kernel {
         })
     }
 
-    /// Retrieve the app identifier for the process at the given index in the
+    /// Retrieve the `AppId` for the process at the given index in the
     /// processes array.
     ///
     /// If the process at that index does not exist return `None`.
-    crate fn lookup_app_identifier(&self, index: usize) -> Option<usize> {
+    ///
+    /// This is needed for `AppId` itself to implement the `.index()` command
+    /// to verify that the referenced app is still at the correct index.
+    crate fn lookup_app_by_index(&self, index: usize) -> Option<AppId> {
         self.processes.get(index).map_or(None, |p| {
-            p.map_or(None, |process| Some(process.appid().id()))
+            p.map_or(None, |process| Some(process.appid()))
         })
     }
 

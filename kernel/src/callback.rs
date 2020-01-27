@@ -9,16 +9,50 @@ use crate::process;
 use crate::sched::Kernel;
 
 /// Userspace app identifier.
+///
+/// This should be treated as an opaque type that can be used to represent an
+/// application on the board without requiring an actual reference to a
+/// `ProcessType` object. Having this `AppId` reference type is useful for
+/// managing ownership and type issues in Rust, but more importantly `AppId`
+/// serves as a tool for capsules to hold pointers to applications.
+///
+/// Since `AppId` implements `Copy`, having an `AppId` does _not_ ensure that
+/// the process the `AppId` refers to is still valid. The process may have been
+/// removed, terminated, or restarted as a new process. Therefore, all uses of
+/// `AppId` in the kernel must check that the `AppId` is still valid. This check
+/// happens automatically when `.index()` is called, as noted by the return
+/// type: `Option<usize>`. `.index()` will return the index of the process in
+/// the processes array, but if the process no longer exists then `None` is
+/// returned.
+///
+/// Outside of the kernel crate, holders of an `AppId` may want to use `.id()`
+/// to retrieve a simple identifier for the process that can be communicated
+/// over a UART bus or syscall interface. This call is guaranteed to return a
+/// suitable identifier for the `AppId`, but does not check that the
+/// corresponding application still exists.
+///
+/// This type also provides capsules an interface for interacting with processes
+/// since they otherwise would have no reference to a `ProcessType`. Very limited
+/// operations are available through this interface since capsules should not
+/// need to know the details of any given process. However, certain information
+/// makes certain capsules possible to implement. For example, capsules can use
+/// the `get_editable_flash_range()` function so they can safely allow an app
+/// to modify its own flash.
 #[derive(Clone, Copy)]
 pub struct AppId {
     /// Reference to the main kernel struct. This is needed for checking on
     /// certain properties of the referred app (like its editable bounds), but
     /// also for checking that the index is valid.
     crate kernel: &'static Kernel,
+
     /// The index in the kernel.PROCESSES[] array where this app's state is
     /// stored. This makes for fast lookup of the process and helps with
     /// implementing IPC.
-    index: usize,
+    ///
+    /// This value is crate visible to enable optimizations in sched.rs. Other
+    /// users should call `.index()` instead.
+    crate index: usize,
+
     /// The unique identifier for this process. This can be used to refer to the
     /// process in situations where a single number is required, for instance
     /// when referring to specific applications across the syscall interface.
@@ -61,9 +95,9 @@ impl AppId {
     crate fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
         self.kernel
-            .lookup_app_identifier(self.index)
-            .map_or(None, |id| {
-                if id == self.identifier {
+            .lookup_app_by_index(self.index)
+            .map_or(None, |appid| {
+                if appid.identifier == self.identifier {
                     Some(self.index)
                 } else {
                     None

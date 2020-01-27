@@ -145,19 +145,21 @@ impl Driver for IPC {
                 let app_identifier = svc_id - 1;
                 // We first have to see if that identifier corresponds to a
                 // valid application by asking the kernel to do a lookup for us.
-                let otherapp_index = self.data.kernel.lookup_app_index(app_identifier);
+                let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
 
                 self.data
-                    .enter(app_id, |data, _| match otherapp_index {
-                        Some(i) => {
-                            if i > 8 {
-                                ReturnCode::EINVAL
-                            } else {
-                                data.client_callbacks[i] = callback;
-                                ReturnCode::SUCCESS
+                    .enter(app_id, |data, _| {
+                        match otherapp.map_or(None, |oa| oa.index()) {
+                            Some(i) => {
+                                if i > 8 {
+                                    ReturnCode::EINVAL
+                                } else {
+                                    data.client_callbacks[i] = callback;
+                                    ReturnCode::SUCCESS
+                                }
                             }
+                            None => ReturnCode::EINVAL,
                         }
-                        None => ReturnCode::EINVAL,
                     })
                     .unwrap_or(ReturnCode::EBUSY)
             }
@@ -188,12 +190,17 @@ impl Driver for IPC {
 
         self.data
             .kernel
-            .process_identifier_map_or(ReturnCode::EINVAL, app_identifier, |target| {
-                let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
-                match ret {
-                    true => ReturnCode::SUCCESS,
-                    false => ReturnCode::FAIL,
-                }
+            .lookup_app_by_identifier(app_identifier)
+            .map_or(ReturnCode::EINVAL, |otherapp| {
+                self.data
+                    .kernel
+                    .process_map_or(ReturnCode::EINVAL, otherapp, |target| {
+                        let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                        match ret {
+                            true => ReturnCode::SUCCESS,
+                            false => ReturnCode::FAIL,
+                        }
+                    })
             })
     }
 
@@ -247,9 +254,9 @@ impl Driver for IPC {
                 // identifier. This also let's us check that the other app is
                 // actually valid.
                 let app_identifier = target_id - 1;
-                let otherapp_index = self.data.kernel.lookup_app_index(app_identifier);
+                let otherapp = self.data.kernel.lookup_app_by_identifier(app_identifier);
 
-                match otherapp_index {
+                match otherapp.map_or(None, |oa| oa.index()) {
                     Some(i) => {
                         data.shared_memory.get_mut(i).map_or(
                             ReturnCode::EINVAL, /* Target process does not exist */
