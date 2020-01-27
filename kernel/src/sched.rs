@@ -192,16 +192,15 @@ impl Kernel {
         })
     }
 
-    /// Retrieve the `AppId` for the process at the given index in the
-    /// processes array.
+    /// Checks if the provided `AppId` is still valid given the processes stored
+    /// in the processes array. Returns `true` if the AppId still refers to
+    /// a valid process, and `false` if not.
     ///
-    /// If the process at that index does not exist return `None`.
-    ///
-    /// This is needed for `AppId` itself to implement the `.index()` command
-    /// to verify that the referenced app is still at the correct index.
-    crate fn lookup_app_by_index(&self, index: usize) -> Option<AppId> {
-        self.processes.get(index).map_or(None, |p| {
-            p.map_or(None, |process| Some(process.appid()))
+    /// This is needed for `AppId` itself to implement the `.index()` command to
+    /// verify that the referenced app is still at the correct index.
+    crate fn appid_is_valid(&self, appid: AppId) -> bool {
+        self.processes.get(appid.index).map_or(false, |p| {
+            p.map_or(false, |process| process.appid().id() == appid.id())
         })
     }
 
