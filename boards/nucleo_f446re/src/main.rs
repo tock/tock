@@ -48,8 +48,6 @@ static APP_HACK: u8 = 0;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-const NUM_BUTTONS: usize = 1;
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF446RE {
@@ -262,34 +260,13 @@ pub unsafe fn reset_handler() {
     );
 
     // BUTTONs
-    let button_pins = static_init!(
-        [(
-            &'static dyn kernel::hil::gpio::InterruptValuePin,
-            capsules::button::GpioMode
-        ); NUM_BUTTONS],
-        [(
-            static_init!(
-                kernel::hil::gpio::InterruptValueWrapper,
-                kernel::hil::gpio::InterruptValueWrapper::new(
-                    stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap()
-                )
-            )
-            .finalize(),
-            capsules::button::GpioMode::LowWhenPressed
-        ),]
+    let button = components::button::ButtonComponent::new(board_kernel).finalize(
+        components::button_component_helper!((
+            stm32f4xx::gpio::PinId::PC13.get_pin().as_ref().unwrap(),
+            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
+        )),
     );
-
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-    }
 
     // ALARM
     let mux_alarm = static_init!(
