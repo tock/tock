@@ -11,6 +11,11 @@
 //!     )),
 //! );
 //! ```
+//!
+//! Typically, `GpioMode::LowWhenPressed` will be associated with `FloatingState::PullUp`
+//! whereas `GpioMode::HighWhenPressed` will be paired with `FloatingState::PullDown`.
+//! `FloatingState::None` will be used when the board provides external pull-up/pull-down
+//! resistors.
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
