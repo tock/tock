@@ -194,6 +194,7 @@ pub unsafe extern "C" fn switch_to_user(
     user_stack as *mut u8
 }
 
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 struct HardFaultStackedRegisters {
     r0: u32,
     r1: u32,
