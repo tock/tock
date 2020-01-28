@@ -48,12 +48,12 @@ impl<T: IntLike, R: RegisterLongName> ReadWriteRiscvCsr<T, R> {
     // Mock implementations for tests on Travis-CI.
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     pub fn get(&self) -> T {
-        unimplemented!()
+        unimplemented!("reading RISC-V CSR {}", self.value)
     }
 
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     pub fn set(&self, _val_to_set: T) {
-        unimplemented!()
+        unimplemented!("writing RISC-V CSR {}", self.value)
     }
 
     #[inline]
