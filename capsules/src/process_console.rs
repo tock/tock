@@ -13,6 +13,18 @@
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
 //!
+//! ### `list` Command Fields:
+//!
+//! - `Quanta`: How many times this process has exceeded its alloted time
+//!   quanta.
+//! - `Dropped Callbacks`: How many callbacks were dropped for this process
+//!   because the queue was full.
+//! - `Restarts`: How many times this process has crashed and been restarted by
+//!   the kernel.
+//! - `State`: The state the process is in.
+//! - `Grants`: The number of grants that have been initialized for the process
+//!   out of the total number of grants defined by the kernel.
+//!
 //! Setup
 //! -----
 //!
@@ -69,9 +81,9 @@
 //! Initialization complete. Entering main loop
 //! Hello World!
 //! list
-//! PID    Name    Quanta  Syscalls  Dropped Callbacks  Restarts    State
-//! 00     blink        0       113                  0         0  Yielded
-//! 01     c_hello      0         8                  0         0  Yielded
+//! PID    Name    Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants
+//! 00     blink        0       113                  0         0  Yielded    1/12
+//! 01     c_hello      0         8                  0         0  Yielded    3/12
 //! ```
 //!
 //! To get a general view of the system, use the status command:
@@ -225,19 +237,26 @@ impl<'a, C: ProcessManagementCapability> ProcessConsole<'a, C> {
                                 );
                             });
                         } else if clean_str.starts_with("list") {
-                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State");
+                            debug!(" PID    Name                Quanta  Syscalls  Dropped Callbacks  Restarts    State  Grants");
                             self.kernel
                                 .process_each_capability(&self.capability, |proc| {
+                                    let info: KernelInfo = KernelInfo::new(self.kernel);
+
                                     let pname = proc.get_process_name();
+                                    let appid = proc.appid();
+                                    let (grants_used, grants_total) = info.number_app_grant_uses(appid, &self.capability);
+
                                     debug!(
-                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}",
-                                        proc.appid(),
+                                        "  {:?}\t{:<20}{:6}{:10}{:19}{:10}  {:?}{:5}/{}",
+                                        appid,
                                         pname,
                                         proc.debug_timeslice_expiration_count(),
                                         proc.debug_syscall_count(),
                                         proc.debug_dropped_callback_count(),
                                         proc.get_restart_count(),
-                                        proc.get_state()
+                                        proc.get_state(),
+                                        grants_used,
+                                        grants_total
                                     );
                                 });
                         } else if clean_str.starts_with("status") {
