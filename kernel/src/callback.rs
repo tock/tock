@@ -94,7 +94,7 @@ impl AppId {
     /// match then `None` will be returned.
     crate fn index(&self) -> Option<usize> {
         // Do a lookup to make sure that the index we have is correct.
-        if self.kernel.appid_is_valid(*self) {
+        if self.kernel.appid_is_valid(self) {
             Some(self.index)
         } else {
             None

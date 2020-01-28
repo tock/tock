@@ -198,7 +198,7 @@ impl Kernel {
     ///
     /// This is needed for `AppId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    crate fn appid_is_valid(&self, appid: AppId) -> bool {
+    crate fn appid_is_valid(&self, appid: &AppId) -> bool {
         self.processes.get(appid.index).map_or(false, |p| {
             p.map_or(false, |process| process.appid().id() == appid.id())
         })
