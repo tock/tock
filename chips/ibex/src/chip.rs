@@ -192,9 +192,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// disable it.
 #[export_name = "_start_trap_rust"]
 pub unsafe extern "C" fn start_trap_rust() {
-    let cause = CSR.mcause.extract();
-
-    match mcause::McauseHelpers::cause(&cause) {
+    match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }
@@ -208,11 +206,8 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_handler"]
-pub unsafe extern "C" fn disable_interrupt_trap_handler(_mcause: u32) {
-    // TODO: reuse _mcause from above
-    let cause = CSR.mcause.extract();
-
-    match mcause::McauseHelpers::cause(&cause) {
+pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+    match mcause::Trap::from(mcause_val) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }

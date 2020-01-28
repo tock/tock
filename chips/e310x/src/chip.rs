@@ -86,7 +86,7 @@ pub unsafe fn handle_trap() {
     let cause = rv32i::csr::CSR.mcause.extract();
     // if most sig bit is set, is interrupt
     // strip off the msb
-    match rv32i::csr::mcause::McauseHelpers::cause(&cause) {
+    match rv32i::csr::mcause::Trap::from(cause) {
         rv32i::csr::mcause::Trap::Interrupt(interrupt) => {
             match interrupt {
                 rv32i::csr::mcause::Interrupt::MachineSoft => {
@@ -178,7 +178,7 @@ pub unsafe fn handle_trap() {
 pub fn disable_interrupt_cause() {
     let cause = rv32i::csr::CSR.mcause.extract();
 
-    match rv32i::csr::mcause::McauseHelpers::cause(&cause) {
+    match rv32i::csr::mcause::Trap::from(cause) {
         rv32i::csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
             rv32i::csr::mcause::Interrupt::UserSoft => {
                 csr::CSR.mie.modify(csr::mie::mie::usoft::CLEAR);
