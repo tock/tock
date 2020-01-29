@@ -278,40 +278,40 @@ pub trait ProcessRestartPolicy {
     /// Decide whether to restart the `process` or not.
     ///
     /// Returns `true` if the process should be restarted, `false` otherwise.
-    fn evaluate(&self, process: &dyn ProcessType) -> bool;
+    fn should_restart(&self, process: &dyn ProcessType) -> bool;
 }
 
 /// Implementation of `ProcessRestartPolicy` that uses a threshold to decide
 /// whether to restart an app. If the app has been restarted more times than the
 /// threshold then the app will no longer be restarted.
-pub struct PrpThreshold {
+pub struct ThresholdRestart {
     threshold: usize,
 }
 
-impl PrpThreshold {
-    pub const fn new(threshold: usize) -> PrpThreshold {
-        PrpThreshold { threshold }
+impl ThresholdRestart {
+    pub const fn new(threshold: usize) -> ThresholdRestart {
+        ThresholdRestart { threshold }
     }
 }
 
-impl ProcessRestartPolicy for PrpThreshold {
-    fn evaluate(&self, process: &dyn ProcessType) -> bool {
+impl ProcessRestartPolicy for ThresholdRestart {
+    fn should_restart(&self, process: &dyn ProcessType) -> bool {
         process.debug_restart_count() <= self.threshold
     }
 }
 
 /// Implementation of `ProcessRestartPolicy` that unconditionally restarts the
 /// app.
-pub struct PrpAlways {}
+pub struct AlwaysRestart {}
 
-impl PrpAlways {
-    pub const fn new() -> PrpAlways {
-        PrpAlways {}
+impl AlwaysRestart {
+    pub const fn new() -> AlwaysRestart {
+        AlwaysRestart {}
     }
 }
 
-impl ProcessRestartPolicy for PrpAlways {
-    fn evaluate(&self, _process: &dyn ProcessType) -> bool {
+impl ProcessRestartPolicy for AlwaysRestart {
+    fn should_restart(&self, _process: &dyn ProcessType) -> bool {
         true
     }
 }
@@ -671,11 +671,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 // Decide what to do with this process. Should it be restarted?
                 // Or should we leave it in a stopped & faulted state? If the
                 // process is faulting too often we might not want to restart.
-                let should_restart = restart_policy.evaluate(self);
-
                 // If we are not going to restart the process then we can just
-                // leave it in the stopped faulted state.
-                if !should_restart {
+                // leave it in the stopped faulted state by returning
+                // immediately. This has the same effect as using the
+                // `FaultResponse::Stop` policy.
+                if !restart_policy.should_restart(self) {
                     return;
                 }
 
