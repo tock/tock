@@ -1,43 +1,145 @@
 //! Hardware agnostic interfaces for counter-like resources.
+//!
+//! This HIL includes three main interfaces for interacting with time-related
+//! resources:
+//!
+//! - `Counter`
+//! - `Alarm<'a>`
+//! - `Timer<'a>`
+//!
+//! Each is based on the underlying time source of a counter and provides a
+//! different abstraction to users:
+//!
+//! - Counters are a simple register that increments at a set rate and can be
+//!   started and stopped. This can be used to time the duration of operations.
+//! - Alarms provide an interrupt when the underlying counter reaches a certain value.
+//!   This can be used to wait for a specified amount of time.
+//! - Timers provide "oneshot" and "repeating" interfaces for receiving an
+//!   interrupt after a certain amount of time, either once or continuously.
+//!   This can be used for scheduling repeated events.
+//!
+//! All three interfaces also implement the `Time` trait which encapsulates
+//! basic parameters of the underlying timing hardware, such as the number of
+//! bits used for the hardware counter and the frequency at which the counter
+//! increments.
+//!
+//! ```txt
+//! The three interfaces:
+//!
+//!               +-------------+  +-------------+
+//! +----------+  | AlarmClient |  | TimerClient |
+//! |          |  +-------------+  +-------------+
+//! | Counter  |  +-------------+  +-------------+
+//! |          |  |             |  |             |
+//! | [ Time ] |  |    Alarm    |  |    Timer    |
+//! |          |  |             |  |             |
+//! +----------+  |  [ Time ]   |  |  [ Time ]   |
+//!               |             |  |             |
+//!               +-------------+  +-------------+
+//! ```
 
 use crate::ReturnCode;
 
+/// `Time` is a base trait that captures information about the underlying time
+/// keeping source used for the higher-level abstractions in this HIL.
+///
+/// The details of the time keeping are based on two properties:
+/// 1. The number of bits used by the increasing counter in hardware.
+/// 2. How quickly the hardware increments the value in that counter.
+///
+/// The `Time` trait captures these two properties in the `Ticks` and
+/// `Frequency` associated types. Each chip that supports time keeping must
+/// implement the `Time` trait and provide suitable types for these types that
+/// capture what the underlying hardware is doing. Typically, there are
+/// pre-defined structs that implement the relevant traits (`Ticks` and
+/// `Frequency`) for common values that chips tend to use. However, it is also
+/// possible for chips to provide their own versions as needed.
+///
+/// The `Time` trait also exposes several functions that are useful for
+/// interacting with the hardware counters.
 pub trait Time {
+    /// A type that encodes how many bits are used to keep track of the current
+    /// time in the hardware counter. This is equivalent to the number of
+    /// hardware ticks that can be counted until the counter overflows.
+    ///
+    /// Commonly, hardware platforms use 32 bit or 24 bit wide counters for
+    /// their time keeping.
     type Ticks: Ticks;
+
+    /// A type that encodes how quickly the hardware increments the underlying
+    /// counter.
+    ///
+    /// This is related to the underlying clock used to drive the counter in
+    /// hardware.
     type Frequency: Frequency;
 
     /// Returns the current time in hardware clock units.
     fn now(&self) -> Self::Ticks;
 
+    /// Convert a value in seconds to the number of ticks that have to be
+    /// counted in the hardware counter before `s` seconds have elapsed.
     fn ticks_from_seconds(s: u32) -> Self::Ticks {
         Self::Ticks::from(s * Self::Frequency::frequency())
     }
 
+    /// Convert a value in milliseconds to the number of ticks that have to be
+    /// counted in the hardware counter before `ms` milliseconds have elapsed.
     fn ticks_from_ms(ms: u32) -> Self::Ticks {
         Self::Ticks::from(((ms as u64 * Self::Frequency::frequency() as u64) / 1000) as u32)
     }
 
+    /// Convert a value in microseconds to the number of ticks that have to be
+    /// counted in the hardware counter before `us` microseconds have elapsed.
     fn ticks_from_us(us: u32) -> Self::Ticks {
         Self::Ticks::from(((us as u64 * Self::Frequency::frequency() as u64) / 1_000_000) as u32)
     }
 }
 
+/// `Counter` exposes a very basic time keeper: a single increasing counter that
+/// can be started and stopped. This provides a thin layer on top of the
+/// underlying hardware counter used for time keeping.
+///
+/// Because `Counter` also implements `Time`, users of `Counter` can query the
+/// current value of the counter using the `now()` function.
+///
+/// The counter has no rollover protection. That is, the value returned by
+/// `now()` can be smaller after calling `start()` if the counter overflows
+/// while it is running.
 pub trait Counter: Time {
+    /// Start the counter.
+    ///
+    /// This counter will increase at the frequency specified by the `Frequency`
+    /// type in the `Time` trait.
+    ///
+    /// This can return an error if the counter could not be started for some
+    /// reason. This could happen if the underlying time source does not support
+    /// stopping and starting the counter.
     fn start(&self) -> ReturnCode;
+
+    /// Stop the counter.
+    ///
+    /// This will return an error if the underlying hardware counter cannot be
+    /// stopped.
     fn stop(&self) -> ReturnCode;
+
+    /// Check if the counter is currently running. Returns `true` if the
+    /// underlying counter is incrementing.
     fn is_running(&self) -> bool;
 }
 
-/// Trait to represent clock frequency in Hz
+/// Trait to represent clock frequency in Hz.
 ///
-/// This trait is used as an associated type for `Alarm` so clients can portably
+/// This trait is used as an associated type for `Time` so clients can portably
 /// convert native cycles to real-time values.
+///
+/// The time HIL includes several default implementations of the `Frequency`
+/// trait commonly found on hardware platforms.
 pub trait Frequency {
-    /// Returns frequency in Hz.
+    /// Return the frequency in Hz that a hardware counter increments its count.
     fn frequency() -> u32;
 }
 
-/// 16MHz `Frequency`
+/// 16 MHz `Frequency` type.
 #[derive(Debug)]
 pub struct Freq16MHz;
 impl Frequency for Freq16MHz {
@@ -46,7 +148,7 @@ impl Frequency for Freq16MHz {
     }
 }
 
-/// 32KHz `Frequency`
+/// 32 KHz `Frequency` type.
 #[derive(Debug)]
 pub struct Freq32KHz;
 impl Frequency for Freq32KHz {
@@ -55,7 +157,7 @@ impl Frequency for Freq32KHz {
     }
 }
 
-/// 16KHz `Frequency`
+/// 16 KHz `Frequency` type.
 #[derive(Debug)]
 pub struct Freq16KHz;
 impl Frequency for Freq16KHz {
@@ -64,7 +166,7 @@ impl Frequency for Freq16KHz {
     }
 }
 
-/// 1KHz `Frequency`
+/// 1 KHz `Frequency` type.
 #[derive(Debug)]
 pub struct Freq1KHz;
 impl Frequency for Freq1KHz {
@@ -111,33 +213,37 @@ pub trait Alarm<'a>: Time {
         self.set_alarm(self.now().wrapping_add(duration));
     }
 
-    /// Returns the value set in [`set_alarm`](#tymethod.set_alarm)
+    /// Returns the value set in [`set_alarm`](#tymethod.set_alarm). This is the
+    /// value (in ticks) when the alarm will fire.
     fn get_alarm(&self) -> Self::Ticks;
 
-    /// Set the client for interrupt events.
+    /// Set the client for when the counter reaches the set tics value and the
+    /// alarm fires.
     fn set_client(&'a self, client: &'a dyn AlarmClient);
 
-    /// Returns whether this alarm is currently active (will eventually trigger
-    /// a callback if there is a client).
+    /// Returns whether this alarm is currently active (that is it will
+    /// eventually trigger a callback if there is a client).
     fn is_enabled(&self) -> bool;
 
     /// Enables the alarm using the previously set `tics` for the alarm.
     ///
-    /// Most implementations should use the default implementation which calls `set_alarm` with the
-    /// value returned by `get_alarm` unless there is a more efficient way to achieve the same
-    /// semantics.
+    /// Most implementations should use the default implementation which calls
+    /// `set_alarm` with the value returned by `get_alarm` unless there is a
+    /// more efficient way to achieve the same semantics.
     fn enable(&self) {
         self.set_alarm(self.get_alarm())
     }
 
     /// Disables the alarm.
     ///
-    /// The implementation will _always_ disable the alarm and prevent events related to previously
-    /// set alarms from being delivered to the client.
+    /// The implementation will _always_ disable the alarm and prevent events
+    /// related to previously set alarms from being delivered to the client.
     fn disable(&self);
 }
 
 /// A client of an implementer of the [`Alarm`](trait.Alarm.html) trait.
+///
+/// This is for alarm users to receive a callback when the alarm fires.
 pub trait AlarmClient {
     /// Callback signaled when the alarm's clock reaches the value set in
     /// [`Alarm#set_alarm`](trait.Alarm.html#tymethod.set_alarm).
@@ -145,7 +251,7 @@ pub trait AlarmClient {
 }
 
 /// The `Timer` trait models a timer that can notify when a particular interval
-/// has elapsed.
+/// has elapsed. This can be a single notification or a repeating notification.
 pub trait Timer<'a>: Time {
     /// Set the client for interrupt events.
     fn set_client(&'a self, client: &'a dyn TimerClient);
@@ -162,8 +268,8 @@ pub trait Timer<'a>: Time {
 
     /// Returns the interval for a repeating timer.
     ///
-    /// Returns `None` if the timer is disabled or in oneshot mode and `Some(interval)` if it is
-    /// repeating.
+    /// Returns `None` if the timer is disabled or in oneshot mode and
+    /// `Some(interval)` if it is repeating.
     fn interval(&self) -> Option<Self::Ticks>;
 
     /// Returns whether this is a oneshot (rather than repeating) timer.
@@ -188,17 +294,26 @@ pub trait Timer<'a>: Time {
 
     /// Cancels an outstanding timer.
     ///
-    /// The implementation will _always_ cancel the timer.
-    /// delivered.
+    /// The implementation will _always_ cancel the timer. No future callbacks
+    /// will be delivered.
     fn cancel(&self);
 }
 
 /// A client of an implementer of the [`Timer`](trait.Timer.html) trait.
+///
+/// This is for timer users to receive callbacks when the timer fires.
 pub trait TimerClient {
     /// Callback signaled when the timer's clock reaches the specified interval.
     fn fired(&self);
 }
 
+/// Trait to represent the width of the hardware counter used in the underlying
+/// time source. This encodes the number of bits the counter uses, which
+/// specifies how many ticks can occur before the counter wraps around.
+///
+/// This trait is used as an associate type for the `Time` trait so the clients
+/// can portably convert real-world time to ticks and manage wrap-around of the
+/// underlying counter.
 pub trait Ticks: Clone + Copy + From<u32> {
     fn into_usize(self) -> usize;
     fn into_u32(self) -> u32;
