@@ -1,6 +1,10 @@
 sudo: false
 language: rust
 
+addons:
+  apt:
+    packages: libusb-1.0-0-dev
+
 
 # bors default configuration:
 #branches:

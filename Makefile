@@ -45,6 +45,10 @@ ci-travis:
 	@printf "$$(tput bold)******************$$(tput sgr0)\n"
 	@CI=true ./tools/run_cargo_fmt.sh diff
 	@./tools/check_wildcard_imports.sh
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@printf "$$(tput bold)* CI: Tools *$$(tput sgr0)\n"
+	@printf "$$(tput bold)*************$$(tput sgr0)\n"
+	@for f in `./tools/list_tools.sh`; do echo "$$(tput bold)Build & Test $$f"; cd tools/$$f && CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1; cd - > /dev/null; done
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
 	@printf "$$(tput bold)* CI: Libraries *$$(tput sgr0)\n"
 	@printf "$$(tput bold)*****************$$(tput sgr0)\n"
