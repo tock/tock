@@ -66,6 +66,8 @@ impl Platform for OpenTitan {
     }
 }
 
+pub static mut CHIP: Option<&'static ibex::chip::Ibex> = None;
+
 /// Reset Handler.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
@@ -101,6 +103,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(ibex::chip::Ibex, ibex::chip::Ibex::new());
+    CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
@@ -173,7 +176,7 @@ pub unsafe fn reset_handler() {
     };
 
     // Uncomment to run the Alarm interrupt test -pal
-    //alarm_test::run_alarm();
+    alarm_test::run_alarm();
 
     kernel::procs::load_processes(
         board_kernel,
@@ -184,7 +187,11 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_mgmt_cap,
     );
-
+    let bad_ptr = 0x81200000 as *mut u8;
+    let val = *bad_ptr;
+    if val == 0 {
+        debug!("Dereferenced bad pointer.");
+    }
     // Turn off the fourth GPIO so we know we got here
     hil::gpio::Pin::clear(&ibex::gpio::PORT[10]);
 

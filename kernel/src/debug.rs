@@ -48,8 +48,10 @@ use crate::common::cells::{MapCell, TakeCell};
 use crate::common::queue::Queue;
 use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
+use crate::Chip;
 use crate::process::ProcessType;
 use crate::ReturnCode;
+use crate::syscall::UserspaceKernelBoundary;
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
@@ -69,18 +71,19 @@ pub trait IoWrite {
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite>(
+pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
     leds: &mut [&mut L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn ProcessType>],
+    chip: &'static C
 ) -> ! {
     panic_begin(nop);
     panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
-    panic_process_info(processes, writer);
+    panic_process_info(processes, writer, chip);
     panic_blink_forever(leds)
 }
 
@@ -124,16 +127,13 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_process_info<W: Write>(
+pub unsafe fn panic_process_info<W: Write, C: Chip>(
     procs: &'static [Option<&'static dyn ProcessType>],
     writer: &mut W,
+    chip: &'static C,
 ) {
     // Print fault status once
-    if !procs.is_empty() {
-        procs[0].as_ref().map(|process| {
-            process.fault_fmt(writer);
-        });
-    }
+    chip.userspace_kernel_boundary().fault_fmt(writer);
 
     // print data about each process
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));

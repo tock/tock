@@ -1,6 +1,7 @@
 //! Kernel-userland system call interface for RISC-V architecture.
 
 use core::fmt::Write;
+use crate::csr;
 
 use kernel;
 
@@ -415,13 +416,166 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         (new_stack_pointer as *mut usize, ret)
     }
 
-    unsafe fn fault_fmt(&self, _writer: &mut dyn Write) {}
+    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
+        let mcause = csr::CSR.mcause.extract();
+        let _ = writer.write_fmt(format_args!("\r\n---| Machine State |---\r\n"));
+        let _ = writer.write_fmt(format_args!("Cause (mcause): "));
+        match csr::mcause::McauseHelpers::cause(&mcause) {
+            csr::mcause::Trap::Interrupt(interrupt) => {
+                match interrupt {
+                    csr::mcause::Interrupt::UserSoft           => {let _ = writer.write_fmt(format_args!("User software interrupt"));},
+                    csr::mcause::Interrupt::SupervisorSoft     => {let _ = writer.write_fmt(format_args!("Supervisor software interrupt"));},
+                    csr::mcause::Interrupt::MachineSoft        => {let _ = writer.write_fmt(format_args!("Machine software interrupt"));},
+                    csr::mcause::Interrupt::UserTimer          => {let _ = writer.write_fmt(format_args!("User timer interrupt"));},
+                    csr::mcause::Interrupt::SupervisorTimer    => {let _ = writer.write_fmt(format_args!("Supervisor timer interrupt"));},
+                    csr::mcause::Interrupt::MachineTimer       => {let _ = writer.write_fmt(format_args!("Machine timer interrupt"));},
+                    csr::mcause::Interrupt::UserExternal       => {let _ = writer.write_fmt(format_args!("User external interrupt"));},
+                    csr::mcause::Interrupt::SupervisorExternal => {let _ = writer.write_fmt(format_args!("Supervisor external interrupt"));},
+                    csr::mcause::Interrupt::MachineExternal    => {let _ = writer.write_fmt(format_args!("Machine external interrupt"));},
+                    csr::mcause::Interrupt::Unknown            => {let _ = writer.write_fmt(format_args!("Reserved/Unknown"));},
+                }
+            },
+            csr::mcause::Trap::Exception(exception) => {
+                match exception {
+                    csr::mcause::Exception::InstructionMisaligned => {let _ = writer.write_fmt(format_args!("Instruction access misaligned"));},
+                    csr::mcause::Exception::InstructionFault      => {let _ = writer.write_fmt(format_args!("Instruction access fault"));},
+                    csr::mcause::Exception::IllegalInstruction    => {let _ = writer.write_fmt(format_args!("Illegal instruction"));},
+                    csr::mcause::Exception::Breakpoint            => {let _ = writer.write_fmt(format_args!("Breakpoint"));},
+                    csr::mcause::Exception::LoadMisaligned        => {let _ = writer.write_fmt(format_args!("Load address misaligned"));},
+                    csr::mcause::Exception::LoadFault             => {let _ = writer.write_fmt(format_args!("Load access fault"));},
+                    csr::mcause::Exception::StoreMisaligned       => {let _ = writer.write_fmt(format_args!("Store/AMO address misaligned"));},
+                    csr::mcause::Exception::StoreFault            => {let _ = writer.write_fmt(format_args!("Store/AMO access fault"));},
+                    csr::mcause::Exception::UserEnvCall           => {let _ = writer.write_fmt(format_args!("Environment call from U-mode"));},
+                    csr::mcause::Exception::SupervisorEnvCall     => {let _ = writer.write_fmt(format_args!("Environment call from S-mode"));},
+                    csr::mcause::Exception::MachineEnvCall        => {let _ = writer.write_fmt(format_args!("Environment call from M-mode"));},
+                    csr::mcause::Exception::InstructionPageFault  => {let _ = writer.write_fmt(format_args!("Instruction page fault"));},
+                    csr::mcause::Exception::LoadPageFault         => {let _ = writer.write_fmt(format_args!("Load page fault"));},
+                    csr::mcause::Exception::StorePageFault        => {let _ = writer.write_fmt(format_args!("Store/AMO page fault"));},
+                    csr::mcause::Exception::Unknown               => {let _ = writer.write_fmt(format_args!("Reserved"));},
+                }
+            },
+        }
+        let mval = csr::CSR.mcause.get();
+        let interrupt = (mval & 0x80000000) == 0x80000000;
+        let code = mval & 0x7fffffff;
+        let _ = writer.write_fmt(format_args!(" (interrupt={}, exception code={})", interrupt, code));
+        let _ = writer.write_fmt(format_args!(
+            "\r\nValue (mtval):  {:#010X}\
+             \r\n\
+             \r\nFull register dump:\
+             \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
+             \r\n mcycle:  {:#010X}    minstret:    {:#010X}\
+             \r\n mtvec:   {:#010X}",
+            csr::CSR.mtval.get(),
+            csr::CSR.mepc.get(), csr::CSR.mstatus.get(),
+            csr::CSR.mcycle.get(),  csr::CSR.minstret.get(),
+            csr::CSR.mtvec.get()));
+        let mstatus = csr::CSR.mstatus.extract();
+        let uie = mstatus.is_set(csr::mstatus::mstatus::uie);
+        let sie = mstatus.is_set(csr::mstatus::mstatus::sie);
+        let mie = mstatus.is_set(csr::mstatus::mstatus::mie);
+        let upie = mstatus.is_set(csr::mstatus::mstatus::upie);
+        let spie = mstatus.is_set(csr::mstatus::mstatus::spie);
+        let mpie = mstatus.is_set(csr::mstatus::mstatus::mpie);
+        let spp = mstatus.is_set(csr::mstatus::mstatus::spp);
+        let _ = writer.write_fmt(format_args!(
+            "\r\n mstatus:\
+             \r\n  uie:    {}\
+             \r\n  sie:    {}\
+             \r\n  mie:    {}\
+             \r\n  upie:   {}\
+             \r\n  spie:   {}\
+             \r\n  mpie:   {}\
+             \r\n  spp:    {}",
+            uie, sie, mie, upie, spie, mpie, spp));
+        let e_usoft  = csr::CSR.mie.is_set(csr::mie::mie::usoft);
+        let e_ssoft  = csr::CSR.mie.is_set(csr::mie::mie::ssoft);
+        let e_msoft  = csr::CSR.mie.is_set(csr::mie::mie::msoft);
+        let e_utimer = csr::CSR.mie.is_set(csr::mie::mie::utimer);
+        let e_stimer = csr::CSR.mie.is_set(csr::mie::mie::stimer);
+        let e_mtimer = csr::CSR.mie.is_set(csr::mie::mie::mtimer);
+        let e_uext   = csr::CSR.mie.is_set(csr::mie::mie::uext);
+        let e_sext   = csr::CSR.mie.is_set(csr::mie::mie::sext);
+        let e_mext   = csr::CSR.mie.is_set(csr::mie::mie::mext);
+
+        let p_usoft  = csr::CSR.mip.is_set(csr::mip::mip::usoft);
+        let p_ssoft  = csr::CSR.mip.is_set(csr::mip::mip::ssoft);
+        let p_msoft  = csr::CSR.mip.is_set(csr::mip::mip::msoft);
+        let p_utimer = csr::CSR.mip.is_set(csr::mip::mip::utimer);
+        let p_stimer = csr::CSR.mip.is_set(csr::mip::mip::stimer);
+        let p_mtimer = csr::CSR.mip.is_set(csr::mip::mip::mtimer);
+        let p_uext   = csr::CSR.mip.is_set(csr::mip::mip::uext);
+        let p_sext   = csr::CSR.mip.is_set(csr::mip::mip::sext);
+        let p_mext   = csr::CSR.mip.is_set(csr::mip::mip::mext);
+        let _ = writer.write_fmt(format_args!(
+            "\r\n mie:     {:#010X}    mip:      {:#010X}\
+             \r\n  usoft:  {:6}                  {:6}\
+             \r\n  ssoft:  {:6}                  {:6}\
+             \r\n  msoft:  {:6}                  {:6}\
+             \r\n  utimer: {:6}                  {:6}\
+             \r\n  stimer: {:6}                  {:6}\
+             \r\n  mtimer: {:6}                  {:6}\
+             \r\n  uext:   {:6}                  {:6}\
+             \r\n  sext:   {:6}                  {:6}\
+             \r\n  mext:   {:6}                  {:6}\r\n",
+            csr::CSR.mie.get(),     csr::CSR.mip.get(),
+            e_usoft, p_usoft,
+            e_ssoft, p_ssoft,
+            e_msoft, p_msoft,
+            e_utimer, p_utimer,
+            e_stimer, p_stimer,
+            e_mtimer, p_mtimer,
+            e_uext, p_uext,
+            e_sext, p_sext,
+            e_mext, p_mext));
+    }
 
     unsafe fn process_detail_fmt(
         &self,
-        _stack_pointer: *const usize,
-        _state: &RiscvimacStoredState,
-        _writer: &mut dyn Write,
+        stack_pointer: *const usize,
+        state: &RiscvimacStoredState,
+        writer: &mut dyn Write,
     ) {
+        let _ = writer.write_fmt(format_args!(
+            "\
+            \r\n R0 : {:#010X}    R16: {:#010X}\
+            \r\n R1 : {:#010X}    R17: {:#010X}\
+            \r\n R2 : {:#010X}    R18: {:#010X}\
+            \r\n R3 : {:#010X}    R19: {:#010X}\
+            \r\n R4 : {:#010X}    R20: {:#010X}\
+            \r\n R5 : {:#010X}    R21: {:#010X}\
+            \r\n R6 : {:#010X}    R22: {:#010X}\
+            \r\n R7 : {:#010X}    R23: {:#010X}\
+            \r\n R8 : {:#010X}    R24: {:#010X}\
+            \r\n R9 : {:#010X}    R25: {:#010X}\
+            \r\n R10: {:#010X}    R26: {:#010X}\
+            \r\n R11: {:#010X}    R27: {:#010X}\
+            \r\n R12: {:#010X}    R28: {:#010X}\
+            \r\n R13: {:#010X}    R29: {:#010X}\
+            \r\n R14: {:#010X}    R30: {:#010X}\
+            \r\n R15: {:#010X}    R31: {:#010X}\
+            \r\n PC : {:#010X}\
+            \r\n SP:  {:#010X}\
+            \r\n",
+            0,              state.regs[15],
+            state.regs[0],  state.regs[16],
+            state.regs[1],  state.regs[17],
+            state.regs[2],  state.regs[18],
+            state.regs[3],  state.regs[19],
+            state.regs[4],  state.regs[20],
+            state.regs[5],  state.regs[21],
+            state.regs[6],  state.regs[22],
+            state.regs[7],  state.regs[23],
+            state.regs[8],  state.regs[24],
+            state.regs[9],  state.regs[25],
+            state.regs[10], state.regs[26],
+            state.regs[11], state.regs[27],
+            state.regs[12], state.regs[28],
+            state.regs[13], state.regs[29],
+            state.regs[14], state.regs[30],
+            state.pc,
+            stack_pointer as usize,
+        ));
+        self.fault_fmt(writer);
     }
 }
