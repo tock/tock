@@ -15,6 +15,8 @@ use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
+mod alarm_test;
+
 pub mod io;
 //
 // Actual memory for holding the active process structures. Need an empty list
@@ -169,6 +171,9 @@ pub unsafe fn reset_handler() {
         console: console,
         alarm: alarm,
     };
+
+    // Uncomment to run the Alarm interrupt test -pal
+    //alarm_test::run_alarm();
 
     kernel::procs::load_processes(
         board_kernel,
