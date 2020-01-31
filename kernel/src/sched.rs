@@ -69,10 +69,16 @@ impl Kernel {
         self.work.get() == 0
     }
 
-    /// Run a closure on a specific process if it exists. If the process does
-    /// not exist (i.e. it is `None` in the `processes` array, or has stopped,
-    /// restarted, or been removed) then `default` will be returned. Otherwise
-    /// the closure will executed and passed a reference to the process.
+    /// Run a closure on a specific process if it exists. If the process with a
+    /// matching `AppId` does not exist at the index specified within the
+    /// `AppId`, then `default` will be returned.
+    ///
+    /// A match will not be found if the process was removed (and there is a
+    /// `None` in the process array), if the process changed its identifier
+    /// (likely after being restarted), or if the process was moved to a
+    /// different index in the processes array. Note that a match _will_ be
+    /// found if the process still exists in the correct location in the array
+    /// but is in any "stopped" state.
     crate fn process_map_or<F, R>(&self, default: R, appid: AppId, closure: F) -> R
     where
         F: FnOnce(&dyn process::ProcessType) -> R,
