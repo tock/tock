@@ -423,5 +423,89 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _state: &RiscvimacStoredState,
         _writer: &mut dyn Write,
     ) {
+        let x1 = _state.regs[0];
+        let x2 = _state.regs[1];
+        let x3 = _state.regs[2];
+        let x4 = _state.regs[3];
+        let x5 = _state.regs[4];
+        let x6 = _state.regs[5];
+        let x7 = _state.regs[6];
+        let x8 = _state.regs[7];
+        let x9 = _state.regs[8];
+        let x10 = _state.regs[9];
+        let x11 = _state.regs[10];
+        let x12 = _state.regs[11];
+        let x13 = _state.regs[12];
+        let x14 = _state.regs[13];
+        let x15 = _state.regs[14];
+        let x16 = _state.regs[15];
+        let x17 = _state.regs[16];
+        let x18 = _state.regs[17];
+        let x19 = _state.regs[18];
+        let x20 = _state.regs[19];
+        let x21 = _state.regs[20];
+        let x22 = _state.regs[21];
+        let x23 = _state.regs[22];
+        let x24 = _state.regs[23];
+        let x25 = _state.regs[24];
+        let x26 = _state.regs[25];
+        let x27 = _state.regs[26];
+        let x28 = _state.regs[27];
+        let x29 = _state.regs[28];
+        let x30 = _state.regs[29];
+        let x31 = _state.regs[30];
+        let _ = _writer.write_fmt(format_args!(
+            "\
+            \r\n pc = {:#010x}  a6 = {:#010x}\
+            \r\n ra = {:#010x}  a7 = {:#010x}\
+            \r\n sp = {:#010x}  s2 = {:#010x}\
+            \r\n gp = {:#010x}  s3 = {:#010x}\
+            \r\n tp = {:#010x}  s4 = {:#010x}\
+            \r\n t0 = {:#010x}  s5 = {:#010x}\
+            \r\n t1 = {:#010x}  s6 = {:#010x}\
+            \r\n t2 = {:#010x}  s7 = {:#010x}\
+            \r\n s0 = {:#010x}  s8 = {:#010x}\
+            \r\n s1 = {:#010x}  s9 = {:#010x}\
+            \r\n a0 = {:#010x}  s10 = {:#010x}\
+            \r\n a1 = {:#010x}  s11 = {:#010x}\
+            \r\n a2 = {:#010x}  t3 = {:#010x}\
+            \r\n a3 = {:#010x}  t4 = {:#010x}\
+            \r\n a4 = {:#010x}  t5 = {:#010x}\
+            \r\n a5 = {:#010x}  t6 = {:#010x}\
+            \r\n mcause = {:#010x}",
+            _state.pc,
+            x16,
+            x1,
+            x17,
+            x2,
+            x18,
+            x3,
+            x19,
+            x4,
+            x20,
+            x5,
+            x21,
+            x6,
+            x22,
+            x7,
+            x23,
+            x8,
+            x24,
+            x9,
+            x25,
+            x10,
+            x26,
+            x11,
+            x27,
+            x12,
+            x28,
+            x13,
+            x29,
+            x14,
+            x30,
+            x15,
+            x31,
+            _state.mcause
+        ));
     }
 }
