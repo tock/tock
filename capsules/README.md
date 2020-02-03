@@ -65,6 +65,8 @@ Protocol stacks and other libraries.
 - **[USB](src/usb.rs)**: USB 2.0.
 - **[Segger RTT](src/segger_rtt.rs)**: Segger RTT support. Provides `hil::uart`
   interface.
+- **[Semihosting](src/semihosting.rs)**: ARM Semihosting support. Provides
+  `hil::uart` interface.
 
 
 ### MCU Peripherals for Userspace

@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 kernel = { path = "../kernel" }
 enum_primitive = { path = "../libraries/enum_primitive" }
+cortex-m-semihosting = "0.3"
