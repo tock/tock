@@ -122,8 +122,9 @@ use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::test::udp::MockUdp;
+use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::net::network_capabilities::{NetworkCapability};
+use capsules::net::network_capabilities::{NetworkCapability, AddrRange, PortRange};
 use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug;
@@ -131,7 +132,7 @@ use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
-use kernel::capabilities::UdpVisCap;
+use kernel::capabilities::{IpVisCap, UdpVisCap, NetCapCreateCap};
 
 
 pub const TEST_DELAY_MS: u32 = 2000;
@@ -142,6 +143,20 @@ const UDP_HDR_SIZE: usize = 8;
 const PAYLOAD_LEN: usize = super::imix_components::udp_mux::PAYLOAD_LEN;
 static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
+
+// TODO: do the stuff below using a create cap macro
+struct NetCapCreateCapStruct;
+unsafe impl NetCapCreateCap for NetCapCreateCapStruct {}
+
+struct UdpVisCapStruct;
+unsafe impl UdpVisCap for UdpVisCapStruct {}
+
+struct IpVisCapStruct;
+unsafe impl IpVisCap for IpVisCapStruct {}
+
+static mut CREATE_CAP: NetCapCreateCapStruct = NetCapCreateCapStruct;
+static mut UDP_VIS: UdpVisCapStruct = UdpVisCapStruct;
+static mut IP_VIS: IpVisCapStruct = IpVisCapStruct;
 
 #[derive(Copy, Clone)]
 enum TestMode {
@@ -420,6 +435,139 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     fn capsule_dual_receive_test(&self) {
         self.mock_udp1.bind(16123);
         self.mock_udp2.bind(16124);
+    }
+
+    // Test network capability enforcement for addrs
+    // TODO: include a positive and negative test for each (as apporpriate)
+    fn addr_range_valid_test(&self) {
+        let ip_addr1 = IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+        ]);
+        let ip_addr2 = IPAddr([
+                0x01, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x0f,
+        ]); // differs in first byte from ip_addr1
+        let ip_addr3 = IPAddr([
+                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                0x0e, 0x00,
+        ]); // differs in last byte from ip_addr1
+        // Any
+        let any_addr = AddrRange::Any;
+        for ip_addr in [ip_addr1, ip_addr2, ip_addr3].iter() {
+            assert!(any_addr.is_addr_valid(*ip_addr))
+        }
+        // No addrs
+        let no_addrs = AddrRange::NoAddrs;
+        for ip_addr in [ip_addr1, ip_addr2, ip_addr3].iter() {
+            assert!(!no_addrs.is_addr_valid(*ip_addr))
+        }
+        let addr_set = AddrRange::AddrSet([IPAddr::new(), IPAddr::new(),
+            IPAddr::new(), IPAddr::new(), IPAddr::new(), IPAddr::new(),
+            ip_addr3, ip_addr1]);
+        assert!(addr_set.is_addr_valid(ip_addr1));
+        assert!(!addr_set.is_addr_valid(ip_addr2));
+        assert!(addr_set.is_addr_valid(ip_addr3));
+        // Single addr
+        let single_addr = AddrRange::Addr(ip_addr1);
+        assert!(single_addr.is_addr_valid(ip_addr1));
+        assert!(!single_addr.is_addr_valid(ip_addr2));
+        // Subnet
+        let subnet = AddrRange::Subnet(ip_addr1, 120);
+        assert!(subnet.is_addr_valid(ip_addr1));
+        assert!(!subnet.is_addr_valid(ip_addr2));
+        assert!(subnet.is_addr_valid(ip_addr3));
+
+
+    }
+
+    // Test enforcement for ports
+    fn port_range_valid_test(&self) {
+        // Any
+        let any_port = PortRange::Any;
+        assert!(any_port.is_port_valid(1000));
+        // No ports
+        let no_ports = PortRange::NoPorts;
+        assert!(!no_ports.is_port_valid(1000));
+        // Port set
+        let port_set = PortRange::PortSet([80, 22, 100, 200, 300, 400, 500, 8888]);
+        for port in [80, 22, 100, 200, 300, 400, 500, 8888].iter() {
+            assert!(port_set.is_port_valid(*port));
+        }
+        assert!(!port_set.is_port_valid(1000));
+        // Port range pair
+        let port_range = PortRange::Range(1000, 2000);
+        assert!(port_range.is_port_valid(1000));
+        assert!(port_range.is_port_valid(1500));
+        assert!(port_range.is_port_valid(2000));
+        assert!(!port_range.is_port_valid(2001));
+        assert!(!port_range.is_port_valid(900));
+        // Single port
+        let single_port = PortRange::Port(8888);
+        assert!(single_port.is_port_valid(8888));
+        assert!(!single_port.is_port_valid(8000));
+    }
+
+    // TODO: check return codes from send_with_cap
+    // Valid network capability (valid addr, valid port)
+
+    fn capsule_send_net_cap_test(&self, net_cap1: &'static NetworkCapability,
+        net_cap2: &'static NetworkCapability) {
+        // from capsule send_test
+        self.mock_udp1.bind(14000);
+        self.mock_udp1.set_dst(15000);
+        self.mock_udp2.bind(14001);
+        self.mock_udp2.set_dst(15001);
+        // Send from 2 different capsules in quick succession - second send should execute once
+        // first completes!
+        // TODO: construct capabilities.
+        self.mock_udp1.send_with_cap(22, net_cap1);
+        self.mock_udp2.send_with_cap(23, net_cap2);
+        debug!("send_test executed, look at printed results once callbacks arrive");
+    }
+
+    unsafe fn capsule_send_valid_net_cap_test(&self) {
+        let net_cap1 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(14000),
+            PortRange::Port(15000), &CREATE_CAP));
+        let net_cap2 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
+            PortRange::Port(15001), &CREATE_CAP));
+        self.capsule_send_net_cap_test(net_cap1, net_cap2);
+    }
+
+    // Invalid network capability (valid addr, invalid port)
+    unsafe fn capsule_send_invalid_net_cap_port_test(&self) {
+        let net_cap1 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(14000),
+            PortRange::Port(15000), &CREATE_CAP));
+        // net_cap2 has an invalid dst port
+        let net_cap2 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
+            PortRange::Port(15002), &CREATE_CAP));
+        self.capsule_send_net_cap_test(net_cap1, net_cap2);
+    }
+
+    // Invalid network capability (invalid addr, valid port)
+    unsafe fn capsule_send_invalid_net_cap_addr_test(&self) {
+        let net_cap1 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::NoAddrs, PortRange::Port(14000),
+            PortRange::Port(15000), &CREATE_CAP));
+        let net_cap2 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
+            PortRange::Port(15001), &CREATE_CAP));
+        self.capsule_send_net_cap_test(net_cap1, net_cap2);
+    }
+
+    // Invalid network capability (invalid addr, invalid port)
+    unsafe fn capsule_send_invalid_net_cap_addr_port(&self) {
+        let net_cap1 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::NoAddrs, PortRange::Port(14000),
+            PortRange::Port(15000), &CREATE_CAP));
+        let net_cap2 = static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
+            PortRange::Port(15002), &CREATE_CAP));
+        self.capsule_send_net_cap_test(net_cap1, net_cap2);
     }
 }
 

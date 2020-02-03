@@ -1,11 +1,8 @@
-use core::cell::Cell;
 use kernel::capabilities::{UdpVisCap, IpVisCap, NetCapCreateCap};
 use crate::net::ipv6::ip_utils::IPAddr;
 
-const MAX_ADDR_SET_SIZE: usize = 16;
-const MAX_PORT_SET_SIZE: usize = 16;
-const MAX_NUM_CAPAB: usize = 16;
-const MAX_NUM_CAPSULES: usize = 32;
+const MAX_ADDR_SET_SIZE: usize = 8;
+const MAX_PORT_SET_SIZE: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AddrRange { // TODO: change u32 to IPAddr type (inclusion weirdness?)
@@ -13,7 +10,7 @@ pub enum AddrRange { // TODO: change u32 to IPAddr type (inclusion weirdness?)
     NoAddrs,
     AddrSet([IPAddr; MAX_ADDR_SET_SIZE]),
     Addr(IPAddr),
-    // TODO: add range for IP addrs.
+    Subnet(IPAddr, usize), // address, prefix length (max 128)
 }
 
 impl AddrRange {
@@ -24,6 +21,17 @@ impl AddrRange {
             AddrRange::AddrSet(allowed_addrs) =>
                 allowed_addrs.iter().any(|&a| a == addr),
             AddrRange::Addr(allowed_addr) => addr == *allowed_addr, //TODO: refs?
+            AddrRange::Subnet(allowed_addr, prefix_len) => {
+                let full_bytes: usize = prefix_len/8;
+                let remainder_bits: usize = prefix_len%8;
+                // initial bytes -- TODO: edge case
+                if &allowed_addr.0[0..full_bytes] != &addr.0[0..full_bytes] {
+                    false
+                } else {
+                    allowed_addr.0[full_bytes] >> (8 - remainder_bits) == 
+                    allowed_addr.0[full_bytes] >> (8 - remainder_bits)
+                }
+            }
         }
     }
 }
@@ -56,7 +64,7 @@ impl PortRange {
 // constructable in trusted code.
 
 // TODO: remove copy eventually!!!!
-#[derive(Clone, Copy, PartialEq)]
+//#[derive(Clone, Copy, PartialEq)]
 pub struct NetworkCapability {
     // can potentially add more
     remote_addrs: AddrRange,
@@ -67,7 +75,7 @@ pub struct NetworkCapability {
 
 impl NetworkCapability {
     pub fn new(remote_addrs: AddrRange, remote_ports: PortRange,
-        local_ports: PortRange, create_net_cap: & dyn NetCapCreateCap)
+        local_ports: PortRange, _create_net_cap: & dyn NetCapCreateCap)
         -> NetworkCapability {
             NetworkCapability {
                 remote_addrs: remote_addrs,
@@ -76,28 +84,28 @@ impl NetworkCapability {
             }
     }
 
-    pub fn get_range(&self, ip_cap: & dyn IpVisCap) -> AddrRange {
+    pub fn get_range(&self, _ip_cap: & dyn IpVisCap) -> AddrRange {
         self.remote_addrs
     }
 
-    pub fn remote_addr_valid(&self, remote_addr: IPAddr, ip_cap: & dyn IpVisCap)
+    pub fn remote_addr_valid(&self, remote_addr: IPAddr, _ip_cap: & dyn IpVisCap)
         -> bool {
         self.remote_addrs.is_addr_valid(remote_addr)
     }
 
-    pub fn get_remote_ports(&self, udp_cap: & dyn UdpVisCap) -> PortRange {
+    pub fn get_remote_ports(&self, _udp_cap: & dyn UdpVisCap) -> PortRange {
         self.remote_ports
     }
 
-    pub fn get_local_ports(&self, udp_cap: & dyn UdpVisCap) -> PortRange {
+    pub fn get_local_ports(&self, _udp_cap: & dyn UdpVisCap) -> PortRange {
         self.local_ports
     }
 
-    pub fn remote_port_valid(&self, remote_port: u16, udp_cap: & dyn UdpVisCap) -> bool {
+    pub fn remote_port_valid(&self, remote_port: u16, _udp_cap: & dyn UdpVisCap) -> bool {
         self.remote_ports.is_port_valid(remote_port)
     }
 
-    pub fn local_port_valid(&self, local_port: u16, udp_cap: & dyn UdpVisCap) -> bool {
+    pub fn local_port_valid(&self, local_port: u16, _udp_cap: & dyn UdpVisCap) -> bool {
         self.local_ports.is_port_valid(local_port)
     }
     

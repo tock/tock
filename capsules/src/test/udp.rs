@@ -136,7 +136,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     }
 
     // Sends a packet containing a single 2 byte number.
-    pub fn send(&self, value: u16) -> ReturnCode {
+    pub fn send_with_cap(&self, value: u16, net_cap: &'static NetworkCapability) -> ReturnCode {
         match self.udp_dgram.take() {
             Some(mut dgram) => {
                 dgram[0] = (value >> 8) as u8;
@@ -144,7 +144,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                 dgram.slice(0..2);
                 match self
                     .udp_sender
-                    .send_to(DST_ADDR, self.dst_port.get(), dgram, self.net_cap)
+                    .send_to(DST_ADDR, self.dst_port.get(), dgram, net_cap)
                 {
                     Ok(_) => ReturnCode::SUCCESS,
                     Err(mut buf) => {
@@ -160,6 +160,13 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
             }
         }
     }
+
+    pub fn send(&self, value: u16) -> ReturnCode {
+        self.send_with_cap(value, self.net_cap)
+    }
+
+
+
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
