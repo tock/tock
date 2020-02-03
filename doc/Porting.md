@@ -5,6 +5,27 @@ This guide covers how to port Tock to a new platform.
 
 _It is a work in progress. Comments and pull requests are appreciated!_
 
+<!-- npm i -g markdown-toc; markdown-toc -i Porting.md -->
+
+<!-- toc -->
+
+- [Overview](#overview)
+- [Crate Details](#crate-details)
+  * [`arch` Crate](#arch-crate)
+  * [`chip` Crate](#chip-crate)
+  * [`board` Crate](#board-crate)
+    + [Board Support](#board-support)
+      - [`panic!`s (aka `io.rs`)](#panics-aka-iors)
+      - [Board Cargo.toml, build.rs](#board-cargotoml-buildrs)
+      - [Board Makefile](#board-makefile)
+        * [Getting the built kernel onto a board](#getting-the-built-kernel-onto-a-board)
+      - [Board README](#board-readme)
+    + [Loading Apps](#loading-apps)
+    + [Common Pitfalls](#common-pitfalls)
+- [Adding a Platform to Tock Repository](#adding-a-platform-to-tock-repository)
+
+<!-- tocstop -->
+
 Overview
 --------
 

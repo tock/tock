@@ -1,6 +1,19 @@
 Bluetooth Low Energy Design Document
 ====================================
 
+<!-- npm i -g markdown-toc; markdown-toc -i BluetoothLEStack.md -->
+
+<!-- toc -->
+
+- [System call interface](#system-call-interface)
+  * [Device address](#device-address)
+  * [Advertising](#advertising)
+  * [Scanning](#scanning)
+  * [Connection-oriented communication](#connection-oriented-communication)
+- [Hardware Interface Layer (HIL)](#hardware-interface-layer-hil)
+
+<!-- tocstop -->
+
 ## System call interface
 
 The system call interface is modeled after the HCI interface defined in the

@@ -356,7 +356,7 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    let adc = AdcComponent::new().finalize(());
+    let adc = AdcComponent::new(board_kernel).finalize(());
     let gpio = GpioComponent::new(board_kernel).finalize(components::gpio_component_helper!(
         &sam4l::gpio::PC[31],
         &sam4l::gpio::PC[30],
@@ -374,7 +374,8 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PC[24],
-            capsules::button::GpioMode::LowWhenPressed
+            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
         )),
     );
     let crc = CrcComponent::new(board_kernel, &sam4l::crccu::CRCCU)

@@ -315,7 +315,8 @@ pub unsafe fn reset_handler() {
     let button = components::button::ButtonComponent::new(board_kernel).finalize(
         components::button_component_helper!((
             &sam4l::gpio::PA[16],
-            capsules::button::GpioMode::LowWhenPressed
+            capsules::button::GpioMode::LowWhenPressed,
+            kernel::hil::gpio::FloatingState::PullNone
         )),
     );
 
@@ -335,6 +336,7 @@ pub unsafe fn reset_handler() {
         capsules::adc::Adc<'static, sam4l::adc::Adc>,
         capsules::adc::Adc::new(
             &sam4l::adc::ADC0,
+            board_kernel.create_grant(&memory_allocation_capability),
             adc_channels,
             &mut capsules::adc::ADC_BUFFER1,
             &mut capsules::adc::ADC_BUFFER2,
@@ -376,8 +378,6 @@ pub unsafe fn reset_handler() {
     // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
     // let debug_process_restart = static_init!(
     //     capsules::debug_process_restart::DebugProcessRestart<
-    //         'static,
-    //         sam4l::gpio::GPIOPin,
     //         ProcessMgmtCap,
     //     >,
     //     capsules::debug_process_restart::DebugProcessRestart::new(

@@ -3,9 +3,9 @@
 use crate::common::cells::VolatileCell;
 
 /// USB controller interface
-pub trait UsbController {
+pub trait UsbController<'a> {
     // Should be called before `enable_as_device()`
-    fn endpoint_set_buffer(&self, endpoint: usize, buf: &[VolatileCell<u8>]);
+    fn endpoint_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]);
 
     // Must be called before `attach()`
     fn enable_as_device(&self, speed: DeviceSpeed);
@@ -18,13 +18,23 @@ pub trait UsbController {
 
     fn enable_address(&self);
 
-    fn endpoint_ctrl_out_enable(&self, endpoint: usize);
+    fn endpoint_in_enable(&self, transfer_type: TransferType, endpoint: usize);
 
-    fn endpoint_bulk_in_enable(&self, endpoint: usize);
+    fn endpoint_out_enable(&self, transfer_type: TransferType, endpoint: usize);
 
-    fn endpoint_bulk_out_enable(&self, endpoint: usize);
+    fn endpoint_in_out_enable(&self, transfer_type: TransferType, endpoint: usize);
 
-    fn endpoint_bulk_resume(&self, endpoint: usize);
+    fn endpoint_resume_in(&self, endpoint: usize);
+
+    fn endpoint_resume_out(&self, endpoint: usize);
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum TransferType {
+    Control = 0,
+    Isochronous,
+    Bulk,
+    Interrupt,
 }
 
 pub enum DeviceSpeed {
@@ -33,19 +43,26 @@ pub enum DeviceSpeed {
 }
 
 /// USB controller client interface
-pub trait Client {
-    fn enable(&self);
-    fn attach(&self);
-    fn bus_reset(&self);
+pub trait Client<'a> {
+    fn enable(&'a self);
+    fn attach(&'a self);
+    fn bus_reset(&'a self);
 
-    fn ctrl_setup(&self, endpoint: usize) -> CtrlSetupResult;
-    fn ctrl_in(&self, endpoint: usize) -> CtrlInResult;
-    fn ctrl_out(&self, endpoint: usize, packet_bytes: u32) -> CtrlOutResult;
-    fn ctrl_status(&self, endpoint: usize);
-    fn ctrl_status_complete(&self, endpoint: usize);
+    fn ctrl_setup(&'a self, endpoint: usize) -> CtrlSetupResult;
+    fn ctrl_in(&'a self, endpoint: usize) -> CtrlInResult;
+    fn ctrl_out(&'a self, endpoint: usize, packet_bytes: u32) -> CtrlOutResult;
+    fn ctrl_status(&'a self, endpoint: usize);
+    fn ctrl_status_complete(&'a self, endpoint: usize);
 
-    fn bulk_in(&self, endpoint: usize) -> BulkInResult;
-    fn bulk_out(&self, endpoint: usize, packet_bytes: u32) -> BulkOutResult;
+    fn packet_in(&'a self, transfer_type: TransferType, endpoint: usize) -> InResult;
+    fn packet_out(
+        &'a self,
+        transfer_type: TransferType,
+        endpoint: usize,
+        packet_bytes: u32,
+    ) -> OutResult;
+
+    fn packet_transmitted(&'a self, endpoint: usize);
 }
 
 #[derive(Debug)]
@@ -94,7 +111,9 @@ pub enum CtrlOutResult {
     Halted,
 }
 
-pub enum BulkInResult {
+/// Result for IN packets sent on bulk or interrupt endpoints.
+#[derive(Debug)]
+pub enum InResult {
     /// A packet of the given size was written into the endpoint buffer
     Packet(usize),
 
@@ -108,7 +127,9 @@ pub enum BulkInResult {
     Error,
 }
 
-pub enum BulkOutResult {
+/// Result for OUT packets sent on bulk or interrupt endpoints.
+#[derive(Debug)]
+pub enum OutResult {
     /// The OUT packet was consumed
     Ok,
 

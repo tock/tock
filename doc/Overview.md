@@ -18,6 +18,15 @@ This document gives an overview of Tock's architecture, the different
 classes of code in Tock, the protection mechanisms it uses, and how this
 structure is reflected in the software's directory structure.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Overview.md -->
+
+<!-- toc -->
+
+- [Tock Architecture](#tock-architecture)
+- [Tock Directory Structure](#tock-directory-structure)
+
+<!-- tocstop -->
+
 ## Tock Architecture
 
 ![Tock architecture](tock-stack.png)

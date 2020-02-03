@@ -3,6 +3,7 @@
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
 
+pub mod acomp;
 pub mod adc;
 pub mod ble_radio;
 pub mod chip;

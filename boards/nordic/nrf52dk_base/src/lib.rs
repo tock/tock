@@ -5,6 +5,7 @@
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
+use capsules::analog_comparator;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_spi::MuxSpiMaster;
 use kernel::capabilities;
@@ -79,12 +80,18 @@ pub struct Platform {
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
     button: &'static capsules::button::Button<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        components::process_console::Capability,
+    >,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static>,
     led: &'static capsules::led::LED<'static>,
     rng: &'static capsules::rng::RngDriver<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC,
+    analog_comparator:
+        &'static capsules::analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
@@ -112,6 +119,7 @@ impl kernel::Platform for Platform {
                 None => f(None),
             },
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(self.nonvolatile_storage.map_or(None, |nv| Some(nv)))
             }
@@ -127,21 +135,15 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     board_kernel: &'static kernel::Kernel,
     button_rst_pin: Pin,
     gpio_port: &'static nrf52::gpio::Port,
-    gpio_pins: &'static mut [&'static dyn kernel::hil::gpio::InterruptValuePin],
+    gpio: &'static capsules::gpio::GPIO<'static>,
     debug_pin1_index: Pin,
     debug_pin2_index: Pin,
     debug_pin3_index: Pin,
-    led_pins: &'static mut [(
-        &'static dyn kernel::hil::gpio::Pin,
-        capsules::led::ActivationMode,
-    )],
+    led: &'static capsules::led::LED<'static>,
     uart_pins: &UartPins,
     spi_pins: &SpiPins,
     mx25r6435f: &Option<SpiMX25R6435FPins>,
-    button_pins: &'static mut [(
-        &'static dyn kernel::hil::gpio::InterruptValuePin,
-        capsules::button::GpioMode,
-    )],
+    button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
@@ -227,45 +229,10 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         Some(&gpio_port[debug_pin3_index]),
     );
 
-    let gpio = static_init!(
-        capsules::gpio::GPIO<'static>,
-        capsules::gpio::GPIO::new(
-            gpio_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for pin in gpio_pins.iter() {
-        pin.set_client(gpio);
-    }
-
-    // LEDs
-    let led = static_init!(
-        capsules::led::LED<'static>,
-        capsules::led::LED::new(led_pins)
-    );
-
-    // Buttons
-    let button = static_init!(
-        capsules::button::Button<'static>,
-        capsules::button::Button::new(
-            button_pins,
-            board_kernel.create_grant(&memory_allocation_capability)
-        )
-    );
-
-    for (pin, _) in button_pins.iter() {
-        pin.set_client(button);
-    }
-
     let rtc = &nrf52::rtc::RTC;
     rtc.start();
-    let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC)
-    );
-    hil::time::Alarm::set_client(rtc, mux_alarm);
-
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
+        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(board_kernel, mux_alarm)
         .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
 
@@ -291,6 +258,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         Some(nrf52::pinmux::Pinmux::new(uart_pins.cts as u32)),
         Some(nrf52::pinmux::Pinmux::new(uart_pins.rts as u32)),
     );
+    let pconsole =
+        components::process_console::ProcessConsoleComponent::new(board_kernel, uart_mux)
+            .finalize(());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(board_kernel, uart_mux).finalize(());
@@ -410,6 +380,18 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         None
     };
 
+    // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
+    // These are hardcoded pin assignments specified in the driver
+    let ac_channels = static_init!(
+        [&'static nrf52::acomp::Channel; 1],
+        [&nrf52::acomp::CHANNEL_AC0,]
+    );
+    let analog_comparator = static_init!(
+        analog_comparator::AnalogComparator<'static, nrf52::acomp::Comparator>,
+        analog_comparator::AnalogComparator::new(&mut nrf52::acomp::ACOMP, ac_channels)
+    );
+    nrf52::acomp::ACOMP.set_client(analog_comparator);
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52::clock::CLOCK.low_stop();
@@ -434,16 +416,19 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         button: button,
         ble_radio: ble_radio,
         ieee802154_radio: ieee802154_radio,
+        pconsole: pconsole,
         console: console,
         led: led,
         gpio: gpio,
         rng: rng,
         temp: temp,
         alarm: alarm,
+        analog_comparator: analog_comparator,
         nonvolatile_storage: nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(board_kernel, &memory_allocation_capability),
     };
 
+    platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52::ficr::FICR_INSTANCE);
 

@@ -23,6 +23,7 @@ pub mod ipc;
 pub mod syscall;
 
 mod callback;
+mod config;
 mod driver;
 mod grant;
 mod mem;

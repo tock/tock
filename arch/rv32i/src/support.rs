@@ -1,5 +1,6 @@
 //! Core low-level operations.
 
+use crate::csr::{mstatus::mstatus, CSR};
 use core::ops::FnOnce;
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
@@ -18,12 +19,21 @@ pub unsafe fn wfi() {
     asm!("wfi" :::: "volatile");
 }
 
-/// TODO: implement
 pub unsafe fn atomic<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    f()
+    let original_mstatus = CSR.mstatus.extract();
+    if original_mstatus.is_set(mstatus::mie) {
+        CSR.mstatus
+            .modify_no_read(original_mstatus, mstatus::mie::CLEAR);
+    }
+    let res = f();
+    if original_mstatus.is_set(mstatus::mie) {
+        CSR.mstatus
+            .modify_no_read(original_mstatus, mstatus::mie::SET);
+    }
+    res
 }
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]

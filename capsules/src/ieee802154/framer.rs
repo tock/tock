@@ -228,7 +228,7 @@ pub const CRYPT_BUF_SIZE: usize = radio::MAX_MTU + 3 * 16;
 pub trait KeyProcedure {
     /// Lookup the KeyDescriptor matching the provided security level and key ID
     /// mode and return the key associatied with it.
-    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])>;
+    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]>;
 }
 
 /// IEEE 802.15.4-2015, 9.2.5, DeviceDescriptor lookup procedure.
@@ -241,7 +241,7 @@ pub trait DeviceProcedure {
     /// long address. As defined in the IEEE 802.15.4 spec, even if the provided
     /// address is already long, a long address should be returned only if the
     /// given address matches a known DeviceDescriptor.
-    fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])>;
+    fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]>;
 }
 
 /// This state enum describes the state of the transmission pipeline.
@@ -341,14 +341,14 @@ impl<M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
 
     /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
     /// implemented elsewhere.
-    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
+    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
         self.key_procedure
             .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
     }
 
     /// Look up the extended address of a device using the IEEE 802.15.4
     /// DeviceDescriptor lookup prodecure implemented elsewhere.
-    fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<([u8; 8])> {
+    fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<[u8; 8]> {
         src_addr.and_then(|addr| {
             self.device_procedure
                 .and_then(|device_procedure| device_procedure.lookup_addr_long(addr))
