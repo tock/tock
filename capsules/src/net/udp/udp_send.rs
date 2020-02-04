@@ -34,17 +34,16 @@ use kernel::capabilities::UdpVisCap;
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
     ip_sender: &'a dyn IP6Sender<'a>,
-    net_cap: &'static NetworkCapability,
+    net_cap: OptionalCell::<&'static NetworkCapability>,
 }
 
 impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
-    pub fn new(ip6_sender: &'a dyn IP6Sender<'a>,
-        net_cap: &'static NetworkCapability) -> MuxUdpSender<'a, T> {
+    pub fn new(ip6_sender: &'a dyn IP6Sender<'a>) -> MuxUdpSender<'a, T> {
         // similar to UdpSendStruct new()
         MuxUdpSender {
             sender_list: List::new(),
             ip_sender: ip6_sender,
-            net_cap: net_cap
+            net_cap: OptionalCell::empty(),
         }
     }
 
@@ -64,6 +63,7 @@ impl<T: IP6Sender<'a>> MuxUdpSender<'a, T> {
                 Some(buf) => {
                     let ret = self.ip_sender.send_to(dest, transport_header,
                         &buf, net_cap);
+                    self.net_cap.replace(net_cap);
                     caller.tx_buffer.replace(buf); //Replace buffer as soon as sent.
                     ret
                 }
@@ -109,15 +109,20 @@ impl<T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
                 match next_sender.tx_buffer.take() {
                     Some(buf) => match next_sender.next_th.take() {
                         Some(th) => {
-                            let ret = self
-                                .ip_sender
-                                .send_to(next_sender.next_dest.get(), th, &buf,
-                                    self.net_cap);
-                            next_sender.tx_buffer.replace(buf);
-                            if ret != ReturnCode::SUCCESS {
-                                debug!("IP send_to failed: {:?}", ret);
+                            match self.net_cap.take() {
+                                Some(net_cap) => {
+                                    let ret = self.ip_sender
+                                        .send_to(next_sender.next_dest.get(), th, &buf,
+                                            net_cap);
+                                    next_sender.tx_buffer.replace(buf);
+                                    if ret != ReturnCode::SUCCESS {
+                                        debug!("IP send_to failed: {:?}", ret);
+                                    }
+                                    ret
+                                },
+                                None => ReturnCode::FAIL
                             }
-                            ret
+
                         }
 
                         None => {

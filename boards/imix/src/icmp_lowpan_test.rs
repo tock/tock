@@ -136,7 +136,7 @@ pub unsafe fn initialize_all(
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         >,
-        ICMP6SendStruct::new(ip6_sender, net_cap)
+        ICMP6SendStruct::new(ip6_sender)
     );
 
     let icmp_lowpan_test = static_init!(

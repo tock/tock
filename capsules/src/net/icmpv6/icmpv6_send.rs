@@ -55,16 +55,13 @@ pub trait ICMP6Sender<'a> {
 pub struct ICMP6SendStruct<'a, T: IP6Sender<'a>> {
     ip_send_struct: &'a T,
     client: OptionalCell<&'a dyn ICMP6SendClient>,
-    net_cap: &'static NetworkCapability,
 }
 
 impl<T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
-    pub fn new(ip_send_struct: &'a T,
-        net_cap: &'static NetworkCapability) -> ICMP6SendStruct<'a, T> {
+    pub fn new(ip_send_struct: &'a T) -> ICMP6SendStruct<'a, T> {
         ICMP6SendStruct {
             ip_send_struct: ip_send_struct,
             client: OptionalCell::empty(),
-            net_cap: net_cap,
         }
     }
 }

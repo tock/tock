@@ -91,7 +91,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                     self.udp_sender.get_binding().expect("missing1"),
                     self.udp_receiver.get_binding().expect("missing2"),
                 ) {
-                    Ok(sock) => match self.port_table.bind(sock, self.src_port.get()) {
+                    Ok(sock) => match self.port_table.bind(sock, self.src_port.get(), self.net_cap) {
                         Ok((send_bind, rcv_bind)) => {
                             self.udp_sender.set_binding(send_bind);
                             self.udp_receiver.set_binding(rcv_bind);
@@ -111,7 +111,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                 let socket = self.port_table.create_socket();
                 match socket {
                     Ok(sock) => {
-                        match self.port_table.bind(sock, self.src_port.get()) {
+                        match self.port_table.bind(sock, self.src_port.get(), self.net_cap) {
                             Ok((send_bind, rcv_bind)) => {
                                 self.udp_sender.set_binding(send_bind);
                                 self.udp_receiver.set_binding(rcv_bind);

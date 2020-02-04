@@ -440,8 +440,8 @@ pub unsafe fn reset_handler() {
         //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
-        net_cap,
         &IP_VIS,
+        &UDP_VIS,
     )
     .finalize(());
 

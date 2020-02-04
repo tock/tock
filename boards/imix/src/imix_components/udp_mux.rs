@@ -38,8 +38,6 @@ use capsules::net::udp::udp::UDPHeader;
 use capsules::net::udp::udp_port_table::{SocketBindingEntry, UdpPortManager, MAX_NUM_BOUND_PORTS};
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_send::MuxUdpSender;
-use capsules::net::network_capabilities::{NetworkCapability};
-
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
 use kernel::capabilities;
@@ -48,7 +46,7 @@ use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
-use kernel::capabilities::IpVisCap;
+use kernel::capabilities::{IpVisCap, UdpVisCap};
 
 use sam4l;
 
@@ -88,8 +86,8 @@ pub struct UDPMuxComponent {
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    net_cap: &'static NetworkCapability,
     ip_vis: &'static dyn IpVisCap,
+    udp_vis: &'static dyn UdpVisCap,
 }
 
 impl UDPMuxComponent {
@@ -101,8 +99,8 @@ impl UDPMuxComponent {
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-        net_cap: &'static NetworkCapability,
         ip_vis: &'static dyn IpVisCap,
+        udp_vis: &'static dyn UdpVisCap,
     ) -> UDPMuxComponent {
         UDPMuxComponent {
             mux_mac: mux_mac,
@@ -112,8 +110,8 @@ impl UDPMuxComponent {
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
             alarm_mux: alarm,
-            net_cap: net_cap,
             ip_vis: ip_vis,
+            udp_vis: udp_vis,
         }
     }
 }
@@ -221,14 +219,14 @@ impl Component for UDPMuxComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            MuxUdpSender::new(ip_send, self.net_cap)
+            MuxUdpSender::new(ip_send)
         );
         ip_send.set_client(udp_send_mux);
 
         let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
         let udp_port_table = static_init!(
             UdpPortManager,
-            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS)
+            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS, self.udp_vis)
         );
 
         (udp_send_mux, udp_recv_mux, udp_port_table)

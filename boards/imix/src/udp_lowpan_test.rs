@@ -324,14 +324,17 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     // This test ensures that an app and capsule cant bind to the same port
     // but can bind to different ports
     fn bind_test(&self) {
+        let net_cap = unsafe {static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Any,
+            PortRange::Any, &CREATE_CAP))};
         let mut socket1 = self.port_table.create_socket().unwrap();
         // Attempt to bind to a port that has already been bound by an app.
-        let result = self.port_table.bind(socket1, 1000);
+        let result = self.port_table.bind(socket1, 1000, net_cap);
         assert!(result.is_err());
         socket1 = result.unwrap_err(); // Get the socket back
 
         //now bind to an open port
-        let (_send_bind, _recv_bind) = self.port_table.bind(socket1, 1001).expect("UDP Bind fail");
+        let (_send_bind, _recv_bind) = self.port_table.bind(socket1, 1001, net_cap).expect("UDP Bind fail");
         //dont unbind, so we can test if app will still be able to bind it
 
         debug!("bind_test passed");
@@ -342,17 +345,20 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     // This test ensures that two capsules could not bind to the same port,
     // that single bindings work correctly,
     fn port_table_test(&self) {
+        let net_cap = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Any,
+            PortRange::Any, &CREATE_CAP))};
         // Initialize bindings.
         let socket1 = self.port_table.create_socket().unwrap();
         let mut socket2 = self.port_table.create_socket().unwrap();
         let socket3 = self.port_table.create_socket().unwrap();
         //debug!("Finished creating sockets");
         // Attempt to bind to a port that has already been bound.
-        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000).expect("UDP Bind fail1");
-        let result = self.port_table.bind(socket2, 4000);
+        let (send_bind, recv_bind) = self.port_table.bind(socket1, 4000, net_cap).expect("UDP Bind fail1");
+        let result = self.port_table.bind(socket2, 4000, net_cap);
         assert!(result.is_err());
         socket2 = result.unwrap_err(); // This is how you get the socket back
-        let (send_bind2, recv_bind2) = self.port_table.bind(socket2, 4001).expect("UDP Bind fail2");
+        let (send_bind2, recv_bind2) = self.port_table.bind(socket2, 4001, net_cap).expect("UDP Bind fail2");
 
         // Ensure that only the first binding is able to send
         assert_eq!(send_bind.get_port(), 4000);
@@ -360,7 +366,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         assert!(self.port_table.unbind(send_bind, recv_bind).is_ok());
 
         // Show that you can bind to a port once another socket has unbound it
-        let (send_bind3, recv_bind3) = self.port_table.bind(socket3, 4000).expect("UDP Bind fail3");
+        let (send_bind3, recv_bind3) = self.port_table.bind(socket3, 4000, net_cap).expect("UDP Bind fail3");
 
         //clean up remaining bindings
         assert!(self.port_table.unbind(send_bind3, recv_bind3).is_ok());
