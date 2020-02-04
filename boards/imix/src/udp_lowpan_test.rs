@@ -285,7 +285,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn num_tests(&self) -> usize {
-        4
+        10
     }
 
     fn run_test(&self, test_id: usize) {
@@ -301,6 +301,12 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     1 => self.port_table_test(),
                     2 => self.port_table_test(),//self.port_table_test2(),
                     3 => self.capsule_send_test(),
+                    4 => self.addr_range_valid_test(),
+                    5 => self.port_range_valid_test(),
+                    6 => self.capsule_send_valid_net_cap_test(),
+                    7 => self.capsule_send_invalid_net_cap_port_test(),
+                    8 => self.capsule_send_invalid_net_cap_addr_test(),
+                    9 => self.capsule_send_invalid_net_cap_addr_port_test(),
                     _ => return,
                 }
             }
@@ -483,8 +489,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         assert!(subnet.is_addr_valid(ip_addr1));
         assert!(!subnet.is_addr_valid(ip_addr2));
         assert!(subnet.is_addr_valid(ip_addr3));
-
-
+        debug!("AddrRange tests passed");
     }
 
     // Test enforcement for ports
@@ -512,6 +517,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         let single_port = PortRange::Port(8888);
         assert!(single_port.is_port_valid(8888));
         assert!(!single_port.is_port_valid(8000));
+        debug!("PortRange tests passed");
     }
 
     // TODO: check return codes from send_with_cap
@@ -532,48 +538,56 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         debug!("send_test executed, look at printed results once callbacks arrive");
     }
 
-    unsafe fn capsule_send_valid_net_cap_test(&self) {
-        let net_cap1 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Port(14000),
-            PortRange::Port(15000), &CREATE_CAP));
-        let net_cap2 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
-            PortRange::Port(15001), &CREATE_CAP));
+    fn capsule_send_valid_net_cap_test(&self) {
+        let net_cap1 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(15000),
+            PortRange::Any, &CREATE_CAP))};
+        let net_cap2 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(15001),
+            PortRange::Any, &CREATE_CAP))};
         self.capsule_send_net_cap_test(net_cap1, net_cap2);
+        debug!("send_valid_net_cap test executed, look at printed results once callbacks arrive");
+
     }
 
     // Invalid network capability (valid addr, invalid port)
-    unsafe fn capsule_send_invalid_net_cap_port_test(&self) {
-        let net_cap1 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Port(14000),
-            PortRange::Port(15000), &CREATE_CAP));
+    fn capsule_send_invalid_net_cap_port_test(&self) {
+        let net_cap1 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(15001),
+            PortRange::Any, &CREATE_CAP))};
         // net_cap2 has an invalid dst port
-        let net_cap2 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
-            PortRange::Port(15002), &CREATE_CAP));
+        let net_cap2 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(15002),
+            PortRange::Any, &CREATE_CAP))};
         self.capsule_send_net_cap_test(net_cap1, net_cap2);
+                debug!("send_invalid_net_cap_port test executed, look at printed results once callbacks arrive");
+
     }
 
     // Invalid network capability (invalid addr, valid port)
-    unsafe fn capsule_send_invalid_net_cap_addr_test(&self) {
-        let net_cap1 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::NoAddrs, PortRange::Port(14000),
-            PortRange::Port(15000), &CREATE_CAP));
-        let net_cap2 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
-            PortRange::Port(15001), &CREATE_CAP));
+    fn capsule_send_invalid_net_cap_addr_test(&self) {
+        let net_cap1 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::NoAddrs, PortRange::Port(15000),
+            PortRange::Any, &CREATE_CAP))};
+        let net_cap2 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(15001),
+            PortRange::Any, &CREATE_CAP))};
         self.capsule_send_net_cap_test(net_cap1, net_cap2);
+                debug!("send_invalid_net_cap_addr executed, look at printed results once callbacks arrive");
+
     }
 
     // Invalid network capability (invalid addr, invalid port)
-    unsafe fn capsule_send_invalid_net_cap_addr_port(&self) {
-        let net_cap1 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::NoAddrs, PortRange::Port(14000),
-            PortRange::Port(15000), &CREATE_CAP));
-        let net_cap2 = static_init!(NetworkCapability,
-            NetworkCapability::new(AddrRange::Any, PortRange::Port(14001),
-            PortRange::Port(15002), &CREATE_CAP));
+    fn capsule_send_invalid_net_cap_addr_port_test(&self) {
+        let net_cap1 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::NoAddrs, PortRange::Port(15000),
+            PortRange::Any, &CREATE_CAP))};
+        let net_cap2 = unsafe{static_init!(NetworkCapability,
+            NetworkCapability::new(AddrRange::Any, PortRange::Port(15002),
+            PortRange::Any, &CREATE_CAP))};
         self.capsule_send_net_cap_test(net_cap1, net_cap2);
+                debug!("send_invalid_net_cap_addr_port test executed, look at printed results once callbacks arrive");
+
     }
 }
 
