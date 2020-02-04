@@ -43,6 +43,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct OpenTitan {
+    led: &'static capsules::led::LED<'static>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -57,6 +58,7 @@ impl Platform for OpenTitan {
         F: FnOnce(Option<&dyn kernel::Driver>) -> R,
     {
         match driver_num {
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
@@ -116,15 +118,42 @@ pub unsafe fn reset_handler() {
     )
     .finalize(());
 
-    // Initialise the three GPIOs which are useful for debugging.
-    hil::gpio::Pin::make_output(&ibex::gpio::PORT[8]);
-    hil::gpio::Pin::set(&ibex::gpio::PORT[8]);
-
-    hil::gpio::Pin::make_output(&ibex::gpio::PORT[9]);
-    hil::gpio::Pin::set(&ibex::gpio::PORT[9]);
-
-    hil::gpio::Pin::make_output(&ibex::gpio::PORT[10]);
-    hil::gpio::Pin::set(&ibex::gpio::PORT[10]);
+    // LEDs
+    // Start with half on and half off
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        (
+            &ibex::gpio::PORT[7],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[8],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[9],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[10],
+            capsules::led::ActivationMode::ActiveLow
+        ),
+        (
+            &ibex::gpio::PORT[11],
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[12],
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[13],
+            capsules::led::ActivationMode::ActiveHigh
+        ),
+        (
+            &ibex::gpio::PORT[14],
+            capsules::led::ActivationMode::ActiveHigh
+        )
+    ));
 
     let alarm = &ibex::timer::TIMER;
     alarm.setup();
@@ -166,6 +195,7 @@ pub unsafe fn reset_handler() {
     }
 
     let opentitan = OpenTitan {
+        led: led,
         console: console,
         alarm: alarm,
     };
@@ -179,9 +209,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_mgmt_cap,
     );
-
-    // Turn off the fourth GPIO so we know we got here
-    hil::gpio::Pin::clear(&ibex::gpio::PORT[10]);
 
     board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
 }
