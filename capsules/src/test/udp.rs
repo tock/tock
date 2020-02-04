@@ -6,10 +6,10 @@
 //! Example use of this capsule can be found in `udp_lowpan_test.rs` in the Imix board directory.
 
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::network_capabilities::NetworkCapability;
 use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
-use crate::net::network_capabilities::{NetworkCapability};
 use core::cell::Cell;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
@@ -91,7 +91,10 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                     self.udp_sender.get_binding().expect("missing1"),
                     self.udp_receiver.get_binding().expect("missing2"),
                 ) {
-                    Ok(sock) => match self.port_table.bind(sock, self.src_port.get(), self.net_cap) {
+                    Ok(sock) => match self
+                        .port_table
+                        .bind(sock, self.src_port.get(), self.net_cap)
+                    {
                         Ok((send_bind, rcv_bind)) => {
                             self.udp_sender.set_binding(send_bind);
                             self.udp_receiver.set_binding(rcv_bind);
@@ -111,7 +114,10 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                 let socket = self.port_table.create_socket();
                 match socket {
                     Ok(sock) => {
-                        match self.port_table.bind(sock, self.src_port.get(), self.net_cap) {
+                        match self
+                            .port_table
+                            .bind(sock, self.src_port.get(), self.net_cap)
+                        {
                             Ok((send_bind, rcv_bind)) => {
                                 self.udp_sender.set_binding(send_bind);
                                 self.udp_receiver.set_binding(rcv_bind);
@@ -164,9 +170,6 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
     pub fn send(&self, value: u16) -> ReturnCode {
         self.send_with_cap(value, self.net_cap)
     }
-
-
-
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {

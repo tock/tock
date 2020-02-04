@@ -8,19 +8,17 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules::net::network_capabilities::NetworkCapability;
 use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::net::network_capabilities::{NetworkCapability};
-
 
 use capsules::net::udp::udp_port_table::UdpPortManager;
+use kernel::capabilities::UdpVisCap;
 use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
-use kernel::capabilities::UdpVisCap;
-
 
 pub struct MockUDPComponent2 {
     // TODO: consider putting bound_port_table in a TakeCell

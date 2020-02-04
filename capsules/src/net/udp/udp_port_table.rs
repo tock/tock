@@ -32,13 +32,12 @@
 //! userspace UDP driver to check which ports are bound, and vice-versa, such that
 //! exclusive access to ports between userspace apps and capsules is still enforced.
 
+use crate::net::network_capabilities::NetworkCapability;
 use core::fmt;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability, UdpVisCap};
-use crate::net::network_capabilities::{NetworkCapability};
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::ReturnCode;
-use kernel::debug; // TODO: remove
-
+use kernel::debug;
+use kernel::ReturnCode; // TODO: remove
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the

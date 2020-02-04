@@ -26,19 +26,19 @@
 use capsules;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules::net::network_capabilities::NetworkCapability;
 use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::MuxUdpReceiver;
 use capsules::net::udp::udp_recv::UDPReceiver;
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::net::network_capabilities::{NetworkCapability};
 
 use kernel::{create_capability, static_init};
 
 use kernel;
 use kernel::capabilities;
-use kernel::component::Component;
 use kernel::capabilities::UdpVisCap;
+use kernel::component::Component;
 use sam4l;
 
 const UDP_HDR_SIZE: usize = 8;

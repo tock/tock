@@ -8,7 +8,7 @@ pub mod stream;
 pub mod icmpv6;
 pub mod ieee802154;
 pub mod ipv6;
+pub mod network_capabilities;
 pub mod tcp;
 pub mod thread;
 pub mod udp;
-pub mod network_capabilities;

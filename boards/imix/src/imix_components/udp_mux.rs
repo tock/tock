@@ -41,12 +41,12 @@ use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
 use kernel::capabilities;
+use kernel::capabilities::{IpVisCap, UdpVisCap};
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
-use kernel::capabilities::{IpVisCap, UdpVisCap};
 
 use sam4l;
 

@@ -9,6 +9,7 @@
 /// Syscall number
 use crate::driver;
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::network_capabilities::NetworkCapability;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
@@ -22,7 +23,6 @@ use kernel::capabilities::UdpDriverCapability;
 use kernel::common::cells::MapCell;
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-use crate::net::network_capabilities::{NetworkCapability};
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -107,7 +107,7 @@ impl<'a> UDPDriver<'a> {
         port_table: &'static UdpPortManager,
         kernel_buffer: LeasableBuffer<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
-        net_cap: &'static NetworkCapability
+        net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
             sender: sender,

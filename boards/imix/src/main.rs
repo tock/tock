@@ -12,12 +12,13 @@ mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
+use capsules::net::network_capabilities::{NetworkCapability, AddrRange, PortRange};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
-use kernel::capabilities::{UdpVisCap, IpVisCap, NetCapCreateCap};
+use kernel::capabilities::{IpVisCap, NetCapCreateCap, UdpVisCap};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -26,7 +27,6 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
-use capsules::net::network_capabilities::*;
 
 use components::alarm::AlarmDriverComponent;
 use components::console::ConsoleComponent;
@@ -173,7 +173,6 @@ unsafe impl IpVisCap for IpVisCapStruct {}
 static mut CREATE_CAP: NetCapCreateCapStruct = NetCapCreateCapStruct;
 static mut UDP_VIS: UdpVisCapStruct = UdpVisCapStruct;
 static mut IP_VIS: IpVisCapStruct = IpVisCapStruct;
-
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -426,10 +425,10 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-
-    let net_cap = static_init!(NetworkCapability,
-        NetworkCapability::new(AddrRange::Any, PortRange::Any,
-        PortRange::Any, &CREATE_CAP));
+    let net_cap = static_init!(
+        NetworkCapability,
+        NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &CREATE_CAP)
+    );
 
     let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
@@ -458,8 +457,14 @@ pub unsafe fn reset_handler() {
     .finalize(());
 
     // Only include to run kernel tests, do not include during normal operation
-    let udp_lowpan_test = udp_lowpan_test::initialize_all(udp_send_mux, udp_recv_mux,
-        udp_port_table, mux_alarm, net_cap, &UDP_VIS);
+    let udp_lowpan_test = udp_lowpan_test::initialize_all(
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        mux_alarm,
+        net_cap,
+        &UDP_VIS,
+    );
 
     let imix = Imix {
         pconsole,

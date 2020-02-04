@@ -27,20 +27,19 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
+use capsules::net::network_capabilities::NetworkCapability;
 use capsules::net::sixlowpan::sixlowpan_compression;
 use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
-use capsules::net::network_capabilities::{NetworkCapability};
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use kernel::capabilities::IpVisCap;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::Frequency;
 use kernel::hil::time::{self, Alarm};
 use kernel::static_init;
 use kernel::ReturnCode;
-use kernel::capabilities::IpVisCap;
-
 
 pub const SRC_ADDR: IPAddr = IPAddr([
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -176,8 +175,11 @@ impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
 }
 
 impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
-    pub fn new(alarm: A, icmp_sender: &'a dyn ICMP6Sender<'a>,
-        net_cap: &'static NetworkCapability) -> LowpanICMPTest<'a, A> {
+    pub fn new(
+        alarm: A,
+        icmp_sender: &'a dyn ICMP6Sender<'a>,
+        net_cap: &'static NetworkCapability,
+    ) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
             alarm: alarm,
             test_counter: Cell::new(0),
@@ -230,8 +232,10 @@ impl<A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
 
     fn send_next(&self) {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
-        unsafe { self.icmp_sender.send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD,
-            self.net_cap) };
+        unsafe {
+            self.icmp_sender
+                .send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD, self.net_cap)
+        };
     }
 }
 

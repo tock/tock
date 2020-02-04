@@ -20,16 +20,15 @@ use crate::ieee802154::device::{MacDevice, TxClient};
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
-use crate::net::sixlowpan::sixlowpan_state::TxState;
 use crate::net::network_capabilities::NetworkCapability;
+use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
+use kernel::capabilities::IpVisCap;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
 use kernel::hil::time::{self, Frequency};
 use kernel::ReturnCode;
-use kernel::capabilities::IpVisCap;
-
 
 /// This trait must be implemented by upper layers in order to receive
 /// the `send_done` callback when a transmission has completed. The upper
