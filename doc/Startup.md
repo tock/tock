@@ -91,7 +91,7 @@ All RISC-V boards are linked to run the `_start` function as the first
 function that gets run before jumping to `reset_handler`. This is currently
 inline assembly as of this writing:
 
-```c
+```rust
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[link_section = ".riscv.start"]
 #[export_name = "_start"]
