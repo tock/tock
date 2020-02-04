@@ -182,18 +182,26 @@ impl<F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
 impl<F: hil::flash::Flash> hil::flash::Flash for FlashUser<'a, F> {
     type Page = F::Page;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> (ReturnCode, Option<&'static mut Self::Page>) {
         self.buffer.replace(buf);
         self.operation.set(Op::Read(page_number));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        (ReturnCode::SUCCESS, Option::None)
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> (ReturnCode, Option<&'static mut Self::Page>) {
         self.buffer.replace(buf);
         self.operation.set(Op::Write(page_number));
         self.mux.do_next_op();
-        ReturnCode::SUCCESS
+        (ReturnCode::SUCCESS, Option::None)
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {

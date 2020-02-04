@@ -80,6 +80,12 @@ mod power;
 #[allow(dead_code)]
 mod virtual_uart_rx_test;
 
+#[allow(dead_code)]
+mod storage_test;
+
+#[allow(dead_code)]
+mod linear_storage_test;
+
 // State for loading apps.
 
 const NUM_PROCS: usize = 4;
@@ -495,6 +501,8 @@ pub unsafe fn reset_handler() {
     // aes_ccm_test::run();
     // aes_test::run_aes128_ctr();
     // aes_test::run_aes128_cbc();
+    storage_test::run_log_storage(mux_alarm, dynamic_deferred_caller);
+    // linear_storage_test::run_log_storage_linear(mux_alarm, dynamic_deferred_caller);
 
     debug!("Initialization complete. Entering main loop");
 
