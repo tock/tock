@@ -4,6 +4,7 @@ use core::fmt;
 
 use crate::csr;
 use kernel;
+use kernel::common::math;
 use kernel::common::registers::register_bitfields;
 use kernel::mpu;
 
@@ -328,13 +329,47 @@ impl kernel::mpu::MPU for PMPConfig {
 
     fn allocate_region(
         &self,
-        _unallocated_memory_start: *const u8,
-        _unallocated_memory_size: usize,
-        _min_region_size: usize,
-        _permissions: mpu::Permissions,
-        _config: &mut Self::MpuConfig,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_region_size: usize,
+        permissions: mpu::Permissions,
+        config: &mut Self::MpuConfig,
     ) -> Option<mpu::Region> {
-        None
+        for region in config.regions.iter() {
+            if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
+                return None;
+            }
+        }
+
+        let region_num = config.unused_region_number()?;
+
+        // Logical region
+        let mut start = unallocated_memory_start as usize;
+        let mut size = min_region_size;
+
+        // Region start always has to align to 4 bytes
+        if start % 4 != 0 {
+            start += 4 - (start % 4);
+        }
+
+        // RISC-V PMP is not inclusive of the final address, while Tock is, increase the size by 1
+        size += 1;
+
+        // Region size always has to align to 4 bytes
+        if size % 4 != 0 {
+            size += 4 - (size % 4);
+        }
+
+        // Regions must be at least 8 bytes
+        if size < 8 {
+            size = 8;
+        }
+
+        let region = PMPRegion::new(start as *const u8, size, permissions);
+
+        config.regions[region_num] = region;
+
+        Some(mpu::Region::new(start as *const u8, size))
     }
 
     fn allocate_app_memory_region(
