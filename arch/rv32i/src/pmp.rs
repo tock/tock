@@ -1,5 +1,6 @@
 //! Implementation of the physical memory protection unit (PMP).
 
+use core::cmp;
 use core::fmt;
 
 use crate::csr;
@@ -374,15 +375,53 @@ impl kernel::mpu::MPU for PMPConfig {
 
     fn allocate_app_memory_region(
         &self,
-        _unallocated_memory_start: *const u8,
-        _unallocated_memory_size: usize,
-        _min_memory_size: usize,
-        _initial_app_memory_size: usize,
-        _initial_kernel_memory_size: usize,
-        _permissions: mpu::Permissions,
-        _config: &mut Self::MpuConfig,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_memory_size: usize,
+        initial_app_memory_size: usize,
+        initial_kernel_memory_size: usize,
+        permissions: mpu::Permissions,
+        config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        None
+        // Check that no previously allocated regions overlap the unallocated memory.
+        for region in config.regions.iter() {
+            if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
+                return None;
+            }
+        }
+
+        // Make sure there is enough memory for app memory and kernel memory.
+        let memory_size = cmp::max(
+            min_memory_size,
+            initial_app_memory_size + initial_kernel_memory_size,
+        );
+
+        let mut region_size =
+            math::PowerOfTwo::ceiling(memory_size as u32).as_num::<u32>() as usize;
+
+        // RISC-V PMP is not inclusive of the final address, while Tock is, increase the memory_size by 1
+        region_size += 1;
+
+        // Region size always has to align to 4 bytes
+        if region_size % 4 != 0 {
+            region_size += 4 - (region_size % 4);
+        }
+
+        // The region should start as close as possible to the start of the unallocated memory.
+        let region_start = unallocated_memory_start as usize;
+
+        // Make sure the region fits in the unallocated memory.
+        if region_start + region_size
+            > (unallocated_memory_start as usize) + unallocated_memory_size
+        {
+            return None;
+        }
+
+        let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
+
+        config.regions[APP_MEMORY_REGION_NUM] = region;
+
+        Some((region_start as *const u8, region_size))
     }
 
     fn update_app_memory_region(
