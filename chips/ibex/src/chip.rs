@@ -17,12 +17,14 @@ pub const CHIP_FREQ: u32 = 50_000_000;
 
 pub struct Ibex {
     userspace_kernel_boundary: SysCall,
+    pmp: rv32i::pmp::PMPConfig,
 }
 
 impl Ibex {
     pub unsafe fn new() -> Ibex {
         Ibex {
             userspace_kernel_boundary: SysCall::new(),
+            pmp: rv32i::pmp::PMPConfig::new(4),
         }
     }
 
@@ -34,12 +36,12 @@ impl Ibex {
 }
 
 impl kernel::Chip for Ibex {
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
