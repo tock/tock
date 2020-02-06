@@ -11,33 +11,41 @@ use crate::mem::{AppSlice, Shared};
 use crate::process;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
+use core::mem::MaybeUninit;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
 
-struct IPCData {
-    shared_memory: [Option<AppSlice<Shared, u8>>; 8],
-    client_callbacks: [Option<Callback>; 8],
+struct IPCData<const NUM_PROCS: usize> {
+    shared_memory: [Option<AppSlice<Shared, u8>>; NUM_PROCS],
+    client_callbacks: [Option<Callback>; NUM_PROCS],
     callback: Option<Callback>,
 }
 
-impl Default for IPCData {
-    fn default() -> IPCData {
-        IPCData {
-            shared_memory: [None, None, None, None, None, None, None, None],
-            client_callbacks: [None, None, None, None, None, None, None, None],
+impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
+    fn default() -> IPCData<NUM_PROCS> {
+        let mut ipc_data = IPCData {
+            shared_memory: unsafe { MaybeUninit::zeroed().assume_init() },
+            client_callbacks: unsafe { MaybeUninit::zeroed().assume_init() },
             callback: None,
+        };
+        for opt in ipc_data.shared_memory.iter_mut() {
+            *opt = None;
         }
+        for opt in ipc_data.client_callbacks.iter_mut() {
+            *opt = None;
+        }
+        ipc_data
     }
 }
 
-pub struct IPC {
-    data: Grant<IPCData>,
+pub struct IPC<const NUM_PROCS: usize> {
+    data: Grant<IPCData<NUM_PROCS>>,
 }
 
-impl IPC {
-    pub fn new(kernel: &'static Kernel, capability: &dyn MemoryAllocationCapability) -> IPC {
-        IPC {
+impl<const NUM_PROCS: usize> IPC<NUM_PROCS> {
+    pub fn new(kernel: &'static Kernel, capability: &dyn MemoryAllocationCapability) -> Self {
+        Self {
             data: kernel.create_grant(capability),
         }
     }
@@ -83,7 +91,7 @@ impl IPC {
     }
 }
 
-impl Driver for IPC {
+impl<const NUM_PROCS: usize> Driver for IPC<NUM_PROCS> {
     /// subscribe enables processes using IPC to register callbacks that fire
     /// when notify() is called.
     fn subscribe(
@@ -117,8 +125,8 @@ impl Driver for IPC {
             // Once subscribed, the client will receive callbacks when the
             // service process calls notify_client().
             svc_id => {
-                if svc_id - 1 >= 8 {
-                    ReturnCode::EINVAL /* Maximum of 8 IPC's exceeded */
+                if svc_id - 1 >= NUM_PROCS {
+                    ReturnCode::EINVAL /* Maximum num of IPC's exceeded */
                 } else {
                     self.data
                         .enter(app_id, |data, _| {

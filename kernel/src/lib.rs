@@ -10,6 +10,7 @@
 #![feature(panic_info_message)]
 #![feature(in_band_lifetimes, crate_visibility_modifier)]
 #![feature(associated_type_defaults)]
+#![feature(const_generics)]
 #![warn(unreachable_pub)]
 #![no_std]
 
