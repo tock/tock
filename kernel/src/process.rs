@@ -219,7 +219,6 @@ pub trait ProcessType {
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write);
     unsafe fn process_detail_fmt(&self, writer: &mut dyn Write);
 
     // debug
@@ -1008,10 +1007,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn debug_syscall_called(&self) {
         self.debug.map(|debug| debug.syscall_count += 1);
-    }
-
-    unsafe fn fault_fmt(&self, writer: &mut dyn Write) {
-        self.chip.userspace_kernel_boundary().fault_fmt(writer);
     }
 
     unsafe fn process_detail_fmt(&self, writer: &mut dyn Write) {

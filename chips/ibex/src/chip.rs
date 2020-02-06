@@ -1,10 +1,11 @@
 //! High-level setup and interrupt mapping for the chip.
 
+use core::fmt::Write;
 use core::hint::unreachable_unchecked;
 
 use kernel;
 use kernel::debug;
-use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
+use rv32i::csr::{mcause, mie::mie, mip::mip, mstatus, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 
 use crate::gpio;
@@ -107,51 +108,143 @@ impl kernel::Chip for Ibex {
     {
         rv32i::support::atomic(f)
     }
+
+    unsafe fn write_state(&self, writer: &mut dyn Write) {
+        let mcval: mcause::Trap = core::convert::From::from(CSR.mcause.extract());
+        let _ = writer.write_fmt(format_args!("\r\n---| Machine State |---\r\n"));
+        let _ = writer.write_fmt(format_args!("Cause (mcause): "));
+        match mcval {
+            mcause::Trap::Interrupt(interrupt) => {
+                match interrupt {
+                    mcause::Interrupt::UserSoft           => {let _ = writer.write_fmt(format_args!("User software interrupt"));},
+                    mcause::Interrupt::SupervisorSoft     => {let _ = writer.write_fmt(format_args!("Supervisor software interrupt"));},
+                    mcause::Interrupt::MachineSoft        => {let _ = writer.write_fmt(format_args!("Machine software interrupt"));},
+                    mcause::Interrupt::UserTimer          => {let _ = writer.write_fmt(format_args!("User timer interrupt"));},
+                    mcause::Interrupt::SupervisorTimer    => {let _ = writer.write_fmt(format_args!("Supervisor timer interrupt"));},
+                    mcause::Interrupt::MachineTimer       => {let _ = writer.write_fmt(format_args!("Machine timer interrupt"));},
+                    mcause::Interrupt::UserExternal       => {let _ = writer.write_fmt(format_args!("User external interrupt"));},
+                    mcause::Interrupt::SupervisorExternal => {let _ = writer.write_fmt(format_args!("Supervisor external interrupt"));},
+                    mcause::Interrupt::MachineExternal    => {let _ = writer.write_fmt(format_args!("Machine external interrupt"));},
+                    mcause::Interrupt::Unknown            => {let _ = writer.write_fmt(format_args!("Reserved/Unknown"));},
+                }
+            },
+            mcause::Trap::Exception(exception) => {
+                match exception {
+                    mcause::Exception::InstructionMisaligned => {let _ = writer.write_fmt(format_args!("Instruction access misaligned"));},
+                    mcause::Exception::InstructionFault      => {let _ = writer.write_fmt(format_args!("Instruction access fault"));},
+                    mcause::Exception::IllegalInstruction    => {let _ = writer.write_fmt(format_args!("Illegal instruction"));},
+                    mcause::Exception::Breakpoint            => {let _ = writer.write_fmt(format_args!("Breakpoint"));},
+                    mcause::Exception::LoadMisaligned        => {let _ = writer.write_fmt(format_args!("Load address misaligned"));},
+                    mcause::Exception::LoadFault             => {let _ = writer.write_fmt(format_args!("Load access fault"));},
+                    mcause::Exception::StoreMisaligned       => {let _ = writer.write_fmt(format_args!("Store/AMO address misaligned"));},
+                    mcause::Exception::StoreFault            => {let _ = writer.write_fmt(format_args!("Store/AMO access fault"));},
+                    mcause::Exception::UserEnvCall           => {let _ = writer.write_fmt(format_args!("Environment call from U-mode"));},
+                    mcause::Exception::SupervisorEnvCall     => {let _ = writer.write_fmt(format_args!("Environment call from S-mode"));},
+                    mcause::Exception::MachineEnvCall        => {let _ = writer.write_fmt(format_args!("Environment call from M-mode"));},
+                    mcause::Exception::InstructionPageFault  => {let _ = writer.write_fmt(format_args!("Instruction page fault"));},
+                    mcause::Exception::LoadPageFault         => {let _ = writer.write_fmt(format_args!("Load page fault"));},
+                    mcause::Exception::StorePageFault        => {let _ = writer.write_fmt(format_args!("Store/AMO page fault"));},
+                    mcause::Exception::Unknown               => {let _ = writer.write_fmt(format_args!("Reserved"));},
+                }
+            },
+        }
+        let mval = CSR.mcause.get();
+        let interrupt = (mval & 0x80000000) == 0x80000000;
+        let code = mval & 0x7fffffff;
+        let _ = writer.write_fmt(format_args!(" (interrupt={}, exception code={})", interrupt, code));
+        let _ = writer.write_fmt(format_args!(
+            "\r\nValue (mtval):  {:#010X}\
+             \r\n\
+             \r\nSystem register dump:\
+             \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
+             \r\n mcycle:  {:#010X}    minstret:    {:#010X}\
+             \r\n mtvec:   {:#010X}",
+            CSR.mtval.get(),
+            CSR.mepc.get(), CSR.mstatus.get(),
+            CSR.mcycle.get(),  CSR.minstret.get(),
+            CSR.mtvec.get()));
+        let mstatus = CSR.mstatus.extract();
+        let uie = mstatus.is_set(mstatus::mstatus::uie);
+        let sie = mstatus.is_set(mstatus::mstatus::sie);
+        let mie = mstatus.is_set(mstatus::mstatus::mie);
+        let upie = mstatus.is_set(mstatus::mstatus::upie);
+        let spie = mstatus.is_set(mstatus::mstatus::spie);
+        let mpie = mstatus.is_set(mstatus::mstatus::mpie);
+        let spp = mstatus.is_set(mstatus::mstatus::spp);
+        let _ = writer.write_fmt(format_args!(
+            "\r\n mstatus:\
+             \r\n  uie:    {}\
+             \r\n  sie:    {}\
+             \r\n  mie:    {}\
+             \r\n  upie:   {}\
+             \r\n  spie:   {}\
+             \r\n  mpie:   {}\
+             \r\n  spp:    {}",
+            uie, sie, mie, upie, spie, mpie, spp));
+        let e_usoft  = CSR.mie.is_set(mie::usoft);
+        let e_ssoft  = CSR.mie.is_set(mie::ssoft);
+        let e_msoft  = CSR.mie.is_set(mie::msoft);
+        let e_utimer = CSR.mie.is_set(mie::utimer);
+        let e_stimer = CSR.mie.is_set(mie::stimer);
+        let e_mtimer = CSR.mie.is_set(mie::mtimer);
+        let e_uext   = CSR.mie.is_set(mie::uext);
+        let e_sext   = CSR.mie.is_set(mie::sext);
+        let e_mext   = CSR.mie.is_set(mie::mext);
+
+        let p_usoft  = CSR.mip.is_set(mip::usoft);
+        let p_ssoft  = CSR.mip.is_set(mip::ssoft);
+        let p_msoft  = CSR.mip.is_set(mip::msoft);
+        let p_utimer = CSR.mip.is_set(mip::utimer);
+        let p_stimer = CSR.mip.is_set(mip::stimer);
+        let p_mtimer = CSR.mip.is_set(mip::mtimer);
+        let p_uext   = CSR.mip.is_set(mip::uext);
+        let p_sext   = CSR.mip.is_set(mip::sext);
+        let p_mext   = CSR.mip.is_set(mip::mext);
+        let _ = writer.write_fmt(format_args!(
+            "\r\n mie:     {:#010X}    mip:      {:#010X}\
+             \r\n  usoft:  {:6}                  {:6}\
+             \r\n  ssoft:  {:6}                  {:6}\
+             \r\n  msoft:  {:6}                  {:6}\
+             \r\n  utimer: {:6}                  {:6}\
+             \r\n  stimer: {:6}                  {:6}\
+             \r\n  mtimer: {:6}                  {:6}\
+             \r\n  uext:   {:6}                  {:6}\
+             \r\n  sext:   {:6}                  {:6}\
+             \r\n  mext:   {:6}                  {:6}\r\n",
+            CSR.mie.get(),     CSR.mip.get(),
+            e_usoft, p_usoft,
+            e_ssoft, p_ssoft,
+            e_msoft, p_msoft,
+            e_utimer, p_utimer,
+            e_stimer, p_stimer,
+            e_mtimer, p_mtimer,
+            e_uext, p_uext,
+            e_sext, p_sext,
+            e_mext, p_mext));
+    }
 }
 
-fn handle_exception(exception: mcause::Exception, mtval: u32) {
+
+
+fn handle_exception(exception: mcause::Exception) {
     match exception {
-        mcause::Exception::InstructionMisaligned => {
-            panic!("misaligned instruction {:x}\n", mtval);
-        }
-        mcause::Exception::InstructionFault => {
-            panic!("instruction fault {:x}\n", mtval);
-        }
-        mcause::Exception::IllegalInstruction => {
-            panic!("illegal instruction {:x}\n", mtval);
-        }
-        mcause::Exception::Breakpoint => {
-            debug!("breakpoint\n");
-        }
-        mcause::Exception::LoadMisaligned => {
-            panic!("misaligned load {:x}\n", mtval);
-        }
-        mcause::Exception::LoadFault => {
-            panic!("load fault {:x}\n", mtval);
-        }
-        mcause::Exception::StoreMisaligned => {
-            panic!("misaligned store {:x}\n", mtval);
-        }
-        mcause::Exception::StoreFault => {
-            panic!("store fault {:x}\n", mtval);
-        }
-        mcause::Exception::UserEnvCall => (),
+        mcause::Exception::UserEnvCall |
         mcause::Exception::SupervisorEnvCall => (),
-        mcause::Exception::MachineEnvCall => {
-            // GENERATED BY ECALL; should never happen....
-            panic!("machine mode environment call\n");
-        }
-        mcause::Exception::InstructionPageFault => {
-            panic!("instruction page fault {:x}\n", mtval);
-        }
-        mcause::Exception::LoadPageFault => {
-            panic!("load page fault {:x}\n", mtval);
-        }
-        mcause::Exception::StorePageFault => {
-            panic!("store page fault {:x}\n", mtval);
-        }
+
+        mcause::Exception::InstructionMisaligned |
+        mcause::Exception::InstructionFault  |
+        mcause::Exception::IllegalInstruction |
+        mcause::Exception::Breakpoint |
+        mcause::Exception::LoadMisaligned |
+        mcause::Exception::LoadFault |
+        mcause::Exception::StoreMisaligned |
+        mcause::Exception::StoreFault |
+        mcause::Exception::MachineEnvCall |
+        mcause::Exception::InstructionPageFault |
+        mcause::Exception::LoadPageFault |
+        mcause::Exception::StorePageFault |
         mcause::Exception::Unknown => {
-            panic!("exception type unknown");
+            panic!("fatal exception");
         }
     }
 }
@@ -197,7 +290,7 @@ pub unsafe extern "C" fn start_trap_rust() {
             handle_interrupt(interrupt);
         }
         mcause::Trap::Exception(exception) => {
-            handle_exception(exception, CSR.mtval.get());
+            handle_exception(exception);
         }
     }
 }

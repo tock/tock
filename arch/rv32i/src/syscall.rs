@@ -415,13 +415,51 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         (new_stack_pointer as *mut usize, ret)
     }
 
-    unsafe fn fault_fmt(&self, _writer: &mut dyn Write) {}
-
     unsafe fn process_detail_fmt(
         &self,
-        _stack_pointer: *const usize,
-        _state: &RiscvimacStoredState,
-        _writer: &mut dyn Write,
+        stack_pointer: *const usize,
+        state: &RiscvimacStoredState,
+        writer: &mut dyn Write,
     ) {
+         let _ = writer.write_fmt(format_args!(
+            "\
+            \r\n R0 : {:#010X}    R16: {:#010X}\
+            \r\n R1 : {:#010X}    R17: {:#010X}\
+            \r\n R2 : {:#010X}    R18: {:#010X}\
+            \r\n R3 : {:#010X}    R19: {:#010X}\
+            \r\n R4 : {:#010X}    R20: {:#010X}\
+            \r\n R5 : {:#010X}    R21: {:#010X}\
+            \r\n R6 : {:#010X}    R22: {:#010X}\
+            \r\n R7 : {:#010X}    R23: {:#010X}\
+            \r\n R8 : {:#010X}    R24: {:#010X}\
+            \r\n R9 : {:#010X}    R25: {:#010X}\
+            \r\n R10: {:#010X}    R26: {:#010X}\
+            \r\n R11: {:#010X}    R27: {:#010X}\
+            \r\n R12: {:#010X}    R28: {:#010X}\
+            \r\n R13: {:#010X}    R29: {:#010X}\
+            \r\n R14: {:#010X}    R30: {:#010X}\
+            \r\n R15: {:#010X}    R31: {:#010X}\
+            \r\n PC : {:#010X}\
+            \r\n SP:  {:#010X}\
+            \r\n",
+            0,              state.regs[15],
+            state.regs[0],  state.regs[16],
+            state.regs[1],  state.regs[17],
+            state.regs[2],  state.regs[18],
+            state.regs[3],  state.regs[19],
+            state.regs[4],  state.regs[20],
+            state.regs[5],  state.regs[21],
+            state.regs[6],  state.regs[22],
+            state.regs[7],  state.regs[23],
+            state.regs[8],  state.regs[24],
+            state.regs[9],  state.regs[25],
+            state.regs[10], state.regs[26],
+            state.regs[11], state.regs[27],
+            state.regs[12], state.regs[28],
+            state.regs[13], state.regs[29],
+            state.regs[14], state.regs[30],
+            state.pc,
+            stack_pointer as usize,
+        ));
     }
 }

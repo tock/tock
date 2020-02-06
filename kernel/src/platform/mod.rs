@@ -1,5 +1,6 @@
 //! Interface for chips and boards.
 
+use core::fmt::Write;
 use crate::driver::Driver;
 use crate::syscall;
 
@@ -100,6 +101,10 @@ pub trait Chip {
     unsafe fn atomic<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R;
+
+    /// Write out chip state (register dump and system registers) to a
+    /// supplied writer. Used by panic.
+    unsafe fn write_state(&self, writer: &mut dyn Write);
 }
 
 /// Generic operations that clock-like things are expected to support.

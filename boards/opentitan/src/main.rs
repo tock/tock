@@ -22,6 +22,8 @@ pub mod io;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
+static mut CHIP: Option<&'static ibex::chip::Ibex> = None;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -101,6 +103,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(ibex::chip::Ibex, ibex::chip::Ibex::new());
+    CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
@@ -209,6 +212,10 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_mgmt_cap,
     );
-
+    let bad_ptr = 0x81200000 as *mut u8;
+    let val = *bad_ptr;
+    if val == 0 {
+        debug!("Dereferenced bad pointer.");
+    }
     board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
 }

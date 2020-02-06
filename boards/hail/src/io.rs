@@ -8,6 +8,7 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 
 use crate::PROCESSES;
+use crate::CHIP;
 
 struct Writer {
     initialized: bool,
@@ -66,5 +67,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &cortexm4::support::nop,
         &PROCESSES,
+        &CHIP,
     )
 }

@@ -43,6 +43,7 @@ use core::panic::PanicInfo;
 use core::ptr;
 use core::str;
 
+use crate::Chip;
 use crate::common::cells::NumericCellExt;
 use crate::common::cells::{MapCell, TakeCell};
 use crate::common::queue::Queue;
@@ -50,6 +51,7 @@ use crate::common::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::process::ProcessType;
 use crate::ReturnCode;
+
 
 /// This trait is similar to std::io::Write in that it takes bytes instead of a string (contrary to
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
@@ -69,17 +71,19 @@ pub trait IoWrite {
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite>(
+pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
     leds: &mut [&mut L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn ProcessType>],
+    chip: &'static Option<&'static C>,
 ) -> ! {
     panic_begin(nop);
     panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
+    panic_cpu_state(chip, writer);
     panic_process_info(processes, writer);
     panic_blink_forever(leds)
 }
@@ -121,6 +125,22 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     ));
 }
 
+/// Print current machine (CPU) state.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
+    chip: &'static Option<&'static C>,
+    writer: &mut W,
+) {
+    chip.map(|c| {
+        c.write_state(writer);
+    });
+}
+
+
+
+
+
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
@@ -128,13 +148,6 @@ pub unsafe fn panic_process_info<W: Write>(
     procs: &'static [Option<&'static dyn ProcessType>],
     writer: &mut W,
 ) {
-    // Print fault status once
-    if !procs.is_empty() {
-        procs[0].as_ref().map(|process| {
-            process.fault_fmt(writer);
-        });
-    }
-
     // print data about each process
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
     for idx in 0..procs.len() {
