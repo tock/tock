@@ -426,12 +426,32 @@ impl kernel::mpu::MPU for PMPConfig {
 
     fn update_app_memory_region(
         &self,
-        _app_memory_break: *const u8,
-        _kernel_memory_break: *const u8,
-        _permissions: mpu::Permissions,
-        _config: &mut Self::MpuConfig,
+        app_memory_break: *const u8,
+        kernel_memory_break: *const u8,
+        permissions: mpu::Permissions,
+        config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        Err(())
+        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM].location() {
+            Some((start, size)) => (start as usize, size),
+            None => {
+                // Error: Process tried to update app memory MPU region before it was created.
+                return Err(());
+            }
+        };
+
+        let app_memory_break = app_memory_break as usize;
+        let kernel_memory_break = kernel_memory_break as usize;
+
+        // Out of memory
+        if app_memory_break > kernel_memory_break {
+            return Err(());
+        }
+
+        let region = PMPRegion::new(region_start as *const u8, region_size, permissions);
+
+        config.regions[APP_MEMORY_REGION_NUM] = region;
+
+        Ok(())
     }
 
     fn configure_mpu(&self, _config: &Self::MpuConfig) {}
