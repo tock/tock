@@ -12,6 +12,7 @@ use crate::process;
 use crate::returncode::ReturnCode;
 use crate::sched::Kernel;
 use core::mem::MaybeUninit;
+use core::ptr;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;
@@ -29,11 +30,11 @@ impl<const NUM_PROCS: usize> Default for IPCData<NUM_PROCS> {
             client_callbacks: unsafe { MaybeUninit::zeroed().assume_init() },
             callback: None,
         };
-        for opt in ipc_data.shared_memory.iter_mut() {
-            *opt = None;
+        for i in 0..NUM_PROCS {
+            unsafe { ptr::write(&mut ipc_data.shared_memory[i], None) };
         }
-        for opt in ipc_data.client_callbacks.iter_mut() {
-            *opt = None;
+        for i in 0..NUM_PROCS {
+            unsafe { ptr::write(&mut ipc_data.client_callbacks[i], None) };
         }
         ipc_data
     }
