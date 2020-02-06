@@ -110,13 +110,7 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'static>
                 self.length.set(length);
                 self.remaining_length.set(length);
                 self.buffer_index.set(0);
-
-                let (return_code, pagebuffer) =
-                    self.driver.read_page(address / page_size, pagebuffer);
-                if return_code != ReturnCode::SUCCESS {
-                    self.pagebuffer.replace(pagebuffer.unwrap());
-                }
-                return_code
+                self.driver.read_page(address / page_size, pagebuffer)
             })
     }
 
@@ -146,26 +140,14 @@ impl<F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'static>
                     self.address.set(address + page_size);
                     self.remaining_length.set(length - page_size);
                     self.buffer_index.set(page_size);
-
-                    let (return_code, pagebuffer) =
-                        self.driver.write_page(address / page_size, pagebuffer);
-                    if return_code != ReturnCode::SUCCESS {
-                        self.pagebuffer.replace(pagebuffer.unwrap());
-                    }
-                    return_code
+                    self.driver.write_page(address / page_size, pagebuffer)
                 } else {
                     // Need to do a read first.
                     self.buffer.replace(buffer);
                     self.address.set(address);
                     self.remaining_length.set(length);
                     self.buffer_index.set(0);
-
-                    let (return_code, pagebuffer) =
-                        self.driver.read_page(address / page_size, pagebuffer);
-                    if return_code != ReturnCode::SUCCESS {
-                        self.pagebuffer.replace(pagebuffer.unwrap());
-                    }
-                    return_code
+                    self.driver.read_page(address / page_size, pagebuffer)
                 }
             })
     }
@@ -206,13 +188,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
                         self.remaining_length.subtract(len);
                         self.address.add(len);
                         self.buffer_index.set(buffer_index + len);
-
-                        let (return_code, pagebuffer) = self
-                            .driver
+                        self.driver
                             .read_page(self.address.get() / page_size, pagebuffer);
-                        if return_code != ReturnCode::SUCCESS {
-                            self.pagebuffer.replace(pagebuffer.unwrap());
-                        }
                     }
                 });
             }
@@ -277,12 +254,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'a, F> {
             } else {
                 // Write a partial page!
                 self.buffer.replace(buffer);
-                let (return_code, pagebuffer) = self
-                    .driver
+                self.driver
                     .read_page(self.address.get() / page_size, pagebuffer);
-                if return_code != ReturnCode::SUCCESS {
-                    self.pagebuffer.replace(pagebuffer.unwrap());
-                }
             }
         });
     }

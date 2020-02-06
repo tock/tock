@@ -430,10 +430,7 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
     ///     * SUCCESS: flush started successfully.
     ///     * FAIL: flash driver not configured.
     ///     * EBUSY: flash driver busy.
-    fn flush_pagebuffer(
-        &self,
-        pagebuffer: &'static mut F::Page,
-    ) -> (ReturnCode, Option<&'static mut F::Page>) {
+    fn flush_pagebuffer(&self, pagebuffer: &'static mut F::Page) -> ReturnCode {
         // Pad end of page.
         let mut append_cookie = self.append_cookie.get();
         while append_cookie % self.page_size != 0 {
@@ -703,12 +700,11 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
                 } else {
                     // Need to sync pagebuffer first, then append to new page.
                     self.buffer.replace(buffer);
-                    let (return_code, pagebuffer) = self.flush_pagebuffer(pagebuffer);
+                    let return_code = self.flush_pagebuffer(pagebuffer);
                     if return_code == ReturnCode::SUCCESS {
                         Ok(())
                     } else {
                         self.state.set(State::Idle);
-                        self.pagebuffer.replace(pagebuffer.unwrap());
                         Err((return_code, self.buffer.take().unwrap()))
                     }
                 }
@@ -741,10 +737,9 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
             .take()
             .map_or(ReturnCode::ERESERVE, move |pagebuffer| {
                 self.state.set(State::Sync);
-                let (return_code, pagebuffer) = self.flush_pagebuffer(pagebuffer);
+                let return_code = self.flush_pagebuffer(pagebuffer);
                 if return_code != ReturnCode::SUCCESS {
                     self.state.set(State::Idle);
-                    self.pagebuffer.replace(pagebuffer.unwrap());
                 }
                 return_code
             })

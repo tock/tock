@@ -547,22 +547,12 @@ impl<
 {
     type Page = Mx25r6435fSector;
 
-    fn read_page(
-        &self,
-        page_number: usize,
-        buf: &'static mut Self::Page,
-    ) -> (ReturnCode, Option<&'static mut Self::Page>) {
-        // TODO: return buf on failure.
-        (self.read_sector(page_number as u32, buf), Option::None)
+    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+        self.read_sector(page_number as u32, buf)
     }
 
-    fn write_page(
-        &self,
-        page_number: usize,
-        buf: &'static mut Self::Page,
-    ) -> (ReturnCode, Option<&'static mut Self::Page>) {
-        // TODO: return buf on failure.
-        (self.write_sector(page_number as u32, buf), Option::None)
+    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
+        self.write_sector(page_number as u32, buf)
     }
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
