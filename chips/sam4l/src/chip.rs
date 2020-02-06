@@ -20,8 +20,8 @@ use crate::usart;
 use crate::usbc;
 
 use core::fmt::Write;
-use cortexm::syscall::SCB_REGISTERS;
 use cortexm4;
+use cortexm4::syscall::SCB_REGISTERS;
 use kernel::common::deferred_call;
 use kernel::Chip;
 
