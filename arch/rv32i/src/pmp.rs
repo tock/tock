@@ -37,7 +37,7 @@ register_bitfields![u32,
 #[derive(Copy, Clone)]
 pub struct PMPRegion {
     location: Option<(*const u8, usize)>,
-    _cfg: tock_registers::registers::FieldValue<u32, pmpcfg::Register>,
+    cfg: tock_registers::registers::FieldValue<u32, pmpcfg::Register>,
 }
 
 impl PMPRegion {
@@ -63,14 +63,14 @@ impl PMPRegion {
 
         PMPRegion {
             location: Some((start, size)),
-            _cfg: pmpcfg,
+            cfg: pmpcfg,
         }
     }
 
     fn empty(_region_num: usize) -> PMPRegion {
         PMPRegion {
             location: None,
-            _cfg: pmpcfg::r::CLEAR + pmpcfg::w::CLEAR + pmpcfg::x::CLEAR + pmpcfg::a::OFF,
+            cfg: pmpcfg::r::CLEAR + pmpcfg::w::CLEAR + pmpcfg::x::CLEAR + pmpcfg::a::OFF,
         }
     }
 
@@ -454,5 +454,128 @@ impl kernel::mpu::MPU for PMPConfig {
         Ok(())
     }
 
-    fn configure_mpu(&self, _config: &Self::MpuConfig) {}
+    fn configure_mpu(&self, config: &Self::MpuConfig) {
+        let mut regions_sorted = config.regions.clone();
+        regions_sorted.sort_unstable_by(|a, b| {
+            let (a_start, _a_size) = match a.location() {
+                Some((start, size)) => (start as usize, size),
+                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+            };
+            let (b_start, _b_size) = match b.location() {
+                Some((start, size)) => (start as usize, size),
+                None => (0xFFFF_FFFF, 0xFFFF_FFFF),
+            };
+            a_start.cmp(&b_start)
+        });
+
+        for x in 0..self.total_regions {
+            let region = regions_sorted[x];
+            match region.location() {
+                Some((start, size)) => {
+                    let cfg_val = region.cfg.value;
+
+                    match x {
+                        0 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpaddr0.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg0.set(cfg_val << 8 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr1.set((start as u32 + size as u32) >> 2);
+                        }
+                        1 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r2::CLEAR);
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w2::CLEAR);
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x2::CLEAR);
+                            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a2::TOR);
+                            csr::CSR.pmpaddr2.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg0.set(cfg_val << 24 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr3.set((start as u32 + size as u32) >> 2);
+                        }
+                        2 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpaddr4.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg1.set(cfg_val << 8 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr5.set((start as u32 + size as u32) >> 2);
+                        }
+                        3 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
+                            csr::CSR.pmpcfg1.modify(csr::pmpconfig::pmpcfg::a3::TOR);
+                            csr::CSR.pmpaddr6.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg1.set(cfg_val << 24 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr7.set((start as u32 + size as u32) >> 2);
+                        }
+                        4 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpaddr8.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg2.set(cfg_val << 8 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr9.set((start as u32 + size as u32) >> 2);
+                        }
+                        5 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
+                            csr::CSR.pmpcfg2.modify(csr::pmpconfig::pmpcfg::a3::TOR);
+                            csr::CSR.pmpaddr10.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg2.set(cfg_val << 24 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr11.set((start as u32 + size as u32) >> 2);
+                        }
+                        6 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r0::CLEAR);
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w0::CLEAR);
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x0::CLEAR);
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a0::TOR);
+                            csr::CSR.pmpaddr12.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg3.set(cfg_val << 8 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr13.set((start as u32 + size as u32) >> 2);
+                        }
+                        7 => {
+                            // Disable access up to the start address
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::r3::CLEAR);
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::w3::CLEAR);
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::x3::CLEAR);
+                            csr::CSR.pmpcfg3.modify(csr::pmpconfig::pmpcfg::a3::TOR);
+                            csr::CSR.pmpaddr14.set((start as u32) >> 2);
+
+                            // Set access to end address
+                            csr::CSR.pmpcfg3.set(cfg_val << 24 | csr::CSR.pmpcfg0.get());
+                            csr::CSR.pmpaddr15.set((start as u32 + size as u32) >> 2);
+                        }
+                        _ => break,
+                    }
+                }
+                None => {}
+            };
+        }
+    }
 }
