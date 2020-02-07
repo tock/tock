@@ -6,3 +6,5 @@ particular aspect of Tock.
 
 Existing Working Groups
 -----------------------
+
+- [OpenTitan](opentitan.md)
