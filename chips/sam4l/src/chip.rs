@@ -207,7 +207,6 @@ impl Chip for Sam4l {
         cortexm4::support::atomic(f)
     }
 
-
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         cortexm4::print_cortexm4_state(writer);
     }
