@@ -175,14 +175,14 @@ impl kernel::mpu::MPU for PMPConfig {
                 // spec 1.10 only goes to 15
                 _ => break,
             }
-            //set first PMP to have permissions to entire space
-            csr::CSR.pmpaddr0.set(0xFFFF_FFFF);
-            //enable R W X fields
-            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r0::SET);
-            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::SET);
-            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::SET);
-            csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::OFF);
         }
+        //set first PMP to have permissions to entire space
+        csr::CSR.pmpaddr0.set(0xFFFF_FFFF);
+        //enable R W X fields
+        csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r0::SET);
+        csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::SET);
+        csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::SET);
+        csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::OFF)
     }
 
     fn number_total_regions(&self) -> usize {
