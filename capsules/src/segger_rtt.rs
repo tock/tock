@@ -98,6 +98,12 @@ use kernel::hil::time::Frequency;
 use kernel::hil::uart;
 use kernel::ReturnCode;
 
+/// Suggested length for the up buffer to pass to the Segger RTT capsule.
+pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;
+
+/// Suggested length for the down buffer to pass to the Segger RTT capsule.
+pub const DEFAULT_DOWN_BUFFER_LENGTH: usize = 32;
+
 /// This structure is defined by the segger RTT protocol. It must exist in
 /// memory in exactly this form so that the segger JTAG tool can find it in the
 /// chip's memory and read and write messages to the appropriate buffers.

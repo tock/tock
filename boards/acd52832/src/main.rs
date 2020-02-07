@@ -341,23 +341,9 @@ pub unsafe fn reset_handler() {
     );
 
     // RTT communication channel
-    let name = b"Terminal\0";
-    let up_buffer_name = name;
-    let down_buffer_name = name;
-    let up_buffer = static_init!([u8; 1024], [0; 1024]);
-    let down_buffer = static_init!([u8; 32], [0; 32]);
+    let (rtt_memory, up_buffer, down_buffer) =
+        components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
 
-    let rtt_memory = static_init!(
-        capsules::segger_rtt::SeggerRttMemory,
-        capsules::segger_rtt::SeggerRttMemory::new_raw(
-            up_buffer_name,
-            up_buffer.as_ptr(),
-            up_buffer.len(),
-            down_buffer_name,
-            down_buffer.as_ptr(),
-            down_buffer.len()
-        )
-    );
     let rtt = static_init!(
         capsules::segger_rtt::SeggerRtt<VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>>,
         capsules::segger_rtt::SeggerRtt::new(virtual_alarm_rtt, rtt_memory, up_buffer, down_buffer)
