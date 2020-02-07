@@ -37,7 +37,7 @@ impl Component for AdcComponent {
     type StaticInput = ();
     type Output = &'static adc::Adc<'static, sam4l::adc::Adc>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let adc_channels = static_init!(
             [&'static sam4l::adc::AdcChannel; 6],

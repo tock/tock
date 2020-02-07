@@ -39,7 +39,7 @@ impl Component for NonvolatileStorageComponent {
     type StaticInput = ();
     type Output = &'static NonvolatileStorage<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         sam4l::flashcalw::FLASH_CONTROLLER.configure();

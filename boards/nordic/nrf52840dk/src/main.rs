@@ -132,14 +132,13 @@ pub unsafe fn reset_handler() {
     // Initialize Segger RTT as early as possible so that any panic beyond this point can use the
     // RTT memory object.
     #[cfg(feature = "usb_debugging")]
-    let (rtt_memory, up_buffer, down_buffer) =
-        components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
 
     // XXX: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
     // aliases reference is only used inside a panic handler, which should be OK, but maybe we
     // should use a const reference to rtt_memory and leverage interior mutability instead.
     #[cfg(feature = "usb_debugging")]
-    self::io::set_rtt_memory(&mut *(rtt_memory as *mut _));
+    self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(

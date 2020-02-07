@@ -90,7 +90,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
     type StaticInput = &'static mut MaybeUninit<MuxSpiMaster<'static, S>>;
     type Output = &'static MuxSpiMaster<'static, S>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_spi = static_init_half!(
             static_buffer,
             MuxSpiMaster<'static, S>,
@@ -120,7 +120,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
     );
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let syscall_spi_device = static_init_half!(
             static_buffer.0,
             VirtualSpiMasterDevice<'static, S>,
@@ -156,7 +156,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let spi_device = static_init_half!(
             static_buffer,
             VirtualSpiMasterDevice<'static, S>,

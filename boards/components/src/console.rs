@@ -54,7 +54,7 @@ impl Component for UartMuxComponent {
     type StaticInput = ();
     type Output = &'static MuxUart<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let uart_mux = static_init!(
             MuxUart<'static>,
             MuxUart::new(
@@ -99,7 +99,7 @@ impl Component for ConsoleComponent {
     type StaticInput = ();
     type Output = &'static console::Console<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         // Create virtual device for console.

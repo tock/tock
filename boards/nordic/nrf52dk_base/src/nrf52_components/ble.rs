@@ -48,7 +48,7 @@ impl Component for BLEComponent {
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ble_radio_virtual_alarm = static_init!(

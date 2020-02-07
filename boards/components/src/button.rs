@@ -59,7 +59,7 @@ impl Component for ButtonComponent {
     )];
     type Output = &'static capsules::button::Button<'static>;
 
-    unsafe fn finalize(&mut self, button_pins: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, button_pins: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let button = static_init!(
             capsules::button::Button<'static>,

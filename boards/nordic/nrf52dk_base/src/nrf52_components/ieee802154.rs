@@ -65,7 +65,7 @@ impl Component for Ieee802154Component {
         &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     );
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let aes_ccm = static_init!(

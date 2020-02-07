@@ -53,7 +53,7 @@ impl<C: 'static + hil::crc::CRC> Component for CrcComponent<C> {
     type StaticInput = &'static mut MaybeUninit<crc::Crc<'static, C>>;
     type Output = &'static crc::Crc<'static, C>;
 
-    unsafe fn finalize(&mut self, static_buffer: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let crc = static_init_half!(

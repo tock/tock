@@ -46,7 +46,7 @@ impl Component for ProcessConsoleComponent {
     type StaticInput = ();
     type Output = &'static process_console::ProcessConsole<'static, Capability>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
         let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
         console_uart.setup();

@@ -334,21 +334,10 @@ pub unsafe fn reset_handler() {
     // RTT and Console and `debug!()`
     //
 
-    // Virtual alarm for the Segger RTT communication channel
-    let virtual_alarm_rtt = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-
     // RTT communication channel
-    let (rtt_memory, up_buffer, down_buffer) =
-        components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
-
-    let rtt = static_init!(
-        capsules::segger_rtt::SeggerRtt<VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>>,
-        capsules::segger_rtt::SeggerRtt::new(virtual_alarm_rtt, rtt_memory, up_buffer, down_buffer)
-    );
-    hil::time::Alarm::set_client(virtual_alarm_rtt, rtt);
+    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let rtt = components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
+        .finalize(components::segger_rtt_component_helper!(nrf52832::rtc::Rtc));
 
     //
     // Virtual UART

@@ -45,7 +45,7 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
     type StaticInput = ();
     type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static>;
 
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         let nrf_serialization = static_init!(
             nrf51822_serialization::Nrf51822Serialization<'static>,
             nrf51822_serialization::Nrf51822Serialization::new(

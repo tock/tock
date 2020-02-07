@@ -72,11 +72,7 @@ impl UartPins {
 
 pub enum UartChannel<'a> {
     Pins(UartPins),
-    Rtt(
-        &'a mut [u8],
-        &'a mut [u8],
-        &'a mut capsules::segger_rtt::SeggerRttMemory<'a>,
-    ),
+    Rtt(components::segger_rtt::SeggerRttMemoryRefs<'a>),
 }
 
 /// Supported drivers by the platform
@@ -251,24 +247,9 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
             );
             &nrf52::uart::UARTE0
         }
-        UartChannel::Rtt(up_buffer, down_buffer, rtt_memory) => {
-            // Virtual alarm for the Segger RTT communication channel
-            let virtual_alarm_rtt = static_init!(
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-                capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-            );
-
-            // RTT communication channel
-            let rtt = static_init!(
-                capsules::segger_rtt::SeggerRtt<VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
-                capsules::segger_rtt::SeggerRtt::new(
-                    virtual_alarm_rtt,
-                    rtt_memory,
-                    up_buffer,
-                    down_buffer
-                )
-            );
-            hil::time::Alarm::set_client(virtual_alarm_rtt, rtt);
+        UartChannel::Rtt(rtt_memory) => {
+            let rtt = components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
+                .finalize(components::segger_rtt_component_helper!(nrf52::rtc::Rtc));
             rtt
         }
     };
