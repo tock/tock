@@ -102,9 +102,17 @@ pub trait Chip {
     where
         F: FnOnce() -> R;
 
-    /// Write out chip state (register dump and system registers) to a
-    /// supplied writer. Used by panic.
-    unsafe fn write_state(&self, writer: &mut dyn Write);
+    /// Print out chip state (system registers) to a supplied
+    /// writer. This does not print out the execution context
+    /// (data registers), as this depends on how they are stored;
+    /// that is implemented by
+    /// `syscall::UserspaceKernelBoundary::print_context`.
+    /// This also does not print out a process memory state,
+    /// that is implemented by `process::Process::print_memory_map`.
+    /// The MPU state is printed by the MPU's implementation of
+    /// the Display trait.
+    /// Used by panic.
+    unsafe fn print_state(&self, writer: &mut dyn Write);
 }
 
 /// Generic operations that clock-like things are expected to support.

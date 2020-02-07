@@ -7,6 +7,7 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use nrf52840::gpio::Pin;
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 struct Writer {
@@ -53,5 +54,5 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     const LED1_PIN: Pin = Pin::P0_06;
     let led = &mut led::LedLow::new(&mut nrf52840::gpio::PORT[LED1_PIN]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES, &CHIP)
 }

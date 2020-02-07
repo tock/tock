@@ -12,6 +12,7 @@ pub mod mpu;
 pub use cortexm::support;
 
 pub use cortexm::nvic;
+pub use cortexm::print_cortexm_state as print_cortexm3_state;
 pub use cortexm::scb;
 pub use cortexm::syscall;
 pub use cortexm::systick;

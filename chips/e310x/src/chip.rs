@@ -1,5 +1,6 @@
 //! High-level setup and interrupt mapping for the chip.
 
+use core::fmt::Write;
 use kernel;
 use kernel::debug;
 use rv32i;
@@ -80,6 +81,11 @@ impl kernel::Chip for E310x {
     {
         rv32i::support::atomic(f)
     }
+
+    unsafe fn print_state(&self, writer: &mut dyn Write) {
+        rv32i::print_riscv_state(writer);
+    }
+
 }
 
 pub unsafe fn handle_trap() {

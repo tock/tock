@@ -1,5 +1,6 @@
 //! Chip trait setup.
 
+use core::fmt::Write;
 use cortexm4;
 use kernel::common::deferred_call;
 use kernel::Chip;
@@ -120,4 +121,9 @@ impl Chip for Stm32f4xx {
     {
         cortexm4::support::atomic(f)
     }
+
+    unsafe fn print_state(&self, write: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(write);
+    }
+
 }

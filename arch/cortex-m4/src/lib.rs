@@ -15,6 +15,8 @@ pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::syscall;
 pub use cortexm::systick;
+pub use cortexm::print_cortexm_state as print_cortexm4_state;
+
 
 extern "C" {
     // _estack is not really a function, but it makes the types work

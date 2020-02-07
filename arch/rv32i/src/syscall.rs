@@ -415,7 +415,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         (new_stack_pointer as *mut usize, ret)
     }
 
-    unsafe fn process_detail_fmt(
+    unsafe fn print_context(
         &self,
         stack_pointer: *const usize,
         state: &RiscvimacStoredState,

@@ -1,3 +1,4 @@
+use core::fmt::Write;
 use crate::gpio;
 use crate::i2c;
 use crate::peripheral_interrupts::NvicIrq;
@@ -79,4 +80,9 @@ impl kernel::Chip for Cc26X2 {
     {
         cortexm4::support::atomic(f)
     }
+
+    unsafe fn print_state(&self, writer: &mut dyn Write) {
+        cortexm4::print_cortexm4_state(writer);
+    }
+
 }

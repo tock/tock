@@ -6,6 +6,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 struct Writer {
@@ -53,5 +54,5 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led = &mut led::LedLow::new(&mut cc26x2::gpio::PORT[LED_PIN]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
+    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES, &CHIP)
 }

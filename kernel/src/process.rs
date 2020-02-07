@@ -219,7 +219,14 @@ pub trait ProcessType {
     /// Context switch to a specific process.
     unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
 
-    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write);
+    /// Print out the memory map (Grant region, heap, stack, program
+    /// memory, BSS, and data sections) of this process.
+    unsafe fn print_memory_map(&self, writer: &mut dyn Write);
+
+    /// Print out the full state of the process: its memory map, its
+    /// context, and the state of the memory protection unit (MPU).
+    unsafe fn print_full_process(&self, writer: &mut dyn Write);
+
 
     // debug
 
@@ -1009,14 +1016,13 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.debug.map(|debug| debug.syscall_count += 1);
     }
 
-    unsafe fn process_detail_fmt(&self, writer: &mut dyn Write) {
+    unsafe fn print_memory_map(&self, writer: &mut dyn Write) {
         // Flash
         let flash_end = self.flash.as_ptr().add(self.flash.len()) as usize;
         let flash_start = self.flash.as_ptr() as usize;
         let flash_protected_size = self.header.get_protected_size() as usize;
         let flash_app_start = flash_start + flash_protected_size;
         let flash_app_size = flash_end - flash_app_start;
-        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         // SRAM addresses
         let sram_end = self.memory.as_ptr().add(self.memory.len()) as usize;
@@ -1167,8 +1173,12 @@ impl<C: Chip> ProcessType for Process<'a, C> {
             flash_protected_size,
             flash_start
         ));
+    }
 
-        self.chip.userspace_kernel_boundary().process_detail_fmt(
+    unsafe fn print_full_process(&self, writer: &mut dyn Write) {
+        self.print_memory_map(writer);
+
+        self.chip.userspace_kernel_boundary().print_context(
             self.sp(),
             &self.stored_state.get(),
             writer,
@@ -1178,6 +1188,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.mpu_config.map(|config| {
             let _ = writer.write_fmt(format_args!("{}", config));
         });
+
+        let sram_start = self.memory.as_ptr() as usize;
+        let flash_start = self.flash.as_ptr() as usize;
+        let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
         let _ = writer.write_fmt(format_args!(
             "\

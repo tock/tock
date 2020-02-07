@@ -28,6 +28,9 @@ pub mod io;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; 4] =
     [None, None, None, None];
 
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static e310x::chip::E310x> = None;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -112,6 +115,7 @@ pub unsafe fn reset_handler() {
     );
 
     let chip = static_init!(e310x::chip::E310x, e310x::chip::E310x::new());
+    CHIP = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();

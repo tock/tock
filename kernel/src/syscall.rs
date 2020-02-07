@@ -154,7 +154,7 @@ pub trait UserspaceKernelBoundary {
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by its stack pointer.
-    unsafe fn process_detail_fmt(
+    unsafe fn print_context(
         &self,
         stack_pointer: *const usize,
         state: &Self::StoredState,

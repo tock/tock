@@ -133,7 +133,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
     writer: &mut W,
 ) {
     chip.map(|c| {
-        c.write_state(writer);
+        c.print_state(writer);
     });
 }
 
@@ -152,7 +152,7 @@ pub unsafe fn panic_process_info<W: Write>(
     let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
     for idx in 0..procs.len() {
         procs[idx].as_ref().map(|process| {
-            process.process_detail_fmt(writer);
+            process.print_full_process(writer);
         });
     }
 }
