@@ -17,8 +17,6 @@
 //! `FloatingState::None` will be used when the board provides external pull-up/pull-down
 //! resistors.
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
