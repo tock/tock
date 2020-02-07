@@ -227,7 +227,6 @@ pub trait ProcessType {
     /// context, and the state of the memory protection unit (MPU).
     unsafe fn print_full_process(&self, writer: &mut dyn Write);
 
-
     // debug
 
     /// Returns how many syscalls this app has called.

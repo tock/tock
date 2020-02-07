@@ -6,8 +6,8 @@ use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
 
-use crate::PROCESSES;
 use crate::CHIP;
+use crate::PROCESSES;
 
 struct Writer {}
 

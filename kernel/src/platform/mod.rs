@@ -1,8 +1,8 @@
 //! Interface for chips and boards.
 
-use core::fmt::Write;
 use crate::driver::Driver;
 use crate::syscall;
+use core::fmt::Write;
 
 pub mod mpu;
 crate mod systick;

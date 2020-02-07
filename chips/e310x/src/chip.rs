@@ -85,7 +85,6 @@ impl kernel::Chip for E310x {
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
     }
-
 }
 
 pub unsafe fn handle_trap() {

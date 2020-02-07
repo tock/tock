@@ -43,7 +43,6 @@ static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROC
 // Reference to chip for panic dumps.
 static mut CHIP: Option<&'static cc26x2::chip::Cc26X2> = None;
 
-
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
 static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];

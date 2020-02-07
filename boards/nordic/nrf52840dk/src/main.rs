@@ -112,7 +112,7 @@ static mut APP_MEMORY: [u8; 245760] = [0; 245760];
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None, None, None, None, None];
 
-static mut CHIP: Option<&'static nrf52840::chip::Chip,> = None;
+static mut CHIP: Option<&'static nrf52840::chip::Chip> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]

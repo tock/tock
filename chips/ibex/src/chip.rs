@@ -114,26 +114,23 @@ impl kernel::Chip for Ibex {
     }
 }
 
-
-
 fn handle_exception(exception: mcause::Exception) {
     match exception {
-        mcause::Exception::UserEnvCall |
-        mcause::Exception::SupervisorEnvCall => (),
+        mcause::Exception::UserEnvCall | mcause::Exception::SupervisorEnvCall => (),
 
-        mcause::Exception::InstructionMisaligned |
-        mcause::Exception::InstructionFault  |
-        mcause::Exception::IllegalInstruction |
-        mcause::Exception::Breakpoint |
-        mcause::Exception::LoadMisaligned |
-        mcause::Exception::LoadFault |
-        mcause::Exception::StoreMisaligned |
-        mcause::Exception::StoreFault |
-        mcause::Exception::MachineEnvCall |
-        mcause::Exception::InstructionPageFault |
-        mcause::Exception::LoadPageFault |
-        mcause::Exception::StorePageFault |
-        mcause::Exception::Unknown => {
+        mcause::Exception::InstructionMisaligned
+        | mcause::Exception::InstructionFault
+        | mcause::Exception::IllegalInstruction
+        | mcause::Exception::Breakpoint
+        | mcause::Exception::LoadMisaligned
+        | mcause::Exception::LoadFault
+        | mcause::Exception::StoreMisaligned
+        | mcause::Exception::StoreFault
+        | mcause::Exception::MachineEnvCall
+        | mcause::Exception::InstructionPageFault
+        | mcause::Exception::LoadPageFault
+        | mcause::Exception::StorePageFault
+        | mcause::Exception::Unknown => {
             panic!("fatal exception");
         }
     }

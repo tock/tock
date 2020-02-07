@@ -14,11 +14,11 @@ pub mod syscall;
 pub mod systick;
 
 pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
-    let _ccr  = syscall::SCB_REGISTERS[0];
-    let cfsr  = syscall::SCB_REGISTERS[1];
-    let hfsr  = syscall::SCB_REGISTERS[2];
+    let _ccr = syscall::SCB_REGISTERS[0];
+    let cfsr = syscall::SCB_REGISTERS[1];
+    let hfsr = syscall::SCB_REGISTERS[2];
     let mmfar = syscall::SCB_REGISTERS[3];
-    let bfar  = syscall::SCB_REGISTERS[4];
+    let bfar = syscall::SCB_REGISTERS[4];
 
     let iaccviol = (cfsr & 0x01) == 0x01;
     let daccviol = (cfsr & 0x02) == 0x02;

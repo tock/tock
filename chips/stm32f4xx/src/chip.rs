@@ -125,5 +125,4 @@ impl Chip for Stm32f4xx {
     unsafe fn print_state(&self, write: &mut dyn Write) {
         cortexm4::print_cortexm4_state(write);
     }
-
 }

@@ -1,7 +1,7 @@
-use core::fmt::Write;
 use crate::deferred_call_tasks::DeferredCallTask;
 use crate::interrupt_service::InterruptService;
 use crate::nvmc;
+use core::fmt::Write;
 use cortexm4::{self, nvic};
 use kernel::common::deferred_call;
 use kernel::debug;

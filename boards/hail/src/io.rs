@@ -7,8 +7,8 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 
-use crate::PROCESSES;
 use crate::CHIP;
+use crate::PROCESSES;
 
 struct Writer {
     initialized: bool,

@@ -47,5 +47,12 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_red = &mut led::LedLow::new(&mut e310x::gpio::PORT[22]);
     let writer = &mut WRITER;
 
-    debug::panic(&mut [led_red], writer, pi, &rv32i::support::nop, &PROCESSES, &CHIP)
+    debug::panic(
+        &mut [led_red],
+        writer,
+        pi,
+        &rv32i::support::nop,
+        &PROCESSES,
+        &CHIP,
+    )
 }
