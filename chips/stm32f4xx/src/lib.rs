@@ -24,7 +24,7 @@ pub mod syscfg;
 pub mod tim2;
 pub mod usart;
 
-use cortexm4::{hard_fault_handler, svc_handler, systick_handler};
+use cortexm4::{generic_isr, hard_fault_handler, svc_handler, systick_handler};
 
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn unhandled_interrupt() {
