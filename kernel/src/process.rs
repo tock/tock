@@ -1204,16 +1204,30 @@ impl<C: 'static + Chip> Process<'a, C> {
     ) -> (Option<&'static dyn ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
+            let process_name = tbf_header.get_package_name();
 
             // If this isn't an app (i.e. it is padding) or it is an app but it
             // isn't enabled, then we can skip it but increment past its flash.
             if !tbf_header.is_app() || !tbf_header.enabled() {
+                if config::CONFIG.debug_load_processes {
+                    if !tbf_header.is_app() {
+                        debug!(
+                            "[!] flash={:#010X} process={:?} - process isn't an app",
+                            app_flash_address as usize, process_name
+                        );
+                    }
+                    if !tbf_header.enabled() {
+                        debug!(
+                            "[!] flash={:#010X} process={:?} - process isn't enabled",
+                            app_flash_address as usize, process_name
+                        );
+                    }
+                }
                 return (None, app_flash_size, 0);
             }
 
             // Otherwise, actually load the app.
             let mut min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
-            let process_name = tbf_header.get_package_name();
             let init_fn =
                 app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
 
@@ -1228,6 +1242,12 @@ impl<C: 'static + Chip> Process<'a, C> {
                 mpu::Permissions::ReadExecuteOnly,
                 &mut mpu_config,
             ) {
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "[!] flash={:#010X} process={:?} - couldn't allocate flash region",
+                        app_flash_address as usize, process_name
+                    );
+                }
                 return (None, app_flash_size, 0);
             }
 
@@ -1274,6 +1294,12 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Some((memory_start, memory_size)) => (memory_start, memory_size),
                 None => {
                     // Failed to load process. Insufficient memory.
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "[!] flash={:#010X} process={:?} - couldn't allocate memory region",
+                            app_flash_address as usize, process_name
+                        );
+                    }
                     return (None, app_flash_size, 0);
                 }
             };
@@ -1354,7 +1380,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Cell::new(None),
             ];
             process.tasks = MapCell::new(tasks);
-            process.process_name = process_name;
+            process.process_name = process_name.unwrap_or("");
 
             process.debug = MapCell::new(ProcessDebug {
                 app_heap_start_pointer: app_heap_start_pointer,
@@ -1396,6 +1422,12 @@ impl<C: 'static + Chip> Process<'a, C> {
                     process.stored_state.set(stored_state);
                 }
                 Err(_) => {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "[!] flash={:#010X} process={:?} - couldn't initialize process",
+                            app_flash_address as usize, process_name
+                        );
+                    }
                     return (None, app_flash_size, 0);
                 }
             };
@@ -1407,6 +1439,12 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Some(process),
                 app_flash_size,
                 memory_padding_size + memory_size,
+            );
+        }
+        if config::CONFIG.debug_load_processes {
+            debug!(
+                "[!] flash={:#010X} - not a valid TBF header",
+                app_flash_address as usize
             );
         }
         (None, 0, 0)
