@@ -18,6 +18,8 @@
 //!     * Erase:    Erase a log in its entirety, clearing the underlying flash volume.
 //! See the documentation for each individual function for more detail on how they operate.
 //!
+//! Note that while logs persist across reboots, they will be erased upon flashing a new kernel.
+//!
 //! Usage
 //! -----
 //!
@@ -45,12 +47,12 @@
 //!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log_storage);
 //!     log_storage.initialize_callback_handle(dynamic_deferred_caller.register(log_storage).expect("no deferred call slot available for log storage"));
 //!
-//!     storage_interface::HasClient::set_client(log_storage, log_storage_client);
+//!     log_storage.set_read_client(log_storage_read_client);
+//!     log_storage.set_append_client(log_storage_append_client);
 //! ```
 
 use crate::storage_interface::{
-    HasClient, LogRead, LogReadClient, LogWrite, LogWriteClient, OperationResult, StorageCookie,
-    StorageLen,
+    LogRead, LogReadClient, LogWrite, LogWriteClient, OperationResult, StorageCookie, StorageLen,
 };
 use core::cell::Cell;
 use core::convert::TryFrom;
@@ -83,7 +85,7 @@ enum State {
     Invalid,
 }
 
-pub struct LogStorage<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> {
+pub struct LogStorage<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> {
     /// Underlying storage volume.
     volume: &'static [u8],
     /// Capacity of log in bytes.
@@ -96,8 +98,10 @@ pub struct LogStorage<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient>
     page_size: usize,
     /// Whether or not the log is circular.
     circular: bool,
-    /// Client using LogStorage.
-    client: OptionalCell<&'a C>,
+    /// Read client using LogStorage.
+    read_client: OptionalCell<&'a RC>,
+    /// Append client using LogStorage.
+    append_client: OptionalCell<&'a WC>,
 
     /// Current operation being executed, if asynchronous.
     state: Cell<State>,
@@ -124,25 +128,26 @@ pub struct LogStorage<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient>
     error: Cell<ReturnCode>,
 }
 
-impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F, C> {
+impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogStorage<'a, F, RC, WC> {
     pub fn new(
         volume: &'static [u8],
         driver: &'a F,
         pagebuffer: &'static mut F::Page,
         deferred_caller: &'a DynamicDeferredCall,
         circular: bool,
-    ) -> LogStorage<'a, F, C> {
+    ) -> LogStorage<'a, F, RC, WC> {
         let page_size = pagebuffer.as_mut().len();
         let capacity = volume.len() - PAGE_HEADER_SIZE * (volume.len() / page_size);
 
-        let log_storage: LogStorage<'a, F, C> = LogStorage {
+        let log_storage: LogStorage<'a, F, RC, WC> = LogStorage {
             volume,
             capacity,
             driver,
             pagebuffer: TakeCell::new(pagebuffer),
             page_size,
             circular,
-            client: OptionalCell::empty(),
+            read_client: OptionalCell::empty(),
+            append_client: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             read_cookie: Cell::new(PAGE_HEADER_SIZE),
             append_cookie: Cell::new(PAGE_HEADER_SIZE),
@@ -520,47 +525,58 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
     /// callback must be saved within the log's state before making a callback.
     fn client_callback(&self) {
         let state = self.state.get();
-        self.state.set(State::Idle);
-
-        self.client.map_or_else(
-            || self.state.set(State::Invalid),
-            move |client| match state {
-                State::Read => self.buffer.take().map_or_else(
+        match state {
+            State::Read | State::Seek => {
+                self.state.set(State::Idle);
+                self.read_client.map_or_else(
                     || self.state.set(State::Invalid),
-                    move |buffer| {
-                        client.read_done(buffer, self.length.get(), self.error.get());
+                    move |read_client| match state {
+                        State::Read => self.buffer.take().map_or_else(
+                            || self.state.set(State::Invalid),
+                            move |buffer| {
+                                read_client.read_done(buffer, self.length.get(), self.error.get());
+                            },
+                        ),
+                        State::Seek => read_client.seek_done(self.error.get()),
+                        _ => unreachable!(),
                     },
-                ),
-                State::Seek => client.seek_done(self.error.get()),
-                State::Append => self.buffer.take().map_or_else(
+                );
+            }
+            State::Append | State::Sync | State::Erase => {
+                self.state.set(State::Idle);
+                self.append_client.map_or_else(
                     || self.state.set(State::Invalid),
-                    move |buffer| {
-                        client.append_done(
-                            buffer,
-                            self.length.get(),
-                            self.records_lost.get(),
-                            self.error.get(),
-                        );
+                    move |append_client| match state {
+                        State::Append => self.buffer.take().map_or_else(
+                            || self.state.set(State::Invalid),
+                            move |buffer| {
+                                append_client.append_done(
+                                    buffer,
+                                    self.length.get(),
+                                    self.records_lost.get(),
+                                    self.error.get(),
+                                );
+                            },
+                        ),
+                        State::Sync => append_client.sync_done(self.error.get()),
+                        State::Erase => append_client.erase_done(self.error.get()),
+                        _ => unreachable!(),
                     },
-                ),
-                State::Sync => client.sync_done(self.error.get()),
-                State::Erase => client.erase_done(self.error.get()),
-                State::Idle => (),
-                State::Invalid => (),
-            },
-        );
+                );
+            }
+            State::Idle | State::Invalid => (),
+        }
     }
 }
 
-impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> HasClient<'a, C>
-    for LogStorage<'a, F, C>
+impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, RC>
+    for LogStorage<'a, F, RC, WC>
 {
-    fn set_client(&'a self, client: &'a C) {
-        self.client.set(client);
+    /// Set the client for read operation callbacks.
+    fn set_read_client(&self, read_client: &'a RC) {
+        self.read_client.set(read_client);
     }
-}
 
-impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogStorage<'a, F, C> {
     /// Read a log entry into a buffer, if there are any remaining. Updates the read cookie to
     /// point at the next entry when done.
     /// Returns:
@@ -594,7 +610,7 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
             // Read cookie beyond append cookie, must be invalid.
             self.read_cookie.set(self.oldest_cookie.get());
             return Err((ReturnCode::ECANCEL, Some(buffer)));
-        } else if self.client.is_none() {
+        } else if self.read_client.is_none() {
             // No client for callback.
             return Err((ReturnCode::ERESERVE, Some(buffer)));
         }
@@ -664,7 +680,14 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
     }
 }
 
-impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for LogStorage<'a, F, C> {
+impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a, WC>
+    for LogStorage<'a, F, RC, WC>
+{
+    /// Set the client for append operation callbacks.
+    fn set_append_client(&self, append_client: &'a WC) {
+        self.append_client.set(append_client);
+    }
+
     /// Appends an entry onto the end of the log. Entry must fit within a page (including log
     /// metadata).
     /// Returns:
@@ -808,8 +831,8 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
     }
 }
 
-impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> flash::Client<F>
-    for LogStorage<'a, F, C>
+impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> flash::Client<F>
+    for LogStorage<'a, F, RC, WC>
 {
     fn read_complete(&self, _read_buffer: &'static mut F::Page, _error: flash::Error) {
         // Reads are made directly from the storage volume, not through the flash interface.
@@ -904,8 +927,8 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> flash::Client<F>
     }
 }
 
-impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> DynamicDeferredCallClient
-    for LogStorage<'a, F, C>
+impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> DynamicDeferredCallClient
+    for LogStorage<'a, F, RC, WC>
 {
     fn call(&self, _handle: DeferredCallHandle) {
         self.client_callback();

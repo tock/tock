@@ -14,14 +14,11 @@ pub enum StorageCookie {
     Invalid,
 }
 
-pub trait HasClient<'a, C> {
-    /// Set the client for a storage interface. The client will be called when
-    /// operations complete.
-    fn set_client(&'a self, client: &'a C);
-}
-
 /// An interface for reading from log storage.
-pub trait LogRead {
+pub trait LogRead<'a, RC> {
+    /// Set the client for reading from a log. The client will be called when operations complete.
+    fn set_read_client(&'a self, read_client: &'a RC);
+
     /// Read log data starting from the current read position.
     fn read(&self, buffer: &'static mut [u8], length: StorageLen) -> OperationResult;
 
@@ -43,7 +40,10 @@ pub trait LogReadClient {
 }
 
 /// An interface for writing to log storage.
-pub trait LogWrite {
+pub trait LogWrite<'a, WC> {
+    /// Set the client for appending from a log. The client will be called when operations complete.
+    fn set_append_client(&'a self, append_client: &'a WC);
+
     /// Append bytes to the end of the log.
     fn append(&self, buffer: &'static mut [u8], length: StorageLen) -> OperationResult;
 

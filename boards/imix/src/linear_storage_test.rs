@@ -15,7 +15,7 @@
 
 use capsules::log_storage;
 use capsules::storage_interface::{
-    self, LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
+    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
 };
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
@@ -69,7 +69,8 @@ pub unsafe fn run_log_storage_linear(
             &TEST_OPS
         )
     );
-    storage_interface::HasClient::set_client(log_storage, log_storage_test);
+    log_storage.set_read_client(log_storage_test);
+    log_storage.set_append_client(log_storage_test);
     log_storage_test.alarm.set_client(log_storage_test);
 
     log_storage_test.run();
@@ -109,6 +110,7 @@ enum TestOp {
 type LogStorage = log_storage::LogStorage<
     'static,
     flashcalw::FLASHCALW,
+    LogStorageTest<VirtualMuxAlarm<'static, Ast<'static>>>,
     LogStorageTest<VirtualMuxAlarm<'static, Ast<'static>>>,
 >;
 struct LogStorageTest<A: Alarm<'static>> {
@@ -165,7 +167,8 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 }
 
                 if let Err((error, original_buffer)) = self.storage.read(buffer, buffer.len()) {
-                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
+                    self.buffer
+                        .replace(original_buffer.expect("No buffer returned in error!"));
                     match error {
                         ReturnCode::FAIL => {
                             // No more entries, start writing again.
