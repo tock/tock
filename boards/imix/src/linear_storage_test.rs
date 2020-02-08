@@ -165,7 +165,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 }
 
                 if let Err((error, original_buffer)) = self.storage.read(buffer, buffer.len()) {
-                    self.buffer.replace(original_buffer);
+                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                     match error {
                         ReturnCode::FAIL => {
                             // No more entries, start writing again.
@@ -207,7 +207,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 }
 
                 if let Err((error, original_buffer)) = self.storage.append(buffer, len) {
-                    self.buffer.replace(original_buffer);
+                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
 
                     match error {
                         ReturnCode::FAIL =>

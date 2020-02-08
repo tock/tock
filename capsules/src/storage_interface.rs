@@ -1,11 +1,17 @@
 use kernel::ReturnCode;
 
 pub type StorageLen = usize;
+pub type OperationResult = Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
 
+/// Cookies represent seekable positions within a storage interface. `SeekBeginning` allows a
+/// client to seek to the very beginning of the interface. `Cookie` allows the client to seek to a
+/// particular position within the interface. How a `Cookie` internally represents a position is up
+/// to the implementer. `Invalid` represents an invalid position that cannot be seeked.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum StorageCookie {
     SeekBeginning,
     Cookie(usize),
+    Invalid,
 }
 
 pub trait HasClient<'a, C> {
@@ -17,11 +23,7 @@ pub trait HasClient<'a, C> {
 /// An interface for reading from log storage.
 pub trait LogRead {
     /// Read log data starting from the current read position.
-    fn read(
-        &self,
-        buffer: &'static mut [u8],
-        length: StorageLen,
-    ) -> Result<(), (ReturnCode, &'static mut [u8])>;
+    fn read(&self, buffer: &'static mut [u8], length: StorageLen) -> OperationResult;
 
     /// Get cookie representing current read position.
     fn current_read_offset(&self) -> StorageCookie;
@@ -43,11 +45,7 @@ pub trait LogReadClient {
 /// An interface for writing to log storage.
 pub trait LogWrite {
     /// Append bytes to the end of the log.
-    fn append(
-        &self,
-        buffer: &'static mut [u8],
-        length: StorageLen,
-    ) -> Result<(), (ReturnCode, &'static mut [u8])>;
+    fn append(&self, buffer: &'static mut [u8], length: StorageLen) -> OperationResult;
 
     /// Get cookie representing current append position.
     fn current_append_offset(&self) -> StorageCookie;

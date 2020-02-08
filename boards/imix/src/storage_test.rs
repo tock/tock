@@ -282,7 +282,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 buffer.clone_from_slice(&0u64.to_be_bytes());
 
                 if let Err((error, original_buffer)) = self.storage.read(buffer, BUFFER_LEN) {
-                    self.buffer.replace(original_buffer);
+                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                     match error {
                         ReturnCode::FAIL => {
                             // No more entries, start writing again.
@@ -313,7 +313,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 move |buffer| match self.storage.read(buffer, buffer.len() + 1) {
                     Ok(_) => panic!("Read with too-large max read length succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
-                        self.buffer.replace(original_buffer);
+                        self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                         assert_eq!(error, ReturnCode::EINVAL);
                     }
                 },
@@ -327,7 +327,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 move |buffer| match self.storage.read(buffer, BUFFER_LEN - 1) {
                     Ok(_) => panic!("Read with too-small buffer succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
-                        self.buffer.replace(original_buffer);
+                        self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                         if self.read_val.get() == self.write_val.get() {
                             assert_eq!(error, ReturnCode::FAIL);
                         } else {
@@ -350,7 +350,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                     &(MAGIC + (self.write_val.get() << VALUE_SHIFT)).to_be_bytes(),
                 );
                 if let Err((error, original_buffer)) = self.storage.append(buffer, BUFFER_LEN) {
-                    self.buffer.replace(original_buffer);
+                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
 
                     match error {
                         ReturnCode::EBUSY => self.wait(),
@@ -370,7 +370,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
             .map(move |buffer| match self.storage.append(buffer, 0) {
                 Ok(_) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
                 Err((error, original_buffer)) => {
-                    self.buffer.replace(original_buffer);
+                    self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                     assert_eq!(error, ReturnCode::EINVAL);
                 }
             })
@@ -383,7 +383,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
                 move |buffer| match self.storage.append(buffer, buffer.len() + 1) {
                     Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
-                        self.buffer.replace(original_buffer);
+                        self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                         assert_eq!(error, ReturnCode::EINVAL);
                     }
                 },
@@ -394,7 +394,7 @@ impl<A: Alarm<'static>> LogStorageTest<A> {
         unsafe {
             match self.storage.append(&mut DUMMY_BUFFER, DUMMY_BUFFER.len()) {
                 Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                Err((error, _original_buffer)) => assert_eq!(error, ReturnCode::ESIZE),
+                Err((error, original_buffer)) => assert_eq!(error, ReturnCode::ESIZE),
             }
         }
 
@@ -598,7 +598,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogStorageTest<A> {
                 // Make sure that a read on an empty log fails normally.
                 self.buffer.take().map(move |buffer| {
                     if let Err((error, original_buffer)) = self.storage.read(buffer, BUFFER_LEN) {
-                        self.buffer.replace(original_buffer);
+                        self.buffer.replace(original_buffer.expect("No buffer returned in error!"));
                         match error {
                             ReturnCode::FAIL => (),
                             ReturnCode::EBUSY => {
@@ -659,5 +659,6 @@ fn cookie_to_test_value(cookie: StorageCookie) -> u64 {
             (pages_written * entries_per_page + entries_last_page) as u64
         }
         StorageCookie::SeekBeginning => 0,
+        StorageCookie::Invalid => 0,
     }
 }

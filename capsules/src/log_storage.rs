@@ -9,8 +9,11 @@
 //!                 from oldest to newest.
 //!     * Seek:     Seek to different entries to begin reads starting from a different entry. Valid
 //!                 locations to seek to can be retrieved via the
-//!                 `current_read_offset` and `current_append_offset` functions.
-//!     * Append:   Append new data entries onto the end of a log.
+//!                 `current_read_offset` and `current_append_offset` functions. These locations
+//!                 are represented by cookies, which internally represent the logical offset of an
+//!                 entry from the first byte written to the log.
+//!     * Append:   Append new data entries onto the end of a log. Can fail if the new entry is too
+//!                 large to fit within the log.
 //!     * Sync:     Sync a log to flash to ensure that all changes are persistent.
 //!     * Erase:    Erase a log in its entirety, clearing the underlying flash volume.
 //! See the documentation for each individual function for more detail on how they operate.
@@ -46,7 +49,8 @@
 //! ```
 
 use crate::storage_interface::{
-    HasClient, LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
+    HasClient, LogRead, LogReadClient, LogWrite, LogWriteClient, OperationResult, StorageCookie,
+    StorageLen,
 };
 use core::cell::Cell;
 use core::convert::TryFrom;
@@ -76,6 +80,7 @@ enum State {
     Append,
     Sync,
     Erase,
+    Invalid,
 }
 
 pub struct LogStorage<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> {
@@ -189,20 +194,24 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
         &buffer[offset..offset + num_bytes]
     }
 
-    /// Resets a log back to an empty log.
-    fn reset(&self) {
+    /// Resets a log back to an empty log. Returns whether or not the log was reset successfully.
+    fn reset(&self) -> bool {
         self.oldest_cookie.set(PAGE_HEADER_SIZE);
         self.read_cookie.set(PAGE_HEADER_SIZE);
         self.append_cookie.set(PAGE_HEADER_SIZE);
-        self.pagebuffer
-            .take()
-            .map(move |pagebuffer| {
+        self.pagebuffer.take().map_or_else(
+            || {
+                self.state.set(State::Invalid);
+                false
+            },
+            move |pagebuffer| {
                 for e in pagebuffer.as_mut().iter_mut() {
                     *e = 0;
                 }
                 self.pagebuffer.replace(pagebuffer);
-            })
-            .unwrap();
+                true
+            },
+        )
     }
 
     /// Reconstructs a log from flash.
@@ -265,9 +274,9 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
             self.append_cookie.set(newest_cookie + last_page_len);
 
             // Populate page buffer.
-            self.pagebuffer
-                .take()
-                .map(move |pagebuffer| {
+            self.pagebuffer.take().map_or_else(
+                || self.state.set(State::Invalid),
+                move |pagebuffer| {
                     // Determine if pagebuffer should be reset or copied from flash.
                     let mut copy_pagebuffer = last_page_len % self.page_size != 0;
                     if !copy_pagebuffer {
@@ -282,8 +291,8 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
                         }
                     }
                     self.pagebuffer.replace(pagebuffer);
-                })
-                .unwrap();
+                },
+            );
         } else {
             // No valid pages found, create fresh log.
             self.reset();
@@ -386,8 +395,6 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
             pagebuffer.as_mut()[cookie + offset] = *byte;
             offset += 1;
         }
-
-        assert!(offset <= ENTRY_HEADER_SIZE);
     }
 
     /// Appends data from a buffer onto the end of the log. Requires that there is enough space
@@ -515,33 +522,33 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogStorage<'a, F
         let state = self.state.get();
         self.state.set(State::Idle);
 
-        self.client
-            .map(move |client| match state {
-                State::Read => self
-                    .buffer
-                    .take()
-                    .map(move |buffer| {
+        self.client.map_or_else(
+            || self.state.set(State::Invalid),
+            move |client| match state {
+                State::Read => self.buffer.take().map_or_else(
+                    || self.state.set(State::Invalid),
+                    move |buffer| {
                         client.read_done(buffer, self.length.get(), self.error.get());
-                    })
-                    .unwrap(),
+                    },
+                ),
                 State::Seek => client.seek_done(self.error.get()),
-                State::Append => self
-                    .buffer
-                    .take()
-                    .map(move |buffer| {
+                State::Append => self.buffer.take().map_or_else(
+                    || self.state.set(State::Invalid),
+                    move |buffer| {
                         client.append_done(
                             buffer,
                             self.length.get(),
                             self.records_lost.get(),
                             self.error.get(),
                         );
-                    })
-                    .unwrap(),
+                    },
+                ),
                 State::Sync => client.sync_done(self.error.get()),
                 State::Erase => client.erase_done(self.error.get()),
-                State::Idle => panic!("Cannot make client callback when idle!"),
-            })
-            .unwrap();
+                State::Idle => (),
+                State::Invalid => (),
+            },
+        );
     }
 }
 
@@ -558,7 +565,8 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
     /// point at the next entry when done.
     /// Returns:
     ///     * Ok(()) on success.
-    ///     * Err((ReturnCode, buffer)) on failure.
+    ///     * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the
+    ///       error is due to a loss of the buffer.
     /// ReturnCodes used:
     ///     * FAIL: reached end of log, nothing to read.
     ///     * EBUSY: log busy with another operation, try again later.
@@ -566,27 +574,29 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
     ///     * ECANCEL: invalid internal state, read cookie was reset to SeekBeginning.
     ///     * ERESERVE: client or internal pagebuffer missing.
     ///     * ESIZE: buffer not large enough to contain entry being read.
+    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in read_done callback:
     ///     * SUCCESS: read succeeded.
-    fn read(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
+    fn read(&self, buffer: &'static mut [u8], length: usize) -> OperationResult {
         // Check for failure cases.
         if self.state.get() != State::Idle {
-            // Log busy, try reading again later.
-            return Err((ReturnCode::EBUSY, buffer));
+            if self.state.get() == State::Invalid {
+                // Log in invalid state.
+                return Err((ReturnCode::ENOMEM, None));
+            } else {
+                // Log busy, try reading again later.
+                return Err((ReturnCode::EBUSY, Some(buffer)));
+            }
         } else if buffer.len() < length {
             // Client buffer too small for provided length.
-            return Err((ReturnCode::EINVAL, buffer));
+            return Err((ReturnCode::EINVAL, Some(buffer)));
         } else if self.read_cookie.get() > self.append_cookie.get() {
             // Read cookie beyond append cookie, must be invalid.
             self.read_cookie.set(self.oldest_cookie.get());
-            return Err((ReturnCode::ECANCEL, buffer));
+            return Err((ReturnCode::ECANCEL, Some(buffer)));
         } else if self.client.is_none() {
             // No client for callback.
-            return Err((ReturnCode::ERESERVE, buffer));
+            return Err((ReturnCode::ERESERVE, Some(buffer)));
         }
 
         // Try reading next entry.
@@ -599,13 +609,17 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
                 self.deferred_client_callback();
                 Ok(())
             }
-            Err(return_code) => Err((return_code, buffer)),
+            Err(return_code) => Err((return_code, Some(buffer))),
         }
     }
 
     /// Get cookie representing current read offset.
     fn current_read_offset(&self) -> StorageCookie {
-        StorageCookie::Cookie(self.read_cookie.get())
+        if self.state.get() == State::Invalid {
+            StorageCookie::Invalid
+        } else {
+            StorageCookie::Cookie(self.read_cookie.get())
+        }
     }
 
     /// Seek to a new read cookie.
@@ -613,7 +627,12 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
     ///     * SUCCESS: seek succeeded.
     ///     * EINVAL: cookie not valid seek position within current log.
     ///     * ERESERVE: no log client set.
+    ///     * ENOMEM: log in invalid state.
     fn seek(&self, cookie: StorageCookie) -> ReturnCode {
+        if self.state.get() == State::Invalid {
+            return ReturnCode::ENOMEM;
+        }
+
         let status = match cookie {
             StorageCookie::SeekBeginning => {
                 self.read_cookie.set(self.oldest_cookie.get());
@@ -627,6 +646,7 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogRead for LogS
                     ReturnCode::EINVAL
                 }
             }
+            StorageCookie::Invalid => ReturnCode::EINVAL,
         };
 
         // Make client callback on success.
@@ -649,37 +669,40 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
     /// metadata).
     /// Returns:
     ///     * Ok(()) on success.
-    ///     * Err((ReturnCode, buffer)) on failure.
+    ///     * Err((ReturnCode, Option<buffer>)) on failure. The buffer will only be `None` if the
+    ///       error is due to a loss of the buffer.
     /// ReturnCodes used:
     ///     * FAIL: end of non-circular log reached, cannot append any more entries.
     ///     * EBUSY: log busy with another operation, try again later.
     ///     * EINVAL: provided client buffer is too small.
     ///     * ERESERVE: client or internal pagebuffer missing.
     ///     * ESIZE: entry too large to append to log.
+    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in append_done callback:
     ///     * SUCCESS: append succeeded.
     ///     * FAIL: write failed due to flash error.
     ///     * ECANCEL: write failed due to reaching the end of a non-circular log.
-    fn append(
-        &self,
-        buffer: &'static mut [u8],
-        length: usize,
-    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
+    fn append(&self, buffer: &'static mut [u8], length: usize) -> OperationResult {
         let entry_size = length + ENTRY_HEADER_SIZE;
 
         // Check for failure cases.
         if self.state.get() != State::Idle {
-            // Busy with another operation.
-            return Err((ReturnCode::EBUSY, buffer));
+            if self.state.get() == State::Invalid {
+                // Log in invalid state.
+                return Err((ReturnCode::ENOMEM, None));
+            } else {
+                // Log busy, try appending again later.
+                return Err((ReturnCode::EBUSY, Some(buffer)));
+            }
         } else if length <= 0 || buffer.len() < length {
             // Invalid length provided.
-            return Err((ReturnCode::EINVAL, buffer));
+            return Err((ReturnCode::EINVAL, Some(buffer)));
         } else if entry_size + PAGE_HEADER_SIZE > self.page_size {
             // Entry too big, won't fit within a single page.
-            return Err((ReturnCode::ESIZE, buffer));
+            return Err((ReturnCode::ESIZE, Some(buffer)));
         } else if !self.circular && self.append_cookie.get() + entry_size > self.volume.len() {
             // End of non-circular log has been reached.
-            return Err((ReturnCode::FAIL, buffer));
+            return Err((ReturnCode::FAIL, Some(buffer)));
         }
 
         // Perform append.
@@ -705,17 +728,27 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
                         Ok(())
                     } else {
                         self.state.set(State::Idle);
-                        Err((return_code, self.buffer.take().unwrap()))
+                        self.buffer.take().map_or_else(
+                            || {
+                                self.state.set(State::Invalid);
+                                Err((return_code, None))
+                            },
+                            move |buffer| Err((return_code, Some(buffer))),
+                        )
                     }
                 }
             }
-            None => Err((ReturnCode::ERESERVE, buffer)),
+            None => Err((ReturnCode::ERESERVE, Some(buffer))),
         }
     }
 
     /// Get cookie representing current append offset.
     fn current_append_offset(&self) -> StorageCookie {
-        StorageCookie::Cookie(self.append_cookie.get())
+        if self.state.get() == State::Invalid {
+            StorageCookie::Invalid
+        } else {
+            StorageCookie::Cookie(self.append_cookie.get())
+        }
     }
 
     /// Sync log to storage.
@@ -724,13 +757,19 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
     ///     * FAIL: flash driver not configured.
     ///     * EBUSY: log or flash driver busy, try again later.
     ///     * ERESERVE: no log client set.
+    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in sync_done callback:
     ///     * SUCCESS: append succeeded.
     ///     * FAIL: write failed due to flash error.
     fn sync(&self) -> ReturnCode {
         if self.state.get() != State::Idle {
-            // Log busy, try syncing again later.
-            return ReturnCode::EBUSY;
+            if self.state.get() == State::Invalid {
+                // Log in invalid state.
+                return ReturnCode::ENOMEM;
+            } else {
+                // Log busy, try appending again later.
+                return ReturnCode::EBUSY;
+            }
         }
 
         self.pagebuffer
@@ -749,13 +788,19 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> LogWrite for Log
     /// ReturnCodes used:
     ///     * SUCCESS: flush started successfully.
     ///     * EBUSY: log busy, try again later.
+    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in erase_done callback:
     ///     * SUCCESS: erase succeeded.
     ///     * EBUSY: erase interrupted by busy flash driver. Call erase again to resume.
     fn erase(&self) -> ReturnCode {
         if self.state.get() != State::Idle {
-            // Log busy, try erasing again later.
-            return ReturnCode::EBUSY;
+            if self.state.get() == State::Invalid {
+                // Log in invalid state.
+                return ReturnCode::ENOMEM;
+            } else {
+                // Log busy, try appending again later.
+                return ReturnCode::EBUSY;
+            }
         }
 
         self.state.set(State::Erase);
@@ -778,12 +823,12 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> flash::Client<F>
                     State::Append => {
                         // Reset pagebuffer and finish writing on the new page.
                         if self.reset_pagebuffer(pagebuffer) {
-                            self.buffer
-                                .take()
-                                .map(move |buffer| {
+                            self.buffer.take().map_or_else(
+                                || self.state.set(State::Invalid),
+                                move |buffer| {
                                     self.append_entry(buffer, self.length.get(), pagebuffer);
-                                })
-                                .unwrap();
+                                },
+                            );
                         } else {
                             self.pagebuffer.replace(pagebuffer);
                             self.length.set(0);
@@ -831,8 +876,11 @@ impl<'a, F: Flash + 'static, C: LogReadClient + LogWriteClient> flash::Client<F>
                 let oldest_cookie = self.oldest_cookie.get();
                 if oldest_cookie >= self.append_cookie.get() - self.page_size {
                     // Erased all pages. Reset state and callback client.
-                    self.reset();
-                    self.error.set(ReturnCode::SUCCESS);
+                    if self.reset() {
+                        self.error.set(ReturnCode::SUCCESS);
+                    } else {
+                        self.error.set(ReturnCode::ENOMEM);
+                    }
                     self.client_callback();
                 } else {
                     // Not done, erase next page.

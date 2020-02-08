@@ -501,6 +501,7 @@ pub unsafe fn reset_handler() {
     // aes_ccm_test::run();
     // aes_test::run_aes128_ctr();
     // aes_test::run_aes128_cbc();
+    // TODO: remember to comment out tests before commiting to PR.
     storage_test::run_log_storage(mux_alarm, dynamic_deferred_caller);
     // linear_storage_test::run_log_storage_linear(mux_alarm, dynamic_deferred_caller);
 
