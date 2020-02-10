@@ -21,6 +21,9 @@ pub trait SysTick {
     /// Returns if there is at least `us` microseconds left
     fn greater_than(&self, us: u32) -> bool;
 
+    /// Get number of us remaining on timer
+    fn get_value(&self) -> u32;
+
     /// Returns true if the timer has expired
     fn overflowed(&self) -> bool;
 
@@ -51,6 +54,10 @@ impl SysTick for () {
 
     fn overflowed(&self) -> bool {
         false
+    }
+
+    fn get_value(&self) -> u32 {
+        0 // without a real systick, cannot measure time elapsed
     }
 
     fn greater_than(&self, _: u32) -> bool {

@@ -270,6 +270,7 @@ impl Kernel {
                     chip.mpu().enable_mpu();
                     systick.enable(true);
                     let context_switch_reason = process.switch_to();
+                    let _elapsed = KERNEL_TICK_DURATION_US - systick.get_value();
                     systick.enable(false);
                     chip.mpu().disable_mpu();
 
