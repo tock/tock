@@ -1,3 +1,23 @@
+//! Capabilities for specifying capsule access to network resources
+//!
+//! A network capability specifies (1) with what IP addresses the holder of the
+//! capability may communicate, (2) from which UDP ports the holder may send,
+//! and (3) to which UDP ports the holder may send. In order to express various
+//! ranges of IP addresses, one uses the AddrRange enum. One specifies ranges of
+//! ports using the PortRange enum.
+//!
+//! Capsules must obtain static references to network capabilities from trusted
+//! code (i.e. code that must use the unsafe keyword) since the constructor of
+//! a network capability requires the NetCapCreateCap capability. Code that
+//! checks these capabilities must possess the appropriate visibilty privileges.
+//! UDP visibility privileges are given through the UdpVisCap capability and IP
+//! visibility privileges are given through the IpVisCap capability.
+//!
+//! An example of the visibility capabilities can be found in udp_port_table.rs.
+//! When attempting to bind to a port, we must first verify that the caller of
+//! bind has a capability to send from that port. Therefore, we check the
+//! network capability of the caller. In order to check the UDP-specific aspect
+//! of the network capability, the port table must posses a UdpVisCap reference.
 use crate::net::ipv6::ip_utils::IPAddr;
 use kernel::capabilities::{IpVisCap, NetCapCreateCap, UdpVisCap};
 
@@ -56,8 +76,9 @@ impl PortRange {
     }
 }
 
-// Make the structs below implement an unsafe trait to make them only
-// constructable in trusted code.
+/// The NetworkCapability struct specifies remote IP addresses with which the
+/// holder may communicate (remote_addrs), ports from which the holder may send
+/// (local_ports), and ports to which the holder may send (remote_ports).
 pub struct NetworkCapability {
     // can potentially add more
     remote_addrs: AddrRange,
