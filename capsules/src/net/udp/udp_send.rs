@@ -33,6 +33,7 @@ use kernel::ReturnCode;
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
     ip_sender: &'a dyn IP6Sender<'a>,
+    // OptionalCell needed to store net_cap for send_done
     net_cap: OptionalCell<&'static NetworkCapability>,
 }
 

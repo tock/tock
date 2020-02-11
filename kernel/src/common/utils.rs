@@ -81,3 +81,23 @@ macro_rules! create_capability {
         Cap
     };};
 }
+
+
+/// Creates a static object with the given capability.
+/// Works as create_capability above, but the given capability has a static
+/// lifetime.
+#[macro_export]
+macro_rules! create_static_capability {
+    ($T:ty) => {{
+        struct Cap;
+        unsafe impl $T for Cap {}
+        static CapStruct: Cap = Cap;
+        &CapStruct
+    };};
+}
+
+
+
+
+
+

@@ -43,7 +43,7 @@ use kernel;
 use kernel::capabilities;
 use kernel::capabilities::{IpVisCap, UdpVisCap};
 use kernel::component::Component;
-use kernel::create_capability;
+use kernel::{create_capability, create_static_capability};
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
@@ -86,8 +86,6 @@ pub struct UDPMuxComponent {
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    ip_vis: &'static dyn IpVisCap,
-    udp_vis: &'static dyn UdpVisCap,
 }
 
 impl UDPMuxComponent {
@@ -99,8 +97,6 @@ impl UDPMuxComponent {
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
         alarm: &'static MuxAlarm<'static, sam4l::ast::Ast<'static>>,
-        ip_vis: &'static dyn IpVisCap,
-        udp_vis: &'static dyn UdpVisCap,
     ) -> UDPMuxComponent {
         UDPMuxComponent {
             mux_mac: mux_mac,
@@ -110,8 +106,6 @@ impl UDPMuxComponent {
             src_mac_addr: src_mac_addr,
             interface_list: interface_list,
             alarm_mux: alarm,
-            ip_vis: ip_vis,
-            udp_vis: udp_vis,
         }
     }
 }
@@ -138,6 +132,10 @@ impl Component for UDPMuxComponent {
             capsules::ieee802154::virtual_mac::MacUser::new(self.mux_mac)
         );
         self.mux_mac.add_user(udp_mac);
+        let udp_vis = create_static_capability!(UdpVisCap);
+        let ip_vis = create_static_capability!(IpVisCap);
+
+
 
         let sixlowpan = static_init!(
             sixlowpan_state::Sixlowpan<
@@ -191,7 +189,7 @@ impl Component for UDPMuxComponent {
                 udp_mac,
                 self.dst_mac_addr,
                 self.src_mac_addr,
-                self.ip_vis,
+                ip_vis,
             )
         );
         ipsender_virtual_alarm.set_client(ip_send);
@@ -226,7 +224,7 @@ impl Component for UDPMuxComponent {
         let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
         let udp_port_table = static_init!(
             UdpPortManager,
-            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS, self.udp_vis)
+            UdpPortManager::new(&create_table_cap, &mut USED_KERNEL_PORTS, udp_vis)
         );
 
         (udp_send_mux, udp_recv_mux, udp_port_table)

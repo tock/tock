@@ -36,8 +36,7 @@ use crate::net::network_capabilities::NetworkCapability;
 use core::fmt;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability, UdpVisCap};
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::debug;
-use kernel::ReturnCode; // TODO: remove
+use kernel::ReturnCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the
@@ -268,7 +267,6 @@ impl UdpPortManager {
                 Err(_) => Err(socket),
             }
         } else {
-            debug!("oh no error binding!!!");
             Err(socket)
         }
     }

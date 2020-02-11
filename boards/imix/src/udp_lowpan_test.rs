@@ -126,7 +126,8 @@ use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::test::udp::MockUdp;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::capabilities::{IpVisCap, NetCapCreateCap, UdpVisCap};
+use kernel::capabilities::{NetCapCreateCap, UdpVisCap};
+use kernel::{create_static_capability};
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::time::Frequency;
@@ -143,20 +144,6 @@ const PAYLOAD_LEN: usize = super::imix_components::udp_mux::PAYLOAD_LEN;
 static mut UDP_PAYLOAD1: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 static mut UDP_PAYLOAD2: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE];
 
-// TODO: do the stuff below using a create cap macro
-struct NetCapCreateCapStruct;
-unsafe impl NetCapCreateCap for NetCapCreateCapStruct {}
-
-struct UdpVisCapStruct;
-unsafe impl UdpVisCap for UdpVisCapStruct {}
-
-struct IpVisCapStruct;
-unsafe impl IpVisCap for IpVisCapStruct {}
-
-static mut CREATE_CAP: NetCapCreateCapStruct = NetCapCreateCapStruct;
-static mut UDP_VIS: UdpVisCapStruct = UdpVisCapStruct;
-static mut IP_VIS: IpVisCapStruct = IpVisCapStruct;
-
 #[derive(Copy, Clone)]
 enum TestMode {
     DefaultMode,
@@ -172,6 +159,7 @@ pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     mock_udp1: &'a MockUdp<'a, A>,
     mock_udp2: &'a MockUdp<'a, A>,
     test_mode: Cell<TestMode>,
+    create_cap: &'static dyn NetCapCreateCap,
 }
 
 pub unsafe fn initialize_all(
@@ -182,12 +170,16 @@ pub unsafe fn initialize_all(
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
     port_table: &'static UdpPortManager,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
-    net_cap: &'static NetworkCapability,
-    udp_vis: &'static dyn UdpVisCap,
 ) -> &'static LowpanTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
+    let create_cap = create_static_capability!(NetCapCreateCap);
+    let net_cap = static_init!(
+        NetworkCapability,
+        NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, create_cap)
+    );
+    let udp_vis = create_static_capability!(UdpVisCap);
     let mock_udp1 = MockUDPComponent::new(
         udp_send_mux,
         udp_recv_mux,
@@ -223,7 +215,8 @@ pub unsafe fn initialize_all(
             ),
             port_table,
             mock_udp1,
-            mock_udp2
+            mock_udp2,
+            create_cap,
         )
     );
 
@@ -238,6 +231,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         port_table: &'static UdpPortManager,
         mock_udp1: &'static MockUdp<'a, A>,
         mock_udp2: &'static MockUdp<'a, A>,
+        create_cap: &'static dyn NetCapCreateCap,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,
@@ -246,6 +240,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             mock_udp1: mock_udp1,
             mock_udp2: mock_udp2,
             test_mode: Cell::new(TestMode::DefaultMode),
+            create_cap: create_cap,
         }
     }
 
@@ -332,7 +327,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         let net_cap = unsafe {
             static_init!(
                 NetworkCapability,
-                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &CREATE_CAP)
+                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, self.create_cap)
             )
         };
         let mut socket1 = self.port_table.create_socket().unwrap();
@@ -359,7 +354,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         let net_cap = unsafe {
             static_init!(
                 NetworkCapability,
-                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &CREATE_CAP)
+                NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, self.create_cap)
             )
         };
         // Initialize bindings.
@@ -573,7 +568,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::Any,
                     PortRange::Port(15000),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -584,7 +579,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::Any,
                     PortRange::Port(15001),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -601,7 +596,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::Any,
                     PortRange::Port(15001),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -613,7 +608,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::Any,
                     PortRange::Port(15002),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -630,7 +625,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::NoAddrs,
                     PortRange::Port(15000),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -641,7 +636,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::Any,
                     PortRange::Port(15001),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -658,7 +653,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::NoAddrs,
                     PortRange::Port(15000),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };
@@ -669,7 +664,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                     AddrRange::Any,
                     PortRange::Port(15002),
                     PortRange::Any,
-                    &CREATE_CAP
+                    self.create_cap
                 )
             )
         };

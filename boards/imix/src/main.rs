@@ -12,13 +12,11 @@ mod imix_components;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::net::network_capabilities::{AddrRange, NetworkCapability, PortRange};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules::virtual_uart::MuxUart;
 use kernel::capabilities;
-use kernel::capabilities::{IpVisCap, NetCapCreateCap, UdpVisCap};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::radio;
@@ -160,19 +158,6 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-
-struct NetCapCreateCapStruct;
-unsafe impl NetCapCreateCap for NetCapCreateCapStruct {}
-
-struct UdpVisCapStruct;
-unsafe impl UdpVisCap for UdpVisCapStruct {}
-
-struct IpVisCapStruct;
-unsafe impl IpVisCap for IpVisCapStruct {}
-
-static mut CREATE_CAP: NetCapCreateCapStruct = NetCapCreateCapStruct;
-static mut UDP_VIS: UdpVisCapStruct = UdpVisCapStruct;
-static mut IP_VIS: IpVisCapStruct = IpVisCapStruct;
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -425,10 +410,11 @@ pub unsafe fn reset_handler() {
         ]
     );
 
-    let net_cap = static_init!(
-        NetworkCapability,
-        NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &CREATE_CAP)
-    );
+    // TODO: remove commented code below
+    // let net_cap = static_init!(
+    //     NetworkCapability,
+    //     NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &CREATE_CAP)
+    // );
 
     let (udp_send_mux, udp_recv_mux, udp_port_table) = UDPMuxComponent::new(
         mux_mac,
@@ -439,8 +425,6 @@ pub unsafe fn reset_handler() {
         //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
-        &IP_VIS,
-        &UDP_VIS,
     )
     .finalize(());
 
@@ -451,20 +435,16 @@ pub unsafe fn reset_handler() {
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        net_cap,
-        &UDP_VIS,
     )
     .finalize(());
 
     // Only include to run kernel tests, do not include during normal operation
-    let udp_lowpan_test = udp_lowpan_test::initialize_all(
-        udp_send_mux,
-        udp_recv_mux,
-        udp_port_table,
-        mux_alarm,
-        net_cap,
-        &UDP_VIS,
-    );
+    // let udp_lowpan_test = udp_lowpan_test::initialize_all(
+    //     udp_send_mux,
+    //     udp_recv_mux,
+    //     udp_port_table,
+    //     mux_alarm,
+    // );
 
     let imix = Imix {
         pconsole,
@@ -518,7 +498,7 @@ pub unsafe fn reset_handler() {
     debug!("Initialization complete. Entering main loop");
 
     // Include below to run udp tests
-    udp_lowpan_test.start();
+    // udp_lowpan_test.start();
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

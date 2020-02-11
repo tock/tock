@@ -6,7 +6,6 @@ const MAX_PORT_SET_SIZE: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AddrRange {
-    // TODO: change u32 to IPAddr type (inclusion weirdness?)
     Any, // Any address
     NoAddrs,
     AddrSet([IPAddr; MAX_ADDR_SET_SIZE]),
@@ -59,9 +58,6 @@ impl PortRange {
 
 // Make the structs below implement an unsafe trait to make them only
 // constructable in trusted code.
-
-// TODO: remove copy eventually!!!!
-//#[derive(Clone, Copy, PartialEq)]
 pub struct NetworkCapability {
     // can potentially add more
     remote_addrs: AddrRange,
