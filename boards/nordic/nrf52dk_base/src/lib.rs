@@ -118,6 +118,10 @@ impl kernel::Platform for Platform {
                 Some(radio) => f(Some(radio)),
                 None => f(None),
             },
+            capsules::lora::DRIVER_NUM => match self.lora_radio {
+                Some(lora) => f(Some(lora)),
+                None => f(None),
+            },
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => {
@@ -282,6 +286,18 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     } else {
         None
     };
+
+    let lora_radio = if lora {
+        let (radio, _) = LoraComponent::new(
+            board_kernel,
+            capsules::lora::Radio,
+        )
+        .finalize(());
+        Some(radio)
+    } else {
+        None
+    };
+
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,

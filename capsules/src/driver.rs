@@ -29,6 +29,7 @@ pub enum NUM {
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
+    Lora                  = 0x30003,
 
     // Cryptography
     Rng                   = 0x40001,
