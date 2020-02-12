@@ -1,6 +1,5 @@
 //! Timer driver.
 
-use core::cell::Cell;
 use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
@@ -55,7 +54,6 @@ register_bitfields![u32,
 
 pub struct RvTimer<'a> {
     registers: StaticRef<TimerRegisters>,
-    pending: Cell<bool>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
@@ -63,7 +61,6 @@ impl RvTimer<'a> {
     const fn new(base: StaticRef<TimerRegisters>) -> RvTimer<'a> {
         RvTimer {
             registers: base,
-            pending: Cell::new(false),
             client: OptionalCell::empty(),
         }
     }
@@ -78,29 +75,14 @@ impl RvTimer<'a> {
         regs.ctrl.write(ctrl::enable::SET);
     }
 
-    pub fn handle_isr(&self) {
+    pub fn service_interrupt(&self) {
         let regs = self.registers;
 
-        if regs.intr_state.is_set(intr::timer0) {
-            regs.intr_enable.write(intr::timer0::CLEAR);
-            regs.intr_state.write(intr::timer0::SET);
-            self.pending.set(true);
-        }
-    }
-
-    pub fn is_pending(&self) -> bool {
-        self.pending.get()
-    }
-
-    pub fn service_interrupts(&self) -> bool {
-        let pending = self.pending.get();
-        if pending {
-            self.pending.set(false);
-            self.client.map(|client| {
-                client.fired();
-            });
-        }
-        pending
+        regs.intr_enable.write(intr::timer0::CLEAR);
+        regs.intr_state.write(intr::timer0::SET);
+        self.client.map(|client| {
+            client.fired();
+        });
     }
 }
 
