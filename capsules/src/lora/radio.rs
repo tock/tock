@@ -6,9 +6,6 @@ use kernel::common::cells::{TakeCell};
 use kernel::hil::gpio;
 use kernel::hil::spi;
 use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
-use kernel::component::Component;
-use kernel::capabilities;
-use kernel::{create_capability, static_init};
 
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Lora as usize;
@@ -79,7 +76,7 @@ const PaBoost: u8           = 0x80;
 const MaxPktLength: u8      = 255;
 
 // The modem
-struct Radio<'a, S: spi::SpiMasterDevice> {
+pub struct Radio<'a, S: spi::SpiMasterDevice> {
   //add SPI Settings: LORA_DEFAULT_SPI_FREQUENCY, MSBFIRST, SPI_MODE0
   spi: &'a S,
   spi_rx: TakeCell<'static, [u8]>,
@@ -105,7 +102,7 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
     pub fn new(
         spi: &'a S,
         reset: &'a dyn gpio::Pin,
-        sleep: &'a dyn gpio::Pin,
+        ss: &'a dyn gpio::Pin,
         irq: &'a dyn gpio::InterruptPin,
     ) -> Radio<'a, S> {
         Radio {
@@ -113,8 +110,8 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
             spi_rx: TakeCell::empty(),
             spi_tx: TakeCell::empty(),
             spi_busy: Cell::new(false),
+            ss_pin: ss,
             reset_pin: reset,
-            sleep_pin: sleep,
             irq_pin: irq,
             state: Cell::new(InternalState::Start),
             interrupt_handling: Cell::new(false),
@@ -242,7 +239,7 @@ impl<S: spi::SpiMasterDevice> Radio<'a, S> {
     if !asyn {
       // wait for Tx done
       while self.register_return(RegMap::RegIrqFlags) & (Irq::IrqTxDoneMask as u8) == 0 {
-        yield;
+        //yield;
       }
       // clear Irq's
       self.register_write(RegMap::RegIrqFlags,Irq::IrqTxDoneMask as u8);
@@ -693,9 +690,17 @@ pub struct RadioDriver<'a> {
   apps: Grant<App>,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        App {
+            callback: None,
+        }
+    }
+}
+
 impl RadioDriver<'a> {
     pub fn new(
-      device: &'a Radio<'a, dyn spi::SpiMasterDevice>,
+      device: &'a Radio<'a, spi::SpiMasterDevice>,
       grant: Grant<App>,
     ) -> RadioDriver<'a> {
       RadioDriver {
@@ -725,48 +730,4 @@ impl Driver for RadioDriver<'a> {
       _ => ReturnCode::ENOSUPPORT,
     }
   }
-}
-
-//
-// COMPONENTS
-//
-
-pub struct LoraComponent {
-    board_kernel: &'static kernel::Kernel,
-    radio: &'static Radio,
-}
-
-impl LoraComponent {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        radio: &'static Radio,
-    ) -> LoraComponent {
-        LoraComponent {
-            board_kernel: board_kernel,
-            radio: radio,
-        }
-    }
-}
-
-impl Component for LoraComponent {
-    type StaticInput = ();
-    type Output = (
-        &'static RadioDriver<'static>,
-    );
-
-    unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-        self.radio.begin();
-
-        let radio_driver = static_init!(
-            RadioDriver<'static>,
-            RadioDriver::new(
-                self.radio,
-                self.board_kernel.create_grant(&grant_cap),
-            )
-        );
-        
-        (radio_driver)
-    }
 }
