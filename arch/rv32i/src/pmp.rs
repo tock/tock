@@ -321,7 +321,7 @@ impl kernel::mpu::MPU for PMPConfig {
         csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::r0::SET);
         csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::w0::SET);
         csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::x0::SET);
-        csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::OFF)
+        csr::CSR.pmpcfg0.modify(csr::pmpconfig::pmpcfg::a0::TOR)
     }
 
     fn number_total_regions(&self) -> usize {
