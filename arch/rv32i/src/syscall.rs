@@ -2,7 +2,9 @@
 
 use core::fmt::Write;
 
+use crate::csr::mcause;
 use kernel;
+use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -21,6 +23,17 @@ pub struct RiscvimacStoredState {
     /// we exit the trap handler and resume the context switching code.
     mcause: usize,
 }
+
+// Named offsets into the stored state registers.  These needs to be kept in
+// sync with the register save logic in _start_trap() as well as the register
+// restore logic in switch_to_process() below.
+const R_RA: usize = 0;
+const R_SP: usize = 1;
+const R_A0: usize = 9;
+const R_A1: usize = 10;
+const R_A2: usize = 11;
+const R_A3: usize = 12;
+const R_A4: usize = 13;
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
 pub struct SysCall(());
@@ -47,7 +60,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         // The first time the process runs we need to set the initial stack
         // pointer in the sp register.
-        state.regs[1] = stack_pointer as usize;
+        state.regs[R_SP] = stack_pointer as usize;
 
         // Just return the stack pointer. For the RISC-V arch we do not need
         // to make a stack frame to start the process.
@@ -62,7 +75,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) {
         // Just need to put the return value in the a0 register for when the
         // process resumes executing.
-        state.regs[9] = return_value as usize; // a0 = regs[9] = return value
+        state.regs[R_A0] = return_value as usize; // a0 = return value
     }
 
     unsafe fn set_process_function(
@@ -74,10 +87,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> Result<*mut usize, *mut usize> {
         // Set the register state for the application when it starts
         // executing. These are the argument registers.
-        state.regs[9] = callback.argument0; // a0 = x10 = regs[9]
-        state.regs[10] = callback.argument1; // a1 = x11 = regs[10]
-        state.regs[11] = callback.argument2; // a2 = x12 = regs[11]
-        state.regs[12] = callback.argument3; // a3 = x13 = regs[12]
+        state.regs[R_A0] = callback.argument0;
+        state.regs[R_A1] = callback.argument1;
+        state.regs[R_A2] = callback.argument2;
+        state.regs[R_A3] = callback.argument3;
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -85,7 +98,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // process is executing then `state.pc` is invalid/useless, but the
         // application must ignore it anyway since there is nothing logically
         // for it to return to. So this doesn't hurt anything.
-        state.regs[0] = state.pc; // ra = x1 = regs[0]
+        state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
         state.pc = callback.pc;
@@ -99,7 +112,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _stack_pointer: *const usize,
         _state: &mut RiscvimacStoredState,
-    ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
+    ) -> (*mut usize, ContextSwitchReason) {
+        // Convince lint that 'mcause' and 'R_A4' are used during test build
+        let _cause = mcause::Trap::from(_state.mcause as u32);
+        let _arg4 = _state.regs[R_A4];
         unimplemented!()
     }
 
@@ -108,11 +124,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _stack_pointer: *const usize,
         state: &mut RiscvimacStoredState,
-    ) -> (*mut usize, kernel::syscall::ContextSwitchReason) {
-        let switch_reason: u32;
-        let mut syscall_args: [u32; 5] = [0; 5];
-        let new_stack_pointer: u32;
-
+    ) -> (*mut usize, ContextSwitchReason) {
         asm! ("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
@@ -125,7 +137,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           //
           // ```
           // 34*4(sp):          <- original stack pointer
-          // 33*4(sp): syscall_args
+          // 33*4(sp):
           // 32*4(sp): x31
           // 31*4(sp): x30
           // 30*4(sp): x29
@@ -193,9 +205,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           sw   x29, 30*4(sp)
           sw   x30, 31*4(sp)
           sw   x31, 32*4(sp)
-          sw   $3,  33*4(sp) // save syscall_args, so we can access it later
 
-          sw   $2, 1*4(sp)    // Store process state pointer on stack as well.
+          sw   $0, 1*4(sp)    // Store process state pointer on stack as well.
                               // We need to have the available for after the app
                               // returns to the kernel so we can store its
                               // registers.
@@ -224,7 +235,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // executing at. This has been saved in RiscvimacStoredState for us
           // (either when the app returned back to the kernel or in the
           // `set_process_function()` function).
-          lw   t0, 31*4($2)   // Retrieve the PC from RiscvimacStoredState
+          lw   t0, 31*4($0)   // Retrieve the PC from RiscvimacStoredState
           csrw 0x341, t0      // Set mepc CSR. This is the PC we want to go to.
 
           // Restore all of the app registers from what we saved. If this is the
@@ -232,7 +243,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // irrelevant, However we do need to set the four arguments to the
           // `_start_ function in the app. If the app has been executing then this
           // allows the app to correctly resume.
-          mv   t0,  $2       // Save the state pointer to a specific register.
+          mv   t0,  $0       // Save the state pointer to a specific register.
           lw   x1,  0*4(t0)  // ra
           lw   x2,  1*4(t0)  // sp
           lw   x3,  2*4(t0)  // gp
@@ -308,110 +319,49 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           lw   x29, 30*4(sp)
           lw   x30, 31*4(sp)
           lw   x31, 32*4(sp)
-          // We also need to save syscall_args (and state address), because
-          // as of now (7/22/19) llvm will overwrite these values
-          // after the mret instruction.
-          lw   t2,  33*4(sp) // move syscall_args address to t2
-          lw   t6,   1*4(sp) // move state address to t6
 
           addi sp, sp, 34*4   // Reset kernel stack pointer
+          "
 
-          // Load mcause from the stored value in the RiscvimacStoredState
-          // struct.
-          lw   t0, 32*4(t6)
-          // If mcause < 0 then we encountered an interrupt.
-          blt  t0, x0, _app_interrupt // If negative, this was an interrupt.
-
-
-          // Check the various exception codes and handle them properly.
-
-          andi  t0, t0, 0x1ff // `and` mcause with 9 lower bits of zero
-                              // to mask off just the cause. This is needed
-                              // because the E21 core uses several of the upper
-                              // bits for other flags.
-
-        _check_ecall_umode:
-          li   t1, 8          // 8 is the index of ECALL from U mode.
-          beq  t0, t1, _ecall // Check if we did an ECALL and handle it
-                              // correctly.
-
-        _check_ecall_m_mode:
-          li   t1, 11          // 11 is the index of ECALL from M mode.
-          beq  t0, t1, _ecall  // analagous to _check_ecall_umode but included to support hifive1 board
-                               // only applicable to the hifive1 rev a board/FE310-G0000 chip,
-                               // which only has machine mode.
-
-
-
-        _check_exception:
-          li   $0, 2          // If we get here, the only other option is an
-          j    _done          // exception happened. We don't differentiate.
-
-        _app_interrupt:
-          li   $0, 1          // Mark that an interrupt occurred while the app
-                              // was running.
-          j    _done
-
-
-        _ecall:
-          li   $0, 0          // Mark that the process did a syscall.
-          // Need to increment the PC so when we return we start at the correct
-          // instruction. The hardware does not do this for us.
-          lw   t0, 31*4(t6)   // Get the PC from RiscvimacStoredState
-          addi t0, t0, 4      // Add 4 to increment the PC past ecall instruction
-          sw   t0, 31*4(t6)   // Save the new PC back to RiscvimacStoredState
-
-          // We have to get the values that the app passed to us in registers
-          // (these are stored in RiscvimacStoredState) and copy them to
-          // registers so we can use them when returning to the kernel loop.
-          lw   t0, 9*4(t6)    // Fetch a0
-          sw   t0, 0*4(t2)
-          lw   t0, 10*4(t6)   // Fetch a1
-          sw   t0, 1*4(t2)
-          lw   t0, 11*4(t6)   // Fetch a2
-          sw   t0, 2*4(t2)
-          lw   t0, 12*4(t6)   // Fetch a3
-          sw   t0, 3*4(t2)
-          lw   t0, 13*4(t6)   // Fetch a4
-          sw   t0, 4*4(t2)
-          lw   $1, 1*4(t6)    // Fetch sp
-
-        _done:
-          nop
-        "
-          : "=r"(switch_reason), "=r"(new_stack_pointer)
-          : "r"(state), "r"(&mut syscall_args)
-          : "a0", "a1", "a2", "a3"
+          :
+          : "r"(state as *mut RiscvimacStoredState)
+          : "memory"
           : "volatile");
 
-        // Prepare the return type that marks why the app stopped executing.
-        let ret = match switch_reason {
-            // Application called a syscall.
-            0 => {
-                let syscall = kernel::syscall::arguments_to_syscall(
-                    syscall_args[0] as u8,
-                    syscall_args[1] as usize,
-                    syscall_args[2] as usize,
-                    syscall_args[3] as usize,
-                    syscall_args[4] as usize,
-                );
-                match syscall {
-                    Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
-                    None => kernel::syscall::ContextSwitchReason::Fault,
+        let ret = match mcause::Trap::from(state.mcause as u32) {
+            mcause::Trap::Interrupt(_intr) => {
+                // An interrupt occurred while the app was running.
+                ContextSwitchReason::Interrupted
+            }
+            mcause::Trap::Exception(excp) => {
+                match excp {
+                    // The SiFive HiFive1 board allegedly does not support
+                    // u-mode, so the m-mode ecall is handled here too.
+                    mcause::Exception::UserEnvCall | mcause::Exception::MachineEnvCall => {
+                        // Need to increment the PC so when we return we start at the correct
+                        // instruction. The hardware does not do this for us.
+                        state.pc += 4;
+
+                        let syscall = kernel::syscall::arguments_to_syscall(
+                            state.regs[R_A0] as u8,
+                            state.regs[R_A1],
+                            state.regs[R_A2],
+                            state.regs[R_A3],
+                            state.regs[R_A4],
+                        );
+                        match syscall {
+                            Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
+                            None => ContextSwitchReason::Fault,
+                        }
+                    }
+                    _ => {
+                        // All other exceptions result in faulted state
+                        ContextSwitchReason::Fault
+                    }
                 }
             }
-
-            // An interrupt occurred while the app was running.
-            1 => kernel::syscall::ContextSwitchReason::Interrupted,
-
-            // Some exception occurred in the app.
-            2 => kernel::syscall::ContextSwitchReason::Fault,
-
-            // This case should never happen but if something goes wrong with
-            // the switch back to the kernel mark the app as faulted.
-            _ => kernel::syscall::ContextSwitchReason::Fault,
         };
-
+        let new_stack_pointer = state.regs[R_SP];
         (new_stack_pointer as *mut usize, ret)
     }
 
