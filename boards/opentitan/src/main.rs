@@ -220,10 +220,6 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
         &process_mgmt_cap,
     );
-    let bad_ptr = 0x81200000 as *mut u8;
-    let val = *bad_ptr;
-    if val == 0 {
-        debug!("Dereferenced bad pointer.");
-    }
+
     board_kernel.kernel_loop(&opentitan, chip, None, &main_loop_cap);
 }
