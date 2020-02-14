@@ -70,4 +70,10 @@ maintainers.
 Also, the set of directories under the purview of the OT group may change or
 grow as code is re-organized or new boards emerge.
 
+All members of the OpenTitan working group have the ability to merge pull
+requests to code in these directories, following the working group's code
+review process. The working group may also grant pull request merging
+abilities to people outside the group. In cases when a pull request modifies
+directories under the purview of more than one  working group, the approval of 
+all responsible working groups is required. 
 
