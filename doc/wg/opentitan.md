@@ -24,6 +24,28 @@ The goals of the OpenTitan Tock Working Group (OT) are to:
 - Philip Levis, Stanford University/Google
 - Patrick Mooney, Oxide Computer
 
+## Membership and Communication
+
+The OpenTitan working group membership is a subset of the people who have
+commit (pull request merge) permissions on the Tock repository. It is
+intended to be a smaller group that represents the major perspectives
+and issues, rather than a complete group. Group membership is decided by
+the group: the exact process is not yet determined and may organically
+evolve as the group gains momentum.
+
+The group has a weekly teleconference call. All working group members  
+participate in the call. Other people may be invited to participate to
+help contribute to particular topics or on-going discussions. The
+working group chair decides who beyond the working group members may
+participate in the call.
+
+The working group published detailed notes of its calls. These will be
+posted within a week of a call. This delay is to give participants an
+opportunity to correct any errors or better explain points that came up.
+They are intended to be a communication mechanism of the group, its 
+discussions, the technical issues, and decisions, not a literal
+transcription of what is said.
+
 ## Code Purview
 
 The OT working group will be in charge of (responsible for reviewing and
@@ -47,3 +69,5 @@ maintainers.
 
 Also, the set of directories under the purview of the OT group may change or
 grow as code is re-organized or new boards emerge.
+
+
