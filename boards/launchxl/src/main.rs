@@ -40,6 +40,9 @@ const NUM_PROCS: usize = 3;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None];
 
+// Reference to chip for panic dumps.
+static mut CHIP: Option<&'static cc26x2::chip::Cc26X2> = None;
+
 #[link_section = ".app_memory"]
 // Give half of RAM to be dedicated APP memory
 static mut APP_MEMORY: [u8; 0x10000] = [0; 0x10000];
@@ -183,6 +186,9 @@ pub unsafe fn reset_handler() {
     }
 
     configure_pins(pinmap);
+
+    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
+    CHIP = Some(chip);
 
     // LEDs
     let led_pins = static_init!(
@@ -342,8 +348,6 @@ pub unsafe fn reset_handler() {
         i2c_master,
         ipc,
     };
-
-    let chip = static_init!(cc26x2::chip::Cc26X2, cc26x2::chip::Cc26X2::new(HFREQ));
 
     extern "C" {
         /// Beginning of the ROM region containing app images.

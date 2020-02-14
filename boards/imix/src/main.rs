@@ -106,6 +106,7 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None; NUM_PROCS];
+static mut CHIP: Option<&'static sam4l::chip::Sam4l> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -472,6 +473,7 @@ pub unsafe fn reset_handler() {
     };
 
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
+    CHIP = Some(&chip);
 
     // Need to reset the nRF on boot, toggle it's SWDIO
     imix.nrf51822.reset();

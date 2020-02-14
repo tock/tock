@@ -25,6 +25,8 @@ const NUM_PROCS: usize = 4;
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
+static mut CHIP: Option<&'static stm32f4xx::chip::Stm32f4xx> = None;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::procs::FaultResponse = kernel::procs::FaultResponse::Panic;
 
@@ -194,6 +196,7 @@ pub unsafe fn reset_handler() {
         stm32f4xx::chip::Stm32f4xx,
         stm32f4xx::chip::Stm32f4xx::new()
     );
+    CHIP = Some(chip);
 
     // UART
 

@@ -7,6 +7,7 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use sam4l;
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 struct Writer {
@@ -52,5 +53,12 @@ impl IoWrite for Writer {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut led::LedLow::new(&mut sam4l::gpio::PC[22]);
     let writer = &mut WRITER;
-    debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, &PROCESSES)
+    debug::panic(
+        &mut [led],
+        writer,
+        pi,
+        &cortexm4::support::nop,
+        &PROCESSES,
+        &CHIP,
+    )
 }

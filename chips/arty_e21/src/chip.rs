@@ -1,3 +1,4 @@
+use core::fmt::Write;
 use kernel;
 use kernel::debug;
 use rv32i;
@@ -170,6 +171,10 @@ impl kernel::Chip for ArtyExx {
         F: FnOnce() -> R,
     {
         rv32i::support::atomic(f)
+    }
+
+    unsafe fn print_state(&self, write: &mut dyn Write) {
+        rv32i::print_riscv_state(write);
     }
 }
 

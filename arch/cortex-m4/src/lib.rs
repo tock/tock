@@ -12,6 +12,7 @@ pub mod mpu;
 pub use cortexm::support;
 
 pub use cortexm::nvic;
+pub use cortexm::print_cortexm_state as print_cortexm4_state;
 pub use cortexm::scb;
 pub use cortexm::syscall;
 pub use cortexm::systick;
@@ -400,7 +401,21 @@ pub unsafe extern "C" fn hard_fault_handler() {
     let kernel_stack: bool;
 
     asm!(
-    "mov    r1, 0                       \n\
+     "/* Read the SCB registers. */
+     ldr r0, =SCB_REGISTERS
+     ldr r1, =0xE000ED14
+     ldr r2, [r1, #0] /* CCR */
+     str r2, [r0, #0]
+     ldr r2, [r1, #20] /* CFSR */
+     str r2, [r0, #4]
+     ldr r2, [r1, #24] /* HFSR */
+     str r2, [r0, #8]
+     ldr r2, [r1, #32] /* MMFAR */
+     str r2, [r0, #12]
+     ldr r2, [r1, #36] /* BFAR */
+     str r2, [r0, #16]
+
+     mov    r1, 0                       \n\
      tst    lr, #4                      \n\
      itte   eq                          \n\
      mrseq  r0, msp                     \n\
@@ -421,20 +436,6 @@ pub unsafe extern "C" fn hard_fault_handler() {
             "ldr r0, =APP_HARD_FAULT
               mov r1, #1 /* Fault */
               str r1, [r0, #0]
-
-              /* Read the SCB registers. */
-              ldr r0, =SCB_REGISTERS
-              ldr r1, =0xE000ED14
-              ldr r2, [r1, #0] /* CCR */
-              str r2, [r0, #0]
-              ldr r2, [r1, #20] /* CFSR */
-              str r2, [r0, #4]
-              ldr r2, [r1, #24] /* HFSR */
-              str r2, [r0, #8]
-              ldr r2, [r1, #32] /* MMFAR */
-              str r2, [r0, #12]
-              ldr r2, [r1, #36] /* BFAR */
-              str r2, [r0, #16]
 
               /* Set thread mode to privileged */
               mov r0, #0

@@ -32,6 +32,9 @@ static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 static mut PROCESSES: [Option<&'static dyn kernel::procs::ProcessType>; NUM_PROCS] =
     [None, None, None, None];
 
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static arty_e21::chip::ArtyExx> = None;
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -81,6 +84,7 @@ pub unsafe fn reset_handler() {
     rv32i::init_memory();
 
     let chip = static_init!(arty_e21::chip::ArtyExx, arty_e21::chip::ArtyExx::new());
+    CHIP = Some(chip);
     chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);

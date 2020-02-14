@@ -6,6 +6,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
 
+use crate::CHIP;
 use crate::PROCESSES;
 
 struct Writer {}
@@ -44,5 +45,6 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &rv32i::support::nop,
         &PROCESSES,
+        &CHIP,
     )
 }

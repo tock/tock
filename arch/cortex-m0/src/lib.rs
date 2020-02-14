@@ -10,6 +10,7 @@
 pub use cortexm::support;
 
 pub use cortexm::nvic;
+pub use cortexm::print_cortexm_state as print_cortexm0_state;
 pub use cortexm::syscall;
 
 extern "C" {
