@@ -48,8 +48,8 @@ transcription of what is said.
 
 ## Code Purview
 
-The OT working group will be in charge of (responsible for reviewing and
-approving pull requests for) the following code directories:
+The OT working group will be in charge of (responsible for reviewing,
+approving, and merging pull requests for) the following code directories:
 
 - `chips/ibex`
 - `chips/lowrisc`
