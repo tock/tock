@@ -6,21 +6,21 @@ use kernel::common::StaticRef;
 register_structs! {
     pub PlicRegisters {
         /// Interrupt Pending Register
-        (0x000 => pending: [ReadOnly<u32>; 2]),
+        (0x000 => pending: [ReadOnly<u32>; 3]),
         /// Interrupt Source Register
-        (0x008 => source: [ReadWrite<u32>; 2]),
+        (0x00C => source: [ReadWrite<u32>; 3]),
         /// Interrupt Priority Registers
-        (0x010 => priority: [ReadWrite<u32, priority::Register>; 63]),
-        (0x10C => _reserved0: [ReadWrite<u32>; 61]),
+        (0x018 => priority: [ReadWrite<u32, priority::Register>; 79]),
+        (0x154 => _reserved0: [ReadWrite<u32>; 43]),
         /// Interrupt Enable Register
-        (0x200 => enable: [ReadWrite<u32>; 2]),
+        (0x200 => enable: [ReadWrite<u32>; 3]),
         /// Priority Threshold Register
-        (0x208 => threshold: ReadWrite<u32, priority::Register>),
+        (0x20C => threshold: ReadWrite<u32, priority::Register>),
         /// Claim/Complete Register
-        (0x20C => claim: ReadWrite<u32>),
+        (0x210 => claim: ReadWrite<u32>),
         /// MSIP Register
-        (0x210 => msip: ReadWrite<u32>),
-        (0x214 => @END),
+        (0x214 => msip: ReadWrite<u32>),
+        (0x218 => @END),
     }
 }
 

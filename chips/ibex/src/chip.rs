@@ -4,8 +4,9 @@ use core::fmt::Write;
 use core::hint::unreachable_unchecked;
 
 use kernel;
+use kernel::common::registers::FieldValue;
 use kernel::debug;
-use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
+use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
 use rv32i::syscall::SysCall;
 
 use crate::gpio;
@@ -18,12 +19,14 @@ pub const CHIP_FREQ: u32 = 50_000_000;
 
 pub struct Ibex {
     userspace_kernel_boundary: SysCall,
+    pmp: rv32i::pmp::PMPConfig,
 }
 
 impl Ibex {
     pub unsafe fn new() -> Ibex {
         Ibex {
             userspace_kernel_boundary: SysCall::new(),
+            pmp: rv32i::pmp::PMPConfig::new(4),
         }
     }
 
@@ -32,15 +35,31 @@ impl Ibex {
         plic::clear_all_pending();
         plic::enable_all();
     }
+
+    unsafe fn handle_plic_interrupts() {
+        while let Some(interrupt) = plic::next_pending() {
+            match interrupt {
+                interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
+                    uart::UART0.handle_interrupt()
+                }
+                int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
+                    let pin = &gpio::PORT[(int_pin - interrupts::GPIO_PIN0) as usize];
+                    pin.handle_interrupt();
+                }
+                _ => debug!("Pidx {}", interrupt),
+            }
+            plic::complete(interrupt);
+        }
+    }
 }
 
 impl kernel::Chip for Ibex {
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
@@ -52,48 +71,36 @@ impl kernel::Chip for Ibex {
     }
 
     fn service_pending_interrupts(&self) {
-        let mut handled_plic = false;
+        let mut reenable_intr = FieldValue::<u32, mie::Register>::new(0, 0, 0);
 
-        unsafe {
-            loop {
-                // Any pending timer interrupts handled first
-                let timer_fired = timer::TIMER.service_interrupts();
+        loop {
+            let mip = CSR.mip.extract();
 
-                let mut plic_fired = false;
-                if let Some(interrupt) = plic::next_pending() {
-                    match interrupt {
-                        interrupts::UART_TX_WATERMARK..=interrupts::UART_RX_PARITY_ERR => {
-                            uart::UART0.handle_interrupt()
-                        }
-                        int_pin @ interrupts::GPIO_PIN0..=interrupts::GPIO_PIN31 => {
-                            let pin = &gpio::PORT[(int_pin - interrupts::GPIO_PIN0) as usize];
-                            pin.handle_interrupt();
-                        }
-                        _ => debug!("Pidx {}", interrupt),
-                    }
-                    // Mark that we are done with this interrupt and the hardware
-                    // can clear it.
-                    plic::complete(interrupt);
-                    handled_plic = true;
-                    plic_fired = true;
+            if mip.is_set(mip::mtimer) {
+                unsafe {
+                    timer::TIMER.service_interrupt();
                 }
-
-                if !timer_fired && !plic_fired {
-                    // All pending interrupts have been handled
-                    break;
+                reenable_intr += mie::mtimer::SET;
+            }
+            if mip.is_set(mip::mext) {
+                unsafe {
+                    Self::handle_plic_interrupts();
                 }
+                reenable_intr += mie::mext::SET;
+            }
+
+            if !mip.matches_any(mip::mext::SET + mip::mtimer::SET) {
+                break;
             }
         }
 
-        if handled_plic {
-            // If any interrupts from the PLIC were handled, then external interrupts must be
-            // reenabled on the CPU.
-            CSR.mie.modify(mie::mext::SET);
-        }
+        // re-enable any interrupt classes which we handled
+        CSR.mie.modify(reenable_intr);
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { timer::TIMER.is_pending() || plic::has_pending() }
+        let mip = CSR.mip.extract();
+        mip.matches_any(mip::mext::SET + mip::mtimer::SET)
     }
 
     fn sleep(&self) {
@@ -153,7 +160,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::msoft::CLEAR);
         }
         mcause::Interrupt::MachineTimer => {
-            timer::TIMER.handle_isr();
+            CSR.mie.modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
             CSR.mie.modify(mie::mext::CLEAR);

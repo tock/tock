@@ -18,8 +18,6 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
 
-#![allow(dead_code)] // Components are intended to be conditionally included
-
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
