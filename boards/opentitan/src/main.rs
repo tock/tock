@@ -49,6 +49,10 @@ struct OpenTitan {
         'static,
         VirtualMuxAlarm<'static, ibex::timer::RvTimer<'static>>,
     >,
+    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+        'static,
+        capsules::virtual_uart::UartDevice<'static>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -61,6 +65,7 @@ impl Platform for OpenTitan {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -185,6 +190,8 @@ pub unsafe fn reset_handler() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
+    let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
+
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
@@ -198,6 +205,7 @@ pub unsafe fn reset_handler() {
         led: led,
         console: console,
         alarm: alarm,
+        lldb: lldb,
     };
 
     kernel::procs::load_processes(
