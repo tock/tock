@@ -26,9 +26,6 @@
 //! respectively.
 
 use capsules::log_storage;
-use capsules::storage_interface::{
-    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
-};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 use kernel::common::cells::{NumericCellExt, TakeCell};
@@ -36,6 +33,9 @@ use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt};
+use kernel::hil::storage_interface::{
+    LogRead, LogReadClient, LogWrite, LogWriteClient, StorageCookie, StorageLen,
+};
 use kernel::hil::time::{Alarm, AlarmClient, Frequency};
 use kernel::static_init;
 use kernel::storage_volume;
@@ -166,12 +166,7 @@ enum TestOp {
     BadSeek(StorageCookie),
 }
 
-type LogStorage = log_storage::LogStorage<
-    'static,
-    flashcalw::FLASHCALW,
-    LogStorageTest<VirtualMuxAlarm<'static, Ast<'static>>>,
-    LogStorageTest<VirtualMuxAlarm<'static, Ast<'static>>>,
->;
+type LogStorage = log_storage::LogStorage<'static, flashcalw::FLASHCALW>;
 struct LogStorageTest<A: Alarm<'static>> {
     storage: &'static LogStorage,
     buffer: TakeCell<'static, [u8]>,
@@ -668,6 +663,5 @@ fn cookie_to_test_value(cookie: StorageCookie) -> u64 {
             (pages_written * entries_per_page + entries_last_page) as u64
         }
         StorageCookie::SeekBeginning => 0,
-        StorageCookie::Invalid => 0,
     }
 }

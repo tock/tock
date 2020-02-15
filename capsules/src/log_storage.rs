@@ -1,8 +1,9 @@
-//! Implements a log storage abstraction for storing persistent data in flash. Data entries can be
-//! appended to the end of a log and read back in-order. Logs may be linear (denying writes when
-//! full) or circular (overwriting the oldest entries with the newest entries when the underlying
-//! flash volume is full). The storage volumes that logs operate upon are statically allocated at
-//! compile time and cannot be dynamically created at runtime.
+//! Implements a log storage abstraction for storing persistent data in flash.
+//!
+//! Data entries can be appended to the end of a log and read back in-order. Logs may be linear
+//! (denying writes when full) or circular (overwriting the oldest entries with the newest entries
+//! when the underlying flash volume is full). The storage volumes that logs operate upon are
+//! statically allocated at compile time and cannot be dynamically created at runtime.
 //!
 //! Logs support the following basic operations:
 //!     * Read:     Read back previously written entries in whole. Entries are read sequentially,
@@ -51,9 +52,6 @@
 //!     log_storage.set_append_client(log_storage_append_client);
 //! ```
 
-use crate::storage_interface::{
-    LogRead, LogReadClient, LogWrite, LogWriteClient, OperationResult, StorageCookie, StorageLen,
-};
 use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem::size_of;
@@ -63,6 +61,9 @@ use kernel::common::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil::flash::{self, Flash};
+use kernel::hil::storage_interface::{
+    LogRead, LogReadClient, LogWrite, LogWriteClient, OperationResult, StorageCookie, StorageLen,
+};
 use kernel::ReturnCode;
 
 /// Maximum page header size.
@@ -82,10 +83,9 @@ enum State {
     Append,
     Sync,
     Erase,
-    Invalid,
 }
 
-pub struct LogStorage<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> {
+pub struct LogStorage<'a, F: Flash + 'static> {
     /// Underlying storage volume.
     volume: &'static [u8],
     /// Capacity of log in bytes.
@@ -99,9 +99,9 @@ pub struct LogStorage<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteCli
     /// Whether or not the log is circular.
     circular: bool,
     /// Read client using LogStorage.
-    read_client: OptionalCell<&'a RC>,
+    read_client: OptionalCell<&'a dyn LogReadClient>,
     /// Append client using LogStorage.
-    append_client: OptionalCell<&'a WC>,
+    append_client: OptionalCell<&'a dyn LogWriteClient>,
 
     /// Current operation being executed, if asynchronous.
     state: Cell<State>,
@@ -128,18 +128,18 @@ pub struct LogStorage<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteCli
     error: Cell<ReturnCode>,
 }
 
-impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogStorage<'a, F, RC, WC> {
+impl<'a, F: Flash + 'static> LogStorage<'a, F> {
     pub fn new(
         volume: &'static [u8],
         driver: &'a F,
         pagebuffer: &'static mut F::Page,
         deferred_caller: &'a DynamicDeferredCall,
         circular: bool,
-    ) -> LogStorage<'a, F, RC, WC> {
+    ) -> LogStorage<'a, F> {
         let page_size = pagebuffer.as_mut().len();
         let capacity = volume.len() - PAGE_HEADER_SIZE * (volume.len() / page_size);
 
-        let log_storage: LogStorage<'a, F, RC, WC> = LogStorage {
+        let log_storage: LogStorage<'a, F> = LogStorage {
             volume,
             capacity,
             driver,
@@ -204,19 +204,13 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogStorage<'
         self.oldest_cookie.set(PAGE_HEADER_SIZE);
         self.read_cookie.set(PAGE_HEADER_SIZE);
         self.append_cookie.set(PAGE_HEADER_SIZE);
-        self.pagebuffer.take().map_or_else(
-            || {
-                self.state.set(State::Invalid);
-                false
-            },
-            move |pagebuffer| {
-                for e in pagebuffer.as_mut().iter_mut() {
-                    *e = 0;
-                }
-                self.pagebuffer.replace(pagebuffer);
-                true
-            },
-        )
+        self.pagebuffer.take().map_or(false, move |pagebuffer| {
+            for e in pagebuffer.as_mut().iter_mut() {
+                *e = 0;
+            }
+            self.pagebuffer.replace(pagebuffer);
+            true
+        })
     }
 
     /// Reconstructs a log from flash.
@@ -279,9 +273,9 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogStorage<'
             self.append_cookie.set(newest_cookie + last_page_len);
 
             // Populate page buffer.
-            self.pagebuffer.take().map_or_else(
-                || self.state.set(State::Invalid),
-                move |pagebuffer| {
+            self.pagebuffer
+                .take()
+                .map(move |pagebuffer| {
                     // Determine if pagebuffer should be reset or copied from flash.
                     let mut copy_pagebuffer = last_page_len % self.page_size != 0;
                     if !copy_pagebuffer {
@@ -296,8 +290,8 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogStorage<'
                         }
                     }
                     self.pagebuffer.replace(pagebuffer);
-                },
-            );
+                })
+                .unwrap();
         } else {
             // No valid pages found, create fresh log.
             self.reset();
@@ -528,52 +522,50 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogStorage<'
         match state {
             State::Read | State::Seek => {
                 self.state.set(State::Idle);
-                self.read_client.map_or_else(
-                    || self.state.set(State::Invalid),
-                    move |read_client| match state {
-                        State::Read => self.buffer.take().map_or_else(
-                            || self.state.set(State::Invalid),
-                            move |buffer| {
+                self.read_client
+                    .map(move |read_client| match state {
+                        State::Read => self
+                            .buffer
+                            .take()
+                            .map(move |buffer| {
                                 read_client.read_done(buffer, self.length.get(), self.error.get());
-                            },
-                        ),
+                            })
+                            .unwrap(),
                         State::Seek => read_client.seek_done(self.error.get()),
                         _ => unreachable!(),
-                    },
-                );
+                    })
+                    .unwrap();
             }
             State::Append | State::Sync | State::Erase => {
                 self.state.set(State::Idle);
-                self.append_client.map_or_else(
-                    || self.state.set(State::Invalid),
-                    move |append_client| match state {
-                        State::Append => self.buffer.take().map_or_else(
-                            || self.state.set(State::Invalid),
-                            move |buffer| {
+                self.append_client
+                    .map(move |append_client| match state {
+                        State::Append => self
+                            .buffer
+                            .take()
+                            .map(move |buffer| {
                                 append_client.append_done(
                                     buffer,
                                     self.length.get(),
                                     self.records_lost.get(),
                                     self.error.get(),
                                 );
-                            },
-                        ),
+                            })
+                            .unwrap(),
                         State::Sync => append_client.sync_done(self.error.get()),
                         State::Erase => append_client.erase_done(self.error.get()),
                         _ => unreachable!(),
-                    },
-                );
+                    })
+                    .unwrap();
             }
-            State::Idle | State::Invalid => (),
+            State::Idle => (),
         }
     }
 }
 
-impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, RC>
-    for LogStorage<'a, F, RC, WC>
-{
+impl<'a, F: Flash + 'static> LogRead<'a> for LogStorage<'a, F> {
     /// Set the client for read operation callbacks.
-    fn set_read_client(&self, read_client: &'a RC) {
+    fn set_read_client(&self, read_client: &'a dyn LogReadClient) {
         self.read_client.set(read_client);
     }
 
@@ -590,19 +582,13 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, 
     ///     * ECANCEL: invalid internal state, read cookie was reset to SeekBeginning.
     ///     * ERESERVE: client or internal pagebuffer missing.
     ///     * ESIZE: buffer not large enough to contain entry being read.
-    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in read_done callback:
     ///     * SUCCESS: read succeeded.
     fn read(&self, buffer: &'static mut [u8], length: usize) -> OperationResult {
         // Check for failure cases.
         if self.state.get() != State::Idle {
-            if self.state.get() == State::Invalid {
-                // Log in invalid state.
-                return Err((ReturnCode::ENOMEM, None));
-            } else {
-                // Log busy, try reading again later.
-                return Err((ReturnCode::EBUSY, Some(buffer)));
-            }
+            // Log busy, try reading again later.
+            return Err((ReturnCode::EBUSY, Some(buffer)));
         } else if buffer.len() < length {
             // Client buffer too small for provided length.
             return Err((ReturnCode::EINVAL, Some(buffer)));
@@ -631,11 +617,7 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, 
 
     /// Get cookie representing current read offset.
     fn current_read_offset(&self) -> StorageCookie {
-        if self.state.get() == State::Invalid {
-            StorageCookie::Invalid
-        } else {
-            StorageCookie::Cookie(self.read_cookie.get())
-        }
+        StorageCookie::Cookie(self.read_cookie.get())
     }
 
     /// Seek to a new read cookie.
@@ -643,12 +625,7 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, 
     ///     * SUCCESS: seek succeeded.
     ///     * EINVAL: cookie not valid seek position within current log.
     ///     * ERESERVE: no log client set.
-    ///     * ENOMEM: log in invalid state.
     fn seek(&self, cookie: StorageCookie) -> ReturnCode {
-        if self.state.get() == State::Invalid {
-            return ReturnCode::ENOMEM;
-        }
-
         let status = match cookie {
             StorageCookie::SeekBeginning => {
                 self.read_cookie.set(self.oldest_cookie.get());
@@ -662,7 +639,6 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, 
                     ReturnCode::EINVAL
                 }
             }
-            StorageCookie::Invalid => ReturnCode::EINVAL,
         };
 
         // Make client callback on success.
@@ -680,11 +656,9 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogRead<'a, 
     }
 }
 
-impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a, WC>
-    for LogStorage<'a, F, RC, WC>
-{
+impl<'a, F: Flash + 'static> LogWrite<'a> for LogStorage<'a, F> {
     /// Set the client for append operation callbacks.
-    fn set_append_client(&self, append_client: &'a WC) {
+    fn set_append_client(&self, append_client: &'a dyn LogWriteClient) {
         self.append_client.set(append_client);
     }
 
@@ -700,7 +674,6 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
     ///     * EINVAL: provided client buffer is too small.
     ///     * ERESERVE: client or internal pagebuffer missing.
     ///     * ESIZE: entry too large to append to log.
-    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in append_done callback:
     ///     * SUCCESS: append succeeded.
     ///     * FAIL: write failed due to flash error.
@@ -710,13 +683,8 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
 
         // Check for failure cases.
         if self.state.get() != State::Idle {
-            if self.state.get() == State::Invalid {
-                // Log in invalid state.
-                return Err((ReturnCode::ENOMEM, None));
-            } else {
-                // Log busy, try appending again later.
-                return Err((ReturnCode::EBUSY, Some(buffer)));
-            }
+            // Log busy, try appending again later.
+            return Err((ReturnCode::EBUSY, Some(buffer)));
         } else if length <= 0 || buffer.len() < length {
             // Invalid length provided.
             return Err((ReturnCode::EINVAL, Some(buffer)));
@@ -751,13 +719,11 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
                         Ok(())
                     } else {
                         self.state.set(State::Idle);
-                        self.buffer.take().map_or_else(
-                            || {
-                                self.state.set(State::Invalid);
-                                Err((return_code, None))
-                            },
-                            move |buffer| Err((return_code, Some(buffer))),
-                        )
+                        self.buffer
+                            .take()
+                            .map_or(Err((return_code, None)), move |buffer| {
+                                Err((return_code, Some(buffer)))
+                            })
                     }
                 }
             }
@@ -767,11 +733,7 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
 
     /// Get cookie representing current append offset.
     fn current_append_offset(&self) -> StorageCookie {
-        if self.state.get() == State::Invalid {
-            StorageCookie::Invalid
-        } else {
-            StorageCookie::Cookie(self.append_cookie.get())
-        }
+        StorageCookie::Cookie(self.append_cookie.get())
     }
 
     /// Sync log to storage.
@@ -780,19 +742,13 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
     ///     * FAIL: flash driver not configured.
     ///     * EBUSY: log or flash driver busy, try again later.
     ///     * ERESERVE: no log client set.
-    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in sync_done callback:
     ///     * SUCCESS: append succeeded.
     ///     * FAIL: write failed due to flash error.
     fn sync(&self) -> ReturnCode {
         if self.state.get() != State::Idle {
-            if self.state.get() == State::Invalid {
-                // Log in invalid state.
-                return ReturnCode::ENOMEM;
-            } else {
-                // Log busy, try appending again later.
-                return ReturnCode::EBUSY;
-            }
+            // Log busy, try appending again later.
+            return ReturnCode::EBUSY;
         }
 
         self.pagebuffer
@@ -811,19 +767,13 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
     /// ReturnCodes used:
     ///     * SUCCESS: flush started successfully.
     ///     * EBUSY: log busy, try again later.
-    ///     * ENOMEM: log in invalid state.
     /// ReturnCodes used in erase_done callback:
     ///     * SUCCESS: erase succeeded.
     ///     * EBUSY: erase interrupted by busy flash driver. Call erase again to resume.
     fn erase(&self) -> ReturnCode {
         if self.state.get() != State::Idle {
-            if self.state.get() == State::Invalid {
-                // Log in invalid state.
-                return ReturnCode::ENOMEM;
-            } else {
-                // Log busy, try appending again later.
-                return ReturnCode::EBUSY;
-            }
+            // Log busy, try appending again later.
+            return ReturnCode::EBUSY;
         }
 
         self.state.set(State::Erase);
@@ -831,9 +781,7 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> LogWrite<'a,
     }
 }
 
-impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> flash::Client<F>
-    for LogStorage<'a, F, RC, WC>
-{
+impl<'a, F: Flash + 'static> flash::Client<F> for LogStorage<'a, F> {
     fn read_complete(&self, _read_buffer: &'static mut F::Page, _error: flash::Error) {
         // Reads are made directly from the storage volume, not through the flash interface.
         unreachable!();
@@ -846,12 +794,12 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> flash::Clien
                     State::Append => {
                         // Reset pagebuffer and finish writing on the new page.
                         if self.reset_pagebuffer(pagebuffer) {
-                            self.buffer.take().map_or_else(
-                                || self.state.set(State::Invalid),
-                                move |buffer| {
+                            self.buffer
+                                .take()
+                                .map(move |buffer| {
                                     self.append_entry(buffer, self.length.get(), pagebuffer);
-                                },
-                            );
+                                })
+                                .unwrap();
                         } else {
                             self.pagebuffer.replace(pagebuffer);
                             self.length.set(0);
@@ -902,7 +850,7 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> flash::Clien
                     if self.reset() {
                         self.error.set(ReturnCode::SUCCESS);
                     } else {
-                        self.error.set(ReturnCode::ENOMEM);
+                        self.error.set(ReturnCode::ERESERVE);
                     }
                     self.client_callback();
                 } else {
@@ -927,9 +875,7 @@ impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> flash::Clien
     }
 }
 
-impl<'a, F: Flash + 'static, RC: LogReadClient, WC: LogWriteClient> DynamicDeferredCallClient
-    for LogStorage<'a, F, RC, WC>
-{
+impl<'a, F: Flash + 'static> DynamicDeferredCallClient for LogStorage<'a, F> {
     fn call(&self, _handle: DeferredCallHandle) {
         self.client_callback();
     }

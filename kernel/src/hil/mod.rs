@@ -18,6 +18,7 @@ pub mod radio;
 pub mod rng;
 pub mod sensors;
 pub mod spi;
+pub mod storage_interface;
 pub mod symmetric_encryption;
 pub mod time;
 pub mod uart;

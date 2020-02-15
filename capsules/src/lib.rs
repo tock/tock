@@ -52,7 +52,6 @@ pub mod sdcard;
 pub mod segger_rtt;
 pub mod si7021;
 pub mod spi;
-pub mod storage_interface;
 pub mod temperature;
 pub mod tmp006;
 pub mod tsl2561;

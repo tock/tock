@@ -1,4 +1,6 @@
-use kernel::ReturnCode;
+//! Interfaces for storage devices.
+
+use crate::returncode::ReturnCode;
 
 pub type StorageLen = usize;
 pub type OperationResult = Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
@@ -6,18 +8,17 @@ pub type OperationResult = Result<(), (ReturnCode, Option<&'static mut [u8]>)>;
 /// Cookies represent seekable positions within a storage interface. `SeekBeginning` allows a
 /// client to seek to the very beginning of the interface. `Cookie` allows the client to seek to a
 /// particular position within the interface. How a `Cookie` internally represents a position is up
-/// to the implementer. `Invalid` represents an invalid position that cannot be seeked.
+/// to the implementer.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum StorageCookie {
     SeekBeginning,
     Cookie(usize),
-    Invalid,
 }
 
 /// An interface for reading from log storage.
-pub trait LogRead<'a, RC> {
+pub trait LogRead<'a> {
     /// Set the client for reading from a log. The client will be called when operations complete.
-    fn set_read_client(&'a self, read_client: &'a RC);
+    fn set_read_client(&'a self, read_client: &'a dyn LogReadClient);
 
     /// Read log data starting from the current read position.
     fn read(&self, buffer: &'static mut [u8], length: StorageLen) -> OperationResult;
@@ -40,9 +41,9 @@ pub trait LogReadClient {
 }
 
 /// An interface for writing to log storage.
-pub trait LogWrite<'a, WC> {
+pub trait LogWrite<'a> {
     /// Set the client for appending from a log. The client will be called when operations complete.
-    fn set_append_client(&'a self, append_client: &'a WC);
+    fn set_append_client(&'a self, append_client: &'a dyn LogWriteClient);
 
     /// Append bytes to the end of the log.
     fn append(&self, buffer: &'static mut [u8], length: StorageLen) -> OperationResult;
