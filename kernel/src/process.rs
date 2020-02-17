@@ -66,9 +66,10 @@ pub fn load_processes<C: Chip>(
 
             if config::CONFIG.debug_load_processes {
                 debug!(
-                    "Loaded process[{}] from flash={:#010X} into sram=[{:#010X}:{:#010X}] = {:?}",
+                    "Loaded process[{}] from flash=[{:#010X}:{:#010X}] into sram=[{:#010X}:{:#010X}] = {:?}",
                     i,
                     apps_in_flash_ptr as usize,
+                    apps_in_flash_ptr as usize + flash_offset,
                     app_memory_ptr as usize,
                     app_memory_ptr as usize + memory_offset,
                     process.map(|p| p.get_process_name())
@@ -1212,14 +1213,18 @@ impl<C: 'static + Chip> Process<'a, C> {
                 if config::CONFIG.debug_load_processes {
                     if !tbf_header.is_app() {
                         debug!(
-                            "[!] flash={:#010X} process={:?} - process isn't an app",
-                            app_flash_address as usize, process_name
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't an app",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
                         );
                     }
                     if !tbf_header.enabled() {
                         debug!(
-                            "[!] flash={:#010X} process={:?} - process isn't enabled",
-                            app_flash_address as usize, process_name
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - process isn't enabled",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
                         );
                     }
                 }
@@ -1235,17 +1240,23 @@ impl<C: 'static + Chip> Process<'a, C> {
             let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
             // Allocate MPU region for flash.
-            if let None = chip.mpu().allocate_region(
-                app_flash_address,
-                app_flash_size,
-                app_flash_size,
-                mpu::Permissions::ReadExecuteOnly,
-                &mut mpu_config,
-            ) {
+            if chip
+                .mpu()
+                .allocate_region(
+                    app_flash_address,
+                    app_flash_size,
+                    app_flash_size,
+                    mpu::Permissions::ReadExecuteOnly,
+                    &mut mpu_config,
+                )
+                .is_none()
+            {
                 if config::CONFIG.debug_load_processes {
                     debug!(
-                        "[!] flash={:#010X} process={:?} - couldn't allocate flash region",
-                        app_flash_address as usize, process_name
+                        "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate flash region",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
                     );
                 }
                 return (None, app_flash_size, 0);
@@ -1296,8 +1307,11 @@ impl<C: 'static + Chip> Process<'a, C> {
                     // Failed to load process. Insufficient memory.
                     if config::CONFIG.debug_load_processes {
                         debug!(
-                            "[!] flash={:#010X} process={:?} - couldn't allocate memory region",
-                            app_flash_address as usize, process_name
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't allocate memory region of size >= {:#X}",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name,
+                            min_total_memory_size
                         );
                     }
                     return (None, app_flash_size, 0);
@@ -1424,8 +1438,10 @@ impl<C: 'static + Chip> Process<'a, C> {
                 Err(_) => {
                     if config::CONFIG.debug_load_processes {
                         debug!(
-                            "[!] flash={:#010X} process={:?} - couldn't initialize process",
-                            app_flash_address as usize, process_name
+                            "[!] flash=[{:#010X}:{:#010X}] process={:?} - couldn't initialize process",
+                            app_flash_address as usize,
+                            app_flash_address as usize + app_flash_size,
+                            process_name
                         );
                     }
                     return (None, app_flash_size, 0);
