@@ -2,7 +2,7 @@ OpenTitan Tock Working Group (OT)
 =================================
 
 - Working Group Charter
-- Adopted 2/14/2020
+- Adopted 2/17/2020
 
 ## Goals
 
