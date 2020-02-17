@@ -1,0 +1,110 @@
+Tock OT Notes 2/7/2020
+Present:
+  Laura Abbott, Oxide Computer
+  Brad Campbell (Chair),  University of Virginia
+  Jon Flatley, Google
+  Garret Kelly, Google
+  Philip Levis, Stanford University/Google
+  Patrick Mooney, Oxide Computer
+  Adam Leventhal (listener), Oxide Computer
+
+Brad: Let's discuss the draft charter. Phil sent it out. There was some mailing list discussion. Let's see if there are any changes we want to make.
+
+Brad: The one issue that stood out to me is the difference between OpenTitan and RISC-V, and addressing RISC-V more generally beyond OpenTitan. We don't want to make this the OpenTitan plus RISC-V WG, but OT will involve a lot of RISC-V development. So it should be included. My opinion is that it would be good to split the core OT crates/directories into one category, and that this group is secondarily also in charge of the RISC-V traits. But if a RISC-V specific group were to form then we wouldn't be in charge of it.
+
+Brad: I think it sends the wrong message for a group to say "We're taking over this, but we aren't fully responsible for it."
+
+Patrick: Splitting it out as you describe, that it's relevant not a direct claim of ownership, might make sense.
+
+Phil: That was my intention -- OT is the point, RISC-V is because of speed of development and expediency.
+
+Brad: Slight change to the wording would be good.
+
+Brad: OK, let's go on to goals.
+
+Laura: How will we do validation and integration?
+
+Brad: Tock has CI for the main repository. Format checker, checks that code compiles.
+
+Patrick: Given how the hardware is changing, there's at least some jostling between stabilizing hardware interfaces and which versions of Tock compiles and runs on those interfaces.
+
+Brad: Another layer of complexity -- it's not immutable here.
+
+Patrick: Hopefully for interrupts, it's about getting it into line with the RISC-V spec. I have some other issues filed about it. They have been very good about responding and getting those fixed. How much movement is expected?
+
+Jon: We are writing these low-level device interface functions (DIFs). We have them for device validation (DV). While DV is going on, there's the chance that peripherals will be changing as bugs in the hardware are found and as requirements potentially change. One thing I did want to talk about is how we want to be using these DIFs inside of Tock. They're the most tested ways to interact with the hardware. There's a technical discussion to have about how we can use these inside of Tock.
+
+Brad: DIFs are drivers?
+
+Jon: Sort of. Written in C. Dependency-free C code to poke registers mostly, do some other very simple hardware actuation. There are higher-level drivers that call into these DIFs. They are simple. Don't handle interrupts.
+
+Brad: Along those lines, one goal is to get more peripheral support but using those implementations at first, eventually to switch them to Rust?
+
+Jon: That's absolutely right. We have a hard requirement that we need to use these DIFs to actuate the hardware. They're our main source of truth. We have the most confidence that if you use these DIFs, hardware will do what it's supposed to do, as DV follows them. We don't want to get in their way. The problem of using these inside of Tock is an active problem that I'm looking at ways to best figure out. Once the DV phase is wrapping up and the hardware is not changing, the goal would be
+to take these and rewrite them in equivalent Rust, and use them in Tock.
+
+Brad: Would it be helpful to have an OpenTitan fork, that we have access to, to work on these things before it can be upstreamed? You mentioned not stepping on people working on these, it would be fine to have our own fork of Tock, if that would be helpful.
+
+Jon: One approach, we are open to others. We were thinking of putting Tock in the OT tree as a submodule. We'd then write an OT board that lives outside the Tock tree. We'd then write a crate that maps Rust to the DIFs. This board definition would pull those in, and let us compile using the DIFs, from the OT repository. We don't want to diverge.
+
+Brad: Even if it wasn't a fork, it could be a workspace for crates or other things relevant to OpenTitan. Cargo is pretty nice, it should not be necessary to have a submodule. With Cargo you can just point to any repository, crate, and commit hash.
+
+Jon: Reason for the submodule, is so the code is living there in the tree, so you have it all there.
+
+Phil: We'll need Rust reflections of these DIFs.
+
+Patrick: Would this be a separate chip implementation? If we are using separate Rust implementations of these drivers. Depending on how those interfaces get broken out.
+
+Jon: It would be ideal to not split efforts on this. I don't know your stance on having Rust implementations for devices that are critical to the system operating, like the PLIC. We want to focus on drivers that are using these DIFs, because that's where testing is going. We don't want to change the in-tree OpenTitan board definition. The thought is that anyone
+doing OpenTitan work with Tock would use these drivers.
+
+Brad: One option, is to do the handoff at the HIL. So we have implementations on DIFs and Rust ones.
+
+Patrick: How much driver complexity is on top of the DIFs? What is the complexity above these
+DIFs? Where is the line?
+
+Jon: The Rust drivers would need to... the DIFs are doing very simple things, like accessing
+registers. The DIFs aren't doing too much.
+
+Patrick: Do you imagine the complex things being in Rust, or in C, which Tock calls?
+
+Jon: Rust. But we need the Rust to sit on top of the DIFs.
+
+Brad: Switching from C version of DIFs to Rust version in Tock seems like not a big deal. Would it be worth having a layer on top of the DIFs?
+
+Jon: That's the ideal scenario.
+
+Phil: Can we look at some?
+
+Patrick: There are a few.
+
+(look at UART DIF)
+
+Brad: These seem higher level than I thought. That's one avenue forward. Are there other implementations, projects, things people are thinking in the short term?
+
+Patrick: I'm interested in the timer and syscall stuff.
+
+Phil: Sorry I got the core call invitation to you so last minute. Let’s definitely talk about these there.
+
+Patrick: Laura and Adam have been focusing on the relocation challenges with RISC-V.
+
+Brad: Having embedded PIC code has been a challenge. There's the n-by-k approach: link for multiple locations, hope we have one close enough. There's also having relocation state, so the kernel can do fixups as needed.
+
+Laura: We wanted to fix this in LLVM. The biggest impediment is writing up a specification.
+
+Brad: Interesting. I wasn't sure if it was feasible.
+
+Adam: We did have an offer from Sam Eliot (sp), he said the first step was a spec. Question is
+whether this is easy or whether this is going to be really hard to get upstreamed.
+
+Laura: We looked at the others, they were not appealing. Really wanted to pursue the LLVM approach.
+
+Phil: Why dynamic relocation? Would you just sign app + kernel? What's the use case?
+
+Adam: TBD -- we think it should be possible, and want to explore it. Flexibility is always good.
+
+Brad: OK, until next week. I’ll make a PR for the draft charter, we can work on it there.
+
+
+
+
