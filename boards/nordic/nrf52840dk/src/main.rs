@@ -68,9 +68,7 @@ use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
-#[cfg(not(feature = "usb_debugging"))]
-use nrf52dk_base::UartPins;
-use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartChannel};
+use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -85,13 +83,9 @@ const BUTTON3_PIN: Pin = Pin::P0_24;
 const BUTTON4_PIN: Pin = Pin::P0_25;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-#[cfg(not(feature = "usb_debugging"))]
 const UART_RTS: Pin = Pin::P0_05;
-#[cfg(not(feature = "usb_debugging"))]
 const UART_TXD: Pin = Pin::P0_06;
-#[cfg(not(feature = "usb_debugging"))]
 const UART_CTS: Pin = Pin::P0_07;
-#[cfg(not(feature = "usb_debugging"))]
 const UART_RXD: Pin = Pin::P0_08;
 
 const SPI_MOSI: Pin = Pin::P0_20;
@@ -102,8 +96,13 @@ const SPI_MX25R6435F_CHIP_SELECT: Pin = Pin::P0_17;
 const SPI_MX25R6435F_WRITE_PROTECT_PIN: Pin = Pin::P0_22;
 const SPI_MX25R6435F_HOLD_PIN: Pin = Pin::P0_23;
 
-/// UART Writer
+/// Debug Writer
 pub mod io;
+
+// Whether to use UART debugging or Segger RTT (USB) debugging.
+// - Set to false to use UART.
+// - Set to true to use Segger RTT over USB.
+const USB_DEBUGGING: bool = false;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -129,16 +128,21 @@ pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52840::init();
 
-    // Initialize Segger RTT as early as possible so that any panic beyond this point can use the
-    // RTT memory object.
-    #[cfg(feature = "usb_debugging")]
-    let rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let uart_channel = if USB_DEBUGGING {
+        // Initialize Segger RTT as early as possible so that any panic beyond this point can use the
+        // RTT memory object.
+        let mut rtt_memory_refs =
+            components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
 
-    // XXX: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
-    // aliases reference is only used inside a panic handler, which should be OK, but maybe we
-    // should use a const reference to rtt_memory and leverage interior mutability instead.
-    #[cfg(feature = "usb_debugging")]
-    self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
+        // XXX: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
+        // aliases reference is only used inside a panic handler, which should be OK, but maybe we
+        // should use a const reference to rtt_memory and leverage interior mutability instead.
+        self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
+
+        UartChannel::Rtt(rtt_memory_refs)
+    } else {
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
+    };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let gpio = components::gpio::GpioComponent::new(board_kernel).finalize(
@@ -211,10 +215,7 @@ pub unsafe fn reset_handler() {
         LED2_PIN,
         LED3_PIN,
         led,
-        #[cfg(feature = "usb_debugging")]
-        UartChannel::Rtt(up_buffer, down_buffer, rtt_memory),
-        #[cfg(not(feature = "usb_debugging"))]
-        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD)),
+        uart_channel,
         &SpiPins::new(SPI_MOSI, SPI_MISO, SPI_CLK),
         &Some(SpiMX25R6435FPins::new(
             SPI_MX25R6435F_CHIP_SELECT,

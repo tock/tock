@@ -17,9 +17,6 @@ lto = true
 opt-level = "z"
 debug = true
 
-[features]
-usb_debugging = []
-
 [dependencies]
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
