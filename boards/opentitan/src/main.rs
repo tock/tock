@@ -15,6 +15,9 @@ use kernel::Platform;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
+#[allow(dead_code)]
+mod aes_test;
+
 pub mod io;
 //
 // Actual memory for holding the active process structures. Need an empty list
@@ -195,6 +198,7 @@ pub unsafe fn reset_handler() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(board_kernel, uart_mux).finalize(());
 
+    aes_test::run_aes128_ecb();
     debug!("OpenTitan initialisation complete. Entering main loop");
 
     extern "C" {
