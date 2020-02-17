@@ -18,6 +18,7 @@ usage:
 	@echo "  allboards: Compiles Tock for all supported boards"
 	@echo "   allcheck: Checks, but does not compile, Tock for all supported boards"
 	@echo "     alldoc: Builds Tock documentation for all boards"
+	@echo "      audit: Audit Cargo dependencies for all kernel sources"
 	@echo "         ci: Run all continuous integration tests"
 	@echo "      clean: Clean all builds"
 	@echo "     format: Runs the rustfmt tool on all kernel sources"
