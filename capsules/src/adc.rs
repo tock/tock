@@ -150,16 +150,34 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Adc<'a, A> {
     ///
     /// - `buf` - buffer to be stored
     fn replace_buffer(&self, buf: &'static mut [u16]) -> &TakeCell<'static, [u16]> {
-        if self.adc_buf1.is_none() {
-            self.adc_buf1.replace(buf);
-            &self.adc_buf1
-        } else if self.adc_buf2.is_none() {
-            self.adc_buf2.replace(buf);
-            &self.adc_buf2
-        } else {
+        // We play a little trick here where we always insert replaced buffers
+        // in the last position but pull new buffers (in `take_and_map_buffer`)
+        // from the beginning. We do this to get around Rust ownership rules
+        // when handling errors. When we are doing continuous buffering, we need
+        // to make sure that we re-gain ownership of the buffer passed back from
+        // the ADC driver, AND we have to copy from that buffer the samples the
+        // ADC driver took. To allow us to ensure we re-gain ownership, even if
+        // an error occurs (like the app crashes), we unconditionally save
+        // ownership of the returned buffer first (by calling this function).
+        // However, we also pass zero or one buffers back to the ADC driver, and
+        // we must ensure we do not pass the same buffer right back to the
+        // driver before we have had a chance to save the samples.
+
+        if self.adc_buf3.is_none() {
             self.adc_buf3.replace(buf);
-            &self.adc_buf3
+        } else {
+            let temp = self.adc_buf3.take();
+            self.adc_buf3.replace(buf);
+
+            // Find a place to insert the buffer we removed from the last slot.
+            if self.adc_buf2.is_none() {
+                temp.map(|likely_buffer| self.adc_buf2.replace(likely_buffer));
+            } else {
+                temp.map(|likely_buffer| self.adc_buf1.replace(likely_buffer));
+            }
         }
+
+        &self.adc_buf3
     }
 
     /// Find a buffer to give to the ADC to store samples in.
@@ -792,7 +810,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                 }
                             }
                         } else {
-                            // we need to get more samples from the current app_buffer
+                            // we need to get more samples for the current app_buffer
                             perform_callback = false;
 
                             // provide a new buffer and update state
