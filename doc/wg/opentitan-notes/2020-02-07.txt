@@ -94,7 +94,7 @@ Laura: We wanted to fix this in LLVM. The biggest impediment is writing up a spe
 
 Brad: Interesting. I wasn't sure if it was feasible.
 
-Adam: We did have an offer from Sam Eliot (sp), he said the first step was a spec. Question is
+Adam: We did have an offer from Sam Elliott, he said the first step was a spec. Question is
 whether this is easy or whether this is going to be really hard to get upstreamed.
 
 Laura: We looked at the others, they were not appealing. Really wanted to pursue the LLVM approach.
