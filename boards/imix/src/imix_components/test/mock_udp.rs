@@ -12,7 +12,7 @@ use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use capsules::net::udp::udp_port_table::UdpPortManager;
-use kernel::capabilities::UdpVisCap;
+use kernel::capabilities::UdpVisibilityCapability;
 use kernel::common::cells::TakeCell;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
@@ -31,7 +31,7 @@ pub struct MockUDPComponent {
     id: u16,
     dst_port: u16,
     net_cap: &'static NetworkCapability,
-    udp_vis: &'static dyn UdpVisCap,
+    udp_vis: &'static dyn UdpVisibilityCapability,
 }
 
 impl MockUDPComponent {
@@ -47,7 +47,7 @@ impl MockUDPComponent {
         id: u16,
         dst_port: u16,
         net_cap: &'static NetworkCapability,
-        udp_vis: &'static dyn UdpVisCap,
+        udp_vis: &'static dyn UdpVisibilityCapability,
     ) -> MockUDPComponent {
         MockUDPComponent {
             udp_send_mux: udp_send_mux,

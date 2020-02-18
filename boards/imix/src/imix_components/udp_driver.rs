@@ -37,7 +37,7 @@ use kernel::{create_capability, create_static_capability, static_init};
 
 use kernel;
 use kernel::capabilities;
-use kernel::capabilities::{UdpVisCap, NetCapCreateCap};
+use kernel::capabilities::{UdpVisibilityCapability, NetworkCapabilityCreationCapability};
 use kernel::component::Component;
 use sam4l;
 
@@ -84,7 +84,7 @@ impl Component for UDPDriverComponent {
 
     unsafe fn finalize(&mut self, _s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let udp_vis = create_static_capability!(UdpVisCap);
+        let udp_vis = create_static_capability!(UdpVisibilityCapability);
         let udp_send = static_init!(
             UDPSendStruct<
                 'static,
@@ -102,10 +102,10 @@ impl Component for UDPDriverComponent {
         // static DRIVER_CAP: DriverCap = DriverCap;
         let driver_cap = create_static_capability!(capabilities::UdpDriverCapability);
 
-        // struct NetCapCreateCapStruct;
-        // unsafe impl NetCapCreateCap for NetCapCreateCapStruct {}
-        // static mut CREATE_CAP: NetCapCreateCapStruct = NetCapCreateCapStruct;
-        let create_cap = create_static_capability!(NetCapCreateCap);
+        // struct NetworkCapabilityCreationCapabilityStruct;
+        // unsafe impl NetworkCapabilityCreationCapability for NetworkCapabilityCreationCapabilityStruct {}
+        // static mut CREATE_CAP: NetworkCapabilityCreationCapabilityStruct = NetworkCapabilityCreationCapabilityStruct;
+        let create_cap = create_static_capability!(NetworkCapabilityCreationCapability);
 
 
 

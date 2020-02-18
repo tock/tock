@@ -126,7 +126,7 @@ use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::test::udp::MockUdp;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::capabilities::{NetCapCreateCap, UdpVisCap};
+use kernel::capabilities::{NetworkCapabilityCreationCapability, UdpVisibilityCapability};
 use kernel::{create_static_capability};
 use kernel::component::Component;
 use kernel::debug;
@@ -159,7 +159,7 @@ pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     mock_udp1: &'a MockUdp<'a, A>,
     mock_udp2: &'a MockUdp<'a, A>,
     test_mode: Cell<TestMode>,
-    create_cap: &'static dyn NetCapCreateCap,
+    create_cap: &'static dyn NetworkCapabilityCreationCapability,
 }
 
 pub unsafe fn initialize_all(
@@ -174,12 +174,12 @@ pub unsafe fn initialize_all(
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
-    let create_cap = create_static_capability!(NetCapCreateCap);
+    let create_cap = create_static_capability!(NetworkCapabilityCreationCapability);
     let net_cap = static_init!(
         NetworkCapability,
         NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, create_cap)
     );
-    let udp_vis = create_static_capability!(UdpVisCap);
+    let udp_vis = create_static_capability!(UdpVisibilityCapability);
     let mock_udp1 = MockUDPComponent::new(
         udp_send_mux,
         udp_recv_mux,
@@ -231,7 +231,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         port_table: &'static UdpPortManager,
         mock_udp1: &'static MockUdp<'a, A>,
         mock_udp2: &'static MockUdp<'a, A>,
-        create_cap: &'static dyn NetCapCreateCap,
+        create_cap: &'static dyn NetworkCapabilityCreationCapability,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
             alarm: alarm,

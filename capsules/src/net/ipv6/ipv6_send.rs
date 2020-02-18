@@ -23,7 +23,7 @@ use crate::net::ipv6::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::network_capabilities::NetworkCapability;
 use crate::net::sixlowpan::sixlowpan_state::TxState;
 use core::cell::Cell;
-use kernel::capabilities::IpVisCap;
+use kernel::capabilities::IpVisibilityCapability;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::leasable_buffer::LeasableBuffer;
 use kernel::debug;
@@ -105,7 +105,7 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     dst_mac_addr: MacAddress,
     src_mac_addr: MacAddress,
     client: OptionalCell<&'a dyn IP6SendClient>,
-    ip_vis: &'static dyn IpVisCap,
+    ip_vis: &'static dyn IpVisibilityCapability,
 }
 
 impl<A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
@@ -157,7 +157,7 @@ impl<A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         radio: &'a dyn MacDevice<'a>,
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
-        ip_vis: &'static dyn IpVisCap,
+        ip_vis: &'static dyn IpVisibilityCapability,
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),

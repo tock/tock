@@ -34,7 +34,7 @@
 
 use crate::net::network_capabilities::NetworkCapability;
 use core::fmt;
-use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability, UdpVisCap};
+use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability, UdpVisibilityCapability};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::ReturnCode;
 
@@ -73,7 +73,7 @@ pub struct UdpSocket {
 pub struct UdpPortManager {
     port_array: TakeCell<'static, [Option<SocketBindingEntry>]>,
     user_ports: OptionalCell<&'static dyn PortQuery>,
-    udp_vis: &'static dyn UdpVisCap,
+    udp_vis: &'static dyn UdpVisibilityCapability,
 }
 
 impl fmt::Debug for UdpPortManager {
@@ -146,7 +146,7 @@ impl UdpPortManager {
     pub fn new(
         _cap: &dyn CreatePortTableCapability,
         used_kernel_ports: &'static mut [Option<SocketBindingEntry>],
-        udp_vis: &'static dyn UdpVisCap,
+        udp_vis: &'static dyn UdpVisibilityCapability,
     ) -> UdpPortManager {
         UdpPortManager {
             port_array: TakeCell::new(used_kernel_ports),

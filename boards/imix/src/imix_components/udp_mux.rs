@@ -41,7 +41,7 @@ use capsules::net::udp::udp_send::MuxUdpSender;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel;
 use kernel::capabilities;
-use kernel::capabilities::{IpVisCap, UdpVisCap};
+use kernel::capabilities::{IpVisibilityCapability, UdpVisibilityCapability};
 use kernel::component::Component;
 use kernel::{create_capability, create_static_capability};
 use kernel::hil::radio;
@@ -132,8 +132,8 @@ impl Component for UDPMuxComponent {
             capsules::ieee802154::virtual_mac::MacUser::new(self.mux_mac)
         );
         self.mux_mac.add_user(udp_mac);
-        let udp_vis = create_static_capability!(UdpVisCap);
-        let ip_vis = create_static_capability!(IpVisCap);
+        let udp_vis = create_static_capability!(UdpVisibilityCapability);
+        let ip_vis = create_static_capability!(IpVisibilityCapability);
 
 
 

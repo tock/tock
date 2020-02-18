@@ -33,7 +33,7 @@ use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxSta
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::capabilities::IpVisCap;
+use kernel::capabilities::IpVisibilityCapability;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::Frequency;
@@ -75,7 +75,7 @@ pub unsafe fn initialize_all(
     mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
     net_cap: &'static NetworkCapability,
-    ip_vis: &'static dyn IpVisCap,
+    ip_vis: &'static dyn IpVisibilityCapability,
 ) -> &'static LowpanICMPTest<
     'static,
     capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
