@@ -273,13 +273,34 @@ impl<T: Default> Iterator for Iter<'a, T> {
     type Item = AppliedGrant<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Save a local copy of grant_num so we don't have to access `self`
+        // in the closure below.
+        let grant_num = self.grant.grant_num;
+
         // Get the next `AppId` from the kernel processes array. There can be
         // empty slots in the processes array, so we use `find_map()` to skip
         // over those. Since the iterator itself is saved calling this function
         // again will start where we left off.
-        let res = self
-            .subiter
-            .find_map(|pi| pi.map_or(None, |p| Some(p.appid())));
+        let res = self.subiter.find_map(|pi| {
+            pi.map_or(None, |p| {
+                // We have found a candidate process that exists in the
+                // processes array. Now we have to check if this grant is setup
+                // for this process. If not, we have to skip it and keep
+                // looking.
+                unsafe {
+                    if let Some(grant_ptr_ref) = p.grant_ptr(grant_num) {
+                        let cntr = *(grant_ptr_ref as *mut *mut T);
+                        if cntr.is_null() {
+                            None
+                        } else {
+                            Some(p.appid())
+                        }
+                    } else {
+                        None
+                    }
+                }
+            })
+        });
 
         // Check if our find above returned another `AppId`, or if we hit the
         // end of the iterator. If we found another app, try to access its grant
