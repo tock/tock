@@ -266,6 +266,35 @@ impl Kernel {
                     // Running means that this process expects to be running,
                     // so go ahead and set things up and switch to executing
                     // the process.
+
+                    match process.dequeue_task() {
+                        None => {}
+                        Some(cb) => match cb {
+                            Task::FunctionCall(ccb) => {
+                                // Get the current state
+                                let current_state = process.get_current_register_state();
+
+                                // Process and schedule the callback
+                                process.set_process_function(ccb);
+
+                                // Enqueue the original state if we are handling a callback
+                                if ccb.source != process::FunctionCallSource::Kernel {
+                                    process.enqueue_task(process::Task::FunctionCall(
+                                        process::FunctionCall {
+                                            source: process::FunctionCallSource::Kernel,
+                                            pc: current_state.0,
+                                            argument0: current_state.1,
+                                            argument1: current_state.2,
+                                            argument2: current_state.3,
+                                            argument3: current_state.4,
+                                        },
+                                    ));
+                                }
+                            }
+                            _ => {}
+                        },
+                    }
+
                     process.setup_mpu();
                     chip.mpu().enable_mpu();
                     systick.enable(true);

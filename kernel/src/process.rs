@@ -348,7 +348,7 @@ pub enum Task {
 /// kernel or from a callback subscribed through a driver.
 ///
 /// An example of kernel function is the application entry point.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FunctionCallSource {
     Kernel, // For functions coming directly from the kernel, such as `init_fn`.
     Driver(CallbackId),
