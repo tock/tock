@@ -102,6 +102,8 @@ pub trait ProcessType {
     /// or "yielded".
     fn get_state(&self) -> State;
 
+    fn get_current_register_state(&self) -> (usize, usize, usize, usize, usize);
+
     /// Move this process from the running state to the yielded state.
     fn set_yielded_state(&self);
 
@@ -557,6 +559,15 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn get_state(&self) -> State {
         self.state.get()
+    }
+
+    fn get_current_register_state(&self) -> (usize, usize, usize, usize, usize) {
+        let stored_state = self.stored_state.get();
+        unsafe {
+            self.chip
+                .userspace_kernel_boundary()
+                .get_current_register_state(&stored_state)
+        }
     }
 
     fn set_yielded_state(&self) {
