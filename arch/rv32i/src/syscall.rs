@@ -27,7 +27,6 @@ pub struct RiscvimacStoredState {
 // Named offsets into the stored state registers.  These needs to be kept in
 // sync with the register save logic in _start_trap() as well as the register
 // restore logic in switch_to_process() below.
-const R_RA: usize = 0;
 const R_SP: usize = 1;
 const R_A0: usize = 9;
 const R_A1: usize = 10;
@@ -91,14 +90,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_A1] = callback.argument1;
         state.regs[R_A2] = callback.argument2;
         state.regs[R_A3] = callback.argument3;
-
-        // We also need to set the return address (ra) register so that the new
-        // function that the process is running returns to the correct location.
-        // Note, however, that if this function happens to be the first time the
-        // process is executing then `state.pc` is invalid/useless, but the
-        // application must ignore it anyway since there is nothing logically
-        // for it to return to. So this doesn't hurt anything.
-        state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
         state.pc = callback.pc;
@@ -373,25 +364,25 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) {
         let _ = writer.write_fmt(format_args!(
             "\
-            \r\n R0 : {:#010X}    R16: {:#010X}\
-            \r\n R1 : {:#010X}    R17: {:#010X}\
-            \r\n R2 : {:#010X}    R18: {:#010X}\
-            \r\n R3 : {:#010X}    R19: {:#010X}\
-            \r\n R4 : {:#010X}    R20: {:#010X}\
-            \r\n R5 : {:#010X}    R21: {:#010X}\
-            \r\n R6 : {:#010X}    R22: {:#010X}\
-            \r\n R7 : {:#010X}    R23: {:#010X}\
-            \r\n R8 : {:#010X}    R24: {:#010X}\
-            \r\n R9 : {:#010X}    R25: {:#010X}\
-            \r\n R10: {:#010X}    R26: {:#010X}\
-            \r\n R11: {:#010X}    R27: {:#010X}\
-            \r\n R12: {:#010X}    R28: {:#010X}\
-            \r\n R13: {:#010X}    R29: {:#010X}\
-            \r\n R14: {:#010X}    R30: {:#010X}\
-            \r\n R15: {:#010X}    R31: {:#010X}\
-            \r\n PC : {:#010X}\
-            \r\n SP:  {:#010X}\
-            \r\n",
+             \r\n R0 : {:#010X}    R16: {:#010X}\
+             \r\n R1 : {:#010X}    R17: {:#010X}\
+             \r\n R2 : {:#010X}    R18: {:#010X}\
+             \r\n R3 : {:#010X}    R19: {:#010X}\
+             \r\n R4 : {:#010X}    R20: {:#010X}\
+             \r\n R5 : {:#010X}    R21: {:#010X}\
+             \r\n R6 : {:#010X}    R22: {:#010X}\
+             \r\n R7 : {:#010X}    R23: {:#010X}\
+             \r\n R8 : {:#010X}    R24: {:#010X}\
+             \r\n R9 : {:#010X}    R25: {:#010X}\
+             \r\n R10: {:#010X}    R26: {:#010X}\
+             \r\n R11: {:#010X}    R27: {:#010X}\
+             \r\n R12: {:#010X}    R28: {:#010X}\
+             \r\n R13: {:#010X}    R29: {:#010X}\
+             \r\n R14: {:#010X}    R30: {:#010X}\
+             \r\n R15: {:#010X}    R31: {:#010X}\
+             \r\n PC : {:#010X}\
+             \r\n SP:  {:#010X}\
+             \r\n",
             0,
             state.regs[15],
             state.regs[0],
