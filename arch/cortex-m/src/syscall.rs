@@ -137,6 +137,19 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         Ok(stack_bottom)
     }
 
+    unsafe fn get_current_register_state(
+        &self,
+        state: &Self::StoredState,
+    ) -> (usize, usize, usize, usize, usize) {
+        (
+            state.yield_pc,
+            state.regs[0],
+            state.regs[1],
+            state.regs[2],
+            state.regs[3],
+        )
+    }
+
     unsafe fn switch_to_process(
         &self,
         stack_pointer: *const usize,

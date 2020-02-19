@@ -141,6 +141,11 @@ pub trait UserspaceKernelBoundary {
         callback: process::FunctionCall,
     ) -> Result<*mut usize, *mut usize>;
 
+    unsafe fn get_current_register_state(
+        &self,
+        state: &Self::StoredState,
+    ) -> (usize, usize, usize, usize, usize);
+
     /// Context switch to a specific process.
     ///
     /// This returns a tuple:

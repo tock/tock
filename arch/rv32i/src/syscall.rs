@@ -97,6 +97,19 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         Ok(stack_pointer as *mut usize)
     }
 
+    unsafe fn get_current_register_state(
+        &self,
+        state: &Self::StoredState,
+    ) -> (usize, usize, usize, usize, usize) {
+        (
+            state.pc,
+            state.regs[R_A0],
+            state.regs[R_A1],
+            state.regs[R_A2],
+            state.regs[R_A3],
+        )
+    }
+
     // Mock implementation for tests on Travis-CI.
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
