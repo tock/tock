@@ -6,19 +6,23 @@
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use capsules::analog_comparator;
+use capsules::lora::radio::{DRIVER_NUM, Radio};
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_spi::MuxSpiMaster;
+use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil;
-use nrf52::gpio::Pin;
+use kernel::hil::spi;
+use nrf52::gpio::{GPIOPin, Pin};
 use nrf52::rtc::Rtc;
 use nrf52::uicr::Regulator0Output;
 
+use components::spi::{SpiComponent, SpiSyscallComponent};
 pub mod nrf52_components;
 use nrf52_components::ble::BLEComponent;
 use nrf52_components::ieee802154::Ieee802154Component;
+use nrf52_components::lora::LoraComponent;
 
 // Constants related to the configuration of the 15.4 network stack
 const SRC_MAC: u16 = 0xf00f;
@@ -79,6 +83,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
     ieee802154_radio: Option<&'static capsules::ieee802154::RadioDriver<'static>>,
+    lora_radio: Option<&'static capsules::lora::radio::RadioDriver<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>>>,
     button: &'static capsules::button::Button<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
@@ -118,7 +123,7 @@ impl kernel::Platform for Platform {
                 Some(radio) => f(Some(radio)),
                 None => f(None),
             },
-            capsules::lora::DRIVER_NUM => match self.lora_radio {
+            DRIVER_NUM => match self.lora_radio {
                 Some(lora) => f(Some(lora)),
                 None => f(None),
             },
@@ -149,6 +154,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
+    lora: bool,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -287,18 +293,6 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         None
     };
 
-    let lora_radio = if lora {
-        let (radio, _) = LoraComponent::new(
-            board_kernel,
-            capsules::lora::Radio,
-        )
-        .finalize(());
-        Some(radio)
-    } else {
-        None
-    };
-
-
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(
@@ -310,7 +304,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
 
     let rng = components::rng::RngComponent::new(board_kernel, &nrf52::trng::TRNG).finalize(());
 
-    // SPI
+    // SPI and Lora radio
     let mux_spi = static_init!(
         MuxSpiMaster<'static, nrf52::spi::SPIM>,
         MuxSpiMaster::new(&nrf52::spi::SPIM0)
@@ -322,6 +316,25 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         nrf52::pinmux::Pinmux::new(spi_pins.miso as u32),
         nrf52::pinmux::Pinmux::new(spi_pins.clk as u32),
     );
+    let lora_spi = SpiComponent::new(mux_spi, &GPIOPin::new(Pin::P0_00)) //Bad syntax
+        .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
+
+    let RADIO: Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>> = Radio::new(
+        &lora_spi,
+        &GPIOPin::new(Pin::P0_20), //spi_pins.mosi, // reset
+        &GPIOPin::new(Pin::P0_21), //spi_pins.miso, // irq
+    );
+    let lora_radio = if lora {
+        let (radio,) = LoraComponent::new(
+            board_kernel,
+            &RADIO,
+        )
+        .finalize(());
+        Some(radio)
+    } else {
+        None
+    };
+
 
     let nonvolatile_storage: Option<
         &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
@@ -432,6 +445,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         button: button,
         ble_radio: ble_radio,
         ieee802154_radio: ieee802154_radio,
+        lora_radio: lora_radio,
         pconsole: pconsole,
         console: console,
         led: led,
