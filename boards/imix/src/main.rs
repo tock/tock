@@ -317,7 +317,8 @@ pub unsafe fn reset_handler() {
     // Allow processes to communicate over BLE through the nRF51822
     sam4l::usart::USART2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization =
-        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07]).finalize(());
+        Nrf51822Component::new(&sam4l::usart::USART2, &sam4l::gpio::PB[07], board_kernel)
+            .finalize(());
 
     // # TIMER
     let ast = &sam4l::ast::AST;
@@ -475,8 +476,7 @@ pub unsafe fn reset_handler() {
     let chip = static_init!(sam4l::chip::Sam4l, sam4l::chip::Sam4l::new());
     CHIP = Some(&chip);
 
-    // Need to reset the nRF on boot, toggle it's SWDIO
-    imix.nrf51822.reset();
+    // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();
 
     // These two lines need to be below the creation of the chip for
