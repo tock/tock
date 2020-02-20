@@ -69,6 +69,13 @@ pub struct UartPins {
     rxd: Pin,
 }
 
+/// Pins for the LoRa Module
+pub struct LoRaPins {
+    chip_select: &'static GPIOPin,
+    reset: &'static GPIOPin,
+    interrupt: &'static GPIOPin,
+}
+
 impl UartPins {
     pub fn new(rts: Pin, txd: Pin, cts: Pin, rxd: Pin) -> Self {
         Self { rts, txd, cts, rxd }
@@ -154,7 +161,7 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
     mx25r6435f: &Option<SpiMX25R6435FPins>,
     button: &'static capsules::button::Button<'static>,
     ieee802154: bool,
-    lora: bool,
+    lora_pins: &Option<LoRaPins>,
     app_memory: &mut [u8],
     process_pointers: &'static mut [Option<&'static dyn kernel::procs::ProcessType>],
     app_fault_response: kernel::procs::FaultResponse,
@@ -316,15 +323,16 @@ pub unsafe fn setup_board<I: nrf52::interrupt_service::InterruptService>(
         nrf52::pinmux::Pinmux::new(spi_pins.miso as u32),
         nrf52::pinmux::Pinmux::new(spi_pins.clk as u32),
     );
-    let lora_spi = SpiComponent::new(mux_spi, &GPIOPin::new(Pin::P0_00)) //Bad syntax
-        .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
 
-    let RADIO: Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>> = Radio::new(
-        &lora_spi,
-        &GPIOPin::new(Pin::P0_20), //spi_pins.mosi, // reset
-        &GPIOPin::new(Pin::P0_21), //spi_pins.miso, // irq
-    );
-    let lora_radio = if lora {
+    let lora_radio = if let Some(pins) = lora_pins {
+        let lora_spi = SpiComponent::new(mux_spi, pins.chip_select) //Bad syntax
+            .finalize(components::spi_component_helper!(nrf52::spi::SPIM));
+
+        let RADIO: Radio<'static, VirtualSpiMasterDevice<'static, nrf52::spi::SPIM>> = Radio::new(
+            &lora_spi,
+            pins.reset, //spi_pins.mosi, // reset
+            pins.interrupt, //spi_pins.miso, // irq
+        );
         let (radio,) = LoraComponent::new(
             board_kernel,
             &RADIO,

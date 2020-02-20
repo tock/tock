@@ -67,7 +67,7 @@
 use kernel::component::Component;
 #[allow(unused_imports)]
 use kernel::{debug, debug_gpio, debug_verbose, static_init};
-use nrf52840::gpio::Pin;
+use nrf52840::gpio::{Pin;
 use nrf52dk_base::{SpiMX25R6435FPins, SpiPins, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
@@ -87,6 +87,10 @@ const UART_RTS: Pin = Pin::P0_05;
 const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Pin = Pin::P0_07;
 const UART_RXD: Pin = Pin::P0_08;
+
+const LORA_CHIP_SELECT: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_01]; // fixme
+const LORA_RESET: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_01]; // fixme
+const LORA_INT: &GPIOPin = &nrf52840::gpio::PORT[Pin::P1_01]; // fixme
 
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
@@ -207,6 +211,7 @@ pub unsafe fn reset_handler() {
         )),
         button,
         true,
+        &Some(LoRaPins::new(LORA_CHIP_SELECT, LORA_RESET, LORA_INT)),
         &mut APP_MEMORY,
         &mut PROCESSES,
         FAULT_RESPONSE,
