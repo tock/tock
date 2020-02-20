@@ -60,6 +60,8 @@ impl<C: 'static + hil::crc::CRC> Component for CrcComponent<C> {
             crc::Crc::new(self.crc, self.board_kernel.create_grant(&grant_cap))
         );
 
+        self.crc.set_client(crc);
+
         crc
     }
 }
