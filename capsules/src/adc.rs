@@ -981,10 +981,19 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         allow_num: usize,
         slice: Option<AppSlice<Shared, u8>>,
     ) -> ReturnCode {
-        // check that this is either the first syscall to use the adc or that the this is the same
-        // application that has already used the adc
-        let match_or_empty = self.appid.map(|id| id == &appid).unwrap_or(true);
-        if match_or_empty {
+        // Return true if this app already owns the ADC capsule, if no app owns
+        // the ADC capsule, or if the app that is marked as owning the ADC
+        // capsule no longer exists.
+        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+            if self.active.get() {
+                owning_app == &appid
+            } else {
+                self.apps
+                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .unwrap_or(true)
+            }
+        });
+        if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
             return ReturnCode::ENOMEM;
@@ -1046,10 +1055,19 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> Driver for Adc<'a, A> {
         callback: Option<Callback>,
         appid: AppId,
     ) -> ReturnCode {
-        // check that this is either the first syscall to use the adc or that the this is the same
-        // application that has already used the adc
-        let match_or_empty = self.appid.map(|id| id == &appid).unwrap_or(true);
-        if match_or_empty {
+        // Return true if this app already owns the ADC capsule, if no app owns
+        // the ADC capsule, or if the app that is marked as owning the ADC
+        // capsule no longer exists.
+        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+            if self.active.get() {
+                owning_app == &appid
+            } else {
+                self.apps
+                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .unwrap_or(true)
+            }
+        });
+        if match_or_empty_or_nonexistant {
             self.appid.set(appid);
         } else {
             return ReturnCode::ENOMEM;
