@@ -30,7 +30,7 @@ Patrick: Making these possible to run can be non-trivial. Alistair's PMP test, f
 
 Johnathan: I'm in favor of pulling kernel tests into the kernel repository, with the cargo dependency.
 
-Amit: Userspace apps that are not in the library repository, they can be difficult, but you do have the custom layout script for the kernel if you need it What do people think? Why are these tests libtock-rs? Why are they in userland, why are they in Rust?
+Amit: Userspace apps that are not in the library repository, they can be difficult, but you do have the custom layout script for the kernel if you need it. What do people think? Why are these tests libtock-rs? Why are they in userland, why are they in Rust?
 
 Johnathan: In userspace because they test the userspace boundary. E.g., Guillaume's tests callbacks. Alistair's tests the PMP. Why in Rust? Because that's what the developers wanted to use..
 
