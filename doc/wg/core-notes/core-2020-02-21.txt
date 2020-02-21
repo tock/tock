@@ -59,7 +59,7 @@ Amit: I can do it.
 
 Johnathan: OK.
 
-Amit: Should we be using unsafe or capabilities from using kernel interfaces that are not language unsafe but should not be allowed to be used.
+Amit: Should we be using unsafe or capabilities from using kernel interfaces that are not language unsafe but should not be allowed to be used?
 
 Johnathan: Examples would be chip interfaces to memory management. So untrusted capsules should not be able to use this interface. From the threat model discussion at Tock World, my impression was that these should be marked unsafe. Guillaume commented that this is a confusion of unsafe, and that it should be capabilities. I think this would be a change to several interfaces.
 
