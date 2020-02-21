@@ -7,7 +7,7 @@ use core::{mem, ptr, slice, str};
 
 use crate::callback::{AppId, CallbackId};
 use crate::capabilities::ProcessManagementCapability;
-use crate::common::cells::MapCell;
+use crate::common::cells::{MapCell, NumericCellExt};
 use crate::common::{Queue, RingBuffer};
 use crate::config;
 use crate::debug;
@@ -137,6 +137,9 @@ pub trait ProcessType {
     /// `FaultResponse` for this process to occur.
     fn set_fault_state(&self);
 
+    /// Returns how many times this process has been restarted.
+    fn get_restart_count(&self) -> usize;
+
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
@@ -257,9 +260,6 @@ pub trait ProcessType {
     /// Returns how many callbacks for this process have been dropped.
     fn debug_dropped_callback_count(&self) -> usize;
 
-    /// Returns how many times this process has been restarted.
-    fn debug_restart_count(&self) -> usize;
-
     /// Returns how many times this process has exceeded its timeslice.
     fn debug_timeslice_expiration_count(&self) -> usize;
 
@@ -296,7 +296,7 @@ impl ThresholdRestart {
 
 impl ProcessRestartPolicy for ThresholdRestart {
     fn should_restart(&self, process: &dyn ProcessType) -> bool {
-        process.debug_restart_count() <= self.threshold
+        process.get_restart_count() <= self.threshold
     }
 }
 
@@ -469,10 +469,6 @@ struct ProcessDebug {
     /// long.
     dropped_callback_count: usize,
 
-    /// How many times this process has entered into a fault condition and the
-    /// kernel has restarted it.
-    restart_count: usize,
-
     /// How many times this process has been paused because it exceeded its
     /// timeslice.
     timeslice_expiration_count: usize,
@@ -567,6 +563,11 @@ pub struct Process<'a, C: 'static + Chip> {
     /// Essentially a list of callbacks that want to call functions in the
     /// process.
     tasks: MapCell<RingBuffer<'a, Task>>,
+
+    /// Count of how many times this process has entered the fault condition and
+    /// been restarted. This is used by some `ProcessRestartPolicy`s to
+    /// determine if the process should be restarted or not.
+    restart_count: Cell<usize>,
 
     /// Name of the app.
     process_name: &'static str,
@@ -681,9 +682,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
                 // Update debug information
                 self.debug.map(|debug| {
-                    // Mark that we restarted this process.
-                    debug.restart_count += 1;
-
                     // Reset some state for the process.
                     debug.syscall_count = 0;
                     debug.last_syscall = None;
@@ -728,9 +726,8 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                         // state for this process. This shouldn't happen since
                         // the app was able to be started before, but at this
                         // point the app is no longer valid. The best thing we
-                        // can do now is mark the app as still faulted and not
+                        // can do now is leave the app as still faulted and not
                         // schedule it.
-                        self.state.set(State::StoppedFaulted);
                         return;
                     }
                 };
@@ -741,6 +738,9 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
                 // Mark the state as `Unstarted` for the scheduler.
                 self.state.set(State::Unstarted);
+
+                // Mark that we restarted this process.
+                self.restart_count.increment();
 
                 // Enqueue the initial function.
                 self.tasks.map(|tasks| {
@@ -766,6 +766,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 self.terminate();
             }
         }
+    }
+
+    fn get_restart_count(&self) -> usize {
+        self.restart_count.get()
     }
 
     fn dequeue_task(&self) -> Option<Task> {
@@ -1053,10 +1057,6 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         self.debug.map_or(0, |debug| debug.dropped_callback_count)
     }
 
-    fn debug_restart_count(&self) -> usize {
-        self.debug.map_or(0, |debug| debug.restart_count)
-    }
-
     fn debug_timeslice_expiration_count(&self) -> usize {
         self.debug
             .map_or(0, |debug| debug.timeslice_expiration_count)
@@ -1103,7 +1103,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
         let last_syscall = self.debug.map(|debug| debug.last_syscall);
         let dropped_callback_count = self.debug.map_or(0, |debug| debug.dropped_callback_count);
-        let restart_count = self.debug.map_or(0, |debug| debug.restart_count);
+        let restart_count = self.restart_count.get();
 
         let _ = writer.write_fmt(format_args!(
             "\
@@ -1457,6 +1457,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.stored_state = Cell::new(Default::default());
             process.state = Cell::new(State::Unstarted);
             process.fault_response = fault_response;
+            process.restart_count = Cell::new(0);
 
             process.mpu_config = MapCell::new(mpu_config);
             process.mpu_regions = [
@@ -1477,7 +1478,6 @@ impl<C: 'static + Chip> Process<'a, C> {
                 syscall_count: 0,
                 last_syscall: None,
                 dropped_callback_count: 0,
-                restart_count: 0,
                 timeslice_expiration_count: 0,
             });
 
