@@ -36,26 +36,42 @@ macro_rules! uninit_static_buf {
 
 use core::mem::MaybeUninit;
 
+/// A wrapper around a `MaybeUninit<T>` which is guaranteed to contain a
+/// `MaybeUninit::uninit()` value.
 #[repr(transparent)]
 pub struct UninitBuf<T>(MaybeUninit<T>);
 
 impl<T> UninitBuf<T> {
+    /// The only way to contruct an `UninitBuf` is via this function, which
+    /// initializes it to `MaybeUninit::uninit()`. This guarantees the
+    /// invariant that `UninitBuf` doesn't contain an initialized value.
     pub const fn new() -> Self {
         UninitBuf(MaybeUninit::uninit())
     }
 }
 
+/// A wrapper around a static mutable reference to an `UninitBuf`. This wrapper
+/// can be consumed by initializing it to some value, obtaining a static
+/// mutable reference to the inner type `T`.
 pub struct UninitStaticBuf<T: 'static> {
     buf: &'static mut UninitBuf<T>,
 }
 
 impl<T> UninitStaticBuf<T> {
+    /// This function is not intended to be called publicly. It's only meant to
+    /// be called within `uninit_static_buf!` macro, but Rust's visibility
+    /// rules require it to be public, so that the macro's body can be
+    /// instantiated.
     pub fn new(buf: &'static mut UninitBuf<T>) -> Self {
         Self { buf }
     }
 
-    pub unsafe fn initialize(self, expression: T) -> &'static mut T {
-        self.buf.0.as_mut_ptr().write(expression);
+    /// This function consumes an uninitialized static buffer, initializing it
+    /// to some value and returning a static mutable reference to it. This
+    /// allows for runtime initialization of `static` values that don't have a
+    /// `const` constructor.
+    pub unsafe fn initialize(self, value: T) -> &'static mut T {
+        self.buf.0.as_mut_ptr().write(value);
         // TODO: use MaybeUninit::get_mut() once that is stabilized (see
         // https://github.com/rust-lang/rust/issues/63568).
         &mut *self.buf.0.as_mut_ptr() as &'static mut T
