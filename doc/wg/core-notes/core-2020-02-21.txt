@@ -20,7 +20,7 @@ Johnathan: This has come up repeatedly. Both Alistair and Guillaume have tried a
 
 Amit: We do have a bunch of tests in libtock-c that are similarly end-to-end.
 
-Phil:We care about testing, not dogmatic boundaries.
+Phil: We care about testing, not dogmatic boundaries.
 
 Amit: There are issues of having tests in userspace libraries. Why are kernel tests in userspace? Where do the tests actually live? What are the set of tests we should actually run? We could just wite these tests as apps, they depend on libtock-rs through their cargo file.
 
@@ -86,6 +86,5 @@ Johnathan: Yeah, I have some things in libtock-rs. Maybe sizing should be in toc
 Phil: Should I put my size tool in the main repository?
 
 Amit: Yes.
-
 
 
