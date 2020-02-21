@@ -289,11 +289,12 @@ impl Kernel {
                                     let res = memop::memop(process, operand, arg0);
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] memop({}, {:#x}) = {:#x}",
+                                            "[{:?}] memop({}, {:#x}) = {:#x} = {:?}",
                                             appid,
                                             operand,
                                             arg0,
-                                            usize::from(res)
+                                            usize::from(res),
+                                            res
                                         );
                                     }
                                     process.set_syscall_return_value(res.into());
@@ -335,13 +336,14 @@ impl Kernel {
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x}",
+                                            "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
                                             appid,
                                             driver_number,
                                             subdriver_number,
                                             callback_ptr as usize,
                                             appdata,
-                                            usize::from(res)
+                                            usize::from(res),
+                                            res
                                         );
                                     }
                                     process.set_syscall_return_value(res.into());
@@ -364,13 +366,14 @@ impl Kernel {
                                         );
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x}",
+                                            "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:#x} = {:?}",
                                             appid,
                                             driver_number,
                                             subdriver_number,
                                             arg0,
                                             arg1,
-                                            usize::from(res)
+                                            usize::from(res),
+                                            res
                                         );
                                     }
                                     process.set_syscall_return_value(res.into());
@@ -396,13 +399,14 @@ impl Kernel {
                                     });
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x}",
+                                            "[{:?}] allow({:#x}, {}, @{:#x}, {:#x}) = {:#x} = {:?}",
                                             appid,
                                             driver_number,
                                             subdriver_number,
                                             allow_address as usize,
                                             allow_size,
-                                            usize::from(res)
+                                            usize::from(res),
+                                            res
                                         );
                                     }
                                     process.set_syscall_return_value(res.into());
