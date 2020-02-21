@@ -20,8 +20,12 @@ register_structs! {
     /// not implement all NVIC_XXXX registers. If you need to find the number
     /// of NVICs dynamically, consult `ICTR.INTLINESNUM`.
     NvicRegisters {
+        (0x000 => _reserved0),
+
         /// Interrupt Controller Type Register
         (0x004 => ictr: ReadOnly<u32, InterruptControllerType::Register>),
+
+        (0x008 => _reserved1),
 
         /// Interrupt Set-Enable Registers
         (0x100 => iser: [ReadWrite<u32, NvicSetClear::Register>; 32]),
@@ -38,7 +42,7 @@ register_structs! {
         /// Interrupt Active Bit Registers
         (0x300 => iabr: [ReadWrite<u32, NvicSetClear::Register>; 32]),
 
-        (0x380 => _reserved0),
+        (0x380 => _reserved2),
 
         /// Interrupt Priority Registers
         (0x400 => ipr: [ReadWrite<u32, NvicInterruptPriority::Register>; 252]),
