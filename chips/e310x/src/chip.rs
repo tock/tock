@@ -15,12 +15,14 @@ use crate::uart;
 
 pub struct E310x {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
+    pmp: rv32i::pmp::PMPConfig,
 }
 
 impl E310x {
     pub unsafe fn new() -> E310x {
         E310x {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
+            pmp: rv32i::pmp::PMPConfig::new(8),
         }
     }
 
@@ -46,12 +48,12 @@ impl E310x {
 }
 
 impl kernel::Chip for E310x {
-    type MPU = ();
+    type MPU = rv32i::pmp::PMPConfig;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type SysTick = ();
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn systick(&self) -> &Self::SysTick {
