@@ -23,6 +23,7 @@ The goals of the OpenTitan Tock Working Group (OT) are to:
 - Garret Kelly, Google
 - Philip Levis, Stanford University/Google
 - Patrick Mooney, Oxide Computer
+- Silvestrs Timofejevs, lowRISC
 
 ## Membership and Communication
 
