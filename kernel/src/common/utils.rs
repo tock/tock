@@ -17,7 +17,7 @@
 macro_rules! static_init {
     ($T:ty, $e:expr) => {{
         let mut buf = $crate::uninit_static_buf!($T);
-        buf.static_init($e)
+        buf.initialize($e)
     }};
 }
 
@@ -36,6 +36,7 @@ macro_rules! uninit_static_buf {
 
 use core::mem::MaybeUninit;
 
+#[repr(transparent)]
 pub struct UninitBuf<T>(MaybeUninit<T>);
 
 impl<T> UninitBuf<T> {
@@ -53,7 +54,7 @@ impl<T> UninitStaticBuf<T> {
         Self { buf }
     }
 
-    pub unsafe fn static_init(self, expression: T) -> &'static mut T {
+    pub unsafe fn initialize(self, expression: T) -> &'static mut T {
         self.buf.0.as_mut_ptr().write(expression);
         // TODO: use MaybeUninit::get_mut() once that is stabilized (see
         // https://github.com/rust-lang/rust/issues/63568).

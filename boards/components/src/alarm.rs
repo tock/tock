@@ -49,7 +49,7 @@ pub mod alarm_mux_component {
         alarm: &'static A,
         static_buffer: UninitStaticBuf<MuxAlarm<'static, A>>,
     ) -> &'static MuxAlarm<'static, A> {
-        let mux_alarm = static_buffer.static_init(MuxAlarm::new(alarm));
+        let mux_alarm = static_buffer.initialize(MuxAlarm::new(alarm));
 
         time::Alarm::set_client(alarm, mux_alarm);
         mux_alarm
@@ -73,8 +73,8 @@ pub mod alarm_driver_component {
     ) -> &'static AlarmDriver<'static, VirtualMuxAlarm<'static, A>> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let virtual_alarm1 = static_buffer.0.static_init(VirtualMuxAlarm::new(alarm_mux));
-        let alarm = static_buffer.1.static_init(AlarmDriver::new(
+        let virtual_alarm1 = static_buffer.0.initialize(VirtualMuxAlarm::new(alarm_mux));
+        let alarm = static_buffer.1.initialize(AlarmDriver::new(
             virtual_alarm1,
             board_kernel.create_grant(&grant_cap),
         ));
