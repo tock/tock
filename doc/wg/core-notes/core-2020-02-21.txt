@@ -44,7 +44,7 @@ Johnathan: Four options: Kernel repo, separate repo, libtock-c, libtock-rs?
 
 Alistair: libtock-language should have the tests. No more repos!
 Pat: Pro separate repo, negative on kernel repo.
-Patrick: short term languager repos, long-term separate or kernel.
+Patrick: short term: language repos, long-term: separate or kernel.
 Garret: In line with Patrick.
 Sam: Agree with emerging consensus: for now in language repos, too many repos let's not add more.
 Holly: In libtock, in kernel add a note where to go.
