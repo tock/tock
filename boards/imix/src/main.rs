@@ -26,7 +26,7 @@ use kernel::hil::Controller;
 use kernel::{create_capability, debug, debug_gpio, static_init};
 
 use components;
-use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
+use components::alarm::{alarm_driver_component, alarm_mux_component};
 use components::console::{ConsoleComponent, UartMuxComponent};
 use components::crc::CrcComponent;
 use components::debug_writer::DebugWriterComponent;
@@ -321,11 +321,14 @@ pub unsafe fn reset_handler() {
 
     // # TIMER
     let ast = &sam4l::ast::AST;
-    let mux_alarm = AlarmMuxComponent::new(ast)
-        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
+    let mux_alarm =
+        alarm_mux_component::create(ast, components::alarm_mux_component_buf!(sam4l::ast::Ast));
     ast.configure(mux_alarm);
-    let alarm = AlarmDriverComponent::new(board_kernel, mux_alarm)
-        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+    let alarm = alarm_driver_component::create(
+        board_kernel,
+        mux_alarm,
+        components::alarm_component_buf!(sam4l::ast::Ast),
+    );
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));

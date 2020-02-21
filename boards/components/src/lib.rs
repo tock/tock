@@ -19,3 +19,6 @@ pub mod process_console;
 pub mod rng;
 pub mod si7021;
 pub mod spi;
+
+// Needed for the helper macros to resolve uninit_static_buf.
+pub use kernel::uninit_static_buf;

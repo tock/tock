@@ -35,6 +35,7 @@ mod sched;
 mod tbfheader;
 
 pub use crate::callback::{AppId, Callback};
+pub use crate::common::utils::UninitStaticBuf;
 pub use crate::driver::Driver;
 pub use crate::grant::Grant;
 pub use crate::mem::{AppPtr, AppSlice, Private, Shared};

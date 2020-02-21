@@ -15,15 +15,49 @@
 /// destructor.
 #[macro_export]
 macro_rules! static_init {
-    ($T:ty, $e:expr) => {
-        {
-            use core::mem::MaybeUninit;
-            // Statically allocate a read-write buffer for the value, write our
-            // initial value into it (without dropping the initial zeros) and
-            // return a reference to it.
-            static mut BUF: MaybeUninit<$T> = MaybeUninit::uninit();
-            $crate::static_init_half!(&mut BUF, $T, $e)
-        };
+    ($T:ty, $e:expr) => {{
+        let mut buf = $crate::uninit_static_buf!($T);
+        buf.static_init($e)
+    }};
+}
+
+/// Same as `static_init!()` but without initializing the buffer's contents.
+#[macro_export]
+macro_rules! uninit_static_buf {
+    ($T:ty) => {{
+        // Statically allocate a read-write buffer for the value, write our
+        // initial value into it (without dropping the initial zeros) and
+        // return a reference to it.
+        static mut BUF: $crate::common::utils::UninitBuf<$T> =
+            $crate::common::utils::UninitBuf::new();
+        $crate::UninitStaticBuf::new(&mut BUF)
+    }};
+}
+
+use core::mem::MaybeUninit;
+
+pub struct UninitBuf<T>(MaybeUninit<T>);
+
+impl<T> UninitBuf<T> {
+    pub const fn new() -> Self {
+        UninitBuf(MaybeUninit::uninit())
+    }
+}
+
+pub struct UninitStaticBuf<T: 'static> {
+    buf: &'static mut UninitBuf<T>,
+}
+
+impl<T> UninitStaticBuf<T> {
+    pub fn new(buf: &'static mut UninitBuf<T>) -> Self {
+        Self { buf }
+    }
+
+    pub unsafe fn static_init(self, expression: T) -> &'static mut T {
+        self.buf.0.as_mut_ptr().write(expression);
+        // TODO: use MaybeUninit::get_mut() once that is stabilized (see
+        // https://github.com/rust-lang/rust/issues/63568).
+        &mut *self.buf.0.as_mut_ptr() as &'static mut T
     }
 }
 
