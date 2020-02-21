@@ -267,18 +267,22 @@ impl Kernel {
                     // so go ahead and set things up and switch to executing
                     // the process.
 
+                    let mut restore_stored_state = false;
+
                     match process.dequeue_task() {
                         None => {}
                         Some(cb) => match cb {
                             Task::FunctionCall(ccb) => {
                                 // Get the current state
                                 let current_state = process.get_current_register_state();
+                                process.backup_stored_state();
 
                                 // Process and schedule the callback
                                 process.set_process_function(ccb);
 
                                 // Enqueue the original state if we are handling a callback
                                 if ccb.source != process::FunctionCallSource::Kernel {
+                                    restore_stored_state = true;
                                     process.enqueue_task(process::Task::FunctionCall(
                                         process::FunctionCall {
                                             source: process::FunctionCallSource::Kernel,
@@ -301,6 +305,10 @@ impl Kernel {
                     let context_switch_reason = process.switch_to();
                     systick.enable(false);
                     chip.mpu().disable_mpu();
+
+                    if restore_stored_state {
+                        process.restore_stored_state();
+                    }
 
                     // Now the process has returned back to the kernel. Check
                     // why and handle the process as appropriate.
